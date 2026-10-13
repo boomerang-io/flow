@@ -25,6 +25,7 @@ const inputTypeOptions = [
   { label: "Number", value: InputType.Number },
   { label: "Password", value: InputType.Password },
   { label: "Select", value: InputType.Select },
+  { label: "Slider", value: InputType.Slider },
   { label: "Text", value: InputType.Text },
   { label: "Text Area", value: InputType.TextArea },
   { label: "Text Editor", value: InputType.TextEditor },
@@ -35,6 +36,9 @@ const inputTypeOptions = [
   { label: "Time", value: "time" },
   { label: "URL", value: "url" },
 ];
+
+// Mirrors Components/Slider's own fallbacks - see Slider.tsx#validateValue.
+const SLIDER_DEFAULTS = { min: 0, max: 100, step: 1 };
 
 interface TextEditorInputProps extends DataDrivenInput {
   autoSuggestions: string[];
@@ -75,6 +79,13 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
     this.setState({ defaultValueType: value });
     setFieldValue(InputProperty.Type, value);
     setFieldValue(InputProperty.DefaultValue, value === InputType.Boolean ? false : undefined);
+    // A slider is meaningless without bounds, so seed the 0-100 step 1 range the Slider component
+    // itself falls back to rather than leaving three empty fields.
+    if (value === InputType.Slider) {
+      setFieldValue(InputProperty.Min, SLIDER_DEFAULTS.min);
+      setFieldValue(InputProperty.Max, SLIDER_DEFAULTS.max);
+      setFieldValue(InputProperty.Step, SLIDER_DEFAULTS.step);
+    }
   };
 
   // Check if key contains alpahanumeric, underscore, dash, and period chars
@@ -95,6 +106,18 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
 
     if (field.type === InputType.Boolean) {
       if (!field.defaultValue) field.defaultValue = false;
+    }
+
+    // min/max/step only mean anything to a slider, and the service model types them as numbers -
+    // the form holds them as strings like every other Carbon text input.
+    if (field.type !== InputType.Slider) {
+      delete field.min;
+      delete field.max;
+      delete field.step;
+    } else {
+      field.min = Number(field.min ?? SLIDER_DEFAULTS.min);
+      field.max = Number(field.max ?? SLIDER_DEFAULTS.max);
+      field.step = Number(field.step ?? SLIDER_DEFAULTS.step);
     }
     if (this.props.isEdit) {
       const fieldIndex = templateFields.findIndex((field) => field.name === this.props.field.name);
@@ -147,6 +170,59 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
               items={options || []}
               initialSelectedItem={values.default || {}}
               label="Default Option"
+            />
+          </>
+        );
+      case InputType.Slider:
+        return (
+          <>
+            <TextInput
+              data-testid="slider-min"
+              id={InputProperty.Min}
+              labelText="Minimum"
+              helperText="Lowest value the slider allows"
+              onBlur={handleBlur}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(e)}
+              type="number"
+              value={values.min ?? ""}
+              invalid={Boolean(errors.min && touched.min)}
+              invalidText={errors.min}
+            />
+            <TextInput
+              data-testid="slider-max"
+              id={InputProperty.Max}
+              labelText="Maximum"
+              helperText="Highest value the slider allows"
+              onBlur={handleBlur}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(e)}
+              type="number"
+              value={values.max ?? ""}
+              invalid={Boolean(errors.max && touched.max)}
+              invalidText={errors.max}
+            />
+            <TextInput
+              data-testid="slider-step"
+              id={InputProperty.Step}
+              labelText="Step"
+              helperText="Increment between selectable values"
+              onBlur={handleBlur}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(e)}
+              type="number"
+              value={values.step ?? ""}
+              invalid={Boolean(errors.step && touched.step)}
+              invalidText={errors.step}
+            />
+            <TextInput
+              data-testid="slider-default"
+              id={InputProperty.DefaultValue}
+              labelText="Default Value (optional)"
+              helperText="Initial value that can be changed"
+              onBlur={handleBlur}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange(e)}
+              type="number"
+              value={values.default ?? ""}
+              invalid={Boolean(errors.default && touched.default)}
+              invalidText={errors.default}
             />
           </>
         );
@@ -218,6 +294,11 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
         return Yup.boolean();
       case InputType.Number:
         return Yup.number();
+      // Deliberately not Yup.number(): a slider's default is optional, and yup type-errors on the
+      // empty string the form starts it as. The Slider component clamps whatever it is given to
+      // the configured bounds anyway (Slider.tsx#validateValue).
+      case InputType.Slider:
+        return Yup.mixed();
       case InputType.Email:
         return Yup.string().email();
       case InputType.URL:
@@ -249,6 +330,9 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
           // Read in values as an array of strings. Service returns object { key, value }
           [InputProperty.Options]:
             field?.options?.map((option) => (typeof option === "object" ? option.key : option)) ?? [],
+          [InputProperty.Min]: field?.min ?? "",
+          [InputProperty.Max]: field?.max ?? "",
+          [InputProperty.Step]: field?.step ?? "",
         }}
         validationSchema={Yup.object().shape({
           [InputProperty.Name]: Yup.string()
@@ -269,6 +353,23 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
           [InputProperty.ReadOnly]: Yup.boolean(),
           [InputProperty.Required]: Yup.boolean(),
           [InputProperty.Type]: Yup.string().required(),
+          // Base these on `mixed`, not `number`: every other type leaves them as the empty string
+          // the form initialises them to, and `Yup.number()` type-errors on "" - which would make
+          // every non-slider parameter invalid.
+          [InputProperty.Min]: Yup.mixed().when(InputProperty.Type, {
+            is: (type) => type === InputType.Slider,
+            then: Yup.number().required("Enter a minimum"),
+          }),
+          [InputProperty.Max]: Yup.mixed().when(InputProperty.Type, {
+            is: (type) => type === InputType.Slider,
+            then: Yup.number()
+              .required("Enter a maximum")
+              .moreThan(Yup.ref(InputProperty.Min), "Maximum must be greater than the minimum"),
+          }),
+          [InputProperty.Step]: Yup.mixed().when(InputProperty.Type, {
+            is: (type) => type === InputType.Slider,
+            then: Yup.number().required("Enter a step").moreThan(0, "Step must be greater than zero"),
+          }),
           [InputProperty.Options]: Yup.array().when(InputProperty.Type, {
             is: (type) => type === InputType.Select,
             then: Yup.array().required("Enter an option").min(1, "Enter at least one option"),

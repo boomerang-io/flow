@@ -111,7 +111,6 @@ class ControlStateFieldsTest extends AbstractEngineIntegrationTest {
                 assertEquals(
                     RunPhase.completed,
                     workflowRunRepository.findById(wfRunId).orElseThrow().getPhase()));
-    workflowRunService.finalize(wfRunId);
     return wfRunId;
   }
 

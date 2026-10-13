@@ -8,9 +8,8 @@ by `service-core`; the container work for each task is carried out by a separate
 
 | Module | Owns | Depends on |
 | --- | --- | --- |
-| `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, GitHub/Slack integrations. One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:36-39`. | `lib-common` (`service-core/pom.xml:47`) |
+| `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, GitHub/Slack integrations, and the database migrations it runs as it starts (`io.boomerang.migration`; see `data-model.md`). One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:36-39`. | `lib-common` (`service-core/pom.xml:47`) |
 | `service-dispatcher` | The worker that registers with core, polls and claims runs, executes each task in Kubernetes through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-31`), and reports results back. `dispatcher.executor` selects `tekton` (default, `TektonServiceImpl.java:53`) or `kube-jobs` (`KubeJobsExecutor.java:65`). One `dispatcher.tasks.runtimeClassName` per deployment (`service-dispatcher/README.md:15-17`). | `lib-common` (`service-dispatcher/pom.xml:32`) |
-| `service-loader` | Database migrations and seed data on Flamingock, run once before each deploy. `LoaderApplication.java:20` loads every changeunit in `io.boomerang.loader.migration` (`_0001` … `_0039`). It is the only thing that creates indexes: core sets `spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:56`). | Mongo driver only |
 | `lib-common` | The shared wire and storage contract: 9 entities (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError`/`RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`) under `lib-common/src/main/java/io/boomerang/common/`. No beans, no repositories. | — |
 | `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by its own Node server (`client-web/Dockerfile`, `client-web/server/index.js`) with server rendering on (`client-web/react-router.config.ts:16-17`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:24`). | `service-core` over HTTP |
 
@@ -29,10 +28,27 @@ engine image: the same jar runs in either mode (`.github/workflows/ci-release.ym
 | Purpose | The complete product. | Headless embedded execution inside another product. |
 | `flow.security.enabled` default | `true` | `false` (`core/security/FlowSecurityProperties.java:23-29`) |
 | `flow.quotas.enabled` default | `true` | `false` (`application.properties:21-28`) |
-| Packages loaded | All eight. | `workspace`, `schedule`, `integrations` and the sign-in surface (`core/AuthControllerV2.java:43`, `core/security/AuthExchangeService.java:25`) do not load — 18 classes carry the standalone gate. |
-| Workspace | Any workspace. | Only `system`; other `{workspace}` path values are refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). |
-| Web app | Deployed alongside core. | None — `client-web` is never deployed with engine mode. |
+| Packages loaded | All eight. | Workspace management (`workspace/WorkspaceService.java`, its controllers and the profile update), `integrations` and the sign-in surface (`core/AuthControllerV2.java:43`, `core/security/AuthExchangeService.java:25`) do not load — 10 classes carry the standalone gate. Schedules and insights load in both modes. |
+| Workspace | Any workspace. | `system` is the only workspace and is the `{workspace}` path value every workspace-scoped route takes; any other value is refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). The workspace resource itself resolves too — `EngineWorkspaceControllerV2` reads `GET /api/v2/workspace/{workspace}` and `/query` straight off the workspaces collection (`workspace/EngineWorkspaceService.java`), because `WorkspaceService` composes members, quotas and insights that engine mode does not have. `EngineProfileControllerV2` answers `GET /api/v2/profile` with the caller and the `system` workspace as its only workspace (`workspace/EngineProfileControllerV2.java:56`, `EngineWorkspaceService.java:67`). Creating, patching and deleting a workspace, and updating a profile, stay standalone-only. |
+| Web app | Deployed alongside core. | Optional. `client-web` runs unchanged against engine mode; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 | Dispatcher API | `/api/v1/dispatcher/**` behind `DispatcherAuthFilter` in both modes; `flow.dispatcher.auth.enabled` (`application.properties:31-34`) is independent of `flow.security.enabled`. | Same. |
+
+The webapp never reads `flow.mode`. It renders from the flags `GET /api/v2/features` returns, and a flag is on
+only when its setting is on and the surface behind it is loaded in this mode (`core/FeatureService.java:34-80`):
+
+| Flag | `standalone` | `engine` |
+| --- | --- | --- |
+| `workspace.single` | `false` | `true` — no workspace switcher, no create or leave |
+| `workspace.management`, `workspace.quotas`, `user.management` | the setting | `false` |
+| `insights` | the setting | the setting |
+| `schedules` | `true` | `true` |
+| `integrations` | `true` | `false` |
+| `authentication` | `flow.security.enabled` | `false` |
+| `tokens` | `flow.security.enabled` | `flow.security.enabled` (off by default): the token pages, and `workflow.tokens`, show only when security is on |
+
+The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false` the
+webapp's startup loader never requests `GET /api/v2/auth/config` (`client-web/src/Features/App/App.tsx:142-147`),
+so that public endpoint stays standalone-only.
 
 ## Feature packages inside `service-core`
 
@@ -42,9 +58,9 @@ no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews e
 
 | Package | Owns | Imports from (verified by grep over `^import io.boomerang.*`) |
 | --- | --- | --- |
-| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `SecurityInterceptor`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`. | nothing above it — zero upward imports |
-| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), insights, profile. | `core`, `workflow` |
-| `workflow` | Workflow/revision definitions, task catalogue, templates, parameters, actions (approvals), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
+| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `AuthCriteriaAuthorizationManager`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`. | nothing above it — zero upward imports |
+| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), the audit-trail insights roll-up the quotas read (`InsightsService`), the Insights controller, profile. | `core`, `workflow` |
+| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), the run statistics the Insights page shows (`WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
 | `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:14-15`) |
 | `dispatcher` | The worker registry and the v1 wire: `DispatcherControllerV1`, `DispatcherService`, `DispatcherAuthFilter`, `DispatcherSecurityConfiguration`. | `core`, `engine`, `workflow` |
 | `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `workflow` |
@@ -54,7 +70,7 @@ no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews e
 Rules that follow from the table: `core` MUST NOT import any feature package (`core/audit/AuditInterceptor.java:98`
 records the one place this bit); the engine MUST NOT call the platform side synchronously — it publishes
 Spring `ApplicationEvent`s that other packages listen to (`ScheduleRequested` handled by
-`schedule/ScheduleEventListener.java:32-33`; `ChildWorkflowRunCreated` handled by
+`schedule/ScheduleEventListener.java:26-27`; `ChildWorkflowRunCreated` handled by
 `core/RelationshipEventListener.java:36-37`). Controllers live in the package of the service they inject.
 
 ## How a workflow run moves through the system
@@ -66,15 +82,15 @@ Each arrow is a direct in-process call unless marked. Every state change is a co
 | --- | --- | --- |
 | 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submit` → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:252-264`, `workflow/WorkflowService.java:1709,1792`, `workflow/WorkflowRunService.java:749-751` |
 | 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`) or a webhook/CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:139`, `schedule/ScheduleJob.java:77`, `event/WebhookEventControllerV2.java:72,210`, `event/WebhookEventService.java:108` |
-| 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which builds the task list from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:58-79`, `engine/WorkflowRunStateHelper.java:135` |
-| 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending`/`queued`, builds the graph, and executes the DAG on `asyncWorkflowExecutor` | `engine/WorkflowExecutionService.java:98-122` |
+| 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which builds the task list from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:61-82`, `engine/WorkflowRunStateHelper.java:96` |
+| 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending`/`queued`, builds the graph, and executes the DAG on `asyncWorkflowExecutor` | `engine/WorkflowExecutionService.java:101-125` |
 | 4. Admit each task | The DAG walk calls `TaskExecutionService.queue(taskRunId)`. This is the single pause gate — a run with `pauseRequestedAt` set admits nothing — then `TaskRunService.tryAdmit` moves the task to `ready`. Only `template`, `script`, `custom` and `generic` tasks wait for a dispatcher; the engine runs every other type itself. | `engine/TaskExecutionService.java:96,141-143,181,189-192`, `engine/TaskRunService.java:278` |
-| 5. Dispatcher claims | `service-dispatcher` polls `GET /api/v1/dispatcher/{id}/tasks` on a fixed delay (HTTP). `DispatcherService.getTaskQueue` pages `TaskRunService.findClaimable` for the dispatcher's task types and claims each candidate with `TaskRunService.tryClaim`; only claimed documents are returned. `flow.queue.enabled=false` stops claiming. | `service-dispatcher/.../client/EngineClient.java:165-168`, `dispatcher/DispatcherControllerV1.java:85-97`, `dispatcher/DispatcherService.java:175-210`, `engine/TaskRunService.java:75,232` |
+| 5. Dispatcher claims | `service-dispatcher` long-polls `GET /api/v1/dispatcher/{id}/tasks` (HTTP): the engine holds the request up to 30 s, re-checking every 1 s, and the dispatcher reconnects as soon as it returns, asking for no more than its free slots (`?limit=`). `DispatcherService.getTaskQueue` pages `TaskRunService.findClaimable` for the dispatcher's task types and claims each candidate with `TaskRunService.tryClaim`; only claimed documents are returned. `flow.queue.enabled=false` stops claiming. | `service-dispatcher/.../client/EngineClient.java:214-224`, `dispatcher/DispatcherControllerV1.java:89-101`, `dispatcher/DispatcherService.java:260-340`, `engine/TaskRunService.java:97,275` |
 | 6. Execute | `QueueService.processTaskRun` calls `PUT /api/v1/dispatcher/taskrun/{id}/start`, then `TaskService.execute` → `TaskExecutor.create`/`watch` (Tekton `TaskRun` or `batch/v1` `Job`), then `PUT .../taskrun/{id}/end` with the results (HTTP). | `service-dispatcher/.../dispatcher/QueueService.java:69-87`, `dispatcher/TaskService.java:56` |
-| 7. Results back | `DispatcherControllerV1.startTaskRun`/`endTaskRun` → `TaskRunService.start`/`end` → `TaskExecutionService.start`/`end`, which check the claim (`claimedBy`, `claimSeq`) before writing. | `dispatcher/DispatcherControllerV1.java:135-157`, `engine/TaskRunService.java:697,730`, `engine/TaskExecutionService.java:229,399` |
-| 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. The dispatcher finalises the run through `PUT /api/v1/dispatcher/workflowrun/{id}/finalize` → `WorkflowExecutionService.end`. | `engine/TaskExecutionService.java:1022-1077`, `engine/WorkflowExecutionService.java:125-132` |
-| 9. Events out | Each CAS publishes a `TaskRunTransition`/`WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into the `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (sink off by default, `application.properties:38`). | `engine/TaskRunService.java:675-684`, `event/CloudEventsBridge.java:32-48`, `event/OutboxDispatcher.java:59-62` |
-| 10. Recovery | `WorkflowWatcher.sweep` runs ten isolated sweeps (timeouts, stalled runs, claims from gone dispatchers, deleted workflows, …); any core instance may reap any run. | `engine/WorkflowWatcher.java:116-138` |
+| 7. Results back | `DispatcherControllerV1.startTaskRun`/`endTaskRun` → `TaskRunService.start`/`end` → `TaskExecutionService.start`/`end`, which check the claim (`claimedBy`, `claimSeq`) before writing. | `dispatcher/DispatcherControllerV1.java:151-180`, `engine/TaskRunService.java:697,730`, `engine/TaskExecutionService.java:229,399` |
+| 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. `completed` is terminal; a run's workspace storage is released separately by the dispatcher asking `POST /api/v1/dispatcher/workspaces/releasable` which of the owners it still holds volumes for are finished. | `engine/TaskExecutionService.java:1022-1077`, `engine/WorkflowRunStateHelper.java:148`, `dispatcher/DispatcherService.java:367` |
+| 9. Events out | Each CAS publishes a `TaskRunTransition`/`WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into the `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (sink off by default, `application.properties:50`). | `engine/TaskRunService.java:675-684`, `event/CloudEventsBridge.java:32-48`, `event/OutboxDispatcher.java:59-62` |
+| 10. Recovery | `WorkflowWatcher.sweep` runs ten isolated sweeps (timeouts, stalled runs, claims from gone dispatchers, deleted workflows, …); any core instance may reap any run. | `engine/WorkflowWatcher.java:129-147` |
 
 The one call from core to a dispatcher is log streaming: `engine/LogClient.java:34` reads
 `flow.agent.logstream.url` and proxies `GET /api/v1/logs/stream` (`service-dispatcher/.../dispatcher/LogV1Controller.java:14-19`).
@@ -83,15 +99,24 @@ The one call from core to a dispatcher is log streaming: `engine/LogClient.java:
 
 One git tag builds and pushes the whole compatible set (`.github/workflows/ci-release.yml:9-13`); the tag
 patterns are `5.x.y`, `5.x.y-beta.z` and `5.x.y-rc.z`. `:latest` moves only on a stable tag (`:73-80`).
-`sbom.yml:11-14` fires on the same patterns. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`, `ci-loader.yml`
+`sbom.yml:11-14` fires on the same patterns. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`
 and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 
 | Image | Built from | Runtime | Job in `ci-release.yml` |
 | --- | --- | --- | --- |
 | `boomerangio/flow-service-core` | `service-core/target/service-core.jar` | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `build-core`/`deploy-core` (`:18,:49`) |
 | `boomerangio/flow-service-dispatcher` | `service-dispatcher/target/service-dispatcher.jar` | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `build-dispatcher`/`deploy-agent` (`:100,:131`) |
-| `boomerangio/flow-service-loader` | `service-loader/target/service-loader.jar` | same base, runs to completion | `build-loader`/`deploy-loader` (`:180,:206`) |
-| `boomerangio/flow-client-web` | `client-web/build` (client + server bundles) | `node:22-alpine`, port 3000 | `build-webapp`/`deploy-webapp` (`:256,:298`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:24-alpine`, port 3000 | `deploy-webapp` (`:182`) |
+
+Every product image is built for `linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each
+build step; the QEMU and Buildx setup steps each job already ran were doing nothing without it). A tag
+therefore runs on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no
+per-platform escape, so a single-architecture image simply fails to pull on the other.
+
+Task images are not product images and are not on this list: the catalogue images and the `ai` worker
+(`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
+lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher.ai.image` (see
+`task-runtime.md`). One product tag still builds every product image (decision 0006).
 
 The dispatcher reaches core at `flow.engine.service.host` and authenticates with `flow.engine.dispatcher.token`
 (`service-dispatcher/src/main/resources/application.properties:64-77`); core runs the dispatcher's `/api/v1/**`
@@ -100,15 +125,16 @@ chain first (`dispatcher/DispatcherSecurityConfiguration.java:42-46`) and the pr
 
 ## Local stack
 
-`docker-compose.yml` runs the product secured: `mongo`, the one-shot `service-loader` (core waits on
-`service_completed_successfully`, `:143-146`), a local IDPZero OpenID provider on `idp.localhost:4380`
-(`:96-110`), the `auth-oidc-seed` one-shot that points the `auth` settings at it (`:115-127`), `service-core`
-on `:7700` with `FLOW_MODE=standalone` and `FLOW_SECURITY_ENABLED=true` (`:129-141`), and `client-web` on
-`:3000` (`:161-191`). The browser-facing origin is `http://localhost:3000`; there is no separate gateway —
-`client-web`'s server is the only thing the browser talks to, and it calls core at
-`http://service-core:7700` (`:191`). `service-dispatcher` is not in the stack because it needs a Kubernetes
-cluster (`:10-16`). Build the jars with Maven and the web app with pnpm first (`:18-33`); the Playwright
-suite in `e2e/` runs against this stack.
+`docker-compose.yml` runs the product secured: `mongo`, `service-core` on `:7700` with `FLOW_MODE=standalone` and
+`FLOW_SECURITY_ENABLED=true` (`:146-179`), which migrates and seeds the database before its health check passes, a
+local IDPZero OpenID provider on `idp.localhost:4380` (`:80-94`), the `auth-oidc-seed` one-shot that points the
+`auth` settings at it once core is healthy (`:96-110`), SeaweedFS as the artifact store (`:116-144`), and
+`client-web` on `:3000`, which waits for the seed so sign-in never resolves to `proxy` (`:181-223`). The
+browser-facing origin is `http://localhost:3000`; there is no separate gateway — `client-web`'s server is the only
+thing the browser talks to, and it calls core at `http://service-core:7700` (`:210`). `service-dispatcher` is not in
+the stack because it needs a Kubernetes cluster (`:10-16`). Build the jar with Maven and the web app with pnpm
+first (`:18-27`); the Playwright suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see
+`performance.md`) run against this stack.
 
 ## Not built
 

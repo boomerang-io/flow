@@ -62,53 +62,31 @@ class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
   }
 
   /**
-   * CHARACTERIZATION — asserts the CURRENT (duplicating) behaviour so it is recorded in the test
-   * suite rather than only in a review note. This test previously asserted the fix; the maintainer
-   * ruled (2026-08-25) NOT to fix the duplication, and the test was converted rather than deleted.
-   *
-   * <p>Why the ruling:
-   *
-   * <ul>
-   *   <li>The duplicate is never <em>read</em>. {@code ParameterManager:319-322} resolves a result
-   *       with {@code .findFirst()}, so a second entry with the same name and value is inert — it
-   *       is visible only in the API/UI results list.
-   *   <li>It is inherited, not introduced. v4 {@code main} has the identical {@code addAll} +
-   *       {@code save} ({@code service-engine/.../engine/WorkflowRunService.java:567-570}), and it
-   *       was never reported in v3 or v4.
-   *   <li>The dedup mechanism is sound but unreachable. The {@code events_inbox} ledger in {@code
-   *       WorkflowRunService.event} ({@code :920-938}) works — proven by {@link
-   *       #deliveryWithATransportIdIsDedupedByTheInboxLedger} — but the webhook endpoint {@code
-   *       WebhookEventControllerV2.acceptWaitForEvent} accepts no event identifier to key it on.
-   *   <li>The only fix without an identifier is a payload hash, which would collapse two
-   *       legitimately identical events — a behaviour change to fix something never observed.
-   * </ul>
-   *
-   * <p><b>To make deduplication possible, the webhook endpoint must carry an event identifier</b>
-   * (a transport header or body field) through {@code WebhookEventService.processWFE} into {@code
-   * WorkflowRunEventRequest.id}; the ledger then handles the rest and this assertion inverts to 1.
-   *
-   * <p>Note the F1 fix (event delivery is now three field-scoped operators rather than a
-   * whole-document save) deliberately preserved this: results are appended with {@code
-   * $push}/{@code $each}, not {@code $addToSet}.
+   * An id-less webhook redelivery (what any at-least-once transport does) converges instead of
+   * duplicating: results are merged by name on every write path - {@code
+   * TaskRunService.applyEventDelivery} now keys on the result name exactly as {@code end()} does
+   * through {@code ResultUtil.addUniqueResults}. Two deliveries with the same key leave one
+   * element. The inbox ledger ({@link #deliveryWithATransportIdIsDedupedByTheInboxLedger}) is
+   * still the only thing that suppresses re-applying a distinct event, and the webhook endpoint
+   * still carries no event id to feed it.
    */
   @Test
-  void webhookRedeliveryAppendsEventWaitResultsTwice() {
+  void webhookRedeliveryConvergesOnOneResultPerKey() {
     WorkflowRunEntity wfRun =
         savedWorkflowRun("event-redelivery-wf", RunStatus.running, RunPhase.running);
     String taskRunId = savedEventWaitTask("build-complete", wfRun, RunStatus.ready).getId();
 
-    // Two deliveries of the same webhook event - what any at-least-once webhook transport does.
     workflowRunService.event(wfRun.getId(), webhookDelivery("build-complete"));
-    workflowRunService.event(wfRun.getId(), webhookDelivery("build-complete"));
+    WorkflowRunEventRequest second = webhookDelivery("build-complete");
+    second.setResults(List.of(new RunResult("data", "{\"build\":\"ok-again\"}")));
+    workflowRunService.event(wfRun.getId(), second);
 
     List<RunResult> results = taskRunRepository.findById(taskRunId).orElseThrow().getResults();
     assertEquals(
-        2,
+        1,
         results.stream().filter(r -> "data".equals(r.getName())).count(),
-        "KNOWN, RULED-ACCEPTED BEHAVIOUR: an id-less webhook redelivery appends its results again."
-            + " Invert this to 1 once the webhook endpoint carries an event identifier the inbox"
-            + " ledger can key on; got "
-            + results);
+        "a redelivered key updates the element rather than appending; got " + results);
+    assertEquals("{\"build\":\"ok-again\"}", results.get(0).getValue(), "last write wins");
   }
 
   /**

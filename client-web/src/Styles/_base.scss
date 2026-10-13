@@ -23,9 +23,34 @@ a {
   text-decoration: none;
 }
 
+/* Motion is opt-out for people who ask for it: one rule, every screen. Carbon components carry
+   their own transitions and do not check the preference themselves, so this has to be global.
+   The near-zero duration (not zero) keeps transitionend/animationend firing for code that waits
+   on them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* fix for carbon menu */
 .cds--list-box__menu {
   z-index: 998;
+}
+
+/* The add-ons modal container is a flex column, and Carbon's header scrolls, so a tall body shrank
+   the header until its subtitle scrolled. Keep the header its natural height (Carbon still caps it
+   at 50vh); the body takes the scroll. Modals render in a portal, outside #app. */
+.cds--bmrg-modal-composed-container,
+.cds--bmrg-modal-flow-container {
+  .cds--modal-header {
+    flex-shrink: 0;
+  }
 }
 
 #app {

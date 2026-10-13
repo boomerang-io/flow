@@ -6,6 +6,7 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.engine.model.WorkflowRunTransition;
 import java.util.Date;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
@@ -62,23 +63,6 @@ public class WorkflowRunStateHelper {
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
-  public List<WorkflowRunEntity> findClaimableForTeardown(int limit) {
-    // workspaces.0 exists = the run still has workspaces for the claimant to tear down.
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.completed)
-                    .and("claim.by")
-                    .exists(false)
-                    .and("workspaces.0")
-                    .exists(true))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit);
-    // The claim page only needs the id - tryClaimForTeardown transitions by id.
-    query.fields().include("_id");
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
-  }
-
   public WorkflowRunEntity tryClaimForProvision(String id, String claimedBy) {
     Date now = new Date();
     Query query =
@@ -110,31 +94,65 @@ public class WorkflowRunStateHelper {
     return preImage;
   }
 
-  public WorkflowRunEntity tryClaimForTeardown(String id, String claimedBy) {
-    Date now = new Date();
+  // Return the page of provisioning claims taken before claimedBefore that never reached start,
+  // oldest first. Served by claim_page {status, phase, creationDate}; claim.at filters the small
+  // ready/queued bucket.
+  public List<WorkflowRunEntity> findStaleProvisionClaims(Date claimedBefore, int limit) {
     Query query =
         Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("phase")
-                .is(RunPhase.completed)
-                .and("claim.by")
-                .exists(false)
-                .and("workspaces.0")
-                .exists(true));
+                Criteria.where("status")
+                    .is(RunStatus.ready)
+                    .and("phase")
+                    .is(RunPhase.queued)
+                    .and("claim.at")
+                    .lte(claimedBefore))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  }
+
+  // Release a stale provisioning claim back to claimable, fenced on the observed claim.seq so a
+  // run released and re-claimed since it was read is left alone.
+  public WorkflowRunEntity tryReleaseProvisionClaim(String id, long observedSeq) {
     Update update =
         new Update()
-            .set("claim.by", claimedBy)
-            .set("claim.at", now)
-            .inc("claim.seq", 1);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
+            .set("phase", RunPhase.pending)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt");
+    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
     if (preImage != null) {
-      publish(preImage, preImage.getStatus(), preImage.getPhase());
-      // Return the pre-image with the claim owner applied - teardown leaves the phase (completed)
-      // unchanged, so only the claim block needs patching for the caller's agent payload.
-      preImage.setClaim(TaskRunService.claimApplied(preImage.getClaim(), claimedBy, now));
+      publish(preImage, preImage.getStatus(), RunPhase.pending);
     }
     return preImage;
+  }
+
+  // Fail a run whose provisioning attempts are spent, fenced like the release.
+  public WorkflowRunEntity tryFailProvision(String id, long observedSeq, String statusMessage) {
+    Update update =
+        new Update()
+            .set("status", RunStatus.failed)
+            .set("phase", RunPhase.completed)
+            .set("statusMessage", statusMessage)
+            .set("duration", 0L);
+    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
+    if (preImage != null) {
+      publish(preImage, RunStatus.failed, RunPhase.completed);
+    }
+    return preImage;
+  }
+
+  private static Query provisionClaimed(String id, long observedSeq) {
+    return Query.query(
+        Criteria.where("_id")
+            .is(id)
+            .and("status")
+            .is(RunStatus.ready)
+            .and("phase")
+            .is(RunPhase.queued)
+            .and("claim.seq")
+            .is(observedSeq));
   }
 
   public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
@@ -155,8 +173,7 @@ public class WorkflowRunStateHelper {
   }
 
   public WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes) {
-    // Clearing the dispatch claim frees the completed-phase teardown claimable; claim.seq is
-    // never cleared and survives.
+    // The dispatch claim is cleared on start; claim.seq is never cleared and survives.
     Query query =
         Query.query(
             Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.queued));
@@ -215,16 +232,6 @@ public class WorkflowRunStateHelper {
     WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryFinalize(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.completed));
-    Update update = new Update().set("phase", RunPhase.finalized);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.finalized);
     }
     return preImage;
   }
@@ -291,19 +298,25 @@ public class WorkflowRunStateHelper {
   // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each
   // one's revision ref resolves; not itself an indexed predicate, so the page stays narrow and
   // any miss is caught again on the next tick.
-  public List<WorkflowRunEntity> findInFlight(int limit) {
+  // The distinct revision refs of every in-flight run - one round trip, no documents hydrated -
+  // so the missing-revision reaper can ask "which of these no longer exist?" instead of paging
+  // in-flight runs it would mostly skip (a first page of healthy runs starved everything behind it).
+  public List<String> findInFlightRevisionRefs() {
     Query query =
         Query.query(Criteria.where("phase").in(RunPhase.pending, RunPhase.queued, RunPhase.running))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
-            .limit(limit)
             .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
+    return mongoTemplate.findDistinct(
+        query, "workflowRevisionRef", WorkflowRunEntity.class, String.class);
   }
 
-  public List<WorkflowRunEntity> findFinalizableWithoutWorkspaces(int limit) {
+  public List<WorkflowRunEntity> findInFlightWithRevisionIn(
+      Collection<String> revisionRefs, int limit) {
     Query query =
         Query.query(
-                Criteria.where("phase").is(RunPhase.completed).and("workspaces.0").exists(false))
+                Criteria.where("phase")
+                    .in(RunPhase.pending, RunPhase.queued, RunPhase.running)
+                    .and("workflowRevisionRef")
+                    .in(revisionRefs))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
@@ -324,11 +337,10 @@ public class WorkflowRunStateHelper {
         WorkflowRunEntity.class);
   }
 
+  // Keyed by name: a second setwfproperty for the same key updates the value rather than
+  // appending a duplicate (issue #241), still without a read-modify-write.
   public void appendResult(String id, RunResult result) {
-    mongoTemplate.updateFirst(
-        Query.query(Criteria.where("_id").is(id)),
-        new Update().push("results", result),
-        WorkflowRunEntity.class);
+    ResultUtil.upsertResultByName(mongoTemplate, id, WorkflowRunEntity.class, result);
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state

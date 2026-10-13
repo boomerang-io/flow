@@ -14,6 +14,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import {
   Action,
+  Artifact,
   FlowWorkspace,
   RunPhase,
   RunStatus,
@@ -24,6 +25,7 @@ import {
   WorkflowRun,
 } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { foreachTaskNames } from "Utils/taskRunHelper";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
@@ -42,8 +44,8 @@ import styles from "./WorkflowRun.module.scss";
 const POLL_INTERVAL_MS = 5000;
 
 // A run in one of these statuses will not change again on its own, so polling stops. Anything
-// that *can* still change it from here is a user action (finalize, retry), and those submit
-// through the fetcher below, which revalidates on completion.
+// that *can* still change it from here is a user action (retry), and those submit through the
+// fetcher below, which revalidates on completion.
 const TERMINAL_STATUSES = [
   RunStatus.Succeeded,
   RunStatus.Failed,
@@ -62,6 +64,10 @@ export type LoaderData = {
   workspaceTasks: Array<Task>;
   // Keyed by TaskRun id. See resolveActions() below.
   actions: Record<string, Action>;
+  // This run's artifacts (expired included, uploading excluded - see GET .../artifacts). A failed
+  // fetch resolves to an empty list rather than blanking the whole run view, the same resilience
+  // the `workflow` compose fetch below gets.
+  artifacts: Array<Artifact>;
   errorLoading: boolean;
 };
 
@@ -71,6 +77,7 @@ const EMPTY_LOADER_DATA: LoaderData = {
   tasks: [],
   workspaceTasks: [],
   actions: {},
+  artifacts: [],
   errorLoading: true,
 };
 
@@ -166,15 +173,25 @@ export async function loader({
 
   const actions = await resolveActions(api, workspace, workflowRun.tasks);
 
-  return { workflowRun, workflow, tasks, workspaceTasks, actions, errorLoading };
+  let artifacts: Array<Artifact> = [];
+  try {
+    const artifactsResponse = await api.get(
+      serviceUrl.workspace.artifact.getRunArtifacts({ workspace, runId }),
+    );
+    artifacts = artifactsResponse.data;
+  } catch (error) {
+    artifacts = [];
+  }
+
+  return { workflowRun, workflow, tasks, workspaceTasks, actions, artifacts, errorLoading };
 }
 
-export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "finalize" | "action";
+export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action" | "deleteArtifact";
 
 export type ActionResult = { intent: RunActionIntent } | ({ intent: RunActionIntent } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
-  Exclude<RunActionIntent, "action">,
+  Exclude<RunActionIntent, "action" | "deleteArtifact">,
   { url: (args: { workspace: string; id: string }) => string; method: string }
 > = {
   retry: { url: serviceUrl.workspace.workflowrun.putRetryWorkflow, method: HttpMethod.Put },
@@ -182,11 +199,10 @@ const RUN_INTENT_REQUESTS: Record<
   start: { url: serviceUrl.workspace.workflowrun.putStartWorkflow, method: HttpMethod.Put },
   pause: { url: serviceUrl.workspace.workflowrun.putPauseWorkflow, method: HttpMethod.Put },
   resume: { url: serviceUrl.workspace.workflowrun.putResumeWorkflow, method: HttpMethod.Put },
-  finalize: { url: serviceUrl.workspace.workflowrun.putFinalizeWorkflow, method: HttpMethod.Put },
 };
 
 /*
- * Every write this route makes: the six run lifecycle transitions driven from RunHeader, plus
+ * Every write this route makes: the five run lifecycle transitions driven from RunHeader, plus
  * `action` (the approval/manual submission from the two task modals). A fetcher submission to a
  * route action revalidates the route's loader on completion, which is what replaces the
  * queryClient.invalidateQueries(getWorkflowRun) calls these mutations used to make.
@@ -203,6 +219,19 @@ export async function action({
   const formData = await request.formData();
   const intent = String(formData.get("intent")) as RunActionIntent;
   const api = serverFetch(request);
+
+  if (intent === "deleteArtifact") {
+    const name = String(formData.get("name"));
+    try {
+      await api.delete(serviceUrl.workspace.artifact.deleteRunArtifact({ workspace, runId: id, name }));
+      return { intent };
+    } catch (error) {
+      return actionError({
+        intent,
+        error: formatErrorMessage({ error, defaultMessage: "Failed to delete this artifact" }),
+      });
+    }
+  }
 
   if (intent === "action") {
     // The approval/manual PUT takes a list of decisions; the modals submit exactly one.
@@ -224,7 +253,7 @@ export async function action({
     }
   }
 
-  const requestConfig = RUN_INTENT_REQUESTS[intent as Exclude<RunActionIntent, "action">];
+  const requestConfig = RUN_INTENT_REQUESTS[intent as Exclude<RunActionIntent, "action" | "deleteArtifact">];
   if (!requestConfig) {
     return actionError({ intent, error: { title: "Something's wrong", message: "Unrecognised request" } });
   }
@@ -243,7 +272,8 @@ export async function action({
 export default function WorkflowRunFeature() {
   const { workspace } = useWorkspaceContext();
   const navigate = useNavigate();
-  const { workflowRun, workflow, tasks, workspaceTasks, actions, errorLoading } = useLoaderData() as LoaderData;
+  const { workflowRun, workflow, tasks, workspaceTasks, actions, artifacts, errorLoading } =
+    useLoaderData() as LoaderData;
   const revalidator = useRevalidator();
 
   const isTerminal = workflowRun ? TERMINAL_STATUSES.includes(workflowRun.status) : true;
@@ -297,6 +327,8 @@ export default function WorkflowRunFeature() {
         workflow={workflow}
         workflowRun={workflowRun}
         actions={actions}
+        artifacts={artifacts}
+        workspace={workspace.name}
         version={workflowRun.workflowVersion}
         executionViewRedirect={executionViewRedirect}
       />
@@ -309,12 +341,14 @@ type MainProps = {
   workflow: WorkflowCanvas;
   workflowRun: WorkflowRun;
   actions: Record<string, Action>;
+  artifacts: Array<Artifact>;
+  workspace: string;
   version: number;
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
 };
 
 function Main(props: MainProps) {
-  const { workflow, workflowRun, actions, version, executionViewRedirect } = props;
+  const { workflow, workflowRun, actions, artifacts, workspace, version, executionViewRedirect } = props;
   const [reactFlowInstance, setReactFlowInstance] = React.useState<WorkflowReactFlowInstance | null>(null);
 
   const { status, tasks: runTasks } = workflowRun;
@@ -335,7 +369,14 @@ function Main(props: MainProps) {
         executionViewRedirect={executionViewRedirect}
       />
       <section aria-label="Executions" className={styles.executionResultContainer}>
-        <RunTaskLog workflowRun={workflowRun} actions={actions} executionViewRedirect={executionViewRedirect} />
+        <RunTaskLog
+          workflowRun={workflowRun}
+          actions={actions}
+          artifacts={artifacts}
+          workspace={workspace}
+          executionViewRedirect={executionViewRedirect}
+          foreachTaskNames={foreachTaskNames(workflow.nodes)}
+        />
         <div className={styles.executionDesignerContainer}>
           <div className={styles.executionWorkflowActions}>
             <WorkflowActions workflow={workflow} />

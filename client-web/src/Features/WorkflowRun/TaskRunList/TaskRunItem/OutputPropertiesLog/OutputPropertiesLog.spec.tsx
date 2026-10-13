@@ -20,7 +20,7 @@ const props = {
 
 function openModal() {
   render(<OutputPropertiesLog {...(props as any)} />);
-  fireEvent.click(screen.getByText("View Parameters"));
+  fireEvent.click(screen.getByText("View results"));
 }
 
 describe("OutputPropertiesLog --- RTL", () => {

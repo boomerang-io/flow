@@ -7,7 +7,7 @@ import {
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Breadcrumb, BreadcrumbItem, Button } from "@carbon/react";
-import { Checkmark, Close, User } from "@carbon/react/icons";
+import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import moment from "moment";
@@ -23,6 +23,7 @@ interface UserDetailedHeaderProps {
   isLoading?: boolean;
   user?: FlowUser;
   userManagementEnabled?: any;
+  workspaceCount?: number;
 }
 
 const manageableUserRoles: string[] = Object.values(UserRole);
@@ -32,7 +33,7 @@ function hasRoleLabel(role: string): role is UserRoleType {
   return manageableUserRoles.includes(role);
 }
 
-function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }: UserDetailedHeaderProps) {
+function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled, workspaceCount }: UserDetailedHeaderProps) {
   const location: any = useLocation();
 
   const backToWorkspace = location?.state?.fromWorkspace;
@@ -52,102 +53,94 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled }:
     ) : (
       <Breadcrumb noTrailingSlash>
         <BreadcrumbItem>
-          <Link to={appLink.userList()}>Users</Link>
+          <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
-        <BreadcrumbItem isCurrentPage>
-          <p>{user?.name}</p>
+        <BreadcrumbItem>
+          <p>Administer</p>
+        </BreadcrumbItem>
+        <BreadcrumbItem>
+          <Link to={appLink.userList()}>Users</Link>
         </BreadcrumbItem>
       </Breadcrumb>
     );
   };
 
+  const role = user?.type && hasRoleLabel(user.type) ? UserRoleCopy[user.type] : (user?.type ?? "---");
+
+  // The one page header: the person as the title, their facts on the right with Change role after them,
+  // and the user's pages as tabs.
   return (
     <Header
       actions={
-        <div className={styles.actionButtons}>
-          <ComposedModal
-            composedModalProps={{ shouldCloseOnOverlayClick: true }}
-            modalTrigger={({ openModal }: any) => (
-              <Button
-                disabled={!userManagementEnabled}
-                iconDescription={"Change role"}
-                kind="ghost"
-                onClick={openModal}
-                renderIcon={User}
-                size="sm"
-                style={{ marginBottom: "0.5rem" }}
-              >
-                Change role
-              </Button>
-            )}
-            modalHeaderProps={{
-              title: "User Role",
-              subtitle: `Set ${user?.name ?? "user"}'s role in Flow. Admins can do more things.`,
-            }}
-          >
-            {({ closeModal }) => {
-              return <ChangeRole closeModal={closeModal} user={user} />;
-            }}
-          </ComposedModal>
-        </div>
+        !isError &&
+        user && (
+          <div className={styles.facts}>
+            <dl>
+              <div>
+                <dt>Role</dt>
+                <dd>{role}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd className={styles.status} data-status={user.status}>
+                  {isActive ? <CheckmarkFilled aria-hidden="true" /> : <Misuse aria-hidden="true" />}
+                  {isActive ? "Active" : "Inactive"}
+                </dd>
+              </div>
+              <div>
+                <dt>Joined</dt>
+                <dd>{moment(user.creationDate).format("D MMM YYYY")}</dd>
+              </div>
+              <div>
+                <dt>Last sign-in</dt>
+                <dd>{user.lastLoginDate ? moment(user.lastLoginDate).format("D MMM YYYY, h:mm A") : "---"}</dd>
+              </div>
+            </dl>
+            <ComposedModal
+              composedModalProps={{ shouldCloseOnOverlayClick: true }}
+              modalTrigger={({ openModal }: any) => (
+                <Button disabled={!userManagementEnabled} kind="tertiary" onClick={openModal} size="md">
+                  Change role
+                </Button>
+              )}
+              modalHeaderProps={{
+                title: "User Role",
+                subtitle: `Set ${user?.name ?? "user"}'s role in Flow. Admins can do more things.`,
+              }}
+            >
+              {({ closeModal }) => {
+                return <ChangeRole closeModal={closeModal} user={user} />;
+              }}
+            </ComposedModal>
+          </div>
+        )
       }
       includeBorder
       isLoading={isLoading}
       className={styles.container}
       nav={<NavigationComponent />}
       header={
-        <div className={styles.infoContainer}>
-          <div className={styles.userContainer}>
-            {/* src="" on purpose: the old value pointed at GET /api/users/image/{email}, a
-                v3-era users-service endpoint that no longer exists in service-core - it has
-                404'd since v4 (and was a browser /api call besides). A falsy src makes Avatar
-                render its default user icon with no request at all. */}
-            <Avatar className={styles.userAvatar} src="" userName={user?.email} />
-            <HeaderTitle style={{ margin: "0 1rem 0 1rem" }} title={user?.name}>
-              {user?.name ?? "---"}
-            </HeaderTitle>
-          </div>
-          {!isError && user && (
-            <div className={styles.userDetailsContainer}>
-              <section className={styles.subHeaderContainer}>
-                <dl className={styles.detailedInfoContainer}>
-                  <dt className={styles.dataTitle}>Email</dt>
-                  <dd className={styles.dataValueEmail}>{emailIsValid(user?.email) ? user?.email : "---"}</dd>
-                </dl>
-                <dl className={styles.detailedInfoContainer}>
-                  <dt className={styles.dataTitle}>Status</dt>
-                  <dd className={styles.dataValue}>
-                    <div className={styles.status}>
-                      {isActive ? <Checkmark style={{ fill: "#009d9a" }} /> : <Close style={{ fill: "#da1e28" }} />}
-                      <p className={styles.statusText}>{isActive ? "Active" : "Inactive"}</p>
-                    </div>
-                  </dd>
-                </dl>
-                <dl className={styles.detailedInfoContainer}>
-                  <dt className={styles.dataTitle}>Role</dt>
-                  <dd className={styles.dataValue}>
-                    {user?.type && hasRoleLabel(user.type) ? UserRoleCopy[user.type] : (user?.type ?? "---")}
-                  </dd>
-                </dl>
-                <dl className={styles.detailedInfoContainer}>
-                  <dt className={styles.dataTitle}>Date Joined</dt>
-                  <dd className={styles.dataValue}>{moment(user.creationDate).format("YYYY-MM-DD")}</dd>
-                </dl>
-                <dl className={styles.detailedInfoContainer}>
-                  <dt className={styles.dataTitle}>Last Login</dt>
-                  <dd className={styles.dataValue}>{moment(user.lastLoginDate).format("YYYY-MM-DD h:mma")}</dd>
-                </dl>
-              </section>
-              <section className={styles.actionButtonsContainer}></section>
-            </div>
-          )}
+        <div className={styles.titleRow}>
+          {/* src="" on purpose: the old value pointed at GET /api/users/image/{email}, a v3-era
+              users-service endpoint that no longer exists in service-core. A falsy src makes Avatar
+              render its default user icon with no request at all. */}
+          <Avatar size="medium" src="" userName={user?.email} />
+          <HeaderTitle className={styles.title} title={user?.name}>
+            {user?.name ?? "---"}
+          </HeaderTitle>
+          {user && emailIsValid(user.email) && <span className={styles.email}>{user.email}</span>}
         </div>
       }
       footer={
         !isError && (
           <section className={styles.headerActions}>
             <Tabs ariaLabel="User pages">
-              <Tab end label="Workspaces" to={appLink.user({ userId: user?.id ?? "" })} state={location.state} />
+              <Tab
+                end
+                label={workspaceCount === undefined ? "Workspaces" : `Workspaces (${workspaceCount})`}
+                to={appLink.user({ userId: user?.id ?? "" })}
+                state={location.state}
+              />
               <Tab end label="Labels" to={appLink.userLabels({ userId: user?.id ?? "" })} state={location.state} />
               <Tab end label="Settings" to={appLink.userSettings({ userId: user?.id ?? "" })} state={location.state} />
             </Tabs>

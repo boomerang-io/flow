@@ -3,19 +3,33 @@ package io.boomerang.dispatcher;
 import static io.boomerang.workflow.ConvertUtil.entityToModel;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.WorkflowStatus;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkspaceReleaseQuery;
+import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
+import io.boomerang.engine.model.ClaimFilter;
+import io.boomerang.workflow.ArtifactService;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +49,10 @@ public class DispatcherService {
   private static final Integer MAX_SLEEP_INTERVAL = 1000; // 1 sec
   private static final int PAGE_SIZE = 20;
 
+  // One release query answers for at most this many owners of each kind. The dispatcher holds a
+  // bounded set of volumes per reconciliation pass and pages anything larger.
+  private static final int MAX_RELEASE_REFS = 500;
+
   // Kill switch: stops CLAIMING only. The watcher's recovery sweeps are never gated by it.
   @Value("${flow.queue.enabled:true}")
   private boolean queueEnabled;
@@ -48,16 +66,22 @@ public class DispatcherService {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
+  private final ArtifactService artifactService;
+  private final ClaimFilterService claimFilterService;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      ArtifactService artifactService,
+      ClaimFilterService claimFilterService) {
     this.agentRepository = agentRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
+    this.artifactService = artifactService;
+    this.claimFilterService = claimFilterService;
   }
 
   /**
@@ -129,10 +153,11 @@ public class DispatcherService {
   /**
    * Long-poll endpoint dispatching WorkflowRuns to the agent.
    *
-   * <p>Each cycle pages the eligible candidates (provision and workspace teardown) and claims
-   * each one individually via a Compare-And-Set; racing agents cannot both win a run and the
-   * response contains only the documents this agent actually claimed. Claimed and terminal runs
-   * are not redelivered.
+   * <p>Each cycle pages the runs awaiting workspace provisioning and claims each one individually
+   * via a Compare-And-Set; racing agents cannot both win a run and the response contains only the
+   * documents this agent actually claimed. Claimed and terminal runs are not redelivered. Releasing
+   * a run's storage is not dispatched here - the dispatcher reconciles what it holds against {@link
+   * #releasable}.
    *
    * @param agentId
    * @return
@@ -155,10 +180,10 @@ public class DispatcherService {
     LOGGER.debug("Starting long poll queue for agent: {}", agentId);
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug("Checking queue for agent: {}", agentId);
+      // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
+      // provision and start. Runs claimed before an error are still handed out.
+      List<WorkflowRun> workflowRuns = new LinkedList<>();
       try {
-        // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
-        // provision and start, completed to tear down and finalize.
-        List<WorkflowRun> workflowRuns = new LinkedList<>();
         for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
               workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
@@ -166,22 +191,16 @@ public class DispatcherService {
             workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
           }
         }
-        for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForTeardown(PAGE_SIZE)) {
-          WorkflowRunEntity claimed =
-              workflowRunStateHelper.tryClaimForTeardown(candidate.getId(), agentId);
-          if (claimed != null) {
-            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
-          }
-        }
-
-        LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
-        if (!workflowRuns.isEmpty()) {
-          return ResponseEntity.ok(workflowRuns);
-        }
-        // Sleep for a short interval before checking again
-        Thread.sleep(MAX_SLEEP_INTERVAL);
       } catch (Exception e) {
         LOGGER.error("Error retrieving workflows for agent {}: {}", agentId, e.getMessage());
+      }
+
+      LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
+      if (!workflowRuns.isEmpty()) {
+        return ResponseEntity.ok(workflowRuns);
+      }
+      if (!pauseBeforeRecheck()) {
+        break;
       }
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
@@ -202,7 +221,44 @@ public class DispatcherService {
    * @param agentId
    * @return
    */
+  /*
+   * An artifact task leaves with its link params filled. A refusal (bad or taken name, storage
+   * full, artifact expired) ends the task failed with the reason instead of handing it out.
+   */
+  private boolean fillArtifactLink(TaskRun taskRun) {
+    try {
+      artifactService.fillLinkParams(taskRun);
+      return true;
+    } catch (BoomerangException e) {
+      TaskRunEndRequest refused = new TaskRunEndRequest();
+      refused.setStatus(RunStatus.failed);
+      refused.setStatusReason("ArtifactRefused");
+      refused.setStatusMessage(artifactService.refusalMessage(e));
+      taskRunService.end(taskRun.getId(), Optional.of(refused));
+      return false;
+    }
+  }
+
   public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
+    return getTaskQueue(agentId, null);
+  }
+
+  /**
+   * Long-poll for TaskRuns, claiming at most {@code limit} new ones to execute - the slots the
+   * dispatcher has free - and never more than a page. A limit of 0 claims none and still hands out
+   * termination orders, which free slots rather than take them. No limit means a full page.
+   */
+  public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId, Integer limit) {
+    return getTaskQueue(agentId, limit, null, null, null);
+  }
+
+  /**
+   * Long-poll for TaskRuns as above, narrowed by optional filters: task types, task slugs, and a
+   * label on the workflow definition (see {@link ClaimFilterService}). Termination orders follow
+   * the same filters. A filter that matches nothing answers at once with no content.
+   */
+  public ResponseEntity<List<TaskRun>> getTaskQueue(
+      String agentId, Integer limit, String type, String task, String workflowLabel) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
@@ -220,6 +276,13 @@ public class DispatcherService {
     }
 
     LOGGER.debug("Entity: {}", entity);
+    int executionPage = (limit == null) ? PAGE_SIZE : Math.min(PAGE_SIZE, Math.max(0, limit));
+    ClaimFilter filter =
+        claimFilterService.resolve(entity.getTaskTypes(), type, task, workflowLabel);
+    if (filter.matchesNothing()) {
+      LOGGER.debug("Agent {} poll filters match no TaskRun. Returning 204.", agentId);
+      return ResponseEntity.noContent().build();
+    }
 
     // Long poll logic
     Instant endTime =
@@ -227,17 +290,24 @@ public class DispatcherService {
     LOGGER.debug("Starting long poll queue for agent: {}", agentId);
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug(
-          "Checking queue for agent: {} with task types: {}", agentId, entity.getTaskTypes());
+          "Checking queue for agent: {} with task types: {}", agentId, filter.types());
+      // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
+      // another agent claimed between page and claim is simply skipped. The returned pre-images
+      // carry the pending/ready wire shape the dispatcher executes. Runs claimed before an error
+      // are still handed out, so no claim is left with an agent that never hears of it.
+      List<TaskRun> taskRuns = new LinkedList<>();
       try {
-        // Page then claim: the Compare-And-Set re-checks eligibility per document, so a
-        // candidate another agent claimed between page and claim is simply skipped. The
-        // returned pre-images carry the pending/ready wire shape the dispatcher executes.
-        List<TaskRun> taskRuns = new LinkedList<>();
         for (TaskRunEntity candidate :
-            taskRunService.findClaimable(entity.getTaskTypes(), PAGE_SIZE)) {
+            (executionPage > 0)
+                ? taskRunService.findClaimable(filter, executionPage)
+                : List.<TaskRunEntity>of()) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
-            taskRuns.add(new TaskRun(claimed));
+            TaskRun taskRun = new TaskRun(claimed);
+            if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
+              continue;
+            }
+            taskRuns.add(taskRun);
           }
         }
         // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher
@@ -246,25 +316,110 @@ public class DispatcherService {
         // claim release is what makes it one agent's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
         for (TaskRunEntity candidate :
-            taskRunService.findClaimableForTermination(entity.getTaskTypes(), PAGE_SIZE)) {
+            taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
           TaskRunEntity claimed =
               taskRunService.tryClaimForTermination(candidate.getId(), agentId);
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }
         }
-
-        LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
-        if (!taskRuns.isEmpty()) {
-          return ResponseEntity.ok(taskRuns);
-        }
-        // Sleep for a short interval before checking again
-        Thread.sleep(MAX_SLEEP_INTERVAL);
       } catch (Exception e) {
         LOGGER.error("Error retrieving tasks for agent {}: {}", agentId, e.getMessage());
+      }
+
+      LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
+      if (!taskRuns.isEmpty()) {
+        return ResponseEntity.ok(taskRuns);
+      }
+      if (!pauseBeforeRecheck()) {
+        break;
       }
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Wait one re-check interval before the poll looks again - after an error too, so a query that
+   * fails fast is not re-run in a tight loop for the rest of the window. Return false when the
+   * thread is interrupted, so the poll ends and the thread can stop.
+   */
+  private static boolean pauseBeforeRecheck() {
+    try {
+      Thread.sleep(MAX_SLEEP_INTERVAL);
+      return true;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+  }
+
+  /**
+   * Answer which of the owners a dispatcher still holds volumes for are finished, so those volumes
+   * can be released. A {@code workflowRunRef} is finished once its run is completed or gone; a
+   * {@code workflowRef} once its Workflow is deleted (the tombstone) or gone. The run record
+   * carries nothing about release - the cluster is the source of truth for what exists, the engine
+   * for what is finished, and a dispatcher that asks twice gets the same answer.
+   *
+   * @param query the owners the dispatcher still holds volumes for
+   * @return the subset whose volumes may go
+   */
+  public WorkspaceReleaseResponse releasable(WorkspaceReleaseQuery query) {
+    List<String> workflowRunRefs = capped(query.getWorkflowRunRefs(), "workflowRunRefs");
+    List<String> workflowRefs = capped(query.getWorkflowRefs(), "workflowRefs");
+
+    // Held = the owner still exists in a state the dispatcher must keep storage for. Everything
+    // the dispatcher asked about and did not get back as held is releasable, which is what makes
+    // an id the engine has never heard of release rather than leak.
+    Set<String> heldRuns =
+        mongoTemplate
+            .find(
+                idsOnly(
+                    Criteria.where("_id").in(workflowRunRefs).and("phase").ne(RunPhase.completed)),
+                WorkflowRunEntity.class)
+            .stream()
+            .map(WorkflowRunEntity::getId)
+            .collect(Collectors.toSet());
+    Set<String> heldWorkflows =
+        mongoTemplate
+            .find(
+                idsOnly(
+                    Criteria.where("_id").in(workflowRefs).and("status").ne(WorkflowStatus.deleted)),
+                WorkflowEntity.class)
+            .stream()
+            .map(WorkflowEntity::getId)
+            .collect(Collectors.toSet());
+
+    WorkspaceReleaseResponse response = new WorkspaceReleaseResponse();
+    response.setWorkflowRunRefs(minus(workflowRunRefs, heldRuns));
+    response.setWorkflowRefs(minus(workflowRefs, heldWorkflows));
+    LOGGER.debug(
+        "Releasable: {} of {} WorkflowRun and {} of {} Workflow owners.",
+        response.getWorkflowRunRefs().size(),
+        workflowRunRefs.size(),
+        response.getWorkflowRefs().size(),
+        workflowRefs.size());
+    return response;
+  }
+
+  private static List<String> capped(List<String> refs, String field) {
+    if (refs == null) {
+      return List.of();
+    }
+    if (refs.size() > MAX_RELEASE_REFS) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, field);
+    }
+    return refs;
+  }
+
+  // Projected to _id alone: this answers a set-membership question, never a document read.
+  private static Query idsOnly(Criteria criteria) {
+    Query query = Query.query(criteria);
+    query.fields().include("_id");
+    return query;
+  }
+
+  private static List<String> minus(List<String> refs, Set<String> held) {
+    return refs.stream().filter(ref -> !held.contains(ref)).toList();
   }
 }

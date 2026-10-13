@@ -26,6 +26,7 @@ public class NavigationService {
 
   private static final String AUTHORIZATION_HEADER = "Authorization";
   private static final String TOKEN_PREFIX = "Bearer ";
+  private static final String SINGLE_WORKSPACE = "system";
 
   @Value("${flow.externalUrl.navigation}")
   private String flowExternalUrlNavigation;
@@ -53,8 +54,13 @@ public class NavigationService {
 
     Features features = featureService.get();
 
-    boolean disabled = optTeamId.isPresent() ? false : true;
-    String teamIdURLContext = optTeamId.isPresent() ? "/" + optTeamId.get() : "";
+    // A single-workspace install has one workspace, so its links never wait for one to be chosen.
+    Optional<String> workspace =
+        (Boolean.TRUE.equals(features.getFeatures().get("workspace.single"))
+            ? Optional.of(SINGLE_WORKSPACE)
+            : optTeamId);
+    boolean disabled = workspace.isEmpty();
+    String teamIdURLContext = workspace.map(name -> "/" + name).orElse("");
 
     if (flowExternalUrlNavigation.isBlank()) {
       List<Navigation> response = new ArrayList<>();
@@ -106,22 +112,26 @@ public class NavigationService {
         response.add(insights);
       }
 
-      Navigation schedules = new Navigation();
-      schedules.setName("Schedules");
-      schedules.setType(NavigationType.link);
-      schedules.setDisabled(disabled);
-      schedules.setIcon("CalendarHeatMap");
-      schedules.setLink(flowAppsUrl + teamIdURLContext + "/schedules");
-      response.add(schedules);
+      if (((Boolean) features.getFeatures().get("schedules"))) {
+        Navigation schedules = new Navigation();
+        schedules.setName("Schedules");
+        schedules.setType(NavigationType.link);
+        schedules.setDisabled(disabled);
+        schedules.setIcon("CalendarHeatMap");
+        schedules.setLink(flowAppsUrl + teamIdURLContext + "/schedules");
+        response.add(schedules);
+      }
 
-      Navigation integrations = new Navigation();
-      integrations.setName("Integrations");
-      integrations.setType(NavigationType.link);
-      integrations.setDisabled(disabled);
-      integrations.setIcon("AppConnectivity");
-      integrations.setLink(flowAppsUrl + teamIdURLContext + "/integrations");
-      integrations.setBeta(true);
-      response.add(integrations);
+      if (((Boolean) features.getFeatures().get("integrations"))) {
+        Navigation integrations = new Navigation();
+        integrations.setName("Integrations");
+        integrations.setType(NavigationType.link);
+        integrations.setDisabled(disabled);
+        integrations.setIcon("AppConnectivity");
+        integrations.setLink(flowAppsUrl + teamIdURLContext + "/integrations");
+        integrations.setBeta(true);
+        response.add(integrations);
+      }
 
       response.add(divider);
 
@@ -136,79 +146,34 @@ public class NavigationService {
       }
 
       if (((Boolean) features.getFeatures().get("workspace.parameters"))) {
-        Navigation teamParameters = new Navigation();
-        teamParameters.setName("Parameters");
-        teamParameters.setType(NavigationType.link);
-        teamParameters.setDisabled(disabled);
-        teamParameters.setIcon("Parameter");
-        teamParameters.setLink(flowAppsUrl + teamIdURLContext + "/parameters");
-        response.add(teamParameters);
+        Navigation workspaceParameters = new Navigation();
+        workspaceParameters.setName("Parameters");
+        workspaceParameters.setType(NavigationType.link);
+        workspaceParameters.setDisabled(disabled);
+        workspaceParameters.setIcon("Parameter");
+        workspaceParameters.setLink(flowAppsUrl + teamIdURLContext + "/parameters");
+        response.add(workspaceParameters);
       }
 
-      Navigation management = new Navigation();
-      management.setName("Manage Workspace");
-      management.setType(NavigationType.link);
-      management.setDisabled(disabled);
-      management.setIcon("SettingsAdjust");
-      management.setLink(flowAppsUrl + teamIdURLContext + "/manage");
-      response.add(management);
+      if (((Boolean) features.getFeatures().get("workspace.management"))) {
+        Navigation management = new Navigation();
+        management.setName("Manage Workspace");
+        management.setType(NavigationType.link);
+        management.setDisabled(disabled);
+        management.setIcon("SettingsAdjust");
+        management.setLink(flowAppsUrl + teamIdURLContext + "/manage");
+        response.add(management);
+      }
 
+      // One link: the Manage area is a tabbed page, and the webapp decides which tabs to show
+      // from the caller's grants and the feature flags (client-web Features/Manage).
       if (isUserAdmin) {
-        Navigation admin = new Navigation();
-        admin.setName("Administer");
-        admin.setType(NavigationType.menu);
-        admin.setIcon("Settings");
-        admin.setChildLinks(new ArrayList<>());
-
-        if (((Boolean) features.getFeatures().get("workspace.management"))) {
-          Navigation teams = new Navigation();
-          teams.setName("Teams");
-          teams.setLink(flowAppsUrl + "/admin/teams");
-          teams.setType(NavigationType.link);
-          admin.getChildLinks().add(teams);
-        }
-
-        if (((Boolean) features.getFeatures().get("user.management"))) {
-          Navigation users = new Navigation();
-          users.setName("Users");
-          users.setLink(flowAppsUrl + "/admin/users");
-          users.setType(NavigationType.link);
-          admin.getChildLinks().add(users);
-        }
-
-        if (((Boolean) features.getFeatures().get("global.parameters"))) {
-          Navigation properties = new Navigation();
-          properties.setName("Global Parameters");
-          properties.setLink(flowAppsUrl + "/admin/parameters");
-          properties.setType(NavigationType.link);
-          admin.getChildLinks().add(properties);
-        }
-
-        Navigation tokens = new Navigation();
-        tokens.setName("Global Tokens");
-        tokens.setLink(flowAppsUrl + "/admin/tokens");
-        tokens.setType(NavigationType.link);
-        admin.getChildLinks().add(tokens);
-
-        Navigation settings = new Navigation();
-        settings.setName("Settings");
-        settings.setLink(flowAppsUrl + "/admin/settings");
-        settings.setType(NavigationType.link);
-        admin.getChildLinks().add(settings);
-
-        Navigation taskManager = new Navigation();
-        taskManager.setName("Task Manager");
-        taskManager.setLink(flowAppsUrl + "/admin/task-manager");
-        taskManager.setType(NavigationType.link);
-        admin.getChildLinks().add(taskManager);
-
-        Navigation templateWorkflows = new Navigation();
-        templateWorkflows.setName("Template Workflows");
-        templateWorkflows.setLink(flowAppsUrl + "/admin/template-workflows");
-        templateWorkflows.setType(NavigationType.link);
-        admin.getChildLinks().add(templateWorkflows);
-
-        response.add(admin);
+        Navigation manage = new Navigation();
+        manage.setName("Manage");
+        manage.setType(NavigationType.link);
+        manage.setIcon("Settings");
+        manage.setLink(flowAppsUrl + "/admin");
+        response.add(manage);
       }
 
       return response;

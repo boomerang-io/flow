@@ -17,6 +17,7 @@ import java.time.Duration;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
 import java.util.Map;
 import java.util.Optional;
@@ -52,7 +53,13 @@ class TokenServiceSessionTest {
   void setUp() {
     tokenService =
         new TokenService(
-            tokenRepository, userService, roleRepository, relationshipService, mongoTemplate, identityService);
+            tokenRepository,
+            userService,
+            roleRepository,
+            relationshipService,
+            mongoTemplate,
+            identityService,
+            new TokenLookupCache(true, Duration.ofSeconds(60), 10_000));
     ReflectionTestUtils.setField(tokenService, "MAX_SESSION_TOKEN_DURATION", 8);
     when(tokenRepository.save(any(TokenEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
     when(relationshipService.roles(any())).thenReturn(Map.of());

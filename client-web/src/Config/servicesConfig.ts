@@ -10,17 +10,11 @@
 //@ts-nocheck
 import { Envs } from "Constants";
 
-// Set defaults; overridden below in production by the SSR-injected _SERVER_DATA.
-export let CORE_SERVICE_ENV_URL = "/api";
-
-// SSR (see react-router.config.ts) runs this module in Node, where `window` doesn't exist yet -
-// same guard as Config/appConfig.ts's APP_ROOT/CORE_ENV_URL. `import.meta.env.MODE === Envs.Prod`
+// Default "/api"; overridden in production by the SSR-injected _SERVER_DATA. SSR (see
+// react-router.config.ts) runs this module in Node, where `window` doesn't exist yet - same
+// guard as Config/appConfig.ts's APP_ROOT/CORE_ENV_URL. `import.meta.env.MODE === Envs.Prod`
 // alone isn't a safe guard here: the SSR build itself runs in production mode, so that check
-// passes and the `window` read below it still executes.
-if (typeof window !== "undefined" && import.meta.env.MODE === Envs.Prod && window._SERVER_DATA) {
-  CORE_SERVICE_ENV_URL = window._SERVER_DATA.CORE_SERVICE_ENV_URL;
-}
-
+// passes and the `window` read would still execute.
 export const PRODUCT_SERVICE_ENV_URL =
   typeof window !== "undefined" && import.meta.env.MODE === Envs.Prod && window._SERVER_DATA
     ? window._SERVER_DATA.PRODUCT_SERVICE_ENV_URL
@@ -72,8 +66,6 @@ export const serviceUrl = {
   getGlobalParameter: ({ name }: NameArg) => `${BASE_URL}/parameters/${name}`,
   getGlobalTokens: () => `${BASE_URL}/token/query?types=global`,
   getManageWorkspacesCreate: () => `${BASE_URL}/workspace`,
-  // TODO: no dedicated labels route; labels are now merged in via patchWorkspace's request body.
-  getManageWorkspaceLabels: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/labels`,
   getContext: () => `${BASE_URL}/context`,
   getWorkspaces: ({ query }: QueryArg) => `${BASE_URL}/workspace/query${query ? "?" + query : ""}`,
   deleteWorkspaceQuotas: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/quotas`,
@@ -82,6 +74,10 @@ export const serviceUrl = {
   // Resources/actions/role presets a token's permission grid is allowed to offer - server-driven
   // so the picker can't drift from what is actually enforced.
   getTokenCatalog: ({ query }) => `${BASE_URL}/token/catalog${query ? "?" + query : ""}`,
+  // Audit trail. Both take the same filter set; the listing pages, the stats endpoint counts the
+  // same window by outcome and reports the configured capture state.
+  getAuditEvents: ({ query }: QueryArg) => `${BASE_URL}/audit${query ? "?" + query : ""}`,
+  getAuditStats: ({ query }: QueryArg) => `${BASE_URL}/audit/stats${query ? "?" + query : ""}`,
   getUsers: ({ query }: QueryArg) => `${BASE_URL}/user/query${query ? "?" + query : ""}`,
   getUser: ({ userId }) => `${BASE_URL}/user/${userId}`,
   getUserWorkspaces: ({ userId }) => `${BASE_URL}/user/${userId}/workspaces`,
@@ -92,11 +88,10 @@ export const serviceUrl = {
   postToken: () => `${BASE_URL}/token`,
   postWorkspaceValidateName: () => `${BASE_URL}/workspace/validate-name`,
   postWorkspace: () => `${BASE_URL}/workspace`,
-  // TODO: quota reset is now DELETE workspace/{workspace}/quotas (see deleteWorkspaceQuotas); no POST .../quotas/reset route exists.
-  postWorkspaceQuotasReset: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/quotas/reset`,
+  // Labels, quotas, parameters and approver groups are all edited through PATCH /workspace/{workspace}.
   resourceWorkspace: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}`,
-  // TODO: create/update approver groups no longer exist as standalone routes (merged into patchWorkspace);
-  // delete now takes a request body of group names, not a /{groupId} path segment.
+  // DELETE /workspace/{workspace}/approvers with a request body of group names (WorkspaceControllerV2);
+  // create/update go through resourceWorkspace's PATCH.
   resourceApproverGroups: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/approvers`,
   putActivationApp: () => `${BASE_URL}/activate`,
   resourceSettings: () => `${BASE_URL}/settings`,
@@ -119,19 +114,21 @@ export const serviceUrl = {
       `${BASE_URL}/task/${name}?replace=${replace ? replace : false}`,
     postValidateYaml: () => `${BASE_URL}/task/validate`,
   },
+  // Workflow Templates are seeded, read-only content - the two reads are the whole surface.
   template: {
     getWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}`,
     getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query`,
-    postWorkflowTemplate: () => `${BASE_URL}/workflowtemplate`,
   },
   workspace: {
     deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,
     leaveWorkspace: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/leave`,
-    // TODO: no dedicated parameter create/list route; parameters are merged in via patchWorkspace's request body.
-    resourceWorkspaceParameters: ({ workspace }) => `${BASE_URL}/workspace/${workspace}/parameters`,
+    // DELETE /workspace/{workspace}/parameters/{name} (WorkspaceControllerV2); create/list/update go
+    // through resourceWorkspace's PATCH, and the list is read off the workspace record.
     deleteWorkspaceParameter: ({ workspace, name }) => `${BASE_URL}/workspace/${workspace}/parameters/${name}`,
     getInsights: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
       `${BASE_URL}/workspace/${workspace}/insights${query ? "?" + query : ""}`,
+    getInsightsWorkflow: ({ workspace, workflow, query }: WorkspaceArg & WorkflowArg & Partial<QueryArg>) =>
+      `${BASE_URL}/workspace/${workspace}/insights/workflow/${workflow}${query ? "?" + query : ""}`,
     action: {
       getActionsSummary: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,
@@ -183,8 +180,22 @@ export const serviceUrl = {
       putApplyWorkflow: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow`,
       getExportWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/export`,
-      // TODO: no workflow-level validate-name route; only workspace names are validated (postWorkspaceValidateName).
-      postValidateName: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow/validate-name`,
+    },
+    // Files a task run uploaded during a run (the `uploadartifact` task type). Per-run reads/writes
+    // take `runId` + the artifact `name` (the run's own artifact list has no numeric id in its
+    // path); the workspace-wide list/delete below take the artifact's `id` instead, matching the
+    // two distinct backend routes (WorkspaceArtifactControllerV2 vs the run-scoped one).
+    artifact: {
+      getRunArtifacts: ({ workspace, runId }: WorkspaceArg & { runId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts`,
+      getRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      deleteRunArtifact: ({ workspace, runId, name }: WorkspaceArg & { runId: string } & NameArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflowrun/${runId}/artifacts/${name}`,
+      getWorkspaceArtifacts: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts${query ? "?" + query : ""}`,
+      deleteWorkspaceArtifact: ({ workspace, artifactId }: WorkspaceArg & { artifactId: string }) =>
+        `${BASE_URL}/workspace/${workspace}/artifacts/${artifactId}`,
     },
     workflowrun: {
       deleteCancelWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
@@ -197,8 +208,6 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/pause`,
       putResumeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/resume`,
-      putFinalizeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
-        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/finalize`,
       getWorkflowRunCount: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/count${query ? "?" + query : ""}`,
       getWorkflowRuns: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>

@@ -13,142 +13,172 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
         class="cds--layer-two cds--modal-content _container_862e8c"
       >
         <div
-          class="cds--bmrg-text-input"
+          class="_fields_862e8c"
         >
+          <div>
+            <p
+              class="cds--label"
+            >
+              Name
+            </p>
+            <p
+              class="_name_862e8c"
+            >
+              tim-property
+            </p>
+            <p
+              class="cds--form__helper-text"
+            >
+              Tasks read it as $(params.tim-property). The name can't change once created.
+            </p>
+          </div>
           <div
-            class="cds--form-item cds--text-input-wrapper cds--text-input-wrapper--readonly"
+            class="_row_862e8c"
           >
             <div
-              class="cds--text-input__label-wrapper"
+              class="cds--bmrg-text-input"
             >
-              <label
-                class="cds--label"
-                dir="auto"
-                for="name"
+              <div
+                class="cds--form-item cds--text-input-wrapper"
               >
                 <div
-                  class="cds--bmrg-text-input__label"
+                  class="cds--text-input__label-wrapper"
                 >
-                  <div>
-                    Name (read-only)
+                  <label
+                    class="cds--label"
+                    dir="auto"
+                    for="label"
+                  >
+                    <div
+                      class="cds--bmrg-text-input__label"
+                    >
+                      <div>
+                        Label (optional)
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="cds--text-input__field-outer-wrapper"
+                >
+                  <div
+                    class="cds--text-input__field-wrapper"
+                  >
+                    <input
+                      aria-describedby="label-helper-text"
+                      class="cds--text-input"
+                      id="label"
+                      placeholder="e.g. Commit"
+                      title="e.g. Commit"
+                      type="text"
+                      value="Tim Property"
+                    />
+                    <span
+                      aria-atomic="true"
+                      aria-live="assertive"
+                      class="cds--text-input__counter-alert"
+                      role="alert"
+                    />
+                  </div>
+                  <div
+                    class="cds--form__helper-text"
+                    dir="auto"
+                    id="label-helper-text"
+                  >
+                    Shown when a run starts. Empty shows the name.
                   </div>
                 </div>
-              </label>
+              </div>
             </div>
             <div
-              class="cds--text-input__field-outer-wrapper"
+              class="cds--bmrg-text-input"
             >
               <div
-                class="cds--text-input__field-wrapper"
+                class="cds--form-item cds--text-input-wrapper"
               >
-                <input
-                  aria-describedby="name-helper-text"
-                  class="cds--text-input"
-                  id="name"
-                  placeholder=".e.g. token"
-                  readonly=""
-                  title=".e.g. token"
-                  type="text"
-                  value="tim-property"
-                />
-                <span
-                  aria-atomic="true"
-                  aria-live="assertive"
-                  class="cds--text-input__counter-alert"
-                  role="alert"
-                />
-              </div>
-              <div
-                class="cds--form__helper-text"
-                dir="auto"
-                id="name-helper-text"
-              >
-                Reference value for parameter in workflow. It can't be changed after parameter creation.
+                <div
+                  class="cds--text-input__label-wrapper"
+                >
+                  <label
+                    class="cds--label"
+                    dir="auto"
+                    for="description"
+                  >
+                    <div
+                      class="cds--bmrg-text-input__label"
+                    >
+                      <div>
+                        Description (optional)
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <div
+                  class="cds--text-input__field-outer-wrapper"
+                >
+                  <div
+                    class="cds--text-input__field-wrapper"
+                  >
+                    <input
+                      class="cds--text-input"
+                      id="description"
+                      type="text"
+                      value="Tim property"
+                    />
+                    <span
+                      aria-atomic="true"
+                      aria-live="assertive"
+                      class="cds--text-input__counter-alert"
+                      role="alert"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div
-          class="cds--bmrg-select"
-        >
           <div
-            class="cds--list-box__wrapper"
+            class="cds--dropdown__wrapper cds--list-box__wrapper"
           >
             <label
               class="cds--label"
-              dir="auto"
-              for="type"
+              for="downshift-[generated-id]-toggle-button"
               id="downshift-[generated-id]-label"
             >
-              <div
-                style="display: flex;"
-              >
-                <div>
-                  Type
-                </div>
-              </div>
+              Type
             </label>
             <div
-              class="cds--combo-box cds--list-box"
+              class="cds--dropdown cds--list-box"
+              id="type"
             >
-              <div
+              <button
+                aria-activedescendant=""
+                aria-controls="downshift-[generated-id]-menu"
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-labelledby="downshift-[generated-id]-label"
                 class="cds--list-box__field"
+                id="downshift-[generated-id]-toggle-button"
+                role="combobox"
+                tabindex="0"
+                title="Text"
+                type="button"
               >
-                <input
-                  aria-activedescendant=""
-                  aria-autocomplete="list"
-                  aria-controls="downshift-[generated-id]-menu"
-                  aria-expanded="false"
-                  aria-haspopup="listbox"
-                  aria-labelledby="downshift-[generated-id]-label"
-                  autocomplete="off"
-                  class="cds--text-input"
-                  id="type"
-                  placeholder="Select an item"
-                  role="combobox"
-                  tabindex="0"
-                  title="Text"
-                  type="text"
-                  value="Text"
-                />
-                <button
-                  aria-label="Clear selected item"
-                  class="cds--list-box__selection"
-                  tabindex="-1"
-                  title="Clear selected item"
-                  type="button"
+                <span
+                  class="cds--list-box__label"
                 >
-                  <svg
-                    aria-hidden="true"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    viewBox="0 0 32 32"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
-                    />
-                  </svg>
-                </button>
-                <button
-                  aria-controls="downshift-[generated-id]-menu"
-                  aria-expanded="false"
-                  aria-label="Open"
+                  Text
+                </span>
+                <div
                   class="cds--list-box__menu-icon"
-                  id="downshift-[generated-id]-toggle-button"
-                  tabindex="-1"
-                  title="Open"
-                  type="button"
                 >
                   <svg
-                    aria-hidden="true"
+                    aria-label="Open menu"
                     fill="currentColor"
                     focusable="false"
                     height="16"
+                    name="chevron--down"
                     preserveAspectRatio="xMidYMid meet"
+                    role="img"
                     viewBox="0 0 16 16"
                     width="16"
                     xmlns="http://www.w3.org/2000/svg"
@@ -156,9 +186,12 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     <path
                       d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
                     />
+                    <title>
+                      Open menu
+                    </title>
                   </svg>
-                </button>
-              </div>
+                </div>
+              </button>
               <ul
                 aria-labelledby="downshift-[generated-id]-label"
                 class="cds--list-box__menu"
@@ -167,197 +200,171 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
               />
             </div>
           </div>
-        </div>
-        <div
-          class="cds--bmrg-text-input"
-        >
           <div
-            class="cds--form-item cds--text-input-wrapper"
+            class="cds--bmrg-text-input"
           >
             <div
-              class="cds--text-input__label-wrapper"
-            >
-              <label
-                class="cds--label"
-                dir="auto"
-                for="label"
-              >
-                <div
-                  class="cds--bmrg-text-input__label"
-                >
-                  <div>
-                    Label
-                  </div>
-                </div>
-              </label>
-            </div>
-            <div
-              class="cds--text-input__field-outer-wrapper"
+              class="cds--form-item cds--text-input-wrapper"
             >
               <div
-                class="cds--text-input__field-wrapper"
+                class="cds--text-input__label-wrapper"
               >
-                <input
-                  class="cds--text-input"
-                  id="label"
-                  placeholder="e.g. Token"
-                  title="e.g. Token"
-                  type="text"
-                  value="Tim Property"
-                />
-                <span
-                  aria-atomic="true"
-                  aria-live="assertive"
-                  class="cds--text-input__counter-alert"
-                  role="alert"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="cds--bmrg-text-input"
-        >
-          <div
-            class="cds--form-item cds--text-input-wrapper"
-          >
-            <div
-              class="cds--text-input__label-wrapper"
-            >
-              <label
-                class="cds--label"
-                dir="auto"
-                for="description"
-              >
-                <div
-                  class="cds--bmrg-text-input__label"
-                >
-                  <div>
-                    Description (optional)
-                  </div>
-                </div>
-              </label>
-            </div>
-            <div
-              class="cds--text-input__field-outer-wrapper"
-            >
-              <div
-                class="cds--text-input__field-wrapper"
-              >
-                <input
-                  class="cds--text-input"
-                  id="description"
-                  type="text"
-                  value="Tim property"
-                />
-                <span
-                  aria-atomic="true"
-                  aria-live="assertive"
-                  class="cds--text-input__counter-alert"
-                  role="alert"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="cds--bmrg-toggle__container"
-        >
-          <div
-            class="cds--bmrg-toggle --vertical"
-          >
-            <div
-              class="cds--bmrg-toggle__title"
-            >
-              <label
-                class="cds--label"
-                for="required"
-                id="required-label"
-                style="margin-bottom: 0px;"
-              >
-                Required
-              </label>
-            </div>
-            <div
-              class="cds--toggle"
-            >
-              <button
-                aria-checked="false"
-                aria-labelledby="required-label"
-                class="cds--toggle__button"
-                data-testid="toggle-test-id"
-                id="required"
-                role="switch"
-                type="button"
-              />
-              <div
-                class="cds--toggle__label"
-                id="required_label"
-              >
-                <div
-                  class="cds--toggle__appearance"
+                <label
+                  class="cds--label"
+                  dir="auto"
+                  for="default"
                 >
                   <div
-                    class="cds--toggle__switch"
-                  />
-                  <span
-                    aria-hidden="true"
-                    class="cds--toggle__text"
-                    dir="auto"
-                  />
-                </div>
+                    class="cds--bmrg-text-input__label"
+                  >
+                    <div>
+                      Default value (optional)
+                    </div>
+                  </div>
+                </label>
               </div>
-            </div>
-          </div>
-        </div>
-        <div
-          class="cds--bmrg-text-input"
-        >
-          <div
-            class="cds--form-item cds--text-input-wrapper"
-          >
-            <div
-              class="cds--text-input__label-wrapper"
-            >
-              <label
-                class="cds--label"
-                dir="auto"
-                for="default"
+              <div
+                class="cds--text-input__field-outer-wrapper"
               >
                 <div
-                  class="cds--bmrg-text-input__label"
+                  class="cds--text-input__field-wrapper"
                 >
-                  <div>
-                    Default Value
-                  </div>
+                  <input
+                    class="cds--text-input"
+                    data-testid="text-input"
+                    id="default"
+                    placeholder="No default"
+                    title="No default"
+                    type="text"
+                    value="dogs"
+                  />
+                  <span
+                    aria-atomic="true"
+                    aria-live="assertive"
+                    class="cds--text-input__counter-alert"
+                    role="alert"
+                  />
                 </div>
-              </label>
+              </div>
             </div>
+          </div>
+          <div
+            class="cds--bmrg-toggle__container"
+          >
             <div
-              class="cds--text-input__field-outer-wrapper"
+              class="cds--bmrg-toggle --vertical"
             >
               <div
-                class="cds--text-input__field-wrapper"
+                class="cds--bmrg-toggle__title"
               >
-                <input
-                  class="cds--text-input"
-                  data-testid="text-input"
-                  id="default"
-                  placeholder="Default Value"
-                  title="Default Value"
-                  type="text"
-                  value="dogs"
+                <label
+                  class="cds--label"
+                  for="required"
+                  id="required-label"
+                  style="margin-bottom: 0px;"
+                >
+                  Required
+                </label>
+              </div>
+              <div
+                class="cds--toggle"
+              >
+                <button
+                  aria-checked="false"
+                  aria-labelledby="required-label"
+                  class="cds--toggle__button"
+                  data-testid="toggle-test-id"
+                  id="required"
+                  role="switch"
+                  type="button"
                 />
-                <span
-                  aria-atomic="true"
-                  aria-live="assertive"
-                  class="cds--text-input__counter-alert"
-                  role="alert"
-                />
+                <div
+                  class="cds--toggle__label"
+                  id="required_label"
+                >
+                  <div
+                    class="cds--toggle__appearance"
+                  >
+                    <div
+                      class="cds--toggle__switch"
+                    />
+                    <span
+                      aria-hidden="true"
+                      class="cds--toggle__text"
+                      dir="auto"
+                    >
+                      Not required
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <aside
+          aria-label="Preview"
+          class="_preview_862e8c"
+        >
+          <p
+            class="_previewTitle_862e8c"
+          >
+            When a run starts
+          </p>
+          <div
+            class="_previewField_862e8c"
+          >
+            <div
+              class="cds--form-item cds--text-input-wrapper"
+            >
+              <div
+                class="cds--text-input__label-wrapper"
+              >
+                <label
+                  class="cds--label cds--label--disabled"
+                  dir="auto"
+                  for="parameter-preview"
+                >
+                  Tim Property
+                </label>
+              </div>
+              <div
+                class="cds--text-input__field-outer-wrapper"
+              >
+                <div
+                  class="cds--text-input__field-wrapper"
+                >
+                  <input
+                    aria-describedby="parameter-preview-helper-text"
+                    class="cds--text-input"
+                    disabled=""
+                    id="parameter-preview"
+                    placeholder="dogs"
+                    title="dogs"
+                    type="text"
+                  />
+                  <span
+                    aria-atomic="true"
+                    aria-live="assertive"
+                    class="cds--text-input__counter-alert"
+                    role="alert"
+                  />
+                </div>
+                <div
+                  class="cds--form__helper-text cds--form__helper-text--disabled"
+                  dir="auto"
+                  id="parameter-preview-helper-text"
+                >
+                  Tim property
+                </div>
+              </div>
+            </div>
+          </div>
+          <p
+            class="_previewNote_862e8c"
+          >
+            The same field appears in Run workflow and in a schedule's parameters.
+          </p>
+        </aside>
       </div>
       <div
         aria-busy="false"
@@ -375,7 +382,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
           disabled=""
           type="submit"
         >
-          Update
+          Save
         </button>
       </div>
     </form>

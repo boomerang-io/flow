@@ -4,11 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.core.audit.AuditEvent;
-import io.boomerang.core.audit.AuditType;
+import io.boomerang.core.audit.AuditActor;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
@@ -115,23 +113,18 @@ class UnauthenticatedGlobalAuthenticationFilterTest {
   }
 
   /**
-   * The headline defect this change fixes: {@code AuditActor}'s constructor dereferences the token,
-   * so with no identity the audit write threw and {@code AuditInterceptor}'s catch-all swallowed
-   * it - silently producing NO audit trail whatsoever on a security-off instance.
+   * The headline defect this change fixed: before this filter, no identity meant no audit trail at
+   * all on a security-off instance. The synthetic token resolves to the clearly-badged {@code
+   * system} audit actor.
    */
   @Test
-  @DisplayName("An audit record is now written with 'system' as the actor, instead of throwing")
-  void auditRecordIsWrittenWithTheSystemActor() throws Exception {
-    assertThrows(
-        NullPointerException.class,
-        () -> new AuditEvent(AuditType.created, null),
-        "precondition: a null identity is exactly what used to break the audit write");
+  @DisplayName("Audit events on a security-off instance record 'system' as the actor")
+  void auditActorResolvesToSystem() throws Exception {
+    AuditActor actor = AuditActor.from(runFilter());
 
-    AuditEvent event = new AuditEvent(AuditType.created, runFilter());
-
-    assertNotNull(event.getActor());
-    assertEquals("system", event.getActor().getPrincipal());
-    assertEquals(AuthScope.global, event.getActor().getType());
+    assertNotNull(actor);
+    assertEquals("system", actor.id());
+    assertEquals("system", actor.type());
   }
 
   @Test

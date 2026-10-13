@@ -25,16 +25,21 @@ import {
   WorkflowEdge,
   WorkflowEngineModeType,
   WorkflowNode,
+  WorkflowNodeData,
   WorkflowReactFlowInstance,
 } from "Types";
 import * as GraphComps from "./components";
+import { ForeachModal } from "./components/Foreach";
+import { FOREACH_PALETTE_TYPE, parseForeachItems } from "./components/shared/foreach";
 import "./styles.scss";
 
 export const markerTypes: { [K in NodeTypeType]: string } = {
+  ai: "task-marker",
   approval: "task-marker",
   acquirelock: "task-marker",
   custom: "task-marker",
   decision: "decision-marker",
+  downloadartifact: "task-marker",
   end: "task-marker",
   eventwait: "task-marker",
   generic: "task-marker",
@@ -48,6 +53,7 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
   template: "task-marker",
   start: "task-marker",
   sleep: "task-marker",
+  uploadartifact: "task-marker",
 };
 
 // The value type is taken from xyflow's own `EdgeTypes`/`NodeTypes` aliases (via indexed
@@ -59,9 +65,11 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
 // widening scoped to where xyflow itself put it, instead of us re-deriving it locally.
 const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   acquirelock: GraphComps.TemplateEdge,
+  ai: GraphComps.TemplateEdge,
   approval: GraphComps.TemplateEdge,
   custom: GraphComps.TemplateEdge,
   decision: GraphComps.DecisionEdge,
+  downloadartifact: GraphComps.TemplateEdge,
   end: GraphComps.TemplateEdge,
   eventwait: GraphComps.TemplateEdge,
   generic: GraphComps.TemplateEdge,
@@ -75,13 +83,20 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   start: GraphComps.StartEdge,
   template: GraphComps.TemplateEdge,
   sleep: GraphComps.TemplateEdge,
+  uploadartifact: GraphComps.TemplateEdge,
 };
 
+// uploadartifact/downloadartifact render and configure exactly like `template` - a dispatcher-run
+// task whose params come from its catalogue entry (DAGUtility/TaskExecutionService treat them the
+// same as template server-side; see TaskExecutionService's dispatch-type switch). Both can run for
+// each item (FOREACH_TASK_TYPES); each item then needs its own artifact name.
 const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   acquirelock: GraphComps.TemplateNode,
+  ai: GraphComps.AiNode,
   approval: GraphComps.ApprovalNode,
   custom: GraphComps.CustomTaskNode,
   decision: GraphComps.DecisionNode,
+  downloadartifact: GraphComps.TemplateNode,
   end: GraphComps.EndNode,
   eventwait: GraphComps.TemplateNode,
   generic: GraphComps.TemplateNode,
@@ -95,6 +110,7 @@ const nodeTypes: { [K in NodeTypeType]: NodeTypes[string] } = {
   start: GraphComps.StartNode,
   template: GraphComps.TemplateNode,
   sleep: GraphComps.TemplateNode,
+  uploadartifact: GraphComps.TemplateNode,
 };
 
 interface FlowDiagramProps {
@@ -115,6 +131,11 @@ function FlowDiagram(props: FlowDiagramProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(initNodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState<WorkflowEdge>(initEdges ?? []);
   const shouldFitGraph = React.useRef(false);
+  // Where "For each" was dropped, while its modal is open.
+  const [foreachDropPosition, setForeachDropPosition] = React.useState<XYPosition | null>(null);
+  // A node whose edit modal opens as soon as it mounts.
+  const [nodeToEdit, setNodeToEdit] = React.useState<string | null>(null);
+  const clearNodeToEdit = React.useCallback(() => setNodeToEdit(null), []);
 
   React.useEffect(() => {
     if (shouldFitGraph.current) {
@@ -171,43 +192,36 @@ function FlowDiagram(props: FlowDiagramProps) {
         y: event.clientY - 25,
       }) as XYPosition;
 
-      // TODO: clean this up - determines how to give the task template a unique name
-      const numTaskRefInstances = nodes.reduce((accum, currentNode) => {
-        if (currentNode.data.taskRef === task.name) {
-          accum += 1;
-        }
-        return accum;
-      }, 0);
+      // The palette's "For each" entry is not a task: it asks which task to repeat first.
+      if (task.type === FOREACH_PALETTE_TYPE) {
+        setForeachDropPosition(position);
+        return;
+      }
 
-      const taskName = numTaskRefInstances ? `${task.displayName} ${numTaskRefInstances + 1}` : task.displayName;
-
-      const newNode: WorkflowNode = {
-        id: taskName,
-        type: task.type,
-        position,
-        data: {
-          name: taskName,
-          taskRef: task.name,
-          taskVersion: task.version,
-          upgradesAvailable: false,
-          params: [],
-          // Not set on drop (no results yet); v11's untyped `data: any` let this be omitted,
-          // v12's stricter `Node<Data>` typing requires it since `WorkflowNodeData.results`
-          // is a required field.
-          results: [],
-        },
-      };
-
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) => nds.concat(createTaskNode(task, position, suggestTaskName(task, nodes))));
     },
     [props.reactFlowInstance, nodes, setNodes],
+  );
+
+  const handleForeachSubmit = React.useCallback(
+    ({ task, items, taskName }: { task: Task; items: string; taskName: string }) => {
+      if (!foreachDropPosition) {
+        return;
+      }
+      const newNode = createTaskNode(task, foreachDropPosition, taskName, { items: parseForeachItems(items) });
+      setNodes((nds) => nds.concat(newNode));
+      setForeachDropPosition(null);
+      // Carry straight on into the task's own form.
+      setNodeToEdit(newNode.id);
+    },
+    [foreachDropPosition, setNodes],
   );
 
   const isEnabled = props.mode === WorkflowEngineMode.Edit;
 
   return (
     <div className="reactflow-container">
-      <WorkflowProvider value={{ mode: props.mode, tasks: props.tasks }}>
+      <WorkflowProvider value={{ mode: props.mode, tasks: props.tasks, nodeToEdit, clearNodeToEdit }}>
         <ReactFlowProvider>
           <div className="reactflow-wrapper" data-mode={props.mode} ref={reactFlowWrapper}>
             {/*
@@ -250,10 +264,57 @@ function FlowDiagram(props: FlowDiagramProps) {
               </Controls>
             </ReactFlow>
           </div>
+          {isEnabled ? (
+            <ForeachModal
+              isOpen={Boolean(foreachDropPosition)}
+              tasks={props.tasks}
+              takenNames={nodes.flatMap((node) => [node.id, node.data.name])}
+              suggestName={(task) => suggestTaskName(task, nodes)}
+              onCancel={() => setForeachDropPosition(null)}
+              onSubmit={handleForeachSubmit}
+            />
+          ) : null}
         </ReactFlowProvider>
       </WorkflowProvider>
     </div>
   );
+}
+
+// TODO: clean this up - determines how to give the task template a unique name
+function suggestTaskName(task: Task, nodes: Array<WorkflowNode>) {
+  const numTaskRefInstances = nodes.reduce((accum, currentNode) => {
+    if (currentNode.data.taskRef === task.name) {
+      accum += 1;
+    }
+    return accum;
+  }, 0);
+
+  return numTaskRefInstances ? `${task.displayName} ${numTaskRefInstances + 1}` : task.displayName;
+}
+
+function createTaskNode(
+  task: Task,
+  position: XYPosition,
+  taskName: string,
+  foreach?: WorkflowNodeData["foreach"],
+): WorkflowNode {
+  return {
+    id: taskName,
+    type: task.type,
+    position,
+    data: {
+      name: taskName,
+      taskRef: task.name,
+      taskVersion: task.version,
+      upgradesAvailable: false,
+      params: [],
+      // Not set on drop (no results yet); v11's untyped `data: any` let this be omitted,
+      // v12's stricter `Node<Data>` typing requires it since `WorkflowNodeData.results`
+      // is a required field.
+      results: [],
+      ...(foreach ? { foreach } : {}),
+    },
+  };
 }
 
 interface CustomEdgeArrowProps {

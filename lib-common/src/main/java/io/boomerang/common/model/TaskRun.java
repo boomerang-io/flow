@@ -51,6 +51,9 @@ public class TaskRun {
   private String workflowRevisionRef;
   private String workflowRunRef;
   private String workflowName;
+  // Set only on an item of a foreach task: the parent TaskRun's id and the item's position from 0.
+  private String parentRef;
+  private Integer index;
 
   public TaskRun() {}
 

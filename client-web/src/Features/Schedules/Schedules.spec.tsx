@@ -48,6 +48,16 @@ describe("Schedules --- loader", () => {
     expect(screen.getByText("Daily event")).toBeInTheDocument();
   });
 
+  // Regression (#387): the API serialises schedule labels as a string map (backend
+  // WorkflowSchedule.labels is a Map<String,String>); the fixture used to carry the retired
+  // [{key, value}] array shape, which Object.entries renders as "0=[object Object]". This pins
+  // the wire shape end to end: MSW response -> loader -> SchedulePanelList tags.
+  test("renders schedule labels from the API's string-map wire shape", async () => {
+    renderSchedules();
+    expect((await screen.findAllByText("maintenance=hello")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("daily=yes").length).toBeGreaterThan(0);
+  });
+
   // ScheduleStatus gained "completed" (a runOnce schedule moves there once it fires) - the
   // default (no filter selected) status list needs to keep including it, otherwise completed
   // schedules would silently vanish from the page on first load. See scheduleStatusOptions in
@@ -133,9 +143,8 @@ describe("Schedules --- loader", () => {
   });
 
   // A failed calendar fetch is a partial failure - the schedule list is still accurate - so it
-  // surfaces next to the calendar rather than replacing the page. It used to be piped into a
-  // `data-is-loading` attribute on the calendar container, which showed the user nothing.
-  test("surfaces a failed calendar fetch beside the still-valid schedule list", async () => {
+  // surfaces in the calendar views rather than replacing the page.
+  test("keeps the list and surfaces a failed calendar fetch in the calendar views", async () => {
     server.use(
       http.get(serviceUrl.workspace.schedule.getSchedulesCalendars({ workspace: ":workspace" }), () =>
         HttpResponse.json({}, { status: 500 }),
@@ -144,8 +153,9 @@ describe("Schedules --- loader", () => {
 
     renderSchedules();
 
+    expect(await screen.findByText("Daily event")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Month" }));
     expect(await screen.findByText("Calendar unavailable")).toBeInTheDocument();
-    expect(screen.getByText("Daily event")).toBeInTheDocument();
   });
 
   // The workflows read and the schedules read have no data dependency on each other (only the

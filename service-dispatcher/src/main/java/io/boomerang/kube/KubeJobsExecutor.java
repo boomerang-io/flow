@@ -13,7 +13,10 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.error.TaskExecutionException;
+import io.boomerang.executor.PodStartWatch;
 import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
 import io.boomerang.executor.TerminationMessageParser;
 import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
@@ -73,11 +76,23 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   private static final Integer ONE_DAY_IN_SECONDS = 86400;
 
+  // Kubernetes' own ceiling on a container termination message; above it the message is truncated.
+  private static final int TERMINATION_MESSAGE_MAX_BYTES = 4096;
+
+  private static final String RESULTS_TOO_LARGE_MESSAGE =
+      "TaskRunResultTooLarge - Task has exceeded the maximum allowed "
+          + TERMINATION_MESSAGE_MAX_BYTES
+          + " byte size for Result Parameters. Pass large outputs by reference (workspace path or URI).";
+
   @Autowired protected KubeHelperService helperKubeService;
 
   @Autowired protected KubeServiceImpl kubeService;
 
   @Autowired private WorkspaceService workspaceService;
+
+  @Autowired protected TaskImageResolver imageResolver;
+
+  @Autowired protected TaskResourceResolver resourceResolver;
 
   @Value("${kube.timeout.watchGraceMinutes}")
   private long watchGraceMinutes;
@@ -87,6 +102,12 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   @Value("${kube.timeout.failedConditionGraceSeconds}")
   private long failedConditionGraceSeconds;
+
+  @Value("${kube.timeout.startMinutes:15}")
+  private long startMinutes;
+
+  @Value("${kube.timeout.startFailureGraceSeconds:60}")
+  private long startFailureGraceSeconds;
 
   @Value("${kube.image.pullPolicy}")
   private String kubeImagePullPolicy;
@@ -161,22 +182,32 @@ public class KubeJobsExecutor implements TaskExecutor {
     addWorkspaceVolumes(volumes, volumeMounts, workflowRef, workflowRunRef, task.getWorkspaces());
 
     List<String> containerCommand =
-        addScriptOrCommand(volumes, volumeMounts, taskLabels, spec.getScript(), spec.getCommand());
+        addScriptOrCommand(
+            volumes,
+            volumeMounts,
+            taskLabels,
+            imageResolver.script(task),
+            imageResolver.command(task));
 
     Container container = new Container();
     container.setName("task");
-    container.setImage(spec.getImage());
+    container.setImage(imageResolver.image(task));
     container.setImagePullPolicy(kubeImagePullPolicy);
     container.setWorkingDir(spec.getWorkingDir());
-    container.setArgs(spec.getArguments());
+    container.setArgs(imageResolver.arguments(task));
     container.setCommand(containerCommand);
     container.setEnv(
         helperKubeService.createTaskEnvVars(
             spec.getDebug(),
             task.getParams(),
             spec.getEnvs(),
-            helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log")));
+            helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log"),
+            // The ceiling a task writes to, so it can budget its own payload rather than guess.
+            helperKubeService.createEnvVar(
+                "RESULTS_MAX_BYTES", String.valueOf(TERMINATION_MESSAGE_MAX_BYTES))));
     container.setVolumeMounts(volumeMounts);
+    // Null when nothing is configured, so the container carries no resources block at all.
+    container.setResources(resourceResolver.requirements());
     container.setTerminationMessagePath("/dev/termination-log");
     container.setTerminationMessagePolicy("File");
 
@@ -371,6 +402,9 @@ public class KubeJobsExecutor implements TaskExecutor {
 
     final CountDownLatch latch = new CountDownLatch(1);
     JobWatcher jobWatcher = new JobWatcher(latch, Duration.ofSeconds(failedConditionGraceSeconds));
+    PodStartWatch podStartWatch =
+        new PodStartWatch(
+            Instant.now(), Duration.ofMinutes(startMinutes), Duration.ofSeconds(startFailureGraceSeconds));
     Watch watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
 
     try {
@@ -399,6 +433,21 @@ public class KubeJobsExecutor implements TaskExecutor {
           watch.close();
           watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
           jobWatcher.resetWatchLost();
+        }
+        if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
+          TaskExecutionException startFailure =
+              podStartWatch.check(helperKubeService.podStart(client, taskLabels), Instant.now());
+          if (startFailure != null) {
+            // Nothing ran: remove the Job so a pod that cannot start stops holding capacity.
+            client
+                .batch()
+                .v1()
+                .jobs()
+                .withLabels(taskLabels)
+                .withPropagationPolicy(DeletionPropagation.BACKGROUND)
+                .delete();
+            throw startFailure;
+          }
         }
       }
 
@@ -451,17 +500,31 @@ public class KubeJobsExecutor implements TaskExecutor {
     client.configMaps().withLabels(taskLabels).delete();
   }
 
+  /*
+   * Kubernetes truncates a termination message above TERMINATION_MESSAGE_MAX_BYTES and the
+   * truncated prefix is broken JSON, so an oversize payload used to read as "no results" and the
+   * task ended succeeded with every result missing and nothing said. The too-large check now runs
+   * whether or not a message came back - truncation leaves one behind - and an unparseable
+   * message at the ceiling fails the task with the same reason instead of being swallowed. A
+   * short unparseable message is a task writing something that is not a results payload: it
+   * carries no results, which is not a failure, and is logged rather than failed.
+   */
   private List<RunResult> readResults(Map<String, String> taskLabels, List<RunResult> declaredResults) {
     String message = getTerminationMessage(taskLabels);
-    if (message == null || message.isBlank()) {
-      if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-        throw new TaskExecutionException(
-            "ResultsTooLarge",
-            "TaskRunResultTooLarge - Task has exceeded the maximum allowed 4096 byte size for Result Parameters.");
-      }
-      return List.of();
+    if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
+      throw new TaskExecutionException("ResultsTooLarge", RESULTS_TOO_LARGE_MESSAGE);
     }
-    return TerminationMessageParser.parse(message, declaredResults);
+    Optional<List<RunResult>> parsed = TerminationMessageParser.parse(message, declaredResults);
+    if (parsed.isPresent()) {
+      return parsed.get();
+    }
+    if (message.length() >= TERMINATION_MESSAGE_MAX_BYTES) {
+      throw new TaskExecutionException("ResultsTooLarge", RESULTS_TOO_LARGE_MESSAGE);
+    }
+    LOGGER.warn(
+        "Termination message is not a Result Parameter payload ({} bytes); no Results recorded.",
+        message.length());
+    return List.of();
   }
 
   private String getTerminationMessage(Map<String, String> taskLabels) {

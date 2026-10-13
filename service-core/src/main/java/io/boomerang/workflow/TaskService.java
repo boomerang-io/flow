@@ -10,13 +10,17 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ChangeLog;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
 import io.boomerang.core.model.User;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.tekton.TektonConverter;
@@ -27,8 +31,12 @@ import io.boomerang.common.error.BoomerangException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
 import io.boomerang.common.util.ParameterUtil;
 import java.util.List;
 import java.util.Objects;
@@ -379,7 +387,7 @@ public class TaskService {
   private Task internalCreate(Task request) {
     // Ignore any provided Ids as this is a create
     request.setId(null);
-    // Set verified to false - this is only able to be set via Engine or Loader
+    // Set verified to false - only the migrations' catalogue seeds set it
     request.setVerified(false);
 
     // Update Changelog
@@ -450,7 +458,7 @@ public class TaskService {
   }
 
   private Task internalApply(Task request, boolean replace) {
-    // Set verfied to false - this is only able to be set via Engine or Loader
+    // Set verified to false - only the migrations' catalogue seeds set it
     request.setVerified(false);
 
     // Update Changelog
@@ -470,11 +478,23 @@ public class TaskService {
       changelog = new ChangeLog();
     }
     changelog.setDate(new Date());
-    // No principal (e.g. security disabled) leaves the author unset - same as a resolved
-    // identity with no principal string, which this already tolerated.
-    String principal = identityService.getCurrentPrincipal();
-    if (principal != null) {
-      changelog.setAuthor(principal);
+    // No identity or principal leaves the author unset. The security-off synthetic token is
+    // treated the same: its name ("system") must not appear as a changelog author - it would read
+    // as the platform itself making the change.
+    Token identity = identityService.getCurrentIdentity();
+    if (identity == null
+        || identity.getPrincipal() == null
+        || identity instanceof UnauthenticatedGlobalToken) {
+      return;
+    }
+    // A user or session principal is a user id and is resolved to the user's name on read. Any
+    // other token's principal (key = workspace ref, global = varies) is NOT a user id, so record
+    // the token's own name; a token without a name leaves the author unset rather than inventing
+    // one from its scope.
+    if (AuthScope.user.equals(identity.getType()) || AuthScope.session.equals(identity.getType())) {
+      changelog.setAuthor(identity.getPrincipal());
+    } else if (identity.getName() != null && !identity.getName().isBlank()) {
+      changelog.setAuthor(identity.getName());
     }
   }
 
@@ -487,9 +507,9 @@ public class TaskService {
             user.get().getDisplayName().isEmpty()
                 ? user.get().getName()
                 : user.get().getDisplayName());
-      } else {
-        changelog.setAuthor("---");
       }
+      // Not a user id: the author is a token's name (or a pre-existing non-user id) stamped by
+      // stampChangeLog - keep it as recorded rather than masking it.
     }
   }
 
@@ -546,8 +566,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   public List<ChangeLogVersion> changelogGlobal(String name) {
@@ -561,8 +580,7 @@ public class TaskService {
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   private List<ChangeLogVersion> internalChangelog(String id) {
@@ -577,7 +595,7 @@ public class TaskService {
    */
   public void delete(String team, String name) {
     if (Objects.isNull(name) || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF);
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
     List<String> refs =
         relationshipService.filter(
@@ -588,10 +606,38 @@ public class TaskService {
             false);
     if (!refs.isEmpty()) {
       delete(refs.get(0));
+      // Mirrors the TEAMTASK node create() writes - the Task is gone, so its node and the
+      // workspace's edge to it go with it rather than dangling in the relationship graph.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, refs.get(0));
       return;
     }
-    // TODO - change error to don't have access
-    throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
+  }
+
+  /*
+   * Deletes a global Task. Same shape as the workspace-scoped delete above - the name is resolved
+   * through the caller's own relationship and the shared delete refuses while a run still
+   * references it - so the catalogue is manageable from the global surface rather than only by
+   * making a Task inactive.
+   */
+  public void deleteGlobal(String name) {
+    if (Objects.isNull(name) || name.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
+    }
+    List<String> refs =
+        relationshipService.filter(
+            RelationshipType.TASK,
+            Optional.of(List.of(name)),
+            Optional.empty(),
+            Optional.empty(),
+            false);
+    if (!refs.isEmpty()) {
+      delete(refs.get(0));
+      // Mirrors the TASK node createGlobal() writes, under the root node.
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, refs.get(0));
+      return;
+    }
+    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
   }
 
   // ── Unscoped operations (engine, workflow-definition and template callers) ─
@@ -672,7 +718,7 @@ public class TaskService {
     validateDeclaredParamNames(request);
 
     if (!uniqueNamesEnabled && request.getId().isEmpty()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
+      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ, request.getName(), "latest");
     }
 
     // Does it already exist?
@@ -857,7 +903,7 @@ public class TaskService {
   public List<ChangeLogVersion> changelog(String ref) {
     Task task = this.get(ref, Optional.empty());
     List<TaskRevisionEntity> taskRevisionEntities =
-        taskRevisionRepository.findByParentRef(task.getId());
+        taskRevisionRepository.findByParentRefOrderByVersionAsc(task.getId());
     if (taskRevisionEntities.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, ref, "latest");
     }
@@ -874,6 +920,78 @@ public class TaskService {
           changelogs.add(cl);
         });
     return changelogs;
+  }
+
+  /**
+   * A catalogue task exactly as a TaskRun records it: {@code taskRef} plus the version resolved at
+   * creation ({@code TaskRunEntity.taskRef/taskVersion}).
+   */
+  public record TaskRef(String ref, Integer version) {}
+
+  /**
+   * The specs of the given catalogue task references, resolved in TWO queries however many
+   * references are asked for - one for the tasks, one for their revisions - so a run response with
+   * many tasks never costs one lookup per task. Ref resolution is the same switch {@link
+   * #get(String, Optional)} uses (by name or by id, per {@code flow.uniquenames.enabled}); a
+   * reference the catalogue no longer holds is simply absent from the result.
+   *
+   * <p>A reference carrying no version is skipped - it cannot be joined in a batch, and {@code
+   * DAGUtility.createTaskList} stamps the resolved version beside {@code taskRef} on every TaskRun
+   * it creates, so one does not occur.
+   */
+  public Map<TaskRef, TaskSpec> getSpecs(Collection<TaskRef> refs) {
+    if (refs == null || refs.isEmpty()) {
+      return Map.of();
+    }
+    Set<TaskRef> wanted =
+        refs.stream()
+            .filter(r -> r != null && r.ref() != null && r.version() != null)
+            .collect(Collectors.toSet());
+    if (wanted.isEmpty()) {
+      return Map.of();
+    }
+    Set<String> taskRefs = wanted.stream().map(TaskRef::ref).collect(Collectors.toSet());
+    List<TaskEntity> tasks =
+        uniqueNamesEnabled
+            ? taskRepository.findByNameIn(taskRefs)
+            : taskRepository.findAllById(taskRefs);
+    // The revisions hang off the TaskEntity id, which is the taskRef itself unless unique names
+    // are on - in which case the TaskRun records the name and the id has to be looked up.
+    Map<String, String> parentRefByTaskRef =
+        tasks.stream()
+            .collect(
+                Collectors.toMap(
+                    t -> uniqueNamesEnabled ? t.getName() : t.getId(),
+                    TaskEntity::getId,
+                    (a, b) -> a));
+    if (parentRefByTaskRef.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, TaskRevisionEntity> revisions =
+        taskRevisionRepository
+            .findByParentRefInAndVersionIn(
+                Set.copyOf(parentRefByTaskRef.values()),
+                wanted.stream().map(TaskRef::version).collect(Collectors.toSet()))
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    r -> revisionKey(r.getParentRef(), r.getVersion()), r -> r, (a, b) -> a));
+    Map<TaskRef, TaskSpec> specs = new HashMap<>();
+    for (TaskRef ref : wanted) {
+      String parentRef = parentRefByTaskRef.get(ref.ref());
+      if (parentRef == null) {
+        continue;
+      }
+      TaskRevisionEntity revision = revisions.get(revisionKey(parentRef, ref.version()));
+      if (revision != null && revision.getSpec() != null) {
+        specs.put(ref, revision.getSpec());
+      }
+    }
+    return specs;
+  }
+
+  private static String revisionKey(String parentRef, Integer version) {
+    return parentRef + "@" + version;
   }
 
   public Task retrieveAndValidateTask(final WorkflowTask wfTask) {

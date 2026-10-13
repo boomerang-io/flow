@@ -3,8 +3,20 @@ import React, { Component } from "react";
 import PropTypes from "prop-types";
 import Transition from "react-transition-group/Transition";
 
-class FadeAnimation extends Component {
-  constructor(props) {
+// Declared so consumers typecheck against the real prop surface (the file itself stays
+// unchecked: the class body predates TypeScript here and leans on defaultProps).
+type FadeAnimationProps = {
+  animationDuration?: number;
+  animationFunction?: string;
+  timeout?: number;
+  className?: string;
+  renderDelay?: number;
+  transitionStyles?: Record<string, React.CSSProperties>;
+  children: React.ReactNode;
+};
+
+class FadeAnimation extends Component<FadeAnimationProps, { in: boolean }> {
+  constructor(props: FadeAnimationProps) {
     super(props);
     this.state = {
       in: false

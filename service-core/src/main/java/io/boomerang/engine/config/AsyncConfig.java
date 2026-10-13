@@ -1,56 +1,36 @@
 package io.boomerang.engine.config;
 
-import java.util.concurrent.Executor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+/**
+ * The engine's two {@code @Async} executors. Both give every task its own virtual thread: a task
+ * transition blocks on Mongo and on the dispatcher, so a fixed pool caps concurrent transitions at
+ * its size and queues the rest behind them.
+ */
 @Configuration
 @EnableAsync(proxyTargetClass = true)
 public class AsyncConfig {
 
-  private static final Logger LOGGER = LogManager.getLogger();
+  // Shutdown waits this long for transitions still running; nothing caps how many run at once.
+  private static final long TASK_TERMINATION_TIMEOUT_MS = 10_000;
 
   @Bean(name = "asyncTaskExecutor")
-  public Executor getTaskExecutor() {
-    int maxThreads = 200;
-    int maxQueue = 100000;
-
-    LOGGER.info(
-        "Creating task executor service: (max concurrent threads: {}) (max queue: {})",
-        maxThreads,
-        maxQueue);
-
-    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(maxThreads);
-    executor.setMaxPoolSize(maxThreads);
-    executor.setQueueCapacity(maxQueue);
-
-    executor.setThreadNamePrefix("TaskExecutor-");
-    executor.initialize();
-    return executor;
+  public SimpleAsyncTaskExecutor getTaskExecutor() {
+    return virtualThreadExecutor("TaskExecutor-");
   }
 
   @Bean(name = "asyncWorkflowExecutor")
-  public Executor getWorkflowExecutor() {
-    int maxThreads = 100;
-    int maxQueue = 100000;
+  public SimpleAsyncTaskExecutor getWorkflowExecutor() {
+    return virtualThreadExecutor("WorkflowExecutor-");
+  }
 
-    LOGGER.info(
-        "Creating workflow executor service: (max concurrent threads: {}) (max queue: {})",
-        maxThreads,
-        maxQueue);
-
-    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(maxThreads);
-    executor.setMaxPoolSize(maxThreads);
-    executor.setQueueCapacity(maxQueue);
-
-    executor.setThreadNamePrefix("WorkflowExecutor-");
-    executor.initialize();
+  private static SimpleAsyncTaskExecutor virtualThreadExecutor(String threadNamePrefix) {
+    SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor(threadNamePrefix);
+    executor.setVirtualThreads(true);
+    executor.setTaskTerminationTimeout(TASK_TERMINATION_TIMEOUT_MS);
     return executor;
   }
 }

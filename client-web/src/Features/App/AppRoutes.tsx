@@ -8,11 +8,11 @@ import { ProtectedRoute } from "./App";
 export type RoutePermissions = {
   canReadSettings: boolean;
   canReadParameters: boolean;
-  canReadWorkflowTemplates: boolean;
   canReadTasks: boolean;
   canReadTokens: boolean;
   canReadWorkspaces: boolean;
   canReadUsers: boolean;
+  canReadAudit: boolean;
   activityEnabled: boolean;
   insightsEnabled: boolean;
   workspaceParametersEnabled: boolean;

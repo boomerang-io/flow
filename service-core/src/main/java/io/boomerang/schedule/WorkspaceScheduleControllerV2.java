@@ -2,8 +2,6 @@ package io.boomerang.schedule;
 
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -31,12 +29,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// E8: hard-depends on schedule.ScheduleService, which is unsupported in engine mode (I2) -
-// standalone only.
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}/schedule")
 @Tag(name = "Schedules", description = "Create, list and manage your Schedules.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceScheduleControllerV2 {
 
   private final ScheduleService workflowScheduleService;

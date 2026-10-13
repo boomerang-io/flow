@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
   notify,
@@ -16,6 +16,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import CreateEditParametersModal from "../CreateEditParametersModal";
 import ParametersTable from "../ParametersTable";
 
 // Route module for app/routes/workspaceParameters.tsx, following
@@ -33,10 +34,8 @@ import ParametersTable from "../ParametersTable";
 // `refetchOnWindowFocus: false` in app/root.tsx removed the last accidental refresh).
 //
 // It reads the workspace record - the same GET app/routes/workspaceLayout.tsx's loader makes -
-// rather than
-// `serviceUrl.workspace.resourceWorkspaceParameters`, because there is no dedicated
-// parameter list/create route on the API (see that builder's TODO in Config/servicesConfig.ts);
-// parameters are carried on the workspace and merged in through patchWorkspace.
+// because there is no dedicated parameter list/create route on the API: parameters are carried
+// on the workspace and merged in through PATCH /workspace/{workspace} (serviceUrl.resourceWorkspace).
 type LoaderData = {
   parameters: DataDrivenInput[];
   errorLoading: boolean;
@@ -114,6 +113,7 @@ function WorkspaceParameters() {
   // create/update settles (success or failure both closed the modal before, see the effect below) -
   // matching the previous mutateAsync/then-catch behaviour.
   const closeModalRef = useRef<(() => void) | null>(null);
+  const [editor, setEditor] = useState<{ isOpen: boolean; parameter?: DataDrivenInput }>({ isOpen: false });
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
@@ -203,28 +203,37 @@ function WorkspaceParameters() {
   return (
     <>
       <Helmet>
-        <title>Workspace Parameters</title>
+        <title>Parameters</title>
       </Helmet>
       <Header
         includeBorder={false}
         nav={<NavigationComponent />}
         header={
           <>
-            <HeaderTitle>Workspace Parameters</HeaderTitle>
-            <HeaderSubtitle>
-              Set workspace-level parameters that are accessible to all workflows owned by the workspace.
-            </HeaderSubtitle>
+            <HeaderTitle>Parameters</HeaderTitle>
+            <HeaderSubtitle>Values every workflow in this workspace can read as $(workspace.params.name).</HeaderSubtitle>
           </>
         }
       />
       <ParametersTable
+        scope="workspace"
         parameters={parameters}
-        isLoading={false}
-        isSubmitting={isSubmitting}
-        errorSubmitting={errorSubmitting}
         errorLoading={errorLoading}
-        handleDelete={handleDelete}
+        onAdd={() => setEditor({ isOpen: true })}
+        onEdit={(parameter) => setEditor({ isOpen: true, parameter })}
+        onDelete={handleDelete}
+      />
+      <CreateEditParametersModal
+        error={errorSubmitting}
+        handleClose={() => setEditor({ isOpen: false })}
         handleSubmit={handleSubmit}
+        isEdit={Boolean(editor.parameter)}
+        isOpen={editor.isOpen}
+        isSubmitting={isSubmitting}
+        key={editor.parameter?.name ?? "new"}
+        parameter={editor.parameter}
+        parameters={parameters}
+        scope="workspace"
       />
     </>
   );

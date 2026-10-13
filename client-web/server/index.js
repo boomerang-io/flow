@@ -88,7 +88,6 @@ app.use(express.static(CLIENT_DIR, { index: false }));
 const SERVER_DATA_ENV_KEYS = [
   "APP_ROOT",
   "CORE_ENV_URL",
-  "CORE_SERVICE_ENV_URL",
   "EMBEDDED_MODE",
   "PRODUCT_ENV_URL",
   "PRODUCT_SERVICE_ENV_URL",

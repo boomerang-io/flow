@@ -6,8 +6,11 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
+import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
@@ -40,10 +43,13 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class DAGUtility {
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final TaskRunRepository taskRunRepository;
   private final TaskService taskService;
@@ -96,8 +102,10 @@ public class DAGUtility {
     return GraphProcessor.createGraph(vertices, edgeList);
   }
 
+  // The graph's vertices only: a foreach task's items are never vertices, its parent stands for
+  // them.
   public List<TaskRunEntity> retrieveTaskList(String wfRunId) {
-    return taskRunRepository.findByWorkflowRunRef(wfRunId);
+    return taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(wfRunId);
   }
 
   // TODO: determine a better way to handle the start and end task without saving them as a
@@ -108,7 +116,7 @@ public class DAGUtility {
     // One fetch of the run's existing TaskRuns keyed by name - the (workflowRunRef, name) unique
     // index guarantees one per name, so no per-task find-first query is needed.
     final Map<String, TaskRunEntity> existingByName =
-        taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId()).stream()
+        retrieveTaskList(wfRunEntity.getId()).stream()
             .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
     for (final WorkflowTask wfRevisionTask : wfRevisionEntity.getTasks()) {
       TaskRunEntity existingTaskRunEntity = existingByName.get(wfRevisionTask.getName());
@@ -139,6 +147,8 @@ public class DAGUtility {
 
           Task task = taskService.retrieveAndValidateTask(wfRevisionTask);
           taskRunEntity.setTaskRef(wfRevisionTask.getTaskRef());
+          // Only a task that runs can run for each item; start and end never carry the setting.
+          taskRunEntity.setForeach(wfRevisionTask.getForeach());
           taskRunEntity.setTaskVersion(task.getVersion());
           LOGGER.debug(
               "[{}] Found Task: {} @ {}", wfRunEntity.getId(), task.getName(), task.getVersion());
@@ -193,8 +203,16 @@ public class DAGUtility {
             taskRunEntity.setParams(wfRevisionTask.getParams());
           }
           LOGGER.debug("[{}] Task Run Params: {}", wfRunEntity.getId(), taskRunEntity.getParams());
-          // Timeout = the platform default (boomerang.io/task-timeout), or the task's own
-          // value when set and not greater. 0 = unguarded.
+          // Timeout, in minutes, is the smallest of three ceilings, in this order:
+          //   1. the platform default (the boomerang.io/task-timeout annotation),
+          //   2. the task's own declared timeout, when set and not greater,
+          //   3. the run's own timeout, when set and not greater.
+          // 0 at any step means "unguarded" and imposes no ceiling; a task ends up at 0 only when
+          // all three are 0. The run is a ceiling because of decision 0063: a guard must cover the
+          // work beneath it, so a task must never outlive the run guard around it. Without this the
+          // run watcher reaps a healthy task at the run deadline while that task still believes it
+          // has budget left — and on a fresh install it would, because the seeded per-task ceiling
+          // is a per-pod limit, not a budget each task is entitled to spend.
           long timeout =
               wfRunEntity.getAnnotations() != null
                       && wfRunEntity.getAnnotations().get("boomerang.io/task-timeout") != null
@@ -206,12 +224,32 @@ public class DAGUtility {
               && (timeout <= 0 || wfRevisionTask.getTimeout() < timeout)) {
             timeout = wfRevisionTask.getTimeout();
           }
+          if (wfRunEntity.getTimeout() != null
+              && wfRunEntity.getTimeout() > 0
+              && (timeout <= 0 || wfRunEntity.getTimeout() < timeout)) {
+            timeout = wfRunEntity.getTimeout();
+          }
           taskRunEntity.setTimeout(timeout);
 
-          // Workspaces this Task mounts - the executor resolves each by type and honours its
-          // mountPath. Absent on the Workflow Task leaves the TaskRun's default (none mounted).
+          // Workspaces this Task mounts, decided once here by a three-way rule: a declared list
+          // mounts exactly that list; an empty list is an explicit opt-out and mounts none; no
+          // list at all inherits every workspace the run carries, which is what a Task authored
+          // on the canvas gets because there is no way to declare workspaces on it. An inherited
+          // workspace takes its mountPath from the workflow-level spec when that converts, and
+          // otherwise leaves it null for the executor's /workspace/<type> fallback.
           if (wfRevisionTask.getWorkspaces() != null) {
             taskRunEntity.setWorkspaces(wfRevisionTask.getWorkspaces());
+          } else if (wfRunEntity.getWorkspaces() != null) {
+            List<TaskWorkspace> inherited = new LinkedList<>();
+            for (WorkflowWorkspace workspace : wfRunEntity.getWorkspaces()) {
+              TaskWorkspace taskWorkspace = new TaskWorkspace();
+              taskWorkspace.setName(workspace.getName());
+              taskWorkspace.setType(workspace.getType());
+              taskWorkspace.setOptional(workspace.isOptional());
+              taskWorkspace.setMountPath(mountPathOf(workspace.getSpec()));
+              inherited.add(taskWorkspace);
+            }
+            taskRunEntity.setWorkspaces(inherited);
           }
 
           // Set TaskRun Spec from Task Spec - Debug and Deletion come from an alternate
@@ -531,6 +569,20 @@ public class DAGUtility {
 
   private TaskRunEntity getTaskById(List<TaskRunEntity> tasks, String id) {
     return tasks.stream().filter(tsk -> id.equals(tsk.getId())).findAny().orElse(null);
+  }
+
+  // The workflow-level workspace spec is an untyped Object: absent on every workflow created
+  // through the engine, and free-form enough that it need not carry a mountPath at all. Neither
+  // case is an error - the executor falls back to /workspace/<type> for a null mountPath.
+  private String mountPathOf(Object workspaceSpec) {
+    try {
+      WorkflowWorkspaceSpec spec =
+          OBJECT_MAPPER.convertValue(workspaceSpec, WorkflowWorkspaceSpec.class);
+      return spec != null ? spec.getMountPath() : null;
+    } catch (IllegalArgumentException | JacksonException e) {
+      LOGGER.warn("Unable to read a mountPath from the workspace spec, defaulting it.", e);
+      return null;
+    }
   }
 
   public List<TaskRunEntity> getTasksDependants(

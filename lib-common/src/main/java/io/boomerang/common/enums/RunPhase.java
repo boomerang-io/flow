@@ -3,12 +3,16 @@ package io.boomerang.common.enums;
 import com.fasterxml.jackson.annotation.JsonValue;
 import java.util.Arrays;
 
+/**
+ * The internal lifecycle position of a run beside its externally visible {@code RunStatus}.
+ * {@code completed} is terminal: the run's storage release is the dispatcher's own reconciliation
+ * against the cluster, never a further phase of the run.
+ */
 public enum RunPhase {
   queued("queued"),
   pending("pending"),
   running("running"),
-  completed("completed"),
-  finalized("finalized"); // NOSONAR
+  completed("completed"); // NOSONAR
 
   private String phase;
 

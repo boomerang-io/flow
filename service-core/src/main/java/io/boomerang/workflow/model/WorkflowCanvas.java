@@ -25,7 +25,7 @@ public class WorkflowCanvas {
   private Long timeout;
   private Long retries;
   private boolean upgradesAvailable = false;
-  private WorkflowTrigger triggers = new WorkflowTrigger();
+  private WorkflowTrigger triggers;
   private List<WorkflowWorkspace> workspaces = new LinkedList<>();
   private List<AbstractParam> config = new LinkedList<>();
   private Map<String, Object> unknownFields = new HashMap<>();

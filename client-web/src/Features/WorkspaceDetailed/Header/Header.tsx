@@ -9,8 +9,9 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Checkmark, Close } from "@carbon/react/icons";
 import moment from "moment";
+import { useFeature } from "flagged";
 import { Link, useLocation } from "react-router-dom";
-import { appLink } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 
 import styles from "./Header.module.scss";
 
@@ -22,6 +23,7 @@ interface WorkspaceDetailedHeaderProps {
 
 function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
   const location: any = useLocation();
+  const tokensEnabled = Boolean(useFeature(FeatureFlag.TokensEnabled));
   const isActive = workspace.status === "active";
 
   const navList = location?.state?.navList;
@@ -101,16 +103,24 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
           />
           <Tab
             end
-            label="Quotas"
-            to={appLink.manageWorkspaceQuotas({ workspace: workspace.name })}
+            label="Artifacts"
+            to={appLink.manageWorkspaceArtifacts({ workspace: workspace.name })}
             state={location.state}
           />
           <Tab
             end
-            label="Tokens"
-            to={appLink.manageWorkspaceTokens({ workspace: workspace.name })}
+            label="Quotas"
+            to={appLink.manageWorkspaceQuotas({ workspace: workspace.name })}
             state={location.state}
           />
+          {tokensEnabled && (
+            <Tab
+              end
+              label="Tokens"
+              to={appLink.manageWorkspaceTokens({ workspace: workspace.name })}
+              state={location.state}
+            />
+          )}
           <Tab
             end
             label="Settings"

@@ -1,6 +1,6 @@
-import Home, { action } from "Features/Home";
+import Home, { action, loader } from "Features/Home";
 
-export { action };
+export { action, loader };
 
 export default function HomeRoute() {
   return <Home />;

@@ -54,7 +54,7 @@ public class Workflow {
   private Long timeout;
   private Long retries;
   private boolean upgradesAvailable = false;
-  private WorkflowTrigger triggers = new WorkflowTrigger();
+  private WorkflowTrigger triggers;
   private List<WorkflowTask> tasks = new LinkedList<>();
   private List<AbstractParam> params = new LinkedList<>();
   private List<WorkflowWorkspace> workspaces = new LinkedList<>();

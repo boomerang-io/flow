@@ -1,15 +1,20 @@
-# The Dockerfile only ever COPYs `server/` (minus its own node_modules - reinstalled in the
-# image) and `build/` (the frontend build output, expected to already exist before `docker
-# build` runs - see package.json's build script / CI's build-webapp job). Everything else here
-# just bloats the build context sent to the daemon.
+# The build stage needs the sources (app/, src/, public/, patches/, the Vite/react-router/tsconfig
+# files, package.json + pnpm-lock.yaml + .npmrc) and the runtime stage needs server/ (minus its
+# node_modules - reinstalled in the image). Everything else only bloats the build context sent to
+# the daemon, or is regenerated inside the image (node_modules, build/, .react-router/).
 **/node_modules
-src
-app
-cypress
-public
-patches
-*.md
+build
+.react-router
 .git
+.github
 .vscode
 coverage
+cypress
 lint-report.json
+*.md
+# Local dev only: Vite's portforward proxy token (.env) and the SSR server's --env-file for
+# `pnpm run prod:server` (server/config/.env.local). Real deployments pass environment variables.
+.env
+.env.*
+server/config
+_boomerang

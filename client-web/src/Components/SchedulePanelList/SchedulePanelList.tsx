@@ -1,29 +1,33 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Button,
   Layer,
   MultiSelect,
   OverflowMenu,
   OverflowMenuItem,
-  SkeletonPlaceholder,
   Search,
+  SkeletonPlaceholder,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   Tag,
-  Tile,
 } from "@carbon/react";
-import { Add, CircleFilled, Information, RadioButton, Repeat, RepeatOne } from "@carbon/react/icons";
-import { ConfirmModal, TooltipHover, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
-import cronstrue from "cronstrue";
+import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
 import { isActionError, type ActionError } from "Utils/actionResult";
-import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
-import { scheduleStatusOptions, scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
+import { describeCron } from "Utils/cronHelper";
+import { scheduleStatusOptions, scheduleStatusLabelMap } from "Constants";
 import { ScheduleStatus, ScheduleUnion, PaginatedSchedulesResponse } from "Types";
 import styles from "./SchedulePanelList.module.scss";
 
 interface SchedulePanelListProps {
   includeStatusFilter: boolean;
+  includeWorkflowColumn?: boolean;
+  onSelectSchedule?: (schedule: ScheduleUnion) => void;
   setActiveSchedule:
     | React.Dispatch<React.SetStateAction<ScheduleUnion | undefined>>
     | ((schedule: ScheduleUnion) => void);
@@ -31,117 +35,179 @@ interface SchedulePanelListProps {
   setIsCreatorOpen: React.Dispatch<React.SetStateAction<boolean>>;
   schedulesIsLoading: boolean;
   schedulesData: PaginatedSchedulesResponse | undefined;
+  // The view switcher and Create schedule button, at the right of the toolbar.
+  toolbarEnd?: React.ReactNode;
+}
+
+const statusTagType: Record<ScheduleStatus, "green" | "gray" | "cool-gray" | "red" | "blue"> = {
+  active: "green",
+  inactive: "gray",
+  trigger_disabled: "cool-gray",
+  error: "red",
+  deleted: "red",
+  completed: "blue",
+};
+
+/** When a schedule runs, in words: "Once on 30 Sep 2026, 1:30 PM", "Monday to Friday at 9:00 AM", or the cron read aloud. */
+export function describeSchedule(schedule: ScheduleUnion): string {
+  if (schedule.type === "runOnce") {
+    const at = moment.tz(schedule.dateSchedule, schedule.timezone);
+    return at.isValid() ? `Once on ${at.format("D MMM YYYY, h:mm A")}` : "Once";
+  }
+  return describeCron(schedule.cronSchedule, schedule.type === "cron");
+}
+
+// The next run in the viewer's own time zone; only an active schedule has one to show.
+function nextRun(schedule: ScheduleUnion): string {
+  if (schedule.status !== "active" || !schedule.nextScheduleDate) {
+    return "---";
+  }
+  return moment(moment.tz(schedule.nextScheduleDate, schedule.timezone).toISOString()).format("ddd D MMM, h:mm A");
 }
 
 export default function SchedulePanelList(props: SchedulePanelListProps) {
   const [filterQuery, setFilterQuery] = React.useState("");
   const [selectedStatuses, setSelectedStatuses] = React.useState<Array<string>>([]);
 
-  function renderLists() {
+  const headers = [
+    { key: "name", header: "Name" },
+    ...(props.includeWorkflowColumn ? [{ key: "workflow", header: "Workflow" }] : []),
+    { key: "when", header: "When" },
+    { key: "next", header: "Next run" },
+    { key: "timezone", header: "Time zone" },
+    { key: "status", header: "Status" },
+    { key: "actions", header: "" },
+  ];
+
+  function renderRows() {
     if (props.schedulesIsLoading) {
       return (
         <div>
           <SkeletonPlaceholder className={styles.listItemSkeleton} />
           <SkeletonPlaceholder className={styles.listItemSkeleton} />
           <SkeletonPlaceholder className={styles.listItemSkeleton} />
-          <SkeletonPlaceholder className={styles.listItemSkeleton} />
         </div>
       );
     }
 
-    if (props.schedulesData && props.schedulesData.numberOfElements === 0) {
-      return <div style={{ marginTop: "1rem" }}>No schedules found</div>;
+    const schedules = props.schedulesData?.content ?? [];
+    if (schedules.length === 0) {
+      return <p className={styles.empty}>No schedules yet. Create one to run this on a timetable.</p>;
     }
 
-    const schedules = props.schedulesData?.content;
-    if (schedules) {
-      const filteredSchedules = Boolean(filterQuery)
-        ? matchSorter(schedules, filterQuery, {
-            keys: [
-              "name",
-              "description",
-              "type",
-              "status",
-              (schedule) => Object.entries(schedule.labels ?? {}).map(([key, value]) => `${key}=${value}`),
-            ],
-            threshold: matchSorter.rankings.CONTAINS,
-          })
-        : schedules;
+    const filteredSchedules = Boolean(filterQuery)
+      ? matchSorter(schedules, filterQuery, {
+          keys: [
+            "name",
+            "description",
+            "type",
+            "status",
+            (schedule) => Object.entries(schedule.labels ?? {}).map(([key, value]) => `${key}=${value}`),
+          ],
+          threshold: matchSorter.rankings.CONTAINS,
+        })
+      : schedules;
 
-      const sortedSchedules = filteredSchedules.sort((a: any, b: any) => {
-        return a.name.localeCompare(b.name);
-      });
+    let selectedSchedules = [...filteredSchedules].sort((a, b) => a.name.localeCompare(b.name));
+    if (selectedStatuses.length && props.includeStatusFilter) {
+      selectedSchedules = selectedSchedules.filter((schedule) => selectedStatuses.includes(schedule.status));
+    }
 
-      let selectedSchedules = sortedSchedules;
-      if (selectedStatuses.length && props.includeStatusFilter) {
-        selectedSchedules = sortedSchedules.filter((schedule: ScheduleUnion) => {
-          return selectedStatuses.includes(schedule.status);
-        });
-      }
+    if (selectedSchedules.length === 0) {
+      return <p className={styles.empty}>No matching schedules found</p>;
+    }
 
-      if (selectedSchedules.length === 0) {
-        return <div style={{ marginTop: "1rem" }}>No matching schedules found</div>;
-      }
-
-      return (
-        <ul>
-          {selectedSchedules.map((schedule: ScheduleUnion) => (
-            <ScheduledListItem
-              key={schedule.id}
-              schedule={schedule}
-              setActiveSchedule={props.setActiveSchedule}
-              setIsEditorOpen={props.setIsEditorOpen}
-            />
+    return (
+      <Table aria-label="Schedules" className={styles.table} size="lg">
+        <TableHead>
+          <TableRow>
+            {headers.map((header) => (
+              <TableHeader key={header.key}>{header.header}</TableHeader>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {selectedSchedules.map((schedule) => (
+            <TableRow key={schedule.id}>
+              <TableCell>
+                {props.onSelectSchedule ? (
+                  <button className={styles.nameButton} onClick={() => props.onSelectSchedule?.(schedule)}>
+                    {schedule.name}
+                  </button>
+                ) : (
+                  <span className={styles.name}>{schedule.name}</span>
+                )}
+                {schedule.description && <span className={styles.description}>{schedule.description}</span>}
+                {Object.keys(schedule.labels ?? {}).length > 0 && (
+                  <span className={styles.labels}>
+                    {Object.entries(schedule.labels ?? {}).map(([key, value]) => (
+                      <Tag key={key} size="sm" type="cool-gray">{`${key}=${value}`}</Tag>
+                    ))}
+                  </span>
+                )}
+              </TableCell>
+              {props.includeWorkflowColumn && <TableCell>{schedule.workflow?.displayName ?? schedule.workflowRef}</TableCell>}
+              <TableCell>
+                <span>{describeSchedule(schedule)}</span>
+                {schedule.type === "advancedCron" && <span className={styles.cron}>{schedule.cronSchedule}</span>}
+              </TableCell>
+              <TableCell>{nextRun(schedule)}</TableCell>
+              <TableCell>{schedule.timezone}</TableCell>
+              <TableCell>
+                <Tag size="sm" type={statusTagType[schedule.status]}>
+                  {scheduleStatusLabelMap[schedule.status]}
+                </Tag>
+              </TableCell>
+              <TableCell className={styles.actionsCell}>
+                <ScheduleRowActions
+                  schedule={schedule}
+                  setActiveSchedule={props.setActiveSchedule}
+                  setIsEditorOpen={props.setIsEditorOpen}
+                />
+              </TableCell>
+            </TableRow>
           ))}
-        </ul>
-      );
-    } else {
-      return null;
-    }
+        </TableBody>
+      </Table>
+    );
   }
 
-  const schedules = props.schedulesData?.content;
-
   return (
-    <section className={styles.listContainer}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-        <h2>{!props.schedulesIsLoading ? `Existing Schedules (${schedules?.length ?? 0})` : "Loading Schedules..."}</h2>
-        <Button size="sm" renderIcon={Add} onClick={() => props.setIsCreatorOpen(true)} kind="ghost">
-          Create a Schedule
-        </Button>
-      </div>
-      <div style={{ display: "flex", alignItems: "end", gap: "0.5rem", width: "100%" }}>
-        <div style={{ width: props.includeStatusFilter ? "50%" : "100%" }}>
-          <Search
-            id="schedules-filter"
-            labelText="Filter Schedules"
-            placeholder="Search Schedules"
-            onChange={(e: { target: HTMLInputElement; type: "change" }) => setFilterQuery(e.target.value)}
-          />
-        </div>
+    <section className={styles.listContainer} aria-label="Schedules list">
+      <div className={styles.toolbar}>
+        <Search
+          className={styles.search}
+          id="schedules-filter"
+          labelText="Filter schedules"
+          placeholder="Search schedules"
+          size="lg"
+          onChange={(e: { target: HTMLInputElement; type: "change" }) => setFilterQuery(e.target.value)}
+        />
         {props.includeStatusFilter && (
-          <Layer style={{ width: "50%" }}>
+          <Layer className={styles.statusFilter}>
             <MultiSelect
               hideLabel
               id="actions-statuses-select"
-              label="Choose status(es)"
+              label="All statuses"
               invalid={false}
               onChange={(data: { selectedItems: Array<{ label: string; value: ScheduleStatus }> | null }) =>
                 setSelectedStatuses((data.selectedItems ?? []).map((item) => item.value))
               }
               items={scheduleStatusOptions}
               selectedItems={scheduleStatusOptions.filter((option) => selectedStatuses.includes(option.value))}
+              size="lg"
               titleText="Filter by status"
             />
           </Layer>
         )}
+        <div className={styles.toolbarEnd}>{props.toolbarEnd}</div>
       </div>
-      {renderLists()}
+      {renderRows()}
     </section>
   );
 }
 
-interface ScheduledListItemProps {
+interface ScheduleRowActionsProps {
   schedule: ScheduleUnion;
   setActiveSchedule:
     | React.Dispatch<React.SetStateAction<ScheduleUnion | undefined>>
@@ -155,7 +221,7 @@ interface ScheduledListItemProps {
 // intents, so the bare useFetcher() submits resolve from either surface.
 type ActionResult = { intent: string } | ({ intent: string } & ActionError);
 
-function ScheduledListItem(props: ScheduledListItemProps) {
+function ScheduleRowActions(props: ScheduleRowActionsProps) {
   const deleteFetcher = useFetcher<ActionResult>();
   const toggleFetcher = useFetcher<ActionResult>();
   const [isToggleStatusModalOpen, setIsToggleStatusModalOpen] = useState(false);
@@ -231,21 +297,6 @@ function ScheduledListItem(props: ScheduledListItemProps) {
 
   // Determine some things for rendering
   const isActive = props.schedule.status === "active";
-  const labels: Array<React.ReactNode> = [];
-  Object.entries(props.schedule.labels ?? {}).forEach(([key, value]) => {
-    labels.push(
-      <Tag key={key} style={{ marginLeft: 0 }} type="teal">
-        {`${key}=${value}`}
-      </Tag>,
-    );
-  });
-  const scheduleDescription = props.schedule?.description ?? "---";
-  const nextScheduledText = props.schedule.type === "runOnce" ? "Scheduled Execution" : "Next Execution";
-  // Convert from UTC to configured timezone to get the correct offset, adjusting for daylight saving time
-  // Then convert to the local time of the users's browser
-  const nextScheduledDate = moment(
-    moment.tz(props.schedule.nextScheduleDate, props.schedule?.timezone).toISOString(),
-  ).format(DATETIME_LOCAL_DISPLAY_FORMAT);
 
   /**
    * Delete schedule
@@ -286,62 +337,12 @@ function ScheduledListItem(props: ScheduledListItemProps) {
   ];
 
   return (
-    <li>
-      <Tile className={styles.listItem}>
-        <div className={styles.listItemTitle}>
-          <h3 title={props.schedule.name}>{props.schedule.name}</h3>
-          <TooltipHover direction="top" tooltipText={scheduleTypeLabelMap[props.schedule.type] ?? "---"}>
-            {props.schedule.type === "runOnce" ? <RepeatOne /> : <Repeat />}
-          </TooltipHover>
-          <TooltipHover direction="top" tooltipText={scheduleStatusLabelMap[props.schedule.status]}>
-            {props.schedule.status === "inactive" ? (
-              <RadioButton className={styles.statusCircle} data-status={props.schedule.status} />
-            ) : (
-              <CircleFilled className={styles.statusCircle} data-status={props.schedule.status} />
-            )}
-          </TooltipHover>
-        </div>
-        <p title={scheduleDescription} className={styles.listItemDescription}>
-          {scheduleDescription}
-        </p>
-        <dl style={{ display: "flex" }}>
-          <div style={{ width: "50%" }}>
-            <dt>
-              {nextScheduledText}{" "}
-              <TooltipHover
-                direction="top"
-                tooltipText={"The execution date is shown in local time based on the time zone of your browser."}
-              >
-                <Information />
-              </TooltipHover>
-            </dt>
-            <dd>{nextScheduledDate}</dd>
-          </div>
-        </dl>
-        <dl style={{ display: "flex" }}>
-          <div>
-            <dt>Frequency </dt>
-            <dd>
-              {props.schedule.type === "runOnce"
-                ? "Run Once"
-                : props.schedule?.cronSchedule
-                ? cronstrue.toString(props.schedule?.cronSchedule)
-                : "---"}
-            </dd>
-          </div>
-        </dl>
-        <dl>
-          <dt>Labels</dt>
-          <dd>{labels.length > 0 ? labels : "---"}</dd>
-        </dl>
-        <div style={{ position: "absolute", right: "0", top: "0" }}>
-          <OverflowMenu flipped ariaLabel="Schedule card menu" iconDescription="Schedule menu icon" size="sm">
-            {menuOptions.map(({ onClick, itemText, ...rest }, index) => (
-              <OverflowMenuItem onClick={onClick} itemText={itemText} key={`${itemText}-${index}`} {...rest} />
-            ))}
-          </OverflowMenu>
-        </div>
-      </Tile>
+    <>
+      <OverflowMenu align="left" flipped aria-label="Schedule menu" iconDescription="Schedule menu icon" size="md">
+        {menuOptions.map(({ onClick, itemText, ...rest }, index) => (
+          <OverflowMenuItem onClick={onClick} itemText={itemText} key={`${itemText}-${index}`} {...rest} />
+        ))}
+      </OverflowMenu>
       {isToggleStatusModalOpen && (
         <ConfirmModal
           affirmativeAction={handleToggleStatus}
@@ -380,6 +381,6 @@ function ScheduledListItem(props: ScheduledListItemProps) {
           {`Are you sure you want to delete schedule ${props.schedule.name}? There's no going back from this decision.`}
         </ConfirmModal>
       )}
-    </li>
+    </>
   );
 }

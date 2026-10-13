@@ -80,7 +80,7 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
     seedGlobalIdentity();
     mockMvc
         .perform(get("/api/v2/workspace/system/workflow/" + MISSING_WORKFLOW))
-        .andExpect(status().isBadRequest())
+        .andExpect(status().isNotFound())
         .andExpect(content().string(containsString("WORKFLOW_INVALID_REFERENCE")));
   }
 
@@ -88,7 +88,7 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
   void nonSystemWorkspaceIsRejected() throws Exception {
     mockMvc
         .perform(get("/api/v2/workspace/not-system/workflow/" + MISSING_WORKFLOW))
-        .andExpect(status().isBadRequest())
+        .andExpect(status().isNotFound())
         .andExpect(content().string(containsString("TEAM_INVALID_REF")));
   }
 }

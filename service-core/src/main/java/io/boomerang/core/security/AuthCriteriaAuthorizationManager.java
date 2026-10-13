@@ -48,9 +48,9 @@ import org.springframework.security.core.Authentication;
  * interceptor answered "no identity" and "unassignable scope" with 401 and only a permission
  * mismatch with 403. To keep that split, the first two checks throw {@link
  * AuthenticationCredentialsNotFoundException} directly (an {@code AuthenticationException}) rather
- * than returning a decision; {@code AuthenticationFilter}'s exception handling (which already wraps
- * this whole call) routes it to the same 401 entry point as any other authentication failure. Only
- * the permission-mismatch case returns a denied decision, which surfaces as 403.
+ * than returning a decision; {@code RestExceptionHandler} renders it as the same structured 401 as
+ * any other authentication failure. Only the permission-mismatch case returns a denied decision,
+ * which Spring Security's exception translation answers with 403.
  */
 public class AuthCriteriaAuthorizationManager implements AuthorizationManager<MethodInvocation> {
 

@@ -29,7 +29,6 @@ declare global {
     _SERVER_DATA: {
       APP_ROOT: string;
       CORE_ENV_URL: string;
-      CORE_SERVICE_ENV_URL: string;
       EMBEDDED_MODE: string;
       PRODUCT_ENV_URL: string;
       PRODUCT_SERVICE_ENV_URL: string;
@@ -68,7 +67,8 @@ export interface ResolvedPermissions {
   actions: string[];
 }
 
-export interface FlowUser extends User {
+// `teams` is redeclared below with the Flow shape (the platform type has `teams: any[]`, required).
+export interface FlowUser extends Omit<User, "teams"> {
   id: string;
   email: string;
   name: string;
@@ -147,8 +147,12 @@ export interface DataDrivenInput {
   required?: boolean;
   value: string | Array<string> | Array<{ key: string; value: string }> | Object;
   type: string;
+  // `min`/`max`/`step` mirror the backend param model's nullable numeric bounds. They govern the
+  // `slider` input type (Constants#InputType.Slider); `min`/`max` are also read by
+  // DynamicFormik's yup generation for `number` inputs.
   min?: number;
   max?: number;
+  step?: number;
 }
 
 export interface ResultParameter {
@@ -210,6 +214,15 @@ export interface WorkflowTask {
   params?: Array<Param>;
   results?: Array<{ name: string; description: string }>;
   workspaces?: Array<WorkflowTaskWorkspace>;
+  foreach?: WorkflowTaskForeach;
+}
+
+/**
+ * Run the task once per item. `items` is either one reference such as
+ * `$(tasks.stage.results.batches)` or a JSON array literal.
+ */
+export interface WorkflowTaskForeach {
+  items: string | Array<unknown>;
 }
 
 export interface Workflow {
@@ -298,10 +311,55 @@ type Pageable<T> = {
 };
 
 export type PaginatedUserResponse = Pageable<FlowUser>;
+export type PaginatedAuditResponse = Pageable<AuditEvent>;
 export type PaginatedWorkspaceResponse = Pageable<FlowWorkspace>;
 export type PaginatedTaskResponse = Pageable<Task>;
 export type PaginatedWorkflowResponse = Pageable<Workflow>;
 export type PaginatedSchedulesResponse = Pageable<ScheduleUnion>;
+
+/**
+ * One audited attempt as `GET /api/v2/audit` returns it: the server's AuditEvent minus the
+ * CloudEvents envelope and the TTL anchor. `payload` carries request discriminators only -
+ * source IP, user agent, method, path, duration, an error summary - never request content.
+ */
+export interface AuditEvent {
+  id: string;
+  time: string;
+  actorId?: string;
+  actorName?: string;
+  actorType?: string;
+  workspaceId?: string;
+  action?: string;
+  resourceType?: string;
+  resourceId?: string;
+  resourceName?: string;
+  outcome?: AuditOutcome;
+  level?: AuditLevel;
+  payload?: Record<string, unknown>;
+}
+
+export enum AuditOutcome {
+  Success = "SUCCESS",
+  Failed = "FAILED",
+  Denied = "DENIED",
+}
+
+export enum AuditLevel {
+  Destructive = "DESTRUCTIVE",
+  Write = "WRITE",
+  All = "ALL",
+}
+
+/** Counts for the same window and filters the listing carries, plus the capture configuration. */
+export interface AuditStats {
+  from: string;
+  to: string | null;
+  total: number;
+  outcomes: Record<AuditOutcome, number>;
+  captureEnabled: boolean;
+  level: AuditLevel;
+  retentionDays: number;
+}
 
 export type WorkflowNodeData = {
   name: string;
@@ -310,6 +368,7 @@ export type WorkflowNodeData = {
   upgradesAvailable: boolean;
   params: Array<{ name: string; value: string }>;
   results: Array<{ name: string; description: string }>;
+  foreach?: WorkflowTaskForeach;
 };
 // xyflow's `Node<Data>`/`Edge<Data>` require `Data extends Record<string, unknown>`. The
 // intersection is applied here (at the xyflow boundary) rather than on `WorkflowNodeData`/
@@ -444,12 +503,18 @@ export interface FlowWorkspaceQuotas {
   currentRunMedianDuration: number;
   currentWorkflowStorage: number;
   currentWorkflowRunStorage: number;
+  // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
+  currentArtifactStorage: number;
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
   maxWorkflowStorage: number;
   maxWorkflowRunStorage: number;
   maxWorkflowRunDuration: number;
   maxConcurrentRuns: number;
+  // Gi (integer) - the artifact storage cap for this workspace.
+  maxArtifactStorage: number;
+  // Days an artifact is kept after upload before it expires.
+  artifactRetentionDays: number;
   monthlyResetDate: string;
 }
 
@@ -577,7 +642,6 @@ export enum RunPhase {
   Pending = "pending",
   Running = "running",
   Completed = "completed",
-  Finalized = "finalized",
 }
 
 export interface FlowNavigationItemChild {
@@ -647,7 +711,12 @@ export type FlowFeatureKey =
   | "user.management"
   | "workspace.quotas"
   | "workflow.tokens"
-  | "workflow.triggers";
+  | "workflow.triggers"
+  | "workspace.single"
+  | "schedules"
+  | "integrations"
+  | "authentication"
+  | "tokens";
 
 export interface FlowFeatures {
   features: {
@@ -663,6 +732,98 @@ export interface Integration {
   instructions: string;
   link: string;
   status: string;
+}
+
+// Insights: statistics over the runs a workspace still holds. Durations and waits are
+// milliseconds; a rate is 0..1 or null when nothing finished with an outcome.
+export interface InsightsTotals {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  inFlight: number;
+  successRate: number | null;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  byTrigger: Record<string, number>;
+}
+
+export interface InsightsDay {
+  /** ISO date, UTC. */
+  date: string;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+}
+
+export interface InsightsWorkflow {
+  workflowRef: string;
+  workflowName: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  successRate: number | null;
+  p5Duration: number;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  timeoutMinutes: number | null;
+  lastFailureDate: string | null;
+  lastFailureRunRef: string | null;
+  /** The last seven calendar days ending at the period's end, oldest first. */
+  recent: Array<InsightsDay>;
+}
+
+export interface InsightsSummary {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  totals: InsightsTotals;
+  previous: InsightsTotals;
+  daily: Array<InsightsDay>;
+  workflows: Array<InsightsWorkflow>;
+}
+
+export interface InsightsTaskRow {
+  name: string;
+  taskRef: string | null;
+  runs: number;
+  failed: number;
+  p50Duration: number;
+  p95Duration: number;
+}
+
+export interface InsightsFailure {
+  status: string;
+  taskName: string | null;
+  reason: string | null;
+  count: number;
+  lastRunRef: string;
+  lastDate: string;
+}
+
+export interface InsightsWorkflowDetail {
+  workflowRef: string;
+  workflowName: string;
+  from: string;
+  to: string;
+  runs: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  retriedRuns: number;
+  tasks: Array<InsightsTaskRow>;
+  failures: Array<InsightsFailure>;
 }
 
 //Schedule types
@@ -775,6 +936,9 @@ export interface WorkflowRun {
   duration: number;
   id: string;
   initiatedByRef: string;
+  // The run that owns the TaskRun in initiatedByRef, resolved server-side for a task-triggered
+  // (child) run so the header can link back to the parent. Absent on every other trigger.
+  initiatedByWorkflowRunRef?: string;
   labels: Record<string, string>;
   params: Array<Param>;
   // Populated on the wire (WorkflowRunService#get copies the entity's phase across).
@@ -813,6 +977,8 @@ export interface TaskRun {
   startTime: string;
   status: RunStatus;
   statusMessage: string;
+  /** Why the task run ended as it did, e.g. `OOMKilled`; absent while it is running. */
+  statusReason?: string;
   taskRef: string;
   timeout: number;
   type: string;
@@ -821,6 +987,40 @@ export interface TaskRun {
   workflowRunRef: string;
   workflowName: string;
   workspaces: Array<WorkflowWorkspace>;
+  /** Set on an item of a for-each task: the id of the parent task run. */
+  parentRef?: string;
+  /** Set on an item of a for-each task: the item's position, from 0. */
+  index?: number;
+}
+
+export enum ArtifactStatus {
+  Uploading = "uploading",
+  Available = "available",
+  Expired = "expired",
+}
+
+/**
+ * A file a task run uploaded during a run (`uploadartifact`), listed/downloaded/deleted through
+ * the workspace-scoped `/workspace/{workspace}/workflowrun/{runId}/artifacts` surface (per-run) or
+ * `/workspace/{workspace}/artifacts` (workspace-wide). `taskRunRef` is the id of the TaskRun that
+ * uploaded it - resolve it against `WorkflowRun.tasks` for a display name, the API does not carry
+ * one. `status` is "uploading" while the upload is in flight (never returned by the list routes),
+ * "available" once complete, and "expired" once `expirationDate` (creationDate + retentionDays)
+ * has passed - an expired artifact is still listed but can no longer be downloaded (410).
+ */
+export interface Artifact {
+  id: string;
+  name: string;
+  workflowRef: string;
+  workflowRunRef: string;
+  taskRunRef: string;
+  size: number;
+  sha256: string;
+  contentType: string;
+  status: ArtifactStatus;
+  creationDate: string;
+  retentionDays: number;
+  expirationDate: string;
 }
 
 export interface RunAnnototations {

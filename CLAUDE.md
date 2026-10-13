@@ -6,9 +6,8 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 
 | Module | What it is |
 | --- | --- |
-| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. |
+| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
 | `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, heartbeats their leases, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
-| `service-loader` | Flamingock migrations and seed data, run as a pre-deploy Job once per deploy. The change-unit chain upgrades a v3 database in place and MUST NOT be collapsed. |
 | `lib-common` | Shared model, entities, enums, error handling. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
 
@@ -68,7 +67,9 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - No execution-state field (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`) appears in a public
   model; pinned by `PublicRunModelSerialisationTest`. `phase` is exposed beside `status` for now because the
   dispatcher dispatches on it — do not remove it without a dispatcher-side replacement.
-- The engine never calls the flow side synchronously; engine → flow is events.
+- The engine never calls the **platform** side (`core`, `workspace`, `schedule`, `integrations`) synchronously;
+  it publishes `ApplicationEvent`s those packages listen to. `engine` ↔ `workflow` are the two halves of one
+  bounded context (runs and definitions) and do call each other directly.
 - The custom HTTP client configuration (`RestConfig`: proxy, trust-all option, per-template timeouts, streaming
   template) is a product requirement for enterprises behind proxies and internal CAs. Framework upgrades MUST
   preserve it.
@@ -87,9 +88,9 @@ is on an older JDK:
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)      # macOS
-mvn -pl service-core,service-loader -am clean package -DskipTests
+mvn -pl service-core -am clean package -DskipTests
 cd client-web && pnpm install && pnpm run build && cd ..
-docker compose up --build                             # Mongo, loader Job, IDPZero, service-core, client-web
+docker compose up --build                             # Mongo, IDPZero, SeaweedFS, service-core, client-web
 ```
 
 - Browser-facing origin for manual and end-to-end testing: `http://localhost:3000` — client-web's own
@@ -104,7 +105,8 @@ docker compose up --build                             # Mongo, loader Job, IDPZe
   plain-Jobs executor, layer `docker-compose.kube.yml` (header comment explains the kubeconfig at `docker/kube/config`)
   and run the dispatcher scenarios: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
-  `cd e2e && npm ci && npx playwright test` against the compose stack.
+  `cd e2e && npm ci && npx playwright test` against the compose stack (CI layers `docker-compose.ci.yml`,
+  which drops the artifact store).
 - Skills: `/spring-module` before any backend Java, `/design-system` before any UI, `/spec-maintenance`
   after any behaviour or design change, `/security-audit`, `/cve-review`, `/release`.
 

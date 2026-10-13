@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
@@ -11,14 +12,19 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import java.time.Duration;
 import java.util.Date;
-import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -50,22 +56,23 @@ public class WorkflowWatcher {
   // so freshly-started runs whose first tasks are still being queued are not churned.
   private static final long STALL_GRACE_MILLIS = 60000;
 
-  // Only agent-executed types are requeued on timeout - that is the crash recovery for a killed
-  // claimant. Gates, waits and inline system tasks time out terminally, as they always have.
-  private static final Set<TaskType> REQUEUEABLE_TYPES =
-      EnumSet.of(TaskType.template, TaskType.custom, TaskType.script, TaskType.generic);
+  private static final Set<TaskType> REQUEUEABLE_TYPES = EngineConstants.REQUEUEABLE_TYPES;
 
-  private static final int MAX_RETRIES = 3;
+  private static final int MAX_RETRIES = EngineConstants.MAX_RETRIES;
+
+  // A run is provisioned at most this many times; a stale claim on the last attempt fails it.
+  private static final int MAX_PROVISION_ATTEMPTS = 3;
 
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
 
-  // A dispatcher is treated as gone once it has not connected for this long. Its queue poll
-  // refreshes lastConnectedDate every 5s, so this is twelve missed cycles - short enough that a
-  // dead dispatcher's claims are recovered promptly, long enough that a GC pause or network blip
-  // does not reap a healthy one. Recovering a claim re-dispatches the task while the original
-  // executor may still be running it, and nothing kills that executor, so this cannot be tightened
-  // further until the dispatch protocol can cancel in-flight work.
+  // A dispatcher is treated as gone once it has not connected for this long. Each queue poll
+  // refreshes lastConnectedDate as it starts, at least every 30 s (the longest the engine holds a
+  // poll), so this is two missed polls - short enough that a dead dispatcher's claims are
+  // recovered promptly, long enough that a GC pause or network blip does not reap a healthy one.
+  // Recovering a claim re-dispatches the task while the original executor may still be running
+  // it, and nothing kills that executor, so this cannot be tightened further until the dispatch
+  // protocol can cancel in-flight work.
   private static final long DISPATCHER_STALE_MILLIS = 60000;
 
   private final TaskRunService taskRunService;
@@ -77,13 +84,23 @@ public class WorkflowWatcher {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
   private final DispatcherRepository dispatcherRepository;
+  private final TaskRunRepository taskRunRepository;
+  private final WorkflowScheduleRepository scheduleRepository;
+  private final RelationshipService relationshipService;
+  private final ArtifactService artifactService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
 
-  // Hard pruning of tombstoned Workflows ships off - the retention policy is decided separately.
-  @Value("${flow.watcher.retention.enabled:false}")
-  private boolean retentionEnabled;
+  // How long a provisioning claim may go without the run starting before it is treated as lost.
+  // Well above the dispatcher's per-claim storage wait (kube.timeout.waitUntil, 30s by default).
+  @Value("${flow.watcher.provision-claim-grace-ms:300000}")
+  private long provisionClaimGraceMillis;
+
+  // How long an upload may stay unconfirmed before its record and any partial file are removed.
+  // Well above the upload link's own lifetime (flow.artifacts.link-ttl-minutes, 15 by default).
+  @Value("${flow.artifacts.upload-grace-minutes:60}")
+  private long artifactUploadGraceMinutes;
 
   public WorkflowWatcher(
       TaskRunService taskRunService,
@@ -94,7 +111,11 @@ public class WorkflowWatcher {
       WorkflowRunService workflowRunService,
       WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
-      DispatcherRepository dispatcherRepository) {
+      DispatcherRepository dispatcherRepository,
+      TaskRunRepository taskRunRepository,
+      WorkflowScheduleRepository scheduleRepository,
+      RelationshipService relationshipService,
+      ArtifactService artifactService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -104,6 +125,10 @@ public class WorkflowWatcher {
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
     this.dispatcherRepository = dispatcherRepository;
+    this.taskRunRepository = taskRunRepository;
+    this.scheduleRepository = scheduleRepository;
+    this.relationshipService = relationshipService;
+    this.artifactService = artifactService;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -129,14 +154,30 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapTaskTimeouts", this::reapTaskTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
-    SweepRunner.runIsolated("finalizeWorkspacelessRuns", this::finalizeWorkspacelessRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverForeachTasks", this::recoverForeachTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("expireArtifacts", this::expireArtifacts, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("reapStaleArtifactUploads", this::reapStaleArtifactUploads, WorkflowWatcher::logSweepFailure);
+  }
+
+  /**
+   * Expire artifacts past their expiration date: the file is deleted and the record kept, so the
+   * run still shows what it produced. Does nothing when no artifact store is configured.
+   */
+  public void expireArtifacts() {
+    artifactService.expireArtifacts(PAGE_SIZE);
+  }
+
+  /** Remove uploads that were never confirmed: the upload task died before it finished. */
+  public void reapStaleArtifactUploads() {
+    artifactService.reapStaleUploads(Duration.ofMinutes(artifactUploadGraceMinutes), PAGE_SIZE);
   }
 
   private static void logSweepFailure(String sweep, Exception ex) {
@@ -209,19 +250,40 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Finalize completed runs that have no workspaces: with nothing to tear down no agent ever
-   * claims them, so the engine closes them out itself.
+   * Recover foreach tasks running with no item in flight - a crash between the parent's fan-out
+   * and its last item, between its last item ending and the parent completing, or between the
+   * parent's outcome being recorded and its end. A running parent counts as in flight, so {@link
+   * #recoverStalledRuns} never reaches it. A parent with its outcome recorded is ended - the
+   * completion Compare-And-Set makes a repeated end a no-op. Any other is recovered by the same
+   * idempotent fan-out the live path runs: missing items are created, unqueued items queued, and a
+   * parent whose items are all terminal completed. A paused run's fan-out is left to resume.
    */
-  public void finalizeWorkspacelessRuns() {
+  public void recoverForeachTasks() {
+    Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findFinalizableWithoutWorkspaces(PAGE_SIZE),
-        wfRun -> {
-          if (workflowRunStateHelper.tryFinalize(wfRun.getId()) != null) {
-            LOGGER.info("[{}] Finalized workspace-less completed WorkflowRun.", wfRun.getId());
+        taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE),
+        parent -> {
+          if (!RunStatus.running.equals(parent.getStatus())) {
+            LOGGER.info(
+                "[{}] Foreach TaskRun has its outcome recorded but was never ended. Ending it.",
+                parent.getId());
+            taskExecutionService.end(parent.getId(), Optional.empty(), Optional.empty());
+          } else if (!taskRunService.existsInFlightItem(parent.getId())
+              && !isRunPaused(parent.getWorkflowRunRef())) {
+            LOGGER.info(
+                "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
+                parent.getId());
+            taskExecutionService.fanOutItems(parent.getId());
           }
         },
-        (wfRun, ex) ->
-            LOGGER.error("[{}] Finalize sweep failed: {}", wfRun.getId(), ex.getMessage()));
+        (parent, ex) ->
+            LOGGER.error("[{}] Foreach recovery failed: {}", parent.getId(), ex.getMessage()));
+  }
+
+  // A paused run's pending items are held by the pause gate; fanning out would only queue each one
+  // to be refused again. Resume re-runs the fan-out through advance.
+  private boolean isRunPaused(String wfRunRef) {
+    return workflowRunRepository.findById(wfRunRef).map(WorkflowRunEntity::isPaused).orElse(false);
   }
 
   /**
@@ -244,7 +306,8 @@ public class WorkflowWatcher {
 
   /**
    * Wind down deleted (tombstoned) Workflows: cancel their still-in-flight WorkflowRuns through the
-   * normal cancel path. Nothing is destroyed - hard pruning is the separate retention sweep.
+   * normal cancel path. Nothing is destroyed here - pruneDeletedWorkflows hard-deletes once
+   * the runs complete.
    */
   public void cancelDeletedWorkflowRuns() {
     for (WorkflowEntity workflow : workflowRepository.findByStatus(WorkflowStatus.deleted)) {
@@ -264,14 +327,38 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Retention sweep for deleted Workflows once their runs have finalised. Ships disabled - the
-   * pruning policy (what to keep, for how long) is a separate ruling; enabling it hard-deletes.
+   * Prune deleted (tombstoned) Workflows whose runs have all completed: hard-delete the
+   * workflow's TaskRuns, WorkflowRuns, revisions, leftover Actions and schedules, its
+   * relationship node, and finally the workflow document itself. A workflow with a run still in
+   * flight is skipped - the cancel sweep finishes first, so live work is never pruned. Audit
+   * records are never touched: they are the record that outlives the deletion. Every delete is
+   * by-ref and idempotent, so overlapping sweeps are harmless.
    */
   public void pruneDeletedWorkflows() {
-    if (!retentionEnabled) {
-      return;
-    }
-    // Intentionally a no-op until the retention policy is ruled and this sweep is implemented.
+    SweepRunner.forEachIsolated(
+        workflowRepository.findByStatus(WorkflowStatus.deleted, PageRequest.of(0, PAGE_SIZE)),
+        workflow -> {
+          if (!workflowRunRepository
+              .findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES)
+              .isEmpty()) {
+            return;
+          }
+          artifactService.deleteForWorkflow(workflow.getId(), PAGE_SIZE);
+          taskRunRepository.deleteByWorkflowRef(workflow.getId());
+          workflowRunRepository.deleteByWorkflowRef(workflow.getId());
+          workflowRevisionRepository.deleteByWorkflowRef(workflow.getId());
+          actionRepository.deleteByWorkflowRef(workflow.getId());
+          scheduleRepository.deleteByWorkflowRef(workflow.getId());
+          relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflow.getId());
+          workflowRepository.deleteById(workflow.getId());
+          LOGGER.info(
+              "[{}] Pruned deleted Workflow: its runs, artifacts, revisions, actions, schedules and"
+                  + " relationship node are removed; audit records are kept.",
+              workflow.getId());
+        },
+        (workflow, ex) ->
+            LOGGER.error(
+                "[{}] Deleted-workflow prune failed: {}", workflow.getId(), ex.getMessage()));
   }
 
   /**
@@ -281,12 +368,22 @@ public class WorkflowWatcher {
    * and cancelled the same way the normal cancel path treats them.
    */
   public void reapRunsWithMissingRevision() {
+    // Resolve the missing revisions first, then page only the runs that reference them: a page
+    // of in-flight runs whose revisions all exist would otherwise be re-read every tick and
+    // never advance past them, leaving a newer orphan unreaped for as long as the backlog held.
+    List<String> referenced = workflowRunStateHelper.findInFlightRevisionRefs();
+    if (referenced.isEmpty()) {
+      return;
+    }
+    Set<String> existing = new HashSet<>();
+    workflowRevisionRepository.findAllById(referenced).forEach(r -> existing.add(r.getId()));
+    List<String> missing = referenced.stream().filter(ref -> !existing.contains(ref)).toList();
+    if (missing.isEmpty()) {
+      return;
+    }
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findInFlight(PAGE_SIZE),
+        workflowRunStateHelper.findInFlightWithRevisionIn(missing, PAGE_SIZE),
         wfRun -> {
-          if (workflowRevisionRepository.existsById(wfRun.getWorkflowRevisionRef())) {
-            return;
-          }
           long duration =
               wfRun.getStartTime() != null
                   ? new Date().getTime() - wfRun.getStartTime().getTime()
@@ -302,20 +399,65 @@ public class WorkflowWatcher {
                 "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
                 wfRun.getId(),
                 wfRun.getWorkflowRevisionRef());
-            taskRunService
-                .findNonTerminalByWorkflowRunRef(wfRun.getId())
-                .forEach(
-                    t -> {
-                      if (RunPhase.pending.equals(t.getPhase())) {
-                        taskExecutionService.queue(t.getId());
-                      } else {
-                        taskExecutionService.end(t.getId());
-                      }
-                    });
+            windDownTasks(wfRun.getId());
           }
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Missing-revision reap failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  // Wind down the stored TaskRuns of a run just completed here: a pending one is queued so the
+  // admission gate skips it, anything else is ended - both settle against the completed run.
+  private void windDownTasks(String wfRunId) {
+    taskRunService
+        .findNonTerminalByWorkflowRunRef(wfRunId)
+        .forEach(
+            t -> {
+              if (RunPhase.pending.equals(t.getPhase())) {
+                taskExecutionService.queue(t.getId());
+              } else {
+                taskExecutionService.end(t.getId());
+              }
+            });
+  }
+
+  /**
+   * Recover WorkflowRuns claimed for workspace provisioning that never started - the dispatcher
+   * failed to provision, or died holding the claim. The claim is released back to claimable for the
+   * next dispatcher poll to retry; a run whose last allowed attempt went stale is failed instead.
+   * Both transitions are fenced on the observed claim seq, so a start or a fresh claim wins.
+   */
+  public void recoverStaleProvisionClaims() {
+    Date claimedBefore = new Date(System.currentTimeMillis() - provisionClaimGraceMillis);
+    SweepRunner.forEachIsolated(
+        workflowRunStateHelper.findStaleProvisionClaims(claimedBefore, PAGE_SIZE),
+        wfRun -> {
+          long attempts = wfRun.getClaim().getSeq();
+          if (attempts < MAX_PROVISION_ATTEMPTS) {
+            if (workflowRunStateHelper.tryReleaseProvisionClaim(wfRun.getId(), attempts) != null) {
+              LOGGER.info(
+                  "[{}] Provisioning claim by {} went stale. Released after attempt {}.",
+                  wfRun.getId(),
+                  wfRun.getClaim().getBy(),
+                  attempts);
+            }
+          } else if (workflowRunStateHelper.tryFailProvision(
+                  wfRun.getId(),
+                  attempts,
+                  MessageFormatter.format(
+                          "Workspace provisioning did not complete after {} attempts.", attempts)
+                      .getMessage())
+              != null) {
+            LOGGER.error(
+                "[{}] Workspace provisioning did not complete after {} attempts. Run failed.",
+                wfRun.getId(),
+                attempts);
+            windDownTasks(wfRun.getId());
+          }
+        },
+        (wfRun, ex) ->
+            LOGGER.error(
+                "[{}] Stale provisioning-claim recovery failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**

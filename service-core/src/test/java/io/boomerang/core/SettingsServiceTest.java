@@ -32,6 +32,7 @@ class SettingsServiceTest {
   private static final String PREFIX = "crypt_v1{AESGCM|";
 
   @Mock private SettingsRepository settingsRepository;
+  @Mock private ParamLayerCache paramLayerCache;
 
   private SettingsService settingsService;
 
@@ -40,7 +41,7 @@ class SettingsServiceTest {
     EncryptionConfig encryptionConfig = new EncryptionConfig();
     encryptionConfig.setSecretKey("test-secret");
     encryptionConfig.setSalt("test-salt");
-    settingsService = new SettingsService(settingsRepository, encryptionConfig);
+    settingsService = new SettingsService(settingsRepository, encryptionConfig, paramLayerCache);
   }
 
   @Test

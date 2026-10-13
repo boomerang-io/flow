@@ -36,13 +36,13 @@ exports[`CreateWorkflowContent --- Snapshot Test > Capturing Snapshot of CreateW
               id="downshift-[generated-id]-toggle-button"
               role="combobox"
               tabindex="0"
-              title="Workspace"
+              title="Test"
               type="button"
             >
               <span
                 class="cds--list-box__label"
               >
-                Workspace
+                Test
               </span>
               <div
                 class="cds--list-box__menu-icon"

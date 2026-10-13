@@ -210,7 +210,10 @@ type TaskOverviewProps = {
 // useBlocker must be called from its own component so it keeps a stable hook position
 // regardless of how Formik invokes the surrounding render-prop function.
 function TaskTemplateOverviewBlocker({ getBlockMessage }: { getBlockMessage: (pathname: string) => string | null }) {
-  const blocker = useBlocker(({ nextLocation }) => getBlockMessage(nextLocation.pathname) !== null);
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      currentLocation.pathname !== nextLocation.pathname && getBlockMessage(nextLocation.pathname) !== null,
+  );
 
   React.useEffect(() => {
     if (blocker.state === "blocked") {
@@ -513,16 +516,20 @@ export function TaskTemplateOverview({
         // Same in-app "leave without saving" guard as before, ported from v5's <Prompt> to
         // v6/v7's useBlocker (requires the data router set up in Root.tsx). Returns the
         // confirm-dialog message to show for a given target pathname, or null to navigate
-        // through unprompted.
+        // through unprompted. React Router calls this on every navigation, so it must not throw.
+        // The post-save navigate runs while isSaving is still true, so it is never prompted.
         function getBlockMessage(pathname: string) {
-          const templateMatch = matchPath({ path: AppPath.TaskTemplateDetail }, pathname);
-          if (isDirty && !pathname.includes(templateMatch?.params?.id) && !isSubmitting) {
-            return "Are you sure you want to leave? You have unsaved changes.";
+          if (!isDirty || isSaving) {
+            return null;
           }
-          if (isDirty && templateMatch?.params?.version !== selectedTaskTemplate.currentVersion && !isSubmitting) {
+          const target = matchPath(
+            { path: params.workspace ? AppPath.ManageTasksDetail : AppPath.TasksDetail, end: false },
+            pathname,
+          );
+          if (target?.params.name === selectedTaskTemplate.name && target.params.version !== String(selectedTaskTemplate.version)) {
             return "Are you sure you want to change the version? Your changes will be lost.";
           }
-          return null;
+          return "Are you sure you want to leave? You have unsaved changes.";
         }
 
         return (

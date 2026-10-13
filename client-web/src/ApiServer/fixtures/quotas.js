@@ -11,6 +11,9 @@ const quotas = {
   currentRunTotalDuration: 300,
   currentRunMedianDuration: 120,
   currentPersistentStorage: 3,
+  maxArtifactStorage: 5,
+  artifactRetentionDays: 30,
+  currentArtifactStorage: 1073741824,
 };
 
 export default quotas;

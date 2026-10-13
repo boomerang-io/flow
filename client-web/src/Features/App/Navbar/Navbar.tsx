@@ -13,11 +13,12 @@ import {
 } from "@carbon/react";
 import { FlowData, ArrowsHorizontal, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
+import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
-import { Link, useLocation, useRouteLoaderData } from "react-router-dom";
+import { Link, useLocation, useNavigate, useRouteLoaderData } from "react-router-dom";
 import * as navigationIcons from "Utils/navigationIcons";
 import type { BootstrapData } from "Features/App/App";
-import { APP_ROOT } from "Config/appConfig";
+import { APP_ROOT, FeatureFlag } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
 import styles from "./navbar.module.scss";
@@ -43,9 +44,12 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
   // POST a plain link cannot (revoke the session + clear the httpOnly cookie) and then
   // hard-navigates onward. In mode "none" - or when the config could not be loaded (null, which
   // means "change nothing") - the context payload passes through untouched, exactly as before.
+  const singleWorkspaceEnabled = useFeature(FeatureFlag.SingleWorkspaceEnabled);
   const authConfig = useRouteLoaderData<BootstrapData>("root")?.authConfig ?? null;
   const sessionSignOut =
     authConfig && authConfig.mode !== "none" ? { signOutUrl: `${APP_ROOT}/auth/logout` } : undefined;
+  // The shell's product name links to ${baseEnvUrl}/launchpad, which Flow does not have; send it home.
+  const navigate = useNavigate();
 
   return (
     <>
@@ -63,10 +67,13 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
           },
         }}
         leftPanel={(args) => <AppSideNav {...args} flowNavigationData={flowNavigationData} />}
+        enableSpaNavigation
+        onNavigate={() => navigate(appLink.home())}
         platformName={platformName}
         productName={appName}
         skipToContentProps={skipToContentProps}
-        user={userData}
+        // The shell's platform `User` requires a `teams` array; FlowUser only carries it on the profile response.
+        user={{ ...userData, teams: userData.teams ?? [] }}
         supportMenuItems={[
           <HeaderMenuItem type="button" onClick={handleOnTutorialClick} text="Tutorial" />,
           <HeaderMenuItem type="link" kind="external" href="https://www.useboomerang.io/flow" text="Docs" />,
@@ -80,28 +87,33 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
             text="Account Settings"
           />,
         ]}
-        rightPanel={{
-          icon: <ArrowsHorizontal size="20" />,
-          component: (
-            <Switcher aria-label="Your Workspaces">
-              <li className={styles.switcherInfo}>
-                <span>Your Workspaces</span>
-              </li>
-              <SwitcherDivider />
-              {(userData.teams ?? []).map((workspace) => {
-                return (
-                  <SwitcherItem
-                    aria-label={workspace.displayName}
-                    key={workspace.name}
-                    href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}
-                  >
-                    {workspace.displayName}
-                  </SwitcherItem>
-                );
-              })}
-            </Switcher>
-          ),
-        }}
+        // A single workspace needs no switcher.
+        rightPanel={
+          singleWorkspaceEnabled
+            ? undefined
+            : {
+                icon: <ArrowsHorizontal size="20" />,
+                component: (
+                  <Switcher aria-label="Your Workspaces">
+                    <li className={styles.switcherInfo}>
+                      <span>Your Workspaces</span>
+                    </li>
+                    <SwitcherDivider />
+                    {(userData.teams ?? []).map((workspace) => {
+                      return (
+                        <SwitcherItem
+                          aria-label={workspace.displayName}
+                          key={workspace.name}
+                          href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}
+                        >
+                          {workspace.displayName}
+                        </SwitcherItem>
+                      );
+                    })}
+                  </Switcher>
+                ),
+              }
+        }
       />
     </>
   );

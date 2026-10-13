@@ -7,11 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Workflow;
-import io.boomerang.core.entity.SettingEntity;
-import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.model.WorkspaceRequest;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * Workflow-name uniqueness within a workspace used to be checked with {@code
  * RelationshipService.check()}, which answers "may this caller act on this?", not "does this
  * already exist?" - with no principal on the SecurityContext (as here) it always answers true, so
- * creation failed with WORKFLOW_INVALID_REF on every single call. The fix is a pure existence
+ * creation failed with the duplicate-name error on every single call. The fix is a pure existence
  * lookup: creation must succeed with no collision and still reject a real duplicate name within
  * the same workspace.
  */
@@ -31,9 +28,6 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedFeatureQuotaSettingDisabled();
   }
 
   @Test
@@ -55,7 +49,7 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
         assertThrows(
             BoomerangException.class,
             () -> workflowService.create(workspace, newWorkflow("duplicate-workflow")));
-    assertEquals("WORKFLOW_INVALID_REFERENCE", ex.getReason());
+    assertEquals("WORKFLOW_INVALID_REQ", ex.getReason());
   }
 
   @Test
@@ -81,23 +75,5 @@ class WorkspaceWorkflowUniquenessTest extends AbstractEngineIntegrationTest {
     Workflow workflow = new Workflow();
     workflow.setName(name);
     return workflow;
-  }
-
-  // setUpWorkspaceDefaults/canCreateWithQuotas both read "features"."workspaceQuotas"
-  // unconditionally - the loader normally seeds it, but this shared Testcontainers Mongo starts
-  // empty.
-  private void seedFeatureQuotaSettingDisabled() {
-    if (settingsRepository.findOneByKey("features") != null) {
-      return;
-    }
-    SettingEntity settings = new SettingEntity();
-    settings.setKey("features");
-    settings.setName("Features");
-    SettingConfig workspaceQuotas = new SettingConfig();
-    workspaceQuotas.setKey("workspaceQuotas");
-    workspaceQuotas.setType("boolean");
-    workspaceQuotas.setValue("false");
-    settings.setConfig(List.of(workspaceQuotas));
-    settingsRepository.save(settings);
   }
 }

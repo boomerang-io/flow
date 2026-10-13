@@ -2,7 +2,7 @@ const workflowRun = {
     "id": "651e4789ab1cb56bc8976ae4",
     "creationDate": "2023-10-05T05:20:08.956+00:00",
     "status": "succeeded",
-    "phase": "finalized",
+    "phase": "completed",
     "startTime": "2023-10-05T05:20:09.648+00:00",
     "duration": 8336,
     "workflowRef": "651b91a77fbb1a64ab8b7154",

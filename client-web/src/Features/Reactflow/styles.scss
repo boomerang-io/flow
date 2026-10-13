@@ -20,3 +20,11 @@
   height: 100%;
   width: 100%;
 }
+
+// React Flow v12 pushes a side handle half its width out from the node's edge. Our ports are
+// already offset by their full width (the .port rules in the Start, End and Template node
+// styles), so keep only the vertical centring or every port sits a gap away from its node.
+.react-flow__handle-left,
+.react-flow__handle-right {
+  transform: translate(0, -50%);
+}

@@ -25,9 +25,9 @@ things by name, not by code.
 | 0019 | [Workflow delete is a tombstone swept by the watcher](0019-workflow-delete-is-a-tombstone.md) | accepted | 2026-07-23 |
 | 0020 | [Control and execution state are typed fields; annotations and labels are metadata only](0020-control-state-is-typed-fields.md) | accepted | 2026-07-24 |
 | 0021 | [Versioned documents use the subset pattern (parent plus revision documents)](0021-versioned-documents-use-the-subset-pattern.md) | accepted | 2023-08-14 |
-| 0022 | [Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy](0022-migrations-run-as-a-pre-deploy-loader-job.md) | accepted | 2026-07-23 |
+| 0022 | [Migrations run as a pre-deploy loader job on Flamingock, one execution per deploy](0022-migrations-run-as-a-pre-deploy-loader-job.md) | superseded by 0093 | 2026-07-23 |
 | 0023 | [Indexes are created by loader change units, not entity annotations](0023-indexes-are-created-by-loader-change-units.md) | accepted | 2026-08-14 |
-| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | accepted | 2026-09-01 |
+| 0024 | [The v3 upgrade path is kept in place through the change-unit chain](0024-v3-upgrade-path-kept-in-place-through-the-change-unit-chain.md) | superseded by 0094 | 2026-09-01 |
 | 0030 | [Relationship checks use direct queries anchored on the caller, not an in-memory graph](0030-relationship-checks-use-direct-queries-anchored-on-the-caller.md) | accepted | 2026-07-23 |
 | 0031 | [Permission checks enforce: a mismatch is a real 403, not a shadow metric](0031-permission-checks-enforce-a-mismatch-is-a-real-403.md) | accepted | 2026-08-31 |
 | 0032 | [With security off, requests run as a synthetic global admin that is never stored](0032-security-off-runs-as-a-synthetic-global-admin-that-is-never-stored.md) | accepted | 2026-08-26 |
@@ -39,7 +39,7 @@ things by name, not by code.
 | 0042 | [One isolation tier per dispatcher deployment, no per-task tier](0042-one-isolation-tier-per-dispatcher-deployment.md) | accepted | 2026-08-25 |
 | 0043 | [Sensitive values are marked by field type and filtered on the way out](0043-sensitive-values-are-marked-by-field-type-and-filtered-on-the-way-out.md) | accepted | 2026-08-25 |
 | 0044 | [Parameter names match case-insensitively and colliding variants are rejected at save](0044-parameter-names-match-case-insensitively-and-colliding-variants-are-rejected.md) | accepted | 2026-08-26 |
-| 0045 | [A pass-by-reference artefact store for large payloads](0045-pass-by-reference-artefact-store-for-large-payloads.md) | proposed | 2026-08-27 |
+| 0045 | [A pass-by-reference artefact store for large payloads](0045-pass-by-reference-artefact-store-for-large-payloads.md) | superseded by 0085 | 2026-08-27 |
 | 0046 | [Task execution runs behind a `TaskExecutor` interface with Tekton and plain Kubernetes Jobs](0046-task-execution-runs-behind-a-taskexecutor-interface.md) | accepted | 2026-08-21 |
 | 0050 | [`status` is the external run field; `phase` stays exposed until the dispatcher gets its own wire model](0050-status-is-the-external-field-phase-stays-exposed-for-now.md) | accepted | 2026-08-18 |
 | 0051 | [Execution-state fields never appear in the public run models](0051-execution-state-fields-never-appear-in-public-models.md) | accepted | 2026-08-18 |
@@ -54,4 +54,35 @@ things by name, not by code.
 | 0066 | [A workflow task parameter without a value is rejected at save](0066-a-workflow-task-parameter-without-a-value-is-rejected-at-save.md) | superseded by 0068 | 2026-09-02 |
 | 0067 | [A run that declares workspaces is started by the dispatcher after provisioning](0067-runs-with-workspaces-are-started-by-the-dispatcher-after-provisioning.md) | accepted | 2026-09-02 |
 | 0068 | [An empty workflow task parameter value is valid; required-ness is the task's run-time concern](0068-an-empty-workflow-task-parameter-value-is-valid.md) | accepted | 2026-09-02 |
-| 0071 | [A REST handler is denied unless it carries `@AuthCriteria` or `@AuthExempt`](0071-rest-handlers-are-denied-unless-annotated.md) | accepted | 2026-09-14 |
+| 0069 | [Submit starts the run by default; parking is the explicit opt-out](0069-submit-starts-the-run-by-default.md) | accepted | 2026-09-02 |
+| 0070 | [Audit is flat per-event documents captured by annotation, with levels](0070-audit-is-flat-per-event-documents-captured-by-annotation.md) | accepted | 2026-09-03 |
+| 0071 | [Deletion completes: the prune sweep hard-deletes once runs finalise, with no flag](0071-deletion-completes-the-prune-sweep-hard-deletes-once-runs-finalise.md) | accepted | 2026-09-03 |
+| 0072 | [Monthly run quotas count audit events so deletion cannot reset them](0072-monthly-run-quotas-count-audit-events-so-deletion-cannot-reset-them.md) | accepted | 2026-09-03 |
+| 0073 | [A run ends at `completed`; releasing its storage is the dispatcher's own reconciliation](0073-runs-end-at-completed-storage-release-is-dispatcher-reconciliation.md) | accepted | 2026-09-15 |
+| 0074 | [Spring Security's native model replaces hand-rolled authentication and authorization mechanics](0074-spring-security-native-authentication-and-authorization.md) | accepted | 2026-09-02 |
+| 0075 | [A child workflow run waits, cascades and nests to a capped depth, all on the existing lineage pair](0075-child-workflow-runs-wait-cascade-and-nesting-depth.md) | accepted | 2026-09-15 |
+| 0077 | [Workflow Templates are seeded, read-only content](0077-workflow-templates-are-seeded-read-only-content.md) | accepted | 2026-09-15 |
+| 0078 | [An `ai` task is a first-class type executed as a pod from a Boomerang-published worker image](0078-an-ai-task-type-runs-a-boomerang-published-worker-as-a-pod.md) | accepted | 2026-09-16 |
+| 0080 | [An unknown reference is 404; a malformed request stays 400](0080-an-unknown-reference-is-404-a-malformed-one-is-400.md) | accepted | 2026-09-16 |
+| 0079 | [A status CloudEvent carries a run's identity and lifecycle, not the run model](0079-status-events-carry-identity-and-lifecycle-not-the-run-model.md) | accepted | 2026-09-16 |
+| 0081 | [Leftover Tekton runtime objects are cleaned by our own reconciler](0081-leftover-tekton-runtime-objects-are-cleaned-by-our-own-reconciler.md) | accepted | 2026-09-23 |
+| 0082 | [A task runs once per item through a `foreach` setting on the task](0082-foreach-fan-out-of-one-task.md) | accepted | 2026-09-26 |
+| 0083 | [The "For each" palette item is an entry point to the task setting](0083-the-for-each-palette-item-is-an-entry-point-to-the-task-setting.md) | accepted | 2026-09-26 |
+| 0084 | [The webapp renders engine mode from feature flags, not from the mode](0084-the-webapp-renders-engine-mode-from-feature-flags.md) | accepted | 2026-09-28 |
+| 0085 | [Artifacts are uploaded by built-in tasks and expire into a kept record](0085-artifacts-are-uploaded-by-tasks-and-expire-into-a-kept-record.md) | accepted | 2026-09-28 |
+| 0086 | [Engine mode runs schedules and insights](0086-engine-mode-runs-schedules-and-insights.md) | accepted | 2026-09-29 |
+| 0087 | [One page header on every route, and a page inside an object is titled with its name](0087-one-page-header-and-object-names-as-titles.md) | accepted | 2026-09-29 |
+| 0088 | [Home's cross-workspace rollup fans out from the route loader instead of a new summary endpoint](0088-home-rollup-fans-out-per-workspace.md) | accepted | 2026-09-29 |
+| 0089 | [Insights read the runs a workspace still holds; the audit trail serves quotas only](0089-insights-read-retained-runs-audit-serves-quotas.md) | accepted | 2026-09-30 |
+| 0090 | [Administration is one "Manage" link to a tabbed page, and workflow templates leave the product UI](0090-manage-is-one-tabbed-area.md) | accepted | 2026-09-30 |
+| 0091 | [Settings groups are named for what they control, and storage defaults stay with the dispatcher](0091-settings-groups-named-for-what-they-control.md) | accepted | 2026-09-30 |
+| 0092 | [Workspace parameters are referenced as workspace.params; team.params is deprecated](0092-workspace-parameter-references.md) | accepted | 2026-09-30 |
+| 0093 | [Scoped parameters resolve from their stores, and untrusted text is never expanded](0093-when-scoped-parameters-resolve.md) | accepted | 2026-10-02 |
+| 0094 | [The dispatcher reconnects at once after a poll](0094-dispatcher-reconnects-at-once-after-a-poll.md) | accepted | 2026-10-02 |
+| 0095 | [A dispatcher claims only what it has slots for](0095-a-dispatcher-claims-only-what-it-has-slots-for.md) | accepted | 2026-10-05 |
+| 0096 | [Starting is bounded apart from running, and a task that never started is handed back](0096-a-task-that-never-started-is-handed-back.md) | accepted | 2026-10-05 |
+| 0097 | [A dispatcher's poll filters by task type, task and workflow label, resolved to typed refs](0097-dispatcher-polls-filter-by-task-and-workflow-label.md) | accepted | 2026-10-06 |
+| 0098 | [Migrations run inside service-core as it starts, before it serves](0098-migrations-run-inside-service-core-before-it-serves.md) | accepted | 2026-10-01 |
+| 0099 | [The change-unit chain migrates an empty or a v3 database, and nothing else](0099-the-chain-migrates-an-empty-or-a-v3-database-only.md) | accepted | 2026-10-01 |
+| 0100 | [One key encrypts every secret at rest; the v3 pair is read once to re-encrypt](0100-one-encryption-key-for-secrets-at-rest-and-the-v3-pair-read-once.md) | accepted | 2026-10-10 |
+| 0101 | [A REST handler is denied unless it carries `@AuthCriteria` or `@AuthExempt`](0101-rest-handlers-are-denied-unless-annotated.md) | accepted | 2026-09-14 |

@@ -10,10 +10,10 @@ import io.boomerang.core.enums.UserStatus;
 /**
  * <b>Email lookups are exact-match, not {@code IgnoreCase}.</b> {@code users.email} is stored
  * already lower-cased (every write goes through {@code UserService}, which lower-cases with {@code
- * Locale.ROOT}), so an equality predicate can seek the {@code users.email_lookup} index built by
- * {@code _0036__RelationshipAndAuditIndexes}. The previous {@code ...IgnoreCase} derivations were
- * rendered by Spring Data as an {@code $options:'i'} regex, for which MongoDB cannot compute index
- * bounds — every one of them was a full index scan.
+ * Locale.ROOT}), so an equality predicate can seek the {@code users.email_unique} index built by
+ * {@code io.boomerang.migration._0021__Indexes}. An {@code ...IgnoreCase} derivation is rendered by
+ * Spring Data as an {@code $options:'i'} regex, for which MongoDB cannot compute index bounds — it
+ * would be a full index scan.
  *
  * <p>Callers MUST lower-case the value before calling: user-supplied input (a login form, an
  * {@code x-forwarded-email} header, an API request body) arrives in whatever case the caller typed.

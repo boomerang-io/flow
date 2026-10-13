@@ -10,7 +10,6 @@
         <module>lib-common</module>
         <module>service-core</module>
         <module>service-dispatcher</module>
-        <module>service-loader</module>
     </modules>
 
     <parent>

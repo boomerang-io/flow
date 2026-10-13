@@ -1,4 +1,7 @@
+import { useFeature } from "flagged";
+import { ProtectedRoute } from "Features/App/App";
 import Tokens from "Features/WorkspaceDetailed/Tokens/Tokens";
+import { FeatureFlag } from "Config/appConfig";
 import { workspaceTokensLoader, tokenAction } from "Components/TokenSection/tokenRoute";
 
 // Tokens tab of /:workspace/manage.
@@ -11,5 +14,9 @@ export const loader = workspaceTokensLoader;
 export const action = tokenAction;
 
 export default function ManageWorkspaceTokensRoute() {
+  // With security off there is nothing for a token to do (FeatureService's "tokens" flag).
+  if (!useFeature(FeatureFlag.TokensEnabled)) {
+    return <ProtectedRoute allowed={false}>{null}</ProtectedRoute>;
+  }
   return <Tokens />;
 }

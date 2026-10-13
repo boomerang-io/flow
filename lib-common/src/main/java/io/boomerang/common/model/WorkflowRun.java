@@ -62,6 +62,12 @@ public class WorkflowRun {
   private String workflowRevisionRef;
   private String trigger;
   private String initiatedByRef;
+
+  // The run that owns the TaskRun in initiatedByRef, resolved on read for a task-triggered run so
+  // a client can link back to the parent without a TaskRun lookup of its own. Derived, never
+  // stored - the entity keeps only the lineage pair above.
+  private String initiatedByWorkflowRunRef;
+
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
   private List<WorkflowWorkspace> workspaces = new LinkedList<>();

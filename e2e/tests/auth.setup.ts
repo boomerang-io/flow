@@ -36,7 +36,7 @@ setup("sign in via IDPZero and save storage state", async ({ page, baseURL }) =>
 
   // IDPZero's login page (issuer http://idp.localhost:4380 - see docker-compose.yml for why
   // that hostname): a passwordless user picker.
-  await page.waitForURL(/idp\.localhost:4380\/login/);
+  await page.waitForURL(/idp\.localhost:\d+\/login/);
   await page.locator('select[name="username"]').selectOption("usr-flow-admin");
   await page.getByRole("button", { name: "Sign In" }).click();
 

@@ -56,9 +56,6 @@ public class SecurityConfiguration {
   private SettingsService settingsService;
 
   @Autowired
-  private OidcTokenVerifier oidcTokenVerifier;
-
-  @Autowired
   @Qualifier("delegatedAuthenticationEntryPoint")
   AuthenticationEntryPoint authEntryPoint;
 
@@ -69,7 +66,7 @@ public class SecurityConfiguration {
   // password is compared via PasswordEncoder.matches - constant-time - rather than a raw
   // String.equals. There is one operator-wide password, not a per-user credential store, so this
   // stays a plain bean rather than a full http.httpBasic()/UserDetailsService setup - see decision
-  // 0069.
+  // 0074.
   @Bean
   PasswordEncoder passwordEncoder() {
     return PasswordEncoderFactories.createDelegatingPasswordEncoder();
@@ -83,12 +80,7 @@ public class SecurityConfiguration {
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
           new AuthenticationFilter(
-              tokenService,
-              settingsService,
-              basicPassword,
-              authEntryPoint,
-              oidcTokenVerifier,
-              passwordEncoder());
+              tokenService, settingsService, basicPassword, authEntryPoint, passwordEncoder());
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->

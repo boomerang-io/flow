@@ -68,12 +68,12 @@ describe("MSW handlers", () => {
     expect(available.status).toBe(200);
   });
 
-  it("persists a PATCH to /labels instead of throwing on a plain record", async () => {
+  it("persists labels through PATCH /workspace/:workspace instead of throwing on a plain record", async () => {
     const workspace = fixtures.workspaces.content[0];
-    const response = await fetch(apiUrl(`/api/workspace/${workspace.name}/labels`), {
+    const response = await fetch(apiUrl(`/api/workspace/${workspace.name}`), {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ team: "platform" }),
+      body: JSON.stringify({ labels: { team: "platform" } }),
     });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ labels: { team: "platform" } });

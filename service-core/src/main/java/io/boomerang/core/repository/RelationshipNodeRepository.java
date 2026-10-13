@@ -16,9 +16,10 @@ public interface RelationshipNodeRepository
 
   /**
    * Full node by type + ref-or-slug. The {@code $or} is planned as a union of one index scan per
-   * branch, so it needs BOTH {@code {type, slug}} and {@code {type, ref}} — created by the loader's
-   * {@code _0036__RelationshipAndAuditIndexes}. The entity's own {@code type_slug_idx}/{@code
-   * type_ref_idx} annotations are inert ({@code spring.data.mongodb.auto-index-creation=false}).
+   * branch, so it needs BOTH {@code {type, slug}} and {@code {type, ref}} — the {@code type_slug}
+   * and {@code type_ref} indexes {@code io.boomerang.migration._0021__Indexes} builds. The entity's
+   * own {@code type_slug_idx}/{@code type_ref_idx} annotations are inert ({@code
+   * spring.data.mongodb.auto-index-creation=false}).
    */
   @Query("{'type': ?0, '$or': [{'slug': ?1},{'ref': ?1}]}")
   Optional<RelationshipNodeEntity> findOneByTypeAndRefOrSlug(String type, String refOrSlug);

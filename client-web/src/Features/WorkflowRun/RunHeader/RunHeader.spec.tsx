@@ -142,21 +142,52 @@ describe("RunHeader --- Initiated by", () => {
     expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "robot" })).toBeInTheDocument();
   });
+
+  // A child run started by a runworkflow task: initiatedByRef holds the submitting TaskRun's id,
+  // and the run that owns it comes back separately as initiatedByWorkflowRunRef.
+  it("links a task-triggered run back to the run that started it", () => {
+    renderRunHeader({
+      trigger: "task",
+      initiatedByRef: "651e4789ab1cb56bc8976b01",
+      initiatedByWorkflowRunRef: "651e4789ab1cb56bc8976b02",
+    });
+
+    const link = screen.getByTestId("initiated-by-parent-run-link");
+    expect(link).toHaveTextContent("651e4789ab1cb56bc8976b02");
+    expect(link).toHaveAttribute("href", `/${workspace}/activity/651e4789ab1cb56bc8976b02`);
+  });
+
+  it("keeps a task-triggered run's initiatedByRef as plain text when the parent run is unresolved", () => {
+    renderRunHeader({ trigger: "task", initiatedByRef: "651e4789ab1cb56bc8976b01" });
+
+    expect(screen.queryByTestId("initiated-by-parent-run-link")).not.toBeInTheDocument();
+    expect(screen.getByText("651e4789ab1cb56bc8976b01")).toBeInTheDocument();
+  });
 });
 
 // The Advanced detail modal builds the `kubectl`/`tkn` label selectors the user is invited to
 // paste into a terminal, so every value in them has to be real. workflow-ref came from a
 // `:workflow` route param that AppPath.Run (/:workspace/activity/:runId) does not supply, so the
 // user was shown - and copied - `boomerang.io/workflow-ref=undefined`.
+describe("RunHeader --- status and controls", () => {
+  it("leads the run facts with the status tag, duration included", () => {
+    renderRunHeader({ status: RunStatus.Succeeded, phase: RunPhase.Completed, duration: 21000 });
+
+    expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+in 21/);
+  });
+});
+
 describe("RunHeader --- Advanced detail", () => {
   async function openAdvancedDetail(
     overrides: Partial<WorkflowRun> = {},
     workflowOverrides: Partial<WorkflowCanvas> = {},
   ) {
     const view = renderRunHeader(overrides, workflowOverrides);
-    await userEvent.click(screen.getByTestId("advanced-detail-trigger"));
-    // "Advanced detail" itself appears twice (the trigger tooltip and the modal header), so key
-    // the wait on something only the modal body renders. Text queries rather than role queries
+    // Advanced detail lives in the header's overflow menu.
+    await userEvent.click(screen.getByRole("button", { name: "More run actions" }));
+    await userEvent.click(await screen.findByTestId("advanced-detail-trigger"));
+    // "Advanced detail" itself appears twice (the menu item and the modal header), so key the
+    // wait on something only the modal body renders. Text queries rather than role queries
     // throughout this block: react-modal's ariaHideApp puts aria-hidden="true" on the app element
     // - which under this harness is <body> itself - while the modal is open, so every plain
     // byRole query misses the whole tree.

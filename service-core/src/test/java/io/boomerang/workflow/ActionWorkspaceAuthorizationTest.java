@@ -18,7 +18,6 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.TokenService;
-import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -79,8 +78,6 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
   /** Seeds under the base class's global identity; each test installs its own member identity. */
   @BeforeEach
   void seedActionInOwningWorkspace() {
-    seedRelationshipRoot();
-    seedOwnerRole();
     workspaceNode(OWNING_WORKSPACE);
     workspaceNode(OTHER_WORKSPACE);
     memberId = memberOf(OWNER_EMAIL, OWNING_WORKSPACE);
@@ -109,6 +106,8 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
     // The unresolvable workflowRunRef sends the async end handler down its graceful cancel path.
     TaskRunEntity taskRun = new TaskRunEntity();
     taskRun.setWorkflowRunRef("no-such-workflowrun");
+    // Each test's task is its own node in the run; node names are unique within a run.
+    taskRun.setName("approval-" + System.nanoTime());
     action.setTaskRunRef(taskRunRepository.save(taskRun).getId());
     actionId = actionRepository.save(action).getId();
   }
@@ -278,17 +277,6 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
           Optional.of(Map.of("role", "owner")));
     }
     return user.getId();
-  }
-
-  /** Mirror of the loader's roles.json workspace/owner document - permission resolution needs it. */
-  private void seedOwnerRole() {
-    if (roleRepository.findByTypeAndName("workspace", "owner") == null) {
-      RoleEntity owner = new RoleEntity();
-      owner.setType(PermissionScope.workspace);
-      owner.setName("owner");
-      owner.setPermissions(List.of("**/**"));
-      roleRepository.save(owner);
-    }
   }
 
   private String createLinearWorkflow(String name) {

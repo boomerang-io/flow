@@ -19,7 +19,7 @@ public final class FlowSecurityProperties {
 
   private FlowSecurityProperties() {}
 
-  /** Whether security (both the authentication filter chain and the authorization interceptor) should be active. */
+  /** Whether security (both the authentication filter chain and endpoint authorization) should be active. */
   public static boolean isSecurityEnabled(Environment environment) {
     String unified = environment.getProperty(UNIFIED_PROPERTY);
     if (unified != null) {

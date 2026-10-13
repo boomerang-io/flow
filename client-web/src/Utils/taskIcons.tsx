@@ -2,6 +2,7 @@
 import {
   AddAlt,
   Api,
+  MachineLearningModel,
   Fork,
   Chat,
   Code,
@@ -28,6 +29,15 @@ export const taskIcons = [
     name: "Add",
     Icon: ({ className = "", ...props }) => (
       <AddAlt alt="Task node type add" style={willChangeOverride} className={className} {...props} />
+    ),
+  },
+  {
+    // The icon key the seeded `ai` catalogue task carries (`icon: "AI"`), and the label the
+    // palette's "Filter by Task Type" list shows. Brand-neutral by choice - the Watsonx/IBM
+    // Watson icons in the set are vendor-marked.
+    name: "AI",
+    Icon: ({ className = "", ...props }) => (
+      <MachineLearningModel alt="Task node type AI" style={willChangeOverride} className={className} {...props} />
     ),
   },
   {

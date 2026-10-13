@@ -3,4 +3,9 @@
   --flow-failure: #a51920;
   --flow-darkest-blue: #1b2834;
   --flow-wait: #491d8b;
+  // The lightest step of the Boomerang teal ramp ($teal-1 in @boomerang-io/styles/lib/_colors.scss).
+  // Consumed by the onboarding tutorial's finish marker and the notification banner's links, both
+  // of which sit on dark chrome; it was used in both places without ever being defined, so those
+  // rules resolved to nothing and the browser fell back to inherited colour.
+  --flow-lightest-teal: #c0f5e8;
 }

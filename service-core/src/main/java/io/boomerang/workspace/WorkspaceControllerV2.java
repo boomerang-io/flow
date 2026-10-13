@@ -4,6 +4,9 @@ import io.boomerang.config.ConditionalOnFlowMode;
 import io.boomerang.config.FlowMode;
 import io.boomerang.core.model.Role;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.audit.Audited;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -154,6 +157,12 @@ public class WorkspaceControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "workspace",
+      resourceId = "#result?.getName()",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#result?.getName()")
   @Operation(summary = "Create new workspace")
   @ApiResponses(
       value = {
@@ -169,6 +178,12 @@ public class WorkspaceControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "workspace",
+      resourceId = "#workspace",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Patch or update a workspace")
   @ApiResponses(
       value = {
@@ -192,6 +207,12 @@ public class WorkspaceControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "workspace",
+      resourceId = "#workspace",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete Workspace")
   @ApiResponses(
       value = {

@@ -1,0 +1,27 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+// The header stays put while a long tab (Audit, Settings) scrolls underneath, as Manage
+// Workspace's does.
+.header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  h1 {
+    margin: 0 0 0.5rem 0;
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+}

@@ -47,7 +47,7 @@ const OnBoardMessage = (props: Props) => {
   } = props;
 
   return (
-    <FadeAnimation animationDuration={100} timeout={100} animationDelay={0} animationFunction="ease-in">
+    <FadeAnimation animationDuration={100} timeout={100} renderDelay={0} animationFunction="ease-in">
       <div className="c-onboard-wrapper">
         <section aria-label="Onboard Message Container" className="c-onboardExp">
           <button className="b-onboardExp-screen-modal-close" onClick={closeModal}>

@@ -5,9 +5,11 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
+import io.boomerang.executor.PodStart;
 import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
@@ -20,9 +22,11 @@ import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,6 +43,9 @@ public class KubeHelperService {
   private static final Logger LOGGER = LogManager.getLogger(KubeHelperService.class);
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  private static final int LABEL_SEGMENT_MAX_LENGTH = 63;
+  private static final int LABEL_PREFIX_MAX_LENGTH = 253;
 
   @Value("${proxy.enable}")
   protected Boolean proxyEnabled;
@@ -259,7 +266,7 @@ public class KubeHelperService {
     return labels;
   }
 
-  private Map<String, String> getBaseLabels(String tier) {
+  protected Map<String, String> getBaseLabels(String tier) {
     Map<String, String> labels = new HashMap<>();
     labels.put("app.kubernetes.io/name", bmrgProduct);
     labels.put("app.kubernetes.io/instance", bmrgInstance);
@@ -281,8 +288,106 @@ public class KubeHelperService {
     Optional.ofNullable(workflowRunRef)
         .ifPresent(str -> labels.put("boomerang.io/workflowrun-ref", str));
     Optional.ofNullable(taskRunRef).ifPresent(str -> labels.put("boomerang.io/taskrun-ref", str));
-    Optional.ofNullable(customLabels).ifPresent(lbl -> labels.putAll(lbl));
+    applyCustomLabels(labels, customLabels);
     return labels;
+  }
+
+  /*
+   * Run labels are user metadata: they reach the dispatcher unchecked, but Kubernetes rejects the
+   * whole object when one breaks its rules - a "/" in a value or anything over 63 characters -
+   * so a workflow labelled "team/name=platform/flow" failed its volume with a 422 the author
+   * could not see. Each user key and value is coerced into the Kubernetes shape instead:
+   * characters outside [A-Za-z0-9._-] become "_" (the key's optional DNS-subdomain prefix keeps
+   * its own narrower [a-z0-9.-] set), each part is truncated to its length ceiling and trimmed to
+   * alphanumeric ends. A key left with no name at all cannot be written, so it is dropped; the
+   * labels the dispatcher sets itself are placed first and a user label never replaces one -
+   * they are the selectors every lookup, watch and delete runs on.
+   */
+  private void applyCustomLabels(Map<String, String> labels, Map<String, String> customLabels) {
+    if (customLabels == null) {
+      return;
+    }
+    customLabels.forEach(
+        (key, value) -> {
+          String sanitisedKey = sanitiseLabelKey(key);
+          if (sanitisedKey == null) {
+            LOGGER.debug("Dropped label with an unusable key ({}).", key);
+            return;
+          }
+          String sanitisedValue = sanitiseLabelSegment(value == null ? "" : value);
+          if (!sanitisedKey.equals(key) || !sanitisedValue.equals(value)) {
+            LOGGER.debug(
+                "Sanitised label {}={} to {}={}.", key, value, sanitisedKey, sanitisedValue);
+          }
+          if (labels.putIfAbsent(sanitisedKey, sanitisedValue) != null) {
+            LOGGER.debug("Ignored label ({}): the dispatcher sets it.", sanitisedKey);
+          }
+        });
+  }
+
+  // A label key is an optional DNS-subdomain prefix, "/", then a name. Null when no name survives.
+  private static String sanitiseLabelKey(String key) {
+    if (key == null || key.isBlank()) {
+      return null;
+    }
+    int separator = key.indexOf('/');
+    String name = sanitiseLabelSegment(separator < 0 ? key : key.substring(separator + 1));
+    if (name.isEmpty()) {
+      return null;
+    }
+    if (separator < 0) {
+      return name;
+    }
+    String prefix = sanitiseLabelPrefix(key.substring(0, separator));
+    return prefix.isEmpty() ? name : prefix + "/" + name;
+  }
+
+  // Label names and values: at most 63 of [A-Za-z0-9._-], alphanumeric at both ends.
+  private static String sanitiseLabelSegment(String segment) {
+    String coerced = segment.replaceAll("[^A-Za-z0-9._-]", "_");
+    if (coerced.length() > LABEL_SEGMENT_MAX_LENGTH) {
+      coerced = coerced.substring(0, LABEL_SEGMENT_MAX_LENGTH);
+    }
+    return trimToAlphanumericEnds(coerced);
+  }
+
+  // A key prefix is a DNS subdomain: at most 253 of [a-z0-9.-], each dot-separated part
+  // alphanumeric at both ends.
+  private static String sanitiseLabelPrefix(String prefix) {
+    String coerced = prefix.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9.-]", "-");
+    if (coerced.length() > LABEL_PREFIX_MAX_LENGTH) {
+      coerced = coerced.substring(0, LABEL_PREFIX_MAX_LENGTH);
+    }
+    return Arrays.stream(coerced.split("\\."))
+        .map(KubeHelperService::trimToAlphanumericEnds)
+        .filter(part -> !part.isEmpty())
+        .collect(Collectors.joining("."));
+  }
+
+  private static String trimToAlphanumericEnds(String value) {
+    int start = 0;
+    int end = value.length();
+    while (start < end && !isAlphanumeric(value.charAt(start))) {
+      start++;
+    }
+    while (end > start && !isAlphanumeric(value.charAt(end - 1))) {
+      end--;
+    }
+    return value.substring(start, end);
+  }
+
+  private static boolean isAlphanumeric(char character) {
+    return (character >= 'a' && character <= 'z')
+        || (character >= 'A' && character <= 'Z')
+        || (character >= '0' && character <= '9');
+  }
+
+  /**
+   * Return the product and tier labels every task runtime object this dispatcher creates carries;
+   * the TTL reconciler scopes its listing by them so it never touches a foreign object.
+   */
+  public Map<String, String> getTaskRuntimeLabels() {
+    return createAntiAffinityLabels("task");
   }
 
   protected Map<String, String> getTaskLabels(
@@ -310,7 +415,7 @@ public class KubeHelperService {
         .ifPresent(str -> labels.put("boomerang.io/workspace-ref", str));
     Optional.ofNullable(workspaceType)
         .ifPresent(str -> labels.put("boomerang.io/workspace-type", str));
-    Optional.ofNullable(customLabels).ifPresent(lbl -> labels.putAll(lbl));
+    applyCustomLabels(labels, customLabels);
     return labels;
   }
 
@@ -363,12 +468,58 @@ public class KubeHelperService {
         .map(PodStatus::getContainerStatuses)
         .orElse(List.of())
         .stream()
-        .filter(cs -> "task".equals(cs.getName()))
+        .filter(cs -> isTaskContainer(cs.getName()))
         .map(ContainerStatus::getState)
         .filter(Objects::nonNull)
         .findFirst()
         .map(this::reasonFromContainerState)
         .orElse(null);
+  }
+
+  // The Jobs executor names the container "task"; Tekton prefixes each step's container "step-".
+  private static boolean isTaskContainer(String name) {
+    return "task".equals(name) || "step-task".equals(name);
+  }
+
+  /**
+   * Look at how far the Task's pod has got towards running: started once it has left Pending.
+   * While it waits, report the first container - init containers included - held on a waiting
+   * reason, else why the scheduler has not placed it.
+   */
+  public PodStart podStart(KubernetesClient client, Map<String, String> taskLabels) {
+    List<Pod> pods = client.pods().withLabels(taskLabels).list().getItems();
+    if (pods.isEmpty()) {
+      return PodStart.notCreated();
+    }
+    PodStatus status = pods.get(0).getStatus();
+    if (status != null && status.getPhase() != null && !"Pending".equals(status.getPhase())) {
+      return PodStart.running();
+    }
+    List<ContainerStatus> containers = new ArrayList<>();
+    if (status != null) {
+      containers.addAll(Optional.ofNullable(status.getInitContainerStatuses()).orElse(List.of()));
+      containers.addAll(Optional.ofNullable(status.getContainerStatuses()).orElse(List.of()));
+    }
+    for (ContainerStatus container : containers) {
+      if (container.getState() != null && container.getState().getWaiting() != null) {
+        ContainerStateWaiting waiting = container.getState().getWaiting();
+        if (waiting.getReason() != null && !"PodInitializing".equals(waiting.getReason())
+            && !"ContainerCreating".equals(waiting.getReason())) {
+          return PodStart.pending(
+              waiting.getReason(), container.getName() + ": " + waiting.getMessage());
+        }
+      }
+    }
+    String unscheduled =
+        Optional.ofNullable(status)
+            .map(PodStatus::getConditions)
+            .orElse(List.of())
+            .stream()
+            .filter(c -> "PodScheduled".equals(c.getType()) && "False".equals(c.getStatus()))
+            .map(c -> "not scheduled: " + c.getMessage())
+            .findFirst()
+            .orElse("the pod is pending");
+    return PodStart.pending(null, unscheduled);
   }
 
   private String reasonFromContainerState(ContainerState state) {

@@ -13,12 +13,7 @@ import {
 } from "@carbon/react";
 import { Help } from "@carbon/react/icons";
 import { notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
-import {
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-  ErrorMessage,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import { useFetcher, useLoaderData } from "react-router-dom";
 import { Box } from "reflexbox";
@@ -101,16 +96,6 @@ interface FeatureLayoutProps {
 const FeatureLayout = ({ children }: FeatureLayoutProps) => {
   return (
     <div className={styles.container}>
-      <Header
-        className={styles.header}
-        includeBorder={false}
-        header={
-          <>
-            <HeaderTitle className={styles.headerTitle}>Global Tokens</HeaderTitle>
-            <HeaderSubtitle className={styles.headerTitle}>Create tokens that can be used globally</HeaderSubtitle>
-          </>
-        }
-      />
       <div className={styles.content}>{children}</div>
     </div>
   );

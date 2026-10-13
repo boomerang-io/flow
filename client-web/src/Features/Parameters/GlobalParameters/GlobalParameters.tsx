@@ -1,11 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import {
-  notify,
-  ToastNotification,
-  FeatureHeader as Header,
-  FeatureHeaderTitle as HeaderTitle,
-  FeatureHeaderSubtitle as HeaderSubtitle,
-} from "@boomerang-io/carbon-addons-boomerang-react";
+import React, { useEffect, useRef, useState } from "react";
+import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { Helmet } from "react-helmet";
 import { useFetcher, useLoaderData } from "react-router-dom";
@@ -14,6 +8,7 @@ import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import CreateEditParametersModal from "../CreateEditParametersModal";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
 
@@ -107,6 +102,7 @@ function GlobalParameters() {
   // and invoked from the effect below once the create/update actually succeeds - the same "stay
   // open with a spinner, close only on success" behaviour the old mutateAsync/then chain had.
   const closeModalRef = useRef<(() => void) | null>(null);
+  const [editor, setEditor] = useState<{ isOpen: boolean; parameter?: DataDrivenInput }>({ isOpen: false });
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
@@ -170,24 +166,25 @@ function GlobalParameters() {
       <Helmet>
         <title>Parameters</title>
       </Helmet>
-      <Header
-        className={styles.header}
-        includeBorder={false}
-        header={
-          <>
-            <HeaderTitle className={styles.headerTitle}>Parameters</HeaderTitle>
-            <HeaderSubtitle>Set global parameters that are accessible to all workflows.</HeaderSubtitle>
-          </>
-        }
-      />
       <ParametersTable
+        scope="global"
         parameters={parameters}
-        isLoading={false}
-        isSubmitting={isSubmitting}
         errorLoading={errorLoading}
-        errorSubmitting={errorSubmitting}
-        handleDelete={handleDelete}
+        onAdd={() => setEditor({ isOpen: true })}
+        onEdit={(parameter) => setEditor({ isOpen: true, parameter })}
+        onDelete={handleDelete}
+      />
+      <CreateEditParametersModal
+        error={errorSubmitting}
+        handleClose={() => setEditor({ isOpen: false })}
         handleSubmit={handleSubmit}
+        isEdit={Boolean(editor.parameter)}
+        isOpen={editor.isOpen}
+        isSubmitting={isSubmitting}
+        key={editor.parameter?.name ?? "new"}
+        parameter={editor.parameter}
+        parameters={parameters}
+        scope="global"
       />
     </div>
   );

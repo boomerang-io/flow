@@ -98,8 +98,11 @@ export const handlers: HttpHandler[] = [
       maxWorkflowCount: 20,
       maxWorkflowRunMonthly: 150,
       maxWorkflowStorage: 10,
+      maxWorkflowRunStorage: 3,
       maxWorkflowRunDuration: 30,
       maxConcurrentRuns: 4,
+      maxArtifactStorage: 8,
+      artifactRetentionDays: 45,
     }),
   ),
   /*
@@ -137,25 +140,11 @@ export const handlers: HttpHandler[] = [
   }),
 
   /**
-   * Workspace Properties
+   * Workspace Parameters
    *
-   * Divergence: real backend has no per-property PATCH/DELETE-by-configurationId sub-route (see
-   * servicesConfig.ts's TODO on resourceWorkspaceParameters) - updates go through the workspace
-   * PATCH below and per-name deletes through workspace.deleteWorkspaceParameter. Mirage mocked a
-   * `configurationId` path segment that the underlying serviceUrl builder silently drops, so
-   * those two handlers never actually matched a real-shaped request; not ported.
+   * There is no list/create/update sub-route: the list is read off the workspace record and
+   * create/update go through the workspace PATCH below. Only the per-name delete is its own route.
    */
-  http.get(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), ({ params }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    return HttpResponse.json(workspace?.parameters ?? []);
-  }),
-  http.post(serviceUrl.workspace.resourceWorkspaceParameters({ workspace: ":workspace" }), async ({ params, request }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
-    const body = await jsonBody(request);
-    workspace.parameters = [...(workspace.parameters ?? []), { id: crypto.randomUUID(), ...body }];
-    return HttpResponse.json(workspace.parameters);
-  }),
   http.delete(serviceUrl.workspace.deleteWorkspaceParameter({ workspace: ":workspace", name: ":name" }), ({ params }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
@@ -167,6 +156,9 @@ export const handlers: HttpHandler[] = [
    * Insights
    */
   http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () => HttpResponse.json(fixtures.insights)),
+  http.get(serviceUrl.workspace.getInsightsWorkflow({ workspace: ":workspace", workflow: ":workflow" }), () =>
+    HttpResponse.json(fixtures.insightsWorkflow),
+  ),
 
   /**
    * Tasks
@@ -270,10 +262,6 @@ export const handlers: HttpHandler[] = [
     serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace: ":workspace", workflow: ":workflow" }),
     () => HttpResponse.json(fixtures.workflowExecution),
   ),
-  // The real endpoint has no dedicated workflow-level validate-name route (see
-  // servicesConfig.ts's TODO on workspace.workflow.postValidateName) - Mirage never mocked one
-  // either, so this stays unmocked here too.
-
   /**
    * Workflow Runs
    */
@@ -288,6 +276,77 @@ export const handlers: HttpHandler[] = [
   ),
   http.delete(serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace: ":workspace", id: ":id" }), () =>
     HttpResponse.json({}),
+  ),
+
+  /**
+   * Artifacts. Per-run reads/writes are keyed on `runId` + the artifact `name` (WorkflowRun.tsx's
+   * loader/action); the workspace-wide list/delete (Manage Workspace's Artifacts tab) are keyed on
+   * the artifact `id` instead - two distinct backend routes, matching servicesConfig.ts's
+   * `workspace.artifact` builders.
+   */
+  http.get(
+    serviceUrl.workspace.artifact.getRunArtifacts({ workspace: ":workspace", runId: ":runId" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      return HttpResponse.json(db.artifacts.filter((artifact) => artifact.workflowRunRef === runId));
+    },
+  ),
+  http.get(
+    serviceUrl.workspace.artifact.getRunArtifact({ workspace: ":workspace", runId: ":runId", name: ":name" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      const name = pathParam(params.name);
+      const artifact = db.artifacts.find((item) => item.workflowRunRef === runId && item.name === name);
+      if (!artifact) {
+        return HttpResponse.json({ errors: ["Artifact not found"] }, { status: 404 });
+      }
+      if (artifact.status === "expired") {
+        return HttpResponse.json({ errors: ["Artifact expired"] }, { status: 410 });
+      }
+      return new HttpResponse("artifact file contents", {
+        headers: {
+          "content-type": String(artifact.contentType ?? "application/octet-stream"),
+          "content-disposition": `attachment; filename="${name}"`,
+        },
+      });
+    },
+  ),
+  http.delete(
+    serviceUrl.workspace.artifact.deleteRunArtifact({ workspace: ":workspace", runId: ":runId", name: ":name" }),
+    ({ params }) => {
+      const runId = pathParam(params.runId);
+      const name = pathParam(params.name);
+      db.artifacts = db.artifacts.filter((item) => !(item.workflowRunRef === runId && item.name === name));
+      return HttpResponse.json({});
+    },
+  ),
+  http.get(serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace: ":workspace" }), ({ request }) => {
+    const url = new URL(request.url);
+    const statuses = (url.searchParams.get("statuses") ?? "available").split(",");
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 10);
+    const filtered = db.artifacts.filter((artifact) => statuses.includes(String(artifact.status)));
+    const start = page * limit;
+    const content = filtered.slice(start, start + limit);
+    return HttpResponse.json({
+      content,
+      number: page,
+      size: limit,
+      totalElements: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / limit)),
+      first: page === 0,
+      last: start + limit >= filtered.length,
+      numberOfElements: content.length,
+      empty: content.length === 0,
+    });
+  }),
+  http.delete(
+    serviceUrl.workspace.artifact.deleteWorkspaceArtifact({ workspace: ":workspace", artifactId: ":artifactId" }),
+    ({ params }) => {
+      const artifactId = pathParam(params.artifactId);
+      db.artifacts = db.artifacts.filter((item) => item.id !== artifactId);
+      return HttpResponse.json({});
+    },
   ),
 
   /**
@@ -347,8 +406,20 @@ export const handlers: HttpHandler[] = [
   // getWorkspaces (the literal /workspace/query list route) must be registered before
   // resourceWorkspace's GET (the parameterized /workspace/:workspace below) - see the ordering
   // note on task.queryTasks above. Workspaces.tsx's table reads `number`/`size`/`totalElements`
-  // off this response, not just `content` (same reasoning as getUsers below).
-  http.get(serviceUrl.getWorkspaces({ query: "" }), () => HttpResponse.json(paginatedResponse(db.workspaces))),
+  // off this response, not just `content` (same reasoning as getUsers below). `search` mirrors
+  // WorkspaceService.findByCriteria: an anchored, case-insensitive prefix match on
+  // name/displayName (issue #386 - the loader forwards the search box's term as `search`).
+  http.get(serviceUrl.getWorkspaces({ query: "" }), ({ request }) => {
+    const search = new URL(request.url).searchParams.get("search")?.trim().toLowerCase();
+    const content = search
+      ? db.workspaces.filter(
+          (workspace) =>
+            workspace.name?.toLowerCase().startsWith(search) ||
+            workspace.displayName?.toLowerCase().startsWith(search),
+        )
+      : db.workspaces;
+    return HttpResponse.json(paginatedResponse(content));
+  }),
   http.get(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), ({ params }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     return workspace ? HttpResponse.json(workspace) : HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
@@ -383,12 +454,6 @@ export const handlers: HttpHandler[] = [
     workspace.members = members.filter((member) => !removedIds.includes(member.id));
     return HttpResponse.json(workspace);
   }),
-  http.patch(serviceUrl.getManageWorkspaceLabels({ workspace: ":workspace" }), async ({ params, request }) => {
-    const workspace = findWorkspace(pathParam(params.workspace));
-    if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
-    workspace.labels = await jsonBody(request);
-    return HttpResponse.json(workspace);
-  }),
   http.post(serviceUrl.getManageWorkspacesCreate(), async ({ request }) => {
     const body = await jsonBody(request);
     const created = {
@@ -421,6 +486,26 @@ export const handlers: HttpHandler[] = [
   http.delete(serviceUrl.workspace.schedule.deleteSchedule({ workspace: ":workspace", id: ":id" }), ({ params }) => {
     db.schedules = db.schedules.filter((s) => s.id !== params.id);
     return HttpResponse.json({});
+  }),
+
+  /**
+   * Audit trail. The screen sends every filter on both calls, so the mock narrows the same way
+   * the API does - that is what lets a spec assert a filter round-tripped through the URL.
+   */
+  http.get(serviceUrl.getAuditStats({ query: "" }), () => HttpResponse.json(fixtures.auditStats)),
+  http.get(serviceUrl.getAuditEvents({ query: "" }), ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = params.get("actor")?.toLowerCase();
+    const content = db.auditEvents.filter(
+      (event) =>
+        (!actor ||
+          event.actorId?.toLowerCase().includes(actor) ||
+          event.actorName?.toLowerCase().includes(actor)) &&
+        (!params.get("action") || event.action === params.get("action")) &&
+        (!params.get("outcome") || event.outcome === params.get("outcome")) &&
+        (!params.get("level") || event.level === params.get("level")),
+    );
+    return HttpResponse.json(paginatedResponse(content));
   }),
 
   /**

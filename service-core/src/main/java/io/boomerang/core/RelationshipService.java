@@ -424,7 +424,7 @@ public class RelationshipService {
 
   private static boolean checkPermissions(
       List<ResolvedPermissions> permissions, RelationshipType type, List<String> toList) {
-    // check() carries no per-request action - action granularity is SecurityInterceptor's job at
+    // check() carries no per-request action - action granularity is AuthCriteriaAuthorizationManager's job at
     // the endpoint. The relationship-layer question is only "does any grant cover this resource
     // type at all", so an editor's **/read or **/write passes here exactly like an owner's **/**.
     // The pre-enforcement literal-string comparison ("**/**" or "<type>/**" only) silently

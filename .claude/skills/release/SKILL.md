@@ -9,7 +9,7 @@ argument-hint: <semver>   e.g. 5.0.0 or 5.1.0-beta.1 or 5.0.0-rc.2
 v5 ships as **one product version line** (DD-03 / AM-9): a single annotated tag in the form
 **`5.x.y`** (optionally `5.x.y-beta.z` or `5.x.y-rc.z`) fires `.github/workflows/ci-release.yml`,
 which builds and pushes the whole compatible image set to Docker Hub — `flow-service-core`,
-`flow-service-dispatcher`, `flow-service-loader`, `flow-client-web` (the exact image names are in
+`flow-service-dispatcher`, `flow-client-web` (the exact image names are in
 that workflow's `docker/build-push-action` steps) — each tagged `:<semver>`, plus `:latest` on
 stable tags only (a `-beta.z`/`-rc.z` tag never repoints `:latest`). The
 same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** any more; the old
@@ -34,7 +34,7 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 - Parse and validate `<semver>`. Confirm the tag doesn't already exist (`git tag -l '<semver>'`).
 - `git status` clean; on `main`; `git rev-parse HEAD` == `git rev-parse origin/main` (fetch first).
 - The latest CI runs on HEAD are green for every module workflow (`ci-core.yml`,
-  `ci-dispatcher.yml`, `ci-loader.yml`, `ci-web.yml`, `ci-e2e.yml`). Releasing on red CI needs an
+  `ci-dispatcher.yml`, `ci-web.yml`, `ci-e2e.yml`). Releasing on red CI needs an
   explicit user decision.
 
 ### 2. Pre-release CVE gate (optional, human decision — not a pipeline gate)
@@ -45,7 +45,10 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
   re-run this step after.
 
 ### 3. Release notes
-- Derive the story from `git log <previous-5.x-tag>..HEAD` (newest existing `5.*` tag).
+- Start from the unreleased section of `CHANGELOG.md`: every operator-facing change and upgrade step
+  listed there MUST appear in the notes. Then derive the rest of the story from
+  `git log <previous-5.x-tag>..HEAD` (newest existing `5.*` tag). After tagging, move that section
+  under the released version in `CHANGELOG.md`.
 - Write 2–4 plain, confident sentences: lead with what changed for the user/operator; keep the
   framework/dependency detail as background. No marketing, no exclamation marks.
 - Show the draft to the user for approval/edit **before** tagging.

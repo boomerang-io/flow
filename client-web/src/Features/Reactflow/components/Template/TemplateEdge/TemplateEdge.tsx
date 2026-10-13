@@ -7,6 +7,7 @@ import WorkflowCloseButton from "Components/WorkflowCloseButton";
 import { useWorkflowContext } from "Hooks";
 import { useRunContext } from "Hooks";
 import { EXECUTION_CONDITIONS } from "Utils/taskLinkIcons";
+import { findTaskRunByName } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import { WorkflowEdge, WorkflowEdgeProps, WorkflowNode } from "Types";
 import styles from "./TemplateEdge.module.scss";
@@ -110,9 +111,9 @@ export function TemplateEdgeRun(props: WorkflowEdgeProps) {
 
   let status = "";
   if (targetNodeName.current === "end") {
-    status = workflowRun.tasks.find((task) => task.name === sourceNodeName.current)?.status ?? "";
+    status = findTaskRunByName(workflowRun.tasks, sourceNodeName.current)?.status ?? "";
   } else {
-    status = workflowRun.tasks.find((task) => task.name === targetNodeName.current)?.status ?? "";
+    status = findTaskRunByName(workflowRun.tasks, targetNodeName.current)?.status ?? "";
   }
 
   const executionConditionIndex = EXECUTION_CONDITIONS.findIndex(

@@ -11,8 +11,6 @@ import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSchedule;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
@@ -45,9 +43,7 @@ import org.springframework.stereotype.Service;
  *
  * @since Flow 3.6.0
  */
-// E8: schedule is unsupported in engine mode (ruling I2) - standalone only.
 @Service
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleService {
 
   private final Logger LOGGER = LogManager.getLogger(getClass());
@@ -56,16 +52,19 @@ public class ScheduleService {
   private final WorkflowService workflowService;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
+  private final CronService cronService;
 
   public ScheduleService(
       WorkflowScheduleRepository scheduleRepository,
       WorkflowService workflowService,
       RelationshipService relationshipService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      CronService cronService) {
     this.scheduleRepository = scheduleRepository;
     this.workflowService = workflowService;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
+    this.cronService = cronService;
   }
 
   /*
@@ -193,7 +192,7 @@ public class ScheduleService {
         return response;
       }
     }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
   }
 
   public WorkflowScheduleEntity internalCreate(final String team, final WorkflowSchedule schedule) {
@@ -212,6 +211,7 @@ public class ScheduleService {
             .getBody();
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
     BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
+    storeCronAsUnix(scheduleEntity);
     Boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
         && workflow != null
@@ -328,7 +328,10 @@ public class ScheduleService {
           return List.of(scheduleEntity.getDateSchedule());
         } else {
           return getCronTriggerDates(
-              scheduleEntity.getCronSchedule(), fromDate, toDate, scheduleEntity.getTimezone());
+              cronService.toUnix(scheduleEntity.getType(), scheduleEntity.getCronSchedule()),
+              fromDate,
+              toDate,
+              scheduleEntity.getTimezone());
         }
       } catch (Exception e) {
         // Trap exception as we still want to return the dates that we can
@@ -360,6 +363,7 @@ public class ScheduleService {
         WorkflowScheduleStatus previousStatus = scheduleEntity.getStatus();
         BeanUtils.copyProperties(
             request, scheduleEntity, "id", "creationDate", "workflowRef", "schedulerRef");
+        storeCronAsUnix(scheduleEntity);
 
         /*
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check
@@ -406,7 +410,7 @@ public class ScheduleService {
       request.setId(null);
       return this.create(team, request);
     }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
   }
 
   /*
@@ -426,12 +430,40 @@ public class ScheduleService {
     if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
       return schedule.getDateSchedule();
     }
-    return nextOccurrence(schedule.getCronSchedule(), schedule.getTimezone(), from);
+    return nextOccurrence(schedule, from);
+  }
+
+  /** Save a schedule's cron in the UNIX form the scheduler reads; an unreadable one is kept as sent. */
+  private void storeCronAsUnix(WorkflowScheduleEntity schedule) {
+    if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+      return;
+    }
+    String unix = cronService.toUnix(schedule.getType(), schedule.getCronSchedule());
+    if (unix != null) {
+      schedule.setCronSchedule(unix);
+    }
   }
 
   /**
-   * The next occurrence of a cron expression at or after {@code from}, using cron-utils - the same
-   * parser as the forward calendar, so firing and preview never disagree. Null on a bad
+   * The next occurrence of a schedule's cron at or after {@code from}, read in whichever form it was
+   * stored (see {@link CronService#toUnix}). Null on an unreadable cron or no future occurrence.
+   */
+  public Date nextOccurrence(WorkflowScheduleEntity schedule, ZonedDateTime from) {
+    if (schedule.getCronSchedule() == null || schedule.getCronSchedule().isBlank()) {
+      return null;
+    }
+    String unix = cronService.toUnix(schedule.getType(), schedule.getCronSchedule());
+    if (unix == null) {
+      LOGGER.error(
+          "[{}] Unreadable cron, the schedule cannot fire: {}", schedule.getId(), schedule.getCronSchedule());
+      return null;
+    }
+    return nextOccurrence(unix, schedule.getTimezone(), from);
+  }
+
+  /**
+   * The next occurrence of a five-field UNIX cron at or after {@code from}, using cron-utils - the
+   * same parser as the forward calendar, so firing and preview never disagree. Null on a bad
    * expression or no future occurrence.
    */
   public Date nextOccurrence(String cron, String timezone, ZonedDateTime from) {
@@ -660,7 +692,6 @@ public class ScheduleService {
    * Retrieve the next trigger date for a given schedule based on its cron expression and timezone.
    */
   private Date getNextTriggerDate(WorkflowScheduleEntity schedule) {
-    return nextOccurrence(
-        schedule.getCronSchedule(), schedule.getTimezone(), ZonedDateTime.now());
+    return nextOccurrence(schedule, ZonedDateTime.now());
   }
 }

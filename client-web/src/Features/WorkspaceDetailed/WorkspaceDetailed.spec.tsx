@@ -5,7 +5,7 @@ import { server } from "ApiServer/msw/node";
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { appLink } from "Config/appConfig";
-import { workspace as workspaceFixture } from "ApiServer/fixtures";
+import { workspace as workspaceFixture, profile as userFixture } from "ApiServer/fixtures";
 import { db } from "ApiServer/msw/db";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkspaceLayoutRoute, {
@@ -13,6 +13,7 @@ import WorkspaceLayoutRoute, {
   shouldRevalidate as workspaceLayoutShouldRevalidate,
 } from "../../../app/routes/workspaceLayout";
 import WorkspaceDetailed, { loader, shouldRevalidate } from "./WorkspaceDetailed";
+import Artifacts, { action as artifactsAction, loader as artifactsLoader } from "./Artifacts/Artifacts";
 import ApproverGroups, { action as approverGroupsAction } from "./ApproverGroups/ApproverGroups";
 import Members, { action as membersAction } from "./Members/Members";
 import Quotas, { action as quotasAction, loader as quotasLoader } from "./Quotas/Quotas";
@@ -43,7 +44,30 @@ beforeEach(() => {
 // re-running when a rename navigates to the new slug), then the manage layout route carrying
 // the loader that fetches the workspace record, with one child route per tab. Members stays the
 // index route at the bare `/:workspace/manage` path.
-function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name })) {
+// The Manage tabs' write controls are gated on the caller's own `workspace/write` grant for THIS
+// workspace (WorkspaceDetailed.tsx), not on a feature flag alone - since decision 0031 a caller
+// without it gets a real 403 from every endpoint those controls post to. The shared `profile`
+// fixture predates resolved permissions and carries none, so each render says which grant the
+// signed-in user holds; `platformAdmin` is what the pre-existing tests below assume (an admin's
+// global "**" grant, exactly what TokenService.resolvePermissionsForUser hands an admin).
+const platformAdmin = { ...userFixture, permissions: [{ scope: "global", principal: "**", actions: ["**"] }] };
+const workspaceEditor = {
+  ...userFixture,
+  type: "user",
+  permissions: [
+    { scope: "workspace", principal: workspaceFixture.name, actions: ["**/read", "**/write", "**/action"] },
+  ],
+};
+const workspaceReader = {
+  ...userFixture,
+  type: "user",
+  permissions: [{ scope: "workspace", principal: workspaceFixture.name, actions: ["**/read"] }],
+};
+
+function renderWorkspaceDetailed(
+  route: string = appLink.manageWorkspace({ workspace: workspaceFixture.name }),
+  user: Record<string, unknown> = platformAdmin,
+) {
   return renderWithContext(
     <Route
       path="/:workspace"
@@ -60,12 +84,13 @@ function renderWorkspaceDetailed(route: string = appLink.manageWorkspace({ works
         <Route index action={membersAction} element={<Members />} />
         <Route path="workflows" loader={workflowsLoader} element={<Workflows />} />
         <Route path="approver-groups" action={approverGroupsAction} element={<ApproverGroups />} />
+        <Route path="artifacts" loader={artifactsLoader} action={artifactsAction} element={<Artifacts />} />
         <Route path="quotas" loader={quotasLoader} action={quotasAction} element={<Quotas />} />
         <Route path="tokens" loader={workspaceTokensLoader} action={tokenAction} element={<Tokens />} />
         <Route path="settings" action={settingsAction} element={<Settings />} />
       </Route>
     </Route>,
-    { route },
+    { route, contextValue: { user } },
   );
 }
 
@@ -84,6 +109,10 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
       await screen.findByText(
         "The following quotas have been set for the workspace - only administrators have access to adjust these.",
       ),
+    ).toBeInTheDocument();
+    // The monthly execution counter is audit-backed, so it keeps counting deleted Workflows' runs.
+    expect(
+      screen.getByText("Monthly counts include Workflows and runs that have since been deleted."),
     ).toBeInTheDocument();
     // The Members tab's own body must NOT be mounted - each tab is its own route now.
     expect(screen.queryByText("These are the people who have access to this Workspace.")).not.toBeInTheDocument();
@@ -136,6 +165,86 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
   test("deep-links into the tokens tab", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceTokens({ workspace: workspaceFixture.name }));
     expect(await screen.findByTestId("create-token-button")).toBeInTheDocument();
+  });
+
+  test("deep-links into the artifacts tab and lists available artifacts by default", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    // Seeded by ApiServer/fixtures/artifacts.js via ApiServer/msw/db - available by default.
+    expect(await screen.findByText("build-output.tar.gz")).toBeInTheDocument();
+    expect(screen.getByText("release-notes.md")).toBeInTheDocument();
+    // Expired, and "Show expired" starts off.
+    expect(screen.queryByText("coverage-report.html")).not.toBeInTheDocument();
+  });
+
+  test("Show expired reveals the expired artifact too", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+    await screen.findByText("build-output.tar.gz");
+
+    fireEvent.click(screen.getByLabelText("Show expired"));
+
+    expect(await screen.findByText("coverage-report.html")).toBeInTheDocument();
+  });
+
+  test("the two Quotas cards for artifact storage/retention render alongside the existing ones", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+    expect(screen.getByText("Artifact Storage")).toBeInTheDocument();
+    expect(screen.getByText("Artifact Retention")).toBeInTheDocument();
+  });
+
+  test("Restore defaults previews every quota it resets, artifact quotas included", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await userEvent.click(await screen.findByRole("button", { name: /Restore defaults/i }));
+    // Each title is on its card and again in the preview; the values are the platform defaults.
+    for (const title of [
+      "Number of Workflows",
+      "Number of Executions",
+      "Run Duration",
+      "Concurrent Runs (executions)",
+      "Workspace Capacity - Per Workflow",
+      "Workspace Capacity - Per Run",
+      "Artifact Storage",
+      "Artifact Retention",
+    ]) {
+      expect(await screen.findAllByText(title)).toHaveLength(2);
+    }
+    expect(screen.getByText("20 Workflows")).toBeInTheDocument();
+    expect(screen.getByText("3GB per WorkflowRun")).toBeInTheDocument();
+    expect(screen.getByText("8GB")).toBeInTheDocument();
+    expect(screen.getByText("45 days")).toBeInTheDocument();
+  });
+});
+
+describe("WorkspaceDetailed --- per-workspace write grant", () => {
+  const settingsRoute = appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name });
+
+  test("a reader-role member gets the tabs read-only", async () => {
+    renderWorkspaceDetailed(settingsRoute, workspaceReader);
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeDisabled();
+  });
+
+  test("an editor-role member gets the write controls", async () => {
+    renderWorkspaceDetailed(settingsRoute, workspaceEditor);
+    expect(await screen.findByText("Basic details")).toBeInTheDocument();
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeEnabled();
+  });
+
+  test("a grant on a DIFFERENT workspace does not unlock this one", async () => {
+    const otherWorkspaceEditor = {
+      ...userFixture,
+      type: "user",
+      permissions: [{ scope: "workspace", principal: "some-other-workspace", actions: ["**/write"] }],
+    };
+    renderWorkspaceDetailed(settingsRoute, otherWorkspaceEditor);
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByTestId("open-change-name-modal")).toBeDisabled();
+  });
+
+  test("a member with no resolved permissions at all gets the tabs read-only", async () => {
+    renderWorkspaceDetailed(settingsRoute, { ...userFixture, type: "user", permissions: [] });
+    expect(await screen.findByText("Read-only")).toBeInTheDocument();
   });
 });
 

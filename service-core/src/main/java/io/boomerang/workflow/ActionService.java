@@ -310,11 +310,16 @@ public class ActionService {
     return pages;
   }
 
+  /**
+   * Counts of approval and manual actions in a workspace, by default those waiting ({@code submitted}),
+   * or those in {@code statuses}; and the approval rate: approved as a share of decided approvals.
+   */
   public ActionSummary summary(
       String team,
       Optional<Date> fromDate,
       Optional<Date> toDate,
-      Optional<List<String>> queryWorkflows) {
+      Optional<List<String>> queryWorkflows,
+      Optional<List<ActionStatus>> statuses) {
     ActionSummary summary = new ActionSummary();
     List<String> workflowRefs =
         relationshipService.filter(
@@ -326,47 +331,30 @@ public class ActionService {
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return summary;
     }
-    long approvalCount =
-        this.getActionCountForType(
-            ActionType.approval, fromDate, toDate, Optional.of(workflowRefs));
-    long manualCount =
-        this.getActionCountForType(ActionType.manual, fromDate, toDate, Optional.of(workflowRefs));
-    long rejectedCount = getActionCountForStatus(ActionStatus.rejected, fromDate, toDate);
-    long approvedCount = getActionCountForStatus(ActionStatus.approved, fromDate, toDate);
-    long submittedCount = getActionCountForStatus(ActionStatus.submitted, fromDate, toDate);
-    long total = rejectedCount + approvedCount + submittedCount;
-    long approvalRateCount = 0;
+    Optional<List<String>> inWorkspace = Optional.of(workflowRefs);
+    List<ActionStatus> counted =
+        statuses.filter(list -> !list.isEmpty()).orElse(List.of(ActionStatus.submitted));
+    summary.setApprovals(count(ActionType.approval, counted, fromDate, toDate, inWorkspace));
+    summary.setManual(count(ActionType.manual, counted, fromDate, toDate, inWorkspace));
 
-    if (total != 0) {
-      approvalRateCount = (((approvedCount + rejectedCount) / total) * 100);
-    }
-
-    summary.setApprovalsRate(approvalRateCount);
-    summary.setManual(manualCount);
-    summary.setApprovals(approvalCount);
+    long approved =
+        count(ActionType.approval, List.of(ActionStatus.approved), fromDate, toDate, inWorkspace);
+    long rejected =
+        count(ActionType.approval, List.of(ActionStatus.rejected), fromDate, toDate, inWorkspace);
+    long decided = approved + rejected;
+    summary.setApprovalsRate(decided == 0 ? 0 : Math.round(approved * 100.0 / decided));
     return summary;
   }
 
-  private long getActionCountForType(
+  private long count(
       ActionType type,
+      List<ActionStatus> statuses,
       Optional<Date> from,
       Optional<Date> to,
       Optional<List<String>> workflowRefs) {
     Criteria criteria =
         this.buildCriteriaList(
-            from,
-            to,
-            workflowRefs,
-            Optional.of(List.of(type)),
-            Optional.of(List.of(ActionStatus.submitted)));
-    return mongoTemplate.count(new Query(criteria), ActionEntity.class);
-  }
-
-  private long getActionCountForStatus(
-      ActionStatus status, Optional<Date> from, Optional<Date> to) {
-    Criteria criteria =
-        this.buildCriteriaList(
-            from, to, Optional.empty(), Optional.empty(), Optional.of(List.of(status)));
+            from, to, workflowRefs, Optional.of(List.of(type)), Optional.of(statuses));
     return mongoTemplate.count(new Query(criteria), ActionEntity.class);
   }
 

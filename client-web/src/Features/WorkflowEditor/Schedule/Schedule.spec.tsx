@@ -1,13 +1,11 @@
 import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
-import moment from "moment-timezone";
+import { screen, waitFor } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
 import { workspaces } from "ApiServer/fixtures";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { DATETIME_LOCAL_INPUT_FORMAT } from "Utils/dateHelper";
 import { WorkflowStatus, type WorkflowCanvas } from "Types";
 import { editorLoader, editorAction } from "../editorRoute";
 import { renderWithContext } from "Utils/testing/render";
@@ -104,15 +102,15 @@ describe("Schedule", () => {
   );
 
   it(
-    "renders the calendar alongside the schedule list",
+    "switches from the list to the month calendar",
     async () => {
       renderSchedule();
 
       await screen.findByText("Trigger", undefined, LOADER_WAIT);
-      // react-big-calendar's month-view toolbar and title - proves the calendar half mounted
-      // rather than the component bailing out to its spinner or ErrorDragon. The test clock is
+      await userEvent.click(screen.getByRole("tab", { name: "Month" }));
+      // The calendar toolbar and its title prove the calendar view mounted. The test clock is
       // frozen to 2020-01-01 (setupTests.tsx), so the month label is deterministic.
-      expect(screen.getByRole("button", { name: "Today" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Today" })).toBeInTheDocument();
       expect(screen.getByText("January 2020")).toBeInTheDocument();
     },
     TEST_TIMEOUT,
@@ -137,14 +135,12 @@ describe("Schedule", () => {
       renderSchedule();
 
       await screen.findByText("Trigger", undefined, LOADER_WAIT);
-      await userEvent.click(screen.getByRole("button", { name: "Create a Schedule" }));
+      await userEvent.click(screen.getByRole("button", { name: "Create schedule" }));
 
-      // The creator modal is open once its form renders (the page's own "Create a Schedule"
+      // The creator modal is open once its form renders (the page's own "Create schedule"
       // button shares the modal title's text, so wait on the form field instead).
       await userEvent.type(await screen.findByLabelText("Name"), "Editor Tab Schedule");
-      fireEvent.change(screen.getByLabelText("Date and Time"), {
-        target: { value: moment().add(1, "day").format(DATETIME_LOCAL_INPUT_FORMAT) },
-      });
+      await userEvent.click(screen.getByLabelText("Daily"));
 
       const createButton = await screen.findByRole("button", { name: "Create", hidden: true }, LOADER_WAIT);
       await waitFor(() => expect(createButton).toBeEnabled());

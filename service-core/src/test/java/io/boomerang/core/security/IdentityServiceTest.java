@@ -22,7 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * resolved identity faithfully, and leaving {@link IdentityService#getCurrentIdentity()} as the
  * honest raw accessor that still answers {@code null} for a context no filter ever touched (the
  * {@code shouldNotFilter} / {@code permitAll} routes under security-enabled, which {@code
- * SecurityInterceptor} relies on to answer its AuthN/AuthZ-mismatch 401).
+ * AuthCriteriaAuthorizationManager} relies on to answer its AuthN/AuthZ-mismatch 401).
  */
 class IdentityServiceTest {
 

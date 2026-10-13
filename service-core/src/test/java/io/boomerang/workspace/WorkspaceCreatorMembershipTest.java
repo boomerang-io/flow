@@ -8,11 +8,8 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.Token;
-import io.boomerang.core.entity.RoleEntity;
-import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.model.WorkspaceMember;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -38,23 +35,25 @@ class WorkspaceCreatorMembershipTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkspaceService workspaceService;
   @Autowired private UserRepository userRepository;
   @Autowired private TokenService tokenService;
-  @Autowired private RoleRepository roleRepository;
 
   private String creatorId;
 
   @BeforeEach
   void establishSessionCreator() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedOwnerRole();
-    UserEntity creator = new UserEntity();
-    creator.setEmail(CREATOR_EMAIL);
-    creator.setName("Creator Membership");
-    creator.setType(UserType.user);
-    creator.setStatus(UserStatus.active);
-    creatorId = userRepository.save(creator).getId();
-    relationshipService.createNode(
-        RelationshipType.USER, creatorId, CREATOR_EMAIL, Optional.empty());
+    // One account per email: the second test reuses the creator the first one made.
+    UserEntity existing = userRepository.findByEmail(CREATOR_EMAIL);
+    if (existing != null) {
+      creatorId = existing.getId();
+    } else {
+      UserEntity creator = new UserEntity();
+      creator.setEmail(CREATOR_EMAIL);
+      creator.setName("Creator Membership");
+      creator.setType(UserType.user);
+      creator.setStatus(UserStatus.active);
+      creatorId = userRepository.save(creator).getId();
+      relationshipService.createNode(
+          RelationshipType.USER, creatorId, CREATOR_EMAIL, Optional.empty());
+    }
     installSessionIdentity();
   }
 
@@ -108,16 +107,5 @@ class WorkspaceCreatorMembershipTest extends AbstractEngineIntegrationTest {
         new UsernamePasswordAuthenticationToken(creatorId, null);
     authentication.setDetails(principal);
     SecurityContextHolder.getContext().setAuthentication(authentication);
-  }
-
-  /** Mirror of the loader's roles.json workspace/owner document - permission resolution needs it. */
-  private void seedOwnerRole() {
-    if (roleRepository.findByTypeAndName("workspace", "owner") == null) {
-      RoleEntity owner = new RoleEntity();
-      owner.setType(PermissionScope.workspace);
-      owner.setName("owner");
-      owner.setPermissions(List.of("**/**"));
-      roleRepository.save(owner);
-    }
   }
 }

@@ -1,3 +1,19 @@
 .modalContainer {
   max-height: 40rem;
 }
+
+.row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.readOnlyName {
+  margin-bottom: 1.5rem;
+}
+
+.name {
+  font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
+  font-size: 0.875rem;
+  margin: 0.25rem 0;
+}

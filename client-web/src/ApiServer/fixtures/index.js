@@ -1,6 +1,9 @@
+export { default as artifacts } from "./artifacts";
 export { default as workflowRuns } from "./workflowRuns";
 export { default as workflowRunCount } from "./workflowRunCount";
 export { default as activity } from "./activity";
+export { default as audit } from "./audit";
+export { default as auditStats } from "./auditStats";
 export { default as actionsSummary } from "./actionsSummary";
 export { default as approvals } from "./approvals";
 export { default as approverGroups } from "./approverGroups";
@@ -9,6 +12,7 @@ export { default as globalParams } from "./globalParams";
 export { default as changelogs } from "./changelogs";
 export { default as featureFlags } from "./featureFlags";
 export { default as insights } from "./insights";
+export { default as insightsWorkflow } from "./insightsWorkflow";
 export { default as integrations } from "./integrations";
 export { default as installations } from "./installations";
 export { default as workspaces } from "./workspaces";
@@ -18,6 +22,8 @@ export { default as platformConfig } from "./platformConfig";
 export { default as flowNavigation } from "./flowNavigation";
 export { default as profile } from "./profile";
 export { default as task } from "./task";
+// The seeded `ai` catalogue task. Kept out of `task`'s content list on purpose - see aiTask.js.
+export { default as aiTask } from "./aiTask";
 export { default as taskYaml } from "./taskYaml";
 export { default as settings } from "./settings";
 export { default as summaries } from "./summaries";

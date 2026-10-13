@@ -46,7 +46,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
 
   @Test
   void retryRecordsTheRunsOwningWorkspaceNotTheWorkspaceInThePath() {
-    seedRelationshipRoot();
+    setFeatureSetting("workspaceQuotas", false);
     relationshipService.createNode(
         RelationshipType.WORKSPACE, OWNING_WORKSPACE, OWNING_WORKSPACE, Optional.empty());
     relationshipService.createNode(
@@ -92,7 +92,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
 
   @Test
   void retryFallsBackToTheWorkflowsWorkspaceWhenTheSourceRunHasNoOwnershipEdge() {
-    seedRelationshipRoot();
+    setFeatureSetting("workspaceQuotas", false);
     relationshipService.createNode(
         RelationshipType.WORKSPACE, OWNING_WORKSPACE, OWNING_WORKSPACE, Optional.empty());
     relationshipService.createNode(
@@ -134,7 +134,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void retryIsRefusedWithAMappedErrorAndCreatesNothingWhenNoWorkspaceOwnsTheRun() {
-    seedRelationshipRoot();
+    setFeatureSetting("workspaceQuotas", false);
     relationshipService.createNode(
         RelationshipType.WORKSPACE, OTHER_WORKSPACE, OTHER_WORKSPACE, Optional.empty());
 
@@ -170,7 +170,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void anUnscopedRetryRecordsTheSameOwnerAsAUserRetry() {
-    seedRelationshipRoot();
+    setFeatureSetting("workspaceQuotas", false);
     relationshipService.createNode(
         RelationshipType.WORKSPACE, OWNING_WORKSPACE, OWNING_WORKSPACE, Optional.empty());
 
@@ -214,7 +214,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void anUnscopedRetryOfAnUnownedRunStillRetriesAndStaysOwnerless() {
-    seedRelationshipRoot();
+    setFeatureSetting("workspaceQuotas", false);
 
     // Graph-orphaned: no HAS_WORKFLOW edge and no HAS_WORKFLOWRUN edge.
     String workflowId = createLinearWorkflow("retry-owner-engine-orphan");

@@ -10,6 +10,40 @@ import { server } from "ApiServer/msw/node";
 import { resetDb } from "ApiServer/msw/db";
 import "@testing-library/jest-dom/extend-expect";
 
+// jsdom replaces AbortController/AbortSignal, FormData and URLSearchParams with its own, but
+// Request is still Node's (undici), and on Node 24 it accepts neither: a jsdom signal is rejected
+// outright, and a jsdom FormData body is sent as text/plain, so an action's request.formData()
+// throws. React Router builds every loader/action Request with both. So the signal is dropped (no
+// spec aborts a request) and a form body is re-encoded as application/x-www-form-urlencoded (no
+// spec submits a file, so every entry is a string).
+const NodeRequest = globalThis.Request;
+function nodeInit(init?: RequestInit): RequestInit | undefined {
+  if (!init) {
+    return init;
+  }
+  const { signal: _dropped, ...rest } = init;
+  const body = rest.body as unknown;
+  const tag = Object.prototype.toString.call(body);
+  if (tag === "[object FormData]" || tag === "[object URLSearchParams]") {
+    const encoded = new URLSearchParams();
+    for (const [key, value] of (body as FormData).entries()) {
+      encoded.append(key, String(value));
+    }
+    const headers = new Headers(rest.headers);
+    headers.set("content-type", "application/x-www-form-urlencoded;charset=UTF-8");
+    return { ...rest, body: encoded.toString(), headers };
+  }
+  return rest;
+}
+// Only under jsdom: a node-environment spec has Node's own AbortSignal and FormData already.
+if (typeof window !== "undefined") {
+  globalThis.Request = class Request extends NodeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      super(input, nodeInit(init));
+    }
+  };
+}
+
 // Centralised MSW lifecycle - every spec used to call src/ApiServer's `startApiServer()`/
 // `server.shutdown()` itself (Mirage); MSW's Node server is process-wide (it patches the global
 // fetch/http modules once), so it's started/stopped once for the whole run here instead, with
@@ -134,6 +168,22 @@ beforeEach(() => {
   }
 });
 
+// jsdom has no `window.matchMedia`; Carbon's TabList reads it on mount (useMatchMedia) to pick
+// its small-screen layout, so any spec rendering Carbon Tabs (the task edit forms) needs it.
+// Reports "no match" for every query. Guarded like the block above for node-environment specs.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}
+
 const originalConsoleError = console.error;
 console.error = (message, ...rest) => {
   if (
@@ -181,3 +231,8 @@ global.sessionStorage = sessionStorageMock;
 // the global `Date` (and therefore `moment()`) without needing `vi.useFakeTimers()`.
 const DATE_TO_USE = new Date("2020-01-01T00:00:00.000Z");
 vi.setSystemTime(DATE_TO_USE);
+
+// jsdom has no layout, so no scrollIntoView; Carbon's Dropdown calls it on the highlighted item.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

@@ -34,12 +34,12 @@ function OutputPropertiesLog({ taskName, results, isOutput }: Props) {
         children: "Your changes will not be saved",
       }}
       modalHeaderProps={{
-        title: "Output Parameters",
+        title: "View Workflow Results",
         label: `${taskName}`,
       }}
       modalTrigger={({ openModal }) => (
-        <Button kind="ghost" size="sm" onClick={openModal}>
-          View Parameters
+        <Button kind="secondary" size="md" onClick={openModal}>
+          View results
         </Button>
       )}
     >

@@ -4,6 +4,8 @@ import { DynamicFormik, ModalForm } from "@boomerang-io/carbon-addons-boomerang-
 import * as Yup from "yup";
 import { normaliseInputs } from "Utils/paramsHelper";
 import type { DataDrivenInput, Task, WorkflowNodeData } from "Types";
+import TaskFormTabs from "../../../shared/TaskFormTabs";
+import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../../shared/foreach";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -38,6 +40,8 @@ interface WorkflowTaskFormProps {
   availableParameters: Array<string>;
   closeModal: () => void;
   node: WorkflowNodeData;
+  /** The type of the node being edited, which decides whether it can run for each item. */
+  nodeType?: string;
   onSave: (inputs: Record<string, string>, results?: Array<{ name: string; description: string }>) => void;
   otherTaskNames: Array<string>;
   textEditorProps?: any;
@@ -50,7 +54,9 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
   const taskResults = task.spec.results;
   const handleOnSave = (values: Record<string, string>) => {
     props.node.name = values.taskName;
-    props.onSave(values);
+    // The template's results are shown read-only and are not a param; the node keeps its own.
+    const { results: _results, ...inputs } = values;
+    props.onSave(inputs);
     props.closeModal();
   };
 
@@ -81,7 +87,6 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
 
   const initialValues: Record<string, any> = {
     taskName: node.name,
-    results: taskResults,
     ...node.params.reduce(
       (accum, curr) => {
         accum[curr.name] = curr.value;
@@ -89,6 +94,7 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       },
       {} as Record<string, string>,
     ),
+    ...foreachInitialValues(node.foreach),
   };
 
   return (
@@ -96,9 +102,8 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       allowCustomPropertySyntax
       validateOnMount
       validationSchemaExtension={Yup.object().shape({
-        taskName: Yup.string()
-          .required("Enter a task name")
-          .notOneOf(otherTaskNames, "Enter a unique value for task name"),
+        taskName: taskNameSchema(otherTaskNames),
+        ...foreachValidationShape,
       })}
       initialValues={initialValues}
       inputs={inputs}
@@ -115,7 +120,9 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
     >
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
-          <ModalBody aria-label="inputs">{inputs}</ModalBody>
+          <ModalBody aria-label="inputs">
+            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={props.nodeType} />
+          </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
               Cancel

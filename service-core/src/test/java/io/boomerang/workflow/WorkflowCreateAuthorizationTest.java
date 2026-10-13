@@ -9,7 +9,6 @@ import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.core.TokenService;
-import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -19,7 +18,6 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import java.util.List;
@@ -63,14 +61,10 @@ class WorkflowCreateAuthorizationTest extends AbstractEngineIntegrationTest {
   /** Seeds under the base class's global identity, then installs the session member. */
   @BeforeEach
   void establishWorkspaceMember() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     setFeatureSetting("workspaceQuotas", false);
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     seedGlobalTask(TASK_SLUG);
-    seedOwnerRole();
     workspaceNode(MY_WORKSPACE);
     workspaceNode(FOREIGN_WORKSPACE);
 
@@ -164,16 +158,5 @@ class WorkflowCreateAuthorizationTest extends AbstractEngineIntegrationTest {
         name,
         Optional.empty(),
         Optional.empty());
-  }
-
-  /** Mirror of the loader's roles.json workspace/owner document - permission resolution needs it. */
-  private void seedOwnerRole() {
-    if (roleRepository.findByTypeAndName("workspace", "owner") == null) {
-      RoleEntity owner = new RoleEntity();
-      owner.setType(PermissionScope.workspace);
-      owner.setName("owner");
-      owner.setPermissions(List.of("**/**"));
-      roleRepository.save(owner);
-    }
   }
 }

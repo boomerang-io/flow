@@ -1,10 +1,10 @@
 package io.boomerang.core.security;
 
 import com.nimbusds.jwt.JWTClaimsSet;
-import com.slack.api.app_backend.SlackSignature.Generator;
-import com.slack.api.app_backend.SlackSignature.Verifier;
+import com.nimbusds.jwt.JWTParser;
+import com.nimbusds.jwt.PlainJWT;
+import com.nimbusds.jwt.SignedJWT;
 import io.boomerang.common.error.BoomerangError;
-import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.TokenTypePrefix;
@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -26,7 +27,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -34,8 +34,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /*
- * The Filter ensures that the user is Authenticated prior to the Interceptor which validates
- * Authorization
+ * The Filter ensures that the user is Authenticated before AuthCriteriaAuthorizationManager
+ * validates Authorization on the endpoint
  *
  * Note: This cannot be auto marked as a Service/Component that Spring Boot would auto inject as
  * then it will apply to all routes
@@ -56,8 +56,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   private static final String TOKEN_URL_PARAM_NAME = "access_token";
   private static final String X_ACCESS_TOKEN_HEADER = "x-access-token";
   private static final String AUTHORIZATION_HEADER = "Authorization";
-  //  private static final String X_SLACK_SIGNATURE = "X-Slack-Signature";
-  //  private static final String X_SLACK_TIMESTAMP = "X-Slack-Request-Timestamp";
   private static final String PATH_ACTIVATE = "/api/v2/activate";
   private static final String PATH_PROFILE = "/api/v2/profile";
   // The unified token exchange (PATH_AUTH_EXCHANGE) is now, alongside
@@ -77,14 +75,12 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // never a raw String.equals.
   private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
-  private OidcTokenVerifier oidcTokenVerifier;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
       AuthenticationEntryPoint authEntryPoint,
-      OidcTokenVerifier oidcTokenVerifier,
       PasswordEncoder passwordEncoder) {
     super();
     this.tokenService = tokenService;
@@ -92,7 +88,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     this.passwordEncoder = passwordEncoder;
     this.encodedBasicPassword = passwordEncoder.encode(basicPassword);
     this.authEntryPoint = authEntryPoint;
-    this.oidcTokenVerifier = oidcTokenVerifier;
   }
 
   /*
@@ -143,15 +138,15 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.error(ex);
       res.sendError(ex.getStatusCode().value());
     } catch (AccessDeniedException ex) {
-      // Thrown by AuthCriteriaAuthorizationManager (method security) for a permission mismatch -
-      // a plain 403, matching the retired SecurityInterceptor's raw response for the same case
-      // exactly (no structured body; the mismatch itself is already logged/counted there).
+      // A backstop only. A permission mismatch raised by AuthCriteriaAuthorizationManager is
+      // answered with 403 by Spring Security's own exception translation, further down the
+      // chain, before it can reach this filter.
       LOGGER.error(ex);
       res.setStatus(HttpServletResponse.SC_FORBIDDEN);
     } catch (AuthenticationException ex) {
-      // Covers both this filter's own identity resolution failures and
-      // AuthCriteriaAuthorizationManager throwing for "no identity"/"scope not assignable" - the
-      // same structured 401 entry point either way.
+      // This filter's own identity resolution failures. AuthCriteriaAuthorizationManager's "no
+      // identity" and "scope not assignable" are answered with the same structured 401 by
+      // RestExceptionHandler, inside the dispatcher, and never arrive here.
       LOGGER.error(ex);
       authEntryPoint.commence(
           req, res, new FlowAuthenticationException(BoomerangError.AUTH_REQUIRED, ex.getMessage()));
@@ -203,12 +198,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       LOGGER.debug("AuthFilter() - " + token);
       JWTClaimsSet claims;
       try {
-        // Cryptographically verified against the configured OIDC issuer's published JWKS - an
-        // unsigned (PlainJWT) or wrongly-signed token is refused here, never trusted on its claims
-        // alone. See OidcTokenVerifier.verifyBearerToken.
-        claims = oidcTokenVerifier.verifyBearerToken(token.replace("Bearer ", ""));
-      } catch (BoomerangException e) {
-        LOGGER.error("AuthFilter() - Error verifying Bearer token: " + e.getMessage());
+        Object jwt = JWTParser.parse(token.replace("Bearer ", ""));
+        if (jwt instanceof PlainJWT) {
+          claims = ((PlainJWT) jwt).getJWTClaimsSet();
+        } else if (jwt instanceof SignedJWT) {
+          claims = ((SignedJWT) jwt).getJWTClaimsSet();
+        } else {
+          throw new IllegalArgumentException("Unsupported JWT type");
+        }
+      } catch (Exception e) {
+        LOGGER.error("AuthFilter() - Error parsing Bearer token: " + e.getMessage());
         return null;
       }
       LOGGER.debug("AuthFilter() - claims: " + claims.toString());
@@ -237,8 +236,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         final Token sessionToken =
             tokenService.createSessionToken(
                 email, firstName, lastName, allowActivation, allowUserCreation);
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, null, authoritiesFor(sessionToken));
+            new UsernamePasswordAuthenticationToken(email, null, authorities);
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -267,8 +267,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       if (email != null && !email.isBlank()) {
         final Token sessionToken =
             tokenService.createSessionToken(email, null, null, allowActivation, allowUserCreation);
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(email, password, authoritiesFor(sessionToken));
+            new UsernamePasswordAuthenticationToken(email, password, authorities);
         authToken.setDetails(sessionToken);
         return authToken;
       }
@@ -294,9 +295,9 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     if (tokenService.validate(accessToken)) {
       Token token = tokenService.get(accessToken);
       if (token != null) {
+        final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
-            new UsernamePasswordAuthenticationToken(
-                token.getPrincipal(), null, authoritiesFor(token));
+            new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
         authToken.setDetails(token);
         return authToken;
       }
@@ -330,53 +331,13 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     final Token token =
         tokenService.createSessionToken(email, userName, null, allowActivation, allowUserCreation);
     if (email != null && !email.isBlank()) {
+      final List<GrantedAuthority> authorities = new ArrayList<>();
       final UsernamePasswordAuthenticationToken authToken =
-          new UsernamePasswordAuthenticationToken(
-              token.getPrincipal(), null, authoritiesFor(token));
+          new UsernamePasswordAuthenticationToken(token.getPrincipal(), null, authorities);
       authToken.setDetails(token);
       return authToken;
     }
     return null;
-  }
-
-  /*
-   * Utlity method for verifying requests are signed by Slack
-   *
-   * <h4>Specifications</h4> <ul> <li><a
-   * href="https://api.slack.com/authentication/verifying-requests-from-slack">Verifying Requests
-   * from Slack</a></li> </ul>
-   */
-  private Boolean verifySignature(String signature, String timestamp, String body) {
-    String key =
-        this.settingsService.getSettingConfig("extensions", "slack.signingSecret").getValue();
-    LOGGER.debug("Key: " + key);
-    LOGGER.debug("Slack Timestamp: " + timestamp);
-    LOGGER.debug("Slack Body: " + body);
-    Generator generator = new Generator(key);
-    Verifier verifier = new Verifier(generator);
-    LOGGER.debug("Slack Signature: " + signature);
-    LOGGER.debug("Computed Signature: " + generator.generate(timestamp, body));
-    return verifier.isValid(timestamp, body, signature);
-  }
-
-  /*
-   * Maps a resolved Token's permission actions (e.g. "workflow/write") straight onto
-   * GrantedAuthority, so Spring Security's own authorization machinery can act on them natively
-   * instead of every check having to re-derive them from Token.getPermissions() by hand. Token
-   * itself remains the source of truth - setDetails(Token) below is unchanged, and callers that
-   * still read scope/relationship semantics off the Token keep doing so.
-   */
-  private static List<GrantedAuthority> authoritiesFor(Token token) {
-    if (token == null || token.getPermissions() == null) {
-      return List.of();
-    }
-    return token.getPermissions().stream()
-        .filter(permission -> permission.getActions() != null)
-        .flatMap(permission -> permission.getActions().stream())
-        .distinct()
-        .map(SimpleGrantedAuthority::new)
-        .map(GrantedAuthority.class::cast)
-        .toList();
   }
 
   @Override

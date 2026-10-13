@@ -124,7 +124,8 @@ class ScheduleWatcherTest {
             scheduleRepository,
             mock(WorkflowService.class),
             relationshipService,
-            mongoTemplate);
+            mongoTemplate,
+            new CronService());
     scheduleJob = mock(ScheduleJob.class);
     watcher = new ScheduleWatcher(scheduleRepository, service, scheduleJob, relationshipService);
   }
@@ -182,6 +183,29 @@ class ScheduleWatcherTest {
     // Guarded on nextFireAt absent: a second initialise does not overwrite.
     service.initializeNextFireAt(s.getId(), new Date(0));
     assertEquals(next, scheduleRepository.findById(s.getId()).orElseThrow().getNextFireAt());
+  }
+
+  @Test
+  void initializesSchedulesStoredInEveryEarlierCronForm() {
+    // v3/v4 stored Quartz (seconds first, "?"); the schedule form later saved "0 mm HH * DAYS".
+    // Neither parses as UNIX, so both must be converted before the next fire can be computed.
+    WorkflowScheduleEntity quartz = activeCron(null);
+    quartz.setCronSchedule("0 30 9 ? * MON-FRI");
+    scheduleRepository.save(quartz);
+    WorkflowScheduleEntity formOrder = activeCron(null);
+    formOrder.setCronSchedule("0 30 09 * MON,TUE,WED,THU,FRI");
+    scheduleRepository.save(formOrder);
+
+    watcher.initializeSchedules();
+
+    for (WorkflowScheduleEntity s : new WorkflowScheduleEntity[] {quartz, formOrder}) {
+      Date next = scheduleRepository.findById(s.getId()).orElseThrow().getNextFireAt();
+      assertNotNull(next, s.getCronSchedule() + " must get a next fire time");
+      ZonedDateTime at = next.toInstant().atZone(java.time.ZoneOffset.UTC);
+      assertEquals(9, at.getHour());
+      assertEquals(30, at.getMinute());
+      assertTrue(at.getDayOfWeek().getValue() <= 5, "a weekday");
+    }
   }
 
   @Test

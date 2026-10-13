@@ -5,8 +5,6 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.model.WorkflowSubmitRequest;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
@@ -22,12 +20,8 @@ import org.springframework.stereotype.Component;
 
 /*
  * Invoked by the ScheduleWatcher when a schedule fires: submits the WorkflowRun.
- *
- * E8: schedule is unsupported in engine mode (ruling I2) - standalone only, matching
- * ScheduleWatcher (its only caller).
  */
 @Component
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ScheduleJob {
 
   private static final Logger logger = LoggerFactory.getLogger(ScheduleJob.class);
@@ -73,11 +67,13 @@ public class ScheduleJob {
       authToken.setDetails(token);
       SecurityContextHolder.getContext().setAuthentication(authToken);
 
-      // TODO: fix setting of start to come from somewhere
       // Lineage: stamp the firing Schedule's id as initiatedByRef, mirroring the retry path's
       // convention (initiatedByRef + trigger together identify what caused the run). Threaded
       // internally rather than on WorkflowSubmitRequest, which is a public API model.
-      workflowService.submit(teamRef, workflowRef, request, false, schedule.getId());
+      // start=true: a fired schedule means "run now" - submit alone parks the run at ready, and
+      // nothing starts a parked run (a run with workspaces still waits for dispatcher
+      // provisioning, which is the start=true semantics, not an override of them).
+      workflowService.submit(teamRef, workflowRef, request, true, schedule.getId());
       if (schedule.getType().equals(WorkflowScheduleType.runOnce)) {
         logger.debug("Executing runOnce schedule: {}, and marking as completed.", schedule.getId());
         workflowScheduleService.complete(schedule.getId());

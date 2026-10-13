@@ -166,7 +166,6 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
         <DataTable<Token, any[]>
           rows={tokens}
           headers={HEADERS}
-          pageSize={tokens.length}
           render={({ rows, headers, getHeaderProps, getRowProps, getTableProps, getTableContainerProps }) => (
             <TableContainer title="" description="" {...getTableContainerProps()}>
               <Table {...getTableProps()}>

@@ -9,17 +9,16 @@ import axios, { type AxiosInstance } from "axios";
  * loader/action-only code out of the client bundle, so this file's Node-only assumptions
  * (process.env, no browser cookie jar) never ship to the browser.
  *
- * Two API base URLs (flagged explicitly per the SSR migration direction): the browser talks to
- * PRODUCT_SERVICE_ENV_URL/CORE_SERVICE_ENV_URL - public, injected into `window._SERVER_DATA` by
- * the existing server/ Express server at container boot (see servicesConfig.ts) - which is not
- * necessarily reachable from *this* Node process (a different network path, e.g. a public
- * ingress vs. cluster-internal service DNS). CORE_SERVICE_INTERNAL_ORIGIN is a new, separate
- * runtime env var for that internal address, read directly via `process.env` (not
- * `import.meta.env`, which Vite inlines at build time - this needs to vary per deploy without a
- * rebuild). Unset by default: nothing currently configures it, and there's no internal address
- * to point at yet, so every call below fails fast (invalid/empty base URL) and the caller's
- * existing try/catch falls back to today's behaviour. This is the "wire one for now" case the
- * SSR migration review flagged - only one of the two base URLs actually resolves anywhere today.
+ * Two API base URLs: the browser-facing PRODUCT_SERVICE_ENV_URL - public, injected into
+ * `window._SERVER_DATA` by the server/ Express server at container boot (see servicesConfig.ts)
+ * and only used where the app surfaces a copyable API URL - is not necessarily reachable from
+ * *this* Node process (a different network path, e.g. a public ingress vs. cluster-internal
+ * service DNS). CORE_SERVICE_INTERNAL_ORIGIN is the separate runtime env var for that internal
+ * address, read directly via `process.env` (not `import.meta.env`, which Vite inlines at build
+ * time - this needs to vary per deploy without a rebuild). docker-compose.yml sets it to
+ * http://service-core:7700 and a Kubernetes Deployment sets it to the service-core Service; when
+ * it is unset every call below fails fast (empty base URL) and the caller's try/catch degrades
+ * to its error state rather than failing the render.
  */
 const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
 

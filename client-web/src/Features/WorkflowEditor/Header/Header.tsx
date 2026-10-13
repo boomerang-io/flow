@@ -9,9 +9,10 @@ import {
   FeatureNavTab as Tab,
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
+import { useFeature } from "flagged";
 import { Link, useParams } from "react-router-dom";
 import { WorkflowView } from "Constants";
-import { appLink } from "Config/appConfig";
+import { appLink, FeatureFlag } from "Config/appConfig";
 import { ModalTriggerProps, WorkflowCanvas, WorkflowViewType, ChangeLog } from "Types";
 import VersionCommentForm from "./VersionCommentForm";
 import VersionSwitcher from "./VersionSwitcher";
@@ -45,6 +46,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
 }) => {
   const rawParams = useParams<{ workspace: string; workflow: string }>();
   const params = { workspace: rawParams.workspace ?? "", workflow: rawParams.workflow ?? "" };
+  const schedulesEnabled = useFeature(FeatureFlag.SchedulesEnabled);
   const { displayName } = revisionState;
   const { version: currentRevision } = revisionState;
   const isPreviousVersion = currentRevision < revisionCount;
@@ -67,84 +69,88 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
             {viewType === WorkflowView.Workflow ? (
               <Link to={appLink.workflows({ workspace: params.workspace })}>Workflows</Link>
             ) : (
-              <Link to={appLink.templateWorkflows()}>Template Workflows</Link>
+              <Link to={appLink.home()}>Templates</Link>
             )}
           </BreadcrumbItem>
           <BreadcrumbItem isCurrentPage>
-            <p>{displayName}</p>
+            <p>Editor</p>
           </BreadcrumbItem>
         </Breadcrumb>
       }
-      header={<HeaderTitle>Editor</HeaderTitle>}
+      // A page inside one workflow is titled with its name; the breadcrumb carries the route.
+      header={<HeaderTitle title={displayName}>{displayName}</HeaderTitle>}
       footer={
-        <Tabs ariaLabel="Editor pages">
-          <Tab label="Canvas" to={appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow })} />
-          <Tab label="Parameters" to={appLink.editorProperties({ workspace: params.workspace, workflow: params.workflow })} />
-          <Tab label="Configure" to={appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow })} />
-          <Tab label="Schedules" to={appLink.editorSchedule({ workspace: params.workspace, workflow: params.workflow })} />
-          <Tab label="Change Log" to={appLink.editorChangelog({ workspace: params.workspace, workflow: params.workflow })} />
-        </Tabs>
-      }
-      actions={
-        <section className={styles.workflowButtons}>
-          <VersionSwitcher
-            currentRevision={currentRevision}
-            disabled={!canCreateNewVersion}
-            onChangeVersion={changeRevision}
-            revisionCount={revisionCount}
-          />
-          <div className={styles.workflowActionContainer}>
-            <>
-              <ConfirmModal
-                affirmativeAction={resetVersionToLatestWithMessage}
-                children="A new version will be created"
-                title={`Set version ${currentRevision} to be the latest`}
-                modalTrigger={({ openModal }: ModalTriggerProps) => (
-                  <Button
-                    disabled={!canCreateNewVersion}
-                    iconDescription="Set version to latest"
-                    kind="ghost"
-                    onClick={openModal}
-                    renderIcon={DocumentExport}
-                    size="md"
-                    style={!isPreviousVersion ? { display: "none" } : undefined}
-                  >
-                    {performActionButtonText}
-                  </Button>
-                )}
-              />
-              <ComposedModal
-                composedModalProps={{ containerClassName: styles.versionCommentModalContainer }}
-                modalHeaderProps={{
-                  title: "Create New Version",
-                  subtitle: "Enter a comment for record keeping",
-                }}
-                modalTrigger={({ openModal }: ModalTriggerProps) => (
-                  <Button
-                    disabled={!canCreateNewVersion}
-                    iconDescription="Create new version"
-                    kind="ghost"
-                    onClick={openModal}
-                    renderIcon={Add}
-                    size="md"
-                    style={isPreviousVersion ? { display: "none" } : undefined}
-                  >
-                    {performActionButtonText}
-                  </Button>
-                )}
-              >
-                {({ closeModal }) => (
-                  <VersionCommentForm
-                    closeModal={closeModal}
-                    createRevision={createRevision}
-                    createRevisionFailed={createRevisionFailed}
-                    isCreatingRevision={isCreatingRevision}
-                  />
-                )}
-              </ComposedModal>
-            </>
-          </div>
-        </section>
+        // Tabs, the version switcher and the version actions share one row.
+        <div className={styles.footer}>
+          <Tabs ariaLabel="Editor pages">
+            <Tab label="Canvas" to={appLink.editorCanvas({ workspace: params.workspace, workflow: params.workflow })} />
+            <Tab label="Parameters" to={appLink.editorProperties({ workspace: params.workspace, workflow: params.workflow })} />
+            <Tab label="Configure" to={appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow })} />
+            {schedulesEnabled ? (
+              <Tab label="Schedules" to={appLink.editorSchedule({ workspace: params.workspace, workflow: params.workflow })} />
+            ) : null}
+            <Tab label="Change Log" to={appLink.editorChangelog({ workspace: params.workspace, workflow: params.workflow })} />
+          </Tabs>
+          <section className={styles.workflowButtons}>
+            <VersionSwitcher
+              currentRevision={currentRevision}
+              disabled={!canCreateNewVersion}
+              onChangeVersion={changeRevision}
+              revisionCount={revisionCount}
+            />
+            <div className={styles.workflowActionContainer}>
+              <>
+                <ConfirmModal
+                  affirmativeAction={resetVersionToLatestWithMessage}
+                  children="A new version will be created"
+                  title={`Set version ${currentRevision} to be the latest`}
+                  modalTrigger={({ openModal }: ModalTriggerProps) => (
+                    <Button
+                      disabled={!canCreateNewVersion}
+                      iconDescription="Set version to latest"
+                      kind="ghost"
+                      onClick={openModal}
+                      renderIcon={DocumentExport}
+                      size="md"
+                      style={!isPreviousVersion ? { display: "none" } : undefined}
+                    >
+                      {performActionButtonText}
+                    </Button>
+                  )}
+                />
+                <ComposedModal
+                  composedModalProps={{ containerClassName: styles.versionCommentModalContainer }}
+                  modalHeaderProps={{
+                    title: "Create New Version",
+                    subtitle: "Enter a comment for record keeping",
+                  }}
+                  modalTrigger={({ openModal }: ModalTriggerProps) => (
+                    <Button
+                      disabled={!canCreateNewVersion}
+                      iconDescription="Create new version"
+                      kind="ghost"
+                      onClick={openModal}
+                      renderIcon={Add}
+                      size="md"
+                      style={isPreviousVersion ? { display: "none" } : undefined}
+                    >
+                      {performActionButtonText}
+                    </Button>
+                  )}
+                >
+                  {({ closeModal }) => (
+                    <VersionCommentForm
+                      closeModal={closeModal}
+                      createRevision={createRevision}
+                      createRevisionFailed={createRevisionFailed}
+                      isCreatingRevision={isCreatingRevision}
+                    />
+                  )}
+                </ComposedModal>
+              </>
+            </div>
+          </section>
+        </div>
       }
     />
   );

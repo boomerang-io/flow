@@ -9,7 +9,9 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -30,6 +32,7 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.schedule.ScheduleService;
 import io.boomerang.workflow.ConvertUtil;
@@ -47,19 +50,22 @@ import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
-import java.lang.reflect.Field;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.EnumUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -97,8 +103,8 @@ import tools.jackson.databind.ObjectMapper;
  *       values and strips ids.
  *   <li><b>Unscoped</b> ({@code get(workflowId, ...)}, {@code submit(workflowId, ...)}, ...) -
  *       internal callers that carry no workspace and are authorized elsewhere or not at all: the
- *       engine's {@code TaskExecutionService} running a {@code runworkflow} task, {@link
- *       ActionService} resolving an Action's Workflow name, and the loader.
+ *       engine's {@code TaskExecutionService} running a {@code runworkflow} task and {@link
+ *       ActionService} resolving an Action's Workflow name.
  * </ul>
  *
  * <p>F3 collapsed the former {@code api.WorkspaceWorkflowService} pass-through into this class: the
@@ -113,22 +119,13 @@ import tools.jackson.databind.ObjectMapper;
  * the only HTTP route that starts a run, must work in engine mode against the single {@code system}
  * workspace (see EngineWorkspaceInterceptor).
  *
- * <p>Its two standalone-only collaborators are therefore held as ObjectProvider, not as fields:
- * workspace.WorkspaceService and schedule.ScheduleService are both
- * {@code @ConditionalOnFlowMode(STANDALONE)}, so in engine mode neither bean exists. (Same intent as
- * the Optional&lt;IntegrationService&gt; injection in event.WebhookEventService; ObjectProvider
- * rather than Optional because both beans take this one back in their own constructors - Optional
- * resolves eagerly and would close the cycle at construction time.) Every call through them is
- * guarded:
- *
- * <ul>
- *   <li>quotas (canCreateWithQuotas, canRunWithQuotas, the run-duration ceiling in internalSubmit)
- *       run only when the quota subsystem is on - see workspace.FlowQuotaProperties. Off in engine
- *       mode, where the run-duration ceiling falls back to the platform default in the "workspaces"
- *       settings.
- *   <li>schedules (delete, updateScheduleTriggers) are skipped when no ScheduleService bean is
- *       present, because engine mode has no schedule management at all (ruling I2).
- * </ul>
+ * <p>workspace.WorkspaceService and schedule.ScheduleService are held as ObjectProvider, not as
+ * fields: both take this service back in their own constructors, and Optional would resolve eagerly
+ * and close the cycle at construction time. WorkspaceService is also
+ * {@code @ConditionalOnFlowMode(STANDALONE)}, so its calls (canCreateWithQuotas, assertRunQuotas,
+ * and the run-duration ceiling the chokepoint submit hands RunTimeoutPolicy) run only when the quota
+ * subsystem is on - see workspace.FlowQuotaProperties. Off in engine mode, where the run-duration
+ * ceiling falls back to the platform default in the "quotas" settings.
  *
  * <p>TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust.
@@ -143,6 +140,19 @@ public class WorkflowService {
   private static final String ANNOTATION_KIND = "Workflow";
 
   private static final String TASK_REF_SEPERATOR = "/";
+  // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns.
+  private static final Set<TaskType> FOREACH_TASK_TYPES =
+      EnumSet.of(
+          TaskType.template,
+          TaskType.script,
+          TaskType.custom,
+          TaskType.ai,
+          TaskType.generic,
+          TaskType.uploadartifact,
+          TaskType.downloadartifact);
+  // One whole-value reference such as $(tasks.stage.results.batches) or $(params.repos).
+  private static final Pattern FOREACH_ITEM_NAME_PATTERN = Pattern.compile("^.*\\[\\d+\\]$");
+  private static final Pattern FOREACH_REFERENCE_PATTERN = Pattern.compile("^\\$\\([^()\\s]+\\)$");
   public static final String FEATURES_SETTINGS_KEY = "features";
   public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
@@ -163,8 +173,10 @@ public class WorkflowService {
   private final ActionRepository actionRepository;
   private final TokenService tokenService;
   private final ObjectProvider<WorkspaceService> workspaceService;
+  private final RunTimeoutPolicy runTimeoutPolicy;
   private final boolean quotasEnabled;
   private final ObjectMapper objectMapper;
+  private final ParamLayerCache paramLayerCache;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -186,8 +198,10 @@ public class WorkflowService {
       ActionRepository actionRepository,
       TokenService tokenService,
       ObjectProvider<WorkspaceService> workspaceService,
+      RunTimeoutPolicy runTimeoutPolicy,
       Environment environment,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ParamLayerCache paramLayerCache) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -201,8 +215,10 @@ public class WorkflowService {
     this.actionRepository = actionRepository;
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
+    this.runTimeoutPolicy = runTimeoutPolicy;
     this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
     this.objectMapper = objectMapper;
+    this.paramLayerCache = paramLayerCache;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -215,7 +231,7 @@ public class WorkflowService {
    * flow.mode (FlowQuotaProperties - off in engine mode) AND the operator has to have left the
    * "workspaceQuotas" feature enabled. Short-circuits, so engine mode never reads the setting.
    */
-  private boolean quotasEnforced() {
+  boolean quotasEnforced() {
     return quotasEnabled
         && settingsService
             .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
@@ -223,21 +239,50 @@ public class WorkflowService {
   }
 
   /*
+   * The workspace that owns a Workflow, or null when the relationship graph records none. The
+   * run-duration ceiling is a property of the owner, not of the path a caller arrived on, so the
+   * chokepoint submit resolves it here rather than trusting a team segment - and callers that
+   * carry no team at all (the engine running a runworkflow task) get the same ceiling as everyone
+   * else.
+   */
+  private String owningWorkspaceOrNull(String workflowId) {
+    String ref =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowId);
+    if (ref == null || ref.isBlank()) {
+      return null;
+    }
+    // The edge records the workspace's ref; the quota lookup is by name.
+    try {
+      return relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, ref);
+    } catch (RuntimeException e) {
+      LOGGER.warn("[{}] Owning workspace {} has no relationship node.", workflowId, ref);
+      return null;
+    }
+  }
+
+  /*
    * The ceiling for a WorkflowRun's timeout, in minutes.
    *
    * With the quota subsystem on this is the workspace's max run duration (its own quota override
    * if set, else the platform default). In engine mode there is no WorkspaceService and no
-   * per-workspace quota record, so the platform default in the "workspaces" settings document
+   * per-workspace quota record, so the platform default in the "quotas" settings document
    * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
+   *
+   * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
+   * the platform default constrain its runs.
    */
-  private long maxWorkflowDuration(String team) {
+  public long maxWorkflowDuration(String team) {
+    if (team == null) {
+      return 0;
+    }
     if (quotasEnabled) {
       return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
     }
     return Long.parseLong(
         settingsService
             .getSettingConfig(
-                WorkspaceService.WORKSPACES_SETTINGS_KEY,
+                WorkspaceService.QUOTAS_SETTINGS_KEY,
                 WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
             .getValue());
   }
@@ -249,7 +294,7 @@ public class WorkflowService {
    */
   public Workflow get(String team, String name, Optional<Integer> version, boolean withTasks) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     Workflow workflow = internalGet(team, name, version, withTasks);
 
@@ -378,7 +423,7 @@ public class WorkflowService {
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
     } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // Fill in displayName if not set
@@ -394,7 +439,7 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!existingWorkflowRefs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // Check creation quotas
@@ -453,7 +498,7 @@ public class WorkflowService {
         if (ws.getType().equals("workflow")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
+                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
                   .getValue();
           ws.setName("workflow");
           ws.setOptional(false);
@@ -462,7 +507,7 @@ public class WorkflowService {
         } else if (ws.getType().equals("workflowrun")) {
           String maxStorageSizeQuota =
               this.settingsService
-                  .getSettingConfig(WorkspaceService.WORKSPACES_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
                   .getValue();
           ws.setName("workflowrun");
           ws.setOptional(false);
@@ -515,14 +560,12 @@ public class WorkflowService {
         // Fill in displayName if not set
         validateAndSetDisplayName(workflow);
 
-        // Update Schedule Triggers
-        updateScheduleTriggers(
-            team,
-            workflow,
-            this.get(team, workflow.getName(), Optional.empty(), false).getTriggers());
-
-        // Default Triggers
-        validateTriggerDefaults(workflow);
+        // A trigger the request leaves out keeps its stored value, as labels do; then sync the
+        // workflow's schedules with the schedule trigger.
+        WorkflowTrigger currentTriggers =
+            this.get(team, workflow.getName(), Optional.empty(), false).getTriggers();
+        workflow.setTriggers(withStoredTriggers(workflow.getTriggers(), currentTriggers));
+        updateScheduleTriggers(team, workflow, currentTriggers);
 
         // Convert TaskSlugs to Refs(IDs)
         convertTaskSlugsToRefs(team, workflow);
@@ -546,7 +589,7 @@ public class WorkflowService {
       workflow.setId(null);
       return this.create(team, workflow);
     }
-    throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
 
   /*
@@ -569,7 +612,7 @@ public class WorkflowService {
       String team, String name, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -633,7 +676,7 @@ public class WorkflowService {
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
     // Check Quotas - Throws Exception
-    canRunWithQuotas(team, Optional.of(request.getWorkspaces()));
+    assertRunQuotas(team, Optional.of(request.getWorkspaces()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -644,12 +687,6 @@ public class WorkflowService {
       request.setDebug(Boolean.valueOf(enableDebug));
       LOGGER.info("Setting debug = " + enableDebug);
     }
-    // Set Workflow Timeout
-    Long timeout = maxWorkflowDuration(team);
-    if (!Objects.isNull(request.getTimeout()) && request.getTimeout() < timeout) {
-      timeout = request.getTimeout();
-    }
-    request.setTimeout(Long.valueOf(timeout));
     // These annotations are processed by the DAGUtility in the Engine
     Map<String, Object> executionAnnotations = new HashMap<>();
     executionAnnotations.put(
@@ -658,22 +695,35 @@ public class WorkflowService {
     executionAnnotations.put(
         "boomerang.io/task-default-image",
         this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.image").getValue());
-    executionAnnotations.put(
-        "boomerang.io/task-timeout",
-        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue());
+    // The per-task ceiling is an optional operator control, not a budget every task is entitled
+    // to spend: the seed ships it at 0 so a task inherits its run's timeout, and an operator who
+    // wants a hard per-pod limit sets a number. A blank value means the same as 0 - an install
+    // whose setting was cleared by hand or arrived blank from a v3 migration stamps no annotation
+    // at all rather than handing DAGUtility a string Long.parseLong cannot read.
+    String taskTimeoutSetting =
+        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue();
+    if (taskTimeoutSetting != null && !taskTimeoutSetting.isBlank()) {
+      executionAnnotations.put("boomerang.io/task-timeout", taskTimeoutSetting);
+    }
 
-    // Add Context, Global, and Workspace parameters to the WorkflowRun request
-    ParamLayers paramLayers = paramLayerService.buildParamLayers(team, workflow);
-    executionAnnotations.put("boomerang.io/global-params", paramLayers.getGlobalParams());
-    executionAnnotations.put("boomerang.io/context-params", paramLayers.getContextParams());
-    executionAnnotations.put("boomerang.io/workspace-params", paramLayers.getTeamParams());
+    // Global, workspace and context parameters are not copied onto the run: the engine reads them
+    // from their stores each time it resolves. A child run's request carries its parent's
+    // annotations, so the keys older runs were given are dropped here too.
+    request.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.
     executionAnnotations.put("boomerang.io/workspace-name", team);
     request.getAnnotations().putAll(executionAnnotations);
 
-    WorkflowRun wfRun = submit(workflowId, request, start, initiatedByRef);
+    // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
+    // are re-read (now including this run), and a run that pushed a count over its limit is
+    // discarded - simultaneous submits cannot each slip past the pre-admission count above.
+    boolean enforceQuotas = quotasEnforced();
+    WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
+    if (enforceQuotas) {
+      guardQuotasAfterAdmission(team, wfRun.getId());
+    }
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -686,6 +736,13 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
+    // A run with Workspaces stays ready/pending for the dispatcher to provision and start -
+    // the same rule WorkflowRunService.run applies on the un-enforced path.
+    if (enforceQuotas
+        && start
+        && (wfRun.getWorkspaces() == null || wfRun.getWorkspaces().isEmpty())) {
+      wfRun = workflowRunService.start(wfRun.getId(), Optional.empty());
+    }
     return wfRun;
   }
 
@@ -694,7 +751,7 @@ public class WorkflowService {
    */
   public ResponseEntity<List<ChangeLogVersion>> changelog(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -712,15 +769,14 @@ public class WorkflowService {
   }
 
   /*
-   * Delete the Workflows, WorkflowRuns, and TaskRuns by calling Engine.
-   *
-   * Engine takes care of deleting Triggers & Workspaces
-   *
-   * We have to delete the Actions, Schedules, Tokens, and Relationships
+   * Scoped delete: tombstones the Workflow, then cleans up what only this layer knows about -
+   * Schedules, the principal's Tokens, open Actions, and the relationship node. The documents
+   * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the watcher's
+   * prune sweep once in-flight runs finalise.
    */
   public void delete(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
@@ -731,11 +787,9 @@ public class WorkflowService {
             Optional.of(List.of(team)),
             false);
     if (!refs.isEmpty()) {
-      // Deletes the Workflow and associated WorkflowRuns, and TaskRuns
+      // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
-      // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
-      // schedules to delete.
-      scheduleService.ifAvailable(s -> s.deleteAllForWorkflow(refs.get(0)));
+      scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
       // Close out the Workflow's Actions. Inlined from the deleted
       // ActionService.deleteAllByWorkflow, which was a one-line delegation to this repository
@@ -798,7 +852,7 @@ public class WorkflowService {
    */
   public WorkflowCanvas composeGet(String team, String name, Optional<Integer> version) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     final Workflow response = this.internalGet(team, name, version, true);
@@ -814,7 +868,7 @@ public class WorkflowService {
    */
   public WorkflowCanvas composeApply(String team, WorkflowCanvas canvas, boolean replace) {
     if (canvas == null) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
@@ -831,7 +885,7 @@ public class WorkflowService {
    */
   public List<String> getAvailableParameters(String team, String name) {
     if (name == null || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     final Workflow workflow = this.get(team, name, Optional.empty(), true);
@@ -856,27 +910,24 @@ public class WorkflowService {
    * Sets up the Triggers
    */
   private void validateTriggerDefaults(Workflow workflow) {
-    if (Objects.isNull(workflow.getTriggers())) {
-      // Manual trigger will be set to Enable = true.
-      workflow.setTriggers(new WorkflowTrigger());
+    workflow.setTriggers(ConvertUtil.triggersWithDefaults(workflow.getTriggers()));
+  }
+
+  /*
+   * The requested triggers, with each one the request left out taken from the stored workflow.
+   */
+  private static WorkflowTrigger withStoredTriggers(
+      WorkflowTrigger requested, WorkflowTrigger stored) {
+    if (requested == null) {
+      return stored;
     }
-    LOGGER.debug("Triggers: " + workflow.getTriggers());
-    // Default to enabled for Workflows
-    if (Objects.isNull(workflow.getTriggers().getManual())) {
-      workflow.getTriggers().setManual(new Trigger(Boolean.TRUE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getSchedule())) {
-      workflow.getTriggers().setSchedule(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getWebhook())) {
-      workflow.getTriggers().setWebhook(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getEvent())) {
-      workflow.getTriggers().setEvent(new Trigger(Boolean.FALSE));
-    }
-    if (Objects.isNull(workflow.getTriggers().getGithub())) {
-      workflow.getTriggers().setGithub(new Trigger(Boolean.FALSE));
-    }
+    WorkflowTrigger merged = new WorkflowTrigger();
+    merged.setManual(Objects.requireNonNullElse(requested.getManual(), stored.getManual()));
+    merged.setSchedule(Objects.requireNonNullElse(requested.getSchedule(), stored.getSchedule()));
+    merged.setWebhook(Objects.requireNonNullElse(requested.getWebhook(), stored.getWebhook()));
+    merged.setEvent(Objects.requireNonNullElse(requested.getEvent(), stored.getEvent()));
+    merged.setGithub(Objects.requireNonNullElse(requested.getGithub(), stored.getGithub()));
+    return merged;
   }
 
   /*
@@ -884,12 +935,7 @@ public class WorkflowService {
    */
   private void updateScheduleTriggers(
       final String team, final Workflow request, WorkflowTrigger currentTriggers) {
-    // Engine mode has no schedule management (ruling I2) - no ScheduleService bean, and no
-    // schedules whose trigger state could need syncing.
-    ScheduleService schedules = scheduleService.getIfAvailable();
-    if (schedules == null) {
-      return;
-    }
+    ScheduleService schedules = scheduleService.getObject();
     if (!Objects.isNull(request.getTriggers())
         && !Objects.isNull(request.getTriggers().getSchedule())
         && !Objects.isNull(currentTriggers)
@@ -921,64 +967,95 @@ public class WorkflowService {
     }
   }
 
-  /*
-   * Check if the Workspace Quotas allow a Workflow to run
+  /**
+   * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for:
+   * concurrent runs, runs this month, and the size of any Workspace it asks for. Public because a
+   * retry is a new run and has to clear the same limits a submit does - WorkflowRunService.retry
+   * calls this before it saves the clone.
    */
-  private void canRunWithQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
+  public void assertRunQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
     if (quotasEnforced()) {
       CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
-      if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+      // The run being submitted is not counted yet, so at-the-limit already means it would
+      // exceed the limit.
+      if (quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Concurrent runs (executions)",
             quotas.getCurrentConcurrentRuns(),
             quotas.getMaxConcurrentRuns());
-      } else if (quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
+      } else if (quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Number of runs (executions)",
             quotas.getCurrentRuns(),
             quotas.getMaxWorkflowRunMonthly());
-      } else if (workspaces.isPresent()
-          && !workspaces.get().isEmpty()
-          && workspaces.get().size() > 0) {
-        workspaces
-            .get()
-            .forEach(
-                ws -> {
-                  if (ws.getType().equals("workflow") && ws.getSpec() != null) {
-                    try {
-                      Field sizeField = ws.getSpec().getClass().getDeclaredField("size");
-                      String size = (String) sizeField.get(ws.getSpec());
-                      if (Integer.valueOf(size) > quotas.getMaxWorkflowStorage()) {
-                        throw new BoomerangException(
-                            BoomerangError.QUOTA_EXCEEDED,
-                            "Requested Workspace size",
-                            size,
-                            quotas.getMaxWorkflowStorage());
-                      }
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                      // Do nothing
-                    }
-                  } else if (ws.getType().equals("workflowrun") && ws.getSpec() != null) {
-                    try {
-                      Field sizeField = ws.getSpec().getClass().getDeclaredField("size");
-                      String size = (String) sizeField.get(ws.getSpec());
-                      if (Integer.valueOf(size) > quotas.getMaxWorkflowRunStorage()) {
-                        throw new BoomerangException(
-                            BoomerangError.QUOTA_EXCEEDED,
-                            "Requested Workspace size",
-                            size,
-                            quotas.getMaxWorkflowRunStorage());
-                      }
-                    } catch (NoSuchFieldException | IllegalAccessException ex) {
-                      // Do nothing
-                    }
-                  }
-                });
+      } else if (workspaces.isPresent() && !workspaces.get().isEmpty()) {
+        workspaces.get().forEach(ws -> checkWorkspaceStorageQuota(ws, quotas));
       }
     }
+  }
+
+  /*
+   * Refuses a Workspace on a run submission whose requested size is over the storage quota for
+   * its type. The spec is typed Object and arrives as a Map over JSON, so it is converted before
+   * the size is read, and the size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi -
+   * the same rule resolveWorkspaceSpec applies at save. A spec naming no size takes the quota
+   * default and cannot breach it.
+   */
+  private void checkWorkspaceStorageQuota(WorkflowWorkspace ws, CurrentQuotas quotas) {
+    Integer maxSizeGi =
+        switch (ws.getType()) {
+          case "workflow" -> quotas.getMaxWorkflowStorage();
+          case "workflowrun" -> quotas.getMaxWorkflowRunStorage();
+          case null, default -> null;
+        };
+    if (maxSizeGi == null || ws.getSpec() == null) {
+      return;
+    }
+    String size =
+        this.objectMapper.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class).getSize();
+    if (size != null && StorageQuantityUtil.toGi(size) > maxSizeGi) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, "Requested Workspace size", size, maxSizeGi);
+    }
+  }
+
+  /*
+   * Re-checks the run quotas after a WorkflowRun has been admitted. The counts now include the
+   * run itself, so a burst of simultaneous submits cannot each pass the pre-admission count:
+   * every run that pushed a count over its limit removes itself and its submit fails.
+   */
+  private void guardQuotasAfterAdmission(String team, String workflowRunId) {
+    CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
+    if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+      discardRun(workflowRunId);
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED,
+          "Concurrent runs (executions)",
+          quotas.getCurrentConcurrentRuns(),
+          quotas.getMaxConcurrentRuns());
+    } else if (quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
+      discardRun(workflowRunId);
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED,
+          "Number of runs (executions)",
+          quotas.getCurrentRuns(),
+          quotas.getMaxWorkflowRunMonthly());
+    }
+  }
+
+  /*
+   * Removes a quota-rejected WorkflowRun and its materialised TaskRuns. The run was never
+   * started and no relationship edge exists yet, so removing the documents is the whole undo -
+   * and keeps a rejected submit from consuming quota itself.
+   */
+  private void discardRun(String workflowRunId) {
+    mongoTemplate.remove(
+        Query.query(Criteria.where("workflowRunRef").is(workflowRunId)), TaskRunEntity.class);
+    mongoTemplate.remove(
+        Query.query(Criteria.where("_id").is(workflowRunId)), WorkflowRunEntity.class);
   }
 
   /*
@@ -1090,6 +1167,7 @@ public class WorkflowService {
           nodeData.setTaskRef(task.getTaskRef());
           nodeData.setTaskVersion(task.getTaskVersion());
           nodeData.setUpgradesAvailable(task.getUpgradesAvailable());
+          nodeData.setForeach(task.getForeach());
           node.setData(nodeData);
           nodes.add(node);
           taskNameToNodeId.put(task.getName(), node.getId());
@@ -1158,6 +1236,7 @@ public class WorkflowService {
           task.setResults(node.getData().getResults());
           task.setTaskRef(node.getData().getTaskRef());
           task.setTaskVersion(node.getData().getTaskVersion());
+          task.setForeach(node.getData().getForeach());
 
           List<WorkflowTaskDependency> dependencies = new LinkedList<>();
           edges.stream()
@@ -1230,7 +1309,9 @@ public class WorkflowService {
                                     Optional.of(List.of(team)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
-                                  BoomerangError.TASK_INVALID_REF, t.getName());
+                                  BoomerangError.WORKFLOW_INVALID_TASK_REF,
+                                  t.getName(),
+                                  param.getValue());
                             }
                             param.setValue(slugs.get(0));
                           }
@@ -1239,7 +1320,27 @@ public class WorkflowService {
             });
   }
 
+  /*
+   * Every node other than start and end must name the Task it runs. Without a reference there is
+   * nothing to resolve at save time and nothing to execute at run time, so the workflow is
+   * rejected here - at save and again at submit, because a workflow saved before this check
+   * could still carry one.
+   */
+  private static void validateTaskRefsPresent(List<WorkflowTask> tasks) {
+    if (tasks == null) {
+      return;
+    }
+    for (WorkflowTask task : tasks) {
+      if (!"start".equals(task.getName())
+          && !"end".equals(task.getName())
+          && (task.getTaskRef() == null || task.getTaskRef().isBlank())) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_MISSING_TASK_REF, task.getName());
+      }
+    }
+  }
+
   private void convertTaskSlugsToRefs(String team, Workflow workflow) {
+    validateTaskRefsPresent(workflow.getTasks());
     workflow
         .getTasks()
         .forEach(
@@ -1285,7 +1386,9 @@ public class WorkflowService {
                                     false);
                             if (refs == null || refs.isEmpty()) {
                               throw new BoomerangException(
-                                  BoomerangError.TASK_INVALID_REF, t.getName());
+                                  BoomerangError.WORKFLOW_INVALID_TASK_REF,
+                                  t.getName(),
+                                  param.getValue());
                             }
                             param.setValue(refs.get(0));
                           }
@@ -1294,12 +1397,12 @@ public class WorkflowService {
             });
   }
 
-  // ── Unscoped operations (engine, action and loader callers) ───────────────────
+  // ── Unscoped operations (engine and action callers) ───────────────────────────
 
   public ResponseEntity<Workflow> get(
       String workflowId, Optional<Integer> version, boolean withTasks) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     final Optional<WorkflowEntity> optWfEntity = workflowRepository.findById(workflowId);
     Optional<WorkflowRevisionEntity> optWfRevisionEntity;
@@ -1496,7 +1599,7 @@ public class WorkflowService {
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
     } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     wfEntity.setName(request.getName());
     if (request.getDisplayName() == null || request.getDisplayName().isEmpty()) {
@@ -1519,6 +1622,7 @@ public class WorkflowService {
     request.setId(wfEntity.getId());
     wfRevisionEntity.setWorkflowRef(wfEntity.getId());
     workflowRevisionRepository.save(wfRevisionEntity);
+    paramLayerCache.evictAll();
     // TODO: figure out a better approach to rollback
 
     Workflow workflow = ConvertUtil.wfEntityToModel(wfEntity, wfRevisionEntity);
@@ -1573,17 +1677,35 @@ public class WorkflowService {
     if (filteredNames.size() != uniqueFilteredNames.size()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_NON_UNIQUE_TASK_NAME);
     }
+    // A foreach task's items are named <name>[<index>], so a task name ending in [<digits>] could
+    // collide with another task's item on the (workflowRunRef, name) unique index. Any other use of
+    // brackets ("Deploy [prod]") is left alone.
+    filteredNames.stream()
+        .filter(name -> name != null && FOREACH_ITEM_NAME_PATTERN.matcher(name).matches())
+        .findFirst()
+        .ifPresent(
+            name -> {
+              throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_TASK_NAME, name);
+            });
 
     // Check Task Template references are valid
     for (WorkflowTask wfTask : wfRevisionEntity.getTasks()) {
-      if (!TaskType.start.equals(wfTask.getType()) && !TaskType.end.equals(wfTask.getType())) {
-
+      if (TaskType.start.equals(wfTask.getType()) || TaskType.end.equals(wfTask.getType())) {
+        // Start and end mark the graph's edges and never run, so they cannot run for each item.
+        if (wfTask.getForeach() != null) {
+          throw new BoomerangException(
+              BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+              wfTask.getName(),
+              "A " + wfTask.getType() + " task cannot run for each item.");
+        }
+      } else {
         // Shared utility with DAGUtility
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
         wfTask.setTaskVersion(taskTemplate.getVersion());
 
         // Reject node params the Task Template does not declare
         validateDeclaredParams(wfTask, taskTemplate);
+        validateForeach(wfTask, taskTemplate);
       }
     }
     return wfRevisionEntity;
@@ -1646,6 +1768,69 @@ public class WorkflowService {
           BoomerangError.WORKFLOW_INVALID_TASK_PARAM,
           wfTask.getName(),
           undeclaredNames.toString());
+    }
+  }
+
+  /*
+   * Rejects a foreach setting the engine could not fan out. Items must be a JSON array literal
+   * within the item cap, or one reference that resolves to an array when the task runs (checked
+   * against the cap then). Only the types a dispatcher runs repeat per item, and the task must
+   * not declare item or index itself: the engine adds both to each item, and they would collide as
+   * PARAM_ITEM and PARAM_INDEX.
+   */
+  private void validateForeach(WorkflowTask wfTask, Task taskTemplate) {
+    if (wfTask.getForeach() == null) {
+      return;
+    }
+    if (!FOREACH_TASK_TYPES.contains(wfTask.getType())) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "A " + wfTask.getType() + " task cannot run for each item.");
+    }
+    Object items = wfTask.getForeach().getItems();
+    boolean singleReference =
+        items instanceof String string && FOREACH_REFERENCE_PATTERN.matcher(string.trim()).matches();
+    if (!singleReference && !(items instanceof List)) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "Items must be a JSON array or a single reference such as $(params.items).");
+    }
+    int cap = maxForeachItems();
+    if (items instanceof List<?> list && list.size() > cap) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "Items has " + list.size() + " entries, over the cap of " + cap + ".");
+    }
+    List<AbstractParam> declaredParams = taskTemplate.getSpec().getParams();
+    if (declaredParams != null
+        && declaredParams.stream()
+            .map(AbstractParam::getName)
+            .anyMatch(name -> "item".equalsIgnoreCase(name) || "index".equalsIgnoreCase(name))) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_TASK_FOREACH,
+          wfTask.getName(),
+          "The task declares a parameter named item or index, which each item receives from the"
+              + " engine.");
+    }
+  }
+
+  // The foreach item cap the engine enforces, or its default when the key is not seeded.
+  private int maxForeachItems() {
+    try {
+      String value =
+          settingsService
+              .getSettingConfig(
+                  TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY,
+                  TaskExecutionService.MAX_FOREACH_ITEMS)
+              .getValue();
+      return NumberUtils.isDigits(value)
+          ? Integer.parseInt(value)
+          : TaskExecutionService.DEFAULT_MAX_FOREACH_ITEMS;
+    } catch (RuntimeException notConfigured) {
+      return TaskExecutionService.DEFAULT_MAX_FOREACH_ITEMS;
     }
   }
 
@@ -1729,6 +1914,7 @@ public class WorkflowService {
     newWorkflowRevisionEntity.setWorkflowRef(workflowRevisionEntity.getWorkflowRef());
 
     workflowRevisionRepository.save(newWorkflowRevisionEntity);
+    paramLayerCache.evictAll();
 
     Workflow appliedWorkflow =
         ConvertUtil.wfEntityToModel(workflowEntity, newWorkflowRevisionEntity);
@@ -1755,7 +1941,7 @@ public class WorkflowService {
   public WorkflowRun submit(
       String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     LOGGER.debug("[{}] Workflow Submit Request Received.", workflowId);
     logPayload(request);
@@ -1784,6 +1970,7 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
     }
     WorkflowRevisionEntity wfRevision = optWorkflowRevisionEntity.get();
+    validateTaskRefsPresent(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());
@@ -1795,9 +1982,15 @@ public class WorkflowService {
     wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
     wfRunEntity.setWorkspaces(wfRevision.getWorkspaces());
-    if (!Objects.isNull(wfRevision.getTimeout()) && wfRevision.getTimeout() != 0) {
-      wfRunEntity.setTimeout(wfRevision.getTimeout());
-    }
+    // Every submit path reaches here, so this is where the run timeout is settled: defaulted when
+    // nobody declared one, floored at the revision's critical path of task budgets, then clamped
+    // by the owning workspace's run-duration quota.
+    wfRunEntity.setTimeout(
+        runTimeoutPolicy.resolve(
+            request.getTimeout(),
+            wfRevision.getTimeout(),
+            wfRevision.getTasks(),
+            maxWorkflowDuration(owningWorkspaceOrNull(workflowId))));
     if (!Objects.isNull(wfRevision.getRetries()) && wfRevision.getRetries() != 0) {
       wfRunEntity.setRetries(wfRevision.getRetries());
     }
@@ -1815,9 +2008,6 @@ public class WorkflowService {
     }
     if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
       wfRunEntity.getWorkspaces().addAll(request.getWorkspaces());
-    }
-    if (!Objects.isNull(request.getTimeout()) && request.getTimeout() != 0) {
-      wfRunEntity.setTimeout(request.getTimeout());
     }
     if (!Objects.isNull(request.getRetries()) && request.getRetries() != 0) {
       wfRunEntity.setRetries(request.getRetries());
@@ -1849,12 +2039,12 @@ public class WorkflowService {
    */
   public ResponseEntity<List<ChangeLogVersion>> changelog(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     final Optional<WorkflowEntity> optWfEntity = workflowRepository.findById(workflowId);
     if (optWfEntity.isPresent()) {
       List<WorkflowRevisionEntity> wfRevisionEntities =
-          workflowRevisionRepository.findByWorkflowRef(workflowId);
+          workflowRevisionRepository.findByWorkflowRefOrderByVersionAsc(workflowId);
       if (wfRevisionEntities.isEmpty()) {
         throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
       }
@@ -1877,12 +2067,12 @@ public class WorkflowService {
   /*
    * Tombstones the Workflow: a single status change to deleted, never a cascade. Submit already
    * rejects a non-active Workflow, so new runs stop immediately; the watcher winds down in-flight
-   * runs of a deleted Workflow, and a retention sweep prunes once runs finalise. Nothing is
+   * runs of a deleted Workflow, and the prune sweep hard-deletes once runs finalise. Nothing is
    * destroyed here, so running work is never orphaned.
    */
   public void delete(String workflowId) {
     if (workflowId == null || workflowId.isBlank()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
     if (!workflowRepository.existsById(workflowId)) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);

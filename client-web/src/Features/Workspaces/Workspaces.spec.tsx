@@ -1,17 +1,24 @@
 import React from "react";
 import Workspaces, { action, loader } from "Features/Workspaces/Workspaces";
 import { Route } from "react-router-dom";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { AppPath, appLink } from "Config/appConfig";
 import { renderWithContext } from "Utils/testing/render";
+
+// setupTests.tsx freezes the wall clock via `vi.setSystemTime` (no fake timers), and lodash's
+// debounce decides whether to invoke by comparing `Date.now()` deltas - with time frozen its
+// trailing-edge timer re-schedules forever and the callback never runs. Neutralise the debounce
+// (invoke immediately) so the typed-search test below can exercise the real
+// change -> navigate -> loader -> API chain.
+vi.mock("lodash/debounce", () => ({ default: (fn: (...args: unknown[]) => void) => fn }));
 
 // Route-module test pattern (see GlobalParameters.spec.tsx): attach loader/action to the <Route>
 // the same way AppRoutes.tsx does via app/routes/workspaceList.tsx, so renderWithContext
 // actually exercises them instead of leaving useLoaderData() undefined.
-function renderWorkspaces() {
+function renderWorkspaces(route: string = appLink.workspaceList()) {
   return renderWithContext(
     <Route path={AppPath.WorkspaceList} loader={loader} action={action} element={<Workspaces />} />,
-    { route: appLink.workspaceList() },
+    { route },
   );
 }
 
@@ -20,6 +27,29 @@ describe("Workspaces --- Snapshot Test", () => {
     const { baseElement } = renderWorkspaces();
     await screen.findByText("Tyson Workspace");
     expect(baseElement).toMatchSnapshot();
+  });
+});
+
+// Regression for #386: the search box's debounced `query` URL param must reach the API as
+// `search=` (the loader forwards it; the MSW /workspace/query handler mirrors the backend's
+// anchored, case-insensitive prefix match on name/displayName).
+describe("Workspaces --- search sends its term (#386)", () => {
+  test("a direct load of ?query= filters the list server-side and seeds the search box", async () => {
+    renderWorkspaces(`${appLink.workspaceList()}?query=system`);
+    expect(await screen.findByText("System and Administration")).toBeInTheDocument();
+    expect(screen.queryByText("Tyson Workspace")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search workspaces")).toHaveValue("system");
+  });
+
+  test("typing in the search box filters the list server-side", async () => {
+    renderWorkspaces();
+    await screen.findByText("Tyson Workspace");
+    fireEvent.change(screen.getByPlaceholderText("Search workspaces"), { target: { value: "system" } });
+    // The (neutralised, see the lodash/debounce mock above) search change navigates to
+    // ?query=system, which re-runs the loader with search= - the unfiltered list shows every
+    // workspace, so the meaningful signal is the non-matching rows disappearing.
+    await waitFor(() => expect(screen.queryByText("Tyson Workspace")).not.toBeInTheDocument());
+    expect(screen.getByText("System and Administration")).toBeInTheDocument();
   });
 });
 

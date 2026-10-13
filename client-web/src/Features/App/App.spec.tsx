@@ -75,3 +75,51 @@ describe("App --- root loader concurrency", () => {
     expect(trace.events.indexOf("profile:end")).toBeLessThan(trace.events.indexOf("context:start"));
   });
 });
+
+// GET /auth/config is the sign-in surface's own read; a deployment whose flags say it has none
+// (engine mode, or security off) is never asked for it.
+describe("App --- root loader sign-in config", () => {
+  function serve(features: Record<string, boolean>, profileStatus = 200) {
+    const trace = createRequestTrace();
+    server.use(
+      http.get(serviceUrl.getUserProfile(), () =>
+        profileStatus === 200 ? Response.json({ id: "user-1" }) : new Response(null, { status: profileStatus }),
+      ),
+      http.get(serviceUrl.getFeatureFlags(), () =>
+        profileStatus === 200 ? Response.json({ features }) : new Response(null, { status: profileStatus }),
+      ),
+      http.get(serviceUrl.template.getWorkflowTemplates(), () => Response.json({ content: [] })),
+      http.get(serviceUrl.getContext(), () => Response.json({})),
+      http.get(serviceUrl.getNavigation({ query: "" }), () => Response.json([])),
+      http.get(serviceUrl.getAuthConfig(), trace.resolver("authConfig", { mode: "oidc" })),
+    );
+    return trace;
+  }
+
+  test("skips the sign-in config when the flags say there is no sign-in surface", async () => {
+    const trace = serve({ authentication: false });
+
+    const data = await loader({ request: new Request("http://localhost/home") });
+
+    expect(trace.events).not.toContain("authConfig:start");
+    expect(data.authConfig).toBeNull();
+  });
+
+  test("reads the sign-in config when the flags allow sign-in", async () => {
+    const trace = serve({ authentication: true });
+
+    const data = await loader({ request: new Request("http://localhost/home") });
+
+    expect(trace.events).toContain("authConfig:start");
+    expect(data.authConfig).toEqual({ mode: "oidc" });
+  });
+
+  test("reads the sign-in config for a signed-out caller, whose flags read is refused", async () => {
+    const trace = serve({}, 401);
+
+    const data = await loader({ request: new Request("http://localhost/home") });
+
+    expect(trace.events).toContain("authConfig:start");
+    expect(data.authConfig).toEqual({ mode: "oidc" });
+  });
+});

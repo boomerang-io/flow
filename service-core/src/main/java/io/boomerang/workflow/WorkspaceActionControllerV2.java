@@ -214,6 +214,12 @@ public class WorkspaceActionControllerV2 {
           @RequestParam(required = false)
           Optional<List<String>> workflows,
       @Parameter(
+              name = "statuses",
+              description = "Statuses to count. Defaults to submitted (waiting).",
+              required = false)
+          @RequestParam(required = false)
+          Optional<List<ActionStatus>> statuses,
+      @Parameter(
               name = "fromDate",
               description = "The unix timestamp / date to search from in milliseconds since epoch",
               example = "1677589200000",
@@ -235,6 +241,6 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return actionService.summary(workspace, from, to, workflows);
+    return actionService.summary(workspace, from, to, workflows, statuses);
   }
 }

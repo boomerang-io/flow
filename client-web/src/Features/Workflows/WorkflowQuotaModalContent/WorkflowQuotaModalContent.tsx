@@ -4,7 +4,6 @@ import moment from "moment";
 import ProgressBar from "Components/ProgressBar";
 import { FlowWorkspaceQuotas } from "Types";
 import styles from "./WorkflowQuotaModalContent.module.scss";
-import { c } from "vitest/dist/reporters-5f784f42";
 
 export default function WorkflowQuotaModalContent({
   closeModal,

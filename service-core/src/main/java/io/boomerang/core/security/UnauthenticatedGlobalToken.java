@@ -20,8 +20,8 @@ import java.util.List;
  * never loads - so {@link io.boomerang.core.security.IdentityService#getCurrentIdentity()} returned
  * {@code null} and every caller invented its own meaning for "nobody is here". They disagreed:
  * {@code RelationshipService.check()} allowed unscoped, {@code filter()} anchored at {@code ROOT},
- * {@code ActionService} bypassed approver-group membership, and {@code AuditInterceptor}
- * threw inside {@code new AuditActor(token)} - so <b>no audit record was ever written at all</b>
+ * {@code ActionService} bypassed approver-group membership, and the audit
+ * layer threw on the null token - so <b>no audit record was ever written at all</b>
  * with security off.
  *
  * <p>This follows Spring Security's own rationale for {@code AnonymousAuthenticationToken}:
@@ -31,7 +31,7 @@ import java.util.List;
  * callers. Engine mode is a machine caller with no user; this token is exactly that caller.
  *
  * <p><b>Shape.</b> A plain {@link Token} subclass, not a parallel type hierarchy - every existing
- * consumer ({@code check}/{@code filter}/{@code AuditActor}/{@code resolveGrantCeiling}) keeps
+ * consumer ({@code check}/{@code filter}/audit actor resolution/{@code resolveGrantCeiling}) keeps
  * working through the {@link Token} API it already uses. The values are chosen to reproduce the
  * previous no-principal behaviour exactly rather than to widen or narrow it:
  *
@@ -50,7 +50,7 @@ import java.util.List;
  * </ul>
  *
  * <p><b>This token is never persisted and never minted for a caller.</b> It has no {@code id}, so
- * {@code AuditActor.tokenRef} stays null and {@code AuthExchangeService.logout()} cannot try to
+ * audit events cite no token and {@code AuthExchangeService.logout()} cannot try to
  * revoke it. It is constructed per request by {@link UnauthenticatedGlobalAuthenticationFilter} and
  * only ever installed when security is disabled - when security is enabled this class is never
  * instantiated and {@code AuthenticationFilter}'s real-token path is untouched.

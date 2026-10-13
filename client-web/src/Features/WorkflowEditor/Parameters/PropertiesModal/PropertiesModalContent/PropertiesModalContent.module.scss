@@ -1,6 +1,56 @@
+// Fields on the left; on the right, the field a person sees when a run starts.
 .container {
-    padding-bottom: 4rem !important;
-    :global .cds--label {
-        margin-bottom: 0.5rem !important;
-    }
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  padding-bottom: 2rem !important;
+
+  :global .cds--label {
+    margin-bottom: 0.5rem !important;
+  }
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.name {
+  font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
+  font-size: 0.875rem;
+  margin: 0.25rem 0;
+}
+
+.preview {
+  align-self: start;
+  background: var(--cds-layer-accent);
+  padding: 1rem;
+}
+
+.previewTitle {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  letter-spacing: 0.32px;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+}
+
+.previewField {
+  background: var(--cds-layer);
+  padding: 1rem;
+}
+
+.previewNote {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-top: 0.75rem;
 }

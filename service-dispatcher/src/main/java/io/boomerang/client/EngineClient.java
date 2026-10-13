@@ -1,6 +1,8 @@
 package io.boomerang.client;
 
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.dispatcher.QueueService;
+import io.boomerang.dispatcher.TaskSlots;
 import io.boomerang.common.model.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -14,6 +16,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -22,7 +25,15 @@ public class EngineClient {
 
   private static final Logger LOGGER = LogManager.getLogger(EngineClient.class);
 
-  private static final long HEARTBEAT_INTERVAL = 5000L; // 5 seconds
+  // Delay between one queue poll returning and the next starting. The engine holds an empty poll
+  // open for up to 30 s, so reconnecting at once costs nothing while idle and leaves no gap in
+  // which newly ready work waits for this dispatcher. (@Scheduled needs a positive delay.)
+  private static final long RECONNECT_DELAY_MS = 1L;
+
+  // An empty or failed poll starts the next one no sooner than this after it started, so an
+  // engine that answers at once - claiming switched off, no task types, unreachable - is asked
+  // every 5 s rather than in a tight loop.
+  static final long MIN_IDLE_POLL_SPACING_MS = 5000L;
 
   private String dispatcherHost;
 
@@ -31,8 +42,8 @@ public class EngineClient {
   @Value("${flow.engine.workflowrun.start.url}")
   private String startWorkflowRunURL;
 
-  @Value("${flow.engine.workflowrun.finalize.url}")
-  private String finalizeWorkflowRunURL;
+  @Value("${flow.engine.workspace.releasable.url}")
+  private String releasableWorkspacesURL;
 
   @Value("${flow.engine.taskrun.start.url}")
   private String startTaskRunURL;
@@ -64,6 +75,8 @@ public class EngineClient {
 
   @Autowired public QueueService queueService;
 
+  @Autowired public TaskSlots taskSlots;
+
   public void startWorkflow(String wfRunId) {
     try {
       String url = startWorkflowRunURL.replace("{workflowRunId}", wfRunId);
@@ -79,33 +92,54 @@ public class EngineClient {
     }
   }
 
-  public void finalizeWorkflow(String wfRunId) {
+  /**
+   * Ask the engine which of the workspace volumes this dispatcher holds may be released: a
+   * workflowRunRef comes back once its run is completed or gone, a workflowRef once its workflow is
+   * deleted or gone. A failure is not fatal - the volumes stay held and the next tick asks again.
+   */
+  public WorkspaceReleaseResponse releasableWorkspaces(WorkspaceReleaseQuery query) {
     try {
-      String url = finalizeWorkflowRunURL.replace("{workflowRunId}", wfRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
-
-      LOGGER.info(response.getStatusCode());
-    } catch (RestClientException ex) {
-      LOGGER.error(ex.toString());
+      HttpEntity<WorkspaceReleaseQuery> entity = new HttpEntity<>(query, headers);
+      ResponseEntity<WorkspaceReleaseResponse> response =
+          restTemplate.exchange(
+              releasableWorkspacesURL, HttpMethod.POST, entity, WorkspaceReleaseResponse.class);
+      return (response.getBody() != null ? response.getBody() : new WorkspaceReleaseResponse());
+    } catch (Exception e) {
+      LOGGER.warn("Error retrieving releasable workspaces: {}", e.getMessage());
+      return new WorkspaceReleaseResponse();
     }
   }
 
-  public void startTask(String taskRunId) {
+  // Start and end carry this dispatcher's registered id so the engine can fence a request from a
+  // dispatcher whose claim has since been superseded (claim.by no longer matches).
+  /**
+   * Tell the engine the TaskRun is starting, and return whether to go ahead and create it. Not when
+   * the engine answers that it is already finished - cancelled while it was being handed over - or
+   * refuses the request, as it does a superseded claim. When the engine cannot be reached the
+   * TaskRun still goes ahead, as it always has: its end is fenced on the claim either way.
+   */
+  public boolean startTask(String taskRunId) {
     try {
       String url = startTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      HttpEntity<String> entity = new HttpEntity<String>("{}", headers);
-      ResponseEntity<Void> response =
-          restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
+      TaskRunStartRequest startRequest = new TaskRunStartRequest();
+      startRequest.setDispatcherRef(dispatcherId);
+      HttpEntity<TaskRunStartRequest> entity = new HttpEntity<>(startRequest, headers);
+      ResponseEntity<TaskRun> response =
+          restTemplate.exchange(url, HttpMethod.PUT, entity, TaskRun.class);
 
       LOGGER.info(response.getStatusCode());
+      return response.getBody() == null
+          || !RunPhase.completed.equals(response.getBody().getPhase());
+    } catch (HttpClientErrorException ex) {
+      LOGGER.warn("Engine refused to start TaskRun ({}): {}", taskRunId, ex.getMessage());
+      return false;
     } catch (RestClientException ex) {
       LOGGER.error(ex.toString());
+      return true;
     }
   }
 
@@ -114,6 +148,7 @@ public class EngineClient {
       String url = endTaskRunURL.replace("{taskRunId}", taskRunId);
       final HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
+      endRequest.setDispatcherRef(dispatcherId);
       HttpEntity<TaskRunEndRequest> entity = new HttpEntity<TaskRunEndRequest>(endRequest, headers);
       ResponseEntity<Void> response =
           restTemplate.exchange(url, HttpMethod.PUT, entity, Void.class);
@@ -176,32 +211,34 @@ public class EngineClient {
     }
   }
 
-  @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
+  @Scheduled(fixedDelay = RECONNECT_DELAY_MS)
   public void retrieveDispatcherWorkflowQueue() {
-    String url = dispatcherQueueWorkflowURL.replace("{dispatcherId}", dispatcherId);
-    retrieveDispatcherQueue(url, true);
+    retrieveDispatcherQueue(dispatcherQueueWorkflowURL, true);
   }
 
-  @Scheduled(fixedDelay = HEARTBEAT_INTERVAL)
+  @Scheduled(fixedDelay = RECONNECT_DELAY_MS)
   public void retrieveDispatcherTaskQueue() {
-    String url = dispatcherQueueTaskURL.replace("{dispatcherId}", dispatcherId);
-    retrieveDispatcherQueue(url, false);
+    Integer free = taskSlots.free();
+    retrieveDispatcherQueue(
+        (free == null) ? dispatcherQueueTaskURL : dispatcherQueueTaskURL + "?limit=" + free, false);
   }
 
   /**
-   * Implements a heartbeat style queue check
+   * Long-poll one queue. The engine holds the request open until it has claimed runs for this
+   * dispatcher (200) or its window passes with nothing to hand out (204).
    *
-   * <p>200 means there are workflow runs available
-   *
-   * <p>204 means there are no workflow runs available
+   * <p>A poll that brought runs returns at once so the next one starts straight away; an empty or
+   * failed poll first waits out the rest of {@link #MIN_IDLE_POLL_SPACING_MS} from its start.
    *
    * <p>TODO in the future optimise the Async to have a LinkedBlockingQueue with maximum size of
    * what it can achieve
    */
-  private void retrieveDispatcherQueue(String url, boolean isWorkflow) {
+  private void retrieveDispatcherQueue(String queueURL, boolean isWorkflow) {
+    long startedMillis = System.currentTimeMillis();
     LOGGER.info(
         "Retrieving {}Runs Queue for Dispatcher ({})", isWorkflow ? "Workflow" : "Task", dispatcherId);
     try {
+      String url = queueURL.replace("{dispatcherId}", dispatcherId);
       ResponseEntity<?> response =
           restTemplate.exchange(
               url,
@@ -221,14 +258,30 @@ public class EngineClient {
               if (isWorkflow) {
                 queueService.processWorkflowRun((WorkflowRun) run);
               } else {
+                // Taken here, before the hand-off, so the next poll - which starts at once - already
+                // counts it; QueueService gives it back when the executor work ends.
+                if (TaskSlots.isExecutionClaim((TaskRun) run)) {
+                  taskSlots.take();
+                }
                 queueService.processTaskRun((TaskRun) run);
               }
             });
+        if (!runs.isEmpty()) {
+          return;
+        }
       } else if (response.getStatusCode().isSameCodeAs(HttpStatusCode.valueOf(204))) {
         LOGGER.debug("Queue returned 204 - No content.");
       }
     } catch (Exception e) {
       LOGGER.warn("Error retrieving queue: {}", e.getMessage());
+    }
+    long waitMillis = startedMillis + MIN_IDLE_POLL_SPACING_MS - System.currentTimeMillis();
+    if (waitMillis > 0) {
+      try {
+        Thread.sleep(waitMillis);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
     }
   }
 }

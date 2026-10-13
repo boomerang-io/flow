@@ -2,6 +2,7 @@ package io.boomerang.dispatcher;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,7 +52,8 @@ class DispatcherRouteCollisionTest {
     taskRunService = mock(TaskRunService.class);
     when(dispatcherService.getWorkflowQueue(any()))
         .thenReturn(ResponseEntity.ok(List.<WorkflowRun>of()));
-    when(dispatcherService.getTaskQueue(any())).thenReturn(ResponseEntity.ok(List.<TaskRun>of()));
+    when(dispatcherService.getTaskQueue(any(), any(), any(), any(), any()))
+        .thenReturn(ResponseEntity.ok(List.<TaskRun>of()));
     when(workflowRunService.start(any(), any())).thenReturn(new WorkflowRun());
     when(taskRunService.start(any(), any())).thenReturn(ResponseEntity.ok(new TaskRun()));
     mockMvc =
@@ -66,7 +68,8 @@ class DispatcherRouteCollisionTest {
     verify(dispatcherService).getWorkflowQueue(eq("workflowrun"));
 
     mockMvc.perform(get("/api/v1/dispatcher/workflowrun/tasks")).andExpect(status().isOk());
-    verify(dispatcherService).getTaskQueue(eq("workflowrun"));
+    verify(dispatcherService)
+        .getTaskQueue(eq("workflowrun"), isNull(), isNull(), isNull(), isNull());
 
     verify(workflowRunService, never()).start(any(), any());
     verify(taskRunService, never()).start(any(), any());
@@ -75,7 +78,7 @@ class DispatcherRouteCollisionTest {
   @Test
   void dispatcherIdOfTaskrunStillRoutesToTheQueueEndpoints() throws Exception {
     mockMvc.perform(get("/api/v1/dispatcher/taskrun/tasks")).andExpect(status().isOk());
-    verify(dispatcherService).getTaskQueue(eq("taskrun"));
+    verify(dispatcherService).getTaskQueue(eq("taskrun"), isNull(), isNull(), isNull(), isNull());
 
     mockMvc.perform(get("/api/v1/dispatcher/taskrun/workflows")).andExpect(status().isOk());
     verify(dispatcherService).getWorkflowQueue(eq("taskrun"));
@@ -103,6 +106,6 @@ class DispatcherRouteCollisionTest {
     verify(taskRunService).start(eq("run-2"), any());
 
     verify(dispatcherService, never()).getWorkflowQueue(any());
-    verify(dispatcherService, never()).getTaskQueue(any());
+    verify(dispatcherService, never()).getTaskQueue(any(), any(), any(), any(), any());
   }
 }

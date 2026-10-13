@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.boomerang.common.model.WorkflowRunResponsePage;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
@@ -17,6 +18,8 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +54,7 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   private static final String SIBLING_WORKSPACE = "wfrun-query-sibling-ws";
   // This one the member cannot reach at all.
   private static final String FOREIGN_WORKSPACE = "wfrun-query-foreign-ws";
+  private static final String EMPTY_WORKSPACE = "wfrun-query-empty-ws";
 
   private static final String MY_WORKFLOW = "wfrun-query-my-wf";
   private static final String SIBLING_WORKFLOW = "wfrun-query-sibling-wf";
@@ -66,13 +70,22 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedThreeWorkspacesAndAMemberIdentity() {
-    seedRelationshipRoot();
     relationshipService.createNode(RelationshipType.USER, MEMBER, MEMBER, Optional.empty());
-    for (String workspace : List.of(MY_WORKSPACE, SIBLING_WORKSPACE, FOREIGN_WORKSPACE)) {
-      relationshipService.createNode(
-          RelationshipType.WORKSPACE, workspace, workspace, Optional.empty());
+    // Wired as WorkspaceService.create wires a real workspace (root CONTAINS workspace), so the
+    // workspace-level reachability check the query now performs sees the same graph production does.
+    for (String workspace :
+        List.of(MY_WORKSPACE, SIBLING_WORKSPACE, FOREIGN_WORKSPACE, EMPTY_WORKSPACE)) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.ROOT,
+          "root",
+          RelationshipLabel.CONTAINS,
+          RelationshipType.WORKSPACE,
+          workspace,
+          workspace,
+          Optional.empty(),
+          Optional.empty());
     }
-    for (String workspace : List.of(MY_WORKSPACE, SIBLING_WORKSPACE)) {
+    for (String workspace : List.of(MY_WORKSPACE, SIBLING_WORKSPACE, EMPTY_WORKSPACE)) {
       relationshipService.createEdge(
           RelationshipType.USER,
           MEMBER,
@@ -88,6 +101,16 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
 
     Token principal = new Token(AuthScope.session);
     principal.setPrincipal(MEMBER);
+    // A real member session carries a workspace-scoped grant per membership (resolved by
+    // TokenService); check() consults it before the graph walk, filter() does not. Without it the
+    // workspace-level reachability test the query now performs would deny every workspace.
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, MY_WORKSPACE, List.of("**/read")),
+            new ResolvedPermissions(
+                PermissionScope.workspace, SIBLING_WORKSPACE, List.of("**/read")),
+            new ResolvedPermissions(
+                PermissionScope.workspace, EMPTY_WORKSPACE, List.of("**/read"))));
     UsernamePasswordAuthenticationToken authentication =
         new UsernamePasswordAuthenticationToken(MEMBER, null);
     authentication.setDetails(principal);
@@ -109,6 +132,24 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         List.of(MY_WORKFLOW),
         page.getContent().stream().map(WorkflowRun::getWorkflowRef).distinct().toList(),
         "every returned run must belong to a Workflow of the named workspace");
+  }
+
+  @Test
+  void runIdFilterNarrowsWithinTheWorkspaceAndCannotReachAForeignRun() {
+    // A second run of the workspace's own workflow, so the id filter has something to exclude.
+    String otherMyRunId =
+        savedWorkflowRun(MY_WORKFLOW, RunStatus.running, RunPhase.running).getId();
+
+    List<String> ids =
+        queryWorkspace(MY_WORKSPACE, Optional.of(List.of(myRunId))).getContent().stream()
+            .map(WorkflowRun::getId)
+            .toList();
+    assertEquals(List.of(myRunId), ids, "workflowruns= must narrow the page to the named ids");
+    assertFalse(ids.contains(otherMyRunId));
+
+    assertTrue(
+        queryWorkspace(MY_WORKSPACE, Optional.of(List.of(foreignRunId))).getContent().isEmpty(),
+        "naming a run outside the workspace must return nothing, not the run");
   }
 
   @Test
@@ -140,14 +181,16 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void anUnreachableWorkspaceThrowsFromQueryAndAnswersZeroFromInsightAndCount() {
-    // The caller has no path to FOREIGN_WORKSPACE, so the Workflow filter resolves to no refs.
+  void anUnreachableWorkspaceIs404FromQueryAndAnswersZeroFromInsightAndCount() {
+    // The caller has no path to FOREIGN_WORKSPACE. That is an unresolvable workspace reference,
+    // so query answers the same 404 the rest of the product uses for one (TEAM_INVALID_REF) -
+    // not a run reference error, since no run was named.
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
             () -> queryWorkspace(FOREIGN_WORKSPACE),
-            "query must refuse when the caller can reach no Workflow in the named workspace");
-    assertEquals("WORKFLOWRUN_INVALID_REFERENCE", ex.getReason());
+            "query must refuse a workspace the caller cannot reach");
+    assertEquals(BoomerangError.TEAM_INVALID_REF.getReason(), ex.getReason());
 
     // insight and count deliberately do NOT throw on the same input - they answer zero. The
     // asymmetry predates F3, which put all three on one helper where it is easy to "tidy away".
@@ -178,7 +221,44 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         "count answers zero for an unreachable workspace rather than throwing");
   }
 
+  @Test
+  void aReachableWorkspaceWithNoWorkflowsAnswersAnEmptyPageNotAnError() {
+    // EMPTY_WORKSPACE is a member workspace with nothing in it - a new workspace, or one whose
+    // workflows were all deleted. It exists; it simply has nothing to list.
+    WorkflowRunResponsePage page = queryWorkspace(EMPTY_WORKSPACE);
+    assertEquals(0, page.getTotalElements());
+    assertTrue(page.getContent().isEmpty());
+  }
+
+  @Test
+  void aWorkflowsFilterMatchingNothingAnswersAnEmptyPageNotAnError() {
+    // The workspace is reachable and has workflows; the filter names one it does not have. A
+    // filter that matches nothing is an empty result, exactly as any other list filter behaves.
+    WorkflowRunResponsePage page =
+        workflowRunService.query(
+            MY_WORKSPACE,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(10),
+            Optional.of(0),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(List.of("no-such-workflow")),
+            Optional.empty());
+    assertEquals(0, page.getTotalElements());
+    assertTrue(page.getContent().isEmpty());
+    assertEquals(10, page.getPageable().getPageSize(), "the requested page shape is preserved");
+  }
+
   private WorkflowRunResponsePage queryWorkspace(String workspace) {
+    return queryWorkspace(workspace, Optional.empty());
+  }
+
+  private WorkflowRunResponsePage queryWorkspace(
+      String workspace, Optional<List<String>> workflowRuns) {
     return workflowRunService.query(
         workspace,
         Optional.empty(),
@@ -189,7 +269,7 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         Optional.empty(),
         Optional.empty(),
         Optional.empty(),
-        Optional.empty(),
+        workflowRuns,
         Optional.empty(),
         Optional.empty());
   }

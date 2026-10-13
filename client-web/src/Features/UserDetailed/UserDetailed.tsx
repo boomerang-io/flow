@@ -126,7 +126,7 @@ function WorkspaceDetailedContainer() {
 
   return (
     <div className={styles.container}>
-      <Header user={userDetails} userManagementEnabled={userManagementEnabled} />
+      <Header user={userDetails} userManagementEnabled={userManagementEnabled} workspaceCount={workspaces.length} />
       <Routes>
         <Route path="" element={<Workspaces user={userDetails} workspaces={workspaces} />} />
         <Route path="labels" element={<Labels user={userDetails} userManagementEnabled={userManagementEnabled} />} />
