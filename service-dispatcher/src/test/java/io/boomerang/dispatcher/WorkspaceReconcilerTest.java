@@ -11,9 +11,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.boomerang.client.EngineClient;
-import io.boomerang.common.model.WorkspaceReleaseQuery;
-import io.boomerang.common.model.WorkspaceReleaseResponse;
+import io.boomerang.dispatcher.sdk.DispatcherClient;
+import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseQuery;
+import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseResponse;
 import io.boomerang.kube.KubeService;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
@@ -32,10 +32,10 @@ class WorkspaceReconcilerTest {
 
   private final KubeService kubeService = mock(KubeService.class);
   private final WorkspaceService workspaceService = mock(WorkspaceService.class);
-  private final EngineClient engineClient = mock(EngineClient.class);
+  private final DispatcherClient dispatcherClient = mock(DispatcherClient.class);
 
   private final WorkspaceReconciler reconciler =
-      new WorkspaceReconciler(kubeService, workspaceService, engineClient);
+      new WorkspaceReconciler(kubeService, workspaceService, dispatcherClient);
 
   private static PersistentVolumeClaim claim(String workspaceRef, String workspaceType) {
     return new PersistentVolumeClaimBuilder()
@@ -65,13 +65,13 @@ class WorkspaceReconcilerTest {
     }
     claims.add(claim("wf-1", "workflow"));
     when(kubeService.listWorkspacePVCs()).thenReturn(claims);
-    when(engineClient.releasableWorkspaces(any())).thenReturn(new WorkspaceReleaseResponse());
+    when(dispatcherClient.releasable(any())).thenReturn(new WorkspaceReleaseResponse());
 
     reconciler.reconcile();
 
     ArgumentCaptor<WorkspaceReleaseQuery> captor =
         ArgumentCaptor.forClass(WorkspaceReleaseQuery.class);
-    verify(engineClient, times(2)).releasableWorkspaces(captor.capture());
+    verify(dispatcherClient, times(2)).releasable(captor.capture());
     WorkspaceReleaseQuery first = captor.getAllValues().get(0);
     WorkspaceReleaseQuery second = captor.getAllValues().get(1);
     assertEquals(500, first.getWorkflowRunRefs().size(), "first page caps at 500 run refs");
@@ -90,7 +90,7 @@ class WorkspaceReconcilerTest {
                 claim("run-1", "workflowrun"),
                 claim("run-2", "workflowrun"),
                 claim("wf-1", "workflow")));
-    when(engineClient.releasableWorkspaces(any()))
+    when(dispatcherClient.releasable(any()))
         .thenReturn(response(List.of("run-2"), List.of("wf-1")));
 
     reconciler.reconcile();
@@ -108,14 +108,14 @@ class WorkspaceReconcilerTest {
 
     reconciler.reconcile();
 
-    verify(engineClient, never()).releasableWorkspaces(any());
+    verify(dispatcherClient, never()).releasable(any());
     verify(workspaceService, never()).delete(anyString(), anyString());
   }
 
   @Test
   void anEngineFailureLeavesEveryClaimHeld() {
     when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
-    when(engineClient.releasableWorkspaces(any())).thenThrow(new RuntimeException("engine down"));
+    when(dispatcherClient.releasable(any())).thenThrow(new RuntimeException("engine down"));
 
     assertDoesNotThrow(reconciler::reconcile);
 
@@ -125,7 +125,7 @@ class WorkspaceReconcilerTest {
   @Test
   void anEmptyAnswerLeavesEveryClaimHeld() {
     when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
-    when(engineClient.releasableWorkspaces(any())).thenReturn(new WorkspaceReleaseResponse());
+    when(dispatcherClient.releasable(any())).thenReturn(new WorkspaceReleaseResponse());
 
     reconciler.reconcile();
 
@@ -136,7 +136,7 @@ class WorkspaceReconcilerTest {
   void oneClaimThatWillNotDeleteDoesNotAbortTheTick() {
     when(kubeService.listWorkspacePVCs())
         .thenReturn(List.of(claim("run-1", "workflowrun"), claim("run-2", "workflowrun")));
-    when(engineClient.releasableWorkspaces(any()))
+    when(dispatcherClient.releasable(any()))
         .thenReturn(response(List.of("run-1", "run-2"), List.of()));
     when(workspaceService.delete("workflowrun", "run-1"))
         .thenThrow(new RuntimeException("api server said no"));

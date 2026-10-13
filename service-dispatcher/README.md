@@ -1,7 +1,10 @@
 # Boomerang Dispatcher Service (Kubernetes)
 
-This service acts as a mechanism to execute tasks in a secure and highly performant way and connects to the Engine
-service to register and request a queue using a long poll mechanism.
+This service acts as a mechanism to execute tasks in a secure and highly performant way. It is built on
+[`dispatcher-sdk`](../dispatcher-sdk), which registers with the engine, long-polls its queues, starts each task,
+renews leases and reports how each ended; this service supplies the Kubernetes work as the SDK's `TaskHandler`
+(`io.boomerang.dispatcher.TaskService`) and `WorkflowHandler` (`io.boomerang.dispatcher.WorkflowService`). It calls
+the engine at `flow.engine.url`, `http://${flow.engine.service.host}` by default.
 
 It executes template, script, custom and ai tasks in a Kubernetes cluster using the
 [Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind

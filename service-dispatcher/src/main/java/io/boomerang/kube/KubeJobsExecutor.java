@@ -1,13 +1,12 @@
 package io.boomerang.kube;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.boomerang.dispatcher.LeaseRegistry;
 import io.boomerang.dispatcher.WorkspaceService;
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.RunResult;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
-import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -142,13 +141,10 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Value("${dispatcher.tasks.runtimeClassName}")
   private String kubeWorkerRuntimeClassName;
 
-  private final LeaseRegistry leaseRegistry;
-
   private KubernetesClient client;
 
-  public KubeJobsExecutor(KubernetesClient client, LeaseRegistry leaseRegistry) {
+  public KubeJobsExecutor(KubernetesClient client) {
     this.client = client;
-    this.leaseRegistry = leaseRegistry;
   }
 
   // Tests swap in the mock-server client after the context is up.
@@ -408,14 +404,12 @@ public class KubeJobsExecutor implements TaskExecutor {
     Watch watch = client.batch().v1().jobs().withLabels(taskLabels).watch(jobWatcher);
 
     try {
-      leaseRegistry.beat(task.getId());
       // A backstop only, for the case where the Job's own deadline never reaches this watch. The
       // engine owns the deadline and reaps at the task budget plus a few seconds, so it always
       // acts first; this grace exists to release the thread and report, not to wait for
       // scheduling. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
       Instant deadline = Instant.now().plus(Duration.ofMinutes(timeoutMinutes + watchGraceMinutes));
       while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
-        leaseRegistry.beat(task.getId());
         if (Instant.now().isAfter(deadline)) {
           throw new TaskExecutionException(
               "DeadlineExceeded", "JobTimeout - Job timed out while waiting for completion.");
@@ -469,7 +463,6 @@ public class KubeJobsExecutor implements TaskExecutor {
       throw e;
     } finally {
       watch.close();
-      leaseRegistry.remove(task.getId());
       deleteConfigMaps(taskLabels);
     }
   }

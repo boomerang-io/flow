@@ -1,6 +1,6 @@
 package io.boomerang.error;
 
-import io.boomerang.common.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.RunResult;
 import java.util.List;
 
 /**

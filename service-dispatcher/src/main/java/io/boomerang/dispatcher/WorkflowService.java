@@ -2,8 +2,9 @@ package io.boomerang.dispatcher;
 
 import io.boomerang.dispatcher.model.Response;
 import io.boomerang.dispatcher.model.WorkspaceRequest;
-import io.boomerang.common.enums.StorageType;
-import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.dispatcher.sdk.WorkflowHandler;
+import io.boomerang.dispatcher.sdk.model.WorkflowRun;
+import io.boomerang.kube.StorageType;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.kube.KubeService;
 import io.boomerang.kube.exception.KubeRuntimeException;
@@ -13,8 +14,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+/**
+ * The workflow-queue handler: provisions the workspace volumes a claimed workflow run declares. The
+ * SDK starts the run with the engine once this returns, and reports nothing when it throws.
+ */
 @Service
-public class WorkflowService {
+public class WorkflowService implements WorkflowHandler {
 
   private static final Logger LOGGER = LogManager.getLogger(WorkflowService.class);
 
@@ -27,12 +32,15 @@ public class WorkflowService {
     this.workspaceService = workspaceService;
   }
 
+  @Override
+  public void provision(WorkflowRun workflow) {
+    execute(workflow);
+  }
+
   /*
    * Creates the resources need for a Workflow. At this point in time the resources consist of
-   * Workspace PVC's of type workflow or workflowRun. It will check if they are created prior.
-   *
-   * It will move the workflow from Status: Ready, Phase: Pending to Status: Running, Phase: Running
-   * and return the information to the Engine.
+   * Workspace PVC's of type workflow or workflowRun. It will check if they are created prior;
+   * one that exists already is kept, so a run handed out again provisions nothing twice.
    */
   public Response execute(WorkflowRun workflow) {
     Response response =

@@ -7,8 +7,9 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 | Module | What it is |
 | --- | --- |
 | `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
-| `service-dispatcher` | The execution worker. Polls `/api/v1/dispatcher`, claims task runs, heartbeats their leases, runs them through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs). |
-| `lib-common` | Shared model, entities, enums, error handling. |
+| `dispatcher-sdk` | The dispatcher protocol as a library (`io.boomerang:dispatcher-sdk`, the only artifact published, to GitHub Packages): client, polling, start/heartbeat/end runtime, `TaskHandler` interface. Depends on spring-web and Jackson only, never on `lib-common`; owns its wire models, checked against `contracts/dispatcher-v1.yaml`. |
+| `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`. Its `TaskHandler` runs each task through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs); its `WorkflowHandler` provisions workspace volumes. |
+| `lib-common` | `service-core`'s model, entities, enums, error handling. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
 
 `main` is the release branch; `feat-v5` is the integration branch for the current major; work branches are
@@ -48,7 +49,8 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 | `execution-model.md` | Run states, claims and fencing, compare-and-set transitions, watcher sweeps, timeouts, retry, pause, outbox, schedules, what is deliberately not built. |
 | `data-model.md` | Collections, versioning pattern, typed fields vs labels vs annotations, indexes, the migration chain. |
 | `authorization.md` | Security switch, authentication paths, token kinds and scopes, permission checks, the relationship walk, security-off identity. |
-| `task-runtime.md` | Dispatcher protocol, executors, the parameter/result contract, sensitive values, isolation, task catalogue. |
+| `dispatcher-contract.md` | The engine–dispatcher protocol a dispatcher implements: routes (`contracts/dispatcher-v1.yaml`), polling and filters, claims, start and end, leases, compatibility policy. |
+| `task-runtime.md` | Flow's Kubernetes dispatcher, executors, the parameter/result contract, sensitive values, isolation, task catalogue. |
 | `api-contract.md` | URL and error shapes, pagination, public run models (status vs phase), YAML negotiation, webhooks/CloudEvents, labels. |
 | `performance.md` | Multi-instance behaviour, queue fairness and indexes, sweep cadences, HTTP timeouts, quotas, storage benchmarks, limits not yet built. |
 | `design-system.md` | Carbon v11 + Boomerang theme: tokens, typography, components, browser support. |

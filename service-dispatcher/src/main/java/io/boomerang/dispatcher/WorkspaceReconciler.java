@@ -1,10 +1,10 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.client.EngineClient;
-import io.boomerang.common.enums.StorageType;
-import io.boomerang.common.model.WorkspaceReleaseQuery;
-import io.boomerang.common.model.WorkspaceReleaseResponse;
+import io.boomerang.dispatcher.sdk.DispatcherClient;
+import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseQuery;
+import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseResponse;
 import io.boomerang.kube.KubeService;
+import io.boomerang.kube.StorageType;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -45,13 +45,15 @@ public class WorkspaceReconciler {
 
   private final WorkspaceService workspaceService;
 
-  private final EngineClient engineClient;
+  private final DispatcherClient dispatcherClient;
 
   public WorkspaceReconciler(
-      KubeService kubeService, WorkspaceService workspaceService, EngineClient engineClient) {
+      KubeService kubeService,
+      WorkspaceService workspaceService,
+      DispatcherClient dispatcherClient) {
     this.kubeService = kubeService;
     this.workspaceService = workspaceService;
-    this.engineClient = engineClient;
+    this.dispatcherClient = dispatcherClient;
   }
 
   // Kubernetes ownerReferences on the claim would add a second, cluster-side line of defence once
@@ -68,7 +70,7 @@ public class WorkspaceReconciler {
         WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
         query.setWorkflowRunRefs(page(workflowRunRefs, page));
         query.setWorkflowRefs(page(workflowRefs, page));
-        WorkspaceReleaseResponse response = engineClient.releasableWorkspaces(query);
+        WorkspaceReleaseResponse response = releasable(query);
         released += release(StorageType.workflowRun, response.getWorkflowRunRefs());
         released += release(StorageType.workflow, response.getWorkflowRefs());
       }
@@ -79,6 +81,19 @@ public class WorkspaceReconciler {
     } catch (Exception e) {
       // A tick is best effort - the claims stay held and the next tick asks again.
       LOGGER.warn("Workspace reconcile failed: {}", e.getMessage());
+    }
+  }
+
+  /**
+   * Ask the engine which owners in one page are finished. A failure is not fatal: that page's
+   * volumes stay held and the next tick asks again.
+   */
+  private WorkspaceReleaseResponse releasable(WorkspaceReleaseQuery query) {
+    try {
+      return dispatcherClient.releasable(query);
+    } catch (Exception e) {
+      LOGGER.warn("Error retrieving releasable workspaces: {}", e.getMessage());
+      return new WorkspaceReleaseResponse();
     }
   }
 

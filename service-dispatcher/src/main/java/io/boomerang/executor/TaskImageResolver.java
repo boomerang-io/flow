@@ -1,8 +1,8 @@
 package io.boomerang.executor;
 
-import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

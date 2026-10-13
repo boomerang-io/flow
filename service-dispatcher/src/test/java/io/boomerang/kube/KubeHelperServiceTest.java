@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.boomerang.client.EngineClient;
-import io.boomerang.common.model.RunParam;
-import io.boomerang.common.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.Dispatcher;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.error.BoomerangException;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import java.util.List;
@@ -26,7 +26,7 @@ public class KubeHelperServiceTest {
   @Autowired private KubeHelperService helperKubeService;
 
   // The agent registers with the engine at startup; no engine runs in tests.
-  @MockitoBean private EngineClient engineClient;
+  @MockitoBean private Dispatcher dispatcher;
 
   private static Optional<EnvVar> findEnv(List<EnvVar> envVars, String name) {
     return envVars.stream().filter(e -> name.equals(e.getName())).findFirst();

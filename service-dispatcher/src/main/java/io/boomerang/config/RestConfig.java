@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.restclient.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -45,12 +44,6 @@ public class RestConfig {
 
   @Value("${proxy.port:#{null}}")
   private Optional<String> boomerangProxyPort;
-
-  // Bearer token sent to the engine's dispatcher endpoints. Blank = omit. T6-1: now expected to
-  // be a real Flow token (global scope, actorKind=SERVICE) - this class just forwards whatever
-  // value is configured, unchanged.
-  @Value("${flow.engine.dispatcher.token:}")
-  private String dispatcherToken;
 
   private static final int MAX_ROUTE_CONNECTIONS = 200;
   private static final int MAX_TOTAL_CONNECTIONS = 200;
@@ -94,33 +87,12 @@ public class RestConfig {
     return restTemplate;
   }
 
+  // The engine calls go through the dispatcher SDK on clientHttpRequestFactory() (DispatcherConfig),
+  // which adds the dispatcher token to those calls only.
   @Bean
   @Qualifier("internalRestTemplate")
   public RestTemplate internalRestTemplate() {
-    RestTemplate restTemplate =
-        new RestTemplateBuilder().requestFactory(this::clientHttpRequestFactory).build();
-    // EngineClient autowires this template for the dispatcher queue/register and lifecycle
-    // callbacks; the interceptor attaches the shared-secret bearer token uniformly to all of them.
-    addDispatcherAuthInterceptor(restTemplate);
-    return restTemplate;
-  }
-
-  /*
-   * Attaches "Authorization: Bearer <token>" to every request when a dispatcher token is
-   * configured. When blank (dev/test default) it adds nothing, so the engine's permit path is hit.
-   */
-  private void addDispatcherAuthInterceptor(RestTemplate restTemplate) {
-    if (dispatcherToken == null || dispatcherToken.isBlank()) {
-      return;
-    }
-    List<ClientHttpRequestInterceptor> interceptors =
-        new ArrayList<>(restTemplate.getInterceptors());
-    interceptors.add(
-        (request, body, execution) -> {
-          request.getHeaders().set(HttpHeaders.AUTHORIZATION, "Bearer " + dispatcherToken);
-          return execution.execute(request, body);
-        });
-    restTemplate.setInterceptors(interceptors);
+    return new RestTemplateBuilder().requestFactory(this::clientHttpRequestFactory).build();
   }
 
   @Bean
