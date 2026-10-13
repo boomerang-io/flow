@@ -12,22 +12,18 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Merged from service-engine's {@code config.SecurityConfig} (E8.2a - physically merging
- * service-engine into service-core, DD-05).
- *
- * <p>Owns the engine v1 / dispatcher surface ({@code /api/v1/**}) as a SEPARATE, higher-priority
- * {@link SecurityFilterChain} scoped via {@code securityMatcher}, evaluated BEFORE {@link
- * SecurityConfiguration} / {@link SecurityDisabledConfiguration} (see {@code @Order}). This
- * preserves service-engine's pre-merge security posture exactly and independently of flow's
- * {@code flow.security.enabled} setting: the v1 surface stays network-protected permitAll, with
- * the worker-facing dispatcher paths ({@code /api/v1/dispatcher/**}) additionally gated by {@link
- * DispatcherAuthFilter} — real Flow-token validation by default (T6-1), see that class's javadoc
- * for the {@code flow.dispatcher.auth.enabled} dev/test escape hatch.
+ * Owns the dispatcher wire ({@code /dispatcher/**}) as a separate, higher-priority {@link
+ * SecurityFilterChain} scoped via {@code securityMatcher}, evaluated before {@link
+ * SecurityConfiguration} / {@link SecurityDisabledConfiguration} (see {@code @Order}). It applies
+ * whatever {@code flow.security.enabled} says: every request the chain claims must carry a
+ * dispatcher token, checked by {@link DispatcherAuthFilter} - see that class's javadoc for the
+ * {@code flow.dispatcher.auth.enabled} dev/test escape hatch. The filter keeps no path list of its
+ * own, so no route can sit inside the chain and outside the check.
  */
 @Configuration
 public class DispatcherSecurityConfiguration {
 
-  private static final String V1_PATTERN = "/api/v1/**";
+  private static final String DISPATCHER_PATTERN = "/dispatcher/**";
 
   private final TokenService tokenService;
 
@@ -41,7 +37,7 @@ public class DispatcherSecurityConfiguration {
   @Bean
   @Order(1)
   SecurityFilterChain dispatcherFilterChain(HttpSecurity http) throws Exception {
-    http.securityMatcher(V1_PATTERN)
+    http.securityMatcher(DISPATCHER_PATTERN)
         .csrf(AbstractHttpConfigurer::disable)
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
         .addFilterBefore(

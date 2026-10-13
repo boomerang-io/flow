@@ -73,7 +73,7 @@ public class SecurityConfiguration {
   }
 
   //TODO figure out why we also have to have the permitAll matches in the doNotFilter of AuthenticationFilter
-    // @Order required now that DispatcherSecurityConfiguration's /api/v1/** chain (E8.2a merge)
+    // @Order required now that DispatcherSecurityConfiguration's /dispatcher/** chain (E8.2a merge)
     // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
     @Bean
     @Order(2)

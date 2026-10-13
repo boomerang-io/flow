@@ -25,7 +25,9 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * The whole v1 dispatcher protocol — registration, the two queue polls, the lifecycle callbacks and
- * the workspace release query — served under the single {@code /api/v1/dispatcher} path root.
+ * the workspace release query — served under the single {@code /dispatcher/v1} path root. The
+ * prefix is its own, apart from the public {@code /api/v2}, so that whatever fronts the engine can
+ * route the dispatcher wire separately: a dispatcher may run outside the engine's network.
  *
  * <p>The callbacks previously lived on {@code /api/v1/workflowrun} and {@code /api/v1/taskrun} in
  * separate {@code WorkflowRunControllerV1}/{@code TaskRunControllerV1} classes — v4 residue from
@@ -43,11 +45,11 @@ import org.springframework.web.bind.annotation.*;
  * pinned by {@code DispatcherRouteCollisionTest}.
  */
 @RestController
-@RequestMapping("/api/v1/dispatcher")
+@RequestMapping("/dispatcher/v1")
 @AuthExempt(
     reason =
         "The dispatcher wire. Identity is a dispatcher actor token (a global token with an actorKind)"
-            + " checked by DispatcherAuthFilter on the /api/v1/** chain; there is no per-route"
+            + " checked by DispatcherAuthFilter on the /dispatcher/** chain; there is no per-route"
             + " permission model for a dispatcher, it may do everything the protocol defines.")
 @Tag(
     name = "Dispatcher",

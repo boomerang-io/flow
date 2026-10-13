@@ -19,7 +19,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>{@link WorkflowRun} and {@link TaskRun} are the SAME classes returned by both the public v2
  * surface (e.g. {@code WorkspaceWorkflowRunControllerV2.get/query/start/cancel}) and the
- * worker-facing {@code /api/v1/dispatcher} surface ({@code DispatcherControllerV1}). There is no
+ * worker-facing {@code /dispatcher/v1} surface ({@code DispatcherControllerV1}). There is no
  * bespoke wire model separating the two, so every field on these classes is visible to BOTH
  * audiences. That makes this test the contract guard for the v2 surface.
  *

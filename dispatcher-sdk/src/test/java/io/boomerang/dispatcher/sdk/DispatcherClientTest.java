@@ -38,7 +38,7 @@ import org.springframework.web.client.RestClient;
 /** Each route's method, path, query, body and token, and how each answer is read. */
 class DispatcherClientTest {
 
-  private static final String ENGINE = "http://engine:7700/api/v1/dispatcher";
+  private static final String ENGINE = "http://engine:7700/dispatcher/v1";
 
   private MockRestServiceServer server;
   private DispatcherClient client;

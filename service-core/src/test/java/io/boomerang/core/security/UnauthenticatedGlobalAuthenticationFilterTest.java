@@ -99,7 +99,7 @@ class UnauthenticatedGlobalAuthenticationFilterTest {
 
   @Test
   @DisplayName(
-      "An identity established earlier in the chain wins - the /api/v1/** dispatcher chain runs"
+      "An identity established earlier in the chain wins - the /dispatcher/** dispatcher chain runs"
           + " first and its real token must not be overwritten by the synthetic one")
   void existingIdentityIsNotOverwritten() throws Exception {
     Token real = new Token(AuthScope.key);

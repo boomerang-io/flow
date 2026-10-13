@@ -255,7 +255,7 @@ Not competitors: the three best-documented answers to how a pull-based execution
 
 | Concern | GitHub | Flow |
 | ------- | ------ | ---- |
-| Identity | Registration token (1 h) or just-in-time config with `name`, `runner_group_id`, `labels` baked in, one job then removed | `POST /api/v1/dispatcher/register` with `name`, `host`, `taskTypes`; bearer dispatcher token |
+| Identity | Registration token (1 h) or just-in-time config with `name`, `runner_group_id`, `labels` baked in, one job then removed | `POST /dispatcher/v1/register` with `name`, `host`, `taskTypes`; bearer dispatcher token |
 | Routing | `runs-on` labels are cumulative and not validated — a typo waits forever | Typed `taskTypes` filter only; no labels, no groups |
 | Assignment | An idle runner is picked; a job not picked up within 60 s is re-queued; no priority | Claim-then-compare-and-set per task; oldest first |
 | Protocol | Runner long-polls up to 50 s, `acquirejob`, then renews the job lock every minute (lock ~10 min); a runner that stops renewing is abandoned | 5 s poll into a 30 s engine long-poll; batched lease heartbeat every 30 s, lease 90 s |
@@ -315,7 +315,7 @@ Each row is a design three or more products converged on independently.
 and Flow now matches them. The dispatcher runs a reconcile loop (`kube.timeout.reconcileSeconds=30`) that re-lists
 the Job by label, re-opens a lost watch and adopts an existing Job for a re-claimed TaskRun instead of creating a
 second one; `TaskWatcher` no longer exits the process on a closed watch. One heartbeat per dispatcher, from the
-dispatcher SDK, sends `PUT /api/v1/dispatcher/{id}/heartbeat {ids}` for every task in flight every
+dispatcher SDK, sends `PUT /dispatcher/v1/{id}/heartbeat {ids}` for every task in flight every
 `flow.dispatcher.lease.beat-ms=30000`; the engine's `renewLeases` writes `claim.leaseExpiresAt` with
 `flow.dispatcher.lease-ms=90000` in one multi-document update fenced on `claim.by`, and the `reapExpiredLeases`
 sweep requeues or abandons with `statusReason=LeaseExpired`. A per-task heartbeat request was rejected: at 200

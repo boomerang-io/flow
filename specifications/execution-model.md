@@ -59,7 +59,7 @@ Only the CAS winner performs side effects; a loser logs and returns, so N instan
 
 A run without workspaces submitted with `start=true` is started by the engine at once; a run that declares
 workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its claims and calls
-`PUT /api/v1/dispatcher/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
+`PUT /dispatcher/v1/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
 `start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
 on the submit route, so parking is the explicit opt-out.
 
@@ -290,7 +290,7 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 | Retry classes (rate-limit, deterministic-terminal) | one generic `Backoff`; failures are not retried | a task family whose failures demonstrably need a different policy |
 | Supersede generations and a separate reconciler | retry creates a new workflow run; "reconcile" is the level-triggered `advance` | in-place partial re-run of one workflow run becomes a requirement |
 | For-each batching, a failure-tolerance rule, a per-task parallel limit, or repeating a group of tasks per item | one task repeated per item; any failed item fails it, an `always` connection carries on; items run as fast as dispatchers claim them | real workflows that need one of them |
-| A post-terminal phase, or any teardown field on the run, recording that its storage was released | the dispatcher asks `POST /api/v1/dispatcher/workspaces/releasable` which of the owners it holds volumes for are finished; the run records nothing | a cleanup outcome has to be shown to a user or read back by the engine |
+| A post-terminal phase, or any teardown field on the run, recording that its storage was released | the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which of the owners it holds volumes for are finished; the run records nothing | a cleanup outcome has to be shown to a user or read back by the engine |
 | A transaction (or `transitionSeq`) across CAS commit and outbox insert | the accepted creation-loss window above | a missing terminal-status event is reported, or a consumer becomes load-bearing on delivery |
 
 ## Also worth knowing

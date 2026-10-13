@@ -25,8 +25,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 /**
  * Pins the one routing subtlety created by consolidating the v1 dispatcher protocol onto a single
- * path root: {@code GET /api/v1/dispatcher/{id}/workflows} (queue poll) and {@code PUT
- * /api/v1/dispatcher/workflowrun/{id}/start} (lifecycle callback) overlap in shape, so a dispatcher
+ * path root: {@code GET /dispatcher/v1/{id}/workflows} (queue poll) and {@code PUT
+ * /dispatcher/v1/workflowrun/{id}/start} (lifecycle callback) overlap in shape, so a dispatcher
  * whose registered id happens to be the literal string {@code workflowrun} or {@code taskrun} sits
  * exactly on the seam.
  *
@@ -64,10 +64,10 @@ class DispatcherRouteCollisionTest {
 
   @Test
   void dispatcherIdOfWorkflowrunStillRoutesToTheQueueEndpoints() throws Exception {
-    mockMvc.perform(get("/api/v1/dispatcher/workflowrun/workflows")).andExpect(status().isOk());
+    mockMvc.perform(get("/dispatcher/v1/workflowrun/workflows")).andExpect(status().isOk());
     verify(dispatcherService).getWorkflowQueue(eq("workflowrun"));
 
-    mockMvc.perform(get("/api/v1/dispatcher/workflowrun/tasks")).andExpect(status().isOk());
+    mockMvc.perform(get("/dispatcher/v1/workflowrun/tasks")).andExpect(status().isOk());
     verify(dispatcherService)
         .getTaskQueue(eq("workflowrun"), isNull(), isNull(), isNull(), isNull());
 
@@ -77,10 +77,10 @@ class DispatcherRouteCollisionTest {
 
   @Test
   void dispatcherIdOfTaskrunStillRoutesToTheQueueEndpoints() throws Exception {
-    mockMvc.perform(get("/api/v1/dispatcher/taskrun/tasks")).andExpect(status().isOk());
+    mockMvc.perform(get("/dispatcher/v1/taskrun/tasks")).andExpect(status().isOk());
     verify(dispatcherService).getTaskQueue(eq("taskrun"), isNull(), isNull(), isNull(), isNull());
 
-    mockMvc.perform(get("/api/v1/dispatcher/taskrun/workflows")).andExpect(status().isOk());
+    mockMvc.perform(get("/dispatcher/v1/taskrun/workflows")).andExpect(status().isOk());
     verify(dispatcherService).getWorkflowQueue(eq("taskrun"));
 
     verify(workflowRunService, never()).start(any(), any());
@@ -91,7 +91,7 @@ class DispatcherRouteCollisionTest {
   void callbackPathsStillReachTheirOwnHandlers() throws Exception {
     mockMvc
         .perform(
-            put("/api/v1/dispatcher/workflowrun/run-1/start")
+            put("/dispatcher/v1/workflowrun/run-1/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
         .andExpect(status().isOk());
@@ -99,7 +99,7 @@ class DispatcherRouteCollisionTest {
 
     mockMvc
         .perform(
-            put("/api/v1/dispatcher/taskrun/run-2/start")
+            put("/dispatcher/v1/taskrun/run-2/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
         .andExpect(status().isOk());

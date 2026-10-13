@@ -2,7 +2,7 @@
 
 A dispatcher is any process that takes task runs from the engine, runs them, and reports how they ended:
 Flow's own Kubernetes dispatcher (`service-dispatcher`), an in-process dispatcher inside a host product, or a
-future serverless one. They all speak one protocol under `/api/v1/dispatcher`. Its routes and wire models are
+future serverless one. They all speak one protocol under `/dispatcher/v1`. Its routes and wire models are
 generated from the engine as an OpenAPI document — served at `/api/docs/spec/dispatcher-v1` and checked in at
 `contracts/dispatcher-v1.yaml` (`dispatcher/DispatcherContractConfiguration.java`); `DispatcherContractTest`
 fails when the two differ. This document gives the semantics the document cannot. Paths below are under
@@ -18,13 +18,13 @@ The protocol carries its own version, `1`, apart from the product version.
   list entries unless this document states one.
 - The engine MUST accept a request that omits a field added later, behaving as it did before that field
   existed, and MUST treat an end reason it does not know as an ordinary failure.
-- A change that removes or redefines a field, a route or a status meaning MUST ship as `/api/v2/dispatcher`,
-  with `/api/v1/dispatcher` served beside it for at least one minor product release.
+- A change that removes or redefines a field, a route or a status meaning MUST ship as `/dispatcher/v2`,
+  with `/dispatcher/v1` served beside it for at least one minor product release.
 
 ## Authentication
 
 Every call carries `Authorization: Bearer <token>`: a global Flow token with an actor kind — a machine token
-(`dispatcher/DispatcherAuthFilter.java:79-105`, `core/TokenService.java:433-438`). Anything else is a bare
+(`dispatcher/DispatcherAuthFilter.java:54-80`, `core/TokenService.java:433-438`). Anything else is a bare
 401. `flow.dispatcher.auth.enabled=false` makes the filter a pass-through for local development; it is
 independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
 
@@ -164,3 +164,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | --- | --- |
 | `limit` on the task poll; `ExceededQuota` and `StartTimeout` end reasons; the start answer's `completed` means do not run | Additive (flow#500) |
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
+| The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
