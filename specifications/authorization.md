@@ -16,7 +16,7 @@ returns the property when it is set, otherwise `true` for `flow.mode=standalone`
 | on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:23,78-108`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
 | off | `SecurityDisabledConfiguration` — `anyRequest().permitAll()`, `http.anonymous(...)` (`core/security/SecurityDisabledConfiguration.java:13,20-33`) | a synthetic `UnauthenticatedGlobalToken` (see below) | the advisor is not registered; `RelationshipService` still runs but its `global` branch allows everything |
 
-The worker-facing `/api/v1/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:41-50`) is ordered
+The dispatcher's `/dispatcher/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:37-47`) is ordered
 first and is independent of this switch — see "Dispatcher endpoints".
 
 ## Authentication: how a caller becomes a `Token`
@@ -194,12 +194,16 @@ segment is not `system` (`core/security/EngineWorkspaceInterceptor.java:37-44`, 
 
 ## Dispatcher endpoints
 
-`/api/v1/dispatcher/**` is guarded by `DispatcherAuthFilter` regardless of `flow.security.enabled`
-(`dispatcher/DispatcherAuthFilter.java:54,78-105`): the bearer must be Flow-shaped, then
+`/dispatcher/**` is its own filter chain (`dispatcher/DispatcherSecurityConfiguration.java:26,37-47`), and
+`DispatcherAuthFilter` checks every request that chain claims, regardless of `flow.security.enabled`
+(`dispatcher/DispatcherAuthFilter.java:54-80`): the bearer must be Flow-shaped, then
 `TokenService.validateActorToken` requires a stored, unexpired `global` token with a non-null `actorKind`
 (`core/TokenService.java:433-438`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5 minutes. `flow.dispatcher.auth.enabled=false`
 (default `true`, `application.properties:34`) turns the filter into a pass-through for local development.
-The rest of `/api/v1/**` is `permitAll` and relies on network isolation.
+The chain's matcher is the only statement of which paths need the token: the filter keeps no path list of its
+own, and nothing else is served under the prefix. `DispatcherAuthTest` pins that a path under the prefix no
+handler serves still needs the token, and that `/api/v1/dispatcher` is no longer served. The wire has its own
+prefix so that it can be routed separately from the public API (`api-contract.md`, "URL shape").
 
 ## Secured settings at rest
 

@@ -19,13 +19,13 @@ graph LR
     U[Browser] -->|"HTTP (documents, /res/*, .data — never /api)"| W[client-web]
     W -->|/api/v2 server-side| C[service-core]
     I[Integrations / API clients] -->|/api/v2| C
-    D1[dispatcher 1] -->|/api/v1/dispatcher| C
-    D2[dispatcher n] -->|/api/v1/dispatcher| C
+    D1[dispatcher 1] -->|/dispatcher/v1| C
+    D2[dispatcher n] -->|/dispatcher/v1| C
     D1 --> K[Kubernetes / Tekton]
 ```
 
 `service-flow` and `service-engine` were separate deployables in v4 and are now merged into `service-core`.
-The dispatchers pull work from `service-core` and report back over `/api/v1/dispatcher/**`; the engine never
+The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`; the engine never
 calls a dispatcher.
 
 ## Prerequisites

@@ -28,3 +28,6 @@ tag's release notes.
 - The sign-in routes the webapp's server calls are `/internal/v1/auth/{config,exchange,logout}`, outside the
   public `/api/v2`; the 5.0 betas served them under `/api/v2/auth`. Route `/api/v2/**` from outside and leave
   `/internal/v1/**` unrouted.
+- The dispatcher wire is `/dispatcher/v1`; the 5.0 betas served it under `/api/v1/dispatcher`. `service-core` and
+  `service-dispatcher` move together under one tag. Route `/dispatcher/v1/**` to `service-core` only for a
+  dispatcher that runs outside its network.
