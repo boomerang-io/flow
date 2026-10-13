@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -16,9 +15,7 @@ import io.boomerang.core.model.UserRequest;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +28,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * The self-vs-admin split on {@code PATCH}/{@code DELETE /api/v2/user/&#123;userId&#125;}.
  *
  * <p>The route-level {@code @AuthCriteria(resource = USER)} match is scope-blind:
- * SecurityInterceptor matches {@code user/write} against EVERY grant's action strings with no
+ * AuthCriteriaAuthorizationManager matches {@code user/write} against EVERY grant's action strings with no
  * scope filter, and the seeded workspace {@code editor} ({@code **}/{@code write}) and {@code
  * owner} ({@code **}/{@code **}) roles both satisfy it - so before this guard, any plain member of
  * any workspace could modify (and an owner delete) ANY user's account. The service now permits
@@ -61,9 +58,6 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedUsersAndRoles() {
-    seedRelationshipRoot();
-    seedWorkspaceRoles();
-    seedGlobalAdminRole();
     if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, WORKSPACE)) {
       relationshipService.createNode(
           RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, Optional.empty());
@@ -205,27 +199,5 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
           Optional.of(Map.of("role", role)));
     }
     return userId;
-  }
-
-  /** Mirror of the loader's roles.json workspace/owner document - permission resolution needs it. */
-  private void seedWorkspaceRoles() {
-    if (roleRepository.findByTypeAndName("workspace", "owner") == null) {
-      RoleEntity owner = new RoleEntity();
-      owner.setType(PermissionScope.workspace);
-      owner.setName("owner");
-      owner.setPermissions(List.of("**/**"));
-      roleRepository.save(owner);
-    }
-  }
-
-  /** Mirror of the loader's roles.json global/admin document - admin resolution needs it. */
-  private void seedGlobalAdminRole() {
-    if (roleRepository.findByTypeAndName("global", "admin") == null) {
-      RoleEntity admin = new RoleEntity();
-      admin.setType(PermissionScope.global);
-      admin.setName("admin");
-      admin.setPermissions(List.of("**/**"));
-      roleRepository.save(admin);
-    }
   }
 }

@@ -44,9 +44,6 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting(QUOTA_FEATURE, false);

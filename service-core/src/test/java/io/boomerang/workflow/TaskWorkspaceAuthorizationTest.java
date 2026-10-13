@@ -55,7 +55,6 @@ class TaskWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
    */
   @BeforeEach
   void establishMemberIdentity() {
-    seedRelationshipRoot();
     relationshipService.createNode(RelationshipType.USER, MEMBER, MEMBER, Optional.empty());
     relationshipService.createNode(
         RelationshipType.WORKSPACE, MY_WORKSPACE, MY_WORKSPACE, Optional.empty());

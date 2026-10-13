@@ -20,7 +20,7 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 
 `/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
 (`workflow/WorkflowTemplateControllerV2.java:57,84`). Templates are content, not a managed
-resource — the loader seeds them and a v3 upgrade imports them — so there is no route to create,
+resource — a migration seeds them and a v3 upgrade imports them — so there is no route to create,
 change or delete one. A client creates a Workflow from a template by reading the template and
 posting its body to `POST /api/v2/workspace/{workspace}/workflow`
 (`client-web/src/Features/Home/Home.tsx:73-90`).

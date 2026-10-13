@@ -1,5 +1,5 @@
 /**
- * The `ai` catalogue task, mirroring what service-loader seeds (category "AI", icon "AI", task
+ * The `ai` catalogue task, mirroring what service-core's migrations seed (category "AI", icon "AI", task
  * type "ai"). It is kept out of `task.js`'s `content` list deliberately: that list is the whole
  * catalogue the editor snapshot records ("Showing 174 tasks"), and specs that need this entry
  * compose it in themselves rather than re-baselining a 600KB snapshot for one task.

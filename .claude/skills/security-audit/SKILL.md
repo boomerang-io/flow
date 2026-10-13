@@ -7,10 +7,12 @@ description: Systematic audit of authorization (@AuthCriteria coverage) and audi
 
 Boomerang Flow enforces authorization with a **method-annotation model**, not per-method
 `requirePermission` calls. Every protected controller endpoint carries an `@AuthCriteria`
-annotation; `SecurityInterceptor.preHandle` reads it and enforces both the token scope and the
-`resource/action` permission. **A method with no `@AuthCriteria` is silently treated as public**
-— the interceptor logs a warning and returns `true`. That makes "missing annotation on a
-mutating endpoint" the single highest-value thing this audit looks for.
+annotation; `AuthCriteriaAuthorizationManager` reads it and enforces both the token scope and the
+`resource/action` permission. A handler MUST carry `@AuthCriteria` or `@AuthExempt(reason = …)`;
+one with neither is denied at runtime and fails `AuthCriteriaCoverageTest`. **An `@AuthExempt`
+handler gets no permission check**, and unless its path is also on the permit list any signed-in
+caller reaches it. That makes "an exemption whose reason does not hold, on a mutating endpoint"
+the single highest-value thing this audit looks for.
 
 Produces a structured, severity-ranked report.
 
@@ -27,14 +29,17 @@ Read and record:
 3. **`security/enums/AuthScope.java`** — session, user, team, workflow, global.
 4. **`security/AuthCriteria.java`** — the annotation contract: `resource`, `action`,
    `assignableScopes`.
-5. **`security/SecurityInterceptor.java`** — the enforcement logic. Note precisely:
-   - No `@AuthCriteria` → **authz skipped** (this is the hole to hunt).
+5. **`security/AuthCriteriaAuthorizationManager.java`** — the enforcement logic, wrapped around
+   every REST handler by `MethodSecurityConfiguration`. Note precisely:
+   - Neither annotation → denied. `@AuthExempt` → **authz skipped** (this is the hole to hunt;
+     read the `reason`).
    - Token `type` (scope) must be in `assignableScopes`, else 401.
    - Permission regex: `(\*{2}|<resource>)/(\*{2}|<action>)` matched against the token's
      resolved permission actions.
 6. **`security/AuthenticationFilter.java` + `SecurityConfiguration.java`** — which routes are
-   `permitAll` (authN bypass): internal, actuator/health, OpenAPI/Swagger. Endpoints under these
-   paths legitimately have no `@AuthCriteria`; record them so you don't false-positive.
+   `permitAll` (authN bypass): internal, actuator/health, OpenAPI/Swagger. A handler under these
+   paths legitimately carries `@AuthExempt`; an `@AuthExempt` handler outside them still requires
+   sign-in. Record both sets so you don't false-positive.
 7. **`security/SecurityDisabledConfiguration.java`** — how `flow.authorization.enabled=false`
    turns the whole thing off (dev only). Note: in `engine` mode there is **no auth module** at
    all (host platform owns identity) — scope findings to the mode being audited.
@@ -65,7 +70,7 @@ For EVERY method annotated `@GetMapping / @PostMapping / @PutMapping / @PatchMap
 
 | Check | Severity | Description |
 | ----- | -------- | ----------- |
-| **Missing `@AuthCriteria`** | CRITICAL | No annotation on a method that is not on a permitAll path → any caller reaches it. (Downgrade to INFO only if the path is on the recorded permitAll list and is intended to be public — state that explicitly.) |
+| **Unjustified `@AuthExempt`** | CRITICAL | The handler has no permission rule and its `reason` does not hold → any signed-in caller reaches it, or any caller at all if the path is on the permit list. (Downgrade to INFO only if the route is intended to be public or is authenticated another way — state that explicitly.) A handler with neither annotation is denied and fails `AuthCriteriaCoverageTest`; report it as a broken build, not an open route. |
 | **Wrong `resource`** | HIGH | `resource` doesn't match what the endpoint operates on (e.g. a token endpoint annotated `WORKFLOW`). |
 | **Wrong `action`** | HIGH | Read endpoint annotated `WRITE`/`DELETE` or a mutation annotated `READ` — the verb must match the HTTP method's effect. |
 | **Over-broad `assignableScopes`** | MEDIUM | Includes `session`/`global` where the operation should be team- or workflow-scoped; or lists scopes that can't legitimately perform the action. |
@@ -145,7 +150,7 @@ Date: <date>   |   Mode audited: full | engine | standalone
 <total findings by severity; the headline auth-hole count>
 
 ## 1. CRITICAL — Unprotected Endpoints
-<methods with no @AuthCriteria that are not on the permitAll list>
+<@AuthExempt handlers whose reason does not hold>
 
 ## 2. HIGH — Wrong Authorization
 <wrong resource/action; unaudited destructive/privilege changes>
@@ -162,7 +167,7 @@ Date: <date>   |   Mode audited: full | engine | standalone
 
 | Severity | Meaning |
 | -------- | ------- |
-| CRITICAL | Endpoint reachable without authorization (missing `@AuthCriteria`, not permitAll). |
+| CRITICAL | Endpoint reachable without authorization (`@AuthExempt` with a reason that does not hold). |
 | HIGH     | Authorization present but wrong — allows unauthorized actions; or unaudited destructive/privilege change. |
 | MEDIUM   | Over-broad scopes, vocabulary drift, or audit level mismatch — functional but inconsistent. |
 | LOW      | Informational — no direct impact, should be addressed. |
@@ -173,7 +178,7 @@ Date: <date>   |   Mode audited: full | engine | standalone
 
 - [ ] Every `*Controller*.java` across service-flow, service-engine, service-dispatcher examined
 - [ ] Abstract/shared controller bases included
-- [ ] Every endpoint method checked for `@AuthCriteria`; missing ones classified CRITICAL vs intended-permitAll
+- [ ] Every endpoint method checked for `@AuthCriteria` or `@AuthExempt`; each exemption's reason judged CRITICAL vs intended
 - [ ] `resource`/`action`/`assignableScopes` validated against the enums and the endpoint's real effect
 - [ ] permitAll routes reconciled (internal, actuator, swagger) so intended-public isn't false-flagged
 - [ ] Every mutation classified audited/unaudited with a category

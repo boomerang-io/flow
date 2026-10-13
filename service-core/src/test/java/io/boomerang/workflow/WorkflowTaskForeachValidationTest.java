@@ -37,7 +37,6 @@ class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
     relationshipService.createNode(
         RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, java.util.Optional.empty());
     setFeatureSetting("workspaceQuotas", false);

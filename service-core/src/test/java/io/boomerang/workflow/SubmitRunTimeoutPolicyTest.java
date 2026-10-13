@@ -48,9 +48,6 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    seedRelationshipRoot();
-    seedTeamQuotaSettings();
-    seedTaskSettings();
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting("workspaceQuotas", false);

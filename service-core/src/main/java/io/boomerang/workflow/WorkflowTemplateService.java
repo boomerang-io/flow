@@ -26,7 +26,7 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 /**
- * Read access to the Workflow Templates. Templates are content: the loader seeds them and a v3
+ * Read access to the Workflow Templates. Templates are content: the migrations seed them and a v3
  * upgrade imports them, so this service only reads. A Workflow is created from a template by
  * posting the template body to the workspace Workflow create route.
  */
