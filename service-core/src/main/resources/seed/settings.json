@@ -38,7 +38,7 @@
       },
       "config": [
         {
-          "description": "The issuer URL of the single trusted OIDC provider (e.g. local IDPZero) accepted for the direct id_token login path of POST /api/v2/auth/exchange. Empty disables that path entirely.",
+          "description": "The issuer URL of the single trusted OIDC provider (e.g. local IDPZero) accepted for the direct id_token login path of the sign-in exchange. Empty disables that path entirely.",
           "key": "oidc.issuer",
           "label": "OIDC Issuer",
           "type": "text",

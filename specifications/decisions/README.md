@@ -87,3 +87,4 @@ things by name, not by code.
 | 0100 | [One key encrypts every secret at rest; the v3 pair is read once to re-encrypt](0100-one-encryption-key-for-secrets-at-rest-and-the-v3-pair-read-once.md) | accepted | 2026-10-10 |
 | 0101 | [A REST handler is denied unless it carries `@AuthCriteria` or `@AuthExempt`](0101-rest-handlers-are-denied-unless-annotated.md) | accepted | 2026-09-14 |
 | 0102 | [The dispatcher protocol is a published contract, and the SDK owns its own wire models](0102-the-dispatcher-protocol-is-a-published-contract.md) | accepted | 2026-10-08 |
+| 0103 | [Routes are grouped under one prefix per kind of caller](0103-routes-are-grouped-under-one-prefix-per-kind-of-caller.md) | accepted | 2026-10-13 |

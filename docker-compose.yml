@@ -36,7 +36,7 @@
 # real product flow (specifications/authorization.md): the unauthenticated bootstrap lands on
 # the signed-out page, Sign in POSTs to /auth/signin where the SSR server runs the remix-auth
 # code flow (PKCE) against the local IDPZero service below,
-# POST /api/v2/auth/exchange verifies the id_token via JWKS and mints the httpOnly flow_session
+# POST /internal/v1/auth/exchange verifies the id_token via JWKS and mints the httpOnly flow_session
 # cookie, and the app renders authenticated. IDPZero's login page is a passwordless user picker
 # (docker/idpzero/server.yaml seeds the users); the first user to sign in on a fresh database
 # becomes the founding admin. The `auth-oidc-seed` one-shot below is what flips the sign-in mode
@@ -95,7 +95,7 @@ services:
 
   # One-shot, compose-only: sets the `auth` settings document's oidc.issuer/oidc.clientId (seeded
   # empty by service-core's migrations - correctly so for non-compose installs) to this stack's
-  # IDPZero, so GET /api/v2/auth/config resolves mode=oidc. Waits for service-core to be healthy,
+  # IDPZero, so GET /internal/v1/auth/config resolves mode=oidc. Waits for service-core to be healthy,
   # which it only is once every migration has run. See docker/mongo/seed-auth-oidc.js.
   auth-oidc-seed:
     image: mongo:7.0

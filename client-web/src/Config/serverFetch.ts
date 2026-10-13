@@ -23,7 +23,7 @@ import axios, { type AxiosInstance } from "axios";
 const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
 
 /*
- * `POST /api/v2/auth/exchange` mints an httpOnly, Secure, SameSite=Lax session cookie carrying
+ * `POST /internal/v1/auth/exchange` mints an httpOnly, Secure, SameSite=Lax session cookie carrying
  * an opaque `bfs_<uuid>`, which `AuthenticationFilter` reads. Verified end-to-end against a
  * secured compose stack: an SSR fetch of /home carrying only the session Cookie header returns
  * the authenticated render.

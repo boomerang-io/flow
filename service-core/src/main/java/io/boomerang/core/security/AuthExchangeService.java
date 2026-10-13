@@ -17,7 +17,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 /**
- * The two identity sources of {@code POST /api/v2/auth/exchange} converging on the same
+ * The two identity sources of {@code POST /internal/v1/auth/exchange} converging on the same
  * session-minting path. Standalone-only: the exchange
  * endpoint has no meaning for an embedded engine.
  */
@@ -45,9 +45,9 @@ public class AuthExchangeService {
   }
 
   /*
-   * The pre-auth bootstrap contract of GET /api/v2/auth/config: "none" when security is disabled,
-   * "oidc" when a trusted issuer AND clientId are configured, "proxy" otherwise. The sign-in mode
-   * is derived from configuration that already exists (flow.security.enabled and the auth.oidc.*
+   * The pre-auth bootstrap contract of GET /internal/v1/auth/config: "none" when security is
+   * disabled, "oidc" when a trusted issuer AND clientId are configured, "proxy" otherwise. The
+   * sign-in mode is derived from configuration that already exists (flow.security.enabled and the auth.oidc.*
    * settings) rather than a second flag that could fall out of sync. issuer/clientId are only
    * ever exposed for oidc; nothing else from the auth settings leaves the server through this
    * shape.

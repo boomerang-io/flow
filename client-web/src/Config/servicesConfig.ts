@@ -22,6 +22,10 @@ export const PRODUCT_SERVICE_ENV_URL =
 
 export const BASE_URL = `${PRODUCT_SERVICE_ENV_URL}`;
 
+// Routes only this app's server calls. service-core serves them outside /api, so a front door
+// that routes /api to it never reaches them, and they are versioned on their own.
+export const INTERNAL_URL = "/internal/v1";
+
 type IdArg = {
   id: string;
 };
@@ -55,9 +59,10 @@ export const serviceUrl = {
   // signed-out page reads it to decide which sign-in surface (if any) to offer. postAuthExchange
   // mints the httpOnly bfs_ session cookie (empty body = proxy-forwarded identity; {idToken,
   // nonce} = direct OIDC login). postAuthLogout revokes the session and clears the cookie.
-  getAuthConfig: () => `${BASE_URL}/auth/config`,
-  postAuthExchange: () => `${BASE_URL}/auth/exchange`,
-  postAuthLogout: () => `${BASE_URL}/auth/logout`,
+  // All three are called from route loaders and actions only, never from the browser.
+  getAuthConfig: () => `${INTERNAL_URL}/auth/config`,
+  postAuthExchange: () => `${INTERNAL_URL}/auth/exchange`,
+  postAuthLogout: () => `${INTERNAL_URL}/auth/logout`,
   deleteToken: ({ tokenId }) => `${BASE_URL}/token/${tokenId}`,
   getFeatureFlags: () => `${BASE_URL}/features`,
   getNavigation: ({ query }: QueryArg) => `${BASE_URL}/navigation${query}`,

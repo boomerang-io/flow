@@ -1,7 +1,8 @@
 # API contract
 
-The public API is `/api/v2`; the dispatcher wire is `/api/v1/dispatcher`; both are served by
-`service-core`. This document states the rules every endpoint follows. Route-level detail lives in
+`service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the
+sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
+`/api/v1/dispatcher`. This document states the rules every public endpoint follows. Route-level detail lives in
 the OpenAPI document springdoc generates from the `*ControllerV2` classes.
 
 ## URL shape
@@ -14,9 +15,17 @@ Every public route is under `/api/v2`; resources owned by a workspace sit under
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]` (list, stream, delete), `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` (list largest first, delete); an expired artifact answers `410` | `workflow/WorkspaceArtifactControllerV2.java:42` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
-| Global | `/api/v2/{auth,user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/AuthControllerV2.java:37`, `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/api/v1/dispatcher` | `dispatcher/DispatcherControllerV1.java:41` |
+| Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:41` |
+
+The prefix says who the caller is, so that whatever fronts `service-core` can route by it. A front door,
+ingress or load balancer SHOULD route `/api/v2/**` only, and `/api/v1/dispatcher/**` as well when a dispatcher
+runs outside core's network. `/internal/v1/**` MUST NOT be routed from outside: only the webapp's server calls
+it, over `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/servicesConfig.ts:27,63-65`), and it is left
+out of the published OpenAPI document (`service-core/src/main/resources/application.properties:166`). The
+prefix is a routing boundary, not a credential: a caller that reaches `service-core` directly still reaches it.
 
 `/api/v2/workflowtemplate` is read-only: `GET /{name}` and `GET /query` are the whole surface
 (`workflow/WorkflowTemplateControllerV2.java:57,84`). Templates are content, not a managed

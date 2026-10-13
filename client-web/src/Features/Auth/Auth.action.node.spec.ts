@@ -35,7 +35,7 @@ afterEach(() => {
 /** GET /auth/config (unauthenticated, settings-backed) + the issuer's OIDC discovery document. */
 function useOidcConfig(issuer = ISSUER, clientId = "flow-web") {
   server.use(
-    http.get(`${INTERNAL_ORIGIN}/api/auth/config`, () => HttpResponse.json({ mode: "oidc", issuer, clientId })),
+    http.get(`${INTERNAL_ORIGIN}/internal/v1/auth/config`, () => HttpResponse.json({ mode: "oidc", issuer, clientId })),
     http.get(`${issuer}/.well-known/openid-configuration`, () =>
       HttpResponse.json({
         authorization_endpoint: `${issuer}/authorize`,
@@ -159,7 +159,7 @@ describe("callback loader --- Node SSR", () => {
         tokenCalls += 1;
         return HttpResponse.json({ id_token: "eyJ.fake-id-token.sig" });
       }),
-      http.post(`${INTERNAL_ORIGIN}/api/auth/exchange`, () => {
+      http.post(`${INTERNAL_ORIGIN}/internal/v1/auth/exchange`, () => {
         exchangeCalls += 1;
         return new HttpResponse(null, { status: 200 });
       }),
@@ -186,7 +186,7 @@ describe("callback loader --- Node SSR", () => {
         tokenRequest = { body: await request.text(), authorization: request.headers.get("authorization") };
         return HttpResponse.json({ id_token: "eyJ.fake-id-token.sig", access_token: "at", token_type: "Bearer" });
       }),
-      http.post(`${INTERNAL_ORIGIN}/api/auth/exchange`, async ({ request }) => {
+      http.post(`${INTERNAL_ORIGIN}/internal/v1/auth/exchange`, async ({ request }) => {
         exchangeBody = await request.json();
         return new HttpResponse(null, { status: 200, headers: { "Set-Cookie": sessionSetCookie } });
       }),

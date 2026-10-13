@@ -33,16 +33,19 @@ import org.springframework.web.bind.annotation.RestController;
  * id_token), converging on the same session-minting path. Delivered as an httpOnly, Secure,
  * SameSite=Lax cookie carrying only the opaque bfs_<uuid> value - never permissions, which stay
  * server-side on the persisted TokenEntity.
+ *
+ * Under /internal/v1 because only the webapp's server calls these routes, never a browser or an
+ * API client: a front door that routes /api/** to this service does not reach them.
  */
 @RestController
-@RequestMapping("/api/v2/auth")
+@RequestMapping("/internal/v1/auth")
 @Tag(
     name = "Authentication",
     description =
         "Unified token exchange - proxy-forwarded identity or a direct OIDC login both converge on"
             + " the same session cookie.")
 @ConditionalOnFlowMode(FlowMode.STANDALONE)
-public class AuthControllerV2 {
+public class InternalAuthControllerV1 {
 
   @Autowired private AuthExchangeService authExchangeService;
 

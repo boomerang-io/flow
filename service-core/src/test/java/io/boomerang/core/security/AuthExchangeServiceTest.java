@@ -198,7 +198,7 @@ class AuthExchangeServiceTest {
   }
 
   /*
-   * GET /api/v2/auth/config mode derivation: "none" when security is disabled, "oidc" when a
+   * GET /internal/v1/auth/config mode derivation: "none" when security is disabled, "oidc" when a
    * trusted issuer AND clientId are configured, "proxy" otherwise - and issuer/clientId are only
    * ever present for oidc.
    */

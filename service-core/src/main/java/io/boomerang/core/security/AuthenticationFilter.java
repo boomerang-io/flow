@@ -64,7 +64,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // filter must not reject with a 401 when it resolves no identity at all: the direct OIDC login
   // body ({idToken}) carries no proxy headers, and the exchange controller verifies that token
   // itself rather than relying on this filter.
-  static final String PATH_AUTH_EXCHANGE = "/api/v2/auth/exchange";
+  static final String PATH_AUTH_EXCHANGE = "/internal/v1/auth/exchange";
   private static final String BEARER_PREFIX = "Bearer ";
 
   private TokenService tokenService;
@@ -155,8 +155,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
 
   /*
    * Extracts the opaque bfs_ value from the session cookie (SessionCookie.NAME), if present - the
-   * additional identity source minted by POST /api/v2/auth/exchange, added alongside the existing
-   * branches above, never in place of them.
+   * additional identity source minted by POST /internal/v1/auth/exchange, added alongside the
+   * existing branches above, never in place of them.
    */
   private String getSessionCookieValue(HttpServletRequest request) {
     Cookie[] cookies = request.getCookies();

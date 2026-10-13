@@ -60,7 +60,7 @@ The compose stack is secured, so the harness needs a global token. Either:
 1. Sign in at `http://localhost:3000` (IDPZero user picker; the first user becomes admin), then
    Admin → Tokens → create a token of type `global` with permission `**/**`, or
 2. Run `FLOW_TOKEN=$(node load/mint-token.mjs)`, which performs the same sign-in against the
-   stack's IDPZero without a browser (authorization code + PKCE, `POST /api/v2/auth/exchange`,
+   stack's IDPZero without a browser (authorization code + PKCE, `POST /internal/v1/auth/exchange`,
    then `POST /api/v2/token`) and prints a fresh `bfg_` token valid for 24 h. It signs in as
    `usr-flow-admin`, the user the Playwright suite also uses, so on a fresh database that user
    becomes the admin. If something else on the machine already owns host port 4380 (a host-run

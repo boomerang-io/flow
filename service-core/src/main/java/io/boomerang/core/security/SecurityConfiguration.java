@@ -44,10 +44,10 @@ public class SecurityConfiguration {
   // controller, which verifies the id_token itself.
   static final String AUTH_EXCHANGE = AuthenticationFilter.PATH_AUTH_EXCHANGE;
 
-  // The pre-auth bootstrap (GET /api/v2/auth/config) tells the SPA HOW to sign in, so it must be
-  // readable before any session exists - exempted exactly like GITHUB_CALLBACK: permitAll here
-  // AND shouldNotFilter in AuthenticationFilter, since no identity is needed at all.
-  static final String AUTH_CONFIG = "/api/v2/auth/config";
+  // The pre-auth bootstrap (GET /internal/v1/auth/config) tells the webapp HOW to sign in, so it
+  // must be readable before any session exists - exempted exactly like GITHUB_CALLBACK: permitAll
+  // here AND shouldNotFilter in AuthenticationFilter, since no identity is needed at all.
+  static final String AUTH_CONFIG = "/internal/v1/auth/config";
 
   @Autowired
   private TokenService tokenService;

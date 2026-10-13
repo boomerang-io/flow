@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The exact wire shape of {@code GET /api/v2/auth/config} - the webapp's sign-in bootstrap is
+ * The exact wire shape of {@code GET /internal/v1/auth/config} - the webapp's sign-in bootstrap is
  * built against these literal field names and lowercase mode values, and {@code issuer}/{@code
  * clientId} must be ABSENT (not null) outside oidc mode.
  */
