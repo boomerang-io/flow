@@ -34,6 +34,11 @@ public class WorkflowRevisionEntity {
   private String markdown;
   private List<AbstractParam> params;
   private WorkflowWorkspace workspace;
+  /**
+   * Set by the v3 upgrade on a revision that declared the retired Workflow storage. Submit refuses
+   * such a revision; any save creates a revision without the flag.
+   */
+  private Boolean legacyWorkflowStorage;
   private Long timeout;
   private Long retries;
 

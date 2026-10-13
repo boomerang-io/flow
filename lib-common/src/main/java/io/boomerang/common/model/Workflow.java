@@ -58,6 +58,8 @@ public class Workflow {
   private List<WorkflowTask> tasks = new LinkedList<>();
   private List<AbstractParam> params = new LinkedList<>();
   private WorkflowWorkspace workspace;
+  // Read-only: true on a revision the v3 upgrade flagged (see WorkflowRevisionEntity).
+  private Boolean legacyWorkflowStorage;
   private Map<String, Object> unknownFields = new HashMap<>();
 
   @Override
