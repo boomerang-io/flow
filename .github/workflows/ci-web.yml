@@ -17,9 +17,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # `test` and `typecheck` report without gating: the suite is green and the type errors are
-  # counted, but the maintainer keeps merges gated on `build` alone until the remaining type
-  # errors (Carbon/vendor typing gaps, see `pnpm run typecheck`) are settled.
+  # `test` reports without gating; `typecheck` gates: a type error fails the build.
   test:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -53,7 +51,6 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
   typecheck:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4

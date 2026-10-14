@@ -80,7 +80,9 @@ function CreateServiceTokenForm({
     const request = {
       name: values.name,
       type: values.type,
-      expirationDate: values.date ? parseInt(moment.utc(values.date).startOf("day").format("x"), 10) : null,
+      expirationDate: values.expirationDate
+        ? parseInt(moment.utc(values.expirationDate, "YYYY/MM/DD").startOf("day").format("x"), 10)
+        : null,
       description: values.description,
       principal: values.principal,
       ...(actorKind ? { actorKind } : {}),
@@ -92,10 +94,12 @@ function CreateServiceTokenForm({
   };
 
   const handleSelectDate = (setFieldValue: any, id: string, value: any) => {
+    // Write to the field the schema validates (`id`), and read the picked day in local time: the
+    // calendar hands back local midnight, which in UTC is the previous day east of Greenwich.
     if (Array.isArray(value) && value[0]) {
-      setFieldValue("date", String(moment.utc(value[0]).format("YYYY/MM/DD")));
+      setFieldValue(id, moment(value[0]).format("YYYY/MM/DD"));
     } else {
-      setFieldValue("date", value?.target?.value);
+      setFieldValue(id, value?.target?.value);
     }
   };
 
@@ -169,7 +173,6 @@ function CreateServiceTokenForm({
                   autoComplete="off"
                   data-testid="token-expiration-id"
                   id="expirationDate"
-                  dateFormat="MM-DD-YYYY"
                   invalid={Boolean(errors.expirationDate)}
                   invalidText={errors.expirationDate}
                   helperText="If no expiry is set, this token will never expire!"
