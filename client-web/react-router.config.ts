@@ -14,7 +14,11 @@ import type { Config } from "@react-router/dev/config";
 export default {
   appDirectory: "app",
   ssr: true,
-  basename: "/apps/flow",
+  // With the trailing slash: the dev server (`pnpm start`) refuses to start unless the basename
+  // begins with vite.config.mts's `base` ("/apps/flow/"), and a build must keep that slash on
+  // `base` or asset URLs come out as "/apps/flowassets/...". The router strips the slash when it
+  // matches and collapses it when it joins paths, so routes and hrefs are unchanged.
+  basename: "/apps/flow/",
   // Splits each route's component/loader/action into its own chunk instead of one route file
   // eagerly pulling its whole module graph into the server-build entry - SPA mode only ever
   // renders the root route (see the ssr:false comment above), so the other 22 routes' code
