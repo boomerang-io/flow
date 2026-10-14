@@ -22,7 +22,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |
-| `artifacts` | One file an upload task attached to a run: its run, task run and workflow references, size, SHA-256, store key, status and expiry (see "Artifacts" below) | `ArtifactEntity` (`lib-common`; `workflow`) |
+| `artifacts` | One file an upload task attached to a run: its run, task run and workflow references, scope (`run` or `workflow`), size, SHA-256, store key, status and expiry (see "Artifacts" below) | `ArtifactEntity` (`lib-common`; `workflow`) |
 | `workflow_schedules` | Cron and one-off schedules: `nextFireAt`, `lastFiredAt`, `retryCount` | `WorkflowScheduleEntity` (`lib-common`; `schedule`) |
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`lib-common`; `workflow`) |
 | `task_locks` | Per-key lock documents for the `acquirelock` / `releaselock` tasks | `TaskLockEntity` (`engine`) |
@@ -109,7 +109,7 @@ MUST add it to the inventory.
 | `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`; `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
 | `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` applied at startup, floored at 60), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
-| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx` |
+| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name) partial on `scope: workflow, status: available` (`:184-190`) |
 
 Before the unique indexes are built, duplicates are removed (`:182-185`): task runs keep the finished one, else the
 earliest; actions keep the earliest per task run, after a null `taskRunRef` is unset; dispatchers keep the most
@@ -124,19 +124,32 @@ An artifact is a file an upload task attached to its run. Its file lives in an o
 and the workspace list and storage total go through the workspace's workflows (`workflowRef`). No artifact
 field is on `WorkflowRun`, and no quota is on the run.
 
+Each artifact has a scope, set by the task's `scope` param (`run` by default, absent on older records and read as
+`run`; `ArtifactEntity.scopeOrRun`). A run-scoped artifact belongs to the run that uploaded it and only that run
+can download it. A workflow-scoped artifact is the workflow's state across runs: any later run of the workflow
+downloads it by name, it has no `expirationDate`, and a later verified upload of the same name replaces it.
+
 | Status | Written when | File |
 | --- | --- | --- |
-| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams`; `dispatcher/DispatcherService.java` `fillArtifactLink`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
-| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload`, called from `engine/TaskRunService.java` `completeArtifactUpload`); a refusal ends the task failed with `ArtifactRefused` | in the store |
-| `expired` | the watcher passes `expirationDate` (`:324`) | deleted; the record stays so the run still shows what it produced |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams` `:209`; `dispatcher/DispatcherService.java` `fillArtifactLink` `:228`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`:282`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:306`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1036`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:362`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
+| `expired` | the watcher passes `expirationDate` (`:463`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete or its workflow's prune (`engine/WorkflowWatcher.java:350`). Limits are
+A record is removed only by a delete or its workflow's prune (`engine/WorkflowWatcher.java:160`). Limits are
 admin settings: the `artifacts` document (default retention 30 days, maximum 90, largest artifact 1024 MB) and
 the `max.artifact.storage` workspace quota (5Gi), overridable per workspace with `artifactRetentionDays`. A task
-may ask for a shorter retention, never a longer one (`:128`). An upload over the largest artifact or the
-storage quota has its own file deleted and its task refused; no existing artifact is deleted to make room.
-The store is any S3-compatible service (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*`
-and off unless `flow.artifacts.enabled` (`workflow/config/ArtifactStoreConfiguration.java:28`).
+may ask for a shorter retention, never a longer one; a workflow-scoped upload may not set `retention-days` at all
+and is refused with `ARTIFACT_INVALID_SCOPE` if it does (`:237-282`). Workflow-scoped artifacts count toward the
+same quota and hold it until replaced or deleted. An upload over the largest artifact or the storage quota has
+its own file deleted and its task refused; no existing artifact is deleted to make room.
+
+A download whose artifact does not exist fails the task with `ArtifactRefused`, unless the task set
+`optional: true`: then the engine ends it `succeeded` at hand-out with reason `ArtifactNotFound` and the result
+`found=false`, and nothing is dispatched (`dispatcher/DispatcherService.java:228-240`). A dispatched download that
+ends succeeded gets `found=true` appended by the engine (`engine/TaskRunService.java` `reportArtifactFound`
+`:1056`), so a decision after the task can branch on `found`. The store is any S3-compatible service
+(`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*` and off unless `flow.artifacts.enabled`
+(`workflow/config/ArtifactStoreConfiguration.java:28`).
 
 ## Migrations
 `service-core` runs every pending change unit on Flamingock while its context starts, before the web server,
@@ -167,7 +180,7 @@ a release ships the chain, changes are appended as new units.
 | `_0007__V3MigrateWorkspaces` | v3 | Reshapes v3 teams in `workspaces`; extracts `approver_groups` |
 | `_0008__V3MigrateUsers` | v3 | Reshapes `users`; one personal workspace per user |
 | `_0009__NormaliseUserEmails` | all | Lower-cases `users.email`, leaving case collisions as they are and logging them |
-| `_0010__V3MigrateWorkflows` | v3 | Reshapes `workflows`; `workflows_revisions` → `workflow_revisions` |
+| `_0010__V3MigrateWorkflows` | v3 | Reshapes `workflows`; `workflows_revisions` → `workflow_revisions`; v3 run storage becomes the revision's `workspace` (a blank mount path pinned to `/workspace/workflowrun`), v3 Workflow storage becomes `legacyWorkflowStorage: true` |
 | `_0011__V3ExtractWorkflowTemplates` | v3 | Workflows with `scope=template` → `workflow_templates` |
 | `_0012__V3MigrateRuns` | v3 | `workflows_activity` → `workflow_runs`; approvals → `actions`; schedules → `workflow_schedules` |
 | `_0013__V3BuildRelationshipGraph` | v3 | Builds `rel_nodes` / `rel_edges`, approver group edges included; clears the hand-off fields |
@@ -175,7 +188,7 @@ a release ships the chain, changes are appended as new units.
 | `_0015__SeedRoles` | all | Seeds the five roles |
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
 | `_0017__SeedTaskCatalogue` | all | Seeds the 88 catalogue tasks and their revisions, matched by name |
-| `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact`, ids assigned on insert |
+| `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |

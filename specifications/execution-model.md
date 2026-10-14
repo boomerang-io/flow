@@ -92,7 +92,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | `reapClaimsFromGoneDispatchers` `:343` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:73`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
 | `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
 | `closeStrayActions` `:420` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
-| `expireArtifacts` `:178` | `available` artifacts past `expirationDate` | deletes the file, then sets `expired` by CAS; the record stays |
+| `expireArtifacts` `:174` | `available` artifacts past `expirationDate` (workflow-scoped ones have none and expire only when replaced) | deletes the file, then sets `expired` by CAS; the record stays |
 | `reapStaleArtifactUploads` `:183` | `uploading` artifacts older than `flow.artifacts.upload-grace-minutes` | deletes any partial file and the record |
 
 ## Timeouts and crash recovery

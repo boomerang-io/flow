@@ -469,7 +469,7 @@ revision lacks, and moves any revision off the retired `worker-flow` image (`:44
 | `approval`, `manual` | Create an action and wait for a person |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
-| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, and verifies an upload when it ends (`data-model.md`) |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
 
 ## Not built
 

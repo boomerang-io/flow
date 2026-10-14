@@ -132,8 +132,8 @@ paths:
     post:
       tags:
       - "Dispatcher"
-      summary: "Ask which of the runs a dispatcher holds a workspace volume for are finished,\
-        \ so those volumes can be released."
+      summary: "Ask which of the runs a dispatcher holds a workspace volume for are\
+        \ finished, so those volumes can be released."
       operationId: "releasableWorkspaces"
       requestBody:
         content:
