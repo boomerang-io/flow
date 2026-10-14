@@ -78,8 +78,8 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 | `status` | task run, by the inbound-event handler (escaped key) | `TaskRunService.java:357-370` | Yes — `TaskExecutionService.java:931` |
 
 Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` exist only in Tekton YAML exports
-(`workflow/tekton/TektonConverter.java:46-51`); `product`, `tier`, `*-ref`, `workspace-type`, `selector` are Kubernetes
-labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:231-306`).
+(`workflow/tekton/TektonConverter.java:46-51`); `product`, `tier`, `*-ref`, `selector` are Kubernetes
+labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:276-434`).
 
 ## Relationship graph schema
 `rel_nodes` and `rel_edges` are plain documents; the authorization reference describes the walk over them.

@@ -16,6 +16,20 @@ tag's release notes.
   once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
   key v5 encrypts with and is required on every install. Set both before the first start against a v3
   database. Secured settings are encrypted with AES-GCM; v3's values are re-encrypted on the first start.
+- **Workflow storage is removed.** A workflow has one shared workspace per run, declared as a single
+  `workspace` (size, mount path, class, access mode) instead of a `workspaces` list of two types; the volume
+  keyed by the workflow is gone. A v3 workflow that had Workflow storage is marked on upgrade and refused at run
+  with `WORKFLOW_STORAGE_REMOVED` until it is saved again. To keep files between runs, add a Download Artifact
+  task with *Scope: Workflow* and *Optional* at the start of the workflow and an Upload Artifact task with
+  *Scope: Workflow* at the end, both with the same name and the path you mounted before; kept artifacts appear
+  under Configure › Artifacts. Upgraded workflows keep their mount path (`/workspace/workflowrun` when none was
+  set); new workflows mount at `/workspace`. Flow no longer manages the old Workflow storage volumes: copy out
+  anything you need, then delete them with
+  `kubectl delete pvc -n <namespace> -l boomerang.io/workspace-type=workflow`.
+- **One storage quota.** `max.workspace.storage` (the run workspace size cap, carried from
+  `max.workflowrun.storage`) replaces `max.workflow.storage` and `max.workflowrun.storage` in the `quotas`
+  settings group; the per-workspace quota field is `maxWorkspaceStorage`. Kept artifacts count toward
+  `max.artifact.storage` until replaced or deleted. The dispatcher's `kube.workflow.storage.*` properties are gone.
 - **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so a
   shared email stops startup until it is resolved. See "Upgrading from v3" in the README.
 
