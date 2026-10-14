@@ -157,7 +157,7 @@ and enforcement additionally requires the `features.workspaceQuotas` setting (`w
 | --- | --- | --- |
 | `max.workflow.count` | Workflow create | `WorkflowService.java:401,923-937` |
 | `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit | `WorkflowService.java:636,940-963` |
-| `max.workflow.storage`, `max.workflowrun.storage` | Workflow create and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:448-497,971-988` |
+| `max.workspace.storage` | Workflow save (create and update) and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:499-515,956-990` |
 | `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:233-243` |
 
 The two run counters come from different sources (decision 0071). Concurrent = the live count of
@@ -184,29 +184,20 @@ claimable (`engine/TaskExecutionService.java:205-219`) — and results ≤
 
 ## Storage
 
-Per run, the dispatcher creates at most one persistent volume claim per declared workspace: type
-`workflowRun` is keyed by the run id (one per run), type `workflow` by the workflow id (shared, created
-once) (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkflowService.java:37-72`,
-`dispatcher/WorkspaceService.java:105-109`). Defaults: 1Gi, the cluster default class, `ReadWriteMany`
-(`service-dispatcher/.../application.properties:30-35`), with a 30 s wait to bind
-(`kube/KubeServiceImpl.java:143-199`). Both executors mount the same claims (`kube/KubeJobsExecutor.java:249-259`);
-a completed run with workspaces is torn down by a claimed dispatcher (`WorkflowRunStateHelper.java:62-75`).
-
-The only measured storage numbers are 2021 `fio` runs (60 s, 10 GiB file, `iodepth=64`) from the archived
-2021 benchmarks (raw fio reports: the archived `boomerang-io/community` repo, `architecture/flow/benchmarking/`); re-run them on the target cluster.
-
-| Cluster / storage class (2021) | Reads/s (random 4K) | Read MiB/s (1M seq ×8) | Writes/s (random 4K) | Write MiB/s (1M seq ×8) |
-| --- | --- | --- | --- | --- |
-| IBM Cloud Classic, GlusterFS | 4 829 | 407 | 276 | 70 |
-| IBM Cloud Classic, OpenShift Container Storage (Ceph, 3 × 400 GB local SSD) | 15 800 | 214 | 3 547 | 13.9 |
-| IBM Cloud ROKS VPC gen2, `ibmc-vpc-block-10iops-tier` | 2 993 | 49.2 | 2 000 | 49.1 |
+Per run, the dispatcher creates at most one persistent volume claim, keyed by the run id
+(`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkflowService.java:42-57`). Defaults: 1Gi, the cluster
+default class, `ReadWriteMany` (`service-dispatcher/.../application.properties:48-50`), with a 30 s wait to bind
+(`kube/KubeServiceImpl.java:142-195`). Both executors mount the same claim (`kube/KubeJobsExecutor.java:278-299`);
+a completed run's claim is deleted by the dispatcher's reconciliation, which asks the engine which of the runs it
+holds volumes for are finished (`dispatcher/WorkspaceReconciler.java:58-65`). Nothing is shared between runs; files
+kept for later runs are workflow-scoped artifacts, held in the artifact store under the artifact quota.
 
 ## Throughput baseline
 
 Measured 2026-09-03 with `load/run.mjs` (`load/README.md`) on one laptop: Apple M1, 8 cores (4 performance
 + 4 efficiency), 16 GiB; OrbStack VM with 8 CPUs and 8 GiB running the compose stack — one `service-core`
 (standalone, security on), MongoDB 7.0, Node 20 client on the host. Profile `inline`: 6 engine-executed
-tasks per run (`setwfproperty`, `decision`, 4 parallel `setwfproperty`), no dispatcher, no workspaces.
+tasks per run (`setwfproperty`, `decision`, 4 parallel `setwfproperty`), no dispatcher, no workspace.
 Each row is one run; poll traffic (one list query per 100 outstanding runs per second) is included.
 
 | Runs / in flight | Submit p50 / p95 / p99 | Complete p50 / p95 (submit → terminal status) | Runs/min completed | Peak `service-core` / Mongo |

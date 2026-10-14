@@ -19,7 +19,7 @@ released by the dispatcher reconciling what it holds against the engine, never b
 | Transition | Task run (`engine/TaskRunService.java`) | Workflow run (`engine/WorkflowRunStateHelper.java`) |
 | --- | --- | --- |
 | admit (persists resolved params) | `tryAdmit` `:278` | `tryAdmit` `:96` |
-| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:66` — only for runs that declare workspaces (`findClaimableForProvision` `:48`) |
+| claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:66` — only for runs that declare a workspace (`findClaimableForProvision` `:48`) |
 | release a stale claim | `tryRequeue` `:548` | `tryReleaseProvisionClaim` `:117` — back to `ready/pending`, fenced on `claim.seq` |
 | start (bakes `timeoutAt`) | `tryStartExecution` `:380` | `tryStart` `:113` |
 | complete | `tryComplete` `:415` | `tryComplete` `:148` |
@@ -57,8 +57,8 @@ prior state and whose update applies the new one, returning the pre-image or nul
 `WorkflowRunStateHelper.java:270-273`). There are no distributed locks, no `@Version` fields and no leader election.
 Only the CAS winner performs side effects; a loser logs and returns, so N instances and overlapping sweeps are safe.
 
-A run without workspaces submitted with `start=true` is started by the engine at once; a run that declares
-workspaces stays `ready`/`pending` until a dispatcher claims it, provisions its claims and calls
+A run without a workspace submitted with `start=true` is started by the engine at once; a run that declares
+one stays `ready`/`pending` until a dispatcher claims it, provisions its claim and calls
 `PUT /dispatcher/v1/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:784`). A run submitted with
 `start=false` is parked for a later `PUT /{id}/start` and no dispatcher takes it; `start` defaults to true
 on the submit route, so parking is the explicit opt-out.
@@ -264,7 +264,7 @@ task, not a task type, and only the types a dispatcher runs may carry it (`templ
 | Step | What happens | Where |
 | --- | --- | --- |
 | Fan-out | When `queue` reaches a for-each task it resolves `foreach.items` against the task's parameter layers — a literal array, or one reference whose value is an array or text holding one — and checks the count against `workflowrun`/`max.foreach.items` (default 256). A CAS moves the parent `notstarted/pending` → `running/running` and records the resolved array on it. The parent never passes through `ready`, so it is never claimable, and it carries no claim and no `timeoutAt`, so no lease, orphan or deadline sweep reaps it | `TaskExecutionService.fanOut` `:600`, `TaskRunService.tryStartForeach` `:420` |
-| Items | One task run per element, named `<name>[<index>]`, with `parentRef`, `index`, the parent's type, task, spec, workspaces, declared results, timeout, labels and annotations, no dependencies, and the parent's params plus `item` and `index`. An item is inserted only when its name is free, so the `{workflowRunRef, name}` unique index makes a concurrent duplicate lose; each unadmitted item is then queued. Items skip the graph check but pass the pause gate, the params cap and admission like any task, and are claimed, leased, timed out and retried by the machinery above | `TaskExecutionService.fanOutItems` `:636`, `newItem` `:670`, `queue` `:181-196` |
+| Items | One task run per element, named `<name>[<index>]`, with `parentRef`, `index`, the parent's type, task, spec, workspace, declared results, timeout, labels and annotations, no dependencies, and the parent's params plus `item` and `index`. An item is inserted only when its name is free, so the `{workflowRunRef, name}` unique index makes a concurrent duplicate lose; each unadmitted item is then queued. Items skip the graph check but pass the pause gate, the params cap and admission like any task, and are claimed, leased, timed out and retried by the machinery above | `TaskExecutionService.fanOutItems` `:636`, `newItem` `:670`, `queue` `:181-196` |
 | Parent completion | An item's end never advances the graph. After its own completion CAS it calls `completeParentIfItemsTerminal`, which first asks whether any item is unfinished or missing — an `exists` and a `count` on the parent's items — and only when none is loads the items, projected to `index`, `status` and `results`. The parent's outcome is then written field-scoped and fenced on the running phase, and the parent ends through the ordinary completion CAS, so of any number of concurrent last-item enders exactly one advances the graph. A lost end leaves the outcome recorded in the running phase, which `recoverForeachTasks` ends | `TaskExecutionService.java:545`, `:716-765`, `TaskRunService.allItemsCompleted` `:482`, `findItemOutcomes` `:491`, `tryRecordForeachOutcome` `:447` |
 | Outcome | `succeeded` when every item succeeded; otherwise `failed` with `statusReason = ItemFailed` and "`<n>` of `<m>` items did not succeed." Each declared result becomes a JSON array in item order with `null` for an item that did not succeed. When MongoDB refuses the combined arrays as over its 16 MB document limit, the parent fails with `ResultsTooLarge` and no results instead, and still ends. An empty array succeeds at once with empty arrays. Items that do not resolve to an array fail the task with `ForeachItemsInvalid`; more than the cap with `ForeachTooManyItems`, creating no item | `TaskExecutionService.java:716-778`, `:600-629` |
 
@@ -290,7 +290,7 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 | Retry classes (rate-limit, deterministic-terminal) | one generic `Backoff`; failures are not retried | a task family whose failures demonstrably need a different policy |
 | Supersede generations and a separate reconciler | retry creates a new workflow run; "reconcile" is the level-triggered `advance` | in-place partial re-run of one workflow run becomes a requirement |
 | For-each batching, a failure-tolerance rule, a per-task parallel limit, or repeating a group of tasks per item | one task repeated per item; any failed item fails it, an `always` connection carries on; items run as fast as dispatchers claim them | real workflows that need one of them |
-| A post-terminal phase, or any teardown field on the run, recording that its storage was released | the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which of the owners it holds volumes for are finished; the run records nothing | a cleanup outcome has to be shown to a user or read back by the engine |
+| A post-terminal phase, or any teardown field on the run, recording that its storage was released | the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which of the runs it holds volumes for are finished; the run records nothing | a cleanup outcome has to be shown to a user or read back by the engine |
 | A transaction (or `transitionSeq`) across CAS commit and outbox insert | the accepted creation-loss window above | a missing terminal-status event is reported, or a consumer becomes load-bearing on delivery |
 
 ## Also worth knowing
