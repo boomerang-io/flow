@@ -9,7 +9,7 @@ This repository holds the whole product — services, migrations, and the web ap
 |---|---|
 | [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Migrates and seeds its database as it starts (Flamingock change units in `io.boomerang.migration`). |
 | [`dispatcher-sdk`](./dispatcher-sdk) | The dispatcher protocol as a Java library, published to GitHub Packages as `io.boomerang:dispatcher-sdk`: write a dispatcher by implementing `TaskHandler`; the SDK registers, polls, starts, renews leases and reports ends. |
-| [`service-dispatcher`](./service-dispatcher) | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`. Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default) or `kube-jobs`. Additional runtimes can be added. |
+| [`service-dispatcher`](./service-dispatcher) | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`: one implementation of the published dispatcher contract (`contracts/dispatcher-v1.yaml`, `specifications/dispatcher-contract.md`). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default) or `kube-jobs`. Any process that implements the contract is a dispatcher; it runs as its own deployable only where a boundary (credentials, network zone, trust, placement) separates it from core. |
 | [`lib-common`](./lib-common) | `service-core`'s domain model, entities, enums, error handling. |
 | [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; served only in `standalone` mode. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
@@ -25,8 +25,8 @@ graph LR
 ```
 
 `service-flow` and `service-engine` were separate deployables in v4 and are now merged into `service-core`.
-The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`; the engine never
-calls a dispatcher.
+The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`. The one call in the
+other direction is task log streaming, which core proxies to a single configured dispatcher URL.
 
 ## Prerequisites
 

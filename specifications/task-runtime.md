@@ -473,4 +473,5 @@ revision lacks, and moves any revision off the retired `worker-flow` image (`:44
 
 ## Not built
 
-An Azure Blob artifact store waits for the serverless-container (ACA) dispatcher. A local Docker runtime and that dispatcher are planned executors.
+An Azure Blob artifact store waits for a serverless-container dispatcher. The planned executors, and which of them
+are separate processes, are in `dispatcher-contract.md` ("Topologies").
