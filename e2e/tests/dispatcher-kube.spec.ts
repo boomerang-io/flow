@@ -54,7 +54,10 @@ test.describe("dispatcher on kubernetes", () => {
    * Run-scoped storage is released by the dispatcher reconciling the cluster against the engine
    * (there is no phase after completed that says "released"), so the claim survives the run and
    * disappears within one reconcile tick of it - FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS is 10 s
-   * on the compose stack.
+   * on the compose stack. Kubernetes keeps a claim while any pod that mounted it still exists,
+   * finished or not, so this needs the task setting `deletion.policy` at Always (or On Success):
+   * the kube stack seeds it so (docker/mongo/seed-task-deletion.js); under the default, Never,
+   * the claim stays Terminating until the Job retention period removes the pods.
    */
   async function expectWorkspaceClaimReleased(workspaceRef: string, timeoutMs = 60_000) {
     const selector = `boomerang.io/workspace-ref=${workspaceRef}`;
