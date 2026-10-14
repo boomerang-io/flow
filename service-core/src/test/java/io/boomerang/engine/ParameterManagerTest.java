@@ -190,6 +190,54 @@ class ParameterManagerTest {
     assertEquals("hello", task.getSpec().getEnvs().get(0).getValue());
   }
 
+  // The spec reads the params as resolved: $(params.p) gets p's value, even when p was written as a
+  // reference to an upstream task's result.
+  @Test
+  void specReadsAParamWhoseValueIsATaskResult() {
+    stubTask("t1", new RunResult("r1", "RV"));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "$(tasks.t1.results.r1)")));
+    task.getSpec().setScript("echo $(params.p)");
+    task.getSpec().setEnvs(List.of(new TaskEnvVar("P", "$(params.p)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("RV", task.getParams().get(0).getValue());
+    assertEquals("echo RV", task.getSpec().getScript());
+    assertEquals("RV", task.getSpec().getEnvs().get(0).getValue());
+  }
+
+  // A result reached through a param is still a task's output: it reaches the spec as written, so
+  // a reference inside it is not expanded on the second pass.
+  @Test
+  void aResultReachedThroughAParamReachesTheSpecAsWritten() {
+    workspaceStore.put("w1", "wv");
+    stubTask("t1", new RunResult("r1", "says $(workspace.params.w1)"));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "$(tasks.t1.results.r1)")));
+    task.getSpec().setScript("echo $(params.p)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("echo says $(workspace.params.w1)", task.getSpec().getScript());
+  }
+
+  // A param written in terms of another still composes in the spec.
+  @Test
+  void specReadsAParamComposedFromAnother() {
+    workspaceStore.put("w1", "wv");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("q", "$(workspace.params.w1)"), str("p", "hi $(params.q)")));
+    task.getSpec().setScript("echo $(params.p)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("echo hi wv", task.getSpec().getScript());
+  }
+
   // Null spec fields survive substitution untouched; unresolved references stay verbatim.
   @Test
   void resolvesSpecFieldsNullSafeAndPassthrough() {

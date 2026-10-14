@@ -100,10 +100,12 @@ public class ParameterManager {
   }
 
   /*
-   * The layers one resolution reads, and the run params whose values were supplied rather than
-   * written in the workspace (lower-cased, as references match case-insensitively).
+   * The layers one resolution reads, the run params whose values were supplied rather than written
+   * in the workspace (lower-cased, as references match case-insensitively), and whether the task
+   * layer already holds resolved values - final, so inserted as written.
    */
-  private record Layers(ParamLayers paramLayers, Set<String> suppliedParams) {}
+  private record Layers(
+      ParamLayers paramLayers, Set<String> suppliedParams, boolean taskParamsResolved) {}
 
   /*
    * Resolve all RunParams for either WorkflowRun or TaskRun
@@ -161,7 +163,14 @@ public class ParameterManager {
       // The spec is part of the contract too: $(params.x) in script/command/arguments/envs must
       // resolve identically on every executor, so it happens here rather than relying on
       // Tekton's controller-side substitution (which Kubernetes Jobs and Docker do not have).
-      resolveSpec(optTaskRun.get().getSpec(), wfRun.getId(), paramLayers, taskRunMemo);
+      // The spec reads the params as just resolved, so $(params.p) gets p's value rather than the
+      // reference p was written with.
+      paramLayers.paramLayers().setTaskParams(ParameterUtil.runParamListToMap(runParams));
+      resolveSpec(
+          optTaskRun.get().getSpec(),
+          wfRun.getId(),
+          new Layers(paramLayers.paramLayers(), paramLayers.suppliedParams(), true),
+          taskRunMemo);
     } else {
       wfRun.setParams(runParams);
     }
@@ -267,7 +276,7 @@ public class ParameterManager {
       paramLayers.setTaskParams(ParameterUtil.runParamListToMap(optTaskRun.get().getParams()));
     }
 
-    return new Layers(paramLayers, suppliedParamNames(wfRun, revision));
+    return new Layers(paramLayers, suppliedParamNames(wfRun, revision), false);
   }
 
   /*
@@ -306,7 +315,7 @@ public class ParameterManager {
 
   /*
    * Whether the value behind a reference key must be inserted as written: a task result - a task's
-   * output - or a supplied run param. $(params.x) reads the nearest layer, so a supplied run param
+   * output - a supplied run param, or, in the spec, a task param already resolved. $(params.x) reads the nearest layer, so a supplied run param
    * serves it only when neither the task nor the context defines x.
    */
   private static boolean insertedAsWritten(String key, Layers layers) {
@@ -314,6 +323,13 @@ public class ParameterManager {
     if (parts.length >= 4
         && "tasks".equalsIgnoreCase(parts[0])
         && "results".equalsIgnoreCase(parts[2])) {
+      return true;
+    }
+    if (layers.taskParamsResolved()
+        && parts.length >= 2
+        && "params".equalsIgnoreCase(parts[0])
+        && definesIgnoringCase(layers.paramLayers().getTaskParams(), parts[1])
+        && !definesIgnoringCase(layers.paramLayers().getContextParams(), parts[1])) {
       return true;
     }
     if (layers.suppliedParams().isEmpty()) {
