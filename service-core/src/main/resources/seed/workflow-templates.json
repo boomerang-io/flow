@@ -524,17 +524,10 @@
           "taskRef": "60c2287d3911cb71a1f371a2"
         }
       ],
-      "workspaces": [
-        {
-          "name": "workflowrun",
-          "type": "workflowrun",
-          "optional": false,
-          "spec": {
-            "size": 1,
-            "mountPath": "/tekton/results"
-          }
-        }
-      ],
+      "workspace": {
+        "size": "1Gi",
+        "mountPath": "/tekton/results"
+      },
       "params": [
         {
           "jsonPath": "",
@@ -942,17 +935,10 @@
           "taskRef": "5f85dba0868d2e2ebebbe2d1"
         }
       ],
-      "workspaces": [
-        {
-          "name": "workflowrun",
-          "type": "workflowrun",
-          "optional": false,
-          "spec": {
-            "size": 1,
-            "mountPath": "/tekton/results"
-          }
-        }
-      ],
+      "workspace": {
+        "size": "1Gi",
+        "mountPath": "/tekton/results"
+      },
       "params": [
         {
           "jsonPath": "",

@@ -195,7 +195,7 @@ An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claim
 other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
 JSON-encoded) and `index` (its position from 0, as text), so the container sees `PARAM_ITEM` and `PARAM_INDEX`,
 and `$(params.item)` resolves in the spec. Its params and spec resolve when the item is admitted, not when the
-parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspaces as the parent,
+parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspace as the parent,
 so all items of a run share the run's workspace.
 
 ## Results and payload caps
@@ -308,31 +308,39 @@ showing it.
 ## Volumes and workspaces
 
 Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storage.data.memory=true` and the task
-param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:208-227`, `TektonServiceImpl.java:301`). Shared
-storage is a workflow-level opt-in with two types (`StorageType.java:12-13`), each a persistent volume claim (PVC)
-bound at `/workspace/<type>` or the task's declared `mountPath` (`KubeJobsExecutor.java:245-267`;
-`TektonServiceImpl.java:259,283`). What a task mounts is decided once, when `DAGUtility` materialises the TaskRun,
-by a three-way rule on the node's `workspaces` (`engine/DAGUtility.java:230-249`): a declared list mounts exactly
-that list, an empty list is an explicit opt-out that mounts none, and no list at all - the canvas offers no way to
-declare them, so this is the ordinary case - inherits every workspace the run carries, in the run's order. Nothing
-later in the run changes that list. The executor mounts by type and takes `mountPath` from the task's own entry,
-falling back to `/workspace/<type>` when it is blank (`KubeJobsExecutor.java:307-310`,
-`TektonServiceImpl.java:230-234`); an inherited entry gets its `mountPath` from the workflow-level
-`spec.mountPath`, which is how that field is read, and a workspace whose `spec` is absent or does not convert
-leaves it null for that same fallback (`engine/DAGUtility.java:573-582`). A `workflow` PVC is keyed by
-`workflowRef`, created at the first run's start if absent and never deleted by a run; a `workflowrun` PVC is keyed
-by the run id, created at start and deleted when the dispatcher's reconciliation finds its run completed
-(`dispatcher/WorkflowService.java:41-60,88-100`). Finished task pods still hold the claim, so under `Never` it
-stays `Terminating` until retention removes them. The authored spec (`size`, `accessMode`, `className`,
-`mountPath`) survives save; `size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi) checked
-against the workspace quota in Gi both when the Workflow is saved and when a run that carries its own workspaces is
-submitted (`workflow/WorkflowService.java:483-497,971-988`, `lib-common/.../util/StorageQuantityUtil.java:13`).
-Size, class and access mode default to `kube.workspace.storage.*` (1Gi, `ReadWriteMany`); a blank class leaves
-`storageClassName` unset so the cluster default applies, because an empty string disables dynamic provisioning
-(`KubeServiceImpl.java:175`). After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for
-it to reach `Pending` or `Bound`, treating a momentarily absent claim as not yet settled
-(`KubeServiceImpl.isClaimSettled` `:207`); any error while creating a workspace surfaces as one provisioning
-failure (`dispatcher/WorkspaceService.java:86-102`).
+param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:254-268`, `TektonServiceImpl.java:253`). Shared
+storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
+`accessMode`; `lib-common/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
+submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1966`). The
+dispatcher provisions one persistent volume claim (PVC) keyed by the run id, labelled `boomerang.io/tier=workspace`
+and `boomerang.io/workspace-ref=<run id>`, before the run starts (`dispatcher/WorkflowService.java:42-57`), and
+deletes it when its reconciliation finds the run completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume
+is shared between runs: files that must survive a run are artifacts with scope `workflow` ("Artifacts" in
+`data-model.md`).
+
+Which tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's
+workspace unless its node says `workspace: false` (`engine/DAGUtility.java:229-240`); the canvas offers no way to
+set that, so the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath`
+settled to the declared path or `/workspace`, so nothing later in the run changes it. Both executors mount that one
+claim at that path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212-217`, one declaration and one
+binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
+hold the claim, so under `Never` it stays `Terminating` until retention removes them.
+
+`size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a workspace enters the engine (`lib-common/.../model/WorkflowWorkspace.java` `settle`), because a Kubernetes Quantity would read it as bytes. On save, create and update alike, a blank
+size takes the `max.workspace.storage` quota value and a blank mount path becomes `/workspace`; a size above the
+quota is refused with `QUOTA_EXCEEDED` when quotas are enforced, and the same check runs when a run is submitted
+with its own workspace (`workflow/WorkflowService.java:499-515,956-990`,
+`lib-common/.../util/StorageQuantityUtil.java:13`). Class and access mode default to `kube.workspace.storage.*`
+(1Gi, `ReadWriteMany`; `dispatcher/WorkspaceService.java:59-61`); a blank class leaves `storageClassName` unset so
+the cluster default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:162`).
+After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or
+`Bound`, treating a momentarily absent claim as not yet settled (`KubeServiceImpl.isClaimSettled` `:202`); any
+error while creating it surfaces as one provisioning failure (`dispatcher/WorkspaceService.java:63-75`).
+
+A workflow upgraded from v3 keeps its mount path, written explicitly as `/workspace/workflowrun` when v3 had none
+(`migration/_0010__V3MigrateWorkflows.java:225`), so its tasks need no change. One that declared v3's Workflow
+storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on its revision and is refused at submit
+with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1951`).
 
 ## Isolation and placement
 
@@ -461,7 +469,7 @@ revision lacks, and moves any revision off the retired `worker-flow` image (`:44
 | `approval`, `manual` | Create an action and wait for a person |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
-| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, and verifies an upload when it ends (`data-model.md`) |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
 
 ## Not built
 

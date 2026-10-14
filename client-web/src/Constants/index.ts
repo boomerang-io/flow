@@ -274,11 +274,6 @@ export const WorkflowView = {
   Workflow: "workflow",
 } as const;
 
-export const WorkspaceConfigType = {
-  Workflow: "workflow",
-  WorflowRun: "workflowrun",
-} as const;
-
 export const ActionType = {
   Approval: "approval",
   Manual: "manual",

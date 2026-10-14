@@ -984,6 +984,7 @@ public class TaskRunService {
             taskRunEntity.setStatusReason("ResultsTooLarge");
           }
           completeArtifactUpload(taskRunEntity);
+          reportArtifactFound(taskRunEntity);
         }
         // Persist the request merge for the handler to re-read. The handler ignores an end
         // request for a completed TaskRun, so a terminal record stays untouched.
@@ -1044,6 +1045,25 @@ public class TaskRunService {
       taskRunEntity.setStatus(RunStatus.failed);
       taskRunEntity.setStatusReason("ArtifactRefused");
       taskRunEntity.setStatusMessage(artifacts.refusalMessage(e));
+    }
+  }
+
+  /*
+   * A succeeded download task reports found=true. The engine owns the result: the worker does not
+   * write it, and an end that already carries one (an optional download that found nothing ends
+   * succeeded with found=false before it is dispatched) stands.
+   */
+  private void reportArtifactFound(TaskRunEntity taskRunEntity) {
+    if (!TaskType.downloadartifact.equals(taskRunEntity.getType())
+        || !RunStatus.succeeded.equals(taskRunEntity.getStatus())) {
+      return;
+    }
+    List<RunResult> results =
+        taskRunEntity.getResults() != null ? taskRunEntity.getResults() : new ArrayList<>();
+    if (results.stream().noneMatch(r -> ArtifactService.FOUND_RESULT.equals(r.getName()))) {
+      taskRunEntity.setResults(
+          ResultUtil.addUniqueResults(
+              results, List.of(new RunResult(ArtifactService.FOUND_RESULT, "true"))));
     }
   }
 

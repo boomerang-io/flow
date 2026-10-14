@@ -132,8 +132,8 @@ paths:
     post:
       tags:
       - "Dispatcher"
-      summary: "Ask which owners of the workspace volumes a dispatcher holds are finished,\
-        \ so those volumes can be released."
+      summary: "Ask which of the runs a dispatcher holds a workspace volume for are\
+        \ finished, so those volumes can be released."
       operationId: "releasableWorkspaces"
       requestBody:
         content:
@@ -313,10 +313,8 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunParam"
-        workspaces:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/WorkflowWorkspace"
+        workspace:
+          $ref: "#/components/schemas/WorkflowWorkspace"
         timeout:
           type: "integer"
           format: "int64"
@@ -328,15 +326,14 @@ components:
     WorkflowWorkspace:
       type: "object"
       properties:
-        name:
+        size:
           type: "string"
-        description:
+        mountPath:
           type: "string"
-        type:
+        className:
           type: "string"
-        optional:
-          type: "boolean"
-        spec: {}
+        accessMode:
+          type: "string"
     RunResult:
       type: "object"
       properties:
@@ -409,10 +406,8 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunResult"
-        workspaces:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/TaskWorkspace"
+        workspace:
+          $ref: "#/components/schemas/WorkflowWorkspace"
         spec:
           $ref: "#/components/schemas/TaskRunSpec"
         status:
@@ -489,17 +484,6 @@ components:
           - "Never"
           - "OnSuccess"
           - "Always"
-    TaskWorkspace:
-      type: "object"
-      properties:
-        name:
-          type: "string"
-        type:
-          type: "string"
-        optional:
-          type: "boolean"
-        mountPath:
-          type: "string"
     WorkflowRun:
       type: "object"
       properties:
@@ -582,10 +566,8 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunResult"
-        workspaces:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/WorkflowWorkspace"
+        workspace:
+          $ref: "#/components/schemas/WorkflowWorkspace"
         awaitingApproval:
           type: "boolean"
     TaskRunStartRequest:
@@ -602,10 +584,6 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunParam"
-        workspaces:
-          type: "object"
-          additionalProperties:
-            type: "string"
         timeout:
           type: "integer"
           format: "int64"
@@ -653,18 +631,10 @@ components:
           type: "array"
           items:
             type: "string"
-        workflowRefs:
-          type: "array"
-          items:
-            type: "string"
     WorkspaceReleaseResponse:
       type: "object"
       properties:
         workflowRunRefs:
-          type: "array"
-          items:
-            type: "string"
-        workflowRefs:
           type: "array"
           items:
             type: "string"

@@ -31,7 +31,6 @@ const workflow: Workflow = {
     webhook: { enabled: false, conditions: [] },
   },
   upgradesAvailable: false,
-  workspaces: [],
 };
 
 const schedule: ScheduleUnion = {

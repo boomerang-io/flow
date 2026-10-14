@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A workflow run as the workflow queue hands it out: one that declares workspaces, claimed so the
- * dispatcher can provision their storage before its tasks run.
+ * A workflow run as the workflow queue hands it out: one that declares a workspace, claimed so the
+ * dispatcher can provision its storage before its tasks run.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -40,7 +40,7 @@ public class WorkflowRun {
   private String initiatedByRef;
   private String initiatedByWorkflowRunRef;
   private List<RunResult> results = new ArrayList<>();
-  private List<WorkflowWorkspace> workspaces = new ArrayList<>();
+  private WorkflowWorkspace workspace;
   private Boolean awaitingApproval;
 
   public String getId() {
@@ -235,12 +235,12 @@ public class WorkflowRun {
     this.results = results;
   }
 
-  public List<WorkflowWorkspace> getWorkspaces() {
-    return workspaces;
+  public WorkflowWorkspace getWorkspace() {
+    return workspace;
   }
 
-  public void setWorkspaces(List<WorkflowWorkspace> workspaces) {
-    this.workspaces = workspaces;
+  public void setWorkspace(WorkflowWorkspace workspace) {
+    this.workspace = workspace;
   }
 
   public Boolean getAwaitingApproval() {
@@ -262,8 +262,8 @@ public class WorkflowRun {
         + phase
         + ", status="
         + status
-        + ", workspaces="
-        + workspaces
+        + ", workspace="
+        + workspace
         + "]";
   }
 }

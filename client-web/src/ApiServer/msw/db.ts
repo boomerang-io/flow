@@ -41,7 +41,9 @@ interface GlobalParam extends Record<string, unknown> {
 interface ArtifactRecord extends Record<string, unknown> {
   id?: string;
   name?: string;
+  workflowRef?: string;
   workflowRunRef?: string;
+  scope?: string;
   status?: string;
 }
 

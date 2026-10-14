@@ -57,7 +57,6 @@ const workflowRun = {
                 }
             },
             "results": [],
-            "workspaces": [],
             "spec": {
                 "debug": false
             },
@@ -82,7 +81,6 @@ const workflowRun = {
                 }
             },
             "results": [],
-            "workspaces": [],
             "spec": {
                 "debug": false
             },
@@ -125,7 +123,6 @@ const workflowRun = {
                 "boomerang.io/generation": "4"
             },
             "results": [],
-            "workspaces": [],
             "spec": {
                 "arguments": [
                     "shell",
@@ -145,7 +142,6 @@ const workflowRun = {
     ],
     "trigger": "manual",
     "results": [],
-    "workspaces": [],
     "workflowName": "Parameter Resolution Check",
     "awaitingApproval": false
 };

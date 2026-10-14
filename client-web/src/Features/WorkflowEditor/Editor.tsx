@@ -1,3 +1,4 @@
+import { gbToQuantity } from "Utils/storageQuantity";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Loading, Error, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import type { FormikProps } from "formik";
@@ -6,8 +7,7 @@ import { useImmerReducer } from "use-immer";
 import { useWorkspaceContext } from "Hooks";
 import { EditorContextProvider } from "State/context";
 import { RevisionActionTypes, revisionReducer, initRevisionReducerState } from "State/reducers/workflowRevision";
-import { WorkflowEngineMode, WorkspaceConfigType } from "Constants";
-import { WorkflowView } from "Constants";
+import { WorkflowEngineMode, WorkflowView } from "Constants";
 import {
   ChangeLog as ChangeLogType,
   ConfigureWorkflowFormValues,
@@ -48,7 +48,8 @@ const CREATEABLE_PATHS = [
   "general",
   "triggers",
   "run",
-  "workspaces",
+  "workspace",
+  "artifacts",
   "parameters",
   "tokens",
 ];
@@ -354,10 +355,10 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
 
 /**
  * Format the form configure values into something that the API accepts
- * Update the `workspaces` and `labels` to be in the right format
+ * Update the `workspace` and `labels` to be in the right format
  */
-function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Partial<WorkflowCanvas> {
-  const optionalConfigureValues: Partial<ConfigureWorkflowFormValues> = configureValues;
+export function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Partial<WorkflowCanvas> {
+  const { workspace: workspaceForm, ...optionalConfigureValues } = configureValues;
 
   // Format labels
   const labelsKVObject = configureValues.labels.reduce(
@@ -368,32 +369,20 @@ function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Pa
     {} as Record<string, string>,
   );
 
-  // Format workspaces
-  const workflowStorageConfig = configureValues.storage?.workflow?.enabled
-    ? {
-        name: WorkspaceConfigType.Workflow,
-        type: WorkspaceConfigType.Workflow,
-        optional: false,
-        spec: { size: configureValues.storage.workflow.size, mountPath: configureValues.storage.workflow.mountPath },
-      }
+  /*
+   * The form's `enabled` toggle is form-only: on, the run's shared workspace is sent as the API's
+   * `workspace` object with the size written as a Gi quantity; off, an explicit null so the server
+   * clears a previously declared one (an absent key would leave it untouched). An empty mount path
+   * is omitted so the server applies its default.
+   */
+  const workspace = workspaceForm?.enabled
+    ? { size: gbToQuantity(workspaceForm.size), ...(workspaceForm.mountPath ? { mountPath: workspaceForm.mountPath } : {}) }
     : null;
-
-  const workflowRunStorageConfig = configureValues.storage?.workflowrun?.enabled
-    ? {
-        name: WorkspaceConfigType.WorflowRun,
-        type: WorkspaceConfigType.WorflowRun,
-        optional: false,
-        spec: { size: configureValues.storage.workflow.size, mountPath: configureValues.storage.workflow.mountPath },
-      }
-    : null;
-
-  const workspaces = [workflowStorageConfig, workflowRunStorageConfig].filter(Boolean) as WorkflowCanvas["workspaces"];
-
-  delete optionalConfigureValues["storage"];
 
   const formattedWorkflowConfig: Partial<WorkflowCanvas> = {
     ...optionalConfigureValues,
-    workspaces,
+    // `null` on the wire is the clear signal; the type only allows the object or absence.
+    workspace: workspace as WorkflowCanvas["workspace"],
     labels: labelsKVObject,
     timeout: configureValues.timeout ?? undefined,
     retries: configureValues.retries ?? undefined,

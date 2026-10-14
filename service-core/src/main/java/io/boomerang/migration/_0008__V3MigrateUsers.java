@@ -126,8 +126,7 @@ public class _0008__V3MigrateUsers {
   private static final int DEFAULT_MAX_WORKFLOW_COUNT = 10;
 
   private static final int DEFAULT_MAX_WORKFLOW_RUN_MONTHLY = 20;
-  private static final int DEFAULT_MAX_WORKFLOW_STORAGE = 25;
-  private static final int DEFAULT_MAX_WORKFLOW_RUN_STORAGE = 2;
+  private static final int DEFAULT_MAX_WORKSPACE_STORAGE = 2;
   private static final int DEFAULT_MAX_WORKFLOW_RUN_DURATION = 30;
   private static final int DEFAULT_MAX_CONCURRENT_RUNS = 4;
 
@@ -252,8 +251,7 @@ public class _0008__V3MigrateUsers {
         "quotas",
         new Document("maxWorkflowCount", DEFAULT_MAX_WORKFLOW_COUNT)
             .append("maxWorkflowRunMonthly", DEFAULT_MAX_WORKFLOW_RUN_MONTHLY)
-            .append("maxWorkflowStorage", DEFAULT_MAX_WORKFLOW_STORAGE)
-            .append("maxWorkflowRunStorage", DEFAULT_MAX_WORKFLOW_RUN_STORAGE)
+            .append("maxWorkspaceStorage", DEFAULT_MAX_WORKSPACE_STORAGE)
             .append("maxWorkflowRunDuration", DEFAULT_MAX_WORKFLOW_RUN_DURATION)
             .append("maxConcurrentRuns", DEFAULT_MAX_CONCURRENT_RUNS));
 

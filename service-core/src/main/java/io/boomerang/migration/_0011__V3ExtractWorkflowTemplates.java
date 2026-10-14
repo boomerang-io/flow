@@ -148,7 +148,7 @@ public class _0011__V3ExtractWorkflowTemplates {
     template.put("tasks", revision.get("tasks"));
     template.put("changelog", revision.get("changelog"));
     template.put("params", revision.get("params"));
-    template.put("workspaces", revision.get("workspaces"));
+    template.put("workspace", revision.get("workspace"));
     return template;
   }
 

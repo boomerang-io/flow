@@ -176,29 +176,24 @@ export interface CreateWorkflowSummary {
   icon: string;
 }
 
+/**
+ * The one shared filesystem a run gets: every task in the run reads and writes it, it is created
+ * when the run starts and removed when the run completes. Absent on the workflow means no shared
+ * storage. `size` is a Kubernetes quantity ("2Gi"); the editor edits it in whole gigabytes, capped by
+ * the workspace's `maxWorkspaceStorage` quota.
+ * Files that must outlive the run are artifacts uploaded with scope `workflow`.
+ */
 export interface WorkflowWorkspace {
-  name: string;
-  type: string;
-  optional: boolean;
-  spec?: {
-    accessMode?: string;
-    className?: string;
-    size?: number;
-    mountPath?: string;
-  };
+  size: string;
+  mountPath?: string;
+  className?: string;
+  accessMode?: string;
 }
 
 export interface WorkflowTaskDependency {
   taskRef: string;
   decisionCondition?: string;
   executionCondition: EdgeExecutionConditionType;
-}
-
-export interface WorkflowTaskWorkspace {
-  name: string;
-  type: string;
-  optional: boolean;
-  mountPath?: string;
 }
 
 export interface WorkflowTask {
@@ -213,7 +208,8 @@ export interface WorkflowTask {
   annotations?: Record<string, object>;
   params?: Array<Param>;
   results?: Array<{ name: string; description: string }>;
-  workspaces?: Array<WorkflowTaskWorkspace>;
+  /** Absent or true mounts the run's shared workspace into this task; false opts the task out. */
+  workspace?: boolean;
   foreach?: WorkflowTaskForeach;
 }
 
@@ -254,7 +250,13 @@ export interface Workflow {
     webhook: WorkflowTrigger;
   };
   upgradesAvailable: boolean;
-  workspaces: Array<WorkflowWorkspace>;
+  workspace?: WorkflowWorkspace;
+  /**
+   * Read-only. True on a workflow upgraded from v3 that declared Workflow storage (the cross-run
+   * volume Flow 5 removed): submitting it fails with `WORKFLOW_STORAGE_REMOVED` until the
+   * workflow is saved again.
+   */
+  legacyWorkflowStorage?: boolean;
 }
 
 export enum WorkflowStatus {
@@ -501,14 +503,12 @@ export interface FlowWorkspaceQuotas {
   currentConcurrentRuns: number;
   currentRunTotalDuration: number;
   currentRunMedianDuration: number;
-  currentWorkflowStorage: number;
-  currentWorkflowRunStorage: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
-  maxWorkflowStorage: number;
-  maxWorkflowRunStorage: number;
+  // GB (integer) - the size cap of the shared workspace a run can declare.
+  maxWorkspaceStorage: number;
   maxWorkflowRunDuration: number;
   maxConcurrentRuns: number;
   // Gi (integer) - the artifact storage cap for this workspace.
@@ -912,17 +912,12 @@ export interface ConfigureWorkflowFormValues {
   labels: Array<{ key: string; value: string }>;
   name: string;
   displayName: string;
-  storage: {
-    workflowrun: {
-      enabled: boolean;
-      size: number;
-      mountPath: string;
-    };
-    workflow: {
-      enabled: boolean;
-      size: number;
-      mountPath: string;
-    };
+  // Form-only shape: `enabled` is the toggle, and Editor.tsx's formatConfigureValues turns it
+  // into the API's `workspace` object (or null to clear it) on save.
+  workspace: {
+    enabled: boolean;
+    size: number;
+    mountPath: string;
   };
   retries: number | null;
   timeout: number | null;
@@ -955,7 +950,7 @@ export interface WorkflowRun {
   tasks: Array<TaskRun>;
   timeout: number;
   trigger: string;
-  workspaces: Array<WorkflowWorkspace>;
+  workspace?: WorkflowWorkspace;
   workflowName: string;
   workflowRef: string;
   workflowRevisionRef: string;
@@ -986,7 +981,7 @@ export interface TaskRun {
   workflowRevisionRef: string;
   workflowRunRef: string;
   workflowName: string;
-  workspaces: Array<WorkflowWorkspace>;
+  workspace?: WorkflowWorkspace;
   /** Set on an item of a for-each task: the id of the parent task run. */
   parentRef?: string;
   /** Set on an item of a for-each task: the item's position, from 0. */
@@ -1000,6 +995,16 @@ export enum ArtifactStatus {
 }
 
 /**
+ * `run`: the artifact belongs to the run that uploaded it and expires on its retention date.
+ * `workflow`: the artifact is kept for the workflow across runs - each name keeps its newest
+ * verified upload until it is replaced or deleted, and it never expires.
+ */
+export enum ArtifactScope {
+  Run = "run",
+  Workflow = "workflow",
+}
+
+/**
  * A file a task run uploaded during a run (`uploadartifact`), listed/downloaded/deleted through
  * the workspace-scoped `/workspace/{workspace}/workflowrun/{runId}/artifacts` surface (per-run) or
  * `/workspace/{workspace}/artifacts` (workspace-wide). `taskRunRef` is the id of the TaskRun that
@@ -1007,6 +1012,7 @@ export enum ArtifactStatus {
  * one. `status` is "uploading" while the upload is in flight (never returned by the list routes),
  * "available" once complete, and "expired" once `expirationDate` (creationDate + retentionDays)
  * has passed - an expired artifact is still listed but can no longer be downloaded (410).
+ * `expirationDate` is null/absent for scope `workflow`.
  */
 export interface Artifact {
   id: string;
@@ -1014,13 +1020,14 @@ export interface Artifact {
   workflowRef: string;
   workflowRunRef: string;
   taskRunRef: string;
+  scope: ArtifactScope;
   size: number;
   sha256: string;
   contentType: string;
   status: ArtifactStatus;
   creationDate: string;
   retentionDays: number;
-  expirationDate: string;
+  expirationDate?: string | null;
 }
 
 export interface RunAnnototations {

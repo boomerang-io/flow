@@ -171,7 +171,7 @@ public class DispatcherControllerV1 {
   @PostMapping(value = "/workspaces/releasable")
   @Operation(
       summary =
-          "Ask which owners of the workspace volumes a dispatcher holds are finished, so those"
+          "Ask which of the runs a dispatcher holds a workspace volume for are finished, so those"
               + " volumes can be released.")
   @ApiResponses(
       value = {

@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -31,6 +32,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workflow.ArtifactService.LinkOutcome;
 import io.boomerang.workflow.model.Artifact;
 import io.boomerang.workflow.repository.ArtifactRepository;
 import io.boomerang.workspace.WorkspaceService;
@@ -56,6 +58,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -67,12 +70,15 @@ import org.springframework.web.context.WebApplicationContext;
  * Artifacts end to end against a real MongoDB and an in-memory store: the upload handshake the
  * dispatcher drives, the limits (name, largest artifact, storage quota, retention), the
  * workspace-scoped reads, the watcher's expiry and stale-upload sweeps, and the workflow prune. An
- * expired artifact keeps its record and loses its file; nothing is deleted to make room.
+ * expired artifact keeps its record and loses its file; nothing is deleted to make room. A
+ * workflow-scoped artifact is kept across runs under its own key, replaced by the next verified
+ * upload of its name, and never expires on its own.
  */
 @Import(ArtifactServiceTest.InMemoryStoreConfiguration.class)
 class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "artifact-test-task";
+  private static final String WORKFLOW_NAME = "artifact-workflow";
   private static final String QUOTA_FEATURE = "workspaceQuotas";
 
   @Autowired private ArtifactService artifactService;
@@ -95,10 +101,8 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     setFeatureSetting(QUOTA_FEATURE, false);
 
     workspace = createWorkspace(new Quotas());
-    workflowService.create(workspace, runnableWorkflow("artifact-workflow", TASK_SLUG));
-    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-    request.setTrigger(TriggerEnum.manual);
-    WorkflowRun run = workflowService.submit(workspace, "artifact-workflow", request, false);
+    workflowService.create(workspace, runnableWorkflow(WORKFLOW_NAME, TASK_SLUG));
+    WorkflowRun run = submitRun();
     workflowRef = run.getWorkflowRef();
     uploadTask =
         savedTaskRun(
@@ -403,10 +407,212 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     assertThat(ended.getStatusMessage()).contains("too-big.bin").contains("largest artifact");
   }
 
+  // ── workflow scope ────────────────────────────────────────────────────────
+
+  @Test
+  void aWorkflowScopedArtifactIsKeptUnderItsOwnKeyWithoutExpiry() {
+    TaskRun link = beginIn(uploadTask.getWorkflowRunRef(), "model.bin", null, "workflow");
+    store.objects.put(keyOf(link), new byte[] {1, 2});
+    Artifact artifact = complete(uploadTask.getWorkflowRunRef(), "model.bin");
+
+    assertThat(keyOf(link))
+        .isEqualTo("workflows/" + workflowRef + "/model.bin/" + artifact.id());
+    assertThat(artifact.scope()).isEqualTo(ArtifactScope.workflow);
+    assertThat(artifact.status()).isEqualTo(ArtifactStatus.available);
+    assertThat(artifact.retentionDays()).isZero();
+    assertThat(artifact.expirationDate()).isNull();
+  }
+
+  @Test
+  void aLaterRunOfTheWorkflowDownloadsTheKeptArtifact() {
+    byte[] bytes = "kept state".getBytes(StandardCharsets.UTF_8);
+    uploadIn(uploadTask.getWorkflowRunRef(), "state.json", "workflow", bytes);
+    Artifact kept = complete(uploadTask.getWorkflowRunRef(), "state.json");
+    String laterRun = submitRun().getId();
+
+    TaskRun download = download(laterRun, "state.json", "workflow", null);
+
+    assertThat(artifactService.fillLinkParams(download)).isEqualTo(LinkOutcome.FILLED);
+    assertThat(paramOf(download, ArtifactService.SHA256_PARAM)).isEqualTo(kept.sha256());
+    assertThat(keyOf(download)).isEqualTo(keyOfArtifact(kept));
+  }
+
+  @Test
+  void aRunScopedDownloadDoesNotSeeTheWorkflowsKeptArtifact() {
+    uploadIn(uploadTask.getWorkflowRunRef(), "only-workflow", "workflow", new byte[] {1});
+    complete(uploadTask.getWorkflowRunRef(), "only-workflow");
+    TaskRun download = download(submitRun().getId(), "only-workflow", null, null);
+
+    assertThatThrownBy(() -> artifactService.fillLinkParams(download))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_INVALID_REF"));
+  }
+
+  @Test
+  void aVerifiedReplacementExpiresThePreviousVersionAndKeepsItsRecord() {
+    String firstRun = uploadTask.getWorkflowRunRef();
+    String secondRun = submitRun().getId();
+    TaskRun firstLink = uploadIn(firstRun, "latest.tgz", "workflow", new byte[] {1});
+    Artifact first = complete(firstRun, "latest.tgz");
+    TaskRun secondLink = uploadIn(secondRun, "latest.tgz", "workflow", new byte[] {2, 2});
+
+    // Until the second upload is verified, the first version is still the one handed out.
+    assertThat(keyOf(handedOutDownload(submitRun().getId(), "latest.tgz", "workflow")))
+        .isEqualTo(keyOf(firstLink));
+    Artifact second = complete(secondRun, "latest.tgz");
+
+    assertThat(store.objects).doesNotContainKey(keyOf(firstLink)).containsKey(keyOf(secondLink));
+    assertThat(artifactRepository.findById(first.id()).orElseThrow().getStatus())
+        .isEqualTo(ArtifactStatus.expired);
+    assertThat(availableWorkflowScoped("latest.tgz")).extracting(ArtifactEntity::getId).containsExactly(second.id());
+    assertThat(keyOf(handedOutDownload(submitRun().getId(), "latest.tgz", "workflow")))
+        .isEqualTo(keyOf(secondLink));
+    assertThatThrownBy(() -> artifactService.open(workspace, firstRun, "latest.tgz"))
+        .isInstanceOfSatisfying(
+            BoomerangException.class, ex -> assertThat(ex.getStatus().value()).isEqualTo(410));
+  }
+
+  @Test
+  void theLaterVerifiedCompletionWinsWhicheverUploadBeganFirst() {
+    String firstRun = uploadTask.getWorkflowRunRef();
+    String secondRun = submitRun().getId();
+    uploadIn(firstRun, "race", "workflow", new byte[] {1});
+    uploadIn(secondRun, "race", "workflow", new byte[] {2});
+
+    Artifact second = complete(secondRun, "race");
+    Artifact first = complete(firstRun, "race");
+
+    assertThat(availableWorkflowScoped("race")).extracting(ArtifactEntity::getId).containsExactly(first.id());
+    assertThat(artifactRepository.findById(second.id()).orElseThrow().getStatus())
+        .isEqualTo(ArtifactStatus.expired);
+    assertThat(artifactRepository.findByWorkflowRef(workflowRef, PageRequest.of(0, 10)))
+        .filteredOn(artifact -> "race".equals(artifact.getName()))
+        .hasSize(2);
+  }
+
+  @Test
+  void aRefusedReplacementLeavesTheKeptArtifactInPlace() {
+    String firstRun = uploadTask.getWorkflowRunRef();
+    TaskRun firstLink = uploadIn(firstRun, "kept.bin", "workflow", new byte[] {1});
+    Artifact first = complete(firstRun, "kept.bin");
+    setArtifactSetting(ArtifactService.MAX_ARTIFACT_SIZE, "1");
+    String secondRun = submitRun().getId();
+    TaskRun secondLink = uploadIn(secondRun, "kept.bin", "workflow", new byte[2 * 1024 * 1024]);
+
+    assertThatThrownBy(() -> complete(secondRun, "kept.bin"))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_TOO_LARGE"));
+
+    assertThat(store.objects).containsKey(keyOf(firstLink)).doesNotContainKey(keyOf(secondLink));
+    assertThat(availableWorkflowScoped("kept.bin")).extracting(ArtifactEntity::getId).containsExactly(first.id());
+  }
+
+  @Test
+  void retentionDaysIsRefusedWithScopeWorkflow() {
+    assertThatThrownBy(() -> beginIn(uploadTask.getWorkflowRunRef(), "no-retention", 3, "workflow"))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            ex -> {
+              assertThat(ex.getReason()).isEqualTo("ARTIFACT_INVALID_SCOPE");
+              assertThat(artifactService.refusalMessage(ex))
+                  .contains("retention-days cannot be set with scope workflow");
+            });
+    assertThat(
+            artifactRepository.findByWorkflowRunRefAndName(
+                uploadTask.getWorkflowRunRef(), "no-retention"))
+        .isEmpty();
+  }
+
+  @Test
+  void anUnknownScopeIsRefusedOnUploadAndDownload() {
+    assertThatThrownBy(() -> beginIn(uploadTask.getWorkflowRunRef(), "bad-scope", null, "team"))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_INVALID_SCOPE"));
+    TaskRun download = download(uploadTask.getWorkflowRunRef(), "bad-scope", "global", null);
+    assertThatThrownBy(() -> artifactService.fillLinkParams(download))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_INVALID_SCOPE"));
+  }
+
+  @Test
+  void anOptionalDownloadWithNothingToFetchIsNotHandedOut() {
+    for (String scope : new String[] {null, "workflow"}) {
+      TaskRun optional = download(uploadTask.getWorkflowRunRef(), "absent", scope, true);
+      assertThat(artifactService.fillLinkParams(optional)).as(scope).isEqualTo(LinkOutcome.NOT_FOUND);
+      assertThat(optional.getParams()).extracting(RunParam::getName).doesNotContain("url");
+
+      TaskRun required = download(uploadTask.getWorkflowRunRef(), "absent", scope, false);
+      assertThatThrownBy(() -> artifactService.fillLinkParams(required))
+          .as(scope)
+          .isInstanceOfSatisfying(
+              BoomerangException.class,
+              ex -> assertThat(ex.getReason()).isEqualTo("ARTIFACT_INVALID_REF"));
+    }
+  }
+
+  @Test
+  void theWorkspaceQueryFiltersByScopeAndWorkflow() {
+    upload("per-run", null, new byte[] {1});
+    complete("per-run");
+    uploadIn(uploadTask.getWorkflowRunRef(), "per-workflow", "workflow", new byte[] {1, 2});
+    complete(uploadTask.getWorkflowRunRef(), "per-workflow");
+
+    assertThat(query(Optional.empty(), Optional.empty()))
+        .containsExactlyInAnyOrder("per-run", "per-workflow");
+    assertThat(query(Optional.of(ArtifactScope.workflow), Optional.empty()))
+        .containsExactly("per-workflow");
+    assertThat(query(Optional.of(ArtifactScope.run), Optional.empty())).containsExactly("per-run");
+    assertThat(query(Optional.empty(), Optional.of(WORKFLOW_NAME)))
+        .containsExactlyInAnyOrder("per-run", "per-workflow");
+    assertThat(query(Optional.of(ArtifactScope.workflow), Optional.of(WORKFLOW_NAME)))
+        .containsExactly("per-workflow");
+    assertThat(query(Optional.empty(), Optional.of("no-such-workflow"))).isEmpty();
+  }
+
+  @Test
+  void theRunRouteServesAWorkflowScopedArtifactItsRunUploaded() throws Exception {
+    byte[] bytes = "kept file".getBytes(StandardCharsets.UTF_8);
+    uploadIn(uploadTask.getWorkflowRunRef(), "kept.txt", "workflow", bytes);
+    complete(uploadTask.getWorkflowRunRef(), "kept.txt");
+    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+    MvcResult started =
+        mockMvc
+            .perform(
+                get(
+                    "/api/v2/workspace/{workspace}/workflowrun/{run}/artifacts/{name}",
+                    workspace,
+                    uploadTask.getWorkflowRunRef(),
+                    "kept.txt"))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+    mockMvc
+        .perform(asyncDispatch(started))
+        .andExpect(status().isOk())
+        .andExpect(content().bytes(bytes));
+    assertThat(artifactService.listForRun(workspace, uploadTask.getWorkflowRunRef()))
+        .extracting(Artifact::name, Artifact::scope)
+        .containsExactly(org.assertj.core.groups.Tuple.tuple("kept.txt", ArtifactScope.workflow));
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────
+
+  private WorkflowRun submitRun() {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.manual);
+    return workflowService.submit(workspace, WORKFLOW_NAME, request, false);
+  }
 
   /** A new upload task for the artifact, handed out: its link params are filled. */
   private TaskRun begin(String name, Integer retentionDays) {
+    return beginIn(uploadTask.getWorkflowRunRef(), name, retentionDays, null);
+  }
+
+  private TaskRun beginIn(String runId, String name, Integer retentionDays, String scope) {
     // Each upload is its own task in the run; task names are unique within a run.
     TaskRunEntity task =
         savedTaskRun(
@@ -415,11 +621,12 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
             RunStatus.running,
             RunPhase.running,
             workflowRef,
-            uploadTask.getWorkflowRunRef());
+            runId);
     task.setParams(
         new java.util.ArrayList<>(
             List.of(
                 new RunParam(ArtifactService.NAME_PARAM, name),
+                new RunParam(ArtifactService.SCOPE_PARAM, scope != null ? scope : ""),
                 new RunParam(
                     ArtifactService.RETENTION_PARAM,
                     retentionDays != null ? retentionDays.toString() : ""))));
@@ -435,21 +642,81 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     return task;
   }
 
+  private TaskRun uploadIn(String runId, String name, String scope, byte[] bytes) {
+    TaskRun task = beginIn(runId, name, null, scope);
+    store.objects.put(keyOf(task), bytes);
+    return task;
+  }
+
   private Artifact complete(String name) {
+    return complete(uploadTask.getWorkflowRunRef(), name);
+  }
+
+  private Artifact complete(String runId, String name) {
     ArtifactEntity artifact =
-        artifactRepository
-            .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), name)
-            .orElseThrow();
+        artifactRepository.findByWorkflowRunRefAndName(runId, name).orElseThrow();
     return artifactService.completeUpload(
         taskRunRepository.findById(artifact.getTaskRunRef()).orElseThrow());
   }
 
-  private static String urlOf(TaskRun task) {
+  /** A download task in the run, saved but not yet handed out. */
+  private TaskRun download(String runId, String name, String scope, Boolean optional) {
+    TaskRunEntity task =
+        savedTaskRun(
+            "download-" + name + "-" + ++uploadTasks,
+            TaskType.downloadartifact,
+            RunStatus.running,
+            RunPhase.running,
+            workflowRef,
+            runId);
+    List<RunParam> params = new java.util.ArrayList<>();
+    params.add(new RunParam(ArtifactService.NAME_PARAM, name));
+    if (scope != null) {
+      params.add(new RunParam(ArtifactService.SCOPE_PARAM, scope));
+    }
+    if (optional != null) {
+      params.add(new RunParam(ArtifactService.OPTIONAL_PARAM, optional.toString()));
+    }
+    task.setParams(params);
+    return new TaskRun(taskRunRepository.save(task));
+  }
+
+  /** A download task handed out: its link params are filled. */
+  private TaskRun handedOutDownload(String runId, String name, String scope) {
+    TaskRun task = download(runId, name, scope, null);
+    artifactService.fillLinkParams(task);
+    return task;
+  }
+
+  private List<ArtifactEntity> availableWorkflowScoped(String name) {
+    return artifactRepository
+        .findByWorkflowRefAndNameAndScopeAndStatus(
+            workflowRef, name, ArtifactScope.workflow, ArtifactStatus.available)
+        .stream()
+        .toList();
+  }
+
+  private List<String> query(Optional<ArtifactScope> scope, Optional<String> workflow) {
+    return artifactService
+        .query(workspace, Optional.empty(), scope, workflow, 0, 10)
+        .map(Artifact::name)
+        .getContent();
+  }
+
+  private static String paramOf(TaskRun task, String name) {
     return task.getParams().stream()
-        .filter(param -> ArtifactService.URL_PARAM.equals(param.getName()))
+        .filter(param -> name.equals(param.getName()))
         .map(param -> param.getValue().toString())
         .findFirst()
         .orElseThrow();
+  }
+
+  private String keyOfArtifact(Artifact artifact) {
+    return artifactRepository.findById(artifact.id()).orElseThrow().getStorageKey();
+  }
+
+  private static String urlOf(TaskRun task) {
+    return paramOf(task, ArtifactService.URL_PARAM);
   }
 
   private int retentionOf(String name) {

@@ -101,8 +101,8 @@ class SettingsFromSeedTest {
     assertThat(value(db, "quotas", "max.workflow.count")).isEqualTo("25");
     assertThat(value(db, "quotas", "max.workflowrun.monthly")).isEqualTo("200");
     assertThat(value(db, "quotas", "max.workflowrun.duration")).isEqualTo("60");
-    assertThat(value(db, "quotas", "max.workflow.storage")).isEqualTo("10Gi");
-    assertThat(value(db, "quotas", "max.workflowrun.storage")).isEqualTo("2Gi");
+    assertThat(value(db, "quotas", "max.workspace.storage")).isEqualTo("2Gi");
+    assertThat(keysOf(setting(db, "quotas"))).doesNotContain("max.workflow.storage");
     assertThat(value(db, "quotas", "max.artifact.storage")).isEqualTo("5Gi");
     assertThat(value(db, "features", "workspaceQuotas")).isEqualTo("false");
     assertThat(value(db, "features", "workspaceTasks")).isEqualTo("false");

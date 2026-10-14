@@ -88,3 +88,4 @@ things by name, not by code.
 | 0101 | [A REST handler is denied unless it carries `@AuthCriteria` or `@AuthExempt`](0101-rest-handlers-are-denied-unless-annotated.md) | accepted | 2026-09-14 |
 | 0102 | [The dispatcher protocol is a published contract, and the SDK owns its own wire models](0102-the-dispatcher-protocol-is-a-published-contract.md) | accepted | 2026-10-08 |
 | 0103 | [Routes are grouped under one prefix per kind of caller](0103-routes-are-grouped-under-one-prefix-per-kind-of-caller.md) | accepted | 2026-10-13 |
+| 0104 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |

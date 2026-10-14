@@ -3,7 +3,6 @@ package io.boomerang.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
@@ -13,13 +12,11 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRun;
-import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowWorkspace;
-import io.boomerang.common.model.WorkflowWorkspaceSpec;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
@@ -33,9 +30,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.dataformat.yaml.YAMLMapper;
 
 /**
- * A Task that declares no workspaces mounts every workspace its run carries - the canvas offers no
- * way to declare them, so that is the ordinary case. An empty declared list is the explicit
- * opt-out, and a declared list is honoured verbatim (pinned separately by TaskWorkspaceScopeTest).
+ * A Task mounts the run's one workspace unless it opts out: an absent or {@code true} {@code
+ * workspace} on the node mounts it (the canvas offers no way to opt out, so that is the ordinary
+ * case), {@code false} mounts nothing. The TaskRun carries its own copy with the mountPath settled
+ * - the workflow's own value, or the default when the workflow names none.
  */
 class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
 
@@ -58,30 +56,25 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aTaskDeclaringNoWorkspacesInheritsEveryWorkspaceOnTheRun() {
+  void aTaskSayingNothingAboutTheWorkspaceMountsTheRuns() {
     WorkflowTask echo = node("echo", TaskType.template, templateId, "start");
 
-    // The first workflow-level workspace carries a spec with a mountPath, the second carries no
-    // spec at all - the shape every workflow created through the engine has.
     String workflowId =
         createWorkflow(
-            "task-workspace-inherits-all",
-            echo,
-            List.of(
-                workflowWorkspace("workflow", "workflow", "/workspace/shared"),
-                workflowWorkspace("workflowrun", "workflowrun", null)));
+            "task-workspace-inherits", echo, workflowWorkspace("/workspace/shared"));
 
-    // Absent on the node must reach createTaskList as null, not as an empty list, or the opt-out
-    // below is unreachable.
+    // Absent on the node must reach createTaskList as null, not as false, or the opt-out below
+    // would be the default.
     assertNull(
-        savedNode(workflowId, "echo").getWorkspaces(),
-        "a node authored without workspaces must round-trip through Mongo as null");
+        savedNode(workflowId, "echo").getWorkspace(),
+        "a node authored without a workspace flag must round-trip through Mongo as null");
 
     String taskRunId = startAndAwaitEchoTaskRun(workflowId);
 
-    assertInherited(
-        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspaces(),
-        "the materialised TaskRun should hold every workspace the run carries");
+    assertMounted(
+        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspace(),
+        "/workspace/shared",
+        "the materialised TaskRun should hold the run's workspace");
 
     String agentId =
         dispatcherService.register(
@@ -94,75 +87,101 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
     TaskRun claimed =
         queue.stream().filter(t -> taskRunId.equals(t.getId())).findFirst().orElse(null);
     assertNotNull(claimed, "the dispatcher's queue should carry the claimed TaskRun");
-    assertInherited(
-        claimed.getWorkspaces(),
-        "the dispatcher's claim payload should carry every workspace the run carries");
+    assertMounted(
+        claimed.getWorkspace(),
+        "/workspace/shared",
+        "the dispatcher's claim payload should carry the run's workspace");
   }
 
   @Test
-  void aTaskDeclaringAnEmptyWorkspaceListMountsNone() {
+  void aTaskSayingTrueMountsTheRunsWorkspace() {
     WorkflowTask echo = node("echo", TaskType.template, templateId, "start");
-    echo.setWorkspaces(new LinkedList<>());
+    echo.setWorkspace(Boolean.TRUE);
 
     String workflowId =
-        createWorkflow(
-            "task-workspace-opts-out",
-            echo,
-            List.of(
-                workflowWorkspace("workflow", "workflow", "/workspace/shared"),
-                workflowWorkspace("workflowrun", "workflowrun", "/workspace/run")));
-
-    // The opt-out only exists if an empty list survives the save as an empty list.
-    List<TaskWorkspace> saved = savedNode(workflowId, "echo").getWorkspaces();
-    assertNotNull(saved, "an explicitly empty workspace list must not round-trip as null");
-    assertTrue(saved.isEmpty(), "an explicitly empty workspace list must stay empty");
+        createWorkflow("task-workspace-true", echo, workflowWorkspace("/workspace/shared"));
 
     String taskRunId = startAndAwaitEchoTaskRun(workflowId);
 
-    assertTrue(
-        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspaces().isEmpty(),
-        "a node declaring an empty workspace list should mount none");
+    assertMounted(
+        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspace(),
+        "/workspace/shared",
+        "a node saying workspace: true should mount the run's workspace");
   }
 
   @Test
-  void aTaskDeclaringNoWorkspacesOnARunWithNoneMountsNone() {
+  void aTaskSayingFalseMountsNothing() {
+    WorkflowTask echo = node("echo", TaskType.template, templateId, "start");
+    echo.setWorkspace(Boolean.FALSE);
+
+    String workflowId =
+        createWorkflow("task-workspace-opts-out", echo, workflowWorkspace("/workspace/shared"));
+
+    // The opt-out only exists if false survives the save as false.
+    assertEquals(
+        Boolean.FALSE,
+        savedNode(workflowId, "echo").getWorkspace(),
+        "an explicit workspace: false must round-trip as false");
+
+    String taskRunId = startAndAwaitEchoTaskRun(workflowId);
+
+    assertNull(
+        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspace(),
+        "a node saying workspace: false should mount nothing");
+  }
+
+  @Test
+  void aWorkspaceNamingNoMountPathIsMountedAtTheDefault() {
+    WorkflowTask echo = node("echo", TaskType.template, templateId, "start");
+
+    // The shape every workflow created through the engine has: a size and nothing else.
+    String workflowId =
+        createWorkflow("task-workspace-default-mount", echo, workflowWorkspace(null));
+
+    String taskRunId = startAndAwaitEchoTaskRun(workflowId);
+
+    assertMounted(
+        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspace(),
+        WorkflowWorkspace.DEFAULT_MOUNT_PATH,
+        "a workspace naming no mountPath is settled to the default on the TaskRun");
+  }
+
+  @Test
+  void aTaskOnARunWithNoWorkspaceMountsNothing() {
     WorkflowTask echo = node("echo", TaskType.template, templateId, "start");
 
     String workflowId = createWorkflow("task-workspace-none-anywhere", echo, null);
 
     String taskRunId = startAndAwaitEchoTaskRun(workflowId);
 
-    assertTrue(
-        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspaces().isEmpty(),
-        "nothing to inherit should leave the TaskRun with no workspaces");
+    assertNull(
+        taskRunRepository.findById(taskRunId).orElseThrow().getWorkspace(),
+        "nothing to mount should leave the TaskRun with no workspace");
   }
 
   /**
    * The YAML half of the same distinction: the API accepts a workflow as application/x-yaml, and
-   * the three-way rule needs an omitted {@code workspaces:} key to arrive as null while an
-   * explicit {@code workspaces: []} arrives as an empty list.
+   * the rule needs an omitted {@code workspace:} key to arrive as null while an explicit {@code
+   * workspace: false} arrives as false.
    */
   @Test
-  void yamlDistinguishesAnOmittedWorkspacesKeyFromAnEmptyOne() {
+  void yamlDistinguishesAnOmittedWorkspaceKeyFromAnExplicitOptOut() {
     YAMLMapper mapper = new YAMLMapper();
     assertNull(
-        mapper.readValue("name: echo\ntype: template\n", WorkflowTask.class).getWorkspaces(),
-        "an omitted workspaces key must deserialise as null");
-    List<TaskWorkspace> empty =
+        mapper.readValue("name: echo\ntype: template\n", WorkflowTask.class).getWorkspace(),
+        "an omitted workspace key must deserialise as null");
+    assertEquals(
+        Boolean.FALSE,
         mapper
-            .readValue("name: echo\ntype: template\nworkspaces: []\n", WorkflowTask.class)
-            .getWorkspaces();
-    assertNotNull(empty, "an explicit empty workspaces list must not deserialise as null");
-    assertTrue(empty.isEmpty(), "an explicit empty workspaces list must deserialise as empty");
+            .readValue("name: echo\ntype: template\nworkspace: false\n", WorkflowTask.class)
+            .getWorkspace(),
+        "an explicit workspace: false must deserialise as false");
   }
 
-  private String createWorkflow(
-      String name, WorkflowTask echo, List<WorkflowWorkspace> workspaces) {
+  private String createWorkflow(String name, WorkflowTask echo, WorkflowWorkspace workspace) {
     Workflow workflow = new Workflow();
     workflow.setName(name);
-    if (workspaces != null) {
-      workflow.setWorkspaces(new LinkedList<>(workspaces));
-    }
+    workflow.setWorkspace(workspace);
     workflow.setTasks(
         List.of(
             node("start", TaskType.start, null, null),
@@ -171,8 +190,8 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
     return workflowService.create(workflow, false).getBody().getId();
   }
 
-  // A run with workspaces parks at ready for dispatcher provisioning (decision 0067); either way
-  // the start call is what walks the graph and materialises the TaskRuns.
+  // A run with a workspace parks at ready for dispatcher provisioning; either way the start call
+  // is what walks the graph and materialises the TaskRuns.
   private String startAndAwaitEchoTaskRun(String workflowId) {
     String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
     workflowRunService.start(wfRunId, Optional.empty());
@@ -200,33 +219,16 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
         .orElseThrow();
   }
 
-  private static void assertInherited(List<TaskWorkspace> workspaces, String message) {
-    assertNotNull(workspaces, message);
-    assertEquals(
-        List.of("workflow", "workflowrun"),
-        workspaces.stream().map(TaskWorkspace::getName).toList(),
-        message + " in the run's own order");
-    assertEquals(
-        "/workspace/shared",
-        workspaces.get(0).getMountPath(),
-        "an inherited workspace takes its mountPath from the workflow-level spec");
-    assertNull(
-        workspaces.get(1).getMountPath(),
-        "a workspace with no spec leaves mountPath null for the executor's fallback");
-    assertEquals("workflow", workspaces.get(0).getType());
-    assertEquals("workflowrun", workspaces.get(1).getType());
+  private static void assertMounted(WorkflowWorkspace workspace, String mountPath, String message) {
+    assertNotNull(workspace, message);
+    assertEquals("1Gi", workspace.getSize(), message + " with the run's size");
+    assertEquals(mountPath, workspace.getMountPath(), message + " at its settled mountPath");
   }
 
-  private static WorkflowWorkspace workflowWorkspace(String name, String type, String mountPath) {
+  private static WorkflowWorkspace workflowWorkspace(String mountPath) {
     WorkflowWorkspace workspace = new WorkflowWorkspace();
-    workspace.setName(name);
-    workspace.setType(type);
-    if (mountPath != null) {
-      WorkflowWorkspaceSpec spec = new WorkflowWorkspaceSpec();
-      spec.setMountPath(mountPath);
-      spec.setSize("1Gi");
-      workspace.setSpec(spec);
-    }
+    workspace.setSize("1Gi");
+    workspace.setMountPath(mountPath);
     return workspace;
   }
 

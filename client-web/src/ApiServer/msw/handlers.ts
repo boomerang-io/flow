@@ -97,8 +97,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json({
       maxWorkflowCount: 20,
       maxWorkflowRunMonthly: 150,
-      maxWorkflowStorage: 10,
-      maxWorkflowRunStorage: 3,
+      maxWorkspaceStorage: 10,
       maxWorkflowRunDuration: 30,
       maxConcurrentRuns: 4,
       maxArtifactStorage: 8,
@@ -320,12 +319,21 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({});
     },
   ),
+  // `scope` (run|workflow) and `workflow` (workflow ref/name) are optional filters; absent means
+  // no filtering on that field, matching the backend's query.
   http.get(serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace: ":workspace" }), ({ request }) => {
     const url = new URL(request.url);
     const statuses = (url.searchParams.get("statuses") ?? "available").split(",");
+    const scope = url.searchParams.get("scope");
+    const workflow = url.searchParams.get("workflow");
     const page = Number(url.searchParams.get("page") ?? 0);
     const limit = Number(url.searchParams.get("limit") ?? 10);
-    const filtered = db.artifacts.filter((artifact) => statuses.includes(String(artifact.status)));
+    const filtered = db.artifacts.filter(
+      (artifact) =>
+        statuses.includes(String(artifact.status)) &&
+        (!scope || artifact.scope === scope) &&
+        (!workflow || artifact.workflowRef === workflow),
+    );
     const start = page * limit;
     const content = filtered.slice(start, start + limit);
     return HttpResponse.json({

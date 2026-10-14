@@ -14,8 +14,7 @@
       "quotas": {
         "maxWorkflowCount": 2147483647,
         "maxWorkflowRunMonthly": 2147483647,
-        "maxWorkflowStorage": 2147483647,
-        "maxWorkflowRunStorage": 2147483647,
+        "maxWorkspaceStorage": 2147483647,
         "maxWorkflowRunDuration": 2147483647,
         "maxConcurrentRuns": 2147483647
       },

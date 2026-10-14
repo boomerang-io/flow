@@ -11,7 +11,6 @@ import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunEndRequest;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import io.boomerang.dispatcher.sdk.model.TaskRunStartRequest;
-import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseQuery;
@@ -60,7 +59,6 @@ class DispatcherContractTest {
     MODELLED.put("TaskRunSpec", TaskRunSpec.class);
     MODELLED.put("TaskRunStartRequest", TaskRunStartRequest.class);
     MODELLED.put("TaskRunEndRequest", TaskRunEndRequest.class);
-    MODELLED.put("TaskWorkspace", TaskWorkspace.class);
     MODELLED.put("WorkflowRun", WorkflowRun.class);
     MODELLED.put("WorkflowWorkspace", WorkflowWorkspace.class);
     MODELLED.put("WorkspaceReleaseQuery", WorkspaceReleaseQuery.class);

@@ -38,7 +38,7 @@ public class TaskRun {
   private Long timeout;
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
-  private List<TaskWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
   private TaskRunSpec spec = new TaskRunSpec();
   private RunStatus status;
   private RunPhase phase;

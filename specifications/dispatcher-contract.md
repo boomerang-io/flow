@@ -125,12 +125,12 @@ task that can outlive a minute. A lease that lapses, or a dispatcher with no pol
 
 ## Storage
 
-`GET /{id}/workflows` hands out workflow runs that declare workspaces, claimed for provisioning; the dispatcher
-provisions their volumes and calls `PUT /workflowrun/{id}/start`. A provisioning failure is reported by not
+`GET /{id}/workflows` hands out workflow runs that declare a workspace, claimed for provisioning; the dispatcher
+provisions the run's one volume and calls `PUT /workflowrun/{id}/start`. A provisioning failure is reported by not
 starting: the engine releases the claim after a grace and fails the run after three attempts.
-`POST /workspaces/releasable` takes the run and workflow ids the dispatcher holds volumes for (500 of each at
-most, else 400) and answers with those whose owner is finished (`DispatcherService.java:54`, `:367`). A
-dispatcher that runs nothing on shared storage MAY skip both.
+`POST /workspaces/releasable` takes the run ids the dispatcher holds volumes for (500 at most, else 400) and
+answers with those whose run is finished (`DispatcherService.java:52`, `:365`). A dispatcher that runs nothing on
+shared storage MAY skip both.
 
 ## Errors
 

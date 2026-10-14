@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
 import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.audit.AuditLevel;
@@ -160,13 +161,25 @@ public class WorkspaceArtifactControllerV2 {
               example = "available,expired")
           @RequestParam(required = false)
           Optional<List<ArtifactStatus>> statuses,
+      @Parameter(
+              name = "scope",
+              description = "Only artifacts of this scope: run or workflow. Defaults to both.",
+              example = "workflow")
+          @RequestParam(required = false)
+          Optional<ArtifactScope> scope,
+      @Parameter(
+              name = "workflow",
+              description = "Only artifacts of this workflow, by name.",
+              example = "nightly-build")
+          @RequestParam(required = false)
+          Optional<String> workflow,
       @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
           int page,
       @Parameter(name = "limit", description = "Result Size", example = "10")
           @RequestParam(defaultValue = "10")
           int limit) {
-    return artifactService.query(workspace, statuses, page, limit);
+    return artifactService.query(workspace, statuses, scope, workflow, page, limit);
   }
 
   @DeleteMapping(value = "/artifacts/{artifactId}")

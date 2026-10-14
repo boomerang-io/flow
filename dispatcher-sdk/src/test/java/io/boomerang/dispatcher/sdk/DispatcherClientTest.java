@@ -165,14 +165,14 @@ class DispatcherClientTest {
         .andRespond(
             withSuccess(
                 "[{\"id\":\"w-1\",\"workflowRef\":\"wf\",\"phase\":\"queued\",\"status\":\"ready\","
-                    + "\"workspaces\":[{\"name\":\"shared\",\"type\":\"workflowrun\","
-                    + "\"spec\":{\"size\":\"2Gi\"}}]}]",
+                    + "\"workspace\":{\"size\":\"2Gi\",\"mountPath\":\"/workspace\"}}]",
                 MediaType.APPLICATION_JSON));
 
     WorkflowRun run = client.pollWorkflows("d-1").get(0);
 
     assertThat(run.getId()).isEqualTo("w-1");
-    assertThat(run.getWorkspaces()).singleElement().extracting("type").isEqualTo("workflowrun");
+    assertThat(run.getWorkspace().getSize()).isEqualTo("2Gi");
+    assertThat(run.getWorkspace().getMountPath()).isEqualTo("/workspace");
   }
 
   @Test
@@ -252,18 +252,16 @@ class DispatcherClientTest {
     server
         .expect(requestTo(ENGINE + "/workspaces/releasable"))
         .andExpect(method(HttpMethod.POST))
-        .andExpect(jsonBody("{\"workflowRunRefs\":[\"r-1\",\"r-2\"],\"workflowRefs\":[\"w-1\"]}"))
+        .andExpect(jsonBody("{\"workflowRunRefs\":[\"r-1\",\"r-2\"]}"))
         .andRespond(
             withSuccess(
-                "{\"workflowRunRefs\":[\"r-2\"],\"workflowRefs\":[]}", MediaType.APPLICATION_JSON));
+                "{\"workflowRunRefs\":[\"r-2\"]}", MediaType.APPLICATION_JSON));
 
     WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
     query.setWorkflowRunRefs(List.of("r-1", "r-2"));
-    query.setWorkflowRefs(List.of("w-1"));
     WorkspaceReleaseResponse response = client.releasable(query);
 
     assertThat(response.getWorkflowRunRefs()).containsExactly("r-2");
-    assertThat(response.getWorkflowRefs()).isEmpty();
   }
 
   @Test

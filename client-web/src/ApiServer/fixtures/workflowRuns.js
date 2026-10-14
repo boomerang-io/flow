@@ -26,7 +26,6 @@ const workflowRuns = {
           ],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -55,7 +54,6 @@ const workflowRuns = {
           ],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -75,7 +73,6 @@ const workflowRuns = {
           "params": [],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -95,7 +92,6 @@ const workflowRuns = {
           "params": [],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -124,7 +120,6 @@ const workflowRuns = {
           ],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -153,7 +148,6 @@ const workflowRuns = {
           ],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -182,7 +176,6 @@ const workflowRuns = {
           ],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -202,7 +195,6 @@ const workflowRuns = {
           "params": [],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -222,7 +214,6 @@ const workflowRuns = {
           "params": [],
           "trigger": "manual",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       },
       {
@@ -242,7 +233,6 @@ const workflowRuns = {
           "params": [],
           "trigger": "webhook",
           "results": [],
-          "workspaces": [],
           "awaitingApproval": false
       }
   ],

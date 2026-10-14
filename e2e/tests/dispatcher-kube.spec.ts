@@ -54,7 +54,10 @@ test.describe("dispatcher on kubernetes", () => {
    * Run-scoped storage is released by the dispatcher reconciling the cluster against the engine
    * (there is no phase after completed that says "released"), so the claim survives the run and
    * disappears within one reconcile tick of it - FLOW_DISPATCHER_WORKSPACE_RECONCILE_MS is 10 s
-   * on the compose stack.
+   * on the compose stack. Kubernetes keeps a claim while any pod that mounted it still exists,
+   * finished or not, so this needs the task setting `deletion.policy` at Always (or On Success):
+   * the kube stack seeds it so (docker/mongo/seed-task-deletion.js); under the default, Never,
+   * the claim stays Terminating until the Job retention period removes the pods.
    */
   async function expectWorkspaceClaimReleased(workspaceRef: string, timeoutMs = 60_000) {
     const selector = `boomerang.io/workspace-ref=${workspaceRef}`;
@@ -234,24 +237,17 @@ test.describe("dispatcher on kubernetes", () => {
   });
 
   test("run-scoped storage is shared between tasks", async ({ request }) => {
+    // One workspace per run, mounted where the workflow says; a task mounts it unless it opts out.
     const mount = "/workspace/run";
-    const ws = [{ name: "run-store", type: "workflowrun", mountPath: mount }];
     const { run: r } = await run(request, {
-      workspaces: [
-        {
-          name: "run-store",
-          type: "workflowrun",
-          optional: false,
-          spec: { size: "1Gi", accessMode: "ReadWriteOnce", mountPath: mount },
-        },
-      ],
+      workspace: { size: "1Gi", accessMode: "ReadWriteOnce", mountPath: mount },
       tasks: [
         start,
-        shellTask("write", `mkdir -p ${mount} && echo hello-storage > ${mount}/hello.txt && ls -la ${mount}`, { workspaces: ws }),
+        shellTask("write", `mkdir -p ${mount} && echo hello-storage > ${mount}/hello.txt && ls -la ${mount}`),
         shellTask(
           "check",
           `cat ${mount}/hello.txt && grep -q hello-storage ${mount}/hello.txt && ${writeResult("seen", "yes")}`,
-          { workspaces: ws, results: [{ name: "seen" }] },
+          { results: [{ name: "seen" }] },
           [{ taskRef: "write" }],
         ),
         endAfter("check"),
