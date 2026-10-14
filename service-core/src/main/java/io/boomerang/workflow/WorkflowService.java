@@ -156,8 +156,6 @@ public class WorkflowService {
   public static final String FEATURES_SETTINGS_KEY = "features";
   public static final String FEATURES_WORKSPACE_QUOTA = "workspaceQuotas";
   public static final String QUOTA_MAX_WORKFLOW_DURATION = "max.workflow.duration";
-  public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
-  public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
   public static final String TASK_SETTINGS_KEY = "task";
 
   private final WorkflowRepository workflowRepository;
@@ -448,8 +446,8 @@ public class WorkflowService {
     // Default Triggers
     validateTriggerDefaults(request);
 
-    // Default Workspaces
-    setUpWorkspaceDefaults(request);
+    // Default Workspace
+    applyWorkspaceDefaults(request);
 
     // Convert TaskRefs to IDs
     convertTaskSlugsToRefs(team, request);
@@ -490,55 +488,36 @@ public class WorkflowService {
     }
   }
 
-  private void setUpWorkspaceDefaults(Workflow request) {
-    boolean enforceQuotas = quotasEnforced();
-    if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
-      // Workflow Storage
-      for (WorkflowWorkspace ws : request.getWorkspaces()) {
-        if (ws.getType().equals("workflow")) {
-          String maxStorageSizeQuota =
-              this.settingsService
-                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
-                  .getValue();
-          ws.setName("workflow");
-          ws.setOptional(false);
-          ws.setSpec(
-              resolveWorkspaceSpec(ws.getSpec(), maxStorageSizeQuota, enforceQuotas));
-        } else if (ws.getType().equals("workflowrun")) {
-          String maxStorageSizeQuota =
-              this.settingsService
-                  .getSettingConfig(WorkspaceService.QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
-                  .getValue();
-          ws.setName("workflowrun");
-          ws.setOptional(false);
-          ws.setSpec(
-              resolveWorkspaceSpec(ws.getSpec(), maxStorageSizeQuota, enforceQuotas));
-        }
-      }
-    }
-  }
-
   /*
-   * Converts a Workspace's spec (a Map when it arrives over JSON/BSON - ws.getSpec() is typed
-   * Object) into a WorkflowWorkspaceSpec, defaults its size to the quota when unset, and - only
-   * when quotas are enforced - rejects an authored size over quota. The size is always kept as a
-   * Kubernetes quantity ("1Gi", "500Mi"), never stripped to a bare number: the dispatcher passes
-   * it straight to a Kubernetes Quantity, and a stripped size is silently requested as bytes.
+   * Settles the Workflow's workspace on every save (create and update alike): a blank size takes
+   * the storage quota, a blank mountPath takes the default, and - only when quotas are enforced -
+   * an authored size over quota is refused. The size is always kept as a Kubernetes quantity
+   * ("1Gi", "500Mi"), never stripped to a bare number: the dispatcher passes it straight to a
+   * Kubernetes Quantity, and a stripped size is silently requested as bytes. A Workflow without a
+   * workspace has no shared storage and nothing to settle.
    */
-  private WorkflowWorkspaceSpec resolveWorkspaceSpec(
-      Object rawSpec, String maxStorageSizeQuota, boolean enforceQuotas) {
-    WorkflowWorkspaceSpec spec =
-        rawSpec != null
-            ? this.objectMapper.convertValue(rawSpec, WorkflowWorkspaceSpec.class)
-            : new WorkflowWorkspaceSpec();
-    if (spec.getSize() == null) {
-      spec.setSize(maxStorageSizeQuota);
-    } else if (enforceQuotas
-        && StorageQuantityUtil.toGi(spec.getSize()) > StorageQuantityUtil.toGi(maxStorageSizeQuota)) {
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED, "Workspace Size Limit", spec.getSize(), maxStorageSizeQuota);
+  private void applyWorkspaceDefaults(Workflow request) {
+    WorkflowWorkspace workspace = request.getWorkspace();
+    if (workspace == null) {
+      return;
     }
-    return spec;
+    String maxStorageSizeQuota =
+        this.settingsService
+            .getSettingConfig(
+                WorkspaceService.QUOTAS_SETTINGS_KEY, WorkspaceService.QUOTA_MAX_WORKSPACE_STORAGE)
+            .getValue();
+    if (workspace.getSize() == null || workspace.getSize().isBlank()) {
+      workspace.setSize(maxStorageSizeQuota);
+    } else if (quotasEnforced()
+        && StorageQuantityUtil.toGi(workspace.getSize())
+            > StorageQuantityUtil.toGi(maxStorageSizeQuota)) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED,
+          "Workspace Size Limit",
+          workspace.getSize(),
+          maxStorageSizeQuota);
+    }
+    workspace.setMountPath(workspace.mountPathOrDefault());
   }
 
   /*
@@ -559,6 +538,9 @@ public class WorkflowService {
 
         // Fill in displayName if not set
         validateAndSetDisplayName(workflow);
+
+        // Default Workspace - the same rule create applies, so an update cannot slip past it
+        applyWorkspaceDefaults(workflow);
 
         // A trigger the request leaves out keeps its stored value, as labels do; then sync the
         // workflow's schedules with the schedule trigger.
@@ -676,7 +658,7 @@ public class WorkflowService {
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
     // Check Quotas - Throws Exception
-    assertRunQuotas(team, Optional.of(request.getWorkspaces()));
+    assertRunQuotas(team, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -736,11 +718,9 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
-    // A run with Workspaces stays ready/pending for the dispatcher to provision and start -
+    // A run with a workspace stays ready/pending for the dispatcher to provision and start -
     // the same rule WorkflowRunService.run applies on the un-enforced path.
-    if (enforceQuotas
-        && start
-        && (wfRun.getWorkspaces() == null || wfRun.getWorkspaces().isEmpty())) {
+    if (enforceQuotas && start && wfRun.getWorkspace() == null) {
       wfRun = workflowRunService.start(wfRun.getId(), Optional.empty());
     }
     return wfRun;
@@ -973,7 +953,7 @@ public class WorkflowService {
    * retry is a new run and has to clear the same limits a submit does - WorkflowRunService.retry
    * calls this before it saves the clone.
    */
-  public void assertRunQuotas(String team, Optional<List<WorkflowWorkspace>> workspaces) {
+  public void assertRunQuotas(String team, Optional<WorkflowWorkspace> workspace) {
     if (quotasEnforced()) {
       CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
@@ -991,32 +971,25 @@ public class WorkflowService {
             "Number of runs (executions)",
             quotas.getCurrentRuns(),
             quotas.getMaxWorkflowRunMonthly());
-      } else if (workspaces.isPresent() && !workspaces.get().isEmpty()) {
-        workspaces.get().forEach(ws -> checkWorkspaceStorageQuota(ws, quotas));
+      } else if (workspace.isPresent()) {
+        checkWorkspaceStorageQuota(workspace.get(), quotas);
       }
     }
   }
 
   /*
-   * Refuses a Workspace on a run submission whose requested size is over the storage quota for
-   * its type. The spec is typed Object and arrives as a Map over JSON, so it is converted before
-   * the size is read, and the size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi -
-   * the same rule resolveWorkspaceSpec applies at save. A spec naming no size takes the quota
-   * default and cannot breach it.
+   * Refuses a workspace on a run submission whose requested size is over the workspace storage
+   * quota. The size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi - the same rule
+   * applyWorkspaceDefaults applies at save. A workspace naming no size takes the quota default
+   * and cannot breach it.
    */
-  private void checkWorkspaceStorageQuota(WorkflowWorkspace ws, CurrentQuotas quotas) {
-    Integer maxSizeGi =
-        switch (ws.getType()) {
-          case "workflow" -> quotas.getMaxWorkflowStorage();
-          case "workflowrun" -> quotas.getMaxWorkflowRunStorage();
-          case null, default -> null;
-        };
-    if (maxSizeGi == null || ws.getSpec() == null) {
-      return;
-    }
-    String size =
-        this.objectMapper.convertValue(ws.getSpec(), WorkflowWorkspaceSpec.class).getSize();
-    if (size != null && StorageQuantityUtil.toGi(size) > maxSizeGi) {
+  private void checkWorkspaceStorageQuota(WorkflowWorkspace workspace, CurrentQuotas quotas) {
+    Integer maxSizeGi = quotas.getMaxWorkspaceStorage();
+    String size = workspace.getSize();
+    if (maxSizeGi != null
+        && size != null
+        && !size.isBlank()
+        && StorageQuantityUtil.toGi(size) > maxSizeGi) {
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED, "Requested Workspace size", size, maxSizeGi);
     }
@@ -1650,7 +1623,9 @@ public class WorkflowService {
     wfRevisionEntity.setChangelog(changelog);
     wfRevisionEntity.setMarkdown(request.getMarkdown());
     wfRevisionEntity.setParams(request.getParams());
-    wfRevisionEntity.setWorkspaces(request.getWorkspaces());
+    // A save carries only the declared workspace; the legacy workflow-storage marker a v3 upgrade
+    // left on an older revision is never copied forward, so saving the Workflow clears it.
+    wfRevisionEntity.setWorkspace(request.getWorkspace());
     if (request.getTasks() == null || request.getTasks().isEmpty()) {
       List<WorkflowTask> tasks = new LinkedList<>();
       WorkflowTask startTask = new WorkflowTask();
@@ -1970,6 +1945,11 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
     }
     WorkflowRevisionEntity wfRevision = optWorkflowRevisionEntity.get();
+    // A revision upgraded from v3 with workflow-level storage enabled cannot run: that storage no
+    // longer exists. Saving the Workflow drops the marker, which is the author's acknowledgement.
+    if (Boolean.TRUE.equals(wfRevision.getLegacyWorkflowStorage())) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_STORAGE_REMOVED);
+    }
     validateTaskRefsPresent(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
@@ -1981,7 +1961,9 @@ public class WorkflowService {
     wfRunEntity.getLabels().putAll(workflow.getLabels());
     wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
-    wfRunEntity.setWorkspaces(wfRevision.getWorkspaces());
+    // The run takes the revision's workspace; a request carrying one overrides it.
+    wfRunEntity.setWorkspace(
+        (request.getWorkspace() != null) ? request.getWorkspace() : wfRevision.getWorkspace());
     // Every submit path reaches here, so this is where the run timeout is settled: defaulted when
     // nobody declared one, floored at the revision's critical path of task budgets, then clamped
     // by the owning workspace's run-duration quota.
@@ -2005,9 +1987,6 @@ public class WorkflowService {
     if (request.getParams() != null && !request.getParams().isEmpty()) {
       wfRunEntity.setParams(
           ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams()));
-    }
-    if (request.getWorkspaces() != null && !request.getWorkspaces().isEmpty()) {
-      wfRunEntity.getWorkspaces().addAll(request.getWorkspaces());
     }
     if (!Objects.isNull(request.getRetries()) && request.getRetries() != 0) {
       wfRunEntity.setRetries(request.getRetries());

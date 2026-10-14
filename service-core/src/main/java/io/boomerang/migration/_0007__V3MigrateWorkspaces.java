@@ -72,12 +72,13 @@ import org.springframework.core.env.Environment;
  *   <li>{@code quotas} <- v3 {@code quotas} (all real values are plain integers, not the
  *       unit-suffixed strings the {@code settings} collection's storage entries carry - verified in
  *       the dump): {@code maxWorkflowCount}-\>{@code maxWorkflowCount}, {@code
- *       maxWorkflowExecutionMonthly}-\>{@code maxWorkflowRunMonthly}, {@code maxWorkflowStorage}-\>
- *       {@code maxWorkflowStorage}, {@code maxWorkflowExecutionTime}-\>{@code
- *       maxWorkflowRunDuration}, {@code maxConcurrentWorkflows}-\>{@code maxConcurrentRuns}. {@code
- *       maxWorkflowRunStorage} has no v3 source at all (a genuinely new v5 field) - defaulted to
- *       {@link #DEFAULT_MAX_WORKFLOW_RUN_STORAGE} (2), the numeric value of the {@code quotas}
- *       settings entry {@code max.workflowrun.storage} ({@code "2Gi"} in {@code
+ *       maxWorkflowExecutionMonthly}-\>{@code maxWorkflowRunMonthly}, {@code
+ *       maxWorkflowExecutionTime}-\>{@code maxWorkflowRunDuration}, {@code
+ *       maxConcurrentWorkflows}-\>{@code maxConcurrentRuns}. v3 {@code maxWorkflowStorage} capped
+ *       storage shared across a workflow's runs, which v5 no longer has, so it is dropped. {@code
+ *       maxWorkspaceStorage} (the one shared workspace a run may declare) has no v3 source at all -
+ *       defaulted to {@link #DEFAULT_MAX_WORKSPACE_STORAGE} (2), the numeric value of the {@code
+ *       quotas} settings entry {@code max.workspace.storage} ({@code "2Gi"} in {@code
  *       seed/settings.json}, built by {@link _0016__BuildSettingsFromSeed}); the system
  *       workspace's {@code Integer.MAX_VALUE} would be dishonest for a regular quota-bound team.
  * </ul>
@@ -112,7 +113,7 @@ public class _0007__V3MigrateWorkspaces {
   private static final Logger LOG = LoggerFactory.getLogger(_0007__V3MigrateWorkspaces.class);
 
   /** See the class javadoc's {@code quotas} bullet. */
-  private static final int DEFAULT_MAX_WORKFLOW_RUN_STORAGE = 2;
+  private static final int DEFAULT_MAX_WORKSPACE_STORAGE = 2;
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {
@@ -229,11 +230,10 @@ public class _0007__V3MigrateWorkspaces {
     if (quotas != null) {
       result.put("maxWorkflowCount", quotas.getInteger("maxWorkflowCount"));
       result.put("maxWorkflowRunMonthly", quotas.getInteger("maxWorkflowExecutionMonthly"));
-      result.put("maxWorkflowStorage", quotas.getInteger("maxWorkflowStorage"));
       result.put("maxWorkflowRunDuration", quotas.getInteger("maxWorkflowExecutionTime"));
       result.put("maxConcurrentRuns", quotas.getInteger("maxConcurrentWorkflows"));
     }
-    result.put("maxWorkflowRunStorage", DEFAULT_MAX_WORKFLOW_RUN_STORAGE);
+    result.put("maxWorkspaceStorage", DEFAULT_MAX_WORKSPACE_STORAGE);
     return result;
   }
 

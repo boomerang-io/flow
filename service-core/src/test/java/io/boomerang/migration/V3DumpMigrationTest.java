@@ -574,8 +574,9 @@ class V3DumpMigrationTest {
     }
     assertThat(reencrypted).isEqualTo(expectedReencrypted);
 
-    // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, plus the new
-    // max.workflowrun.storage entry legacy 4039 introduced, and the artifact storage default.
+    // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, the v3
+    // per-workflow storage cap retired, plus the new max.workspace.storage entry and the artifact
+    // storage default.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
     assertThat(teams.getString("key")).isEqualTo("quotas");
     assertThat(teams.getString("name")).isEqualTo("Quotas");
@@ -585,11 +586,10 @@ class V3DumpMigrationTest {
             "max.workflow.count",
             "max.workflowrun.monthly",
             "max.workflowrun.duration",
-            "max.workflow.storage",
-            "max.workflowrun.storage",
+            "max.workspace.storage",
             "max.artifact.storage");
     Document newStorageEntry =
-        configOf(teams).stream().filter(c -> "max.workflowrun.storage".equals(c.getString("key"))).findFirst().get();
+        configOf(teams).stream().filter(c -> "max.workspace.storage".equals(c.getString("key"))).findFirst().get();
     assertThat(newStorageEntry.getString("value")).isEqualTo("2Gi");
 
     // features: workflowQuotas -> teamQuotas (legacy 4040) -> workspaceQuotas; the other three
@@ -847,7 +847,7 @@ class V3DumpMigrationTest {
     assertThat(system.getString("status")).isEqualTo("active");
     Document systemQuotas = (Document) system.get("quotas");
     assertThat(systemQuotas.getInteger("maxWorkflowCount")).isEqualTo(Integer.MAX_VALUE);
-    assertThat(systemQuotas.getInteger("maxWorkflowRunStorage")).isEqualTo(Integer.MAX_VALUE);
+    assertThat(systemQuotas.getInteger("maxWorkspaceStorage")).isEqualTo(Integer.MAX_VALUE);
 
     // The 28 migrated v3 teams: type "hobby" (the documented honest default - v3 had no tier
     // concept), every one has a slug "name" and a display "displayName", v5-named quota fields
@@ -878,13 +878,13 @@ class V3DumpMigrationTest {
           .containsExactlyInAnyOrder(
               "maxWorkflowCount",
               "maxWorkflowRunMonthly",
-              "maxWorkflowStorage",
-              "maxWorkflowRunStorage",
+              "maxWorkspaceStorage",
               "maxWorkflowRunDuration",
               "maxConcurrentRuns");
       // The new field with no v3 source gets the documented default (2, matching the quotas
-      // settings document's max.workflowrun.storage numeric value).
-      assertThat(quotas.getInteger("maxWorkflowRunStorage")).isEqualTo(2);
+      // settings document's max.workspace.storage numeric value); the v3 per-workflow storage
+      // cap is dropped.
+      assertThat(quotas.getInteger("maxWorkspaceStorage")).isEqualTo(2);
     }
 
     // Spot check a specific known team (SRC Innovations) end to end.
@@ -898,7 +898,6 @@ class V3DumpMigrationTest {
     Document srcQuotas = (Document) src.get("quotas");
     assertThat(srcQuotas.getInteger("maxWorkflowCount")).isEqualTo(200);
     assertThat(srcQuotas.getInteger("maxWorkflowRunMonthly")).isEqualTo(1000);
-    assertThat(srcQuotas.getInteger("maxWorkflowStorage")).isEqualTo(4);
     assertThat(srcQuotas.getInteger("maxWorkflowRunDuration")).isEqualTo(240);
     assertThat(srcQuotas.getInteger("maxConcurrentRuns")).isEqualTo(10);
 
@@ -988,8 +987,7 @@ class V3DumpMigrationTest {
       Document quotas = (Document) personal.get("quotas");
       assertThat(quotas.getInteger("maxWorkflowCount")).isEqualTo(10);
       assertThat(quotas.getInteger("maxWorkflowRunMonthly")).isEqualTo(20);
-      assertThat(quotas.getInteger("maxWorkflowStorage")).isEqualTo(25);
-      assertThat(quotas.getInteger("maxWorkflowRunStorage")).isEqualTo(2);
+      assertThat(quotas.getInteger("maxWorkspaceStorage")).isEqualTo(2);
       assertThat(quotas.getInteger("maxWorkflowRunDuration")).isEqualTo(30);
       assertThat(quotas.getInteger("maxConcurrentRuns")).isEqualTo(4);
     }
@@ -1071,13 +1069,26 @@ class V3DumpMigrationTest {
     // Spot check: "Approval Generator" (scope=team) - its ownership is proven via the rel_edges
     // built by _0013__V3BuildRelationshipGraph (asserted below), which also removes the
     // scope/ownerRef hand-off fields _0010__V3MigrateWorkflows wrote for that purpose. Also the
-    // storage->workspaces[] (both enabled) move onto the revision rather than the workflow.
+    // storage (both activity and workflow enabled) moves onto the revision rather than the
+    // workflow: activity becomes the one workspace, workflow becomes the legacy marker.
     Document approvalGenerator =
         collection("workflows").find(Filters.eq("_id", new ObjectId("6437a414ec19f9693daab0c2"))).first();
     assertThat(approvalGenerator).isNotNull();
     assertThat(approvalGenerator.getString("name")).isEqualTo("approval-generator");
     assertThat(approvalGenerator.containsKey("scope")).isFalse();
     assertThat(approvalGenerator.containsKey("ownerRef")).isFalse();
+    for (Document revision :
+        collection("workflow_revisions").find(Filters.eq("workflowRef", "6437a414ec19f9693daab0c2"))) {
+      assertThat(revision.containsKey("workspaces")).as("no workspaces list survives").isFalse();
+      Document workspace = (Document) revision.get("workspace");
+      assertThat(workspace).as("v3 activity storage becomes the revision's workspace").isNotNull();
+      assertThat(workspace.containsKey("enabled")).isFalse();
+      assertThat(workspace.getString("size")).isNotBlank();
+      assertThat(workspace.getString("mountPath")).isNotBlank();
+      assertThat(revision.getBoolean("legacyWorkflowStorage"))
+          .as("v3 workflow storage becomes the legacy marker")
+          .isTrue();
+    }
 
     // 151 real v3 revisions minus the 2 belonging to the extracted template workflows.
     assertThat(collection("workflow_revisions").countDocuments()).isEqualTo(149);

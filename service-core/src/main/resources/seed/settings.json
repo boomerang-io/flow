@@ -411,17 +411,9 @@
           "readOnly": false
         },
         {
-          "description": "Maximum storage allowed per Workflow across runs (executions)",
-          "key": "max.workflow.storage",
-          "label": "Max Workflow Storage",
-          "type": "text",
-          "value": "25Gi",
-          "readOnly": false
-        },
-        {
-          "key": "max.workflowrun.storage",
-          "description": "Maximum storage allowed per WorkflowRun (execution)",
-          "label": "Max WorkflowRun Storage",
+          "key": "max.workspace.storage",
+          "description": "Maximum size of the shared workspace a run may declare",
+          "label": "Max Workspace Storage",
           "type": "text",
           "value": "2Gi",
           "readOnly": false

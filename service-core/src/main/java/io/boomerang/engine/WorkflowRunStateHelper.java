@@ -43,7 +43,7 @@ public class WorkflowRunStateHelper {
   }
 
   // Return the page of ready/pending unclaimed WorkflowRuns for an agent to provision, oldest
-  // first. workspaces.0 exists = the run actually has workspaces to provision; a run with none
+  // first. workspace exists = the run actually has a workspace to provision; a run with none
   // is started directly and never needs a provisioning claimant.
   public List<WorkflowRunEntity> findClaimableForProvision(int limit) {
     Query query =
@@ -54,7 +54,7 @@ public class WorkflowRunStateHelper {
                     .is(RunPhase.pending)
                     .and("claim.by")
                     .exists(false)
-                    .and("workspaces.0")
+                    .and("workspace")
                     .exists(true))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
@@ -75,7 +75,7 @@ public class WorkflowRunStateHelper {
                 .is(RunPhase.pending)
                 .and("claim.by")
                 .exists(false)
-                .and("workspaces.0")
+                .and("workspace")
                 .exists(true));
     Update update =
         new Update()

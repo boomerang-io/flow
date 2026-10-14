@@ -27,8 +27,8 @@ import org.springframework.core.env.Environment;
  *   <li>quotas use the v5 {@code Quotas} field names — legacy {@code maxWorkflowExecutionMonthly}/
  *       {@code maxWorkflowExecutionTime}/{@code maxConcurrentWorkflows} became {@code
  *       maxWorkflowRunMonthly}/{@code maxWorkflowRunDuration}/{@code maxConcurrentRuns}, and v5
- *       added {@code maxWorkflowRunStorage}. All stay at {@code Integer.MAX_VALUE} — the system
- *       workspace is unlimited.
+ *       replaced {@code maxWorkflowStorage} with {@code maxWorkspaceStorage}. All stay at {@code
+ *       Integer.MAX_VALUE} — the system workspace is unlimited.
  *   <li>{@code type} is set to {@code system}; the legacy document had no type at all, v5's
  *       {@code WorkspaceEntity} carries a {@code WorkspaceType}.
  *   <li>{@code labels}/{@code annotations} are empty maps rather than absent, matching the

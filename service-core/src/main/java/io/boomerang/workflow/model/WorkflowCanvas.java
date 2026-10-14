@@ -26,7 +26,7 @@ public class WorkflowCanvas {
   private Long retries;
   private boolean upgradesAvailable = false;
   private WorkflowTrigger triggers;
-  private List<WorkflowWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
   private List<AbstractParam> config = new LinkedList<>();
   private Map<String, Object> unknownFields = new HashMap<>();
   private List<CanvasNode> nodes;
@@ -158,12 +158,12 @@ public class WorkflowCanvas {
     this.triggers = triggers;
   }
 
-  public List<WorkflowWorkspace> getWorkspaces() {
-    return workspaces;
+  public WorkflowWorkspace getWorkspace() {
+    return workspace;
   }
 
-  public void setWorkspaces(List<WorkflowWorkspace> workspaces) {
-    this.workspaces = workspaces;
+  public void setWorkspace(WorkflowWorkspace workspace) {
+    this.workspace = workspace;
   }
 
   public List<AbstractParam> getConfig() {

@@ -103,13 +103,16 @@ import org.springframework.core.env.Environment;
  *       in the source document). Unlike {@code 4026} (which skips the whole trigger rewrite when
  *       v3 {@code triggers} is entirely absent - not observed on this dump, but a latent legacy
  *       gap), this unit always writes a complete, valid v5 {@code triggers} document.
- *   <li><b>{@code workflows.workspaces} does NOT exist</b> - {@code WorkflowEntity} has no such
- *       field; {@code WorkflowRevisionEntity} does. Legacy {@code 4005} itself computes {@code
- *       workspaces} from the WORKFLOW's {@code storage} field but writes it onto every REVISION
+ *   <li><b>{@code workflows.workspace} does NOT exist</b> - {@code WorkflowEntity} has no such
+ *       field; {@code WorkflowRevisionEntity} does. Legacy {@code 4005} itself computes the
+ *       workspace from the WORKFLOW's {@code storage} field but writes it onto every REVISION
  *       document, never onto the workflow - verified against the real code and reproduced
- *       faithfully here (see
- *       {@link #buildWorkspaces}, applied identically to every revision of the same workflow, since
- *       {@code storage} is workflow-level data with no per-revision variant in v3).
+ *       faithfully here (see {@link #buildWorkspace}, applied identically to every revision of
+ *       the same workflow, since {@code storage} is workflow-level data with no per-revision
+ *       variant in v3). v3 {@code storage.activity} (per-run storage) is the one workspace v5
+ *       has; v3 {@code storage.workflow} (storage shared across runs) no longer exists, so a
+ *       workflow that had it enabled gets the {@code legacyWorkflowStorage} marker instead and
+ *       cannot be run until it is saved again (see {@link #hasLegacyWorkflowStorage}).
  *   <li><b>Hand-off fields, undeclared by {@code WorkflowEntity}, kept for two later v3 units</b>
  *       (not part of the v5 API surface - {@code MappingMongoConverter} silently drops any Mongo
  *       field a target Java class does not declare, so these are invisible to every application
@@ -139,9 +142,12 @@ import org.springframework.core.env.Environment;
  *       _id.toString()}).
  *   <li>{@code version} <- v3 {@code version} (a v3 {@code Long}), narrowed to {@code Integer}.
  *   <li>{@code tasks[]} <- {@link #migrateTasks} (see below).
- *   <li>{@code workspaces} <- {@link #buildWorkspaces} of the OWNING WORKFLOW's {@code storage} (see
- *       the {@code workflows.workspaces} bullet above for why this lands here, not on {@code
- *       workflows}).
+ *   <li>{@code workspace} <- {@link #buildWorkspace} of the OWNING WORKFLOW's {@code
+ *       storage.activity} when enabled ({@code {size, mountPath, className?, accessMode?}}, a
+ *       blank {@code mountPath} written as {@code /workspace/workflowrun}), absent otherwise;
+ *       {@code legacyWorkflowStorage} <- {@code true} only when {@code storage.workflow} was
+ *       enabled (see the {@code workflows.workspace} bullet above for why these land here, not
+ *       on {@code workflows}).
  *   <li>{@code changelog} <- {@code {author: revision.changelog.userId, reason:
  *       revision.changelog.reason, date: revision.changelog.date}} - {@code userName} is DROPPED
  *       (PII; {@code 4013}). Every one of the 151 real revisions carries a changelog (verified).
@@ -215,6 +221,9 @@ public class _0010__V3MigrateWorkflows {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0010__V3MigrateWorkflows.class);
 
+  /** Where every v3 run mounted its activity storage when the workflow named no mountPath. */
+  private static final String LEGACY_RUN_MOUNT_PATH = "/workspace/workflowrun";
+
   @Apply
   public void execute(MongoDatabase db, Environment env) {
     CollectionNames names = CollectionNames.from(env);
@@ -237,7 +246,8 @@ public class _0010__V3MigrateWorkflows {
       String workflowRef = workflowId.toString();
       List<Document> properties = getList(source, "properties");
       Document storage = (Document) source.get("storage");
-      List<Document> workspaces = buildWorkspaces(storage);
+      Document workspace = buildWorkspace(storage);
+      boolean legacyWorkflowStorage = hasLegacyWorkflowStorage(storage);
 
       Date v1CreationDate = null;
       for (Document rev :
@@ -260,7 +270,8 @@ public class _0010__V3MigrateWorkflows {
                 != null;
         if (!exists) {
           revisions.insertOne(
-              migrateRevision(rev, workflowRef, version, workspaces, properties, tasks));
+              migrateRevision(
+                  rev, workflowRef, version, workspace, legacyWorkflowStorage, properties, tasks));
           revisionsMigrated++;
         }
       }
@@ -355,30 +366,37 @@ public class _0010__V3MigrateWorkflows {
     return new Document("enabled", enabled).append("conditions", new LinkedList<>());
   }
 
-  /** {@code 4005}'s {@code storage}->{@code workspaces[]} - see the class javadoc for why this lands
-   * on revisions rather than the workflow itself. */
-  private List<Document> buildWorkspaces(Document storage) {
-    List<Document> workspaces = new LinkedList<>();
-    if (storage == null) {
-      return workspaces;
+  /**
+   * {@code 4005}'s {@code storage.activity} -> the revision's single {@code workspace} when
+   * enabled, else {@code null} - see the class javadoc for why this lands on revisions rather
+   * than the workflow itself. A blank {@code mountPath} is written out as the path v3 runs always
+   * mounted at, so an upgraded run keeps mounting where it did.
+   */
+  private Document buildWorkspace(Document storage) {
+    Document activity = storage != null ? (Document) storage.get("activity") : null;
+    if (activity == null || !Boolean.TRUE.equals(activity.getBoolean("enabled", false))) {
+      return null;
     }
-    addWorkspaceIfEnabled(workspaces, (Document) storage.get("activity"), "workflowrun");
-    addWorkspaceIfEnabled(workspaces, (Document) storage.get("workflow"), "workflow");
-    return workspaces;
+    Document workspace = new Document();
+    if (activity.get("size") != null) {
+      workspace.put("size", String.valueOf(activity.get("size")));
+    }
+    String mountPath = activity.getString("mountPath");
+    workspace.put(
+        "mountPath", (mountPath != null && !mountPath.isBlank()) ? mountPath : LEGACY_RUN_MOUNT_PATH);
+    if (activity.get("className") != null) {
+      workspace.put("className", activity.get("className"));
+    }
+    if (activity.get("accessMode") != null) {
+      workspace.put("accessMode", activity.get("accessMode"));
+    }
+    return workspace;
   }
 
-  private void addWorkspaceIfEnabled(List<Document> workspaces, Document storageSpec, String name) {
-    if (storageSpec == null || !Boolean.TRUE.equals(storageSpec.getBoolean("enabled", false))) {
-      return;
-    }
-    Document spec = new Document(storageSpec);
-    spec.remove("enabled");
-    Document workspace = new Document();
-    workspace.put("name", name);
-    workspace.put("type", name);
-    workspace.put("optional", false);
-    workspace.put("spec", spec);
-    workspaces.add(workspace);
+  /** True when v3 {@code storage.workflow} was enabled: storage that no longer exists. */
+  private boolean hasLegacyWorkflowStorage(Document storage) {
+    Document workflow = storage != null ? (Document) storage.get("workflow") : null;
+    return workflow != null && Boolean.TRUE.equals(workflow.getBoolean("enabled", false));
   }
 
   // =====================================================================================
@@ -389,7 +407,8 @@ public class _0010__V3MigrateWorkflows {
       Document rev,
       String workflowRef,
       int version,
-      List<Document> workspaces,
+      Document workspace,
+      boolean legacyWorkflowStorage,
       List<Document> workflowProperties,
       MongoCollection<Document> tasksCollection) {
     Document revision = new Document();
@@ -400,7 +419,12 @@ public class _0010__V3MigrateWorkflows {
     Document dag = (Document) rev.get("dag");
     List<Document> dagTasks = dag != null ? getList(dag, "tasks") : new LinkedList<>();
     revision.put("tasks", migrateTasks(dagTasks, tasksCollection));
-    revision.put("workspaces", workspaces);
+    if (workspace != null) {
+      revision.put("workspace", workspace);
+    }
+    if (legacyWorkflowStorage) {
+      revision.put("legacyWorkflowStorage", true);
+    }
 
     Document changelogSrc = (Document) rev.get("changelog");
     if (changelogSrc != null) {

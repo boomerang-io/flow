@@ -3,12 +3,10 @@ package io.boomerang.dispatcher;
 import static io.boomerang.workflow.ConvertUtil.entityToModel;
 
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
-import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
@@ -355,20 +353,19 @@ public class DispatcherService {
   }
 
   /**
-   * Answer which of the owners a dispatcher still holds volumes for are finished, so those volumes
-   * can be released. A {@code workflowRunRef} is finished once its run is completed or gone; a
-   * {@code workflowRef} once its Workflow is deleted (the tombstone) or gone. The run record
-   * carries nothing about release - the cluster is the source of truth for what exists, the engine
-   * for what is finished, and a dispatcher that asks twice gets the same answer.
+   * Answer which of the runs a dispatcher still holds workspace volumes for are finished, so those
+   * volumes can be released. A {@code workflowRunRef} is finished once its run is completed or
+   * gone. The run record carries nothing about release - the cluster is the source of truth for
+   * what exists, the engine for what is finished, and a dispatcher that asks twice gets the same
+   * answer.
    *
-   * @param query the owners the dispatcher still holds volumes for
+   * @param query the runs the dispatcher still holds volumes for
    * @return the subset whose volumes may go
    */
   public WorkspaceReleaseResponse releasable(WorkspaceReleaseQuery query) {
     List<String> workflowRunRefs = capped(query.getWorkflowRunRefs(), "workflowRunRefs");
-    List<String> workflowRefs = capped(query.getWorkflowRefs(), "workflowRefs");
 
-    // Held = the owner still exists in a state the dispatcher must keep storage for. Everything
+    // Held = the run still exists in a state the dispatcher must keep storage for. Everything
     // the dispatcher asked about and did not get back as held is releasable, which is what makes
     // an id the engine has never heard of release rather than leak.
     Set<String> heldRuns =
@@ -380,25 +377,13 @@ public class DispatcherService {
             .stream()
             .map(WorkflowRunEntity::getId)
             .collect(Collectors.toSet());
-    Set<String> heldWorkflows =
-        mongoTemplate
-            .find(
-                idsOnly(
-                    Criteria.where("_id").in(workflowRefs).and("status").ne(WorkflowStatus.deleted)),
-                WorkflowEntity.class)
-            .stream()
-            .map(WorkflowEntity::getId)
-            .collect(Collectors.toSet());
 
     WorkspaceReleaseResponse response = new WorkspaceReleaseResponse();
     response.setWorkflowRunRefs(minus(workflowRunRefs, heldRuns));
-    response.setWorkflowRefs(minus(workflowRefs, heldWorkflows));
     LOGGER.debug(
-        "Releasable: {} of {} WorkflowRun and {} of {} Workflow owners.",
+        "Releasable: {} of {} WorkflowRun owners.",
         response.getWorkflowRunRefs().size(),
-        workflowRunRefs.size(),
-        response.getWorkflowRefs().size(),
-        workflowRefs.size());
+        workflowRunRefs.size());
     return response;
   }
 
