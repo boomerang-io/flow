@@ -13,6 +13,7 @@ import io.boomerang.core.model.AESAlgorithm;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
@@ -23,6 +24,8 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.io.support.ResourcePropertySource;
 import org.springframework.mock.env.MockEnvironment;
 import org.testcontainers.mongodb.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -106,6 +109,63 @@ class SettingsEncryptionMigrationTest {
     right.setProperty(_0022__ReencryptSettingsAesGcm.LEGACY_SALT, V3_SALT);
     assertThatCode(() -> MigrationRunner.run(uriOf("wrongpair"), right)).doesNotThrowAnyException();
     assertThat(decryptNew(valueOf(configOf(db, id), "slack.signingSecret"))).isEqualTo("s3cr3t-value");
+  }
+
+  /**
+   * An install that no longer has v3's pair can still upgrade: asked to, the unit blanks each value
+   * that does not decrypt, to be entered again in Settings, and migrates the rest.
+   */
+  @Test
+  void aV3ValueThatDoesNotDecryptIsResetWhenTheInstallAsksForIt() throws Exception {
+    MongoDatabase db = v3Database("resetunreadable");
+    ObjectId id =
+        seedIntegrationSettings(
+            db, "crypt_v1{AES|" + legacyEncrypt("s3cr3t-value", V3_SECRET, V3_SALT) + "}");
+
+    MockEnvironment env = MigrationRunner.environment(PREFIX);
+    env.setProperty(_0022__ReencryptSettingsAesGcm.RESET_UNREADABLE, "true");
+    assertThatCode(() -> MigrationRunner.run(uriOf("resetunreadable"), env)).doesNotThrowAnyException();
+
+    List<Document> config = configOf(db, id);
+    assertThat(valueOf(config, "slack.signingSecret")).as("reset, to be entered again").isEmpty();
+    assertThat(decryptNew(valueOf(config, "slack.token")))
+        .as("a value that needs no v3 pair still migrates")
+        .isEqualTo("xoxb-never-encrypted");
+    assertThat(valueOf(config, "slack.appId")).isEqualTo("A123");
+  }
+
+  /**
+   * v3's chart generated its pair into a Secret as FLOW_ENCRYPT_SECRET and FLOW_ENCRYPT_SALT. With
+   * only those set, both the v3 pair and the new key default to them, so the Secret upgrades as it is.
+   */
+  @Test
+  void aV3InstallUpgradesWithItsChartSecretUnchanged() throws Exception {
+    MongoDatabase db = v3Database("chartsecret");
+    ObjectId id =
+        seedIntegrationSettings(
+            db, "crypt_v1{AES|" + legacyEncrypt("s3cr3t-value", V3_SECRET, V3_SALT) + "}");
+
+    MockEnvironment env = new MockEnvironment().withProperty("flow.mongo.collection.prefix", PREFIX);
+    env.getPropertySources()
+        .addLast(new ResourcePropertySource("classpath:application.properties"));
+    env.getPropertySources()
+        .addLast(
+            new MapPropertySource(
+                "v3-chart-secret",
+                Map.of("FLOW_ENCRYPT_SECRET", V3_SECRET, "FLOW_ENCRYPT_SALT", V3_SALT)));
+    assertThat(env.getProperty(_0022__ReencryptSettingsAesGcm.LEGACY_SECRET)).isEqualTo(V3_SECRET);
+    assertThat(env.getProperty(_0022__ReencryptSettingsAesGcm.SECRET)).isEqualTo(V3_SECRET);
+
+    assertThatCode(() -> MigrationRunner.run(uriOf("chartsecret"), env)).doesNotThrowAnyException();
+
+    String migrated = valueOf(configOf(db, id), "slack.signingSecret");
+    assertThat(migrated).startsWith("crypt_v1{AESGCM|");
+    assertThat(
+            AESAlgorithm.decrypt(
+                migrated.substring("crypt_v1{AESGCM|".length(), migrated.length() - 1),
+                V3_SECRET,
+                V3_SALT))
+        .isEqualTo("s3cr3t-value");
   }
 
   @Test

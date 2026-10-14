@@ -220,8 +220,12 @@ retired static-IV AES/CBC label `crypt_v1{AES|…}`, written by v3 under the pai
 `mongo.encrypt.salt`, are decrypted with a frozen copy of that cipher and re-encrypted under the new key; and
 values carrying no label at all — every secured value saved while the service's encryption guard was inverted, so
 the stored value was its own plaintext — are encrypted in place. A legacy value that does not decrypt stops the
-migration rather than leaving a credential unreadable. The unit is idempotent on the label, so a second run
-changes nothing (decision 0100).
+migration rather than leaving a credential unreadable, unless `flow.migration.reset-unreadable-settings=true`, which
+blanks each such value and logs it by setting, to be entered again in Settings. Both pairs default to
+`FLOW_ENCRYPT_SECRET` and `FLOW_ENCRYPT_SALT`, the names v3's chart kept its pair under, so a v3 install upgrades
+with that Secret as it is; `MONGO_ENCRYPT_*` overrides the v3 pair alone
+(`service-core/src/main/resources/application.properties:141-147`). The unit is idempotent on the label, so a
+second run changes nothing (decisions 0100, 0104).
 
 ## Known gaps
 
