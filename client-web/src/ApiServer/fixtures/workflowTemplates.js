@@ -392,7 +392,7 @@ const workflowTemplates = {
         },
       ],
       workspace: {
-        size: 1,
+        size: "1Gi",
         mountPath: "/workspace",
       },
       config: [
@@ -950,7 +950,7 @@ const workflowTemplates = {
         },
       ],
       workspace: {
-        size: 1,
+        size: "1Gi",
         mountPath: "/workspace",
       },
       config: [

@@ -326,7 +326,7 @@ claim at that path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212
 binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
 hold the claim, so under `Never` it stays `Terminating` until retention removes them.
 
-`size` is a Kubernetes quantity (`1Gi`, `500Mi`; a bare number means Gi). On save, create and update alike, a blank
+`size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a workspace enters the engine (`lib-common/.../model/WorkflowWorkspace.java` `settle`), because a Kubernetes Quantity would read it as bytes. On save, create and update alike, a blank
 size takes the `max.workspace.storage` quota value and a blank mount path becomes `/workspace`; a size above the
 quota is refused with `QUOTA_EXCEEDED` when quotas are enforced, and the same check runs when a run is submitted
 with its own workspace (`workflow/WorkflowService.java:499-515,956-990`,

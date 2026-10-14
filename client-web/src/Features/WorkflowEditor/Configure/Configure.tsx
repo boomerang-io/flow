@@ -1,3 +1,4 @@
+import { quantityToGb } from "Utils/storageQuantity";
 import React from "react";
 import { Tag, MultiSelect, InlineNotification, Button, Dropdown } from "@carbon/react";
 import { Launch, Popup, TrashCan, Add } from "@carbon/react/icons";
@@ -107,7 +108,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
           // Absent on the workflow means no shared storage for its runs.
           workspace: {
             enabled: Boolean(workflow.workspace),
-            size: workflow.workspace?.size ?? 1,
+            size: quantityToGb(workflow.workspace?.size),
             mountPath: workflow.workspace?.mountPath ?? "",
           },
           icon: workflow.icon ?? "",

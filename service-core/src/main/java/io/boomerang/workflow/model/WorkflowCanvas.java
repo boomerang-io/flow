@@ -27,6 +27,8 @@ public class WorkflowCanvas {
   private boolean upgradesAvailable = false;
   private WorkflowTrigger triggers;
   private WorkflowWorkspace workspace;
+  // Read-only: true on a revision the v3 upgrade flagged for the retired Workflow storage.
+  private Boolean legacyWorkflowStorage;
   private List<AbstractParam> config = new LinkedList<>();
   private Map<String, Object> unknownFields = new HashMap<>();
   private List<CanvasNode> nodes;
@@ -36,6 +38,14 @@ public class WorkflowCanvas {
 
   public WorkflowCanvas(Workflow workflow) {
     BeanUtils.copyProperties(workflow, this);
+  }
+
+  public Boolean getLegacyWorkflowStorage() {
+    return legacyWorkflowStorage;
+  }
+
+  public void setLegacyWorkflowStorage(Boolean legacyWorkflowStorage) {
+    this.legacyWorkflowStorage = legacyWorkflowStorage;
   }
 
   public String getName() {

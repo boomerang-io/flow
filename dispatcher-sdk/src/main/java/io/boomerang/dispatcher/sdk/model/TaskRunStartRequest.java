@@ -17,7 +17,6 @@ public class TaskRunStartRequest {
   private Map<String, String> labels;
   private Map<String, Object> annotations;
   private List<RunParam> params;
-  private Map<String, String> workspaces;
   private Long timeout;
   private Boolean preApproved;
   private String dispatcherRef;
@@ -52,13 +51,6 @@ public class TaskRunStartRequest {
     this.params = params;
   }
 
-  public Map<String, String> getWorkspaces() {
-    return workspaces;
-  }
-
-  public void setWorkspaces(Map<String, String> workspaces) {
-    this.workspaces = workspaces;
-  }
 
   public Long getTimeout() {
     return timeout;

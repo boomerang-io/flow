@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.boomerang.common.util.StorageQuantityUtil;
 import lombok.Data;
 
 /**
@@ -33,5 +34,17 @@ public class WorkflowWorkspace {
 
   public String mountPathOrDefault() {
     return mountPath == null || mountPath.isBlank() ? DEFAULT_MOUNT_PATH : mountPath;
+  }
+
+  /**
+   * Writes the declaration the way the dispatcher must read it: a bare-number size becomes a Gi
+   * quantity and a blank mount path becomes the default. Applied wherever a workspace enters the
+   * engine (workflow save, run submit, run start) so what reaches Kubernetes is never shorthand.
+   */
+  public void settle() {
+    if (size != null && !size.isBlank()) {
+      size = StorageQuantityUtil.normalise(size);
+    }
+    mountPath = mountPathOrDefault();
   }
 }

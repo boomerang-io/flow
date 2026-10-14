@@ -1,5 +1,6 @@
 package io.boomerang.migration;
 
+import io.boomerang.common.util.StorageQuantityUtil;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
@@ -379,7 +380,8 @@ public class _0010__V3MigrateWorkflows {
     }
     Document workspace = new Document();
     if (activity.get("size") != null) {
-      workspace.put("size", String.valueOf(activity.get("size")));
+      // v3 stored a bare number meaning Gi; written as the quantity Kubernetes reads.
+      workspace.put("size", StorageQuantityUtil.normalise(String.valueOf(activity.get("size"))));
     }
     String mountPath = activity.getString("mountPath");
     workspace.put(

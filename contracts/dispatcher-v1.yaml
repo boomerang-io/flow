@@ -584,10 +584,6 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunParam"
-        workspaces:
-          type: "object"
-          additionalProperties:
-            type: "string"
         timeout:
           type: "integer"
           format: "int64"

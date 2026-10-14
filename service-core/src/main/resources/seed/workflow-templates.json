@@ -525,7 +525,7 @@
         }
       ],
       "workspace": {
-        "size": "1",
+        "size": "1Gi",
         "mountPath": "/tekton/results"
       },
       "params": [
@@ -936,7 +936,7 @@
         }
       ],
       "workspace": {
-        "size": "1",
+        "size": "1Gi",
         "mountPath": "/tekton/results"
       },
       "params": [

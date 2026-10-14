@@ -938,6 +938,7 @@ public class WorkflowRunService {
                 wfRunEntity.getParams(), optRunRequest.get().getParams()));
         // A request carrying a workspace overrides the run's; the dispatcher's start sends none.
         if (optRunRequest.get().getWorkspace() != null) {
+          optRunRequest.get().getWorkspace().settle();
           wfRunEntity.setWorkspace(optRunRequest.get().getWorkspace());
         }
         workflowRunRepository.save(wfRunEntity);

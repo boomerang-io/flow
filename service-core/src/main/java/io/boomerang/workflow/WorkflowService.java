@@ -491,10 +491,10 @@ public class WorkflowService {
   /*
    * Settles the Workflow's workspace on every save (create and update alike): a blank size takes
    * the storage quota, a blank mountPath takes the default, and - only when quotas are enforced -
-   * an authored size over quota is refused. The size is always kept as a Kubernetes quantity
-   * ("1Gi", "500Mi"), never stripped to a bare number: the dispatcher passes it straight to a
-   * Kubernetes Quantity, and a stripped size is silently requested as bytes. A Workflow without a
-   * workspace has no shared storage and nothing to settle.
+   * an authored size over quota is refused. The size is then written as a Kubernetes quantity
+   * ("1Gi", "500Mi"): a bare number is the Gi shorthand authors use, and the dispatcher passes the
+   * value straight to a Kubernetes Quantity, which would read a bare number as bytes. A Workflow
+   * without a workspace has no shared storage and nothing to settle.
    */
   private void applyWorkspaceDefaults(Workflow request) {
     WorkflowWorkspace workspace = request.getWorkspace();
@@ -517,7 +517,7 @@ public class WorkflowService {
           workspace.getSize(),
           maxStorageSizeQuota);
     }
-    workspace.setMountPath(workspace.mountPathOrDefault());
+    workspace.settle();
   }
 
   /*
@@ -1141,6 +1141,7 @@ public class WorkflowService {
           nodeData.setTaskVersion(task.getTaskVersion());
           nodeData.setUpgradesAvailable(task.getUpgradesAvailable());
           nodeData.setForeach(task.getForeach());
+          nodeData.setWorkspace(task.getWorkspace());
           node.setData(nodeData);
           nodes.add(node);
           taskNameToNodeId.put(task.getName(), node.getId());
@@ -1210,6 +1211,7 @@ public class WorkflowService {
           task.setTaskRef(node.getData().getTaskRef());
           task.setTaskVersion(node.getData().getTaskVersion());
           task.setForeach(node.getData().getForeach());
+          task.setWorkspace(node.getData().getWorkspace());
 
           List<WorkflowTaskDependency> dependencies = new LinkedList<>();
           edges.stream()
@@ -1961,7 +1963,11 @@ public class WorkflowService {
     wfRunEntity.getLabels().putAll(workflow.getLabels());
     wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
-    // The run takes the revision's workspace; a request carrying one overrides it.
+    // The run takes the revision's workspace; a request carrying one overrides it, settled the
+    // same way a saved one is so the dispatcher never sees shorthand.
+    if (request.getWorkspace() != null) {
+      request.getWorkspace().settle();
+    }
     wfRunEntity.setWorkspace(
         (request.getWorkspace() != null) ? request.getWorkspace() : wfRevision.getWorkspace());
     // Every submit path reaches here, so this is where the run timeout is settled: defaulted when

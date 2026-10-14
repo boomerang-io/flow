@@ -186,11 +186,11 @@ describe("Configure > Workspace", () => {
       expect(screen.getByText(/Size in gigabytes/)).toBeInTheDocument();
       expect(screen.getByText("Where every task sees the workspace")).toBeInTheDocument();
       // Size defaults to 1 GB; an empty mount path is left to the server's default.
-      await waitFor(() => expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: 1 }));
+      await waitFor(() => expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: "1Gi" }));
 
       fireEvent.change(screen.getByLabelText("Mount path"), { target: { value: "/data" } });
       await waitFor(() =>
-        expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: 1, mountPath: "/data" }),
+        expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: "1Gi", mountPath: "/data" }),
       );
 
       fireEvent.click(screen.getByRole("switch", { name: "Shared workspace for each run" }));
@@ -203,12 +203,12 @@ describe("Configure > Workspace", () => {
   it(
     "starts on, with the declared size and mount path, for a workflow that has a workspace",
     async () => {
-      const { settingsRef } = renderConfigure(WORKSPACE_ROUTE, { workspace: { size: 4, mountPath: "/workspace" } });
+      const { settingsRef } = renderConfigure(WORKSPACE_ROUTE, { workspace: { size: "4Gi", mountPath: "/workspace" } });
       await screen.findByRole("heading", { name: "Workspace" }, LOADER_WAIT);
 
       expect(screen.getByRole("switch", { name: "Shared workspace for each run" })).toBeChecked();
       expect(screen.getByLabelText("Mount path")).toHaveValue("/workspace");
-      expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: 4, mountPath: "/workspace" });
+      expect(formatConfigureValues(settingsRef.current.values).workspace).toEqual({ size: "4Gi", mountPath: "/workspace" });
     },
     TEST_TIMEOUT,
   );

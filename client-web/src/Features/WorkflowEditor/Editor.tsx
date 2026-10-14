@@ -1,3 +1,4 @@
+import { gbToQuantity } from "Utils/storageQuantity";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Loading, Error, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import type { FormikProps } from "formik";
@@ -370,12 +371,12 @@ export function formatConfigureValues(configureValues: ConfigureWorkflowFormValu
 
   /*
    * The form's `enabled` toggle is form-only: on, the run's shared workspace is sent as the API's
-   * `workspace` object; off, an explicit null so the server clears a previously declared one
-   * (an absent key would leave it untouched). An empty mount path is omitted so the server
-   * applies its default.
+   * `workspace` object with the size written as a Gi quantity; off, an explicit null so the server
+   * clears a previously declared one (an absent key would leave it untouched). An empty mount path
+   * is omitted so the server applies its default.
    */
   const workspace = workspaceForm?.enabled
-    ? { size: workspaceForm.size, ...(workspaceForm.mountPath ? { mountPath: workspaceForm.mountPath } : {}) }
+    ? { size: gbToQuantity(workspaceForm.size), ...(workspaceForm.mountPath ? { mountPath: workspaceForm.mountPath } : {}) }
     : null;
 
   const formattedWorkflowConfig: Partial<WorkflowCanvas> = {

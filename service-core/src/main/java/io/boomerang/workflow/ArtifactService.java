@@ -347,15 +347,19 @@ public class ArtifactService {
       return new Artifact(artifactRepository.save(artifact));
     }
     artifact.setExpirationDate(null);
-    replacePrevious(store, artifact);
-    try {
-      return new Artifact(artifactRepository.save(artifact));
-    } catch (DuplicateKeyException e) {
-      // Another run's completion of the same name was verified between the two steps: it is the
-      // available one now, and this later completion replaces it.
+    // Another run's completion of the same name can be verified between expiring the previous
+    // record and saving this one; the partial unique index refuses the save, and this later
+    // completion then replaces that one. Bounded so a storm of completions cannot spin here.
+    DuplicateKeyException last = null;
+    for (int attempt = 0; attempt < 3; attempt++) {
       replacePrevious(store, artifact);
-      return new Artifact(artifactRepository.save(artifact));
+      try {
+        return new Artifact(artifactRepository.save(artifact));
+      } catch (DuplicateKeyException e) {
+        last = e;
+      }
     }
+    throw last;
   }
 
   /** Expire the workflow's available artifact of this name, unless it is this record. */

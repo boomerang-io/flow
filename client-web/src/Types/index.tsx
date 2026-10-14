@@ -179,11 +179,12 @@ export interface CreateWorkflowSummary {
 /**
  * The one shared filesystem a run gets: every task in the run reads and writes it, it is created
  * when the run starts and removed when the run completes. Absent on the workflow means no shared
- * storage. `size` is in gigabytes and is capped by the workspace's `maxWorkspaceStorage` quota.
+ * storage. `size` is a Kubernetes quantity ("2Gi"); the editor edits it in whole gigabytes, capped by
+ * the workspace's `maxWorkspaceStorage` quota.
  * Files that must outlive the run are artifacts uploaded with scope `workflow`.
  */
 export interface WorkflowWorkspace {
-  size: number;
+  size: string;
   mountPath?: string;
   className?: string;
   accessMode?: string;
