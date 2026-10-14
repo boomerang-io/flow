@@ -7,6 +7,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -41,16 +42,19 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -61,6 +65,13 @@ import tools.jackson.databind.ObjectMapper;
  * record. Storage limits are checked once the file is in the store, because the link is issued
  * before the task has produced it: an upload that breaks a limit has its own file deleted and its
  * task fails, and no existing artifact is ever deleted to make room.
+ *
+ * A workflow-scoped artifact is the workflow's kept state under a name: any run of the workflow
+ * downloads the one available record of that name, it never expires on its own, and the next
+ * verified upload of the name from any run replaces it - the previous record is expired (file
+ * deleted, record kept) only once the new file is verified, so a failed replacement leaves the old
+ * one in place. The uploading run still owns the record, so the run's own list and download routes
+ * serve it like any other.
  */
 @Service
 public class ArtifactService {
@@ -75,10 +86,20 @@ public class ArtifactService {
   // The upload and download task params; Flow fills the link ones when the task is handed out.
   public static final String NAME_PARAM = "name";
   public static final String RETENTION_PARAM = "retention-days";
+  public static final String SCOPE_PARAM = "scope";
+  public static final String OPTIONAL_PARAM = "optional";
   public static final String URL_PARAM = "url";
   public static final String HEADERS_PARAM = "headers";
   public static final String SHA256_PARAM = "sha256";
   public static final String CONTENT_TYPE_PARAM = "contentType";
+  /** The download task's result: true once a file was downloaded, false on an optional miss. */
+  public static final String FOUND_RESULT = "found";
+
+  /** What a hand-out resolved to: a link to dispatch, or - for an optional download - nothing. */
+  public enum LinkOutcome {
+    FILLED,
+    NOT_FOUND
+  }
 
   private static final Pattern NAME = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
   private static final long MIB = 1024L * 1024L;
@@ -178,31 +199,51 @@ public class ArtifactService {
    * persisted: each hand-out, including a requeue, gets a fresh link.
    *
    * <p>Upload: records the artifact as uploading (or reuses this task's own uploading record on a
-   * requeue) and fills {@code url} and {@code headers}. A bad name, a name already used in the run,
-   * or a workspace whose storage is already full is refused. Download: fills {@code url}, {@code
-   * headers}, {@code sha256} and {@code contentType} for an available artifact of the same run.
+   * requeue) and fills {@code url} and {@code headers}. A bad name or scope, a name already used in
+   * the run, a retention with scope workflow, or a workspace whose storage is already full is
+   * refused. Download: fills {@code url}, {@code headers}, {@code sha256} and {@code contentType}
+   * for an available artifact - the run's own, or with scope workflow the workflow's kept one of
+   * that name. No such artifact is refused, unless the task is {@code optional}: then nothing is
+   * filled and the outcome says so, for the caller to end the task without dispatching it.
    */
-  public void fillLinkParams(TaskRun task) {
+  public LinkOutcome fillLinkParams(TaskRun task) {
     ArtifactStore store = requireStore();
     String name = requiredName(task.getParams());
+    ArtifactScope scope = scopeParam(task.getParams(), name);
     if (TaskType.uploadartifact.equals(task.getType())) {
-      ArtifactEntity artifact = uploadingArtifact(task, name);
+      ArtifactEntity artifact = uploadingArtifact(task, name, scope);
       ArtifactStore.Link link = store.uploadLink(artifact.getStorageKey(), linkTtl);
       setParam(task, URL_PARAM, link.url().toString());
       setParam(task, HEADERS_PARAM, headersJson(link.headers()));
     } else if (TaskType.downloadartifact.equals(task.getType())) {
-      ArtifactEntity artifact = availableArtifact(task.getWorkflowRunRef(), name);
+      Optional<ArtifactEntity> found =
+          (scope == ArtifactScope.workflow)
+              ? artifactRepository.findByWorkflowRefAndNameAndScopeAndStatus(
+                  task.getWorkflowRef(), name, ArtifactScope.workflow, ArtifactStatus.available)
+              : ownedByRun(task.getWorkflowRunRef(), name);
+      if (found.isEmpty() && Boolean.parseBoolean(paramValue(task.getParams(), OPTIONAL_PARAM))) {
+        return LinkOutcome.NOT_FOUND;
+      }
+      ArtifactEntity artifact = availableArtifact(found, name);
       ArtifactStore.Link link = store.downloadLink(artifact.getStorageKey(), linkTtl);
       setParam(task, URL_PARAM, link.url().toString());
       setParam(task, HEADERS_PARAM, headersJson(link.headers()));
       setParam(task, SHA256_PARAM, artifact.getSha256());
       setParam(task, CONTENT_TYPE_PARAM, artifact.getContentType());
     }
+    return LinkOutcome.FILLED;
   }
 
-  private ArtifactEntity uploadingArtifact(TaskRun task, String name) {
+  private ArtifactEntity uploadingArtifact(TaskRun task, String name, ArtifactScope scope) {
     if (!NAME.matcher(name).matches()) {
       throw new BoomerangException(BoomerangError.ARTIFACT_INVALID_NAME, name);
+    }
+    String retention = paramValue(task.getParams(), RETENTION_PARAM);
+    if (scope == ArtifactScope.workflow && retention != null && !retention.isBlank()) {
+      throw new BoomerangException(
+          BoomerangError.ARTIFACT_INVALID_SCOPE,
+          name,
+          RETENTION_PARAM + " cannot be set with scope workflow.");
     }
     Optional<ArtifactEntity> existing =
         artifactRepository.findByWorkflowRunRefAndName(task.getWorkflowRunRef(), name);
@@ -225,17 +266,26 @@ public class ArtifactService {
     }
 
     Date now = new Date();
-    int retentionDays = resolveRetentionDays(retentionParam(task.getParams()), quotas);
     ArtifactEntity artifact = new ArtifactEntity();
     artifact.setName(name);
     artifact.setWorkflowRef(task.getWorkflowRef());
     artifact.setWorkflowRunRef(task.getWorkflowRunRef());
     artifact.setTaskRunRef(task.getId());
-    artifact.setStorageKey("runs/" + task.getWorkflowRunRef() + "/" + name);
+    artifact.setScope(scope);
     artifact.setStatus(ArtifactStatus.uploading);
     artifact.setCreationDate(now);
-    artifact.setRetentionDays(retentionDays);
-    artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+    if (scope == ArtifactScope.workflow) {
+      // Its own key per upload, so a replacement never overwrites the kept file before it is
+      // verified; no expiry, it is replaced instead.
+      artifact.setId(new ObjectId().toHexString());
+      artifact.setStorageKey(
+          "workflows/" + task.getWorkflowRef() + "/" + name + "/" + artifact.getId());
+    } else {
+      int retentionDays = resolveRetentionDays(retentionParam(task.getParams()), quotas);
+      artifact.setStorageKey("runs/" + task.getWorkflowRunRef() + "/" + name);
+      artifact.setRetentionDays(retentionDays);
+      artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+    }
     try {
       return artifactRepository.save(artifact);
     } catch (DuplicateKeyException e) {
@@ -248,6 +298,10 @@ public class ArtifactService {
    * size and SHA-256 are read from the stored file, not trusted from the task. A file over the
    * largest-artifact limit, or one the workspace's storage has no room for, is deleted with its
    * record and refused, so the task ends failed with the reason. Completing twice is a no-op.
+   *
+   * <p>A workflow-scoped artifact replaces the workflow's available one of the same name: that one
+   * is expired first (file deleted, record kept), then this one is made available, so the later
+   * verified completion wins and every version stays as a record. It gets no expiry date.
    */
   public Artifact completeUpload(TaskRunEntity taskRun) {
     ArtifactStore store = requireStore();
@@ -286,10 +340,34 @@ public class ArtifactService {
     artifact.setSha256(sha256(store, artifact.getStorageKey()));
     // Retention runs from the moment the file is available, not from when the link was issued.
     artifact.setCreationDate(now);
-    artifact.setExpirationDate(
-        new Date(now.getTime() + TimeUnit.DAYS.toMillis(artifact.getRetentionDays())));
     artifact.setStatus(ArtifactStatus.available);
-    return new Artifact(artifactRepository.save(artifact));
+    if (artifact.scopeOrRun() != ArtifactScope.workflow) {
+      artifact.setExpirationDate(
+          new Date(now.getTime() + TimeUnit.DAYS.toMillis(artifact.getRetentionDays())));
+      return new Artifact(artifactRepository.save(artifact));
+    }
+    artifact.setExpirationDate(null);
+    replacePrevious(store, artifact);
+    try {
+      return new Artifact(artifactRepository.save(artifact));
+    } catch (DuplicateKeyException e) {
+      // Another run's completion of the same name was verified between the two steps: it is the
+      // available one now, and this later completion replaces it.
+      replacePrevious(store, artifact);
+      return new Artifact(artifactRepository.save(artifact));
+    }
+  }
+
+  /** Expire the workflow's available artifact of this name, unless it is this record. */
+  private void replacePrevious(ArtifactStore store, ArtifactEntity artifact) {
+    artifactRepository
+        .findByWorkflowRefAndNameAndScopeAndStatus(
+            artifact.getWorkflowRef(),
+            artifact.getName(),
+            ArtifactScope.workflow,
+            ArtifactStatus.available)
+        .filter(previous -> !previous.getId().equals(artifact.getId()))
+        .ifPresent(previous -> expire(store, previous));
   }
 
   /** Whether the task is one of the two artifact tasks. */
@@ -315,7 +393,7 @@ public class ArtifactService {
   /** The artifact and an open stream of its file; the caller closes the stream. */
   public ArtifactFile open(String workspace, String workflowRunId, String name) {
     requireRunInWorkspace(workspace, workflowRunId);
-    ArtifactEntity artifact = availableArtifact(workflowRunId, name);
+    ArtifactEntity artifact = availableArtifact(ownedByRun(workflowRunId, name), name);
     return new ArtifactFile(new Artifact(artifact), requireStore().open(artifact.getStorageKey()));
   }
 
@@ -328,14 +406,38 @@ public class ArtifactService {
     remove(artifact);
   }
 
-  /** The workspace's artifacts in the given statuses (available by default), largest first. */
+  /**
+   * The workspace's artifacts in the given statuses (available by default), largest first,
+   * narrowed to one scope and to one workflow (by name) when asked. A record written before scopes
+   * existed is run-scoped.
+   */
   public Page<Artifact> query(
-      String workspace, Optional<List<ArtifactStatus>> statuses, int page, int limit) {
-    return artifactRepository
-        .findByWorkflowRefInAndStatusIn(
-            workspaceWorkflowRefs(workspace),
-            statuses.filter(list -> !list.isEmpty()).orElse(List.of(ArtifactStatus.available)),
-            PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "size")))
+      String workspace,
+      Optional<List<ArtifactStatus>> statuses,
+      Optional<ArtifactScope> scope,
+      Optional<String> workflow,
+      int page,
+      int limit) {
+    Query query =
+        Query.query(
+            where("workflowRef")
+                .in(workspaceWorkflowRefs(workspace, workflow.map(List::of)))
+                .and("status")
+                .in(
+                    statuses
+                        .filter(list -> !list.isEmpty())
+                        .orElse(List.of(ArtifactStatus.available))));
+    scope.ifPresent(
+        wanted ->
+            query.addCriteria(
+                (wanted == ArtifactScope.workflow)
+                    ? where("scope").is(ArtifactScope.workflow)
+                    : where("scope").ne(ArtifactScope.workflow)));
+    Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "size"));
+    return PageableExecutionUtils.getPage(
+            mongoTemplate.find(query.with(pageable), ArtifactEntity.class),
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), ArtifactEntity.class))
         .map(Artifact::new);
   }
 
@@ -343,7 +445,10 @@ public class ArtifactService {
     ArtifactEntity artifact =
         artifactRepository
             .findById(artifactId)
-            .filter(found -> workspaceWorkflowRefs(workspace).contains(found.getWorkflowRef()))
+            .filter(
+                found ->
+                    workspaceWorkflowRefs(workspace, Optional.empty())
+                        .contains(found.getWorkflowRef()))
             .orElseThrow(
                 () -> new BoomerangException(BoomerangError.ARTIFACT_INVALID_REF, artifactId));
     remove(artifact);
@@ -352,9 +457,8 @@ public class ArtifactService {
   // ── The watcher's sweeps ──────────────────────────────────────────────────
 
   /**
-   * Expire artifacts past their expiration date: delete the file, then compare-and-set the record
-   * from available to expired. A crash between the two leaves an available record whose file is
-   * gone; the next sweep deletes again (a no-op) and completes the transition.
+   * Expire artifacts past their expiration date. A workflow-scoped artifact has none and is only
+   * ever expired by its replacement.
    */
   public void expireArtifacts(int pageSize) {
     ArtifactStore store = artifactStore.getIfAvailable();
@@ -364,18 +468,24 @@ public class ArtifactService {
     artifactRepository
         .findByStatusAndExpirationDateBefore(
             ArtifactStatus.available, new Date(), PageRequest.of(0, pageSize))
-        .forEach(
-            artifact -> {
-              store.delete(artifact.getStorageKey());
-              mongoTemplate.updateFirst(
-                  Query.query(where("_id").is(artifact.getId()).and("status").is("available")),
-                  Update.update("status", ArtifactStatus.expired.name()),
-                  ArtifactEntity.class);
-              LOGGER.info(
-                  "[{}] Artifact {} expired: its file is deleted, its record kept.",
-                  artifact.getWorkflowRunRef(),
-                  artifact.getName());
-            });
+        .forEach(artifact -> expire(store, artifact));
+  }
+
+  /**
+   * Delete the file, then compare-and-set the record from available to expired. A crash between
+   * the two leaves an available record whose file is gone; the next pass deletes again (a no-op)
+   * and completes the transition.
+   */
+  private void expire(ArtifactStore store, ArtifactEntity artifact) {
+    store.delete(artifact.getStorageKey());
+    mongoTemplate.updateFirst(
+        Query.query(where("_id").is(artifact.getId()).and("status").is("available")),
+        Update.update("status", ArtifactStatus.expired.name()),
+        ArtifactEntity.class);
+    LOGGER.info(
+        "[{}] Artifact {} expired: its file is deleted, its record kept.",
+        artifact.getWorkflowRunRef(),
+        artifact.getName());
   }
 
   /** Remove uploads whose task never completed them within the grace period. */
@@ -411,15 +521,23 @@ public class ArtifactService {
     return store;
   }
 
-  private ArtifactEntity availableArtifact(String workflowRunId, String name) {
+  /** The run's own record of the name, once its upload has completed. */
+  private Optional<ArtifactEntity> ownedByRun(String workflowRunId, String name) {
+    return artifactRepository
+        .findByWorkflowRunRefAndName(workflowRunId, name)
+        .filter(found -> found.getStatus() != ArtifactStatus.uploading);
+  }
+
+  /** The found artifact if its file can be served; none is refused, as is an expired one. */
+  private static ArtifactEntity availableArtifact(Optional<ArtifactEntity> found, String name) {
     ArtifactEntity artifact =
-        artifactRepository
-            .findByWorkflowRunRefAndName(workflowRunId, name)
-            .filter(found -> found.getStatus() != ArtifactStatus.uploading)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.ARTIFACT_INVALID_REF, name));
+        found.orElseThrow(() -> new BoomerangException(BoomerangError.ARTIFACT_INVALID_REF, name));
     if (artifact.getStatus() == ArtifactStatus.expired) {
+      // A workflow-scoped record has no date: it expired when its replacement was verified.
       throw new BoomerangException(
-          BoomerangError.ARTIFACT_EXPIRED, name, artifact.getExpirationDate());
+          BoomerangError.ARTIFACT_EXPIRED,
+          name,
+          (artifact.getExpirationDate() != null) ? artifact.getExpirationDate() : "replacement");
     }
     return artifact;
   }
@@ -449,10 +567,11 @@ public class ArtifactService {
     }
   }
 
-  private List<String> workspaceWorkflowRefs(String workspace) {
+  /** The workspace's workflow refs the caller may see, narrowed to the named ones when given. */
+  private List<String> workspaceWorkflowRefs(String workspace, Optional<List<String>> names) {
     return relationshipService.filter(
         RelationshipType.WORKFLOW,
-        Optional.empty(),
+        names,
         Optional.of(RelationshipType.WORKSPACE),
         Optional.of(List.of(workspace)),
         false);
@@ -481,6 +600,22 @@ public class ArtifactService {
       throw new BoomerangException(BoomerangError.ARTIFACT_INVALID_NAME, name);
     }
     return name;
+  }
+
+  /** The task's scope param: absent or blank is run; anything but run or workflow is refused. */
+  private static ArtifactScope scopeParam(List<RunParam> params, String name) {
+    String value = paramValue(params, SCOPE_PARAM);
+    if (value == null || value.isBlank()) {
+      return ArtifactScope.run;
+    }
+    try {
+      return ArtifactScope.valueOf(value.trim());
+    } catch (IllegalArgumentException e) {
+      throw new BoomerangException(
+          BoomerangError.ARTIFACT_INVALID_SCOPE,
+          name,
+          "Scope must be run or workflow, not \"" + value + "\".");
+    }
   }
 
   private static Integer retentionParam(List<RunParam> params) {

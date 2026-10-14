@@ -10,6 +10,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.WorkflowRun;
@@ -221,11 +222,21 @@ public class DispatcherService {
    */
   /*
    * An artifact task leaves with its link params filled. A refusal (bad or taken name, storage
-   * full, artifact expired) ends the task failed with the reason instead of handing it out.
+   * full, artifact expired) ends the task failed with the reason instead of handing it out; an
+   * optional download with nothing to fetch ends succeeded with found=false, likewise unhandled.
    */
   private boolean fillArtifactLink(TaskRun taskRun) {
     try {
-      artifactService.fillLinkParams(taskRun);
+      if (artifactService.fillLinkParams(taskRun) == ArtifactService.LinkOutcome.NOT_FOUND) {
+        TaskRunEndRequest notFound = new TaskRunEndRequest();
+        notFound.setStatus(RunStatus.succeeded);
+        notFound.setStatusReason("ArtifactNotFound");
+        notFound.setStatusMessage(
+            "No artifact of that name is available; the download is optional.");
+        notFound.setResults(List.of(new RunResult(ArtifactService.FOUND_RESULT, "false")));
+        taskRunService.end(taskRun.getId(), Optional.of(notFound));
+        return false;
+      }
       return true;
     } catch (BoomerangException e) {
       TaskRunEndRequest refused = new TaskRunEndRequest();

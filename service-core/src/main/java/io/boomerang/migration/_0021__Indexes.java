@@ -169,7 +169,8 @@ public class _0021__Indexes {
               "resource_time",
               keys("resourceType", "resourceId", "time"),
               new IndexOptions()),
-          // Artifacts: one name per run, the expiry and stale-upload sweeps, the workspace list.
+          // Artifacts: one name per run, the expiry and stale-upload sweeps, the workspace list,
+          // and at most one available workflow-scoped artifact per workflow and name.
           new Index(
               "artifacts",
               "run_name_idx",
@@ -177,7 +178,15 @@ public class _0021__Indexes {
               new IndexOptions().unique(true)),
           new Index(
               "artifacts", "status_expiration_idx", keys("status", "expirationDate"), new IndexOptions()),
-          new Index("artifacts", "workflow_status_idx", keys("workflowRef", "status"), new IndexOptions()));
+          new Index("artifacts", "workflow_status_idx", keys("workflowRef", "status"), new IndexOptions()),
+          new Index(
+              "artifacts",
+              "workflow_name_available_idx",
+              keys("workflowRef", "name"),
+              new IndexOptions()
+                  .unique(true)
+                  .partialFilterExpression(
+                      new Document("scope", "workflow").append("status", "available"))));
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {

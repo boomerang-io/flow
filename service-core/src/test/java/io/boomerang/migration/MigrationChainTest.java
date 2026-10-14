@@ -3,6 +3,7 @@ package io.boomerang.migration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -479,13 +480,36 @@ class MigrationChainTest {
       assertThat(task).as(name).isNotNull();
       Document revision =
           collection(db, "task_revisions").find(Filters.eq("parentRef", task.get("_id").toString())).first();
-      Document path =
-          revision.get("spec", Document.class).getList("params", Document.class).stream()
-              .filter(param -> "path".equals(param.getString("name")))
-              .findFirst()
-              .orElseThrow();
-      assertThat(path.getString("helpertext")).contains("Relative to /workspace");
+      Document spec = revision.get("spec", Document.class);
+      List<Document> params = spec.getList("params", Document.class);
+      assertThat(seededParam(params, "path").getString("helpertext"))
+          .contains("Relative to /workspace");
+      // Both tasks take a scope: a select with a run default.
+      Document scope = seededParam(params, "scope");
+      assertThat(scope.getString("type")).as("%s scope type", name).isEqualTo("select");
+      assertThat(scope.get("defaultValue")).as("%s scope default", name).isEqualTo("run");
+      assertThat(scope.getList("options", Document.class))
+          .extracting(option -> option.getString("key"), option -> option.getString("value"))
+          .containsExactly(tuple("run", "run"), tuple("workflow", "workflow"));
+      if ("download-artifact".equals(name)) {
+        Document optional = seededParam(params, "optional");
+        assertThat(optional.getString("type")).isEqualTo("boolean");
+        assertThat(optional.get("defaultValue")).isEqualTo("false");
+        assertThat(spec.getList("results", Document.class))
+            .extracting(result -> result.getString("name"))
+            .containsExactly("found");
+      } else {
+        assertThat(params).extracting(param -> param.getString("name")).doesNotContain("optional");
+        assertThat(spec.getList("results", Document.class)).isEmpty();
+      }
     }
+  }
+
+  private static Document seededParam(List<Document> params, String name) {
+    return params.stream()
+        .filter(param -> name.equals(param.getString("name")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no seeded param " + name));
   }
 
   private static void assertIndexInventory(MongoDatabase db) {
@@ -495,6 +519,10 @@ class MigrationChainTest {
       assertThat(Boolean.TRUE.equals(built.getBoolean("unique")))
           .as("%s.%s unique", index.collection(), index.name())
           .isEqualTo(index.options().isUnique());
+      // A partial index is built with its filter, and a plain one without.
+      assertThat(built.get("partialFilterExpression"))
+          .as("%s.%s partial filter", index.collection(), index.name())
+          .isEqualTo(index.options().getPartialFilterExpression());
     }
   }
 

@@ -1661,6 +1661,10 @@ class V3DumpMigrationTest {
       assertThat(Boolean.TRUE.equals(built.getBoolean("unique")))
           .as("%s.%s unique", index.collection(), index.name())
           .isEqualTo(index.options().isUnique());
+      // A partial index is built with its filter, and a plain one without.
+      assertThat(built.get("partialFilterExpression"))
+          .as("%s.%s partial filter", index.collection(), index.name())
+          .isEqualTo(index.options().getPartialFilterExpression());
     }
     // The migrated approvals keep their task run, so all 8 sit under the unique task_run index.
     assertThat(collection("actions").countDocuments(Filters.exists("taskRunRef"))).isEqualTo(8);
