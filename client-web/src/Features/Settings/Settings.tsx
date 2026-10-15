@@ -23,7 +23,8 @@ export type SettingsGroup = {
   description: string;
   name: string;
   key: string;
-  config: DataDrivenInput[];
+  // Every settings input is keyed: the key is the form field and the saved value's name.
+  config: Array<DataDrivenInput & { key: string }>;
 };
 
 // Route module for the Settings tab of the Manage area (path "/admin/settings/:group?"). The

@@ -35,8 +35,11 @@ import org.springframework.core.env.Environment;
  *
  * <p>A legacy value that does not decrypt, or a blank key with something to encrypt, stops the
  * migration: this unit runs once, and the service reads only the new label, so a value left behind
- * would be unreadable for good. Blank values and entries of any other type are untouched, and a value
- * already under the new label is skipped, so a second run changes nothing.
+ * would be unreadable for good. An install that no longer has v3's pair sets {@code
+ * flow.migration.reset-unreadable-settings=true} instead: each value that does not decrypt is
+ * blanked and logged, to be entered again in Settings. Blank values and entries of any other type
+ * are untouched, and a value already under the new label is skipped, so a second run changes
+ * nothing.
  */
 @Change(id = "0022-reencrypt-settings-aes-gcm", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -49,6 +52,7 @@ public class _0022__ReencryptSettingsAesGcm {
   static final String LEGACY_SALT = "mongo.encrypt.salt";
   static final String SECRET = "flow.encrypt.secret";
   static final String SALT = "flow.encrypt.salt";
+  static final String RESET_UNREADABLE = "flow.migration.reset-unreadable-settings";
 
   private static final String SECURED_TYPE = "secured";
   private static final String LABEL_PREFIX = "crypt_v1";
@@ -63,10 +67,12 @@ public class _0022__ReencryptSettingsAesGcm {
     String salt = property(env, SALT);
     String legacySecret = property(env, LEGACY_SECRET);
     String legacySalt = property(env, LEGACY_SALT);
+    boolean resetUnreadable = Boolean.parseBoolean(property(env, RESET_UNREADABLE));
 
     MongoCollection<Document> settings = db.getCollection(names.resolve("settings"));
     int reencrypted = 0;
     int encrypted = 0;
+    int reset = 0;
     for (Document setting : settings.find()) {
       List<Document> configs = setting.getList("config", Document.class);
       if (configs == null) {
@@ -85,18 +91,32 @@ public class _0022__ReencryptSettingsAesGcm {
           continue;
         }
         String where = "setting '" + setting.getString("key") + "' entry '" + config.getString("key") + "'";
+        String plaintext = value;
+        if (legacy) {
+          try {
+            plaintext =
+                legacyDecrypt(
+                    value.substring(LEGACY_PREFIX.length(), value.length() - SUFFIX.length()),
+                    legacySecret,
+                    legacySalt,
+                    where);
+          } catch (IllegalStateException e) {
+            if (!resetUnreadable) {
+              throw e;
+            }
+            LOG.warn(
+                "{} does not decrypt under v3's pair; it is reset to blank - enter it again in Settings",
+                where);
+            config.put("value", "");
+            changed = true;
+            reset++;
+            continue;
+          }
+        }
         if (secret.isBlank() || salt.isBlank()) {
           throw new IllegalStateException(
               SECRET + " and " + SALT + " must be set: " + where + " needs encrypting");
         }
-        String plaintext =
-            legacy
-                ? legacyDecrypt(
-                    value.substring(LEGACY_PREFIX.length(), value.length() - SUFFIX.length()),
-                    legacySecret,
-                    legacySalt,
-                    where)
-                : value;
         String ciphertext = AESAlgorithm.encrypt(plaintext, secret, salt);
         if (ciphertext == null) {
           throw new IllegalStateException("Could not encrypt " + where);
@@ -115,9 +135,10 @@ public class _0022__ReencryptSettingsAesGcm {
     }
     LOG.info(
         "Settings encryption: {} value(s) re-encrypted from the v3 cipher, {} plaintext value(s)"
-            + " encrypted",
+            + " encrypted, {} unreadable value(s) reset",
         reencrypted,
-        encrypted);
+        encrypted,
+        reset);
   }
 
   private static String property(Environment env, String name) {
@@ -161,7 +182,9 @@ public class _0022__ReencryptSettingsAesGcm {
               + LEGACY_SECRET
               + "/"
               + LEGACY_SALT
-              + "; set v3's pair and start again ("
+              + "; set v3's pair and start again, or set "
+              + RESET_UNREADABLE
+              + "=true to blank each value that does not decrypt and enter it again in Settings ("
               + e.getMessage()
               + ")",
           e);
