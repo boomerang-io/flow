@@ -95,3 +95,4 @@ things by name, not by code.
 | 0107 | [Seeds carry no ids and match on natural keys](0107-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |
 | 0108 | [The Java images run on Ubuntu's chiseled JRE](0108-the-java-images-run-on-ubuntus-chiseled-jre.md) | accepted | 2026-10-15 |
 | 0109 | [Deployment shape is properties, not a mode](0109-deployment-shape-is-properties-not-a-mode.md) | accepted | 2026-10-15 |
+| 0109 | [A machine token can be bootstrapped from configuration](0109-a-machine-token-can-be-bootstrapped-from-configuration.md) | accepted | 2026-10-15 |

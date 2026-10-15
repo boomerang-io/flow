@@ -84,7 +84,16 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 | `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:711-731`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:178-188`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:379-385`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:764-781`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
+
+**Bootstrap token.** A secured install where no person will sign in gets its first credential from
+`flow.security.bootstrap-token` (decision 0109). When it is set — `bfg_` and at least 32 further characters, else
+the start fails — `BootstrapTokenService` stores its hash at startup as a global `**/**` token with
+`actorKind=SERVICE` under the fixed id `bootstrap-token` (`core/security/BootstrapTokenService.java:63-89`). A
+restart changes nothing, instances starting together converge on one record, and a changed value replaces the
+hash and evicts the old one from the local token cache; it is rotated by changing the value and restarting. It
+registers whether or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, so the
+webapp cannot sign in with it.
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a token that does
