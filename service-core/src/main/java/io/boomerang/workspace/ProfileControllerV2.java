@@ -1,7 +1,5 @@
 package io.boomerang.workspace;
 
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
@@ -32,14 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
  * membership rollup (summaries + permissions) spans core (User) and workspace (Workspace) data, and
  * io.boomerang.core has zero outbound feature-package imports - core.UserService cannot depend on
  * workspace, and putting this controller in core would create core -> workspace against the existing
- * workspace -> core. The workspace dependency is what defines this endpoint (it is also why it is
- * STANDALONE-only), so it belongs on that side of the edge.
+ * workspace -> core. The workspace dependency is what defines this endpoint, so it belongs on that
+ * side of the edge.
  */
-// E8: hard-depends on workspace.WorkspaceService, so full-mode-only.
 @RestController
 @RequestMapping("/api/v2/profile")
 @Tag(name = "Profile", description = "Retrieve your profile and update your details.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class ProfileControllerV2 {
 
   @Autowired private UserService userService;

@@ -131,7 +131,7 @@ public class WorkflowRunAuditBridge {
 
   /**
    * Resolve the owning Workspace's name from the Workflow's parent edge, the way the Action
-   * rollup does. An unresolvable owner (already-deleted Workflow, engine mode without a graph)
+   * rollup does. An unresolvable owner (already-deleted Workflow, a Workflow no workspace owns)
    * audits with none rather than failing the transition.
    */
   private String owningWorkspace(WorkflowRunTransition transition) {

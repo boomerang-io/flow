@@ -45,7 +45,6 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
-import io.boomerang.workspace.FlowQuotaProperties;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import java.io.ByteArrayInputStream;
@@ -70,7 +69,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.core.env.Environment;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -107,25 +105,13 @@ import tools.jackson.databind.ObjectMapper;
  *       ActionService} resolving an Action's Workflow name.
  * </ul>
  *
- * <p>F3 collapsed the former {@code api.WorkspaceWorkflowService} pass-through into this class: the
- * workspace resolution and the operation now live together instead of being split across a service
- * boundary that only existed because the engine used to be a separate deployable (DD-02).
- *
- * <p>E8 mode-gating note (carried over verbatim from the pass-through): intentionally NOT
- * {@code @ConditionalOnFlowMode(STANDALONE)}. Two things require it to stay unconditional:
- * ScheduleJob (schedule package, standalone-only) hard-depends on it for the fire path, and the api
- * mode-matrix row keeps "the same surface, team-&gt;default" in engine mode too (J1 remap deferred
- * to E10) - in particular POST /workspace/&#123;workspace&#125;/workflow/&#123;name&#125;/submit,
- * the only HTTP route that starts a run, must work in engine mode against the single {@code system}
- * workspace (see EngineWorkspaceInterceptor).
+ * <p>The former {@code api.WorkspaceWorkflowService} pass-through was collapsed into this class:
+ * the workspace resolution and the operation live together instead of being split across a service
+ * boundary that only existed because the engine used to be a separate deployable.
  *
  * <p>workspace.WorkspaceService and schedule.ScheduleService are held as ObjectProvider, not as
  * fields: both take this service back in their own constructors, and Optional would resolve eagerly
- * and close the cycle at construction time. WorkspaceService is also
- * {@code @ConditionalOnFlowMode(STANDALONE)}, so its calls (canCreateWithQuotas, assertRunQuotas,
- * and the run-duration ceiling the chokepoint submit hands RunTimeoutPolicy) run only when the quota
- * subsystem is on - see workspace.FlowQuotaProperties. Off in engine mode, where the run-duration
- * ceiling falls back to the platform default in the "quotas" settings.
+ * and close the cycle at construction time.
  *
  * <p>TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust.
@@ -172,7 +158,6 @@ public class WorkflowService {
   private final TokenService tokenService;
   private final ObjectProvider<WorkspaceService> workspaceService;
   private final RunTimeoutPolicy runTimeoutPolicy;
-  private final boolean quotasEnabled;
   private final ObjectMapper objectMapper;
   private final ParamLayerCache paramLayerCache;
 
@@ -197,7 +182,6 @@ public class WorkflowService {
       TokenService tokenService,
       ObjectProvider<WorkspaceService> workspaceService,
       RunTimeoutPolicy runTimeoutPolicy,
-      Environment environment,
       ObjectMapper objectMapper,
       ParamLayerCache paramLayerCache) {
     this.workflowRepository = workflowRepository;
@@ -214,7 +198,6 @@ public class WorkflowService {
     this.tokenService = tokenService;
     this.workspaceService = workspaceService;
     this.runTimeoutPolicy = runTimeoutPolicy;
-    this.quotasEnabled = FlowQuotaProperties.isQuotasEnabled(environment);
     this.objectMapper = objectMapper;
     this.paramLayerCache = paramLayerCache;
   }
@@ -225,15 +208,13 @@ public class WorkflowService {
   // api.WorkspaceWorkflowService performed, then does the work inline.
 
   /*
-   * Whether quota limits are actually enforced: the quota subsystem has to be on for this
-   * flow.mode (FlowQuotaProperties - off in engine mode) AND the operator has to have left the
-   * "workspaceQuotas" feature enabled. Short-circuits, so engine mode never reads the setting.
+   * Whether quota limits are enforced: the stored "workspaceQuotas" feature setting is the one
+   * switch.
    */
   boolean quotasEnforced() {
-    return quotasEnabled
-        && settingsService
-            .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
-            .getBooleanValue();
+    return settingsService
+        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
+        .getBooleanValue();
   }
 
   /*
@@ -260,12 +241,8 @@ public class WorkflowService {
   }
 
   /*
-   * The ceiling for a WorkflowRun's timeout, in minutes.
-   *
-   * With the quota subsystem on this is the workspace's max run duration (its own quota override
-   * if set, else the platform default). In engine mode there is no WorkspaceService and no
-   * per-workspace quota record, so the platform default in the "quotas" settings document
-   * stands on its own - the same value WorkspaceService.getWorkflowMaxDurationForTeam starts from.
+   * The ceiling for a WorkflowRun's timeout, in minutes: the workspace's max run duration (its own
+   * quota override if set, else the platform default in the "quotas" settings document).
    *
    * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
    * the platform default constrain its runs.
@@ -274,15 +251,7 @@ public class WorkflowService {
     if (team == null) {
       return 0;
     }
-    if (quotasEnabled) {
-      return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
-    }
-    return Long.parseLong(
-        settingsService
-            .getSettingConfig(
-                WorkspaceService.QUOTAS_SETTINGS_KEY,
-                WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
-            .getValue());
+    return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
   }
 
   /*

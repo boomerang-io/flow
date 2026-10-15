@@ -1,8 +1,6 @@
 package io.boomerang.integrations;
 
 import tools.jackson.databind.JsonNode;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -26,9 +24,7 @@ import org.bson.Document;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
-// H6: integrations is a clean mode-gate root (full-mode-only per the mode matrix).
 @Service
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class IntegrationService {
 
   private static final Logger LOGGER = LogManager.getLogger();

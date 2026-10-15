@@ -14,8 +14,6 @@ import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
@@ -27,6 +25,7 @@ import io.boomerang.core.model.*;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.FlowWorkspaceProperties;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
@@ -70,13 +69,12 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.core.env.Environment;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-// E8: workspace is a full-mode-only module root per the mode matrix.
 @Service
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceService {
 
   private static final Logger LOGGER = LogManager.getLogger();
@@ -107,6 +105,8 @@ public class WorkspaceService {
   private final TaskService taskService;
   private final ArtifactService artifactService;
   private final ParamLayerCache paramLayerCache;
+  // flow.workspace.single: the seeded system workspace is the only one, so none is created or deleted.
+  private final boolean single;
 
   public WorkspaceService(
       WorkspaceRepository workspaceRepository,
@@ -124,7 +124,8 @@ public class WorkspaceService {
       TokenService tokenService,
       TaskService taskService,
       ArtifactService artifactService,
-      ParamLayerCache paramLayerCache) {
+      ParamLayerCache paramLayerCache,
+      Environment environment) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
     this.userService = userService;
@@ -141,6 +142,7 @@ public class WorkspaceService {
     this.taskService = taskService;
     this.artifactService = artifactService;
     this.paramLayerCache = paramLayerCache;
+    this.single = FlowWorkspaceProperties.isSingle(environment);
   }
 
   /*
@@ -181,8 +183,12 @@ public class WorkspaceService {
    *
    * - Name must not be blank
    * - Display name must not be blank
+   * - Refused on a single-workspace instance
    */
   public Workspace create(WorkspaceRequest request) {
+    if (single) {
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+    }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // Validate name - will throw exception if not valid
       WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
@@ -343,10 +349,10 @@ public class WorkspaceService {
   }
 
   /*
-   * Destructive cascade Workspace deletion
+   * Destructive cascade Workspace deletion. Refused on a single-workspace instance.
    */
   public void delete(String team) {
-    if (team == null || team.isBlank()) {
+    if (single || team == null || team.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
 

@@ -1,7 +1,5 @@
 package io.boomerang.workspace;
 
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.model.Role;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.audit.Audited;
@@ -35,14 +33,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-// E8: hard-depends on workspace.WorkspaceService, so standalone-only. J1's engine-mode
-// default-workspace remapping is deferred (E10 territory).
 @RestController
 @RequestMapping("/api/v2/workspace")
 @Tag(
     name = "Workspace Management",
     description = "Manage Workspaces, Workspace Members, Quotas, ApprovalGroups and Parameters.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class WorkspaceControllerV2 {
 
   private final WorkspaceService workspaceService;

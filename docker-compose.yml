@@ -191,7 +191,6 @@ services:
     environment:
       SPRING_MONGODB_URI: mongodb://mongo:27017/boomerang
       FLOW_MONGO_COLLECTION_PREFIX: flow
-      FLOW_MODE: standalone
       # Secured - see the security posture note above. /health stays permitAll
       # (SecurityConfiguration), so the healthcheck below still passes.
       FLOW_SECURITY_ENABLED: "true"

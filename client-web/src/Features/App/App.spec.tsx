@@ -77,7 +77,7 @@ describe("App --- root loader concurrency", () => {
 });
 
 // GET /auth/config is the sign-in surface's own read; a deployment whose flags say it has none
-// (engine mode, or security off) is never asked for it.
+// (security off) is never asked for it.
 describe("App --- root loader sign-in config", () => {
   function serve(features: Record<string, boolean>, profileStatus = 200) {
     const trace = createRequestTrace();

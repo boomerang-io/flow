@@ -203,8 +203,7 @@ public class ParamLayerService {
    * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
   private void buildWorkspaceParams(Map<String, Object> workspaceParams, String team) {
-    // A missing workspace contributes no params rather than failing the whole layer build -
-    // engine mode resolves every scope to a "default" workspace that has no stored record.
+    // A missing workspace contributes no params rather than failing the whole layer build.
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
     if (!optWorkspaceEntity.isPresent()) {
       return;

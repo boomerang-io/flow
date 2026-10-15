@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * The synthetic identity installed on the {@code SecurityContext} when {@code
- * flow.security.enabled=false} (the documented local-dev/E2E posture, and the default for {@code
- * flow.mode=engine}).
+ * flow.security.enabled=false} (the documented local-dev/E2E posture, and what an embedding
+ * product sets).
  *
  * <p><b>Why this exists.</b> Before this type, nothing populated the {@code SecurityContext} with
  * security off - {@code AuthenticationFilter} is {@code @ConditionalOnProperty} on that flag and

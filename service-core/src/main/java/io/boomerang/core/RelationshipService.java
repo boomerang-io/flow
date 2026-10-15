@@ -53,21 +53,10 @@ import org.springframework.web.context.request.RequestContextHolder;
  * <p>Write ordering: callers persist the DOMAIN document first, then create the node/edge - the
  * relationship graph is an index over domain truth, never the source of it.
  *
- * <p><b>E8 mode-gating note (I3/J-C):</b> left ungated (loads in every {@code flow.mode}) rather
- * than swapped for a single-anchor/default no-op in {@code engine}/{@code standalone}. A
- * no-op seam would only be safe for the narrow always-on call set (workflow, event,
- * {@code RelationshipEventListener}, non-team api) - but the api {@code Workspace*} surface
- * ({@code WorkspaceWorkflowService} and friends) also stays constructed in every mode (required
- * unconditionally by {@code ScheduleJob}'s fire path in {@code standalone}, and by the api
- * mode-matrix row - "same surface, team-&gt;default" - which keeps it live in {@code engine}
- * too), and that surface leans on {@code filter}/{@code check}/{@code findNodes} for real
- * ref-resolution and access-control semantics, not decoration. No-opping those would silently
- * corrupt workflow/task/run resolution rather than gracefully degrade it, which is worse than
- * today's behaviour. So this is the documented fallback: real Mongo-backed behaviour in every
- * mode; only {@code workspace} (team/quota CRUD, gated {@link
- * io.boomerang.config.FlowMode#STANDALONE}) actually stops writing to it outside standalone
- * mode. J1's default-team remapping for the always-on {@code Workspace*} surface remains deferred
- * (E10 territory).
+ * <p>The graph is real Mongo-backed behaviour in every deployment: {@code filter}/{@code check}/
+ * {@code findNodes} carry ref-resolution and access-control semantics, so there is no no-op
+ * variant. A single-workspace instance ({@code flow.workspace.single=true}) simply holds one
+ * workspace node.
  */
 @Component
 public class RelationshipService {
