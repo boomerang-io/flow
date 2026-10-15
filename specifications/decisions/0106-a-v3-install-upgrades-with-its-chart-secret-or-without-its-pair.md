@@ -1,4 +1,4 @@
-# 0104 — A v3 install upgrades with its chart Secret as it is, or without its pair
+# 0106 — A v3 install upgrades with its chart Secret as it is, or without its pair
 
 **Status:** accepted · **Date:** 2026-10-14
 

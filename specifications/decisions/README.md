@@ -90,5 +90,4 @@ things by name, not by code.
 | 0103 | [Routes are grouped under one prefix per kind of caller](0103-routes-are-grouped-under-one-prefix-per-kind-of-caller.md) | accepted | 2026-10-13 |
 | 0104 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |
 | 0105 | [A dispatcher is the contract plus an SDK, and a separate process only where a boundary exists](0105-a-dispatcher-is-a-process-only-where-a-boundary-exists.md) | accepted | 2026-10-10 |
-| 0104 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0104-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
-| 0105 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |
+| 0106 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0106-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
