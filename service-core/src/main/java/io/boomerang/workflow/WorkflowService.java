@@ -47,6 +47,7 @@ import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
+import io.boomerang.workspace.model.Quotas;
 import java.io.ByteArrayInputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -242,10 +243,10 @@ public class WorkflowService {
 
   /*
    * The ceiling for a WorkflowRun's timeout, in minutes: the workspace's max run duration (its own
-   * quota override if set, else the platform default in the "quotas" settings document).
+   * quota if stored, else the platform default in the "quotas" settings document).
    *
-   * A Workflow no workspace owns has no quota to apply, so it has no ceiling - only the floor and
-   * the platform default constrain its runs.
+   * 0 is no ceiling: a workspace whose stored quota is 0 (unlimited), or a Workflow no workspace
+   * owns - only the floor and the platform default constrain those runs.
    */
   public long maxWorkflowDuration(String team) {
     if (team == null) {
@@ -900,13 +901,15 @@ public class WorkflowService {
   }
 
   /*
-   * Check if the Workspace Quotas allow a Workflow to run
+   * Check if the Workspace Quotas allow a Workflow to be created. A quota of 0 is unlimited and
+   * is not checked (Quotas.limited), here and in every run check below.
    */
   private void canCreateWithQuotas(String team) {
     if (quotasEnforced()) {
       CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
       LOGGER.debug("Quotas: {}", quotas.toString());
-      if (quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
+      if (Quotas.limited(quotas.getMaxWorkflowCount())
+          && quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Number of Workflows",
@@ -928,13 +931,15 @@ public class WorkflowService {
       LOGGER.debug("Quotas: {}", quotas.toString());
       // The run being submitted is not counted yet, so at-the-limit already means it would
       // exceed the limit.
-      if (quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
+      if (Quotas.limited(quotas.getMaxConcurrentRuns())
+          && quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Concurrent runs (executions)",
             quotas.getCurrentConcurrentRuns(),
             quotas.getMaxConcurrentRuns());
-      } else if (quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
+      } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
+          && quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Number of runs (executions)",
@@ -955,7 +960,7 @@ public class WorkflowService {
   private void checkWorkspaceStorageQuota(WorkflowWorkspace workspace, CurrentQuotas quotas) {
     Integer maxSizeGi = quotas.getMaxWorkspaceStorage();
     String size = workspace.getSize();
-    if (maxSizeGi != null
+    if (Quotas.limited(maxSizeGi)
         && size != null
         && !size.isBlank()
         && StorageQuantityUtil.toGi(size) > maxSizeGi) {
@@ -971,14 +976,16 @@ public class WorkflowService {
    */
   private void guardQuotasAfterAdmission(String team, String workflowRunId) {
     CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
-    if (quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+    if (Quotas.limited(quotas.getMaxConcurrentRuns())
+        && quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
       discardRun(workflowRunId);
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED,
           "Concurrent runs (executions)",
           quotas.getCurrentConcurrentRuns(),
           quotas.getMaxConcurrentRuns());
-    } else if (quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
+    } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
+        && quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
       discardRun(workflowRunId);
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED,

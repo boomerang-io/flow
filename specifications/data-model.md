@@ -38,6 +38,14 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `integrations`, `integration_templates` | Installed integrations and their catalogue | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `LegacyGenerationMarker.java:27`) |
 
+A workspace's five quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`, `maxWorkspaceStorage`,
+`maxConcurrentRuns`, `maxWorkflowRunDuration`; `workspace/model/Quotas.java`) each have three stored states: absent
+inherits the platform default from the `quotas` settings document when the workspace is read
+(`workspace/WorkspaceService.java` `setCustomQuotas`), `0` is unlimited (`Quotas.limited`, the one resolver every
+check calls), and a positive number is the limit. A stored `0` survives the merge as `0`. The v3 migration drops a v3
+`0`, which v3 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java`
+`limitOrAbsent`); decision 0111.
+
 ## Versioned definitions: the subset pattern
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version, joined
 on read by the domain services (`service-core/src/main/java/io/boomerang/workflow/TaskService.java:57-60`). The child

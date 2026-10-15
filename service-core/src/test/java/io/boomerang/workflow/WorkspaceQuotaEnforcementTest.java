@@ -51,8 +51,9 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   @Test
   void theWorkflowCountQuotaIsEnforced() {
-    String workspace = createWorkspace("standalone-quota-count", quotasWithWorkflowCount(0));
+    String workspace = createWorkspace("standalone-quota-count", quotasWithWorkflowCount(1));
     workflowService.create(workspace, runnableWorkflow("quota-first-workflow", TASK_SLUG));
+    workflowService.create(workspace, runnableWorkflow("quota-second-workflow", TASK_SLUG));
 
     setFeatureSetting(QUOTA_FEATURE, true);
 
@@ -61,8 +62,19 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
             BoomerangException.class,
             () ->
                 workflowService.create(
-                    workspace, runnableWorkflow("quota-second-workflow", TASK_SLUG)));
+                    workspace, runnableWorkflow("quota-third-workflow", TASK_SLUG)));
     assertEquals("QUOTA_EXCEEDED", ex.getReason());
+  }
+
+  @Test
+  void aWorkflowCountQuotaOfZeroIsUnlimited() {
+    // Past the seeded platform default (10), so inheriting the default would refuse the last one.
+    String workspace = createWorkspace("standalone-quota-unlimited", quotasWithWorkflowCount(0));
+    setFeatureSetting(QUOTA_FEATURE, true);
+
+    for (int i = 1; i <= 12; i++) {
+      workflowService.create(workspace, runnableWorkflow("quota-unlimited-workflow-" + i, TASK_SLUG));
+    }
   }
 
   @Test

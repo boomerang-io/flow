@@ -96,3 +96,4 @@ things by name, not by code.
 | 0109 | [Deployment shape is properties, not a mode](0109-deployment-shape-is-properties-not-a-mode.md) | accepted | 2026-10-15 |
 | 0110 | [A machine token can be bootstrapped from configuration](0110-a-machine-token-can-be-bootstrapped-from-configuration.md) | accepted | 2026-10-15 |
 | 0112 | [A task log is served from its stored copy first, then from the route its dispatcher registered](0112-a-task-log-is-served-stored-first-then-from-the-dispatchers-registered-route.md) | accepted | 2026-10-15 |
+| 0111 | [A workspace quota of zero is unlimited; an absent quota inherits the platform default](0111-a-workspace-quota-of-zero-is-unlimited.md) | accepted | 2026-10-15 |

@@ -839,15 +839,15 @@ class V3DumpMigrationTest {
     assertThat(collection("workspaces").countDocuments()).isEqualTo(86);
 
     // The seeded system workspace is untouched: still matched by name, still v5-shaped exactly
-    // as _0004__SeedSystemWorkspace wrote it (the four limits unlimited, the run duration absent
-    // so it inherits the platform default, type "system"), never touched by the v3 units.
+    // as _0004__SeedSystemWorkspace wrote it (the four limits 0 = unlimited, the run duration
+    // absent so it inherits the platform default, type "system"), never touched by the v3 units.
     Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     assertThat(system).as("seeded system workspace must survive the v3 batch untouched").isNotNull();
     assertThat(system.getString("type")).isEqualTo("system");
     assertThat(system.getString("status")).isEqualTo("active");
     Document systemQuotas = (Document) system.get("quotas");
-    assertThat(systemQuotas.getInteger("maxWorkflowCount")).isEqualTo(Integer.MAX_VALUE);
-    assertThat(systemQuotas.getInteger("maxWorkspaceStorage")).isEqualTo(Integer.MAX_VALUE);
+    assertThat(systemQuotas.getInteger("maxWorkflowCount")).isZero();
+    assertThat(systemQuotas.getInteger("maxWorkspaceStorage")).isZero();
     assertThat(systemQuotas.containsKey("maxWorkflowRunDuration")).isFalse();
 
     // The 28 migrated v3 teams: type "hobby" (the documented honest default - v3 had no tier
@@ -886,6 +886,19 @@ class V3DumpMigrationTest {
       // settings document's max.workspace.storage numeric value); the v3 per-workflow storage
       // cap is dropped.
       assertThat(quotas.getInteger("maxWorkspaceStorage")).isEqualTo(2);
+      // A v3 0 was a limit of zero and v5 reads a stored 0 as unlimited, so the migration drops
+      // it: every copied value is absent (inherits the platform default) or positive.
+      for (String copied :
+          List.of(
+              "maxWorkflowCount",
+              "maxWorkflowRunMonthly",
+              "maxWorkflowRunDuration",
+              "maxConcurrentRuns")) {
+        Integer value = quotas.getInteger(copied);
+        assertThat(value == null || value > 0)
+            .as("%s must be absent or positive, never a v3 0", copied)
+            .isTrue();
+      }
     }
 
     // Spot check a specific known team (SRC Innovations) end to end.

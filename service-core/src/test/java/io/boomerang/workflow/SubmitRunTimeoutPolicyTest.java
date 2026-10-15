@@ -105,6 +105,28 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aRunDurationQuotaOfZeroSetsNoCeiling() {
+    String workspace = createWorkspace("timeout-no-ceiling", 0);
+    workflowService.create(workspace, workflow("timeout-no-ceiling-workflow", 0, 0));
+
+    // Well past the seeded platform default (30), which a ceiling would have clamped it to.
+    WorkflowRun run =
+        workflowService.submit(workspace, "timeout-no-ceiling-workflow", request(500L), false);
+    assertEquals(500L, run.getTimeout());
+  }
+
+  @Test
+  void aRunWithNoDeclaredTimeoutUnderNoCeilingStillGetsThePlatformDefault() {
+    String workspace = createWorkspace("timeout-no-ceiling-default", 0);
+    workflowService.create(workspace, workflow("timeout-no-ceiling-default-workflow", 0, 0));
+
+    WorkflowRun run =
+        workflowService.submit(
+            workspace, "timeout-no-ceiling-default-workflow", request(null), false);
+    assertEquals(30L, run.getTimeout());
+  }
+
+  @Test
   void aQuotaBelowTheCriticalPathIsRejectedNamingTheQuota() {
     String workspace = createWorkspace("timeout-ceiling-under-floor", 10);
     workflowService.create(workspace, workflow("timeout-ceiling-under-floor-workflow", 20, 30));

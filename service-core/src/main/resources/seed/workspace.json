@@ -9,10 +9,10 @@
         "$date": "2020-01-09T00:01:00Z"
       },
       "quotas": {
-        "maxWorkflowCount": 2147483647,
-        "maxWorkflowRunMonthly": 2147483647,
-        "maxWorkspaceStorage": 2147483647,
-        "maxConcurrentRuns": 2147483647
+        "maxWorkflowCount": 0,
+        "maxWorkflowRunMonthly": 0,
+        "maxWorkspaceStorage": 0,
+        "maxConcurrentRuns": 0
       },
       "labels": {},
       "annotations": {},

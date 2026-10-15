@@ -11,6 +11,7 @@ import { useFetcher, useLoaderData } from "react-router-dom";
 import styles from "./RestoreDefaults.module.scss";
 import { ModalTriggerProps, FlowWorkspace } from "Types";
 import { isActionError } from "Utils/actionResult";
+import { formatQuotaLimit } from "Utils/quotaHelper";
 import type { QuotasActionResult, QuotasLoaderData } from "../Quotas";
 
 interface RestoreDefaultsProps {
@@ -39,15 +40,16 @@ const RestoreDefaults: React.FC<RestoreDefaultsProps> = ({ workspace, disabled }
   );
 };
 
-// Every quota a restore resets, titled and unitised as its card on the Quotas screen.
+// Every quota a restore resets, titled and unitised as its card on the Quotas screen. A platform
+// default of 0 is unlimited, like the workspace value it replaces.
 function defaultQuotaRows(quotas?: QuotasLoaderData["defaultQuotas"]) {
   const show = (text: (q: NonNullable<QuotasLoaderData["defaultQuotas"]>) => string) => (quotas ? text(quotas) : "---");
   return [
-    { title: "Number of Workflows", value: show((q) => `${q.maxWorkflowCount} Workflows`) },
-    { title: "Number of Executions", value: show((q) => `${q.maxWorkflowRunMonthly} per month`) },
-    { title: "Run Duration", value: show((q) => `${q.maxWorkflowRunDuration} minutes`) },
-    { title: "Concurrent Runs (executions)", value: show((q) => `${q.maxConcurrentRuns} Workflows`) },
-    { title: "Workspace Storage - Per Run", value: show((q) => `${q.maxWorkspaceStorage}GB per run`) },
+    { title: "Number of Workflows", value: show((q) => formatQuotaLimit(q.maxWorkflowCount, "Workflows")) },
+    { title: "Number of Executions", value: show((q) => formatQuotaLimit(q.maxWorkflowRunMonthly, "per month")) },
+    { title: "Run Duration", value: show((q) => formatQuotaLimit(q.maxWorkflowRunDuration, "minutes")) },
+    { title: "Concurrent Runs (executions)", value: show((q) => formatQuotaLimit(q.maxConcurrentRuns, "Workflows")) },
+    { title: "Workspace Storage - Per Run", value: show((q) => formatQuotaLimit(q.maxWorkspaceStorage, "GB per run")) },
     { title: "Artifact Storage", value: show((q) => `${q.maxArtifactStorage}GB`) },
     { title: "Artifact Retention", value: show((q) => `${q.artifactRetentionDays} days`) },
   ];
