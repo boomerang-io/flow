@@ -18,7 +18,8 @@ export type WorkflowTaskSpec = {
   timeout?: number;
   params?: { name: string; value: unknown }[];
   results?: { name: string; description?: string }[];
-  workspaces?: { name: string; type: string; optional?: boolean; mountPath?: string }[];
+  // Absent or true mounts the run's workspace; false opts this task out.
+  workspace?: boolean;
   dependencies?: TaskDependency[];
   // Run the task once per item: a JSON array literal or one reference (decision 0082).
   foreach?: { items: unknown };
@@ -28,7 +29,8 @@ export type WorkflowSpec = {
   displayName?: string;
   timeout?: number;
   params?: { name: string; type?: string; defaultValue?: unknown; description?: string }[];
-  workspaces?: { name: string; type: string; optional?: boolean; spec?: Record<string, string> }[];
+  // The one shared filesystem every task of a run can mount; absent means none.
+  workspace?: { size?: string; mountPath?: string; className?: string; accessMode?: string };
   tasks: WorkflowTaskSpec[];
 };
 export type TaskRunView = {

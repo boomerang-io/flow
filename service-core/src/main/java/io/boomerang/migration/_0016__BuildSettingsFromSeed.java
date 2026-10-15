@@ -67,7 +67,7 @@ public class _0016__BuildSettingsFromSeed {
           Map.entry("max.workflow.count", List.of("max.team.workflow.count")),
           Map.entry("max.workflowrun.monthly", List.of("max.team.workflow.execution.monthly")),
           Map.entry("max.workflowrun.duration", List.of("max.team.workflow.duration")),
-          Map.entry("max.workflow.storage", List.of("max.team.workflow.storage")),
+          Map.entry("max.workspace.storage", List.of("max.workflowrun.storage")),
           Map.entry("workspaceQuotas", List.of("teamQuotas", "workflowQuotas")),
           Map.entry("workspaceParameters", List.of("teamParameters")),
           Map.entry("workspaceManagement", List.of("teamManagement")),
@@ -82,9 +82,15 @@ public class _0016__BuildSettingsFromSeed {
           "default.timeout", "90"::equals,
           "default.image", value -> String.valueOf(value).contains("worker-flow"));
 
-  /** Entries nothing reads any more. */
+  /** Entries nothing reads any more: the v3 storage defaults and the per-workflow storage cap. */
   private static final Set<String> RETIRED_ENTRIES =
-      Set.of("storage.size", "storage.class", "storage.accessMode", "max.storage.size");
+      Set.of(
+          "storage.size",
+          "storage.class",
+          "storage.accessMode",
+          "max.storage.size",
+          "max.workflow.storage",
+          "max.team.workflow.storage");
 
   /** The v3 User Defaults and workflow storage documents, which nothing reads any more. */
   private static final ObjectId USER_DEFAULTS_ID = new ObjectId("6123c1e20b07a54cdce637c0");

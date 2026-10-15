@@ -1,11 +1,11 @@
 package io.boomerang.workflow.repository;
 
 import io.boomerang.common.entity.ArtifactEntity;
+import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
@@ -17,8 +17,10 @@ public interface ArtifactRepository extends MongoRepository<ArtifactEntity, Stri
 
   boolean existsByWorkflowRunRefAndName(String workflowRunRef, String name);
 
-  Page<ArtifactEntity> findByWorkflowRefInAndStatusIn(
-      List<String> workflowRefs, List<ArtifactStatus> statuses, Pageable pageable);
+  // The workflow's kept artifact of a name: at most one, under the partial unique index on
+  // {workflowRef, name} for scope workflow and status available.
+  Optional<ArtifactEntity> findByWorkflowRefAndNameAndScopeAndStatus(
+      String workflowRef, String name, ArtifactScope scope, ArtifactStatus status);
 
   // Served by the {status, expirationDate} index: the expiry sweep and the stale-upload sweep.
   List<ArtifactEntity> findByStatusAndExpirationDateBefore(

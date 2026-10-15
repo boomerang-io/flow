@@ -103,7 +103,6 @@ export default [
         params: [],
         dependencies: [],
         results: null,
-        workspaces: null,
       },
       {
         name: "end",
@@ -126,7 +125,6 @@ export default [
           },
         ],
         results: null,
-        workspaces: null,
       },
       {
         name: "Sleep 1",
@@ -153,7 +151,6 @@ export default [
           },
         ],
         results: [],
-        workspaces: null,
       },
     ],
     changelog: {

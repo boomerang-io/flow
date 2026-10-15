@@ -22,6 +22,7 @@ import * as fixtures from "ApiServer/fixtures";
 interface Workspace extends Record<string, unknown> {
   id?: string;
   name?: string;
+  displayName?: string;
   parameters?: Array<Record<string, unknown>>;
   labels?: Record<string, unknown>;
   // The Approver Groups tab renders these off the workspace record, so the approver-group
@@ -41,7 +42,9 @@ interface GlobalParam extends Record<string, unknown> {
 interface ArtifactRecord extends Record<string, unknown> {
   id?: string;
   name?: string;
+  workflowRef?: string;
   workflowRunRef?: string;
+  scope?: string;
   status?: string;
 }
 

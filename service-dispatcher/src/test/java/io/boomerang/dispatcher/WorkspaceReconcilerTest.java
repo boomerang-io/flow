@@ -2,7 +2,6 @@ package io.boomerang.dispatcher;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -25,7 +24,7 @@ import org.mockito.ArgumentCaptor;
 
 /**
  * Pins the release contract: the cluster says which workspace claims are held, the engine says
- * whose owner is finished, and only the refs the engine names are deleted. Nothing on the run
+ * whose run is finished, and only the run refs the engine names are deleted. Nothing on the run
  * records the release, so a failed tick must leave every claim held rather than guess.
  */
 class WorkspaceReconcilerTest {
@@ -37,33 +36,27 @@ class WorkspaceReconcilerTest {
   private final WorkspaceReconciler reconciler =
       new WorkspaceReconciler(kubeService, workspaceService, dispatcherClient);
 
-  private static PersistentVolumeClaim claim(String workspaceRef, String workspaceType) {
+  private static PersistentVolumeClaim claim(String workflowRunRef) {
     return new PersistentVolumeClaimBuilder()
         .withNewMetadata()
-        .withName("bmrg-pvc-" + workspaceRef)
-        .withLabels(
-            Map.of(
-                "boomerang.io/workspace-ref", workspaceRef,
-                "boomerang.io/workspace-type", workspaceType))
+        .withName("bmrg-pvc-" + workflowRunRef)
+        .withLabels(Map.of("boomerang.io/workspace-ref", workflowRunRef))
         .endMetadata()
         .build();
   }
 
-  private static WorkspaceReleaseResponse response(
-      List<String> workflowRunRefs, List<String> workflowRefs) {
+  private static WorkspaceReleaseResponse response(List<String> workflowRunRefs) {
     WorkspaceReleaseResponse response = new WorkspaceReleaseResponse();
     response.setWorkflowRunRefs(workflowRunRefs);
-    response.setWorkflowRefs(workflowRefs);
     return response;
   }
 
   @Test
-  void refsAreGroupedByStorageTypeAndPagedAtFiveHundred() {
+  void refsArePagedAtFiveHundred() {
     List<PersistentVolumeClaim> claims = new ArrayList<>();
     for (int i = 0; i < 600; i++) {
-      claims.add(claim("run-" + i, "workflowrun"));
+      claims.add(claim("run-" + i));
     }
-    claims.add(claim("wf-1", "workflow"));
     when(kubeService.listWorkspacePVCs()).thenReturn(claims);
     when(dispatcherClient.releasable(any())).thenReturn(new WorkspaceReleaseResponse());
 
@@ -75,33 +68,26 @@ class WorkspaceReconcilerTest {
     WorkspaceReleaseQuery first = captor.getAllValues().get(0);
     WorkspaceReleaseQuery second = captor.getAllValues().get(1);
     assertEquals(500, first.getWorkflowRunRefs().size(), "first page caps at 500 run refs");
-    assertEquals(List.of("wf-1"), first.getWorkflowRefs());
     assertEquals(100, second.getWorkflowRunRefs().size(), "the remainder is a second page");
     assertEquals("run-599", second.getWorkflowRunRefs().get(99));
-    assertTrue(second.getWorkflowRefs().isEmpty(), "the workflow refs fitted on the first page");
-    verify(workspaceService, never()).delete(anyString(), anyString());
+    verify(workspaceService, never()).delete(anyString());
   }
 
   @Test
   void onlyTheRefsTheEngineReturnsAreDeleted() {
     when(kubeService.listWorkspacePVCs())
-        .thenReturn(
-            List.of(
-                claim("run-1", "workflowrun"),
-                claim("run-2", "workflowrun"),
-                claim("wf-1", "workflow")));
-    when(dispatcherClient.releasable(any()))
-        .thenReturn(response(List.of("run-2"), List.of("wf-1")));
+        .thenReturn(List.of(claim("run-1"), claim("run-2"), claim("run-3")));
+    when(dispatcherClient.releasable(any())).thenReturn(response(List.of("run-2", "run-3")));
 
     reconciler.reconcile();
 
-    verify(workspaceService).delete("workflowrun", "run-2");
-    verify(workspaceService).delete("workflow", "wf-1");
-    verify(workspaceService, never()).delete("workflowrun", "run-1");
+    verify(workspaceService).delete("run-2");
+    verify(workspaceService).delete("run-3");
+    verify(workspaceService, never()).delete("run-1");
   }
 
   @Test
-  void aClaimWithoutTheWorkspaceLabelsIsIgnored() {
+  void aClaimWithoutTheWorkspaceLabelIsIgnored() {
     PersistentVolumeClaim unlabelled =
         new PersistentVolumeClaimBuilder().withNewMetadata().withName("stray").endMetadata().build();
     when(kubeService.listWorkspacePVCs()).thenReturn(List.of(unlabelled));
@@ -109,40 +95,37 @@ class WorkspaceReconcilerTest {
     reconciler.reconcile();
 
     verify(dispatcherClient, never()).releasable(any());
-    verify(workspaceService, never()).delete(anyString(), anyString());
+    verify(workspaceService, never()).delete(anyString());
   }
 
   @Test
   void anEngineFailureLeavesEveryClaimHeld() {
-    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
+    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1")));
     when(dispatcherClient.releasable(any())).thenThrow(new RuntimeException("engine down"));
 
     assertDoesNotThrow(reconciler::reconcile);
 
-    verify(workspaceService, never()).delete(anyString(), anyString());
+    verify(workspaceService, never()).delete(anyString());
   }
 
   @Test
   void anEmptyAnswerLeavesEveryClaimHeld() {
-    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1", "workflowrun")));
+    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1")));
     when(dispatcherClient.releasable(any())).thenReturn(new WorkspaceReleaseResponse());
 
     reconciler.reconcile();
 
-    verify(workspaceService, never()).delete(anyString(), anyString());
+    verify(workspaceService, never()).delete(anyString());
   }
 
   @Test
   void oneClaimThatWillNotDeleteDoesNotAbortTheTick() {
-    when(kubeService.listWorkspacePVCs())
-        .thenReturn(List.of(claim("run-1", "workflowrun"), claim("run-2", "workflowrun")));
-    when(dispatcherClient.releasable(any()))
-        .thenReturn(response(List.of("run-1", "run-2"), List.of()));
-    when(workspaceService.delete("workflowrun", "run-1"))
-        .thenThrow(new RuntimeException("api server said no"));
+    when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1"), claim("run-2")));
+    when(dispatcherClient.releasable(any())).thenReturn(response(List.of("run-1", "run-2")));
+    when(workspaceService.delete("run-1")).thenThrow(new RuntimeException("api server said no"));
 
     assertDoesNotThrow(reconciler::reconcile);
 
-    verify(workspaceService).delete("workflowrun", "run-2");
+    verify(workspaceService).delete("run-2");
   }
 }

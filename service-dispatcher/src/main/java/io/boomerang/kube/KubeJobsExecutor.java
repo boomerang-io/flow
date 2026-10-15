@@ -1,12 +1,11 @@
 package io.boomerang.kube;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import io.boomerang.dispatcher.WorkspaceService;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
-import io.boomerang.dispatcher.sdk.model.TaskWorkspace;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -86,8 +85,6 @@ public class KubeJobsExecutor implements TaskExecutor {
   @Autowired protected KubeHelperService helperKubeService;
 
   @Autowired protected KubeServiceImpl kubeService;
-
-  @Autowired private WorkspaceService workspaceService;
 
   @Autowired protected TaskImageResolver imageResolver;
 
@@ -175,7 +172,7 @@ public class KubeJobsExecutor implements TaskExecutor {
     List<Volume> volumes = new ArrayList<>();
     List<VolumeMount> volumeMounts = new ArrayList<>();
     addDataVolume(volumes, volumeMounts, task.getParams());
-    addWorkspaceVolumes(volumes, volumeMounts, workflowRef, workflowRunRef, task.getWorkspaces());
+    addWorkspaceVolume(volumes, volumeMounts, workflowRef, workflowRunRef, task.getWorkspace());
 
     List<String> containerCommand =
         addScriptOrCommand(
@@ -277,45 +274,30 @@ public class KubeJobsExecutor implements TaskExecutor {
     volumes.add(volume);
   }
 
-  private void addWorkspaceVolumes(
+  // The run's one workspace claim, mounted where the workspace says (blank means /workspace).
+  private void addWorkspaceVolume(
       List<Volume> volumes,
       List<VolumeMount> volumeMounts,
       String workflowRef,
       String workflowRunRef,
-      List<TaskWorkspace> workspaces) {
-    if (workspaces == null) {
+      WorkflowWorkspace workspace) {
+    if (workspace == null) {
       return;
     }
-    workspaces.forEach(
-        ws -> {
-          String type = ws.getType();
-          if (!"workflow".equalsIgnoreCase(type) && !"workflowrun".equalsIgnoreCase(type)) {
-            LOGGER.warn(
-                "Skipping Workspace (" + ws.getName() + ") as we don't support custom workspaces yet.");
-            return;
-          }
+    String name = helperKubeService.getPrefixVol() + "-ws";
+    PersistentVolumeClaimVolumeSource pvcSource = new PersistentVolumeClaimVolumeSource();
+    pvcSource.setClaimName(
+        kubeService.getPVCName(
+            helperKubeService.getWorkspaceLabels(workflowRef, workflowRunRef, null)));
+    Volume volume = new Volume();
+    volume.setName(name);
+    volume.setPersistentVolumeClaim(pvcSource);
+    volumes.add(volume);
 
-          String workspaceRef = workspaceService.getWorkspaceRef(type, workflowRef, workflowRunRef);
-          String name = helperKubeService.getPrefixVol() + "-ws-" + type;
-          String pvcName =
-              kubeService.getPVCName(
-                  helperKubeService.getWorkspaceLabels(workflowRef, workspaceRef, type, null));
-
-          PersistentVolumeClaimVolumeSource pvcSource = new PersistentVolumeClaimVolumeSource();
-          pvcSource.setClaimName(pvcName);
-          Volume volume = new Volume();
-          volume.setName(name);
-          volume.setPersistentVolumeClaim(pvcSource);
-          volumes.add(volume);
-
-          VolumeMount mount = new VolumeMount();
-          mount.setName(name);
-          mount.setMountPath(
-              ws.getMountPath() != null && !ws.getMountPath().isEmpty()
-                  ? ws.getMountPath()
-                  : "/workspace/" + type);
-          volumeMounts.add(mount);
-        });
+    VolumeMount mount = new VolumeMount();
+    mount.setName(name);
+    mount.setMountPath(helperKubeService.workspaceMountPath(workspace));
+    volumeMounts.add(mount);
   }
 
   /**

@@ -2,64 +2,78 @@ package io.boomerang.dispatcher.sdk.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.Objects;
 
 /**
- * A workspace a workflow run declares: shared storage of type {@code workflow} (kept across runs)
- * or {@code workflowrun} (one run's), with a free-form {@code spec} such as size, class, access
- * mode and mount path.
+ * The one shared filesystem a run's tasks read and write, keyed by the run and released when the
+ * run finishes. Any field left blank takes the dispatcher's default; a blank {@code mountPath} is
+ * {@code /workspace}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class WorkflowWorkspace {
 
-  private String name;
-  private String description;
-  private String type;
-  private boolean optional;
-  private Object spec;
+  private String size;
+  private String mountPath;
+  private String className;
+  private String accessMode;
 
-  public String getName() {
-    return name;
+  public String getSize() {
+    return size;
   }
 
-  public void setName(String name) {
-    this.name = name;
+  public void setSize(String size) {
+    this.size = size;
   }
 
-  public String getDescription() {
-    return description;
+  public String getMountPath() {
+    return mountPath;
   }
 
-  public void setDescription(String description) {
-    this.description = description;
+  public void setMountPath(String mountPath) {
+    this.mountPath = mountPath;
   }
 
-  public String getType() {
-    return type;
+  public String getClassName() {
+    return className;
   }
 
-  public void setType(String type) {
-    this.type = type;
+  public void setClassName(String className) {
+    this.className = className;
   }
 
-  public boolean isOptional() {
-    return optional;
+  public String getAccessMode() {
+    return accessMode;
   }
 
-  public void setOptional(boolean optional) {
-    this.optional = optional;
+  public void setAccessMode(String accessMode) {
+    this.accessMode = accessMode;
   }
 
-  public Object getSpec() {
-    return spec;
+  @Override
+  public boolean equals(Object other) {
+    return (other instanceof WorkflowWorkspace workspace)
+        && Objects.equals(size, workspace.size)
+        && Objects.equals(mountPath, workspace.mountPath)
+        && Objects.equals(className, workspace.className)
+        && Objects.equals(accessMode, workspace.accessMode);
   }
 
-  public void setSpec(Object spec) {
-    this.spec = spec;
+  @Override
+  public int hashCode() {
+    return Objects.hash(size, mountPath, className, accessMode);
   }
 
   @Override
   public String toString() {
-    return "WorkflowWorkspace[name=" + name + ", type=" + type + "]";
+    return "WorkflowWorkspace[size="
+        + size
+        + ", mountPath="
+        + mountPath
+        + ", className="
+        + className
+        + ", accessMode="
+        + accessMode
+        + "]";
   }
 }

@@ -3,18 +3,14 @@ package io.boomerang.dispatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.workflow.repository.WorkflowRepository;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.IntStream;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
@@ -23,9 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 
 /**
- * The workspace release query: the dispatcher lists the owners of the volumes it still holds and
- * the engine answers which of them are finished. A WorkflowRun owner is finished once its run is
- * completed or gone; a Workflow owner once the Workflow is deleted (the tombstone) or gone. No
+ * The workspace release query: the dispatcher lists the runs whose volumes it still holds and the
+ * engine answers which of them are finished. A run is finished once it is completed or gone. No
  * release state is recorded on either side - the same question asked twice gets the same answer.
  */
 class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
@@ -33,20 +28,16 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
   private static final int MAX_RELEASE_REFS = 500;
 
   @Autowired private DispatcherService dispatcherService;
-  @Autowired private WorkflowRepository workflowRepository;
 
   private final List<String> createdRunIds = new ArrayList<>();
-  private final List<String> createdWorkflowIds = new ArrayList<>();
 
-  // These fixtures are unfinished runs and live workflows, which several watcher sweeps page. The
-  // Testcontainers Mongo is shared across every test class, so leaving them behind would crowd
-  // those fixed-size sweep pages and make another class's assertions depend on ordering.
+  // These fixtures are unfinished runs, which several watcher sweeps page. The Testcontainers
+  // Mongo is shared across every test class, so leaving them behind would crowd those fixed-size
+  // sweep pages and make another class's assertions depend on ordering.
   @AfterEach
   void removeFixtures() {
     createdRunIds.forEach(workflowRunRepository::deleteById);
-    createdWorkflowIds.forEach(workflowRepository::deleteById);
     createdRunIds.clear();
-    createdWorkflowIds.clear();
   }
 
   private String savedRun(RunStatus status, RunPhase phase) {
@@ -59,21 +50,6 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
     WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
     query.setWorkflowRunRefs(refs);
     return query;
-  }
-
-  private static WorkspaceReleaseQuery workflowQuery(List<String> refs) {
-    WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
-    query.setWorkflowRefs(refs);
-    return query;
-  }
-
-  private String savedWorkflow(WorkflowStatus status) {
-    WorkflowEntity workflow = new WorkflowEntity();
-    workflow.setName("release-" + UUID.randomUUID());
-    workflow.setStatus(status);
-    String id = workflowRepository.save(workflow).getId();
-    createdWorkflowIds.add(id);
-    return id;
   }
 
   @Test
@@ -95,7 +71,7 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
   }
 
   /**
-   * A volume whose owner the engine has never heard of - or whose run has since been pruned - is
+   * A volume whose run the engine has never heard of - or whose run has since been pruned - is
    * released rather than leaked. Absence is an answer here, which is what lets the reconciliation
    * be the only cleanup path.
    */
@@ -109,40 +85,14 @@ class DispatcherWorkspaceReleaseTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aDeletedWorkflowsVolumeIsReleasable() {
-    String workflowRef = savedWorkflow(WorkflowStatus.deleted);
-
-    WorkspaceReleaseResponse response =
-        dispatcherService.releasable(workflowQuery(List.of(workflowRef)));
-
-    assertThat(response.getWorkflowRefs()).containsExactly(workflowRef);
-  }
-
-  @Test
-  void aLiveWorkflowsVolumeIsHeld() {
-    String workflowRef = savedWorkflow(WorkflowStatus.active);
-
-    WorkspaceReleaseResponse response =
-        dispatcherService.releasable(workflowQuery(List.of(workflowRef)));
-
-    assertThat(response.getWorkflowRefs()).isEmpty();
-  }
-
-  @Test
-  void aMixedQueryAnswersEachListIndependently() {
+  void aMixedQueryAnswersEachRunIndependently() {
     String completedRun = savedRun(RunStatus.succeeded, RunPhase.completed);
     String runningRun = savedRun(RunStatus.running, RunPhase.running);
-    String deletedWorkflow = savedWorkflow(WorkflowStatus.deleted);
-    String liveWorkflow = savedWorkflow(WorkflowStatus.active);
 
-    WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
-    query.setWorkflowRunRefs(List.of(completedRun, runningRun));
-    query.setWorkflowRefs(List.of(deletedWorkflow, liveWorkflow));
-
-    WorkspaceReleaseResponse response = dispatcherService.releasable(query);
+    WorkspaceReleaseResponse response =
+        dispatcherService.releasable(runQuery(List.of(completedRun, runningRun)));
 
     assertThat(response.getWorkflowRunRefs()).containsExactly(completedRun);
-    assertThat(response.getWorkflowRefs()).containsExactly(deletedWorkflow);
   }
 
   @Test

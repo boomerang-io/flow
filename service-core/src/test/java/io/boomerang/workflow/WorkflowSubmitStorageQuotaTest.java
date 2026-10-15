@@ -13,22 +13,17 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The storage quota on a run submission. A submit request carries its own Workspaces, and their
- * spec is a raw {@code Object} - a {@link LinkedHashMap} once it has been over JSON - so the size
- * has to be converted before it can be read, and read as a Kubernetes quantity ("1Gi", "500Mi")
- * rather than a bare number. Both halves are the same rule the save-time check applies in
- * {@code setUpWorkspaceDefaults}: a size over the workspace's quota is refused with
- * QUOTA_EXCEEDED, and a spec that names no size is not a breach.
+ * The storage quota on a run submission. A submit request may carry its own workspace, whose
+ * size is a Kubernetes quantity ("1Gi", "500Mi") rather than a bare number. Both halves are the
+ * same rule the save-time check applies in {@code applyWorkspaceDefaults}: a size over the
+ * owning workspace's storage quota is refused with QUOTA_EXCEEDED, and a workspace that names
+ * no size is not a breach.
  */
 class WorkflowSubmitStorageQuotaTest extends AbstractEngineIntegrationTest {
 
@@ -54,39 +49,35 @@ class WorkflowSubmitStorageQuotaTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aWorkflowWorkspaceOverTheStorageQuotaIsRefused() {
-    String workspace =
-        createWorkspace("submit-storage-over-quota", quotasWithWorkflowStorage(2));
+  void aWorkspaceOverTheStorageQuotaIsRefused() {
+    String workspace = createWorkspace("submit-storage-over-quota", quotasWithStorage(2));
     String workflow = createWorkflow(workspace, "submit-storage-over-quota-workflow");
     setFeatureSetting(QUOTA_FEATURE, true);
 
     BoomerangException refused =
         assertThrows(
             BoomerangException.class,
-            () -> workflowService.submit(
-                workspace, workflow, submitWith("workflow", sizeSpec("5Gi")), false));
+            () -> workflowService.submit(workspace, workflow, submitWith("5Gi"), false));
 
     assertEquals("QUOTA_EXCEEDED", refused.getReason());
     assertEquals("5Gi", refused.getArgs()[1]);
   }
 
   @Test
-  void aWorkflowWorkspaceWithinTheStorageQuotaIsAccepted() {
-    String workspace =
-        createWorkspace("submit-storage-within-quota", quotasWithWorkflowStorage(10));
+  void aWorkspaceWithinTheStorageQuotaIsAccepted() {
+    String workspace = createWorkspace("submit-storage-within-quota", quotasWithStorage(10));
     String workflow = createWorkflow(workspace, "submit-storage-within-quota-workflow");
     setFeatureSetting(QUOTA_FEATURE, true);
 
-    WorkflowRun run =
-        workflowService.submit(
-            workspace, workflow, submitWith("workflow", sizeSpec("5Gi")), false);
+    WorkflowRun run = workflowService.submit(workspace, workflow, submitWith("5Gi"), false);
 
     assertNotNull(run.getId());
+    assertEquals("5Gi", run.getWorkspace().getSize(), "the request's workspace overrides");
   }
 
   @Test
   void aMegabyteQuantityIsConvertedToGiNotComparedAsText() {
-    String workspace = createWorkspace("submit-storage-mi", quotasWithWorkflowStorage(2));
+    String workspace = createWorkspace("submit-storage-mi", quotasWithStorage(2));
     String workflow = createWorkflow(workspace, "submit-storage-mi-workflow");
     setFeatureSetting(QUOTA_FEATURE, true);
 
@@ -94,50 +85,29 @@ class WorkflowSubmitStorageQuotaTest extends AbstractEngineIntegrationTest {
     BoomerangException refused =
         assertThrows(
             BoomerangException.class,
-            () -> workflowService.submit(
-                workspace, workflow, submitWith("workflow", sizeSpec("3000Mi")), false));
+            () -> workflowService.submit(workspace, workflow, submitWith("3000Mi"), false));
     assertEquals("QUOTA_EXCEEDED", refused.getReason());
 
     // 1500Mi is 1.46Gi - within the same quota.
-    WorkflowRun run =
-        workflowService.submit(
-            workspace, workflow, submitWith("workflow", sizeSpec("1500Mi")), false);
+    WorkflowRun run = workflowService.submit(workspace, workflow, submitWith("1500Mi"), false);
     assertNotNull(run.getId());
   }
 
   @Test
-  void aWorkspaceSpecNamingNoSizeIsNotABreach() {
-    String workspace = createWorkspace("submit-storage-no-size", quotasWithWorkflowStorage(2));
+  void aWorkspaceNamingNoSizeIsNotABreach() {
+    String workspace = createWorkspace("submit-storage-no-size", quotasWithStorage(2));
     String workflow = createWorkflow(workspace, "submit-storage-no-size-workflow");
     setFeatureSetting(QUOTA_FEATURE, true);
 
-    Map<String, Object> rawSpec = new LinkedHashMap<>();
-    rawSpec.put("accessMode", "ReadWriteMany");
+    WorkflowWorkspace ws = new WorkflowWorkspace();
+    ws.setAccessMode("ReadWriteMany");
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.manual);
+    request.setWorkspace(ws);
 
-    WorkflowRun run =
-        workflowService.submit(workspace, workflow, submitWith("workflow", rawSpec), false);
+    WorkflowRun run = workflowService.submit(workspace, workflow, request, false);
 
     assertNotNull(run.getId());
-  }
-
-  @Test
-  void aWorkflowRunWorkspaceIsHeldToItsOwnStorageQuota() {
-    Quotas quotas = new Quotas();
-    quotas.setMaxWorkflowStorage(25);
-    quotas.setMaxWorkflowRunStorage(2);
-    String workspace = createWorkspace("submit-storage-run-type", quotas);
-    String workflow = createWorkflow(workspace, "submit-storage-run-type-workflow");
-    setFeatureSetting(QUOTA_FEATURE, true);
-
-    // 5Gi clears the 25Gi workflow quota and breaches the 2Gi workflowrun one.
-    BoomerangException refused =
-        assertThrows(
-            BoomerangException.class,
-            () -> workflowService.submit(
-                workspace, workflow, submitWith("workflowrun", sizeSpec("5Gi")), false));
-
-    assertEquals("QUOTA_EXCEEDED", refused.getReason());
-    assertEquals("5Gi", refused.getArgs()[1]);
   }
 
   private String createWorkflow(String workspace, String name) {
@@ -145,21 +115,13 @@ class WorkflowSubmitStorageQuotaTest extends AbstractEngineIntegrationTest {
     return name;
   }
 
-  private static WorkflowSubmitRequest submitWith(String type, Map<String, Object> rawSpec) {
+  private static WorkflowSubmitRequest submitWith(String size) {
     WorkflowWorkspace ws = new WorkflowWorkspace();
-    ws.setName(type);
-    ws.setType(type);
-    ws.setSpec(rawSpec);
+    ws.setSize(size);
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
-    request.setWorkspaces(new LinkedList<>(List.of(ws)));
+    request.setWorkspace(ws);
     return request;
-  }
-
-  private static Map<String, Object> sizeSpec(String size) {
-    Map<String, Object> rawSpec = new LinkedHashMap<>();
-    rawSpec.put("size", size);
-    return rawSpec;
   }
 
   private String createWorkspace(String name, Quotas quotas) {
@@ -170,9 +132,9 @@ class WorkflowSubmitStorageQuotaTest extends AbstractEngineIntegrationTest {
     return workspaceService.create(request).getName();
   }
 
-  private static Quotas quotasWithWorkflowStorage(int gi) {
+  private static Quotas quotasWithStorage(int gi) {
     Quotas quotas = new Quotas();
-    quotas.setMaxWorkflowStorage(gi);
+    quotas.setMaxWorkspaceStorage(gi);
     return quotas;
   }
 }

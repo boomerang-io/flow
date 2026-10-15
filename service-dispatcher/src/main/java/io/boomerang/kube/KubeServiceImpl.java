@@ -72,13 +72,10 @@ public class KubeServiceImpl implements KubeService {
   }
 
   @Override
-  public boolean checkWorkspacePVCExists(
-      String workspaceRef, String workspaceType, boolean failIfNotBound) {
-    return workspaceRef != null && workspaceType != null
-        ? checkPVCExists(
-            helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null),
-            failIfNotBound)
-        : false;
+  public boolean checkWorkspacePVCExists(String workflowRunRef, boolean failIfNotBound) {
+    return workflowRunRef != null
+        && checkPVCExists(
+            helperKubeService.getWorkspaceLabels(null, workflowRunRef, null), failIfNotBound);
   }
 
   private boolean checkPVCExists(Map<String, String> labelSelector, boolean failIfNotBound) {
@@ -137,8 +134,7 @@ public class KubeServiceImpl implements KubeService {
   @Override
   public PersistentVolumeClaim createWorkspacePVC(
       String workflowRef,
-      String workspaceRef,
-      String workspaceType,
+      String workflowRunRef,
       Map<String, String> customLabels,
       String size,
       String className,
@@ -146,9 +142,8 @@ public class KubeServiceImpl implements KubeService {
       long waitSeconds)
       throws KubernetesClientException, InterruptedException {
     return createPVC(
-        helperKubeService.getWorkspaceAnnotations(workflowRef, workspaceRef, workspaceType),
-        helperKubeService.getWorkspaceLabels(
-            workflowRef, workspaceRef, workspaceType, customLabels),
+        helperKubeService.getWorkspaceAnnotations(workflowRef, workflowRunRef),
+        helperKubeService.getWorkspaceLabels(workflowRef, workflowRunRef, customLabels),
         size,
         className,
         accessMode,
@@ -261,8 +256,8 @@ public class KubeServiceImpl implements KubeService {
   }
 
   @Override
-  public void deleteWorkspacePVC(String workspaceRef, String workspaceType) {
-    deletePVC(helperKubeService.getWorkspaceLabels(null, workspaceRef, workspaceType, null));
+  public void deleteWorkspacePVC(String workflowRunRef) {
+    deletePVC(helperKubeService.getWorkspaceLabels(null, workflowRunRef, null));
   }
 
   private void deletePVC(Map<String, String> labels) {

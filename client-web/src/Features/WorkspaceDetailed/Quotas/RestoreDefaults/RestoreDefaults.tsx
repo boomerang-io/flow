@@ -47,8 +47,7 @@ function defaultQuotaRows(quotas?: QuotasLoaderData["defaultQuotas"]) {
     { title: "Number of Executions", value: show((q) => `${q.maxWorkflowRunMonthly} per month`) },
     { title: "Run Duration", value: show((q) => `${q.maxWorkflowRunDuration} minutes`) },
     { title: "Concurrent Runs (executions)", value: show((q) => `${q.maxConcurrentRuns} Workflows`) },
-    { title: "Workspace Capacity - Per Workflow", value: show((q) => `${q.maxWorkflowStorage}GB per Workflow`) },
-    { title: "Workspace Capacity - Per Run", value: show((q) => `${q.maxWorkflowRunStorage}GB per WorkflowRun`) },
+    { title: "Workspace Storage - Per Run", value: show((q) => `${q.maxWorkspaceStorage}GB per run`) },
     { title: "Artifact Storage", value: show((q) => `${q.maxArtifactStorage}GB`) },
     { title: "Artifact Retention", value: show((q) => `${q.artifactRetentionDays} days`) },
   ];

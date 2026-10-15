@@ -4,19 +4,19 @@ public class Quotas {
 
   private Integer maxWorkflowCount;
   private Integer maxWorkflowRunMonthly;
-  private Integer maxWorkflowStorage;
-  private Integer maxWorkflowRunStorage;
+  // Gi of shared workspace a run may declare.
+  private Integer maxWorkspaceStorage;
   private Integer maxWorkflowRunDuration;
   private Integer maxConcurrentRuns;
   // Gi of unexpired artifacts the workspace may hold, and the days an artifact is kept.
   private Integer maxArtifactStorage;
   private Integer artifactRetentionDays;
-  
+
   @Override
   public String toString() {
     return "Quotas [maxWorkflowCount=" + maxWorkflowCount + ", maxWorkflowRunMonthly="
-        + maxWorkflowRunMonthly + ", maxWorkflowStorage=" + maxWorkflowStorage
-        + ", maxWorkflowRunStorage=" + maxWorkflowRunStorage + ", maxWorkflowRunDuration="
+        + maxWorkflowRunMonthly + ", maxWorkspaceStorage=" + maxWorkspaceStorage
+        + ", maxWorkflowRunDuration="
         + maxWorkflowRunDuration + ", maxConcurrentRuns=" + maxConcurrentRuns
         + ", maxArtifactStorage=" + maxArtifactStorage + ", artifactRetentionDays="
         + artifactRetentionDays + "]";
@@ -33,17 +33,11 @@ public class Quotas {
   public void setMaxWorkflowRunMonthly(Integer maxWorkflowRunMonthly) {
     this.maxWorkflowRunMonthly = maxWorkflowRunMonthly;
   }
-  public Integer getMaxWorkflowStorage() {
-    return maxWorkflowStorage;
+  public Integer getMaxWorkspaceStorage() {
+    return maxWorkspaceStorage;
   }
-  public void setMaxWorkflowStorage(Integer maxWorkflowStorage) {
-    this.maxWorkflowStorage = maxWorkflowStorage;
-  }
-  public Integer getMaxWorkflowRunStorage() {
-    return maxWorkflowRunStorage;
-  }
-  public void setMaxWorkflowRunStorage(Integer maxWorkflowRunStorage) {
-    this.maxWorkflowRunStorage = maxWorkflowRunStorage;
+  public void setMaxWorkspaceStorage(Integer maxWorkspaceStorage) {
+    this.maxWorkspaceStorage = maxWorkspaceStorage;
   }
   public Integer getMaxWorkflowRunDuration() {
     return maxWorkflowRunDuration;

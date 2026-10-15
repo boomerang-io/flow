@@ -34,7 +34,6 @@ const baseTaskRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowRunRef: "651e4789ab1cb56bc8976ae4",
   workflowName: "Parameter Resolution Check",
-  workspaces: [],
 };
 
 const slackTask: TaskRun = {
@@ -99,7 +98,6 @@ const workflowRun: WorkflowRun = {
   tasks: [startTask, slackTask, emailTask, endTask],
   timeout: 0,
   trigger: "manual",
-  workspaces: [],
   workflowName: "Parameter Resolution Check",
   workflowRef: "651b91a77fbb1a64ab8b7154",
   workflowRevisionRef: "651cffa3e99fd73f5122879d",

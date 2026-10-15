@@ -38,12 +38,12 @@ class KubeServiceImplWorkspaceTest {
     kubeService.setClient(client);
   }
 
-  private void createWorkspaceClaim(String workspaceRef, String workspaceType) {
+  private void createWorkspaceClaim(String workflowRunRef) {
     try {
       // The mock server never writes a phase, so the bound/pending wait times out after 1 s; the
       // claim itself is created before the wait.
       kubeService.createWorkspacePVC(
-          "wf-1", workspaceRef, workspaceType, Map.of(), "1Gi", "", "ReadWriteOnce", 1);
+          "wf-1", workflowRunRef, Map.of(), "1Gi", "", "ReadWriteOnce", 1);
     } catch (Exception ignored) {
       // wait timeout on the mock server
     }
@@ -51,7 +51,7 @@ class KubeServiceImplWorkspaceTest {
 
   @Test
   void listingReturnsWorkspaceClaimsAndIgnoresOtherTiers() {
-    createWorkspaceClaim("run-listed", "workflowrun");
+    createWorkspaceClaim("run-listed");
     PersistentVolumeClaim foreign =
         new PersistentVolumeClaimBuilder()
             .withNewMetadata()
@@ -66,13 +66,11 @@ class KubeServiceImplWorkspaceTest {
     assertEquals(1, claims.size(), "only the workspace-tier claim");
     assertEquals(
         "run-listed", claims.get(0).getMetadata().getLabels().get("boomerang.io/workspace-ref"));
-    assertEquals(
-        "workflowrun",
-        claims.get(0).getMetadata().getLabels().get("boomerang.io/workspace-type"));
+    assertEquals("wf-1", claims.get(0).getMetadata().getLabels().get("boomerang.io/workflow-ref"));
   }
 
   @Test
   void deletingAClaimThatIsAlreadyGoneIsNotAnError() {
-    assertDoesNotThrow(() -> kubeService.deleteWorkspacePVC("run-never-existed", "workflowrun"));
+    assertDoesNotThrow(() -> kubeService.deleteWorkspacePVC("run-never-existed"));
   }
 }

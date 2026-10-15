@@ -42,7 +42,8 @@ type AppPathKey =
   | "EditorConfigureTriggers"
   | "EditorConfigureRun"
   | "EditorConfigureParams"
-  | "EditorConfigureWorkspaces"
+  | "EditorConfigureWorkspace"
+  | "EditorConfigureArtifacts"
   | "EditorConfigureTokens"
   | "EditorChangelog"
   | "EditorProperties"
@@ -97,7 +98,8 @@ export const AppPath: Record<AppPathKey, string> = {
   EditorConfigureTriggers: `/:workspace/editor/:workflow/configure/triggers`,
   EditorConfigureRun: `/:workspace/editor/:workflow/configure/run`,
   EditorConfigureParams: `/:workspace/editor/:workflow/configure/parameters`,
-  EditorConfigureWorkspaces: `/:workspace/editor/:workflow/configure/workspaces`,
+  EditorConfigureWorkspace: `/:workspace/editor/:workflow/configure/workspace`,
+  EditorConfigureArtifacts: `/:workspace/editor/:workflow/configure/artifacts`,
   EditorConfigureTokens: `/:workspace/editor/:workflow/configure/tokens`,
   EditorChangelog: `/:workspace/editor/:workflow/changelog`,
   EditorProperties: `/:workspace/editor/:workflow/parameters`,
@@ -201,8 +203,10 @@ export const appLink = {
     generatePath(AppPath.EditorConfigureRun, { workspace, workflow }),
   editorConfigureParams: ({ workspace, workflow }: WorkspaceRouteArgs) =>
     generatePath(AppPath.EditorConfigureParams, { workspace, workflow }),
-  editorConfigureWorkspaces: ({ workspace, workflow }: WorkspaceRouteArgs) =>
-    generatePath(AppPath.EditorConfigureWorkspaces, { workspace, workflow }),
+  editorConfigureWorkspace: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureWorkspace, { workspace, workflow }),
+  editorConfigureArtifacts: ({ workspace, workflow }: WorkspaceRouteArgs) =>
+    generatePath(AppPath.EditorConfigureArtifacts, { workspace, workflow }),
   editorConfigureTokens: ({ workspace, workflow }: WorkspaceRouteArgs) =>
     generatePath(AppPath.EditorConfigureTokens, { workspace, workflow }),
   editorChangelog: ({ workspace, workflow }: WorkspaceRouteArgs) =>

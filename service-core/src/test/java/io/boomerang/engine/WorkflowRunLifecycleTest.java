@@ -17,7 +17,6 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRunEndRequest;
-import io.boomerang.common.model.TaskWorkspace;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
@@ -226,7 +225,7 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void taskWorkspacesAreCopiedOntoTheMaterialisedTaskRun() {
+  void theRunsWorkspaceIsCopiedOntoTheMaterialisedTaskRun() {
     Task template = new Task();
     template.setName("lifecycle-workspace-echo");
     template.setType(TaskType.template);
@@ -235,19 +234,20 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
     String templateId = taskService.create(template).getId();
 
     WorkflowTask echo = workflowTask("echo", TaskType.template, templateId, "start");
-    TaskWorkspace taskWorkspace = new TaskWorkspace();
-    taskWorkspace.setName("run-store");
-    taskWorkspace.setType("workflowrun");
-    taskWorkspace.setMountPath("/workspace/run");
-    echo.setWorkspaces(new LinkedList<>(List.of(taskWorkspace)));
 
     Workflow workflow = new Workflow();
     workflow.setName("run-lifecycle-task-workspace");
+    WorkflowWorkspace workspace = new WorkflowWorkspace();
+    workspace.setSize("1Gi");
+    workspace.setMountPath("/workspace/run");
+    workflow.setWorkspace(workspace);
     workflow.setTasks(
         List.of(workflowTask("start", TaskType.start, null), echo, workflowTask("end", TaskType.end, null, "echo")));
     String workflowId = workflowService.create(workflow, false).getBody().getId();
 
+    // A run with a workspace parks for provisioning; the start call is what materialises the graph.
     String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+    workflowRunService.start(wfRunId, Optional.empty());
     awaitEngine("echo TaskRun materialised")
         .untilAsserted(
             () ->
@@ -256,10 +256,9 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
 
     TaskRunEntity echoTaskRun =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("echo", wfRunId).orElseThrow();
-    assertEquals(1, echoTaskRun.getWorkspaces().size(), "the Task's own workspaces must be copied");
-    TaskWorkspace copied = echoTaskRun.getWorkspaces().get(0);
-    assertEquals("run-store", copied.getName());
-    assertEquals("workflowrun", copied.getType());
+    WorkflowWorkspace copied = echoTaskRun.getWorkspace();
+    assertNotNull(copied, "the run's workspace must be copied onto the TaskRun");
+    assertEquals("1Gi", copied.getSize());
     assertEquals("/workspace/run", copied.getMountPath());
   }
 
@@ -407,9 +406,8 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
   private static Workflow runnableWorkflowWithWorkspace(String name, String taskSlug) {
     Workflow workflow = runnableWorkflow(name, taskSlug);
     WorkflowWorkspace ws = new WorkflowWorkspace();
-    ws.setName("run-store");
-    ws.setType("workflowrun");
-    workflow.setWorkspaces(new LinkedList<>(List.of(ws)));
+    ws.setSize("1Gi");
+    workflow.setWorkspace(ws);
     return workflow;
   }
 

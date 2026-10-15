@@ -36,7 +36,6 @@ const workflow: Workflow = {
     webhook: { enabled: false, conditions: [] },
   },
   upgradesAvailable: false,
-  workspaces: [],
 };
 
 // Route-module test pattern (see CreateWorkflow.spec.tsx): ScheduleCreator submits its create

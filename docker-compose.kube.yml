@@ -18,6 +18,22 @@ services:
       # stack's SeaweedFS through the host, not the compose network name.
       FLOW_ARTIFACTS_STORE_LINK_ENDPOINT: http://host.docker.internal:8333
 
+  # One-shot, kube-stack-only: sets the task setting `deletion.policy` to Always so a finished
+  # task's Job goes at task end and the run's storage claim can be released - Kubernetes holds a
+  # claim while any pod that mounted it still exists, finished or not. See
+  # docker/mongo/seed-task-deletion.js.
+  task-deletion-seed:
+    image: mongo:7.0
+    entrypoint:
+      ["mongosh", "--quiet", "mongodb://mongo:27017/boomerang", "/seed-task-deletion.js"]
+    volumes:
+      - ./docker/mongo/seed-task-deletion.js:/seed-task-deletion.js:ro
+    depends_on:
+      service-core:
+        condition: service_healthy
+    networks: [flow]
+    restart: "no"
+
   service-dispatcher:
     build:
       context: ./service-dispatcher
@@ -43,7 +59,6 @@ services:
       KUBERNETES_TRUST_CERTIFICATES: "true"
       # OrbStack's default StorageClass is ReadWriteOnce-only.
       KUBE_WORKSPACE_STORAGE_ACCESSMODE: ReadWriteOnce
-      KUBE_WORKFLOW_STORAGE_ACCESSMODE: ReadWriteOnce
       KUBE_TASK_TIMEOUT: "10"
     volumes:
       - ./docker/kube/config:/kube/config:ro

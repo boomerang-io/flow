@@ -686,7 +686,7 @@ public class TaskExecutionService {
     item.setLabels(new HashMap<>(parent.getLabels()));
     item.setAnnotations(new HashMap<>(parent.getAnnotations()));
     item.setTimeout(parent.getTimeout());
-    item.setWorkspaces(parent.getWorkspaces());
+    item.setWorkspace(parent.getWorkspace());
     item.setSpec(parent.getSpec());
     item.setResults(
         parent.getResults().stream()
@@ -1099,7 +1099,7 @@ public class TaskExecutionService {
       request.setTrigger(TriggerEnum.task);
       request.setParams(wfRunEntity.getParams());
       request.setAnnotations(wfRunEntity.getAnnotations());
-      request.setWorkspaces(wfRunEntity.getWorkspaces());
+      // The child's own Workflow declares its workspace; the parent's is not handed down.
       request.setTimeout(wfRunEntity.getTimeout());
       request.setRetries(wfRunEntity.getRetries());
       request.setLabels(wfRunEntity.getLabels());

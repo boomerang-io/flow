@@ -11,7 +11,7 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
-import io.boomerang.common.model.TaskWorkspace;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.common.model.WorkflowTaskForeach;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import java.util.Date;
@@ -47,7 +47,7 @@ public class TaskRunEntity {
   private Long timeout;
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
-  private List<TaskWorkspace> workspaces = new LinkedList<>();
+  private WorkflowWorkspace workspace;
   private TaskRunSpec spec = new TaskRunSpec();
   @Indexed private RunStatus status;
   @Indexed private RunPhase phase;

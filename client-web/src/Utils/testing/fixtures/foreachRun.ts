@@ -34,7 +34,6 @@ const baseTaskRun = {
   workflowRevisionRef: "651cffa3e99fd73f5122879d",
   workflowRunRef: "651e4789ab1cb56bc8976f00",
   workflowName: "Locate Everything",
-  workspaces: [],
 };
 
 export const foreachStartTask: TaskRun = {
@@ -128,7 +127,6 @@ export const foreachWorkflowRun: WorkflowRun = {
   tasks: [foreachStartTask, foreachStageTask, ...foreachItemTasks, foreachParentTask, foreachEndTask],
   timeout: 0,
   trigger: "manual",
-  workspaces: [],
   workflowName: "Locate Everything",
   workflowRef: "651b91a77fbb1a64ab8b7154",
   workflowRevisionRef: "651cffa3e99fd73f5122879d",

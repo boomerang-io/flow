@@ -12,7 +12,6 @@ public class TaskRunStartRequest {
   private Map<String, String> labels = new HashMap<>();
   private Map<String, Object> annotations = new HashMap<>();
   private List<RunParam> params = new LinkedList<>();
-  private Map<String, String> workspaces;
   private Long timeout;
   private boolean preApproved;
 

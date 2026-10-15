@@ -37,7 +37,7 @@ public class WorkflowTemplateEntity {
   private List<WorkflowTask> tasks = new LinkedList<>();
   private ChangeLog changelog;
   private List<AbstractParam> params;
-  private List<WorkflowWorkspace> workspaces;
+  private WorkflowWorkspace workspace;
   private Long timeout;
   private Long retries;
 }

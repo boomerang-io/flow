@@ -89,3 +89,4 @@ things by name, not by code.
 | 0102 | [The dispatcher protocol is a published contract, and the SDK owns its own wire models](0102-the-dispatcher-protocol-is-a-published-contract.md) | accepted | 2026-10-08 |
 | 0103 | [Routes are grouped under one prefix per kind of caller](0103-routes-are-grouped-under-one-prefix-per-kind-of-caller.md) | accepted | 2026-10-13 |
 | 0104 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0104-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
+| 0105 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |

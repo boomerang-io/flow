@@ -1,21 +1,23 @@
 package io.boomerang.dispatcher;
 
-import tools.jackson.databind.ObjectMapper;
 import io.boomerang.dispatcher.model.Response;
-import io.boomerang.dispatcher.model.WorkspaceRequest;
-import io.boomerang.kube.StorageType;
-import io.boomerang.dispatcher.model.WorkflowWorkspaceSpec;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.kube.KubeServiceImpl;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+/**
+ * Provisions and releases the one workspace claim a run owns. A field the run leaves blank takes
+ * the {@code kube.workspace.storage.*} default.
+ */
 @Service
 public class WorkspaceService {
 
@@ -39,112 +41,57 @@ public class WorkspaceService {
     this.kubeService = kubeService;
   }
 
-  /*
-   * Creates the 'workflowRun' and 'workflow' type Workspaces.
-   *
-   * TODO: check the types better and error handling
-   */
-  public Response create(WorkspaceRequest workspace) {
+  /** Create the run's workspace claim, labelled with the run's labels. */
+  public Response create(
+      String workflowRef,
+      String workflowRunRef,
+      WorkflowWorkspace workspace,
+      Map<String, String> labels) {
     Response response =
-        new Response("0", "Workspace (" + workspace.getName() + ") has been created successfully.");
-    LOGGER.info("CreateWorkspace Request: " + workspace.toString());
-    if (workspace != null && StorageType.fromLabel(workspace.getType()).isPresent()) {
-      ObjectMapper mapper = new ObjectMapper();
-      try {
-        // Based on the Workspace Type we set the workspaceRef to be the WorkflowRef or the
-        // WorkflowRunRef
-        String workspaceRef =
-            getWorkspaceRef(
-                workspace.getType(), workspace.getWorkflowRef(), workspace.getWorkflowRunRef());
-        boolean pvcExists =
-            kubeService.checkWorkspacePVCExists(workspaceRef, workspace.getType(), false);
-        if (!pvcExists && workspace.getSpec() != null) {
-          WorkflowWorkspaceSpec spec =
-              mapper.convertValue(workspace.getSpec(), WorkflowWorkspaceSpec.class);
-          String size =
-              spec.getSize() == null || spec.getSize().isEmpty() ? storageSize : spec.getSize();
-          String className =
-              spec.getClassName() == null || spec.getClassName().isEmpty()
-                  ? storageClassName
-                  : spec.getClassName();
-          String accessMode =
-              spec.getAccessMode() == null || spec.getAccessMode().isEmpty()
-                  ? storageAccessMode
-                  : spec.getAccessMode();
-          kubeService.createWorkspacePVC(
-              workspace.getWorkflowRef(),
-              workspaceRef,
-              workspace.getType(),
-              workspace.getLabels(),
-              size,
-              className,
-              accessMode,
-              waitUntilTimeout);
-        } else if (pvcExists) {
-          LOGGER.debug("Workspace (" + workspace.getName() + ") already exists.");
-        }
-      } catch (KubeRuntimeException | KubernetesClientException | InterruptedException e) {
-        LOGGER.error(e.getMessage());
-        throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
-      } catch (IllegalArgumentException e) {
-        if (e.getMessage().contains("condition not found")) {
-          throw new BoomerangException(
-              e, BoomerangError.PVC_CREATE_CONDITION_NOT_MET, "" + waitUntilTimeout);
-        } else {
-          throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-      } catch (BoomerangException e) {
-        throw e;
-      } catch (RuntimeException e) {
-        // Anything unexpected surfaces as the same provisioning failure, never a raw exception.
-        LOGGER.error("Unexpected error creating Workspace ({}).", workspace.getName(), e);
-        throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
-      }
-    } else {
-      throw new BoomerangException(
-          500, "Unable to create Workspace", HttpStatus.INTERNAL_SERVER_ERROR);
-      // TODO: make error more specific
-    }
-    return response;
-  }
-
-  public String getWorkspaceRef(String workspaceType, String workflowRef, String workflowRunRef) {
-    return (StorageType.fromLabel(workspaceType).orElse(null) == StorageType.workflow)
-        ? workflowRef
-        : workflowRunRef;
-  }
-
-  /*
-   * Deletes the 'workflowRun' and 'workflow' type Workspaces.
-   *
-   * TODO: check the types better and error handling
-   */
-  public Response delete(WorkspaceRequest workspace) {
-    Response response =
-        new Response("0", "Workspace (" + workspace.getName() + ") has been successfully deleted.");
+        new Response(
+            "0", "Workspace for WorkflowRun (" + workflowRunRef + ") has been created successfully.");
+    LOGGER.info("CreateWorkspace Request: workflowRunRef={}, {}", workflowRunRef, workspace);
     try {
-      // Based on the Workspace Type we set the workspaceRef to be the WorkflowRef or the
-      // WorkflowRunRef
-      String workspaceRef =
-          (StorageType.fromLabel(workspace.getType()).orElse(null) == StorageType.workflow)
-              ? workspace.getWorkflowRef()
-              : workspace.getWorkflowRunRef();
-      kubeService.deleteWorkspacePVC(workspaceRef, workspace.getType());
-    } catch (KubeRuntimeException e) {
+      kubeService.createWorkspacePVC(
+          workflowRef,
+          workflowRunRef,
+          labels,
+          orDefault(workspace.getSize(), storageSize),
+          orDefault(workspace.getClassName(), storageClassName),
+          orDefault(workspace.getAccessMode(), storageAccessMode),
+          waitUntilTimeout);
+    } catch (KubeRuntimeException | KubernetesClientException | InterruptedException e) {
+      LOGGER.error(e.getMessage());
+      throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (IllegalArgumentException e) {
+      if (e.getMessage().contains("condition not found")) {
+        throw new BoomerangException(
+            e, BoomerangError.PVC_CREATE_CONDITION_NOT_MET, "" + waitUntilTimeout);
+      }
+      throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (BoomerangException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      // Anything unexpected surfaces as the same provisioning failure, never a raw exception.
+      LOGGER.error("Unexpected error creating Workspace for WorkflowRun ({}).", workflowRunRef, e);
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    LOGGER.info("deleteWorkspace() - " + response.getMessage());
     return response;
   }
 
-  public Response delete(String type, String ref) {
+  /** Release the run's workspace claim; a claim that is already gone is already released. */
+  public Response delete(String workflowRunRef) {
     Response response = new Response("0", "Workspace has been successfully deleted.");
     try {
-      kubeService.deleteWorkspacePVC(ref, type);
+      kubeService.deleteWorkspacePVC(workflowRunRef);
     } catch (KubeRuntimeException e) {
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
     LOGGER.info("deleteWorkspace() - " + response.getMessage());
     return response;
+  }
+
+  private static String orDefault(String value, String fallback) {
+    return (value != null && !value.isBlank()) ? value : fallback;
   }
 }

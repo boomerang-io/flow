@@ -1,5 +1,6 @@
 import { useMatches } from "react-router-dom";
 import type {
+  Artifact,
   CalendarEntry,
   ChangeLog,
   PaginatedSchedulesResponse,
@@ -28,6 +29,14 @@ export interface EditorScheduleData {
   errorLoadingCalendar: boolean;
 }
 
+/**
+ * The artifacts this workflow keeps between runs (scope `workflow`), for the Configure >
+ * Artifacts panel. `artifacts` is null when the read failed.
+ */
+export interface EditorKeptArtifactsData {
+  artifacts: Array<Artifact> | null;
+}
+
 export interface EditorData {
   workflow?: WorkflowCanvas;
   workflows?: PaginatedWorkflowResponse;
@@ -53,6 +62,11 @@ export interface EditorData {
    * Schedule/Schedule.tsx is rendered by Editor.tsx's <Routes> and so only mounted on that tab.
    */
   schedule: EditorScheduleData | null;
+  /*
+   * null on every tab except Configure > Artifacts, for the same reason as `schedule`: the list
+   * is only fetched when the route's splat is "configure/artifacts".
+   */
+  keptArtifacts: EditorKeptArtifactsData | null;
 }
 
 export interface EditorRouteData {

@@ -19,12 +19,23 @@ public class CanvasNodeData {
   Integer taskVersion;
   boolean upgradesAvailable;
   WorkflowTaskForeach foreach;
-  
+  // Absent or true mounts the run's workspace; false opts the task out. Carried so an editor
+  // save keeps an opt-out authored through the API or YAML.
+  Boolean workspace;
+
   @JsonIgnore
   private Map<String, Object> additionalProperties = new HashMap<>();
   
   public String getName() {
     return name;
+  }
+
+  public Boolean getWorkspace() {
+    return workspace;
+  }
+
+  public void setWorkspace(Boolean workspace) {
+    this.workspace = workspace;
   }
 
   public void setName(String label) {

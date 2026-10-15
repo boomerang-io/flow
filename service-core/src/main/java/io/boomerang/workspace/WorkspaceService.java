@@ -85,11 +85,10 @@ public class WorkspaceService {
       List.of("home", "admin", "system", "profile", "connect");
   public static final String QUOTAS_SETTINGS_KEY = "quotas";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
-  public static final String QUOTA_MAX_WORKFLOW_STORAGE = "max.workflow.storage";
   public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
   public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
-  public static final String QUOTA_MAX_WORKFLOWRUN_STORAGE = "max.workflowrun.storage";
+  public static final String QUOTA_MAX_WORKSPACE_STORAGE = "max.workspace.storage";
   public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
 
   private final WorkspaceRepository workspaceRepository;
@@ -946,16 +945,10 @@ public class WorkspaceService {
             settingsService
                 .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
                 .getValue()));
-    quotas.setMaxWorkflowStorage(
+    quotas.setMaxWorkspaceStorage(
         Integer.valueOf(
             settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_STORAGE)
-                .getValue()
-                .replace("Gi", "")));
-    quotas.setMaxWorkflowRunStorage(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_STORAGE)
+                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKSPACE_STORAGE)
                 .getValue()
                 .replace("Gi", "")));
     quotas.setMaxWorkflowRunDuration(
@@ -992,11 +985,8 @@ public class WorkspaceService {
       if (customQuotas.getMaxWorkflowRunMonthly() != null) {
         quotas.setMaxWorkflowRunMonthly(customQuotas.getMaxWorkflowRunMonthly());
       }
-      if (customQuotas.getMaxWorkflowStorage() != null) {
-        quotas.setMaxWorkflowStorage(customQuotas.getMaxWorkflowStorage());
-      }
-      if (customQuotas.getMaxWorkflowRunStorage() != null) {
-        quotas.setMaxWorkflowRunStorage(customQuotas.getMaxWorkflowRunStorage());
+      if (customQuotas.getMaxWorkspaceStorage() != null) {
+        quotas.setMaxWorkspaceStorage(customQuotas.getMaxWorkspaceStorage());
       }
       if (customQuotas.getMaxWorkflowRunDuration() != null) {
         quotas.setMaxWorkflowRunDuration(customQuotas.getMaxWorkflowRunDuration());

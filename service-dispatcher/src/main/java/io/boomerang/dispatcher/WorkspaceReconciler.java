@@ -4,10 +4,8 @@ import io.boomerang.dispatcher.sdk.DispatcherClient;
 import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseQuery;
 import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseResponse;
 import io.boomerang.kube.KubeService;
-import io.boomerang.kube.StorageType;
 import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +19,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Releases workspace storage by reconciling the cluster against the engine: the cluster says which
- * workspace claims this dispatcher's namespace holds, and the engine says which of their owners are
+ * workspace claims this dispatcher's namespace holds, and the engine says which of their runs are
  * finished. Nothing on the run records the release, so an interrupted tick costs only a delay - the
  * next tick asks the same question again.
  */
@@ -36,9 +34,7 @@ public class WorkspaceReconciler {
 
   private static final String WORKSPACE_REF_LABEL = "boomerang.io/workspace-ref";
 
-  private static final String WORKSPACE_TYPE_LABEL = "boomerang.io/workspace-type";
-
-  // The engine caps each list of a release query at this many ids, so a tick pages.
+  // The engine caps a release query at this many ids, so a tick pages.
   private static final int PAGE_SIZE = 500;
 
   private final KubeService kubeService;
@@ -61,23 +57,14 @@ public class WorkspaceReconciler {
   @Scheduled(fixedDelayString = "${flow.dispatcher.workspace.reconcile-ms:60000}")
   public void reconcile() {
     try {
-      Map<StorageType, List<String>> held = held();
-      List<String> workflowRunRefs = held.getOrDefault(StorageType.workflowRun, List.of());
-      List<String> workflowRefs = held.getOrDefault(StorageType.workflow, List.of());
+      List<String> held = held();
       int released = 0;
-      int pages = Math.max(pageCount(workflowRunRefs), pageCount(workflowRefs));
-      for (int page = 0; page < pages; page++) {
+      for (int page = 0; page < pageCount(held); page++) {
         WorkspaceReleaseQuery query = new WorkspaceReleaseQuery();
-        query.setWorkflowRunRefs(page(workflowRunRefs, page));
-        query.setWorkflowRefs(page(workflowRefs, page));
-        WorkspaceReleaseResponse response = releasable(query);
-        released += release(StorageType.workflowRun, response.getWorkflowRunRefs());
-        released += release(StorageType.workflow, response.getWorkflowRefs());
+        query.setWorkflowRunRefs(page(held, page));
+        released += release(releasable(query).getWorkflowRunRefs());
       }
-      LOGGER.info(
-          "Workspace reconcile: held={}, released={}",
-          workflowRunRefs.size() + workflowRefs.size(),
-          released);
+      LOGGER.info("Workspace reconcile: held={}, released={}", held.size(), released);
     } catch (Exception e) {
       // A tick is best effort - the claims stay held and the next tick asks again.
       LOGGER.warn("Workspace reconcile failed: {}", e.getMessage());
@@ -85,8 +72,8 @@ public class WorkspaceReconciler {
   }
 
   /**
-   * Ask the engine which owners in one page are finished. A failure is not fatal: that page's
-   * volumes stay held and the next tick asks again.
+   * Ask the engine which runs in one page are finished. A failure is not fatal: that page's volumes
+   * stay held and the next tick asks again.
    */
   private WorkspaceReleaseResponse releasable(WorkspaceReleaseQuery query) {
     try {
@@ -97,36 +84,32 @@ public class WorkspaceReconciler {
     }
   }
 
-  /** The workspace refs this dispatcher's namespace holds a claim for, grouped by storage type. */
-  private Map<StorageType, List<String>> held() {
-    Map<StorageType, Set<String>> refs = new EnumMap<>(StorageType.class);
+  /** The run refs this dispatcher's namespace holds a workspace claim for. */
+  private List<String> held() {
+    Set<String> refs = new LinkedHashSet<>();
     for (PersistentVolumeClaim claim : kubeService.listWorkspacePVCs()) {
       Map<String, String> labels =
           (claim.getMetadata() != null && claim.getMetadata().getLabels() != null)
               ? claim.getMetadata().getLabels()
               : Map.of();
       String ref = labels.get(WORKSPACE_REF_LABEL);
-      StorageType type = StorageType.fromLabel(labels.get(WORKSPACE_TYPE_LABEL)).orElse(null);
-      if (ref != null && type != null) {
-        refs.computeIfAbsent(type, key -> new LinkedHashSet<>()).add(ref);
+      if (ref != null) {
+        refs.add(ref);
       }
     }
-    Map<StorageType, List<String>> held = new EnumMap<>(StorageType.class);
-    refs.forEach((type, values) -> held.put(type, new ArrayList<>(values)));
-    return held;
+    return new ArrayList<>(refs);
   }
 
-  private int release(StorageType type, List<String> refs) {
+  private int release(List<String> refs) {
     int released = 0;
     for (String ref : Objects.requireNonNullElse(refs, List.<String>of())) {
       try {
         // Deleting by label is idempotent: an absent claim is already released.
-        workspaceService.delete(type.getLabel(), ref);
+        workspaceService.delete(ref);
         released++;
       } catch (Exception e) {
         // One claim the API server will not delete must not cost the rest of the tick.
-        LOGGER.error(
-            "Unable to release {} workspace ({}): {}", type.getLabel(), ref, e.getMessage());
+        LOGGER.error("Unable to release workspace ({}): {}", ref, e.getMessage());
       }
     }
     return released;

@@ -215,6 +215,18 @@
   margin-bottom: 0.5rem;
 }
 
+.workspaceFields {
+  max-width: 25rem;
+  padding-top: 0.5rem;
+}
+
+.fieldError {
+  color: var(--cds-support-01);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin: -0.5rem 0 1rem 0;
+}
+
 .runOptionsSection {
   max-width: 25rem;
 }

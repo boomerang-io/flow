@@ -43,9 +43,9 @@ public class WorkflowTask {
   private List<RunParam> params = new LinkedList<>();
   // This is needed as some of our Tasks allow you to define Result Definitions on the fly
   private List<ResultSpec> results = new LinkedList<>();
-  // Optional - the default is that the workspace goes to all Tasks
+  // Optional - absent or true mounts the run's workspace, false opts this task out
   // Not supported by all integrations
-  private List<TaskWorkspace> workspaces;
+  private Boolean workspace;
   // Optional - run this task once per item of a list. Absent runs the task once.
   private WorkflowTaskForeach foreach;
   private Map<String, Object> unknownFields = new HashMap<>();

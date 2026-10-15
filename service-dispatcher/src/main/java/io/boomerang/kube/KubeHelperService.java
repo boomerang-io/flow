@@ -2,6 +2,7 @@ package io.boomerang.kube;
 
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.PodStart;
@@ -45,6 +46,8 @@ public class KubeHelperService {
 
   private static final int LABEL_SEGMENT_MAX_LENGTH = 63;
   private static final int LABEL_PREFIX_MAX_LENGTH = 253;
+
+  static final String DEFAULT_WORKSPACE_MOUNT_PATH = "/workspace";
 
   @Value("${proxy.enable}")
   protected Boolean proxyEnabled;
@@ -411,18 +414,14 @@ public class KubeHelperService {
     return getLabels("workflow", workflowRef, workflowRunRef, null, customLabels);
   }
 
+  // A workspace claim is keyed by the run that owns it: workspace-ref is the workflow run ref.
   protected Map<String, String> getWorkspaceLabels(
-      String workflowRef,
-      String workspaceRef,
-      String workspaceType,
-      Map<String, String> customLabels) {
+      String workflowRef, String workflowRunRef, Map<String, String> customLabels) {
     Map<String, String> labels = new HashMap<>();
     labels.putAll(getBaseLabels("workspace"));
     Optional.ofNullable(workflowRef).ifPresent(str -> labels.put("boomerang.io/workflow-ref", str));
-    Optional.ofNullable(workspaceRef)
+    Optional.ofNullable(workflowRunRef)
         .ifPresent(str -> labels.put("boomerang.io/workspace-ref", str));
-    Optional.ofNullable(workspaceType)
-        .ifPresent(str -> labels.put("boomerang.io/workspace-type", str));
     applyCustomLabels(labels, customLabels);
     return labels;
   }
@@ -436,13 +435,11 @@ public class KubeHelperService {
     return annotations;
   }
 
-  protected Map<String, String> getWorkspaceAnnotations(
-      String workflowRef, String workspaceRef, String workspaceType) {
+  protected Map<String, String> getWorkspaceAnnotations(String workflowRef, String workflowRunRef) {
     Map<String, String> annotations = new HashMap<>();
     annotations.put("boomerang.io/workflow-ref", workflowRef);
-    annotations.put("boomerang.io/workspace-ref", workspaceRef);
-    annotations.put("boomerang.io/workspace-type", workspaceRef);
-    annotations.put("boomerang.io/selector", workspaceLabelSelector(workspaceRef, workspaceType));
+    annotations.put("boomerang.io/workspace-ref", workflowRunRef);
+    annotations.put("boomerang.io/selector", workspaceLabelSelector(workflowRunRef));
     return annotations;
   }
 
@@ -545,17 +542,21 @@ public class KubeHelperService {
     return null;
   }
 
-  protected String workspaceLabelSelector(String workspaceRef, String workspaceType) {
-    StringBuilder labelSelector =
-        new StringBuilder(
-            "boomerang.io/product="
-                + bmrgProduct
-                + ",boomerang.io/tier=workspace,boomerang.io/workspace-ref="
-                + workspaceRef
-                + ",boomerang.io/workspace-type="
-                + workspaceType);
+  /** Where a task sees the run's workspace: the path it declares, or {@code /workspace}. */
+  protected String workspaceMountPath(WorkflowWorkspace workspace) {
+    return (workspace.getMountPath() != null && !workspace.getMountPath().isBlank())
+        ? workspace.getMountPath()
+        : DEFAULT_WORKSPACE_MOUNT_PATH;
+  }
 
-    LOGGER.info("  labelSelector: " + labelSelector.toString());
-    return labelSelector.toString();
+  protected String workspaceLabelSelector(String workflowRunRef) {
+    String labelSelector =
+        "boomerang.io/product="
+            + bmrgProduct
+            + ",boomerang.io/tier=workspace,boomerang.io/workspace-ref="
+            + workflowRunRef;
+
+    LOGGER.info("  labelSelector: " + labelSelector);
+    return labelSelector;
   }
 }

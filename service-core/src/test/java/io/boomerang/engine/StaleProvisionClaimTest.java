@@ -9,7 +9,6 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowWorkspace;
 import java.util.Date;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -92,9 +91,8 @@ class StaleProvisionClaimTest extends AbstractEngineIntegrationTest {
     run.setPhase(RunPhase.pending);
     run.setCreationDate(new Date());
     WorkflowWorkspace workspace = new WorkflowWorkspace();
-    workspace.setName("run-store");
-    workspace.setType("workflowrun");
-    run.setWorkspaces(List.of(workspace));
+    workspace.setSize("1Gi");
+    run.setWorkspace(workspace);
     return workflowRunRepository.save(run).getId();
   }
 

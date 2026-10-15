@@ -214,38 +214,21 @@ function Quotas() {
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentConcurrentRuns}`}</p>
         </QuotaCard>
         <QuotaCard
-          subtitle="Workspace size limit for each Workflow using persistent storage on this Workspace."
-          title="Workspace Capacity - Per Workflow"
-          modalSubtitle="Set the storage size limit for each Workflow Workspace using persistent storage on this Workspace."
+          subtitle="Size limit of the shared workspace a workflow can declare for each of its runs."
+          title="Workspace Storage - Per Run"
+          modalSubtitle="Set the size limit of the shared workspace a workflow can declare for each run."
           minValue={0}
-          detailedTitle="Persistent storage size limit"
-          detailedData={`${workspace.quotas.maxWorkflowStorage}GB per Workflow`}
+          detailedTitle="Shared workspace size limit"
+          detailedData={`${workspace.quotas.maxWorkspaceStorage}GB per run`}
           inputLabel="Storage limit"
           inputUnits="GB"
           stepValue={1}
           workspaceName={workspace.name}
-          quotaProperty="maxWorkflowStorage"
-          quotaValue={workspace.quotas.maxWorkflowStorage}
+          quotaProperty="maxWorkspaceStorage"
+          quotaValue={workspace.quotas.maxWorkspaceStorage}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowStorage}GB per Workflow`}</h3>
-        </QuotaCard>
-        <QuotaCard
-          subtitle="Workspace size limit for each WorkflowRun using persistent storage on this Workspace."
-          title="Workspace Capacity - Per Run"
-          modalSubtitle="Set the storage size limit for each WorkflowRun Workspace using persistent storage on this Workspace."
-          minValue={0}
-          detailedTitle="Persistent storage size limit"
-          detailedData={`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}
-          inputLabel="Storage limit"
-          inputUnits="GB"
-          stepValue={1}
-          workspaceName={workspace.name}
-          quotaProperty="maxWorkflowRunStorage"
-          quotaValue={workspace.quotas.maxWorkflowRunStorage}
-          disabled={!canEdit}
-        >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunStorage}GB per WorkflowRun`}</h3>
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkspaceStorage}GB per run`}</h3>
         </QuotaCard>
         <QuotaCard
           subtitle="Total size of artifacts a task uploads for this workspace's runs."

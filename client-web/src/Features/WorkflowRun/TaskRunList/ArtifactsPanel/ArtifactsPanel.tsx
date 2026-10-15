@@ -7,7 +7,7 @@ import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
 import { formatBytes } from "Utils/byteHelper";
 import { resourceRoute } from "Config/resourceRoutes";
 import { isActionError } from "Utils/actionResult";
-import { Artifact, ArtifactStatus, TaskRun, WorkflowRun } from "Types";
+import { Artifact, ArtifactScope, ArtifactStatus, TaskRun, WorkflowRun } from "Types";
 import styles from "./artifactsPanel.module.scss";
 
 type Props = {
@@ -71,8 +71,25 @@ type ItemProps = {
   runId: string;
 };
 
+// A kept (scope `workflow`) artifact never expires: it stays until a later upload of the same
+// name replaces it or someone deletes it.
+function expiryLabel(artifact: Artifact): { title: string; value: string } {
+  if (artifact.scope === ArtifactScope.Workflow) {
+    return { title: "Expires", value: "Kept until replaced" };
+  }
+  return {
+    title: artifact.status === ArtifactStatus.Expired ? "Expired" : "Expires",
+    value: artifact.expirationDate ? moment(artifact.expirationDate).format("YYYY-MM-DD hh:mm A") : "---",
+  };
+}
+
+function scopeLabel(artifact: Artifact): string {
+  return artifact.scope === ArtifactScope.Workflow ? "Workflow" : "Run";
+}
+
 function ArtifactItem({ artifact, uploadedBy, workspace, runId }: ItemProps) {
   const isExpired = artifact.status === ArtifactStatus.Expired;
+  const expiry = expiryLabel(artifact);
 
   return (
     <li className={`${styles.artifactItem} ${isExpired ? styles.expired : ""}`}>
@@ -93,10 +110,12 @@ function ArtifactItem({ artifact, uploadedBy, workspace, runId }: ItemProps) {
           <p className={styles.fieldValue}>{uploadedBy}</p>
         </div>
         <div className={styles.field}>
-          <p className={styles.fieldTitle}>{isExpired ? "Expired" : "Expires"}</p>
-          <p className={styles.fieldValue}>
-            {artifact.expirationDate ? moment(artifact.expirationDate).format("YYYY-MM-DD hh:mm A") : "---"}
-          </p>
+          <p className={styles.fieldTitle}>Scope</p>
+          <p className={styles.fieldValue}>{scopeLabel(artifact)}</p>
+        </div>
+        <div className={styles.field}>
+          <p className={styles.fieldTitle}>{expiry.title}</p>
+          <p className={styles.fieldValue}>{expiry.value}</p>
         </div>
       </section>
       <section className={`${styles.data} ${styles.actions}`}>
@@ -130,6 +149,8 @@ function ArtifactItem({ artifact, uploadedBy, workspace, runId }: ItemProps) {
 }
 
 function ArtifactDetail({ artifact, uploadedBy }: { artifact: Artifact; uploadedBy: string }) {
+  const expiry = expiryLabel(artifact);
+  const isKept = artifact.scope === ArtifactScope.Workflow;
   return (
     <ModalBody>
       <section className={styles.detailedSection}>
@@ -153,16 +174,16 @@ function ArtifactDetail({ artifact, uploadedBy }: { artifact: Artifact; uploaded
         </p>
       </section>
       <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>Retention</span>
-        <p className={styles.sectionDetail}>{artifact.retentionDays} days</p>
+        <span className={styles.sectionHeader}>Scope</span>
+        <p className={styles.sectionDetail}>{scopeLabel(artifact)}</p>
       </section>
       <section className={styles.detailedSection}>
-        <span className={styles.sectionHeader}>
-          {artifact.status === ArtifactStatus.Expired ? "Expired" : "Expires"}
-        </span>
-        <p className={styles.sectionDetail}>
-          {artifact.expirationDate ? moment(artifact.expirationDate).format("YYYY-MM-DD hh:mm A") : "---"}
-        </p>
+        <span className={styles.sectionHeader}>Retention</span>
+        <p className={styles.sectionDetail}>{isKept ? "Until replaced or deleted" : `${artifact.retentionDays} days`}</p>
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>{expiry.title}</span>
+        <p className={styles.sectionDetail}>{expiry.value}</p>
       </section>
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>SHA-256</span>

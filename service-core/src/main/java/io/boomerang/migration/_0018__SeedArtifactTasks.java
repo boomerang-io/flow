@@ -20,9 +20,11 @@ import org.springframework.core.env.Environment;
 /**
  * Adds the {@code upload-artifact} and {@code download-artifact} catalogue tasks (types {@code
  * uploadartifact} and {@code downloadartifact}), which the default worker image runs. Each declares
- * every param its worker reads: the ones an author fills ({@code name}, {@code path}, and {@code
- * retention-days} on upload) and the read-only link params Flow fills when it hands the task to a
- * dispatcher ({@code url}, {@code headers}, and {@code sha256} and {@code contentType} on download).
+ * every param its worker reads: the ones an author fills ({@code name}, {@code path}, {@code scope},
+ * {@code retention-days} on upload and {@code optional} on download) and the read-only link params
+ * Flow fills when it hands the task to a dispatcher ({@code url}, {@code headers}, and {@code
+ * sha256} and {@code contentType} on download). Download declares the {@code found} result the
+ * engine fills.
  *
  * <p>Ids are assigned on insert. Idempotent: each task is matched by name, its version 1 revision
  * by parent and version, and its graph node and root edge by id.
@@ -38,6 +40,9 @@ public class _0018__SeedArtifactTasks {
   static final String DOWNLOAD_TASK = "download-artifact";
   private static final String ROOT_NODE_ID = "root:root";
   private static final String FILLED_BY_FLOW = "Filled in by Flow when the task runs.";
+  private static final String SCOPE_HELP =
+      "run: this run only, expires on its retention date. workflow: kept for every later run of"
+          + " this workflow until replaced.";
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {
@@ -48,7 +53,8 @@ public class _0018__SeedArtifactTasks {
         UPLOAD_TASK,
         "uploadartifact",
         "Upload Artifact",
-        "Upload a file or folder from the run workspace as an artifact of this run.",
+        "Upload a file or folder from the run workspace as an artifact of this run or of the"
+            + " workflow.",
         "Upload",
         List.of(
             param("name", "Artifact name", "text", true, false,
@@ -56,29 +62,56 @@ public class _0018__SeedArtifactTasks {
             param("path", "Path", "text", true, false,
                 "A file or folder to upload; a folder is sent as one .tar.gz. Relative to"
                     + " /workspace (e.g. workflowrun/reports/sbom.json), or an absolute path."),
+            scopeParam(),
             param("retention-days", "Retention days", "text", false, false,
                 "Blank keeps it for the workspace's retention. You can ask for fewer days, not"
-                    + " more."),
+                    + " more. Not allowed with scope workflow."),
             param("url", "Upload link", "password", false, true, FILLED_BY_FLOW),
-            param("headers", "Upload headers", "text", false, true, FILLED_BY_FLOW)));
+            param("headers", "Upload headers", "text", false, true, FILLED_BY_FLOW)),
+        List.of());
     seed(
         db,
         names,
         DOWNLOAD_TASK,
         "downloadartifact",
         "Download Artifact",
-        "Download an artifact of this run into the run workspace, checking its SHA-256.",
+        "Download an artifact of this run, or the workflow's kept artifact of that name, into the"
+            + " run workspace, checking its SHA-256.",
         "Download",
         List.of(
             param("name", "Artifact name", "text", true, false,
-                "An artifact an earlier task in this run uploaded."),
+                "An artifact an earlier task in this run uploaded, or with scope workflow the"
+                    + " workflow's kept artifact of that name."),
             param("path", "Destination path", "text", true, false,
                 "Where to put it; an uploaded folder is unpacked here. Relative to /workspace"
                     + " (e.g. workflowrun/inputs/), or an absolute path."),
+            scopeParam(),
+            param("optional", "Optional", "boolean", false, false, "false", List.of(),
+                "Succeed with result found=false when no artifact of this name exists, instead of"
+                    + " failing."),
             param("url", "Download link", "password", false, true, FILLED_BY_FLOW),
             param("headers", "Download headers", "text", false, true, FILLED_BY_FLOW),
             param("sha256", "SHA-256", "text", false, true, FILLED_BY_FLOW),
-            param("contentType", "Content type", "text", false, true, FILLED_BY_FLOW)));
+            param("contentType", "Content type", "text", false, true, FILLED_BY_FLOW)),
+        List.of(
+            new Document("description", "true when an artifact was downloaded")
+                .append("name", "found")));
+  }
+
+  private static Document scopeParam() {
+    return param(
+        "scope",
+        "Scope",
+        "select",
+        false,
+        false,
+        "run",
+        List.of(option("run"), option("workflow")),
+        SCOPE_HELP);
+  }
+
+  private static Document option(String value) {
+    return new Document("key", value).append("value", value);
   }
 
   private void seed(
@@ -89,7 +122,8 @@ public class _0018__SeedArtifactTasks {
       String displayName,
       String description,
       String icon,
-      List<Document> params) {
+      List<Document> params,
+      List<Document> results) {
     Document existing =
         db.getCollection(names.resolve("tasks")).find(Filters.eq("name", name)).first();
     String taskId;
@@ -132,7 +166,7 @@ public class _0018__SeedArtifactTasks {
                     .append("command", new ArrayList<>())
                     .append("envs", null)
                     .append("image", "")
-                    .append("results", new ArrayList<>())
+                    .append("results", new ArrayList<>(results))
                     .append("script", null)
                     .append("workingDir", null))
             .append("parentRef", taskId);
@@ -162,13 +196,28 @@ public class _0018__SeedArtifactTasks {
 
   private static Document param(
       String name, String label, String type, boolean required, boolean readOnly, String help) {
-    return new Document("description", "")
-        .append("label", label)
-        .append("type", type)
+    return param(name, label, type, required, readOnly, "", null, help);
+  }
+
+  /** The seed catalogue's param shape; {@code options} only on a select. */
+  private static Document param(
+      String name,
+      String label,
+      String type,
+      boolean required,
+      boolean readOnly,
+      String defaultValue,
+      List<Document> options,
+      String help) {
+    Document param = new Document("description", "").append("label", label).append("type", type);
+    if (options != null && !options.isEmpty()) {
+      param.append("options", new ArrayList<>(options));
+    }
+    return param
         .append("required", required)
         .append("placeholder", "")
         .append("helpertext", help)
-        .append("defaultValue", "")
+        .append("defaultValue", defaultValue)
         .append("readOnly", readOnly)
         .append("name", name);
   }

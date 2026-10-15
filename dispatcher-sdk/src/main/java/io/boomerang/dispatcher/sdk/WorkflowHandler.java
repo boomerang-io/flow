@@ -3,7 +3,7 @@ package io.boomerang.dispatcher.sdk;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 
 /**
- * Prepares what a workflow run needs before its tasks run - the storage for the workspaces it
+ * Prepares what a workflow run needs before its tasks run - the storage for the workspace it
  * declares. A dispatcher that runs nothing on shared storage supplies none, and the SDK then never
  * polls the workflow queue.
  */

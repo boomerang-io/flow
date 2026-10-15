@@ -897,23 +897,22 @@ public class WorkflowRunService {
   /*
    * Queues the Workflow to be executed (and optionally starts the execution)
    *
-   * A run with Workspaces is never started directly here: the dispatcher must provision them
+   * A run with a workspace is never started directly here: the dispatcher must provision it
    * first, so the run stays ready/pending for its provisioning claim (findClaimableForProvision)
    * and the dispatcher starts it itself once provisioned (PUT .../workflowrun/{id}/start). Only a
-   * run with no Workspaces - nothing to provision - starts on this call.
+   * run with no workspace - nothing to provision - starts on this call.
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    boolean hasWorkspaces =
-        wfRunEntity.getWorkspaces() != null && !wfRunEntity.getWorkspaces().isEmpty();
-    if (start && hasWorkspaces) {
+    boolean hasWorkspace = wfRunEntity.getWorkspace() != null;
+    if (start && hasWorkspace) {
       LOGGER.info(
-          "[{}] Run has Workspaces - leaving ready/pending for the dispatcher to provision and start.",
+          "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
           wfRunEntity.getId());
     }
-    if (start && !hasWorkspaces) {
+    if (start && !hasWorkspace) {
       return this.start(wfRunEntity.getId(), Optional.empty());
     }
     // Retrieve the refreshed status
@@ -937,17 +936,11 @@ public class WorkflowRunService {
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
                 wfRunEntity.getParams(), optRunRequest.get().getParams()));
-        // Merge request workspaces by name so a run request cannot introduce a duplicate mount.
-        optRunRequest
-            .get()
-            .getWorkspaces()
-            .forEach(
-                ws -> {
-                  wfRunEntity
-                      .getWorkspaces()
-                      .removeIf(existing -> ws.getName().equals(existing.getName()));
-                  wfRunEntity.getWorkspaces().add(ws);
-                });
+        // A request carrying a workspace overrides the run's; the dispatcher's start sends none.
+        if (optRunRequest.get().getWorkspace() != null) {
+          optRunRequest.get().getWorkspace().settle();
+          wfRunEntity.setWorkspace(optRunRequest.get().getWorkspace());
+        }
         workflowRunRepository.save(wfRunEntity);
       }
       workflowExecutionService.start(workflowRunId);
@@ -1067,7 +1060,7 @@ public class WorkflowRunService {
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
         workflowService.assertRunQuotas(
-            ownerName, Optional.ofNullable(wfRunEntity.getWorkspaces()));
+            ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
         long ceiling = workflowService.maxWorkflowDuration(ownerName);
         if (ceiling > 0
             && (wfRunEntity.getTimeout() == null

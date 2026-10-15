@@ -11,15 +11,17 @@ import { queryStringOptions } from "Config/appConfig";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import type {
+  Artifact,
   CalendarEntry,
   ChangeLog,
+  PaginatedResponse,
   PaginatedSchedulesResponse,
   PaginatedTaskResponse,
   PaginatedWorkflowResponse,
   WorkflowCanvas,
 } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
-import type { EditorData, EditorRouteData, EditorScheduleData } from "./editorRouteData";
+import type { EditorData, EditorKeptArtifactsData, EditorRouteData, EditorScheduleData } from "./editorRouteData";
 
 /*
  * Server half of the workflow editor route (`/:workspace/editor/:workflow/*`,
@@ -44,6 +46,35 @@ const ACTIVE_TASKS_QUERY = queryString.stringify({ statuses: "active" });
  * AppPath.EditorSchedule in Config/appConfig.ts.
  */
 const SCHEDULE_TAB = "schedule";
+
+/*
+ * Same mechanism for the Configure > Artifacts panel (AppPath.EditorConfigureArtifacts): the
+ * workflow's kept artifacts are only read when that panel is the one being asked for.
+ */
+const CONFIGURE_ARTIFACTS_TAB = "configure/artifacts";
+
+/*
+ * The artifacts a workflow keeps between runs: scope `workflow`, available only (a kept
+ * artifact never expires, and an upload still in flight is never listed). One page of 100 - the
+ * panel is a short list of named files, not a paginated browse.
+ */
+async function loadKeptArtifacts(
+  request: Request,
+  { workspace, workflow }: { workspace: string; workflow: string },
+): Promise<EditorKeptArtifactsData> {
+  try {
+    const query = queryString.stringify(
+      { scope: "workflow", workflow, statuses: "available", limit: 100 },
+      queryStringOptions,
+    );
+    const response = await serverFetch(request).get<PaginatedResponse<Artifact>>(
+      serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace, query }),
+    );
+    return { artifacts: response.data?.content ?? [] };
+  } catch (error) {
+    return { artifacts: null };
+  }
+}
 
 /*
  * Settled, not rejecting: one failed read must not blank the others out. Each of the six core
@@ -201,6 +232,10 @@ export async function editorLoader({
       params["*"] === SCHEDULE_TAB
         ? await loadSchedule(request, { workspace, workflow: workflowData?.name ?? workflow })
         : null,
+    keptArtifacts:
+      params["*"] === CONFIGURE_ARTIFACTS_TAB
+        ? await loadKeptArtifacts(request, { workspace, workflow: workflowData?.name ?? workflow })
+        : null,
   };
 
   return { editor, ...tokenSectionResult };
@@ -209,8 +244,41 @@ export async function editorLoader({
 export type EditorActionResult =
   | { intent: "createRevision"; workflow: WorkflowCanvas }
   | ({ intent: "createRevision" } & ActionError)
+  | { intent: "deleteKeptArtifact"; name: string }
+  | ({ intent: "deleteKeptArtifact" } & ActionError)
   | TokenActionResult
   | ScheduleActionResult;
+
+/*
+ * Configure > Artifacts' delete. Keyed on the artifact `id` through the workspace-wide route
+ * (the same one Manage Workspace's Artifacts tab uses) - a kept artifact belongs to the
+ * workflow, not to the run that happened to upload it.
+ */
+async function deleteKeptArtifactAction({
+  params,
+  formData,
+  request,
+}: {
+  params: { workspace?: string };
+  formData: FormData;
+  request: Request;
+}) {
+  const name = String(formData.get("name") ?? "");
+  try {
+    await serverFetch(request).delete(
+      serviceUrl.workspace.artifact.deleteWorkspaceArtifact({
+        workspace: String(params.workspace ?? ""),
+        artifactId: String(formData.get("artifactId") ?? ""),
+      }),
+    );
+    return { intent: "deleteKeptArtifact" as const, name };
+  } catch (error) {
+    return actionError({
+      intent: "deleteKeptArtifact" as const,
+      error: formatErrorMessage({ error, defaultMessage: "Failed to delete this artifact" }),
+    });
+  }
+}
 
 /*
  * A route has exactly one action, and this one serves three independent groups of write sites
@@ -243,6 +311,10 @@ export async function editorAction({
 
   if ((SCHEDULE_INTENTS as readonly string[]).includes(intent)) {
     return scheduleAction({ params, request });
+  }
+
+  if (intent === "deleteKeptArtifact") {
+    return deleteKeptArtifactAction({ params, formData, request });
   }
 
   /*

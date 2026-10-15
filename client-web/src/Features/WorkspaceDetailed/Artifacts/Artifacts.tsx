@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, DataTable, InlineNotification, Pagination } from "@carbon/react";
+import { Button, DataTable, InlineNotification, Pagination, Select, SelectItem } from "@carbon/react";
+import { Archive, Time } from "@carbon/react/icons";
 import { ConfirmModal, ErrorMessage, notify, Toggle, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import moment from "moment";
@@ -12,7 +13,7 @@ import { actionError, isActionError, type ActionError } from "Utils/actionResult
 import { appLink, FeatureFlag, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { Artifact, ArtifactStatus, PaginatedResponse } from "Types";
+import { Artifact, ArtifactScope, ArtifactStatus, PaginatedResponse } from "Types";
 import queryString from "query-string";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Artifacts.module.scss";
@@ -30,6 +31,13 @@ const DEFAULT_LIMIT = 10;
 const PAGE_SIZES = [10, 20, 50, 100];
 const AVAILABLE_ONLY = "available";
 const AVAILABLE_AND_EXPIRED = "available,expired";
+// The Scope filter's "All" option: no `scope` on the URL, none sent to the API.
+const ALL_SCOPES = "";
+const SCOPE_OPTIONS = [
+  { value: ALL_SCOPES, text: "All" },
+  { value: ArtifactScope.Run, text: "Run" },
+  { value: ArtifactScope.Workflow, text: "Workflow" },
+];
 
 export type ArtifactsLoaderData = {
   artifacts: PaginatedResponse<Artifact> | null;
@@ -48,10 +56,12 @@ export async function loader({
     page = DEFAULT_PAGE,
     limit = DEFAULT_LIMIT,
     statuses = AVAILABLE_ONLY,
+    scope,
   } = queryString.parse(new URL(request.url).search, queryStringOptions);
 
   try {
-    const query = queryString.stringify({ page, limit, statuses }, queryStringOptions);
+    // `skipEmptyString` drops an absent/"All" scope, so the API only sees a real filter.
+    const query = queryString.stringify({ page, limit, statuses, scope }, queryStringOptions);
     const response = await serverFetch(request).get(
       serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace, query }),
     );
@@ -85,6 +95,7 @@ const HEADERS = [
   { header: "Name", key: "name" },
   { header: "Workflow", key: "workflowRef" },
   { header: "Run", key: "workflowRunRef" },
+  { header: "Scope", key: "scope" },
   { header: "Size", key: "size" },
   { header: "Expires", key: "expirationDate" },
   { header: "", key: "delete" },
@@ -98,7 +109,11 @@ function Artifacts() {
   const location = useLocation();
   const fetcher = useFetcher<ArtifactsActionResult>();
 
-  const { limit = DEFAULT_LIMIT, statuses = AVAILABLE_ONLY } = queryString.parse(location.search, queryStringOptions);
+  const {
+    limit = DEFAULT_LIMIT,
+    statuses = AVAILABLE_ONLY,
+    scope = ALL_SCOPES,
+  } = queryString.parse(location.search, queryStringOptions);
   const showExpired = statuses === AVAILABLE_AND_EXPIRED;
 
   React.useEffect(() => {
@@ -123,6 +138,10 @@ function Artifacts() {
 
   function handleToggleExpired(checked: boolean) {
     updateSearch({ statuses: checked ? AVAILABLE_AND_EXPIRED : AVAILABLE_ONLY, page: DEFAULT_PAGE });
+  }
+
+  function handleScopeChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    updateSearch({ scope: event.target.value, page: DEFAULT_PAGE });
   }
 
   function handlePaginationChange({ page, pageSize }: { page: number; pageSize: number }) {
@@ -179,9 +198,23 @@ function Artifacts() {
             value={storagePercentage}
             coverageBarStyle={{ height: "1rem", width: "20rem" }}
           />
+          <p className={styles.summaryText}>
+            Run artifacts expire on their retention date. Workflow artifacts are kept until replaced or deleted.
+          </p>
         </section>
       ) : null}
       <div className={styles.filtersContainer}>
+        <Select
+          id="artifacts-scope"
+          className={styles.scopeFilter}
+          labelText="Scope"
+          value={String(scope)}
+          onChange={handleScopeChange}
+        >
+          {SCOPE_OPTIONS.map((option) => (
+            <SelectItem key={option.value || "all"} value={option.value} text={option.text} />
+          ))}
+        </Select>
         <Toggle
           id="artifacts-show-expired"
           label="Show expired"
@@ -212,6 +245,7 @@ function Artifacts() {
                     {rows.map((row: any) => {
                       const artifact = artifacts.content.find((item) => item.id === row.id) as Artifact;
                       const isExpired = artifact.status === ArtifactStatus.Expired;
+                      const isKept = artifact.scope === ArtifactScope.Workflow;
                       return (
                         <TableRow key={row.id} className={isExpired ? styles.expiredRow : ""}>
                           <TableCell>
@@ -233,12 +267,26 @@ function Artifacts() {
                             </Link>
                           </TableCell>
                           <TableCell>
+                            <p className={styles.scope}>
+                              {isKept ? <Archive aria-hidden="true" /> : <Time aria-hidden="true" />}
+                              <span>{isKept ? "Workflow" : "Run"}</span>
+                            </p>
+                          </TableCell>
+                          <TableCell>
                             <p className={styles.tableTextarea}>{formatBytes(artifact.size)}</p>
                           </TableCell>
                           <TableCell>
                             <p className={styles.tableTextarea}>
-                              {isExpired ? "Expired " : "Expires "}
-                              {artifact.expirationDate ? moment(artifact.expirationDate).format("YYYY-MM-DD") : "---"}
+                              {isKept ? (
+                                "Kept until replaced"
+                              ) : (
+                                <>
+                                  {isExpired ? "Expired " : "Expires "}
+                                  {artifact.expirationDate
+                                    ? moment(artifact.expirationDate).format("YYYY-MM-DD")
+                                    : "---"}
+                                </>
+                              )}
                             </p>
                           </TableCell>
                           <TableCell>

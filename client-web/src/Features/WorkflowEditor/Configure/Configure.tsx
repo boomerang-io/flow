@@ -1,3 +1,4 @@
+import { quantityToGb } from "Utils/storageQuantity";
 import React from "react";
 import { Tag, MultiSelect, InlineNotification, Button, Dropdown } from "@carbon/react";
 import { Launch, Popup, TrashCan, Add } from "@carbon/react/icons";
@@ -19,13 +20,14 @@ import { Navigate, Route, Routes, useLocation, useParams } from "react-router-do
 import * as Yup from "yup";
 import TokenSection from "Components/TokenSection";
 import { useEditorContext, useWorkspaceContext } from "Hooks";
-import { TokenActorKind, TokenType, WorkspaceConfigType } from "Constants";
+import BasicSlider from "Components/Slider";
+import { TokenActorKind, TokenType } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
 import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
+import ConfigureArtifacts from "./ConfigureArtifacts";
 import ConfigureEventTrigger from "./ConfigureEventTrigger";
-import ConfigureStorage from "./ConfigureStorage";
 import CustomLabel from "./CustomLabel";
 import NavPanel from "./SideNav";
 import styles from "./configure.module.scss";
@@ -88,14 +90,6 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
     appLink.editorConfigure({ workspace: params.workspace, workflow: params.workflow }),
   );
 
-  // Find the specific workspace configs we want that are used for storage storage
-  const workflowStorageConfig = workflow.workspaces?.find(
-    (workspaceConfig) => workspaceConfig.type === WorkspaceConfigType.Workflow,
-  );
-  const workflowRunStorageConfig = workflow.workspaces?.find(
-    (workspaceConfig) => workspaceConfig.type === WorkspaceConfigType.WorflowRun,
-  );
-
   const workflows = workflowsQueryData.content;
   const existingWorkflowNames = workflows?.map((workflow) => workflow.name) ?? [];
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
@@ -111,17 +105,11 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
         onSubmit={() => void 0}
         initialValues={{
           description: workflow.description ?? "",
-          storage: {
-            workflow: {
-              enabled: Boolean(workflowStorageConfig),
-              size: workflowStorageConfig?.spec?.size ?? 1,
-              mountPath: workflowStorageConfig?.spec?.mountPath ?? "",
-            },
-            workflowrun: {
-              enabled: Boolean(workflowRunStorageConfig),
-              size: workflowRunStorageConfig?.spec?.size ?? 1,
-              mountPath: workflowRunStorageConfig?.spec?.mountPath ?? "",
-            },
+          // Absent on the workflow means no shared storage for its runs.
+          workspace: {
+            enabled: Boolean(workflow.workspace),
+            size: quantityToGb(workflow.workspace?.size),
+            mountPath: workflow.workspace?.mountPath ?? "",
           },
           icon: workflow.icon ?? "",
           name: workflow.name ?? "",
@@ -135,17 +123,21 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
         validationSchema={Yup.object().shape({
           description: Yup.string().max(250, "Description must not be greater than 250 characters"),
           enableACCIntegration: Yup.boolean(),
-          storage: Yup.object().shape({
-            activity: Yup.object().shape({
-              enabled: Yup.boolean().nullable(),
-              size: Yup.number().required("Enter the storage size"),
-              mountPath: Yup.string().nullable(),
+          workspace: Yup.object().shape({
+            enabled: Yup.boolean(),
+            size: Yup.number().when("enabled", {
+              is: true,
+              then: (schema) => {
+                const sized = schema.required("Enter the workspace size").min(1, "Size must be at least 1 GB");
+                return workspaceQuotasEnabled
+                  ? sized.max(
+                      workspace.quotas.maxWorkspaceStorage,
+                      `Size must not exceed quota of ${workspace.quotas.maxWorkspaceStorage} GB`,
+                    )
+                  : sized;
+              },
             }),
-            workflow: Yup.object().shape({
-              enabled: Yup.boolean().nullable(),
-              size: Yup.number().required("Enter the storage size"),
-              mountPath: Yup.string().nullable(),
-            }),
+            mountPath: Yup.string().nullable(),
           }),
           icon: Yup.string(),
           name: Yup.string()
@@ -756,128 +748,85 @@ function Configure(props: ConfigureProps) {
           }
         />
         <Route
-          path="configure/workspaces"
+          path="configure/workspace"
           element={
             <>
           <Section
-            title="Workspaces"
-            description="Declare storage options to be used at execution time. This will be
-                  limited by your workspaces Storage quotas which will error executions if you exceed the allowed maximum."
+            title="Workspace"
+            description="A shared filesystem every task in a run can read and write. It is created when the run starts and removed when the run completes. To keep files between runs, use Upload Artifact and Download Artifact with scope Workflow."
           >
+            {props.workflow.legacyWorkflowStorage ? (
+              <InlineNotification
+                lowContrast
+                kind="warning"
+                title="Workflow storage was removed in Flow 5"
+                subtitle="This workflow can't run until it is saved again. Keep files between runs with Upload Artifact and Download Artifact with scope Workflow."
+                style={{ marginBottom: "1rem" }}
+                hideCloseButton
+              />
+            ) : null}
             <div className={styles.storageToggle}>
               <div className={styles.toggleContainer}>
                 <Toggle
-                  id="enableWorkflowPersistentStorage"
-                  label="Enable Workflow Storage"
-                  toggled={values.storage?.workflow?.enabled}
-                  onToggle={(checked: boolean) => handleOnToggleChange(checked, "storage.workflow.enabled")}
-                  tooltipContent="Persist data across workflow runs (executions)"
-                  tooltipProps={{ direction: "top" }}
+                  id="workspace.enabled"
+                  data-testid="workspace.enabled"
+                  label="Shared workspace for each run"
+                  toggled={values.workspace.enabled}
+                  onToggle={(checked: boolean) => handleOnToggleChange(checked, "workspace.enabled")}
                   reversed
                 />
               </div>
-              {values.storage?.workflow?.enabled && (
-                <div className={styles.webhookContainer}>
-                  <ComposedModal
-                    modalHeaderProps={{
-                      title: "Configure Workspace - Workflow Storage",
-                      subtitle: (
-                        <>
-                          <p>
-                            The Workflow storage is persisted across workflow runs (executions) and allows you to share
-                            artifacts between workflows, such as maintaining a cache of files used every execution.
-                          </p>
-                          <p style={{ marginTop: "0.5rem" }}>
-                            Note: use with caution as this can lead to a collision if you are running many executions in
-                            parallel using the same artifact.
-                          </p>
-                        </>
-                      ),
-                    }}
-                    composedModalProps={
-                      {
-                        // containerClassName: styles.buildWebhookContainer,
-                        // shouldCloseOnOverlayClick: true,
-                      }
+              {values.workspace.enabled && (
+                <div className={styles.workspaceFields}>
+                  <BasicSlider
+                    id="workspace.size"
+                    data-testid="workspace.size"
+                    min={1}
+                    // With quotas off there is no ceiling; the slider still needs one.
+                    max={
+                      workspaceQuotasEnabled
+                        ? props.workspace.quotas.maxWorkspaceStorage
+                        : Math.max(values.workspace.size, 100)
                     }
-                    modalTrigger={({ openModal }) => (
-                      <button
-                        className={styles.regenerateText}
-                        style={{ marginBottom: "0.5rem" }}
-                        type="button"
-                        onClick={openModal}
-                      >
-                        <p>Configure</p>
-                      </button>
-                    )}
-                  >
-                    {({ closeModal }) => (
-                      <ConfigureStorage
-                        size={values.storage?.workflow?.size}
-                        mountPath={values.storage?.workflow?.mountPath}
-                        handleOnChange={(storageValues: any) => {
-                          setFieldValue("storage.workflow", storageValues);
-                        }}
-                        closeModal={closeModal}
-                        quota={workspaceQuotasEnabled ? props.workspace.quotas.maxWorkflowStorage : undefined}
-                      />
-                    )}
-                  </ComposedModal>
+                    inputType="text"
+                    labelText="Size"
+                    helperText={
+                      workspaceQuotasEnabled
+                        ? `Size in gigabytes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkspaceStorage} GB.`
+                        : "Size in gigabytes"
+                    }
+                    sliderValue={values.workspace.size}
+                    onChange={(value: number) => setFieldValue("workspace.size", value)}
+                  />
+                  {errors.workspace?.size ? <p className={styles.fieldError}>{errors.workspace.size}</p> : null}
+                  <TextInput
+                    id="workspace.mountPath"
+                    data-testid="workspace.mountPath"
+                    label="Mount path"
+                    helperText="Where every task sees the workspace"
+                    placeholder="/workspace"
+                    value={values.workspace.mountPath}
+                    onBlur={handleBlur}
+                    onChange={(e) => props.formikProps.handleChange(e)}
+                    invalid={Boolean(errors.workspace?.mountPath && touched.workspace?.mountPath)}
+                    invalidText={errors.workspace?.mountPath}
+                  />
                 </div>
               )}
             </div>
-            <div className={styles.storageToggle}>
-              <div className={styles.toggleContainer}>
-                <Toggle
-                  id="enableRunPersistentStorage"
-                  label="Enable Run Storage"
-                  toggled={values.storage?.workflowrun?.enabled}
-                  onToggle={(checked: boolean) => handleOnToggleChange(checked, "storage.workflowrun.enabled")}
-                  tooltipContent="Persist workflow data per executions"
-                  tooltipProps={{ direction: "top" }}
-                  reversed
-                />
-              </div>
-              {values.storage?.workflowrun?.enabled && (
-                <div className={styles.webhookContainer}>
-                  <ComposedModal
-                    modalHeaderProps={{
-                      title: "Configure Workflow - Run Storage",
-                      subtitle: (
-                        <>
-                          <p>
-                            The Run storage is persisted per workflow execution and allows you to share short-lived
-                            artifacts between tasks in the workflow.
-                          </p>
-                          <p style={{ marginTop: "0.5rem" }}>
-                            Note: All artifacts will be deleted at the end of the workflow execution. If you want to
-                            persist long term use alternative Workspaces.
-                          </p>
-                        </>
-                      ),
-                    }}
-                    modalTrigger={({ openModal }) => (
-                      <button className={styles.regenerateText} type="button" onClick={openModal}>
-                        <p>Configure</p>
-                      </button>
-                    )}
-                  >
-                    {({ closeModal }) => (
-                      <ConfigureStorage
-                        size={values.storage.workflowrun.size}
-                        mountPath={values.storage.workflowrun.mountPath}
-                        handleOnChange={(storageValues: any) => {
-                          setFieldValue("storage.activity", storageValues);
-                        }}
-                        closeModal={closeModal}
-                        quota={workspaceQuotasEnabled ? props.workspace.quotas.maxWorkflowRunStorage : undefined}
-                        isActivity
-                      />
-                    )}
-                  </ComposedModal>
-                </div>
-              )}
-            </div>
+          </Section>
+            </>
+          }
+        />
+        <Route
+          path="configure/artifacts"
+          element={
+            <>
+          <Section
+            title="Artifacts"
+            description="Files this workflow keeps between runs. An Upload Artifact task with scope Workflow writes one; a Download Artifact task with scope Workflow reads it in a later run. Each name keeps its newest verified upload until it is replaced or deleted."
+          >
+            <ConfigureArtifacts workspace={routeParams.workspace ?? ""} />
           </Section>
             </>
           }
