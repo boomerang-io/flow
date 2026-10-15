@@ -28,7 +28,8 @@ import java.util.List;
  * "classes can be authored more robustly if they know the SecurityContextHolder always contains an
  * Authentication object, and never null" - explicitly citing auditing interceptors. Kubernetes does
  * the same, assigning {@code system:anonymous} / {@code system:unauthenticated} to unauthenticated
- * callers. Engine mode is a machine caller with no user; this token is exactly that caller.
+ * callers. An instance running with security off has no user at all - every request is this
+ * synthetic admin - and this token is exactly that caller.
  *
  * <p><b>Shape.</b> A plain {@link Token} subclass, not a parallel type hierarchy - every existing
  * consumer ({@code check}/{@code filter}/audit actor resolution/{@code resolveGrantCeiling}) keeps
