@@ -33,5 +33,8 @@ group-0 permissions are set with `COPY --chown --chmod` rather than a `RUN chmod
   (`charts/bmrg-flow/templates/deployment-service.yaml:86`) relied on a shell and `keytool`, and neither
   exists in the image. The v5 chart must do it the mounted way.
 - `kubectl exec` into a running container gets no shell; debugging is logs and an ephemeral debug container.
+- A container healthcheck has no `wget` to call: the compose stack runs a compiled probe class with the
+  image's own `java` (`docker/health/Health.java`, copied beside the jar). Kubernetes probes are HTTP from the
+  kubelet and need nothing in the image.
 - Revisit when Canonical publishes a `25-26.04` stable channel (drop `_edge`), or if `pebble` findings start to
   carry weight with a customer's scanner, in which case a `COPY --from` of the rootfs without it is the fix.

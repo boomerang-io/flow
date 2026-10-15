@@ -21,6 +21,10 @@ COPY service-dispatcher/src service-dispatcher/src
 RUN --mount=type=cache,target=/root/.m2 \
     mvn --batch-mode --no-transfer-progress --projects service-dispatcher --also-make package -Dmaven.test.skip=true
 
+# The container health probe (docker/health/Health.java), as in service-core/Dockerfile.
+COPY docker/health/Health.java docker/health/
+RUN javac -d /build/health docker/health/Health.java
+
 # Ubuntu's chiseled JRE, pinned by digest - see service-core/Dockerfile for why and how to refresh.
 FROM ubuntu/jre:25-26.04_edge@sha256:c462b20df5b43f5dc6e3496da092623d4113cd07edca484abb5ad5679b78499d
 ENV BMRG_HOME=/opt/boomerang
@@ -29,6 +33,7 @@ WORKDIR $BMRG_HOME
 # OpenShift runs the container as an arbitrary UID in group 0: group 0 owns the files and can
 # read and execute them. Set at copy time, since the runtime image has no shell for a RUN.
 COPY --from=build --chown=10001:0 --chmod=0664 /build/service-dispatcher/target/service-dispatcher.jar service.jar
+COPY --from=build --chown=10001:0 --chmod=0664 /build/health/Health.class Health.class
 USER 10001
 
 EXPOSE 7702

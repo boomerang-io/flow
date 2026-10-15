@@ -25,6 +25,11 @@ COPY service-core/src service-core/src
 RUN --mount=type=cache,target=/root/.m2 \
     mvn --batch-mode --no-transfer-progress --projects service-core --also-make package -Dmaven.test.skip=true
 
+# The container health probe (docker/health/Health.java): the runtime image has no shell, curl
+# or wget, so the compose healthcheck runs this class with the image's own java.
+COPY docker/health/Health.java docker/health/
+RUN javac -d /build/health docker/health/Health.java
+
 # Ubuntu's chiseled JRE: the Java 25 runtime, glibc and CA certificates, no shell, no package
 # manager, no coreutils - so no OpenSSL, busybox or coreutils advisories either. Patched from
 # Canonical's Ubuntu security stream. `25-26.04_edge` is the only Java 25 channel so far; the tag
@@ -38,6 +43,7 @@ WORKDIR $BMRG_HOME
 # OpenShift runs the container as an arbitrary UID in group 0: group 0 owns the files and can
 # read and execute them. Set at copy time, since the runtime image has no shell for a RUN.
 COPY --from=build --chown=10001:0 --chmod=0664 /build/service-core/target/service-core.jar service.jar
+COPY --from=build --chown=10001:0 --chmod=0664 /build/health/Health.class Health.class
 USER 10001
 
 EXPOSE 7700
