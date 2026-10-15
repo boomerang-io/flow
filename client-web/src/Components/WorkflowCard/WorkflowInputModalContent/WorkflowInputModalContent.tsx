@@ -3,6 +3,7 @@ import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/reac
 import { DynamicFormik, ModalFlowForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import { InputProperty, InputType, PASSWORD_CONSTANT } from "Constants";
 import { DataDrivenInput } from "Types";
+import { toDynamicInputs } from "Utils/paramsHelper";
 import styles from "./workflowInputModalContent.module.scss";
 
 interface WorkflowInputModalContentProps {
@@ -45,7 +46,7 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
     <DynamicFormik
       allowCustomPropertySyntax
       validateOnMount
-      inputs={secureInputs}
+      inputs={toDynamicInputs(secureInputs)}
       toggleProps={() => ({
         orientation: "vertical",
       })}

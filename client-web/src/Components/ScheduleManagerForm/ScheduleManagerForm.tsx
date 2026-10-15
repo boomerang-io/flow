@@ -39,6 +39,7 @@ import {
   weeklyCron,
 } from "Utils/cronHelper";
 import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
+import { toDynamicInputs } from "Utils/paramsHelper";
 import { validateCronExpression } from "Config/resourceRoutes";
 import { DataDrivenInput, DayOfWeekKey, ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
 import TimeField from "./TimeField";
@@ -77,7 +78,7 @@ const TIME_PATTERN = /^\d{2}:\d{2}$/;
 const needsTime = (frequency: ScheduleFrequency) => ["daily", "weekdays", "weekly"].includes(frequency);
 
 // Required parameters first, each labelled by its Label or else its name, with the description as helper text.
-function toScheduleInputs(params: Workflow["params"]): Array<DataDrivenInput> {
+function toScheduleInputs(params: Workflow["params"]): Array<DataDrivenInput & { key: string }> {
   return [...(params ?? [])]
     .sort((a, b) => Number(Boolean(b.required)) - Number(Boolean(a.required)))
     .map((param) => ({
@@ -92,7 +93,7 @@ function toScheduleInputs(params: Workflow["params"]): Array<DataDrivenInput> {
 
 export default function CreateEditForm(props: CreateEditFormProps) {
   const { workspace } = useWorkspaceContext();
-  const [workflowParams, setWorkflowParams] = React.useState<Array<DataDrivenInput>>(
+  const [workflowParams, setWorkflowParams] = React.useState<Array<DataDrivenInput & { key: string }>>(
     toScheduleInputs(props.workflow?.params),
   );
 
@@ -165,7 +166,7 @@ export default function CreateEditForm(props: CreateEditFormProps) {
       enableReinitialize
       validateOnMount
       initialValues={initFormValues}
-      inputs={workflowParams}
+      inputs={toDynamicInputs(workflowParams)}
       onSubmit={({ frequency, minute, ...values }: ScheduleManagerFormInputs) => {
         const stored = frequencyToSchedule(frequency, {
           days: values.days,

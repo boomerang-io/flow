@@ -6,6 +6,7 @@ import { FormikProps } from "formik";
 import { useAppContext } from "Hooks";
 import { UserRole } from "Constants";
 import { DataDrivenInput } from "Types";
+import { toDynamicInputs } from "Utils/paramsHelper";
 import { SettingsGroup } from "../Settings";
 import styles from "./settingsSection.module.scss";
 
@@ -29,7 +30,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, settingsGroup
 
   // Formik reads dotted keys as nested paths; the inputs carry the raw key as a test id so a
   // test (and the end-to-end journey) can find a field without depending on its label.
-  const formattedInputs = settingsGroup.config.map((input: DataDrivenInput) => ({
+  const formattedInputs = settingsGroup.config.map((input) => ({
     ...input,
     "data-testid": input.key,
   }));
@@ -44,7 +45,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, settingsGroup
       </header>
       <DynamicFormik
         enableReinitialize
-        inputs={formattedInputs}
+        inputs={toDynamicInputs(formattedInputs)}
         onSubmit={(values: {}, props: FormikProps<any>) => onSave(values, settingsGroup, props.setFieldError)}
         initialErrors={{ initialerror: "required" }}
         toggleProps={({ input }: { input: DataDrivenInput }) => {

@@ -246,6 +246,12 @@ function Selects(props: SelectsProps) {
     : typeof toDate === "string"
     ? Number.parseInt(toDate)
     : defaultToDate();
+  // The range lives on DatePicker, which hands it to flatpickr and re-applies it whenever the
+  // array's identity changes - memoised on the day strings (the defaults move every millisecond)
+  // so a re-render mid-selection does not reset the range.
+  const startDate = moment(selectedFromDate).format("MM/DD/YYYY");
+  const endDate = moment(selectedToDate).format("MM/DD/YYYY");
+  const selectedDateRange = React.useMemo(() => [startDate, endDate], [startDate, endDate]);
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {
     const workflowRefs = selectedItems.length > 0 ? selectedItems.map((worflow) => worflow.name) : undefined;
@@ -337,19 +343,14 @@ function Selects(props: SelectsProps) {
             toggled={props.compare}
           />
         </div>
-        <DatePicker id="insights-date-picker" datePickerType="range" maxDate={defaultMaxDate()} onChange={handleSelectDate}>
-          <DatePickerInput
-            autoComplete="off"
-            id="insights-date-picker-start"
-            labelText="Start date"
-            value={moment(selectedFromDate).format("MM/DD/YYYY")}
-          />
-          <DatePickerInput
-            autoComplete="off"
-            id="insights-date-picker-end"
-            labelText="End date"
-            value={moment(selectedToDate).format("MM/DD/YYYY")}
-          />
+        <DatePicker
+          datePickerType="range"
+          maxDate={defaultMaxDate()}
+          onChange={handleSelectDate}
+          value={selectedDateRange}
+        >
+          <DatePickerInput autoComplete="off" id="insights-date-picker-start" labelText="Start date" />
+          <DatePickerInput autoComplete="off" id="insights-date-picker-end" labelText="End date" />
         </DatePicker>
       </div>
     </div>
