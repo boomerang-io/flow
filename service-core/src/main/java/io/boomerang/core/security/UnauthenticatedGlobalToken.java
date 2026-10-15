@@ -12,8 +12,8 @@ import java.util.List;
 
 /**
  * The synthetic identity installed on the {@code SecurityContext} when {@code
- * flow.security.enabled=false} (the documented local-dev/E2E posture, and the default for {@code
- * flow.mode=engine}).
+ * flow.security.enabled=false} (the documented local-dev/E2E posture, and what an embedding
+ * product sets).
  *
  * <p><b>Why this exists.</b> Before this type, nothing populated the {@code SecurityContext} with
  * security off - {@code AuthenticationFilter} is {@code @ConditionalOnProperty} on that flag and
@@ -28,7 +28,8 @@ import java.util.List;
  * "classes can be authored more robustly if they know the SecurityContextHolder always contains an
  * Authentication object, and never null" - explicitly citing auditing interceptors. Kubernetes does
  * the same, assigning {@code system:anonymous} / {@code system:unauthenticated} to unauthenticated
- * callers. Engine mode is a machine caller with no user; this token is exactly that caller.
+ * callers. An instance running with security off has no user at all - every request is this
+ * synthetic admin - and this token is exactly that caller.
  *
  * <p><b>Shape.</b> A plain {@link Token} subclass, not a parallel type hierarchy - every existing
  * consumer ({@code check}/{@code filter}/audit actor resolution/{@code resolveGrantCeiling}) keeps

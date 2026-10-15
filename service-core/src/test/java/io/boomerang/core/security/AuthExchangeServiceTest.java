@@ -216,7 +216,7 @@ class AuthExchangeServiceTest {
 
   @Test
   void configWithATrustedIssuerAndClientIdIsModeOidc() {
-    // No flow.security.enabled / flow.mode set: standalone default = security enabled.
+    // No flow.security.enabled set: the default is security enabled.
     when(oidcTokenVerifier.configuredIssuer()).thenReturn("https://idp.example.test");
     when(oidcTokenVerifier.configuredClientId()).thenReturn("flow-web");
 

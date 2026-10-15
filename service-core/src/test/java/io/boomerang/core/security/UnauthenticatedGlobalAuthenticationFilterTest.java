@@ -1,7 +1,6 @@
 package io.boomerang.core.security;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +13,6 @@ import io.boomerang.core.security.enums.TokenActorKind;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -125,24 +123,5 @@ class UnauthenticatedGlobalAuthenticationFilterTest {
     assertNotNull(actor);
     assertEquals("system", actor.id());
     assertEquals("system", actor.type());
-  }
-
-  @Test
-  @DisplayName(
-      "Engine mode is the machine-caller case this token represents: security defaults off, so"
-          + " this filter is the one that establishes its identity")
-  void engineModeDefaultsToSecurityDisabled() {
-    assertFalse(
-        FlowSecurityProperties.isSecurityEnabled(
-            new MockEnvironment().withProperty("flow.mode", "engine")));
-    assertTrue(
-        FlowSecurityProperties.isSecurityEnabled(
-            new MockEnvironment().withProperty("flow.mode", "standalone")));
-    // An explicit setting still wins over the flow.mode-derived default.
-    assertFalse(
-        FlowSecurityProperties.isSecurityEnabled(
-            new MockEnvironment()
-                .withProperty("flow.mode", "standalone")
-                .withProperty("flow.security.enabled", "false")));
   }
 }

@@ -2,8 +2,6 @@ package io.boomerang.workspace;
 
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.UserService;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
@@ -32,7 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v2/user")
 @Tag(name = "Users", description = "List, Create, update and delete Users.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class UserWorkspaceControllerV2 {
 
   @Autowired private UserService userService;

@@ -84,10 +84,10 @@ public class ContextService {
   }
 
   /*
-   * users.base.url is blank in standalone, which composes flow.externalUrl.platformNavigation to
-   * the host-less "/users/navigation" - so "configured" means a real absolute URL, not a leftover
-   * path fragment. Calling the fragment threw "Target host is not specified" and 500'd
-   * /api/v2/context for every standalone request that resolved a user.
+   * users.base.url is blank on an install with no external user platform, which composes
+   * flow.externalUrl.platformNavigation to the host-less "/users/navigation" - so "configured"
+   * means a real absolute URL, not a leftover path fragment. Calling the fragment threw "Target
+   * host is not specified" and 500'd /api/v2/context for every request that resolved a user.
    */
   private boolean hasExternalPlatformNavigation() {
     return platformNavigationUrl != null && platformNavigationUrl.matches("^https?://.+");

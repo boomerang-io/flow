@@ -25,7 +25,7 @@ import org.springframework.test.context.TestPropertySource;
  * does labels: an update that only carries the definition must not switch the schedule trigger off
  * and disable the workflow's schedules.
  */
-@TestPropertySource(properties = "flow.mode=engine")
+@TestPropertySource(properties = {"flow.workspace.single=true", "flow.security.enabled=false"})
 class WorkflowApplyTriggersTest extends AbstractEngineIntegrationTest {
 
   private static final String SYSTEM_WORKSPACE = "system";

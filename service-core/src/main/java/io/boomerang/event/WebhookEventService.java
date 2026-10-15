@@ -56,17 +56,15 @@ public class WebhookEventService {
 
   private final WorkflowService workflowService;
   private final WorkflowRunService workflowRunService;
-  // H6: IntegrationService/GitHubService only exist in flow.mode=standalone (io.boomerang.integrations
-  // is mode-gated) - Optional so this service still constructs in engine mode.
-  private final Optional<IntegrationService> integrationService;
-  private final Optional<GitHubService> gitHubService;
+  private final IntegrationService integrationService;
+  private final GitHubService gitHubService;
   private final RelationshipService relationshipService;
 
   public WebhookEventService(
       WorkflowService workflowService,
       WorkflowRunService workflowRunService,
-      Optional<IntegrationService> integrationService,
-      Optional<GitHubService> gitHubService,
+      IntegrationService integrationService,
+      GitHubService gitHubService,
       RelationshipService relationshipService) {
     this.workflowService = workflowService;
     this.workflowRunService = workflowRunService;
@@ -142,28 +140,21 @@ public class WebhookEventService {
   */
   public ResponseEntity<?> processGitHubWebhook(
       String eventType, Optional<String> signature, String rawBody, JsonNode payload) {
-    if (integrationService.isEmpty()) {
-      LOGGER.warn(
-          "GitHub webhook received but integrations are not active in this flow.mode - ignoring.");
-      return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
-    }
-    IntegrationService integrations = integrationService.get();
     LOGGER.debug("GitHub webhook received - {}: {}", eventType, payload.toString());
     switch (eventType) {
       case "installation" -> {
         // The installation webhook manages the link itself (create/delete) - unlike ordinary
         // trigger events, an unsigned or forged payload here could unlink another workspace's
         // integration, so it must always carry a valid signature.
-        if (gitHubService.isEmpty()
-            || !gitHubService.get().verifyWebhookSignature(signature.orElse(null), rawBody)) {
+        if (!gitHubService.verifyWebhookSignature(signature.orElse(null), rawBody)) {
           LOGGER.warn("GitHub installation webhook rejected - missing or invalid signature.");
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (payload.get("action") != null) {
           if ("created".equals(payload.get("action").asText())) {
-            integrations.create("github_app", payload.get("installation"));
+            integrationService.create("github_app", payload.get("installation"));
           } else if ("deleted".equals(payload.get("action").asText())) {
-            integrations.delete("github_app", payload.get("installation"));
+            integrationService.delete("github_app", payload.get("installation"));
           }
           return ResponseEntity.ok().build();
         }
@@ -172,7 +163,7 @@ public class WebhookEventService {
         // Events that come in will have installation.id and if related to a repo, a repository.name
         LOGGER.debug("Installation ID: " + payload.get("installation").get("id"));
         String teamRef =
-            integrations.getTeamByRef(payload.get("installation").get("id").asText());
+            integrationService.getTeamByRef(payload.get("installation").get("id").asText());
         if (!Objects.isNull(teamRef) && !teamRef.isBlank()) {
           WorkflowSubmitRequest request = new WorkflowSubmitRequest();
           request.setTrigger(TriggerEnum.github);

@@ -7,9 +7,10 @@ decide *what* that token may touch. One property switches both gates. Paths belo
 
 ## The switch: `flow.security.enabled`
 
-One property gates both halves, and its default follows the run mode. `FlowSecurityProperties.isSecurityEnabled`
-returns the property when it is set, otherwise `true` for `flow.mode=standalone` and `false` for `engine`
-(`core/security/FlowSecurityProperties.java:23-28`). Two mutually exclusive configurations key off it:
+One property gates both halves, and its default is `true`. `FlowSecurityProperties.isSecurityEnabled` returns
+the property, `true` when it is unset (`core/security/FlowSecurityProperties.java:19-20`); an embedded engine
+sets it to `false` explicitly, together with `flow.workspace.single=true` (`architecture.md`, "Deployment
+shape"). Two mutually exclusive configurations key off it:
 
 | Security | Filter chain | Identity on every request | Authorization |
 | --- | --- | --- | --- |
@@ -59,7 +60,7 @@ exchange endpoint and `/api/v2/extensions/slack/install`, a path no controller s
 
 ### Session sign-in (the browser flow)
 
-`InternalAuthControllerV1` (`core/InternalAuthControllerV1.java`, standalone mode only, `:47`) exposes three
+`InternalAuthControllerV1` (`core/InternalAuthControllerV1.java`) exposes three
 endpoints. They sit under `/internal/v1`, outside the public `/api/v2`, because only the webapp's server calls
 them: a front door that routes `/api/**` to `service-core` does not reach them. The prefix is a routing
 boundary, not a credential, so a caller that reaches `service-core` directly reaches them as before.
@@ -189,8 +190,10 @@ list matching its Layer 1 privilege exactly (`core/security/UnauthenticatedGloba
 ever written to MongoDB, and the user cannot be activated by an identity-provider email match. Audit records
 carry `actor.principal=system`.
 
-In `engine` mode `EngineWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}/**` request whose
-segment is not `system` (`core/security/EngineWorkspaceInterceptor.java:37-44`, `EngineWorkspaceInterceptorConfiguration.java:15-22`).
+With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}`
+or `/api/v2/workspace/{workspace}/**` request whose segment is not `system` (`core/security/SingleWorkspaceInterceptor.java:32-44`,
+`SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create`/`delete` refuse
+(`workspace/WorkspaceService.java:189,355`).
 
 ## Dispatcher endpoints
 

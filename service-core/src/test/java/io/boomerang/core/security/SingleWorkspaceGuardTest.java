@@ -1,13 +1,18 @@
 package io.boomerang.core.security;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.WorkspaceRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,17 +26,16 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * Behavioural guard: in engine mode, {@link EngineWorkspaceInterceptor} must reject any
- * workspace-scoped request whose {@code {workspace}} path variable is not {@code system}, while
- * letting {@code system} straight through to the real controller/service. The deprecated
- * {@code /api/v2/team/{team}} alias is gone, so only {@code /api/v2/workspace/} remains to test.
+ * Behavioural guard for {@code flow.workspace.single=true}: {@link SingleWorkspaceInterceptor}
+ * rejects any workspace-scoped request whose {@code {workspace}} path variable is not {@code
+ * system} while letting {@code system} straight through to the real controller/service, and
+ * {@link WorkspaceService} refuses to create or delete a workspace.
  *
  * <p>MockMvc is built from the real {@link WebApplicationContext} (same established pattern as
  * {@code DispatcherAuthTest}) so the request genuinely traverses Spring MVC's
  * HandlerMapping/HandlerInterceptor chain - the only way to prove the interceptor is actually
- * registered with the right path patterns in engine mode and reads {@code
- * URI_TEMPLATE_VARIABLES_ATTRIBUTE} at the right point, rather than just that its {@code
- * preHandle} logic is correct in isolation.
+ * registered with the right path patterns and reads {@code URI_TEMPLATE_VARIABLES_ATTRIBUTE} at the
+ * right point, rather than just that its {@code preHandle} logic is correct in isolation.
  *
  * <p>The "pass" cases target a lookup for a workflow that doesn't exist: that reaches
  * {@code WorkflowService.get}, which throws {@code WORKFLOW_INVALID_REF} - proving the
@@ -41,18 +45,18 @@ import org.springframework.web.context.WebApplicationContext;
  * body is asserted with a plain substring match on the {@code reason} value so the assertion holds
  * regardless of which message converter content negotiation happens to select.
  *
- * <p>Security is disabled by default in engine mode (see {@code FlowSecurityProperties}), so no
- * auth filter setup is needed to reach the interceptor - but the underlying service still reads
- * the current principal off the SecurityContext ({@code RelationshipService.filter}) regardless of
- * whether authentication is enforced, so a minimal {@code global}-scope identity is seeded for the
- * pass-through requests.
+ * <p>Security is off, so no auth filter setup is needed to reach the interceptor - but the
+ * underlying service still reads the current principal off the SecurityContext ({@code
+ * RelationshipService.filter}) regardless of whether authentication is enforced, so a minimal
+ * {@code global}-scope identity is seeded for the pass-through requests.
  */
-@TestPropertySource(properties = "flow.mode=engine")
-class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
+@TestPropertySource(properties = {"flow.workspace.single=true", "flow.security.enabled=false"})
+class SingleWorkspaceGuardTest extends AbstractEngineIntegrationTest {
 
   private static final String MISSING_WORKFLOW = "does-not-exist-xyz";
 
   @Autowired private WebApplicationContext context;
+  @Autowired private WorkspaceService workspaceService;
 
   private MockMvc mockMvc;
 
@@ -68,7 +72,7 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
 
   private void seedGlobalIdentity() {
     Token token = new Token(AuthScope.global);
-    token.setPrincipal("engine-workspace-interceptor-test");
+    token.setPrincipal("single-workspace-guard-test");
     Authentication authentication =
         new UsernamePasswordAuthenticationToken(token.getPrincipal(), null);
     ((UsernamePasswordAuthenticationToken) authentication).setDetails(token);
@@ -90,5 +94,25 @@ class EngineWorkspaceInterceptorTest extends AbstractEngineIntegrationTest {
         .perform(get("/api/v2/workspace/not-system/workflow/" + MISSING_WORKFLOW))
         .andExpect(status().isNotFound())
         .andExpect(content().string(containsString("TEAM_INVALID_REF")));
+  }
+
+  @Test
+  void creatingAWorkspaceIsRefused() {
+    WorkspaceRequest request = new WorkspaceRequest();
+    request.setName("single-guard-create");
+    request.setDisplayName("single-guard-create");
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> workspaceService.create(request));
+
+    assertEquals("TEAM_INVALID_REQ", ex.getReason());
+  }
+
+  @Test
+  void deletingAWorkspaceIsRefused() {
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> workspaceService.delete("system"));
+
+    assertEquals("TEAM_INVALID_REQ", ex.getReason());
   }
 }

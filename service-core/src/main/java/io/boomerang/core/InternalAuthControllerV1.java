@@ -1,7 +1,5 @@
 package io.boomerang.core;
 
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.model.AuthConfig;
 import io.boomerang.core.model.AuthExchangeRequest;
@@ -44,7 +42,6 @@ import org.springframework.web.bind.annotation.RestController;
     description =
         "Unified token exchange - proxy-forwarded identity or a direct OIDC login both converge on"
             + " the same session cookie.")
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class InternalAuthControllerV1 {
 
   @Autowired private AuthExchangeService authExchangeService;

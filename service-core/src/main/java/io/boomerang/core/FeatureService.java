@@ -1,19 +1,19 @@
 package io.boomerang.core;
 
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.model.Features;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.security.FlowSecurityProperties;
+import io.boomerang.core.security.FlowWorkspaceProperties;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 /*
- * The flags the webapp renders from. A flag is on only when its setting is on AND the surface
- * behind it is loaded in this mode, so the webapp never needs to know which mode it runs against:
- * engine mode serves one workspace and no workspace management, quotas, users, insights, schedules,
- * integrations or sign-in surface, and its flags say exactly that.
+ * The flags the webapp renders from. A flag is on only when its setting is on AND the deployment
+ * shape (flow.security.enabled, flow.workspace.single) leaves a surface behind it, so the webapp
+ * never reads a property: a single-workspace instance has one workspace and no workspace or user
+ * management, and a security-off instance has no sign-in surface and nothing for a token to do.
  */
 @Service
 public class FeatureService {
@@ -31,7 +31,8 @@ public class FeatureService {
   public Features get() {
     Features flowFeatures = new Features();
     Map<String, Object> features = new HashMap<>();
-    boolean standalone = FlowMode.resolve(environment) == FlowMode.STANDALONE;
+    boolean single = FlowWorkspaceProperties.isSingle(environment);
+    boolean security = FlowSecurityProperties.isSecurityEnabled(environment);
 
     SettingConfig config = settingsService.getSettingConfig("task", "edit.verified");
 
@@ -42,14 +43,12 @@ public class FeatureService {
     }
     features.put(
         "workspace.quotas",
-        standalone
-            && settingsService.getSettingConfig("features", "workspaceQuotas").getBooleanValue());
+        settingsService.getSettingConfig("features", "workspaceQuotas").getBooleanValue());
     features.put(
         "workflow.triggers",
         settingsService.getSettingConfig("features", "workflowTriggers").getBooleanValue());
     // Tokens authenticate API callers; with security off every request runs as the synthetic admin,
     // so there is nothing for a token to do and the token pages and workflow tokens are hidden.
-    boolean security = FlowSecurityProperties.isSecurityEnabled(environment);
     features.put("tokens", security);
     features.put(
         "workflow.tokens",
@@ -63,11 +62,11 @@ public class FeatureService {
         settingsService.getSettingConfig("features", "globalParameters").getBooleanValue());
     features.put(
         "workspace.management",
-        standalone
+        !single
             && settingsService.getSettingConfig("features", "workspaceManagement").getBooleanValue());
     features.put(
         "user.management",
-        standalone
+        !single
             && settingsService.getSettingConfig("features", "userManagement").getBooleanValue());
     features.put(
         "activity", settingsService.getSettingConfig("features", "activity").getBooleanValue());
@@ -76,12 +75,11 @@ public class FeatureService {
     features.put(
         "workspace.tasks",
         settingsService.getSettingConfig("features", "workspaceTasks").getBooleanValue());
-    features.put("workspace.single", !standalone);
+    features.put("workspace.single", single);
     features.put("schedules", true);
-    features.put("integrations", standalone);
-    // The sign-in surface (GET /internal/v1/auth/config and the session exchange) exists only here.
-    features.put(
-        "authentication", standalone && security);
+    features.put("integrations", true);
+    // The sign-in surface (GET /internal/v1/auth/config and the session exchange) needs security on.
+    features.put("authentication", security);
 
     flowFeatures.setFeatures(features);
     return flowFeatures;

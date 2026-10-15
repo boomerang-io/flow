@@ -12,9 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
 /**
- * A flag is on only when its setting is on and the surface behind it is loaded, so the webapp
- * renders engine mode from the flags alone: one workspace, and no workspace management, quotas,
- * users, insights, schedules, integrations or sign-in.
+ * A flag is on only when its setting is on and the deployment shape leaves a surface behind it,
+ * so the webapp renders an embedded engine from the flags alone: one workspace, no workspace or
+ * user management, and no sign-in.
  */
 class FeatureServiceTest {
 
@@ -33,7 +33,7 @@ class FeatureServiceTest {
   }
 
   @Test
-  void standaloneFollowsTheSettings() {
+  void theDefaultsFollowTheSettings() {
     Map<String, Object> features = features(new MockEnvironment());
 
     assertThat(features)
@@ -50,11 +50,10 @@ class FeatureServiceTest {
   }
 
   @Test
-  void standaloneWithSecurityOffHasNoSignIn() {
+  void securityOffHasNoSignInAndNothingForATokenToDo() {
     Map<String, Object> features =
         features(new MockEnvironment().withProperty("flow.security.enabled", "false"));
 
-    // Every request runs as the synthetic admin, so there is nothing for a token to do.
     assertThat(features)
         .containsEntry("authentication", false)
         .containsEntry("tokens", false)
@@ -62,34 +61,39 @@ class FeatureServiceTest {
   }
 
   @Test
-  void engineModeTurnsOffWhatItDoesNotLoadWhateverTheSettings() {
+  void aSingleWorkspaceHasNoWorkspaceOrUserManagementWhateverTheSettings() {
     Map<String, Object> features =
-        features(new MockEnvironment().withProperty("flow.mode", "engine"));
+        features(new MockEnvironment().withProperty("flow.workspace.single", "true"));
 
     assertThat(features)
         .containsEntry("workspace.single", true)
         .containsEntry("workspace.management", false)
-        .containsEntry("workspace.quotas", false)
         .containsEntry("user.management", false)
+        // Everything else follows its setting: the beans behind it always load.
+        .containsEntry("workspace.quotas", true)
         .containsEntry("insights", true)
         .containsEntry("schedules", true)
-        .containsEntry("integrations", false)
-        .containsEntry("authentication", false)
+        .containsEntry("integrations", true)
         .containsEntry("activity", true)
         .containsEntry("workspace.parameters", true)
-        // Security is off by default in engine mode.
-        .containsEntry("tokens", false);
+        // Security is still on unless the property says otherwise.
+        .containsEntry("authentication", true)
+        .containsEntry("tokens", true);
   }
 
   @Test
-  void engineModeWithSecurityOnStillHasNoSignInSurface() {
+  void anEmbeddedEngineIsSingleWorkspaceWithSecurityOff() {
     Map<String, Object> features =
         features(
             new MockEnvironment()
-                .withProperty("flow.mode", "engine")
-                .withProperty("flow.security.enabled", "true"));
+                .withProperty("flow.workspace.single", "true")
+                .withProperty("flow.security.enabled", "false"));
 
-    // No sign-in surface, but API callers authenticate with tokens, so the token pages stay.
-    assertThat(features).containsEntry("authentication", false).containsEntry("tokens", true);
+    assertThat(features)
+        .containsEntry("workspace.single", true)
+        .containsEntry("workspace.management", false)
+        .containsEntry("user.management", false)
+        .containsEntry("authentication", false)
+        .containsEntry("tokens", false);
   }
 }

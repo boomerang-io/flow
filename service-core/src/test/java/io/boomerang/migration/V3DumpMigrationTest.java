@@ -839,8 +839,8 @@ class V3DumpMigrationTest {
     assertThat(collection("workspaces").countDocuments()).isEqualTo(86);
 
     // The seeded system workspace is untouched: still matched by name, still v5-shaped exactly
-    // as _0004__SeedSystemWorkspace wrote it (unlimited quotas, type "system"), never touched by
-    // the v3 units.
+    // as _0004__SeedSystemWorkspace wrote it (the four limits unlimited, the run duration absent
+    // so it inherits the platform default, type "system"), never touched by the v3 units.
     Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     assertThat(system).as("seeded system workspace must survive the v3 batch untouched").isNotNull();
     assertThat(system.getString("type")).isEqualTo("system");
@@ -848,6 +848,7 @@ class V3DumpMigrationTest {
     Document systemQuotas = (Document) system.get("quotas");
     assertThat(systemQuotas.getInteger("maxWorkflowCount")).isEqualTo(Integer.MAX_VALUE);
     assertThat(systemQuotas.getInteger("maxWorkspaceStorage")).isEqualTo(Integer.MAX_VALUE);
+    assertThat(systemQuotas.containsKey("maxWorkflowRunDuration")).isFalse();
 
     // The 28 migrated v3 teams: type "hobby" (the documented honest default - v3 had no tier
     // concept), every one has a slug "name" and a display "displayName", v5-named quota fields

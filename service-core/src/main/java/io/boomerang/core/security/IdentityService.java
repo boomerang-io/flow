@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  *
  * <p><b>An identity is always established for a served request.</b> When {@code
  * flow.security.enabled=true}, {@code AuthenticationFilter} attaches a real {@link Token} or 401s.
- * When it is {@code false} (local-dev/E2E, and the default for {@code flow.mode=engine}), {@code
+ * When it is {@code false} (local-dev/E2E, and an embedded engine), {@code
  * UnauthenticatedGlobalAuthenticationFilter} attaches an {@link
  * io.boomerang.core.security.UnauthenticatedGlobalToken} instead of leaving the context empty -
  * following Spring Security's own rationale for {@code AnonymousAuthenticationToken} ("classes can

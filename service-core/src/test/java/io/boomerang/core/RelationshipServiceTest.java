@@ -312,7 +312,7 @@ class RelationshipServiceTest {
   @Test
   @DisplayName(
       "With security disabled the established UnauthenticatedGlobalToken behaves unscoped, exactly"
-          + " as the deleted no-principal branches did (e.g. flow.mode=engine)")
+          + " as the deleted no-principal branches did (e.g. an embedded engine)")
   void securityDisabledIdentityIsUnscopedNotDenied() {
     when(identityService.getCurrentIdentity()).thenReturn(new UnauthenticatedGlobalToken());
 

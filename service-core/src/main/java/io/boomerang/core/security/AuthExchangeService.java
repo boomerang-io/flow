@@ -3,8 +3,6 @@ package io.boomerang.core.security;
 import com.nimbusds.jwt.JWTClaimsSet;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.config.ConditionalOnFlowMode;
-import io.boomerang.config.FlowMode;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.UserService;
@@ -18,11 +16,9 @@ import org.springframework.stereotype.Service;
 
 /**
  * The two identity sources of {@code POST /internal/v1/auth/exchange} converging on the same
- * session-minting path. Standalone-only: the exchange
- * endpoint has no meaning for an embedded engine.
+ * session-minting path. With security off the exchange answers {@code none}: there is no sign-in.
  */
 @Service
-@ConditionalOnFlowMode(FlowMode.STANDALONE)
 public class AuthExchangeService {
 
   private final IdentityService identityService;
