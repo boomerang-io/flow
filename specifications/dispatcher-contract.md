@@ -210,4 +210,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `limit` on the task poll; `ExceededQuota` and `StartTimeout` end reasons; the start answer's `completed` means do not run | Additive (flow#500) |
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
-| `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0109) |
+| `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0112) |
