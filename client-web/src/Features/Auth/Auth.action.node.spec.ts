@@ -21,7 +21,9 @@ const ISSUER = "https://idp.example/realms/flow";
 const APP_ORIGIN = "http://localhost:3000";
 const SIGNIN_URL = `${APP_ORIGIN}/apps/flow/auth/signin`;
 const CALLBACK_URI = `${APP_ORIGIN}/apps/flow/auth/callback`;
+// What a form built before the router-path rule sends: basename included. The action strips it.
 const RETURN_PATH = "/apps/flow/boomerang/activity";
+const ROUTER_RETURN_PATH = "/boomerang/activity";
 
 beforeEach(() => {
   vi.stubEnv("CORE_SERVICE_INTERNAL_ORIGIN", INTERNAL_ORIGIN);
@@ -121,7 +123,9 @@ describe("signin action --- Node SSR", () => {
     expect(stashCookie).toMatch(/httponly/i);
     const stashParams = new URLSearchParams(decodeURIComponent(stashCookie!.split(";")[0].split(/=(.*)/)[1]));
     expect(stashParams.get("nonce")).toBe(nonce);
-    expect(stashParams.get("returnPath")).toBe(RETURN_PATH);
+    // Stashed as a router path: the basename the form (or anyone) put in front is stripped, since
+    // the router prepends it again when the callback redirects.
+    expect(stashParams.get("returnPath")).toBe(ROUTER_RETURN_PATH);
   });
 
   it("reads /auth/config per request - a changed issuer changes the authorize redirect", async () => {
@@ -143,8 +147,8 @@ describe("signin action --- Node SSR", () => {
       const { response } = await runSignin(hostile);
       const stashCookie = response.headers.getSetCookie().find((cookie) => cookie.startsWith("flow_auth_signin="));
       const stashParams = new URLSearchParams(decodeURIComponent(stashCookie!.split(";")[0].split(/=(.*)/)[1]));
-      // The fallback derives from the request's own path (basename-aware), never the submission.
-      expect(stashParams.get("returnPath")).toBe("/apps/flow/");
+      // The fallback is the router's root, never the submission; the router adds the basename.
+      expect(stashParams.get("returnPath")).toBe("/");
     }
   });
 });
@@ -197,7 +201,9 @@ describe("callback loader --- Node SSR", () => {
 
     expect(response).toBeInstanceOf(Response);
     expect((response as Response).status).toBe(302);
-    expect((response as Response).headers.get("location")).toBe(RETURN_PATH);
+    // A router path: the framework prepends the basename on the way out, so a Location that
+    // already carried it would land on /apps/flow/apps/flow/… (what #530 reported).
+    expect((response as Response).headers.get("location")).toBe(ROUTER_RETURN_PATH);
 
     // The issuer exchange is a public-client PKCE exchange: code + verifier + client_id in the
     // body, no client secret and no Basic authorization anywhere.

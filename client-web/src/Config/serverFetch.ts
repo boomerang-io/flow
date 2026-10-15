@@ -9,8 +9,8 @@ import axios, { type AxiosInstance } from "axios";
  * loader/action-only code out of the client bundle, so this file's Node-only assumptions
  * (process.env, no browser cookie jar) never ship to the browser.
  *
- * Two API base URLs: the browser-facing PRODUCT_SERVICE_ENV_URL - public, injected into
- * `window._SERVER_DATA` by the server/ Express server at container boot (see servicesConfig.ts)
+ * Two API base URLs: the browser-facing PRODUCT_SERVICE_ENV_URL - public, written into
+ * `window._SERVER_DATA` by the root loader (app/serverData.server.ts, see servicesConfig.ts)
  * and only used where the app surfaces a copyable API URL - is not necessarily reachable from
  * *this* Node process (a different network path, e.g. a public ingress vs. cluster-internal
  * service DNS). CORE_SERVICE_INTERNAL_ORIGIN is the separate runtime env var for that internal
@@ -18,9 +18,24 @@ import axios, { type AxiosInstance } from "axios";
  * time - this needs to vary per deploy without a rebuild). docker-compose.yml sets it to
  * http://service-core:7700 and a Kubernetes Deployment sets it to the service-core Service; when
  * it is unset every call below fails fast (empty base URL) and the caller's try/catch degrades
- * to its error state rather than failing the render.
+ * to its error state rather than failing the render. The dev server (`pnpm dev`) alone defaults
+ * to service-core on the host, so it runs with no environment to set. Vitest also runs with
+ * NODE_ENV=development (Vite sets it), so the default is withheld there: the specs' MSW handlers
+ * match the relative paths an empty origin produces.
  */
-const INTERNAL_API_ORIGIN = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
+// Evaluated, never called, in a browser under the dev server: the production build tree-shakes
+// this module out of the client bundle (the loaders that import it are stripped from route
+// modules and `sideEffects: false` lets the unused import go), but the dev server serves
+// Features/App/App.tsx whole, and a bare `process` there would stop the whole app from hydrating.
+const env: NodeJS.ProcessEnv = typeof process !== "undefined" ? process.env : {};
+const isDevServer = env.NODE_ENV === "development" && !env.VITEST;
+
+/** Read per call: the resource routes that stream or proxy bodies resolve it per request. */
+export function internalApiOrigin(): string {
+  return env.CORE_SERVICE_INTERNAL_ORIGIN ?? (isDevServer ? "http://localhost:7700" : "");
+}
+
+const INTERNAL_API_ORIGIN = internalApiOrigin();
 
 /*
  * `POST /internal/v1/auth/exchange` mints an httpOnly, Secure, SameSite=Lax session cookie carrying
@@ -56,7 +71,7 @@ function toVersionedPath(url?: string): string | undefined {
   // consumers on the one path shape the shared handlers list actually matches; rewriting only
   // this file's calls would desync it from every other spec instead of the two path shapes
   // agreeing, which is the actual goal here (see CLAUDE.md's switchover task notes).
-  if (process.env.VITEST) {
+  if (env.VITEST) {
     return url;
   }
   return url?.startsWith("/api/") && !url.startsWith("/api/v2/") ? url.replace(/^\/api\//, "/api/v2/") : url;

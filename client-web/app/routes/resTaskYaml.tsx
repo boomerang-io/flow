@@ -1,3 +1,4 @@
+import { internalApiOrigin } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 
 /*
@@ -24,7 +25,7 @@ function toVersionedPath(url: string): string {
 }
 
 export async function loader({ request, params }: { request: Request; params: { name: string } }) {
-  const origin = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
+  const origin = internalApiOrigin();
   const cookie = request.headers.get("cookie");
   const searchParams = new URL(request.url).searchParams;
   const version = searchParams.get("version") ?? undefined;

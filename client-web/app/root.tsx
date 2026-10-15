@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Links, Meta, Outlet, ScrollRestoration, Scripts } from "react-router";
+import { Links, Meta, Outlet, ScrollRestoration, Scripts, useHref, useRouteLoaderData } from "react-router";
+import type { LoaderFunctionArgs } from "react-router";
 import {
   QueryClient as TanstackQueryClient,
   QueryClientProvider as TanstackQueryClientProvider,
@@ -10,15 +11,23 @@ import "codemirror/theme/material.css";
 import "Styles/styles.scss";
 import ErrorBoundary from "Components/ErrorBoundary";
 import { isDevEnv, isTestEnv } from "Config/appConfig";
+import { loader as bootstrapLoader } from "Features/App/App";
+import { readServerData, type ServerData } from "./serverData.server";
 
 // The bootstrap loader (profile/context/feature-flags/navigation/workflow-templates - see
 // Features/App/App.tsx for the full rationale) is implemented next to the component that
 // consumes it, same as every other route module in this app (e.g. app/routes/globalParameters.tsx
-// re-exports its loader from Features/Parameters/GlobalParameters/GlobalParameters.tsx). It's
-// re-exported from here because this file - the framework-mode root route, id "root" - is what
-// every route in app/routes.ts is nested under, so its loader is the one guaranteed to run before
-// any of them render.
-export { loader, shouldRevalidate } from "Features/App/App";
+// re-exports its loader from Features/Parameters/GlobalParameters/GlobalParameters.tsx). It runs
+// here because this file - the framework-mode root route, id "root" - is what every route in
+// app/routes.ts is nested under, so its loader is the one guaranteed to run before any of them
+// render. The root loader adds the deployment's runtime values for the browser (serverData, see
+// Layout below); the bootstrap never throws, so Layout can always read them.
+export { shouldRevalidate } from "Features/App/App";
+
+export async function loader(args: LoaderFunctionArgs) {
+  const bootstrap = await bootstrapLoader(args);
+  return { ...bootstrap, serverData: readServerData() };
+}
 
 // @tanstack/react-query v5 - required by the design-system wrapper's UIShell/Header ONLY.
 // The app's own data fetching runs entirely through route loaders/actions and the /res/*
@@ -32,22 +41,32 @@ const tanstackQueryClient = new TanstackQueryClient({
   },
 });
 
-// The HTML document shell - replaces the previous static index.html. Framework mode renders
-// this (and only this, in SPA mode - see react-router.config.ts) on the Node side at build time
-// to produce server/build/index.html; every other route only ever renders client-side. The
-// markup - meta tags, favicon, banner comment, `window.global` shim, and the `#app` div - is
-// carried over unchanged from the old index.html: `#app` in particular is load-bearing (see
-// Styles/_base.scss's `#app` rules and react-modal's `Modal.setAppElement("#app")` expectation),
-// so it stays a real element in the tree rather than the empty pre-existing DOM node it used to
-// be an implicit `createRoot` target for.
+// JSON inside an inline <script>: "<" is escaped so no value can close the script element.
+function serverDataScript(serverData: ServerData): string {
+  return `window._SERVER_DATA = ${JSON.stringify(serverData).replace(/</g, "\\u003c")};`;
+}
+
+// The HTML document shell - replaces the previous static index.html. Framework mode renders it
+// on the server for every document request (react-router.config.ts: ssr: true). The markup -
+// meta tags, favicon, banner comment, `window.global` shim, and the `#app` div - is carried over
+// from the old index.html: `#app` in particular is load-bearing (see Styles/_base.scss's `#app`
+// rules and react-modal's `Modal.setAppElement("#app")` expectation), so it stays a real element
+// in the tree.
+//
+// `window._SERVER_DATA` is written here, ahead of the module scripts, because Config/appConfig.ts
+// and Config/servicesConfig.ts read it as they load. useRouteLoaderData rather than
+// useLoaderData: Layout also wraps the root error boundary, where the loader data can be absent,
+// and then the browser bundle's own defaults apply.
 export function Layout({ children }: { children: ReactNode }) {
+  const rootData = useRouteLoaderData("root") as { serverData?: ServerData } | undefined;
+  const favicon = useHref("/favicon.ico");
   return (
     <html lang="en" data-carbon-theme="boomerang">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
         <meta name="theme-color" content="#000000" />
-        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="shortcut icon" href={favicon} />
         <title>Boomerang Flow</title>
         {/*
             ____
@@ -58,6 +77,7 @@ export function Layout({ children }: { children: ReactNode }) {
                                                           /____/
         */}
         <script dangerouslySetInnerHTML={{ __html: "window.global = window" }} />
+        <script dangerouslySetInnerHTML={{ __html: serverDataScript(rootData?.serverData ?? {}) }} />
         <Meta />
         <Links />
       </head>
@@ -74,8 +94,8 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 }
 
-// Root layout route. Framework mode owns route resolution/code-splitting itself now (each
-// `route()` entry in routes.ts is its own lazily-loaded chunk), so the previous manual
+// Root layout route. Framework mode owns route resolution/code-splitting itself (each `route()`
+// entry in routes.ts is its own lazily-loaded chunk), so the previous manual
 // `createBrowserRouter`/`RouterProvider` wiring from src/Root.tsx is gone - `<Outlet />` is
 // where the matched route (ultimately Features/App via routes.ts's layout() wrap) renders.
 // Everything else here - the design-system query client provider, ErrorBoundary - is carried

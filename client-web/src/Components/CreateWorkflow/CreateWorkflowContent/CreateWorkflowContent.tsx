@@ -5,7 +5,7 @@ import { Loading, TextArea, TextInput, TooltipHover } from "@boomerang-io/carbon
 import workflowIcons from "Assets/workflowIcons";
 import classNames from "classnames/bind";
 import { Formik } from "formik";
-import { kebabCase } from "lodash";
+import kebabCase from "lodash/kebabCase";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
 import { FlowWorkspace, CreateWorkflowSummary, WorkflowViewType } from "Types";

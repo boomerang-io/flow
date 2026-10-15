@@ -1,7 +1,6 @@
 # The build stage needs the sources (app/, src/, public/, patches/, the Vite/react-router/tsconfig
-# files, package.json + pnpm-lock.yaml + .npmrc) and the runtime stage needs server/ (minus its
-# node_modules - reinstalled in the image). Everything else only bloats the build context sent to
-# the daemon, or is regenerated inside the image (node_modules, build/, .react-router/).
+# files, package.json + pnpm-lock.yaml + .npmrc). Everything else only bloats the build context
+# sent to the daemon, or is regenerated inside the image (node_modules, build/, .react-router/).
 **/node_modules
 build
 .react-router
@@ -12,9 +11,7 @@ coverage
 cypress
 lint-report.json
 *.md
-# Local dev only: Vite's portforward proxy token (.env) and the SSR server's --env-file for
-# `pnpm run prod:server` (server/config/.env.local). Real deployments pass environment variables.
+# Local dev only. Real deployments pass environment variables.
 .env
 .env.*
-server/config
 _boomerang
