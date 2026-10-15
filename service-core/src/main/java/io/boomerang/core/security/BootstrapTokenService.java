@@ -20,59 +20,61 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * Registers the operator-supplied {@code flow.security.engine-token}, so an engine that accepts
- * only Flow-minted tokens can be reached before anyone has minted one: it is the token that mints
- * the rest. It is a global admin machine token stored, like every token, as its hash - under one
- * fixed id, so a restart changes nothing, instances starting together converge on one record, and
- * a new value replaces the old one. Blank registers nothing.
+ * Registers the operator-supplied {@code flow.security.bootstrap-token}: the first credential of a
+ * secured install where no person signs in, so a host product's backend can call before anyone has
+ * minted a token. It is a global admin machine token stored, like every token, as its hash - under
+ * one fixed id, so a restart changes nothing, instances starting together converge on one record,
+ * and a new value replaces the old one. It runs whether or not security is on: with security off
+ * the record is unused, and the token works the moment security is turned on. Blank registers
+ * nothing.
  */
 @Service
 public class BootstrapTokenService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
-  static final String ENGINE_TOKEN_ID = "engine-token";
+  static final String BOOTSTRAP_TOKEN_ID = "bootstrap-token";
 
   // "bfg_" and at least 32 more characters: a global token's shape, and too long to guess.
-  private static final String ENGINE_TOKEN_PATTERN = "^bfg_.{32,}$";
+  private static final String BOOTSTRAP_TOKEN_PATTERN = "^bfg_.{32,}$";
 
-  private final String engineToken;
+  private final String bootstrapToken;
   private final TokenService tokenService;
   private final TokenRepository tokenRepository;
   private final TokenLookupCache lookupCache;
 
   public BootstrapTokenService(
-      @Value("${flow.security.engine-token:}") String engineToken,
+      @Value("${flow.security.bootstrap-token:}") String bootstrapToken,
       TokenService tokenService,
       TokenRepository tokenRepository,
       TokenLookupCache lookupCache) {
-    this.engineToken = engineToken;
+    this.bootstrapToken = bootstrapToken;
     this.tokenService = tokenService;
     this.tokenRepository = tokenRepository;
     this.lookupCache = lookupCache;
   }
 
   /**
-   * Store the engine token's hash unless it is already stored. Throw when the value is not a
+   * Store the bootstrap token's hash unless it is already stored. Throw when the value is not a
    * {@code bfg_} token of at least 32 further characters, so a weak or mistyped secret stops the
-   * start rather than opening the engine.
+   * start rather than opening the install.
    */
   @EventListener(ApplicationReadyEvent.class)
   public void register() {
-    if (!StringUtils.hasText(engineToken)) {
+    if (!StringUtils.hasText(bootstrapToken)) {
       return;
     }
-    if (!engineToken.matches(ENGINE_TOKEN_PATTERN)) {
+    if (!bootstrapToken.matches(BOOTSTRAP_TOKEN_PATTERN)) {
       throw new IllegalStateException(
-          "flow.security.engine-token must be bfg_ followed by at least 32 characters.");
+          "flow.security.bootstrap-token must be bfg_ followed by at least 32 characters.");
     }
-    String hash = tokenService.hashString(engineToken);
-    TokenEntity previous = tokenRepository.findById(ENGINE_TOKEN_ID).orElse(null);
+    String hash = tokenService.hashString(bootstrapToken);
+    TokenEntity previous = tokenRepository.findById(BOOTSTRAP_TOKEN_ID).orElse(null);
     if (previous != null && hash.equals(previous.getToken())) {
       return;
     }
     try {
-      tokenRepository.save(engineTokenEntity(hash));
+      tokenRepository.save(bootstrapTokenEntity(hash));
     } catch (DuplicateKeyException e) {
       // Another instance registered it in the same moment; the record is the same either way.
       return;
@@ -82,15 +84,16 @@ public class BootstrapTokenService {
       lookupCache.evict(previous.getToken());
     }
     LOGGER.info(
-        "Registered the engine token ({}).", previous == null ? "new" : "replaced the previous");
+        "Registered the bootstrap token ({}).",
+        previous == null ? "new" : "replaced the previous");
   }
 
-  private static TokenEntity engineTokenEntity(String hash) {
+  private static TokenEntity bootstrapTokenEntity(String hash) {
     TokenEntity entity = new TokenEntity();
-    entity.setId(ENGINE_TOKEN_ID);
+    entity.setId(BOOTSTRAP_TOKEN_ID);
     entity.setType(AuthScope.global);
-    entity.setName("engine-token");
-    entity.setDescription("Registered at startup from flow.security.engine-token.");
+    entity.setName("bootstrap-token");
+    entity.setDescription("Registered at startup from flow.security.bootstrap-token.");
     entity.setActorKind(TokenActorKind.SERVICE);
     entity.setCreationDate(new Date());
     entity.setPermissions(
