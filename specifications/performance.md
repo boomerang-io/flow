@@ -151,7 +151,8 @@ it guards (decision 0063).
 
 Quotas are enforced at workflow create and run submit; nothing in the engine path re-checks them. The stored
 `features.workspaceQuotas` setting is the only switch (`workflow/WorkflowService.java:214-218`); the `system`
-workspace an embedded engine serves is seeded with unlimited quotas (`seed/workspace.json`).
+workspace an embedded engine serves is seeded with its four limits unlimited and inherits the platform
+run-duration default (`seed/workspace.json`).
 
 | Quota (settings key, `workspace/WorkspaceService.java:81-86`) | Enforced at | Code |
 | --- | --- | --- |

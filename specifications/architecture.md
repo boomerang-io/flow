@@ -40,8 +40,9 @@ Two shapes are the worked examples:
 | An embedded engine | `flow.security.enabled=false`, `flow.workspace.single=true` | Headless execution inside another product that owns identity and tenancy. The webapp runs unchanged against it; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 
 Quotas are not a deployment property: the stored `features.workspaceQuotas` setting is the only switch
-(`workflow/WorkflowService.java:214-218`), and the `system` workspace is seeded with unlimited quotas
-(`service-core/src/main/resources/seed/workspace.json`). Deployment shape is `flow.<subsystem>.<switch>`
+(`workflow/WorkflowService.java:214-218`). The `system` workspace is seeded with its four limits unlimited and
+no run duration of its own, so its runs inherit the platform default ceiling from the `quotas` settings
+(`service-core/src/main/resources/seed/workspace.json`, `workspace/WorkspaceService.java:1012-1025`). Deployment shape is `flow.<subsystem>.<switch>`
 properties; runtime product toggles are `features.<name>` stored settings; a switch lives in exactly one tier
 (decision 0108).
 

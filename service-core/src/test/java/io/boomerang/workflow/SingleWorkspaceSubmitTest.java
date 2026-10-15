@@ -32,9 +32,10 @@ import org.springframework.test.context.TestPropertySource;
  * only HTTP route that starts a WorkflowRun - so the whole run lifecycle has to work against it:
  * create, submit, delete, and a due schedule firing.
  *
- * <p>The system workspace is seeded with unlimited quotas, so a run nobody declared a timeout for
- * takes that unlimited ceiling as its budget (RunTimeoutPolicy), and a requested timeout beneath it
- * is honoured.
+ * <p>The system workspace is seeded with its four limits unlimited and no run duration of its own,
+ * so a run nobody declared a timeout for takes the platform default from the {@code quotas}
+ * settings as both its budget and its ceiling (RunTimeoutPolicy), and a requested timeout beneath
+ * it is honoured.
  */
 @TestPropertySource(properties = {"flow.workspace.single=true", "flow.security.enabled=false"})
 class SingleWorkspaceSubmitTest extends AbstractEngineIntegrationTest {
@@ -43,8 +44,9 @@ class SingleWorkspaceSubmitTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "single-submit-test-task";
 
-  // The seeded system workspace's maxWorkflowRunDuration: unlimited.
-  private static final long UNLIMITED_DURATION = Integer.MAX_VALUE;
+  // The platform default in the seeded "quotas" settings document, which the system workspace
+  // inherits because its seed carries no maxWorkflowRunDuration.
+  private static final long PLATFORM_DEFAULT_DURATION = 30L;
 
   @Autowired private WorkflowService workflowService;
   @Autowired private ScheduleService scheduleService;
@@ -72,12 +74,12 @@ class SingleWorkspaceSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void theRunDurationCeilingIsTheSystemWorkspaceQuota() {
+  void theRunDurationCeilingIsThePlatformDefault() {
     createWorkflow("single-submit-timeout-default");
 
     WorkflowRun run = submit("single-submit-timeout-default");
 
-    assertEquals(UNLIMITED_DURATION, run.getTimeout());
+    assertEquals(PLATFORM_DEFAULT_DURATION, run.getTimeout());
   }
 
   @Test
