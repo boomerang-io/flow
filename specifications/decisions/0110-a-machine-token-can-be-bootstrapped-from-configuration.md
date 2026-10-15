@@ -1,4 +1,4 @@
-# 0109 — A machine token can be bootstrapped from configuration
+# 0110 — A machine token can be bootstrapped from configuration
 
 **Status:** accepted · **Date:** 2026-10-15
 

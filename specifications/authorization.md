@@ -87,7 +87,7 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 | `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
 
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
-`flow.security.bootstrap-token` (decision 0109). When it is set — `bfg_` and at least 32 further characters, else
+`flow.security.bootstrap-token` (decision 0110). When it is set — `bfg_` and at least 32 further characters, else
 the start fails — `BootstrapTokenService` stores its hash at startup as a global `**/**` token with
 `actorKind=SERVICE` under the fixed id `bootstrap-token` (`core/security/BootstrapTokenService.java:63-89`). A
 restart changes nothing, instances starting together converge on one record, and a changed value replaces the
