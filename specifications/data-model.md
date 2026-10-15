@@ -192,7 +192,7 @@ a release ships the chain, changes are appended as new units.
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
-| `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0104) |
+| `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0106) |
 
 `_0016` finds each stored settings document by id, key or earlier key and rebuilds it from the seed under the stored
 id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

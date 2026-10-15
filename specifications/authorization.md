@@ -225,7 +225,7 @@ blanks each such value and logs it by setting, to be entered again in Settings. 
 `FLOW_ENCRYPT_SECRET` and `FLOW_ENCRYPT_SALT`, the names v3's chart kept its pair under, so a v3 install upgrades
 with that Secret as it is; `MONGO_ENCRYPT_*` overrides the v3 pair alone
 (`service-core/src/main/resources/application.properties:141-147`). The unit is idempotent on the label, so a
-second run changes nothing (decisions 0100, 0104).
+second run changes nothing (decisions 0100, 0106).
 
 ## Known gaps
 
