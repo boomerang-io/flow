@@ -1,6 +1,6 @@
 # 0033 — One property, `flow.security.enabled`, gates authentication and authorization, defaulting by mode
 
-**Status:** accepted · **Date:** 2026-08-15
+**Status:** superseded by 0108 · **Date:** 2026-08-15
 
 ## Context
 

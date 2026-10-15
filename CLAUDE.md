@@ -6,11 +6,11 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 
 | Module | What it is |
 | --- | --- |
-| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. Runs as `flow.mode = standalone` (default, serves the webapp) or `engine` (headless, security off by default). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
+| `service-core` | The product: REST API (`/api/v2`), authentication and authorization, workspaces, workflows, and the DAG execution engine. One shape; the deployment is expressed by properties (`flow.security.enabled`, default `true`; `flow.workspace.single`, default `false` — an embedded engine sets `false`/`true`). Eight feature packages: `io.boomerang.{core,workspace,workflow,engine,dispatcher,schedule,event,integrations}`; boundaries by convention, no framework enforcement. `io.boomerang.migration` holds the Flamingock change units, run as the context starts, before it serves: they take an empty or a v3 database to the current shape and refuse anything else; the v3 units are production upgrade code. |
 | `dispatcher-sdk` | The dispatcher protocol as a library (`io.boomerang:dispatcher-sdk`, the only artifact published, to GitHub Packages): client, polling, start/heartbeat/end runtime, `TaskHandler` interface. Depends on spring-web and Jackson only, never on `lib-common`; owns its wire models, checked against `contracts/dispatcher-v1.yaml`. |
 | `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`. Its `TaskHandler` runs each task through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs); its `WorkflowHandler` provisions workspace volumes. |
 | `lib-common` | `service-core`'s model, entities, enums, error handling. |
-| `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Served only in `standalone` mode. |
+| `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Renders from the `/api/v2/features` flags, so it runs against any shape. |
 
 `main` is the release branch; `feat-v5` is the integration branch for the current major; work branches are
 `feat-v5-<topic>`. One product tag (`5.x.y`, `-beta.N`, `-rc.N`) builds every image.
@@ -112,8 +112,8 @@ docker compose --profile stack up -d --build          # or the whole product in 
   (`react-router-serve`, no hand-written server). The probe is `GET /apps/flow/health`.
 - The stack runs **secured** (`FLOW_SECURITY_ENABLED=true`) with a local IDPZero OpenID Connect provider on
   `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker and the first user to sign in on a fresh
-  database becomes admin. Set `flow.security.enabled=false` only for a headless engine — requests then run as
-  a synthetic admin (see `authorization.md`).
+  database becomes admin. Set `flow.security.enabled=false` (with `flow.workspace.single=true`) only for a
+  headless embedded engine — requests then run as a synthetic admin (see `authorization.md`).
 - Dispatcher scenarios, with the dispatcher up: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
   `cd e2e && npm ci && npx playwright test` against the stack with the webapp on `:3000`.

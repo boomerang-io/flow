@@ -20,44 +20,50 @@ zone, trust, placement); otherwise its poll loop is embedded through `dispatcher
 All Java modules share the Spring Boot 4.1.0 parent and Java 25 (`pom.xml:18-19`, `service-core/Dockerfile:10`).
 Every module reads `application.properties` overridden by environment variables (`docker-compose.yml:190-196`).
 
-## Run modes of `service-core`
+## Deployment shape of `service-core` by properties
 
-`flow.mode` selects one of two shapes; a missing or blank value means `standalone`
-(`service-core/src/main/java/io/boomerang/config/FlowMode.java:21-23,49-52`). Beans that belong to only one
-mode carry `@ConditionalOnFlowMode(...)` (`config/ConditionalOnFlowMode.java:31-35`). There is no separate
-engine image: the same jar runs in either mode (`.github/workflows/ci-release.yml:24-25`).
+There is one shape of `service-core`: every bean loads in every deployment, and four properties express how
+a deployment is used. There is no separate engine image (`.github/workflows/ci-release.yml:24-25`).
 
-| Concern | `standalone` (default) | `engine` |
+| Property (`application.properties`) | Default | `true` | `false` |
+| --- | --- | --- | --- |
+| `flow.security.enabled` (`:14`) | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
+| `flow.workspace.single` (`:18`) | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `TEAM_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-44`, registered on `/api/v2/workspace/{workspace}` and `/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `TEAM_INVALID_REQ` (`workspace/WorkspaceService.java:189,355`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.dispatcher.auth.enabled` (`:38`) | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind (`DispatcherAuthFilter`), independent of `flow.security.enabled`. | No dispatcher authentication; local development only. |
+| `flow.queue.enabled` (`:60`) | `true` | Dispatchers claim task runs. | Claiming stops; sweeps keep running (`execution-model.md`). |
+
+Two shapes are the worked examples:
+
+| Shape | Properties | Used for |
 | --- | --- | --- |
-| Purpose | The complete product. | Headless embedded execution inside another product. |
-| `flow.security.enabled` default | `true` | `false` (`core/security/FlowSecurityProperties.java:23-29`) |
-| `flow.quotas.enabled` default | `true` | `false` (`application.properties:21-28`) |
-| Packages loaded | All eight. | Workspace management (`workspace/WorkspaceService.java`, its controllers and the profile update), `integrations` and the sign-in surface (`core/InternalAuthControllerV1.java:47`, `core/security/AuthExchangeService.java:25`) do not load — 10 classes carry the standalone gate. Schedules and insights load in both modes. |
-| Workspace | Any workspace. | `system` is the only workspace and is the `{workspace}` path value every workspace-scoped route takes; any other value is refused with `TEAM_INVALID_REF` (`core/security/EngineWorkspaceInterceptor.java:37-45`, registered by `EngineWorkspaceInterceptorConfiguration.java:15`). The workspace resource itself resolves too — `EngineWorkspaceControllerV2` reads `GET /api/v2/workspace/{workspace}` and `/query` straight off the workspaces collection (`workspace/EngineWorkspaceService.java`), because `WorkspaceService` composes members, quotas and insights that engine mode does not have. `EngineProfileControllerV2` answers `GET /api/v2/profile` with the caller and the `system` workspace as its only workspace (`workspace/EngineProfileControllerV2.java:56`, `EngineWorkspaceService.java:67`). Creating, patching and deleting a workspace, and updating a profile, stay standalone-only. |
-| Web app | Deployed alongside core. | Optional. `client-web` runs unchanged against engine mode; it has no sign-in, so it MUST only run for local development or behind a protected route. |
-| Dispatcher API | `/dispatcher/**` behind `DispatcherAuthFilter` in both modes; `flow.dispatcher.auth.enabled` (`application.properties:31-34`) is independent of `flow.security.enabled`. | Same. |
+| The full product (defaults) | `flow.security.enabled=true`, `flow.workspace.single=false` | The compose stack and every product install: workspaces, sign-in, tokens, integrations, schedules, the webapp. |
+| An embedded engine | `flow.security.enabled=false`, `flow.workspace.single=true` | Headless execution inside another product that owns identity and tenancy. The webapp runs unchanged against it; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 
-The webapp never reads `flow.mode`. It renders from the flags `GET /api/v2/features` returns, and a flag is on
-only when its setting is on and the surface behind it is loaded in this mode (`core/FeatureService.java:34-80`):
+Quotas are not a deployment property: the stored `features.workspaceQuotas` setting is the only switch
+(`workflow/WorkflowService.java:214-218`), and the `system` workspace is seeded with unlimited quotas
+(`service-core/src/main/resources/seed/workspace.json`). Deployment shape is `flow.<subsystem>.<switch>`
+properties; runtime product toggles are `features.<name>` stored settings; a switch lives in exactly one tier
+(decision 0108).
 
-| Flag | `standalone` | `engine` |
-| --- | --- | --- |
-| `workspace.single` | `false` | `true` — no workspace switcher, no create or leave |
-| `workspace.management`, `workspace.quotas`, `user.management` | the setting | `false` |
-| `insights` | the setting | the setting |
-| `schedules` | `true` | `true` |
-| `integrations` | `true` | `false` |
-| `authentication` | `flow.security.enabled` | `false` |
-| `tokens` | `flow.security.enabled` | `flow.security.enabled` (off by default): the token pages, and `workflow.tokens`, show only when security is on |
+The webapp never reads a property. It renders from the flags `GET /api/v2/features` returns, and a flag is on
+only when its setting is on and the shape leaves a surface behind it (`core/FeatureService.java:34-82`):
+
+| Flag | Value |
+| --- | --- |
+| `workspace.single` | `flow.workspace.single` — when `true`, no workspace switcher, no create or leave |
+| `workspace.management`, `user.management` | the setting, and `false` under `flow.workspace.single` |
+| `workspace.quotas`, `insights`, `activity`, `workspace.parameters`, `global.parameters` | the setting |
+| `schedules`, `integrations` | `true` |
+| `authentication` | `flow.security.enabled` |
+| `tokens`, `workflow.tokens` | `flow.security.enabled` (and the setting, for `workflow.tokens`): with security off there is nothing for a token to do |
 
 The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false` the
-webapp's startup loader never requests `GET /internal/v1/auth/config` (`client-web/src/Features/App/App.tsx:142-147`),
-so that public endpoint stays standalone-only.
+webapp's startup loader never requests `GET /internal/v1/auth/config` (`client-web/src/Features/App/App.tsx:142-147`).
 
 ## Feature packages inside `service-core`
 
 `service-core` is one Maven module with eight flat feature packages under `io.boomerang` plus `config`
-(the mode switch) and `common.model` (four paging response types). Boundaries are a convention: there is
+(the OpenAPI configuration) and `common.model` (four paging response types). Boundaries are a convention: there is
 no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews enforce the direction below.
 
 | Package | Owns | Imports from (verified by grep over `^import io.boomerang.*`) |
