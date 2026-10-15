@@ -10,7 +10,7 @@
 //@ts-nocheck
 import { Envs } from "Constants";
 
-// Default "/api"; overridden in production by the SSR-injected _SERVER_DATA. SSR (see
+// Default "/api"; overridden in production by _SERVER_DATA (app/serverData.server.ts). SSR (see
 // react-router.config.ts) runs this module in Node, where `window` doesn't exist yet - same
 // guard as Config/appConfig.ts's APP_ROOT/CORE_ENV_URL. `import.meta.env.MODE === Envs.Prod`
 // alone isn't a safe guard here: the SSR build itself runs in production mode, so that check

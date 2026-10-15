@@ -10,7 +10,7 @@ import {
   TooltipHover,
   notify,
 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { capitalize } from "lodash";
+import capitalize from "lodash/capitalize";
 import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { Link, useFetcher, useLocation } from "react-router-dom";

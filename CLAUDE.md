@@ -96,8 +96,7 @@ is on an older JDK:
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)      # macOS
 docker compose up -d                                  # Mongo (kept in a volume), IDPZero, SeaweedFS, settings seeds
 mvn -pl service-core -am spring-boot:run -Dspring-boot.run.profiles=local        # API + engine on :7700
-cd client-web && pnpm install && pnpm run build && cd server && npm install \
-  && node --env-file=config/.env.local index.js       # webapp on :3000 (copy config/.env.example first)
+cd client-web && pnpm install && pnpm dev             # webapp on :3000 with hot reload, core at :7700
 docker compose up -d --build service-dispatcher       # Kubernetes dispatcher against OrbStack; needs docker/kube/config
 docker compose --profile stack up -d --build          # or the whole product in Docker: what CI's e2e job runs
 ```
@@ -108,8 +107,9 @@ docker compose --profile stack up -d --build          # or the whole product in 
 - Browser-facing origin for manual and end-to-end testing: `http://localhost:3000` — client-web's own
   server-side-rendering server is the only thing the browser talks to; every service-core call happens
   server-side via `CORE_SERVICE_INTERNAL_ORIGIN`, so service-core needs no CORS. service-core's own
-  `http://localhost:7700` stays reachable for direct API use and the dispatcher. The Vite dev server
-  (`pnpm start`) does not boot with server rendering on; run the built server.
+  `http://localhost:7700` stays reachable for direct API use and the dispatcher. `pnpm dev` is React
+  Router's dev server; `pnpm run build && pnpm start` is the built server the image runs
+  (`react-router-serve`, no hand-written server). The probe is `GET /apps/flow/health`.
 - The stack runs **secured** (`FLOW_SECURITY_ENABLED=true`) with a local IDPZero OpenID Connect provider on
   `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker and the first user to sign in on a fresh
   database becomes admin. Set `flow.security.enabled=false` only for a headless engine — requests then run as

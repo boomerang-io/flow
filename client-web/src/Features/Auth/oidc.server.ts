@@ -51,14 +51,25 @@ function randomNonce(): string {
   return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// The origin the browser used. The server builds request.url from the Host header, which a
+// reverse proxy forwards port and all (README, "Deploying behind a reverse proxy"), but the
+// scheme is the proxy's own hop: behind TLS termination request.url says http. The proxy
+// announces the public scheme in X-Forwarded-Proto, so that wins when present. A caller who
+// sends the header directly can only misdirect their own redirect_uri, which the IdP then
+// refuses to match.
+function publicOrigin(request: Request): string {
+  const url = new URL(request.url);
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return forwardedProto ? `${forwardedProto}://${url.host}` : url.origin;
+}
+
 // The redirect_uri must be byte-identical at the authorize and token steps (RFC 6749 §4.1.3)
-// and match the IdP's registration. Both derive from the request's own URL - origin included,
-// which holds behind proxies because server/index.js builds the Request from the forwarded Host
-// - so any basename works without a config knob. `.data` stripped defensively (both legs are
+// and match the IdP's registration. Both derive from the request's own URL - origin included -
+// so any basename works without a config knob. `.data` stripped defensively (both legs are
 // document navigations).
 function callbackUriFor(request: Request): string {
   const url = new URL(request.url);
-  return `${url.origin}${url.pathname.replace(/\.data$/, "").replace(/\/auth\/signin$/, "/auth/callback")}`;
+  return `${publicOrigin(request)}${url.pathname.replace(/\.data$/, "").replace(/\/auth\/signin$/, "/auth/callback")}`;
 }
 
 /** The app root for this deployment, derived the same way: strip the auth route's own segments. */

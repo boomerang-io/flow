@@ -1,3 +1,4 @@
+import { internalApiOrigin } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 
 /*
@@ -33,7 +34,7 @@ export async function loader({
   request: Request;
   params: { workspace: string; runId: string; name: string };
 }) {
-  const origin = process.env.CORE_SERVICE_INTERNAL_ORIGIN ?? "";
+  const origin = internalApiOrigin();
   const cookie = request.headers.get("cookie");
 
   let upstream: Response;

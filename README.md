@@ -82,17 +82,17 @@ IDPZero user picker; the first user to sign in on a fresh database becomes the f
 docker compose up -d                                                        # Mongo, IDPZero, SeaweedFS, seeds
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)
 mvn -pl service-core -am spring-boot:run -Dspring-boot.run.profiles=local   # the API + engine on :7700
-cd client-web && pnpm install && pnpm run build
-cd server && npm install && cp config/.env.example config/.env.local
-node --env-file=config/.env.local index.js                                  # the webapp on :3000
+cd client-web && pnpm install && pnpm dev                                   # the webapp on :3000, hot reload
 ```
 
 The `local` Spring profile (`service-core/src/main/resources/application-local.properties`) carries the
 stack's addresses and the same local-only encryption keys the stack uses, so one database serves both
 ways of running. The seeds wait for `service-core` to migrate the database, wherever it runs.
 
-The webapp's Vite dev server (`pnpm start`) does not boot with server rendering on; the built server above
-is the way to run it, so a frontend change means `pnpm run build` and a restart until that is fixed.
+`pnpm dev` is React Router's dev server: a change to the frontend is live in the browser without a
+rebuild, and its loaders call `service-core` on the host at http://localhost:7700 unless
+`CORE_SERVICE_INTERNAL_ORIGIN` says otherwise. `pnpm run build && pnpm start` runs the same built server
+the image runs (`react-router-serve`), for checking a change the way production serves it.
 
 ### The dispatcher
 

@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 /// <reference types="vite/client" />
 
-import { defineConfig, loadEnv, type Plugin } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import { resolve, join } from "path";
 import { writeFileSync } from "fs";
 import autoprefixer from "autoprefixer";
@@ -34,48 +34,61 @@ function writeServerPackageJson(): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+// Which dependencies the server-side code gets from Vite rather than from Node's own loader.
+//
+// Build (`react-router build`): every one of them. The server bundle pulls the whole route tree
+// in, and that tree runs through a long tail of packages this app didn't choose with Node ESM in
+// mind: @carbon/icons-react, react-lazylog and lodash are CommonJS whose exports are assembled
+// dynamically, so Node's cjs-module-lexer finds no named exports to import; react-lazylog's
+// "fetch-readablestream" -> "@mattiasbuelens/web-streams-polyfill" chain ends in a bare directory
+// import that predates the "exports" map convention. Bundling the whole graph sidesteps all of
+// it at once, and it is also what makes build/server self-contained: the runtime image carries
+// `dependencies` alone (the serving packages - see package.json and the Dockerfile), not the
+// hundreds of megabytes of build inputs under `devDependencies`.
+//
+// Dev (`react-router dev`): none of them. Vite's dev server loads every dependency through Node,
+// and running the graph through the SSR transform instead is what used to break the dev server
+// (`module is not defined`, `require is not defined` inside CommonJS files). What Node alone gets
+// wrong is CommonJS interop: a default import of a package compiled with `exports.default`
+// (react-mde, immer as use-immer imports it) arrives as the whole module object, and a named
+// import from a package whose exports Node cannot detect (lodash) is refused outright.
+// `legacy.proxySsrExternalModules` below restores Vite's own interop proxy for those, which
+// unwraps `__esModule` defaults and resolves named imports off the module object. lodash is
+// imported by subpath (`lodash/sortBy`) throughout regardless, which needs no interop at all.
+// The proxy covers imports the app's own modules make; an ESM package that Node loads whole and
+// that itself default-imports a CommonJS package gets no proxy (use-immer's `import produce from
+// "immer"`: "TypeError: n is not a function" during the editor's server render), so such a
+// package goes on DEV_SSR_BUNDLED and Vite transforms it, proxying its imports too.
+//
+// Vitest shares this config (Vite's SSR resolution powers its transform pipeline, even for
+// jsdom-environment specs) and keeps the narrow @carbon/react entry it always had: bundling the
+// whole graph there inlines vitest's own dependencies into the graph it instruments and breaks
+// `toMatchSnapshot()` across ~26 spec files.
+const DEV_SSR_BUNDLED = ["use-immer"];
+
+function ssrNoExternal(command: "build" | "serve"): true | string[] {
+  if (process.env.VITEST) return ["@carbon/react"];
+  return command === "build" ? true : DEV_SSR_BUNDLED;
+}
+
+export default defineConfig(({ command, mode }) => {
   return {
     base: "/apps/flow/",
     build: {
       outDir: "build",
     },
-    // Full SSR pulls the entire route tree into the server bundle (unlike the previous
-    // ssr:false build, which only ever touched app/root.tsx), and that tree runs through a long
-    // tail of dependencies this app didn't choose with Node ESM in mind: @carbon/charts'
-    // dist/index.mjs statically imports "d3-cloud" (its optional WordCloud chart dependency,
-    // never installed here, since this app doesn't use word-cloud charts) as if it were
-    // required; @carbon/icons-react, react-lazylog, and lodash are CJS packages whose exports
-    // are assembled dynamically (mixin/re-export patterns) rather than with statically
-    // analyzable `exports.foo = foo` assignments, which Node's cjs-module-lexer can't detect
-    // named exports from; react-lazylog's own "fetch-readablestream" ->
-    // "@mattiasbuelens/web-streams-polyfill" chain points at a bare directory import that
-    // predates Node's "exports" map convention. Each of those was confirmed individually by
-    // working through the resulting runtime errors one at a time - the fix in every case was
-    // "let Vite bundle this instead of leaving it as a raw Node import/require", which is what
-    // `noExternal: true` does for the whole graph at once. Given how many unrelated packages
-    // hit this (a handful found here is unlikely to be the last), hand-maintaining an allowlist
-    // trades a one-time cost for an ongoing one - every future dependency with the same
-    // CJS-interop shape would silently break the server build again. The trade-off is a
-    // larger, slower-to-produce server bundle, which is acceptable for a build-time cost.
-    // (`reactflow` used to be on this list - it's why the DAG canvas needed `noExternal` at all.
-    // Its v12 successor `@xyflow/react` ships real ESM with a statically analyzable `exports`
-    // map, so it no longer needs bundling on its own account - but the blanket `true` still
-    // covers the other packages above, so it stays.)
-    //
-    // Scoped to the real SSR build only (`!process.env.VITEST`, the same signal the `plugins`
-    // array below already keys off of): vitest's node-environment test runs go through this
-    // SAME `ssr` config (Vite's SSR module resolution powers vitest's transform pipeline even
-    // for jsdom-environment tests), and blanket noExternal there inlines vitest's own
-    // dependencies (its snapshot stack-trace parser among them) into the graph it's trying to
-    // instrument, breaking `toMatchSnapshot()` across ~26 spec files
-    // (`TypeError: Cannot read properties of undefined (reading 'match')` inside
-    // @vitest/snapshot). Vitest never touches the SSR entry (it renders Feature components
-    // directly - see the `plugins` comment below) and hits none of the ESM-interop problems
-    // above, so it keeps the original, narrow `@carbon/react` entry that predates ssr:true.
     ssr: {
-      noExternal: process.env.VITEST ? ["@carbon/react"] : true,
+      noExternal: ssrNoExternal(command),
+    },
+    legacy: {
+      proxySsrExternalModules: true,
+    },
+    // Browser-side dependencies the dev server would otherwise discover on first use and
+    // re-optimise, reloading every open tab: the ones behind React.lazy and the ones only a
+    // dependency imports, which the route crawl (react-router.config.ts, unstable_optimizeDeps)
+    // does not reach. Add a package when the dev server logs "new dependencies optimized".
+    optimizeDeps: {
+      include: ["react-lazylog", "immer"],
     },
     css: {
       devSourcemap: mode !== "test",
@@ -93,11 +106,11 @@ export default defineConfig(({ mode }) => {
       // tests render Feature components directly, not through the router), so it stays on
       // the plain React plugin it always used - reactRouter() (which supersedes
       // @vitejs/plugin-react, bundling its own JSX/Fast-Refresh transform) only needs to be
-      // active for the dev server and `vite build`, where the app/ framework-mode tree is
-      // the real entry point. Gated on process.env.VITEST (set by the vitest runner itself),
-      // not `mode === "test"` - vitest itself defaults to Vite mode "test" (see the
-      // `devSourcemap` check above, which relies on exactly that default), so keying off
-      // `mode` here would also catch the vitest run and wrongly swap in reactRouter().
+      // active for the dev server and the build, where the app/ framework-mode tree is the
+      // real entry point. Gated on process.env.VITEST (set by the vitest runner itself), not
+      // `mode === "test"` - vitest itself defaults to Vite mode "test" (see the `devSourcemap`
+      // check above, which relies on exactly that default), so keying off `mode` here would
+      // also catch the vitest run and wrongly swap in reactRouter().
       process.env.VITEST ? react() : reactRouter(),
       eslint(),
       svgrPlugin({
@@ -124,9 +137,10 @@ export default defineConfig(({ mode }) => {
         { find: "~normalize-scss", replacement: "normalize-scss" },
       ],
     },
+    // The dev server (`pnpm dev`): the same port and base path as the built server, so the
+    // local IDPZero's registered redirect URI (docker/idpzero/server.yaml) matches both.
     server: {
       port: 3000,
-      proxy: mode === "portforward" ? createPortforwardConfig(env.AUTH_JWT) : undefined,
     },
     test: {
       css: false,
@@ -153,20 +167,3 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
-
-const portForwardMap = {
-  "/api": 8081,
-};
-
-// Map service context paths to the local port that you have forwarded
-function createPortforwardConfig(jwt?: string) {
-  return Object.entries(portForwardMap).reduce((proxyMap, [path, port]) => {
-    proxyMap[path] = {
-      changeOrigin: true,
-      headers: { Authorization: `Bearer ${jwt}` },
-      rewrite: (path) => path.replace(/^\/api/, "/api/v2"),
-      target: `http://localhost:${port}`,
-    };
-    return proxyMap;
-  }, {});
-}

@@ -1,15 +1,15 @@
-# Two stages, both on node:24-alpine so build-time and run-time Node agree (.nvmrc pins CI to the
-# same major). @react-router/node, react-router and @react-router/dev all declare
-# `engines.node >= 20.0.0` (the SSR handler genuinely will not boot on 18).
+# syntax=docker/dockerfile:1
+# Three stages on node:24-alpine (.nvmrc pins CI to the same major; @react-router/* declare
+# `engines.node >= 20`). `docker build client-web` produces a working image from a clean checkout:
+# the build stage runs the frontend build itself, so nothing runs `pnpm run build` on the host
+# first (neither docker-compose.yml nor .github/workflows/ci-release.yml does).
 #
-# `docker build client-web` produces a working image from a clean checkout: the build stage runs
-# the frontend build itself, so nothing has to run `pnpm run build` on the host first (neither
-# docker-compose.yml nor .github/workflows/ci-release.yml does any more).
+# The stages that run pnpm run on the builder's own platform: build/ is JavaScript and CSS and the
+# serving packages are pure JavaScript, the same for every target, and a pnpm install under arm64
+# emulation stalled for over 30 minutes in release builds. Only the runtime stage is per platform.
 
 # ---------------------------------------------------------------------------------------------
 # Build stage: pnpm install + react-router build. Nothing from here ships except build/.
-# It runs on the builder's own platform: build/ is JavaScript and CSS, the same for every target,
-# and a pnpm install under arm64 emulation stalled for over 30 minutes in release builds.
 # ---------------------------------------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /src
@@ -28,40 +28,44 @@ RUN pnpm install --frozen-lockfile
 
 # The remaining context (see .dockerignore): app/, src/, public/, vite.config.mts,
 # react-router.config.ts, tsconfig.json. Emits build/client (browser assets) + build/server (the
-# SSR request handler - react-router.config.ts: ssr:true).
+# server-rendering request handler - react-router.config.ts: ssr:true). The server bundle is
+# self-contained (vite.config.mts: ssr.noExternal), so the runtime needs none of these packages.
 COPY . .
 RUN pnpm run build
 
 # ---------------------------------------------------------------------------------------------
-# Runtime stage: the Express SSR server (server/) plus the build output from the stage above.
+# Serving packages: package.json's `dependencies` are exactly what the running server loads -
+# @react-router/serve (the framework's own Express-based server) and react-router. Everything
+# Vite bundles is under `devDependencies` and stays out of this stage.
+# ---------------------------------------------------------------------------------------------
+FROM --platform=$BUILDPLATFORM node:24-alpine AS serve-deps
+WORKDIR /src
+RUN corepack enable
+# patches/ because pnpm hashes every patch the lockfile records before it installs anything, even
+# when none of the patched packages is part of this install.
+COPY package.json pnpm-lock.yaml .npmrc ./
+COPY patches ./patches
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
+
+# ---------------------------------------------------------------------------------------------
+# Runtime stage: react-router-serve over build/, nothing else.
 # ---------------------------------------------------------------------------------------------
 FROM node:24-alpine
+ENV NODE_ENV=production
 ENV BMRG_HOME=/opt/boomerang
-
 WORKDIR $BMRG_HOME
 
-# `server/` (this SSR Express server - see server/index.js) and `build/` (copied out of the build
-# stage) sit as siblings under $BMRG_HOME, exactly mirroring their layout in the checkout
-# (client-web/server, client-web/build). server/index.js resolves the build directory relative
-# to its own location (`../build`) precisely so this layout - not an arbitrary WORKDIR choice -
-# is what makes local dev (`cd server && node index.js`) and the container agree.
-#
-# The server's own (npm, not pnpm) dependencies are installed from just the manifest/lockfile
-# first (a cheap, rarely-invalidated layer) before the rest of server/ is copied in, so an
-# index.js-only change doesn't reinstall.
-COPY server/package.json server/package-lock.json ./server/
-RUN npm install --prefix server --omit=dev
-
-COPY server ./server
+COPY --from=serve-deps /src/package.json ./package.json
+COPY --from=serve-deps /src/node_modules ./node_modules
 COPY --from=build /src/build ./build
 
 # OpenShift requires a numeric, arbitrarily-assigned UID in group 0 rather than a named user -
 # chgrp/chmod g=u makes that arbitrary UID as capable as the intended one.
-RUN chmod -R u+x $BMRG_HOME/server \
-    && chgrp -R 0 $BMRG_HOME \
+RUN chgrp -R 0 $BMRG_HOME \
     && chmod -R g=u $BMRG_HOME
 USER 2000
 
-WORKDIR $BMRG_HOME/server
+# react-router-serve reads PORT (and HOST) from the environment; docker-compose.yml and a
+# Kubernetes Deployment set PORT=3000. The probe is GET /apps/flow/health (app/routes/health.tsx).
 EXPOSE 3000
-ENTRYPOINT ["node", "index.js"]
+ENTRYPOINT ["node", "node_modules/@react-router/serve/dist/cli.js", "build/server/index.js"]

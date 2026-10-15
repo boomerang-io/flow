@@ -16,6 +16,9 @@ import { type RouteConfig, index, layout, route } from "@react-router/dev/routes
 // bare-alias import chain (appConfig.ts itself imports "Constants") fails to resolve there. Keep
 // these values in sync with the AppPath entries of the same name in src/Config/appConfig.ts.
 export default [
+  // The probe the container healthcheck and a Kubernetes probe call: answers from this process
+  // alone, outside the App layout so the root bootstrap never runs for it.
+  route("/health", "routes/health.tsx"),
   // Sign-in plumbing lives OUTSIDE the App layout: these routes must render without the
   // bootstrap (the callback lands here precisely because there is no session yet), and the
   // callback must never auto-trigger sign-in - see Features/Auth. Static two-segment paths, so

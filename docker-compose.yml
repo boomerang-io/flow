@@ -240,13 +240,15 @@ services:
       # (docker/idpzero/server.yaml), from APP_ROOT.
       APP_ROOT: "/apps/flow"
       PORT: "3000"
-      # Injected into window._SERVER_DATA for the few places that surface an API URL (the copyable
-      # webhook and event trigger URLs); relative so they render the deployment's own origin.
+      # Written into window._SERVER_DATA by the root loader for the few places that surface an API
+      # URL (the copyable webhook and event trigger URLs); relative so they render the
+      # deployment's own origin.
       PRODUCT_SERVICE_ENV_URL: /api/v2
       # Server-side only: the container-to-container address of service-core.
       CORE_SERVICE_INTERNAL_ORIGIN: http://service-core:7700
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health"]
+      # The probe is a resource route under the webapp's base path (client-web/app/routes/health.tsx).
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/apps/flow/health"]
       interval: 5s
       timeout: 5s
       retries: 20

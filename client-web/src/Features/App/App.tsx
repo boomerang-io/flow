@@ -5,7 +5,7 @@ import { DelayedRender, Error403, Loading, NotificationsContainer } from "@boome
 import axios from "axios";
 import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
-import { sortBy } from "lodash";
+import sortBy from "lodash/sortBy";
 import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
 import { Outlet, useRevalidator, useRouteLoaderData } from "react-router-dom";
 import type { ShouldRevalidateFunctionArgs } from "react-router-dom";

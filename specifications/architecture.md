@@ -15,7 +15,7 @@ zone, trust, placement); otherwise its poll loop is embedded through `dispatcher
 | `dispatcher-sdk` | The dispatcher protocol as a library: the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is the only module published, to GitHub Packages. | `spring-web` and Jackson only (`dispatcher-sdk/pom.xml:46-53`) |
 | `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk` (`config/DispatcherConfig.java:34-52`): its task handler executes each task in Kubernetes through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-31`) and its workflow handler provisions workspace volumes. `dispatcher.executor` selects `tekton` (default, `TektonServiceImpl.java:59`) or `kube-jobs` (`KubeJobsExecutor.java:72`). One `dispatcher.tasks.runtimeClassName` per deployment (`service-dispatcher/README.md:15-17`). | `dispatcher-sdk` (`service-dispatcher/pom.xml:30-34`) |
 | `lib-common` | `service-core`'s wire and storage model (the dispatcher uses `dispatcher-sdk`'s own): 9 entities (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError`/`RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`) under `lib-common/src/main/java/io/boomerang/common/`. No beans, no repositories. | — |
-| `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by its own Node server (`client-web/Dockerfile`, `client-web/server/index.js`) with server rendering on (`client-web/react-router.config.ts:16-17`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:24`). | `service-core` over HTTP |
+| `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by React Router's own server, `react-router-serve` (`client-web/package.json`, `start`; `client-web/Dockerfile`), with server rendering on (`client-web/react-router.config.ts:12`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:26-27`). The root loader writes the deployment's runtime values into the document as `window._SERVER_DATA` (`client-web/app/serverData.server.ts`, `client-web/app/root.tsx`); the probe is `GET /apps/flow/health` (`client-web/app/routes/health.tsx`). | `service-core` over HTTP |
 
 All Java modules share the Spring Boot 4.1.0 parent and Java 25 (`pom.xml:18-19`, `service-core/Dockerfile:10`).
 Every module reads `application.properties` overridden by environment variables (`docker-compose.yml:190-196`).
@@ -110,7 +110,7 @@ and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 | --- | --- | --- | --- |
 | `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` (`service-core/Dockerfile:10-26`) | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `deploy-core` (`:22`) |
 | `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:6-22`) | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `deploy-dispatcher` (`:72`) |
-| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build` | `node:24-alpine`, port 3000 | `deploy-webapp` (`:156`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs `dependencies` alone (`pnpm install --prod`: the serving packages, since the server bundle is self-contained, `client-web/vite.config.mts`) | `node:24-alpine` running `react-router-serve build/server/index.js`, port 3000 | `deploy-webapp` (`:156`) |
 
 Every image is complete from a clean checkout; no job builds a jar first. Each build stage runs on the
 builder's own platform (`--platform=$BUILDPLATFORM`): a jar and a browser bundle are the same for every
@@ -144,7 +144,8 @@ seeds that wait for core's migrations to create the settings they edit, wherever
 points the `auth` settings at IDPZero so sign-in resolves to `oidc`, and `task-deletion-seed` sets the task
 deletion policy to Always so a finished run's storage claim can be released (`:105-127`,
 `docker/mongo/*.js`). `service-core` then runs on the host under the `local` Spring profile
-(`application-local.properties`) and `client-web`'s server from its checkout. The `stack` profile adds both
+(`application-local.properties`) and `client-web` under React Router's dev server (`pnpm dev`), which calls
+core at `http://localhost:7700` by default (`serverFetch.ts:26-27`). The `stack` profile adds both
 to Docker instead, secured, with core on `:7700` and `client-web` on `:3000` calling it at
 `http://service-core:7700` (`:183-258`); that is what the e2e job runs (`ci-e2e.yml`, `COMPOSE_PROFILES`).
 `service-dispatcher` sits behind the `dispatcher` profile because it needs a Kubernetes cluster and the

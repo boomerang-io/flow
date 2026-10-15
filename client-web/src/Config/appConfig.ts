@@ -1,5 +1,5 @@
-// Look for the data injected into the HTML file from the Express app
-// See server/app.js for implementation
+// window._SERVER_DATA is the deployment's runtime values, written into the document by the root
+// loader (app/serverData.server.ts, app/root.tsx) ahead of the module scripts.
 import queryString, { StringifyOptions } from "query-string";
 import { generatePath } from "react-router-dom";
 import { Envs } from "Constants";

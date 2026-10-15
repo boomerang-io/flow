@@ -12,19 +12,20 @@ This project is built with [Vite](https://vitejs.dev/).
 
 ## Local Development
 
-The webapp is React Router 7 in framework mode with server rendering on; `server/index.js` is the Express
-server that wraps the built request handler and is the single origin the browser talks to. Against the
-repository's compose stack with `service-core` on the host (the root README, "Developing"):
+The webapp is React Router 7 in framework mode with server rendering on, served by the framework's own
+server (`react-router-serve`): the single origin the browser talks to, calling `service-core` server-side.
+Against the repository's compose stack with `service-core` on the host (the root README, "Developing"):
 
 ```bash
-pnpm install && pnpm run build                     # build/client (browser assets) + build/server (SSR handler)
-cd server && npm install
-cp config/.env.example config/.env.local     # PORT, APP_ROOT, CORE_SERVICE_INTERNAL_ORIGIN
-node --env-file=config/.env.local index.js         # http://localhost:3000/apps/flow
+pnpm install
+pnpm dev                        # http://localhost:3000/apps/flow with hot reload; service-core at :7700
+pnpm run build && pnpm start    # the built server, exactly what the image runs
 ```
 
-`pnpm start` (the Vite dev server) does not boot with server rendering on, so a change means
-`pnpm run build` and a restart of the server. Unit tests: `pnpm test` (vitest + MSW, run in UTC).
+The dev server reaches `service-core` at http://localhost:7700 unless `CORE_SERVICE_INTERNAL_ORIGIN` is
+set; the built server takes `PORT`, `CORE_SERVICE_INTERNAL_ORIGIN` and the `window._SERVER_DATA` values
+(`app/serverData.server.ts`) from the environment, as `docker-compose.yml` shows. The probe is
+`GET /apps/flow/health`. Unit tests: `pnpm test` (vitest + MSW, run in UTC); `pnpm run typecheck`.
 
 The sections below describe the v4 setup against a Kubernetes-hosted backend and are kept for reference
 only.
@@ -110,4 +111,6 @@ HEADER Authorization: Bear <global token from above>
 
 export AUTH_JWT=<user_token>
 
-3. `npm run start:pf`
+3. Run the dev server with the proxy (the `start:pf` script and the port-forward proxy were removed with
+   the browser's direct API calls; the server-side loaders call `service-core` at
+   `CORE_SERVICE_INTERNAL_ORIGIN` instead).
