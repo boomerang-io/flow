@@ -19,6 +19,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowWorkspace, ModalTriggerProps, Workflow, WorkflowRun } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { formatQuotaUsage, isQuotaLimited } from "Utils/quotaHelper";
 import WorkflowQuotaModalContent from "./WorkflowQuotaModalContent";
 import styles from "./workflows.module.scss";
 
@@ -252,7 +253,9 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuer
   const hasWorkflows = workflowList.length > 0;
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   const hasReachedWorkflowLimit =
-    Boolean(workspaceQuotasEnabled) && workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
+    Boolean(workspaceQuotasEnabled) &&
+    isQuotaLimited(workspace.quotas.maxWorkflowCount) &&
+    workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount;
 
   const filteredWorkflowList = Boolean(searchQuery)
     ? matchSorter(workflowList, searchQuery, { keys: ["name"] })
@@ -270,7 +273,7 @@ const WorkflowContent: React.FC<WorkflowContentProps> = ({ workspace, searchQuer
             <div className={styles.quotaDescriptionContainer}>
               <p
                 className={styles.workspaceQuotaText}
-              >{`Workflow quota - ${workspace.quotas.currentWorkflowCount} of ${workspace.quotas.maxWorkflowCount} used`}</p>
+              >{`Workflow quota - ${formatQuotaUsage(workspace.quotas.currentWorkflowCount, workspace.quotas.maxWorkflowCount)} used`}</p>
               {hasReachedWorkflowLimit && (
                 <TooltipHover
                   direction="top"

@@ -3,6 +3,7 @@ import { ModalBody } from "@carbon/react";
 import moment from "moment";
 import ProgressBar from "Components/ProgressBar";
 import { FlowWorkspaceQuotas } from "Types";
+import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
 import styles from "./WorkflowQuotaModalContent.module.scss";
 
 export default function WorkflowQuotaModalContent({
@@ -12,13 +13,10 @@ export default function WorkflowQuotaModalContent({
   closeModal: () => void;
   quotas: FlowWorkspaceQuotas;
 }) {
-  let workflowLimitPercentage = (quotas.currentWorkflowCount / quotas.maxWorkflowCount) * 100;
-  let concurrentLimitPercentage = (quotas.currentConcurrentRuns / quotas.maxConcurrentRuns) * 100;
-  let monthlyExecutionPercentage = (quotas.currentRuns / quotas.maxWorkflowRunMonthly) * 100;
-
-  if (concurrentLimitPercentage > 100) concurrentLimitPercentage = 100; 
-  if (workflowLimitPercentage > 100) workflowLimitPercentage = 100;
-  if (monthlyExecutionPercentage > 100) monthlyExecutionPercentage = 100;
+  // null when the quota is unlimited: no bar, since there is no limit to measure against.
+  const workflowLimitPercentage = quotaUsagePercent(quotas.currentWorkflowCount, quotas.maxWorkflowCount);
+  const concurrentLimitPercentage = quotaUsagePercent(quotas.currentConcurrentRuns, quotas.maxConcurrentRuns);
+  const monthlyExecutionPercentage = quotaUsagePercent(quotas.currentRuns, quotas.maxWorkflowRunMonthly);
 
   return (
     <ModalBody className={styles.container}>
@@ -26,13 +24,15 @@ export default function WorkflowQuotaModalContent({
       <QuotaSection
         description="Number of Workflows that can be created."
         title="Number of Workflows"
-        value={quotas.currentWorkflowCount}
+        value={quotas.maxWorkflowCount}
         valueUnit="Workflows"
       >
-        <ProgressBar maxValue={quotas.maxWorkflowCount} value={workflowLimitPercentage} />
-        <p
-          className={styles.currentUsage}
-        >{`Current usage: ${quotas.currentWorkflowCount} of ${quotas.maxWorkflowCount}`}</p>
+        {workflowLimitPercentage !== null && (
+          <ProgressBar maxValue={quotas.maxWorkflowCount} value={workflowLimitPercentage} />
+        )}
+        <p className={styles.currentUsage}>
+          {`Current usage: ${formatQuotaUsage(quotas.currentWorkflowCount, quotas.maxWorkflowCount)}`}
+        </p>
       </QuotaSection>
       <QuotaSection
         title="Concurrent runs (executions)"
@@ -40,10 +40,12 @@ export default function WorkflowQuotaModalContent({
         value={quotas.maxConcurrentRuns}
         valueUnit="Workflows"
       >
-        <ProgressBar maxValue={quotas.maxConcurrentRuns} value={concurrentLimitPercentage} />
-        <p
-          className={styles.currentUsage}
-        >{`Current usage: ${quotas.currentConcurrentRuns} of ${quotas.maxConcurrentRuns}`}</p>
+        {concurrentLimitPercentage !== null && (
+          <ProgressBar maxValue={quotas.maxConcurrentRuns} value={concurrentLimitPercentage} />
+        )}
+        <p className={styles.currentUsage}>
+          {`Current usage: ${formatQuotaUsage(quotas.currentConcurrentRuns, quotas.maxConcurrentRuns)}`}
+        </p>
       </QuotaSection>
       <QuotaSection
         description="Number of runs per month across all Workflows"
@@ -51,10 +53,12 @@ export default function WorkflowQuotaModalContent({
         value={quotas.maxWorkflowRunMonthly}
         valueUnit="per month"
       >
-        <ProgressBar maxValue={quotas.maxWorkflowRunMonthly} value={monthlyExecutionPercentage} />
-        <p
-          className={styles.detailedText}
-        >{`Current usage: ${quotas.currentRuns} of ${quotas.maxWorkflowRunMonthly}`}</p>
+        {monthlyExecutionPercentage !== null && (
+          <ProgressBar maxValue={quotas.maxWorkflowRunMonthly} value={monthlyExecutionPercentage} />
+        )}
+        <p className={styles.detailedText}>
+          {`Current usage: ${formatQuotaUsage(quotas.currentRuns, quotas.maxWorkflowRunMonthly)}`}
+        </p>
         <time className={styles.detailedText}>
           {`Resets on ${moment.utc(quotas.monthlyResetDate).format("MMMM DD, YYYY")}`}
         </time>
@@ -89,7 +93,9 @@ const QuotaSection: React.FC<QuotaSectionProps> = ({ children, description, titl
     <section>
       <h2 className={styles.title}>{title}</h2>
       <p className={styles.description}>{description}</p>
-      <data className={styles.sectionValue} value={value}>{`${value} ${valueUnit}`}</data>
+      <data className={styles.sectionValue} value={value}>
+        {formatQuotaLimit(value, valueUnit)}
+      </data>
       {children}
     </section>
   );

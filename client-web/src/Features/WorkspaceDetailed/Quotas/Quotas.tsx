@@ -13,7 +13,11 @@ import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
 import { ModalTriggerProps } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
+
+// The editor's helper text for the five quotas a 0 makes unlimited.
+const UNLIMITED_AT_ZERO = "0 means unlimited";
 
 // Route module for the Quotas tab (app/routes/manageWorkspaceQuotas.tsx).
 //
@@ -80,16 +84,23 @@ export async function action({ params, request }: { params: { workspace?: string
 function Quotas() {
   const { workspace, canEdit: workspaceCanEdit, user } = useWorkspaceDetailedContext();
   const canEdit = workspaceCanEdit && user?.type === "admin";
-  let workflowLimitPercentage = (workspace.quotas.currentWorkflowCount / workspace.quotas.maxWorkflowCount) * 100;
-  let concurrentLimitPercentage = (workspace.quotas.currentConcurrentRuns / workspace.quotas.maxConcurrentRuns) * 100;
-  let monthlyExecutionPercentage = (workspace.quotas.currentRuns / workspace.quotas.maxWorkflowRunMonthly) * 100;
+  // null when the quota is unlimited (0): no usage bar, since there is no limit to measure against.
+  const workflowLimitPercentage = quotaUsagePercent(
+    workspace.quotas.currentWorkflowCount,
+    workspace.quotas.maxWorkflowCount,
+  );
+  const concurrentLimitPercentage = quotaUsagePercent(
+    workspace.quotas.currentConcurrentRuns,
+    workspace.quotas.maxConcurrentRuns,
+  );
+  const monthlyExecutionPercentage = quotaUsagePercent(
+    workspace.quotas.currentRuns,
+    workspace.quotas.maxWorkflowRunMonthly,
+  );
   // currentArtifactStorage is bytes; maxArtifactStorage is GB (Gi) - convert before comparing.
   const currentArtifactStorageGB = workspace.quotas.currentArtifactStorage / 1024 ** 3;
   let artifactStoragePercentage = (currentArtifactStorageGB / workspace.quotas.maxArtifactStorage) * 100;
 
-  if (concurrentLimitPercentage > 100) concurrentLimitPercentage = 100;
-  if (workflowLimitPercentage > 100) workflowLimitPercentage = 100;
-  if (monthlyExecutionPercentage > 100) monthlyExecutionPercentage = 100;
   if (artifactStoragePercentage > 100) artifactStoragePercentage = 100;
 
   const coverageBarStyle = { height: "1rem", width: "17.625rem" };
@@ -126,10 +137,10 @@ function Quotas() {
           subtitle="Number of Workflows that can be created for this workspace."
           title="Number of Workflows"
           modalSubtitle="Set the maximum number of Workflows that can be created for this workspace."
-          //   minValue={workspace.quotas.currentWorkflowCount}
-          minValue={1}
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Current Usage"
-          detailedData={`${workspace.quotas.currentWorkflowCount}/${workspace.quotas.maxWorkflowCount}`}
+          detailedData={formatQuotaUsage(workspace.quotas.currentWorkflowCount, workspace.quotas.maxWorkflowCount)}
           inputLabel="Maximum Workflows"
           inputUnits="Workflows"
           stepValue={1}
@@ -138,22 +149,24 @@ function Quotas() {
           quotaValue={workspace.quotas.maxWorkflowCount}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowCount} Workflows`}</h3>
-          <ProgressBar
-            maxValue={workspace.quotas.maxWorkflowCount}
-            value={workflowLimitPercentage}
-            coverageBarStyle={coverageBarStyle}
-          />
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowCount, "Workflows")}</h3>
+          {workflowLimitPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxWorkflowCount}
+              value={workflowLimitPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentWorkflowCount}`}</p>
         </QuotaCard>
         <QuotaCard
           subtitle="Number of executions per month across all Workflows for this Workspace"
           title="Number of Executions"
           modalSubtitle="Set the maximum total number of executions per month - this is the total amount across all Workflows for this Workspace."
-          //   minValue={workspace.quotas.currentWorkflowExecutionMonthly}
-          minValue={1}
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Current Usage"
-          detailedData={`${workspace.quotas.currentRuns}/${workspace.quotas.maxWorkflowRunMonthly}`}
+          detailedData={formatQuotaUsage(workspace.quotas.currentRuns, workspace.quotas.maxWorkflowRunMonthly)}
           inputLabel="Maximum executions"
           inputUnits="executions"
           stepValue={1}
@@ -162,12 +175,14 @@ function Quotas() {
           quotaValue={workspace.quotas.maxWorkflowRunMonthly}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunMonthly} per month`}</h3>
-          <ProgressBar
-            maxValue={workspace.quotas.maxWorkflowRunMonthly}
-            value={monthlyExecutionPercentage}
-            coverageBarStyle={coverageBarStyle}
-          />
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowRunMonthly, "per month")}</h3>
+          {monthlyExecutionPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxWorkflowRunMonthly}
+              value={monthlyExecutionPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentRuns}`}</p>
           <p className={styles.detailedSmallText}>
             Monthly counts include Workflows and runs that have since been deleted.
@@ -178,6 +193,7 @@ function Quotas() {
           title="Run Duration"
           modalSubtitle="Set the maximum amount of run time for a single Workflow."
           minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Current average execution time"
           detailedData={`${workspace.quotas.currentRunMedianDuration} minutes`}
           inputLabel="Maximum duration"
@@ -188,13 +204,14 @@ function Quotas() {
           quotaValue={workspace.quotas.maxWorkflowRunDuration}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkflowRunDuration} minutes`}</h3>
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowRunDuration, "minutes")}</h3>
         </QuotaCard>
         <QuotaCard
           subtitle="Max number of Workflows able to run at the same time."
           title="Concurrent Runs (executions)"
           modalSubtitle="Set the maximum number of Workflows that are able to run at the same time."
-          minValue={1}
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Current number of Concurrent Workflow Runs"
           detailedData={`${workspace.quotas.currentConcurrentRuns} Workflow Runs`}
           inputLabel="Maximum concurrent"
@@ -205,12 +222,14 @@ function Quotas() {
           quotaValue={workspace.quotas.maxConcurrentRuns}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxConcurrentRuns} Workflows`}</h3>
-          <ProgressBar
-            maxValue={workspace.quotas.maxConcurrentRuns}
-            value={concurrentLimitPercentage}
-            coverageBarStyle={coverageBarStyle}
-          />
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxConcurrentRuns, "Workflows")}</h3>
+          {concurrentLimitPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxConcurrentRuns}
+              value={concurrentLimitPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentConcurrentRuns}`}</p>
         </QuotaCard>
         <QuotaCard
@@ -218,8 +237,9 @@ function Quotas() {
           title="Workspace Storage - Per Run"
           modalSubtitle="Set the size limit of the shared workspace a workflow can declare for each run."
           minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Shared workspace size limit"
-          detailedData={`${workspace.quotas.maxWorkspaceStorage}GB per run`}
+          detailedData={formatQuotaLimit(workspace.quotas.maxWorkspaceStorage, "GB per run")}
           inputLabel="Storage limit"
           inputUnits="GB"
           stepValue={1}
@@ -228,7 +248,7 @@ function Quotas() {
           quotaValue={workspace.quotas.maxWorkspaceStorage}
           disabled={!canEdit}
         >
-          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxWorkspaceStorage}GB per run`}</h3>
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkspaceStorage, "GB per run")}</h3>
         </QuotaCard>
         <QuotaCard
           subtitle="Total size of artifacts a task uploads for this workspace's runs."
@@ -289,6 +309,7 @@ interface QuotaCardProps {
   quotaValue: number;
   disabled: boolean;
   minValue: number;
+  helperText?: string;
 }
 
 const QuotaCard: React.FC<QuotaCardProps> = ({
@@ -306,6 +327,7 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
   quotaValue,
   disabled,
   minValue,
+  helperText,
 }) => {
   return (
     <Tile className={styles.cardContainer}>
@@ -345,6 +367,7 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
               quotaProperty={quotaProperty}
               quotaValue={quotaValue}
               minValue={minValue}
+              helperText={helperText}
             />
           )}
         </ComposedModal>

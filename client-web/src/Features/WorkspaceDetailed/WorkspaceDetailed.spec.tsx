@@ -198,7 +198,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
     await screen.findByText("Number of Workflows");
     expect(screen.getByText("Workspace Storage - Per Run")).toBeInTheDocument();
-    expect(screen.getByText("5GB per run")).toBeInTheDocument();
+    expect(screen.getByText("5 GB per run")).toBeInTheDocument();
     expect(screen.queryByText("Workspace Capacity - Per Workflow")).not.toBeInTheDocument();
     expect(screen.queryByText("Workspace Capacity - Per Run")).not.toBeInTheDocument();
   });
@@ -255,7 +255,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
       expect(await screen.findAllByText(title)).toHaveLength(2);
     }
     expect(screen.getByText("20 Workflows")).toBeInTheDocument();
-    expect(screen.getByText("10GB per run")).toBeInTheDocument();
+    expect(screen.getByText("10 GB per run")).toBeInTheDocument();
     expect(screen.getByText("8GB")).toBeInTheDocument();
     expect(screen.getByText("45 days")).toBeInTheDocument();
   });

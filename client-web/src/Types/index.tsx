@@ -505,6 +505,8 @@ export interface FlowWorkspaceQuotas {
   currentRunMedianDuration: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
+  // For the five max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
+  // resolved an absent stored value to the platform default.
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
   // GB (integer) - the size cap of the shared workspace a run can declare.
