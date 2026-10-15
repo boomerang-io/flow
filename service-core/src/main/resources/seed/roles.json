@@ -1,9 +1,6 @@
 {
   "documents": [
     {
-      "_id": {
-        "$oid": "5eed00000000000000000100"
-      },
       "type": "global",
       "name": "admin",
       "description": "",
@@ -12,9 +9,6 @@
       ]
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000101"
-      },
       "type": "global",
       "name": "operator",
       "description": "",
@@ -25,9 +19,6 @@
       ]
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000102"
-      },
       "type": "workspace",
       "name": "editor",
       "description": "",
@@ -38,9 +29,6 @@
       ]
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000103"
-      },
       "type": "workspace",
       "name": "owner",
       "description": "",
@@ -49,9 +37,6 @@
       ]
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000104"
-      },
       "type": "workspace",
       "name": "reader",
       "description": "",

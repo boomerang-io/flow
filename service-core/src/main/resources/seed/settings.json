@@ -33,9 +33,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000300"
-      },
       "config": [
         {
           "description": "The issuer URL of the single trusted OIDC provider (e.g. local IDPZero) accepted for the direct id_token login path of the sign-in exchange. Empty disables that path entirely.",
@@ -63,9 +60,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "62b0f1f5a6166d30af05fa5d"
-      },
       "config": [
         {
           "description": "The name to appear in the header (and throughout the App) that appears to the right of the Platform Name or Logo.",
@@ -109,9 +103,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "612904d60b07a54cdc4dc6a9"
-      },
       "config": [
         {
           "description": "Allow users to access and interact with Activity",
@@ -203,9 +194,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "62a7bec0a6166d30aff64a5b"
-      },
       "config": [
         {
           "description": "The default auth token for authenticating as a Slack app. Only used if installing into a single workspace and not a distributed app.",
@@ -305,9 +293,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "5f32cb19d09662744c0df51d"
-      },
       "config": [
         {
           "description": "Enable Debug logging for worker logs",
@@ -374,9 +359,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "61393f5966c5eea103dfe134"
-      },
       "config": [
         {
           "description": "The number of workflows that can be running at the same time",
@@ -436,9 +418,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "60245957226920beece4fdf9"
-      },
       "config": [
         {
           "description": "How many levels of child workflows a run may nest. A runworkflow task at the cap fails instead of submitting another child.",
@@ -466,9 +445,6 @@
       "type": "ValuesList"
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000400"
-      },
       "config": [
         {
           "description": "Capture an audit event for every audited operation. Disabling stops capture immediately; nothing is captured retroactively when re-enabled.",

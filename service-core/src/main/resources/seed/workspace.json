@@ -1,9 +1,6 @@
 {
   "documents": [
     {
-      "_id": {
-        "$oid": "5eed00000000000000000001"
-      },
       "name": "system",
       "displayName": "System and Administration",
       "type": "system",

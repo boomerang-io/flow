@@ -52,12 +52,13 @@ import org.springframework.core.env.Environment;
  * migrated task, or the seeded one), so a re-run inserts nothing.
  *
  * <p><b>Not generation-gated.</b> On a v3 install this runs after {@link
- * _0006__V3MigrateTaskCatalogue}, so {@code tasks} already holds the migrated catalogue under the
- * v3 {@code _id}s, which are the very ids this seed carries (verified 87/87 overlap). {@link
- * #seedTasks}'s name match finds every one of those tasks (resolving to their preserved v3 {@code
- * _id}s, never re-inserting under the seed's own ids) and inserts only what the install genuinely
- * lacks: on the real v3 dump, the seed's {@code Manual Approval} v2 revision and the v5-native
- * {@code ai} task, which no v3 install can hold.
+ * _0006__V3MigrateTaskCatalogue}, so {@code tasks} already holds the migrated catalogue under its
+ * v3 {@code _id}s. {@link #seedTasks}'s name match finds every one of those tasks (verified 87/87
+ * on the real v3 dump) and inserts only what the install genuinely lacks: on that dump, the seed's
+ * {@code Manual Approval} v2 revision and the v5-native {@code ai} task, which no v3 install can
+ * hold. The seed carries no ids: a task it inserts takes a new one, and its revisions name their
+ * task in {@code parentRef}, resolved to the live id here. A v3 catalogue task an install renamed
+ * is not recognised, so the seed's own copy is added beside it.
  */
 @Change(id = "0017-seed-task-catalogue", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
@@ -77,29 +78,23 @@ public class _0017__SeedTaskCatalogue {
   }
 
   /**
-   * Insert every absent task and return seeded-id -> live-id, so the revisions and graph attach to
+   * Insert every absent task and return task name -> live id, so the revisions and graph attach to
    * a v3 install's migrated task documents rather than duplicating them.
    */
   private Map<String, String> seedTasks(MongoDatabase db, CollectionNames names) {
     List<Document> tasks = SeedResources.load("seed/tasks.json");
+    MongoCollection<Document> liveTasks = db.getCollection(names.resolve("tasks"));
     Map<String, String> resolvedIds = new HashMap<>();
     int inserted = 0;
     for (Document task : tasks) {
-      String seededId = task.get("_id").toString();
-      // A v3 task keeps the seed's id but takes its name from v3's display name, which an install
-      // may have changed - so the id matches first, then the name.
-      MongoCollection<Document> liveTasks = db.getCollection(names.resolve("tasks"));
-      Document existing = liveTasks.find(Filters.eq("_id", task.get("_id"))).first();
+      String name = task.getString("name");
+      Document existing = liveTasks.find(Filters.eq("name", name)).first();
       if (existing == null) {
-        existing = liveTasks.find(Filters.eq("name", task.getString("name"))).first();
+        liveTasks.insertOne(task);
+        existing = task;
+        inserted++;
       }
-      if (existing != null) {
-        resolvedIds.put(seededId, existing.get("_id").toString());
-        continue;
-      }
-      liveTasks.insertOne(task);
-      resolvedIds.put(seededId, seededId);
-      inserted++;
+      resolvedIds.put(name, existing.get("_id").toString());
     }
     SeedResources.logSeeded("tasks", inserted, tasks.size());
     return resolvedIds;
@@ -110,6 +105,7 @@ public class _0017__SeedTaskCatalogue {
     List<Document> revisions = SeedResources.load("seed/task-revisions.json");
     int inserted = 0;
     for (Document revision : revisions) {
+      // In the seed, parentRef names the task; stored, it is the task's id.
       String parentRef = resolvedIds.get(revision.getString("parentRef"));
       if (parentRef == null) {
         LOG.warn("Skipping task revision with unresolved parent {}", revision.getString("parentRef"));
@@ -134,7 +130,7 @@ public class _0017__SeedTaskCatalogue {
     int nodes = 0;
     int edges = 0;
     for (Document task : SeedResources.load("seed/tasks.json")) {
-      String taskId = resolvedIds.get(task.get("_id").toString());
+      String taskId = resolvedIds.get(task.getString("name"));
       if (taskId == null) {
         continue;
       }

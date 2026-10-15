@@ -62,7 +62,7 @@ import org.springframework.core.env.Environment;
  *       runworkflow}, {@code runscheduledworkflow}, {@code script}, {@code approval}, {@code
  *       setwfproperty}, {@code setwfstatus}) passed through unchanged — this is {@code 4004}'s
  *       mapping, and matches {@link io.boomerang.common.enums.TaskType} exactly. <b>One documented
- *       exception</b>: the well-known {@code sleep} system task (see {@link #SLEEP_TASK_ID}) is
+ *       exception</b>: the well-known {@code sleep} system task (see {@link #isSleepTask}) is
  *       templated ({@code nodetype=templateTask}) on a genuine v3 install (verified in the dump —
  *       {@code category=Utilities}, {@code arguments=["system","sleep"]}), but legacy changeset
  *       {@code 4010} (order 4010, between {@code 4004} and the other squashed changesets)
@@ -116,11 +116,8 @@ public class _0006__V3MigrateTaskCatalogue {
 
   private static final Logger LOG = LoggerFactory.getLogger(_0006__V3MigrateTaskCatalogue.class);
 
-  /**
-   * The well-known "Sleep" system task id — verified identical across the real v3 dump, the legacy
-   * {@code 4010} hardcode resource, and the v5 seed catalogue. See the class javadoc.
-   */
-  private static final ObjectId SLEEP_TASK_ID = new ObjectId("5bd97bea5a5df954ad592c06");
+  /** The arguments v3's templated Sleep task runs with, which identify it. */
+  private static final List<String> SLEEP_ARGUMENTS = List.of("system", "sleep");
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {
@@ -148,7 +145,7 @@ public class _0006__V3MigrateTaskCatalogue {
 
     for (Document source : taskTemplates.find()) {
       ObjectId taskId = source.getObjectId("_id");
-      boolean isSleep = SLEEP_TASK_ID.equals(taskId);
+      boolean isSleep = isSleepTask(source);
 
       if (tasks.find(Filters.eq("_id", taskId)).first() == null) {
         tasks.insertOne(migrateTask(source, taskId, isSleep));
@@ -182,6 +179,18 @@ public class _0006__V3MigrateTaskCatalogue {
         sourceCount,
         tasksMigrated,
         revisionsMigrated);
+  }
+
+  /**
+   * v3's Sleep task: a templated task whose revision runs {@code ["system","sleep"]}, as on the real
+   * v3 dump. See the class javadoc.
+   */
+  private static boolean isSleepTask(Document source) {
+    if (!"templateTask".equals(source.getString("nodetype"))) {
+      return false;
+    }
+    List<Document> revisions = source.getList("revisions", Document.class, List.of());
+    return revisions.stream().anyMatch(revision -> SLEEP_ARGUMENTS.equals(revision.get("arguments")));
   }
 
   private Document migrateTask(Document source, ObjectId taskId, boolean isSleep) {

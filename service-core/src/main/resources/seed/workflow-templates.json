@@ -1,16 +1,12 @@
 {
   "documents": [
     {
-      "_id": {
-        "$oid": "62be6a3266ff43491f09d2e8"
-      },
       "version": 1,
       "changelog": {
         "reason": "",
         "date": {
           "$date": "2022-05-06T21:09:13.633Z"
-        },
-        "author": "608fb6fb70bfa94ac91f90cb"
+        }
       },
       "tasks": [
         {
@@ -123,7 +119,7 @@
               "y": 300.122021922991
             }
           },
-          "taskRef": "61f14da3aff34c34ea431963"
+          "taskRef": "execute-basic-http-call"
         },
         {
           "name": "Get the planet",
@@ -169,7 +165,7 @@
               "y": 420.420333120955
             }
           },
-          "taskRef": "60c2287d3911cb71a1f371a2"
+          "taskRef": "file-jsonpath-to-parameter"
         },
         {
           "name": "Scan the planet",
@@ -255,7 +251,7 @@
               "y": 290.709858684681
             }
           },
-          "taskRef": "5c3d0401352b1b514150545b"
+          "taskRef": "execute-advanced-http-call"
         },
         {
           "name": "Track the film",
@@ -301,7 +297,7 @@
               "y": 418.430346798634
             }
           },
-          "taskRef": "60c2287d3911cb71a1f371a2"
+          "taskRef": "file-jsonpath-to-parameter"
         },
         {
           "name": "Scan the film",
@@ -387,7 +383,7 @@
               "y": 285.086053412463
             }
           },
-          "taskRef": "5c3d0401352b1b514150545b"
+          "taskRef": "execute-advanced-http-call"
         },
         {
           "name": "Destroying the planet",
@@ -429,7 +425,7 @@
               "y": 409.259643916914
             }
           },
-          "taskRef": "5fa4144bcb28924ba43ab57c"
+          "taskRef": "manual-task"
         },
         {
           "name": "Find Resistance troops",
@@ -475,7 +471,7 @@
               "y": 420.750741839763
             }
           },
-          "taskRef": "60c2287d3911cb71a1f371a2"
+          "taskRef": "file-jsonpath-to-parameter"
         },
         {
           "name": "Find Resistance leader",
@@ -521,7 +517,7 @@
               "y": 536.409495548961
             }
           },
-          "taskRef": "60c2287d3911cb71a1f371a2"
+          "taskRef": "file-jsonpath-to-parameter"
         }
       ],
       "workspace": {
@@ -554,16 +550,12 @@
       }
     },
     {
-      "_id": {
-        "$oid": "62be6a3e66ff43491f09d2ea"
-      },
       "version": 1,
       "changelog": {
         "reason": "",
         "date": {
           "$date": "2022-05-06T16:43:09.659Z"
-        },
-        "author": "608fb6fb70bfa94ac91f90cb"
+        }
       },
       "tasks": [
         {
@@ -726,7 +718,7 @@
               "y": 284.396142433234
             }
           },
-          "taskRef": "620636845b676b358e8c440c"
+          "taskRef": "mongodb-query-execution"
         },
         {
           "name": "Display the results",
@@ -776,7 +768,7 @@
               "y": 114.881440158259
             }
           },
-          "taskRef": "5c3907a1352b1b51412ed079"
+          "taskRef": "execute-shell"
         },
         {
           "name": "Send the results as attachemnt",
@@ -854,7 +846,7 @@
               "y": 287.083086053413
             }
           },
-          "taskRef": "5f85dba0868d2e2ebebbe2d1"
+          "taskRef": "send-email-with-sendgrid"
         },
         {
           "name": "Failed to run the query email",
@@ -932,7 +924,7 @@
               "y": 457.570474777448
             }
           },
-          "taskRef": "5f85dba0868d2e2ebebbe2d1"
+          "taskRef": "send-email-with-sendgrid"
         }
       ],
       "workspace": {

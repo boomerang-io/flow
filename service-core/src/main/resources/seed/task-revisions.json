@@ -1,9 +1,6 @@
 {
  "documents": [
   {
-   "_id": {
-    "$oid": "5eed00000000000000001000"
-   },
    "displayName": "Acquire Lock",
    "description": "This task attempts to obtain a lock with the specified name. If no other workflow in the team is using a lock with that name, a lock with that name and is created. If another workflow in the team is using a lock with the specified name, the current workflow waits until the lock is available.",
    "category": "Workflow",
@@ -13,8 +10,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -50,12 +46,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "600b2f5520a674b1d2cb4635"
+   "parentRef": "acquire-lock"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001001"
-   },
    "displayName": "Add Box Folder",
    "description": "Adds a Box folder with the specified name. If no parent folder is provided, then the Box root folder is used.",
    "category": "Box",
@@ -65,8 +58,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:30:46.501Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -180,12 +172,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605863857a38c63898cc4de7"
+   "parentRef": "add-box-folder"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001002"
-   },
    "displayName": "Add Issue to Project",
    "description": "Adds a GitHub issue to a GitHub Issue Project",
    "category": "GitHub",
@@ -195,8 +184,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-21T04:34:44.582Z"
-    },
-    "author": "614415021950a72949b00efb"
+    }
    },
    "spec": {
     "params": [
@@ -242,12 +230,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6170b3b6c87e7471580d00fb"
+   "parentRef": "add-issue-to-project"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001003"
-   },
    "displayName": "Add Sheet",
    "description": "Add new sheet to a Google spreadsheet.",
    "category": "Google Sheets",
@@ -257,8 +242,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:37:26.916Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -353,12 +337,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9641aae7066447752ea1"
+   "parentRef": "add-sheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001004"
-   },
    "displayName": "Add Sheet",
    "description": "Add new sheet to a Google spreadsheet.",
    "category": "Google Sheets",
@@ -368,8 +349,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields. ",
     "date": {
      "$date": "2022-04-20T09:12:45.033Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -429,12 +409,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9641aae7066447752ea1"
+   "parentRef": "add-sheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001005"
-   },
    "displayName": "Add User To Box Folder",
    "description": "Adds an user to the specified Box folder.",
    "category": "Box",
@@ -444,8 +421,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:31:20.144Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -623,12 +599,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6040d9fb03e8ac417d2ee47e"
+   "parentRef": "add-user-to-box-folder"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001006"
-   },
    "displayName": "Append Data",
    "description": "Append data to an existing Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -638,8 +611,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:35:33.486Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -750,12 +722,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a976eaae7066447752ea2"
+   "parentRef": "append-data"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001007"
-   },
    "displayName": "Append Data",
    "description": "Append data to an existing Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -765,8 +734,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields.",
     "date": {
      "$date": "2022-04-20T09:10:40.08Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -842,12 +810,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a976eaae7066447752ea2"
+   "parentRef": "append-data"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001008"
-   },
    "displayName": "Artifactory File Download",
    "description": "Artifactory File Download",
    "category": "Artifactory",
@@ -857,8 +822,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:44:42.104Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -914,12 +878,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9b4115a5df954ad5ad8db"
+   "parentRef": "artifactory-file-download"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001009"
-   },
    "displayName": "Artifactory File Upload",
    "description": "Upload file to Artifactory",
    "category": "Artifactory",
@@ -929,8 +890,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:52:58.798Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -986,12 +946,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9d0825a5df954ad5bb5c3"
+   "parentRef": "artifactory-file-upload"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100a"
-   },
    "displayName": "Artifactory File Upload",
    "description": "Upload file to Artifactory",
    "category": "Artifactory",
@@ -1001,8 +958,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:44:49.84Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -1064,12 +1020,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9d0825a5df954ad5bb5c3"
+   "parentRef": "artifactory-file-upload"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100b"
-   },
    "displayName": "Check File Contains String",
    "description": "Check file contains string.",
    "category": "File Utilities",
@@ -1079,8 +1032,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:46:16.007Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -1128,12 +1080,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5d1ed216988e7b6b6f7b3c1c"
+   "parentRef": "check-file-contains-string"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100c"
-   },
    "displayName": "Check File or Folder Exists",
    "description": "Check file or folder exists and fail if not found.",
    "category": "File Utilities",
@@ -1143,8 +1092,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:46:24.773Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -1176,12 +1124,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3fbc92352b1b51416952d1"
+   "parentRef": "check-file-or-folder-exists"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100d"
-   },
    "displayName": "Clear Data",
    "description": "Clear the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -1191,8 +1136,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:17:45.416Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -1287,12 +1231,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a98f4aae7066447752ea3"
+   "parentRef": "clear-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100e"
-   },
    "displayName": "Clear Data",
    "description": "Clear the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -1302,8 +1243,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields.",
     "date": {
      "$date": "2022-04-20T09:11:05.837Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -1363,12 +1303,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a98f4aae7066447752ea3"
+   "parentRef": "clear-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000100f"
-   },
    "displayName": "Copy File",
    "description": "Creates a copy of a file. Folders cannot be copied.\n\nThe file will be owned by the Service Account used. We recommend providing a shared parent folder or adding new permissions after the copy.",
    "category": "Google Drive",
@@ -1378,8 +1315,7 @@
     "reason": "",
     "date": {
      "$date": "2022-04-20T11:16:25.202Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -1486,12 +1422,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "625fd22298d7806f5ed60200"
+   "parentRef": "copy-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001010"
-   },
    "displayName": "Copy Sheet To Another Spreadsheet",
    "description": "Copy a sheet from a spreadsheet to another.",
    "category": "Google Sheets",
@@ -1501,8 +1434,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:14:06.436Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -1608,12 +1540,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a99feaae7066447752ea4"
+   "parentRef": "copy-sheet-to-another-spreadsheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001011"
-   },
    "displayName": "Copy Sheet To Another Spreadsheet",
    "description": "Copy a sheet from a spreadsheet to another.",
    "category": "Google Sheets",
@@ -1623,8 +1552,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields.",
     "date": {
      "$date": "2022-04-20T09:12:13.938Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -1695,12 +1623,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a99feaae7066447752ea4"
+   "parentRef": "copy-sheet-to-another-spreadsheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001012"
-   },
    "displayName": "Create File",
    "description": "Create file in worker.",
    "category": "File Utilities",
@@ -1737,12 +1662,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9d03a5a5df954ad5bb3b5"
+   "parentRef": "create-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001013"
-   },
    "displayName": "Create File",
    "description": "Create file in worker.",
    "category": "File Utilities",
@@ -1752,8 +1674,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:51:53.014Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -1785,12 +1706,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9d03a5a5df954ad5bb3b5"
+   "parentRef": "create-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001014"
-   },
    "displayName": "Create File",
    "description": "Create file in worker.",
    "category": "File Utilities",
@@ -1800,8 +1718,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:46:32.143Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -1844,12 +1761,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd9d03a5a5df954ad5bb3b5"
+   "parentRef": "create-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001015"
-   },
    "displayName": "Create Slack Channel",
    "description": "Create a Slack channel using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.create",
    "category": "Communication with Slack",
@@ -1859,8 +1773,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:08:49.253Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -1925,12 +1838,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050bfdf567ec556435f0257"
+   "parentRef": "create-slack-channel"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001016"
-   },
    "displayName": "Create Spreadsheet",
    "description": "Create a new Google Spreadsheet with the provided name.",
    "category": "Google Sheets",
@@ -1940,8 +1850,7 @@
     "reason": "Initial version",
     "date": {
      "$date": "2021-10-28T14:17:45.416Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -1995,12 +1904,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9b13aae7066447752ea5"
+   "parentRef": "create-spreadsheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001017"
-   },
    "displayName": "Create Spreadsheet",
    "description": "Create a new Google Spreadsheet with the provided name.",
    "category": "Google Sheets",
@@ -2010,8 +1916,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields. ",
     "date": {
      "$date": "2022-04-20T09:13:23.994Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -2065,12 +1970,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9b13aae7066447752ea5"
+   "parentRef": "create-spreadsheet"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001018"
-   },
    "displayName": "Create Support Center Ticket",
    "description": "Creates a support center ticket. Should be used when you got a problem, found a bug or just need some help",
    "category": "IBM Services Essentials",
@@ -2080,8 +1982,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:18:17.606Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -2191,12 +2092,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "604a6d3218c4f445d69c49d4"
+   "parentRef": "create-support-center-ticket"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001019"
-   },
    "displayName": "Create Team in Organization",
    "description": "Creates a Github team in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#create-a-team",
    "category": "GitHub",
@@ -2206,8 +2104,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-24T13:52:45.209Z"
-    },
-    "author": "5e79e5ae2e0ee000015cacde"
+    }
    },
    "spec": {
     "params": [
@@ -2358,12 +2255,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "605b424c1c97815d3b8d9499"
+   "parentRef": "create-team-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101a"
-   },
    "displayName": "Create Team in Organization",
    "description": "Creates a Github team in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#create-a-team",
    "category": "GitHub",
@@ -2373,8 +2267,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T08:35:49.227Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -2521,12 +2414,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b424c1c97815d3b8d9499"
+   "parentRef": "create-team-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101b"
-   },
    "displayName": "Create Team in Organization",
    "description": "Creates a Github team in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#create-a-team",
    "category": "GitHub",
@@ -2536,8 +2426,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:37:45.256Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -2694,12 +2583,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b424c1c97815d3b8d9499"
+   "parentRef": "create-team-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101c"
-   },
    "displayName": "Delete File",
    "description": "Deletes a file.",
    "category": "Google Drive",
@@ -2709,8 +2595,7 @@
     "reason": "",
     "date": {
      "$date": "2022-04-20T22:56:02.562Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -2759,12 +2644,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "62608f4a5f8f60e852e30d0a"
+   "parentRef": "delete-file"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101d"
-   },
    "displayName": "Delete Sheet",
    "description": "Delete a sheet from a Google spreadsheet.",
    "category": "Google Sheets",
@@ -2774,8 +2656,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:06:21.37Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -2870,12 +2751,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9de6aae7066447752ea6"
+   "parentRef": "delete-sheet"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101e"
-   },
    "displayName": "Delete Sheet",
    "description": "Delete a sheet from a Google spreadsheet.",
    "category": "Google Sheets",
@@ -2885,8 +2763,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields. ",
     "date": {
      "$date": "2022-04-20T09:13:36.966Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -2946,12 +2823,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9de6aae7066447752ea6"
+   "parentRef": "delete-sheet"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000101f"
-   },
    "displayName": "Delete Slack Channel",
    "description": "Archives a Slack conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.archive",
    "category": "Communication with Slack",
@@ -2961,8 +2835,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:09:27.252Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -3005,12 +2878,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050d872567ec556435f025f"
+   "parentRef": "delete-slack-channel"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001020"
-   },
    "displayName": "Delete Team from Organization",
    "description": "Deletes a Github team from a Github organization based on the teamName parameter. For further reading on the underlying API see https://docs.github.com/rest/reference/teams/#delete-a-team",
    "category": "GitHub",
@@ -3020,8 +2890,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-29T23:49:25.366Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -3079,12 +2948,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "605b416a1c97815d3b8d9495"
+   "parentRef": "delete-team-from-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001021"
-   },
    "displayName": "Download File From Box",
    "description": "Downloads a file from Box to the provided path.",
    "category": "Box",
@@ -3094,8 +2960,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:31:31.991Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -3205,12 +3070,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605884d67a38c63898cc4df4"
+   "parentRef": "download-file-from-box"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001022"
-   },
    "displayName": "Execute Advanced HTTP Call",
    "description": "Execute an Advanced HTTP Call",
    "category": "Utilities",
@@ -3220,8 +3082,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:48:55.795Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -3315,12 +3176,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3d0401352b1b514150545b"
+   "parentRef": "execute-advanced-http-call"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001023"
-   },
    "displayName": "Execute Advanced HTTP Call",
    "description": "Execute an Advanced HTTP Call",
    "category": "Utilities",
@@ -3330,8 +3188,7 @@
     "reason": "Point to image 2.0.1.  Added helper text for Headers field",
     "date": {
      "$date": "2020-05-15T16:59:20.522Z"
-    },
-    "author": "59aebd0b7424530fce952fdc"
+    }
    },
    "spec": {
     "params": [
@@ -3428,12 +3285,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3d0401352b1b514150545b"
+   "parentRef": "execute-advanced-http-call"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001024"
-   },
    "displayName": "Execute Advanced HTTP Call",
    "description": "Execute an Advanced HTTP Call",
    "category": "Utilities",
@@ -3443,8 +3297,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:43:36.805Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -3541,12 +3394,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3d0401352b1b514150545b"
+   "parentRef": "execute-advanced-http-call"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001025"
-   },
    "displayName": "Execute Advanced HTTP Call",
    "description": "Execute an Advanced HTTP Call",
    "category": "Utilities",
@@ -3556,8 +3406,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-13T08:49:42.733Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -3728,12 +3577,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5c3d0401352b1b514150545b"
+   "parentRef": "execute-advanced-http-call"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001026"
-   },
    "displayName": "Execute Basic HTTP Call",
    "description": "Execute a Basic HTTP Call",
    "category": "Utilities",
@@ -3743,8 +3589,7 @@
     "reason": "",
     "date": {
      "$date": "2022-01-27T16:25:13.252Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -3870,12 +3715,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "61f14da3aff34c34ea431963"
+   "parentRef": "execute-basic-http-call"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001027"
-   },
    "displayName": "Execute Shell",
    "description": "Execute a shell script",
    "category": "Utilities",
@@ -3885,8 +3727,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:48:44.591Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -3926,12 +3767,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3907a1352b1b51412ed079"
+   "parentRef": "execute-shell"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001028"
-   },
    "displayName": "Execute Shell",
    "description": "Execute a shell script",
    "category": "Utilities",
@@ -3941,8 +3779,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:43:57.797Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -3985,12 +3822,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3907a1352b1b51412ed079"
+   "parentRef": "execute-shell"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001029"
-   },
    "displayName": "File JSONPath To Parameter",
    "description": "Takes the first value from the file content returned by a valid JSONPath expression and sets as an output property",
    "category": "Utilities",
@@ -4000,8 +3834,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T08:51:53.015Z"
-    },
-    "author": "608ca23d70bfa94ac91f8eef"
+    }
    },
    "spec": {
     "params": [
@@ -4047,12 +3880,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "60c2287d3911cb71a1f371a2"
+   "parentRef": "file-jsonpath-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102a"
-   },
    "displayName": "File JSONPath To Parameter",
    "description": "Takes the first value from the file content returned by a valid JSONPath expression and sets as an output property",
    "category": "Utilities",
@@ -4062,8 +3892,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:19:50.888Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -4104,12 +3933,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "60c2287d3911cb71a1f371a2"
+   "parentRef": "file-jsonpath-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102b"
-   },
    "displayName": "Find Issues and Label",
    "description": "Finds issues in a repository based on time since last activity and adds a label and a comment. This is useful for marking issues inactive or reminding users to update an issue.",
    "category": "GitHub",
@@ -4119,8 +3945,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T23:06:18.143Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [],
@@ -4135,12 +3960,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab59eaaecb0800014e0ccb"
+   "parentRef": "find-issues-and-label"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102c"
-   },
    "displayName": "Find Issues and Label",
    "description": "Finds issues in a repository based on time since last activity and adds a label and a comment. This is useful for marking issues inactive or reminding users to update an issue.",
    "category": "GitHub",
@@ -4150,8 +3972,7 @@
     "reason": "Initial version of task",
     "date": {
      "$date": "2020-04-30T23:09:38.47Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -4228,12 +4049,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab59eaaecb0800014e0ccb"
+   "parentRef": "find-issues-and-label"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102d"
-   },
    "displayName": "Find Issues and Label",
    "description": "Finds issues in a repository based on time since last activity and adds a label and a comment. This is useful for marking issues inactive or reminding users to update an issue.",
    "category": "GitHub",
@@ -4243,8 +4061,7 @@
     "reason": "Added an ignore label for issues that will not be returned in the search and therefore not labeled.\t(Copying Tyson's updated version from Live to get the rest of the envs level)",
     "date": {
      "$date": "2020-08-25T15:01:51.006Z"
-    },
-    "author": "5ecd2d1d0eb5f000012d0895"
+    }
    },
    "spec": {
     "params": [
@@ -4333,12 +4150,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab59eaaecb0800014e0ccb"
+   "parentRef": "find-issues-and-label"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102e"
-   },
    "displayName": "Find Issues and Remove",
    "description": "Finds github issues and removes with optional days since activity and labels",
    "category": "GitHub",
@@ -4348,8 +4162,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:54:58.471Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [],
@@ -4364,12 +4177,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab5742aecb0800014e0c87"
+   "parentRef": "find-issues-and-remove"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000102f"
-   },
    "displayName": "Find Issues and Remove",
    "description": "Finds github issues and removes with optional days since activity and labels",
    "category": "GitHub",
@@ -4379,8 +4189,7 @@
     "reason": "Initial version of the task",
     "date": {
      "$date": "2020-04-30T23:03:49.743Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -4456,12 +4265,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab5742aecb0800014e0c87"
+   "parentRef": "find-issues-and-remove"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001030"
-   },
    "displayName": "Find Repositories in Org",
    "description": "Find Repositories in a GitHub organization",
    "category": "GitHub",
@@ -4471,8 +4277,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:51:00.56Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -4520,12 +4325,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5d25414c988e7b6b6fb3d5f7"
+   "parentRef": "find-repositories-in-org"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001031"
-   },
    "displayName": "Find Repositories in Org",
    "description": "Find Repositories in a GitHub organization",
    "category": "GitHub",
@@ -4535,8 +4337,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T08:54:29.521Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -4644,12 +4445,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5d25414c988e7b6b6fb3d5f7"
+   "parentRef": "find-repositories-in-org"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001032"
-   },
    "displayName": "Find Repositories in Org",
    "description": "Find Repositories in a GitHub organization",
    "category": "GitHub",
@@ -4659,8 +4457,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:38:04.792Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -4778,12 +4575,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5d25414c988e7b6b6fb3d5f7"
+   "parentRef": "find-repositories-in-org"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001033"
-   },
    "displayName": "Find Slack Member By Email",
    "description": "Find a Slack user based on the provided email address using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.lookupByEmail",
    "category": "Communication with Slack",
@@ -4793,8 +4587,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-19T23:34:38.737Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -4832,12 +4625,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5e670a1e2d5e6a302de4f41d"
+   "parentRef": "find-slack-member-by-email"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001034"
-   },
    "displayName": "Find Slack Member By Email",
    "description": "Find a Slack user based on the provided email address using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.lookupByEmail",
    "category": "Communication with Slack",
@@ -4847,8 +4637,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:09:46.299Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -4891,12 +4680,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5e670a1e2d5e6a302de4f41d"
+   "parentRef": "find-slack-member-by-email"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001035"
-   },
    "displayName": "Find Slack Member By Id",
    "description": "Find a Slack user based on the provided user id using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.info",
    "category": "Communication with Slack",
@@ -4906,8 +4692,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:09:58.182Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -4950,12 +4735,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050c68f567ec556435f025a"
+   "parentRef": "find-slack-member-by-id"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001036"
-   },
    "displayName": "Get All Organizations",
    "description": "Lists all Github organizations, in the order that they were created on GitHub. For further reading on the underlying API see https://docs.github.com/rest/reference/orgs/#list-organizations",
    "category": "GitHub",
@@ -4965,8 +4747,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:15:10.659Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5030,12 +4811,9 @@
     "script": "ls -la /tekton/results/",
     "workingDir": ""
    },
-   "parentRef": "605b39cf1c97815d3b8d946c"
+   "parentRef": "get-all-organizations"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001037"
-   },
    "displayName": "Get All Teams in Organization",
    "description": "Lists all teams in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
    "category": "GitHub",
@@ -5045,8 +4823,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T08:59:07.471Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5119,12 +4896,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b3f801c97815d3b8d948c"
+   "parentRef": "get-all-teams-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001038"
-   },
    "displayName": "Get All Teams in Organization",
    "description": "Lists all teams in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
    "category": "GitHub",
@@ -5134,8 +4908,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:38:45.964Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5218,12 +4991,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b3f801c97815d3b8d948c"
+   "parentRef": "get-all-teams-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001039"
-   },
    "displayName": "Get Box Folder Info",
    "description": "Gets the details of a Box folder.",
    "category": "Box",
@@ -5233,8 +5003,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:31:42.56Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5348,12 +5117,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605887217a38c63898cc4df5"
+   "parentRef": "get-box-folder-info"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103a"
-   },
    "displayName": "Get Data",
    "description": "Get the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -5363,8 +5129,7 @@
     "reason": "Initial version",
     "date": {
      "$date": "2021-10-28T14:17:45.416Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -5425,12 +5190,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a64cfaae7066447752e8d"
+   "parentRef": "get-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103b"
-   },
    "displayName": "Get Data",
    "description": "Get the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -5440,8 +5202,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields. ",
     "date": {
      "$date": "2022-04-20T09:13:45.242Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -5502,12 +5263,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a64cfaae7066447752e8d"
+   "parentRef": "get-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103c"
-   },
    "displayName": "Get Github Repository",
    "description": "Get the Gihub repository details based on the Github URL. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#get-a-repository",
    "category": "GitHub",
@@ -5517,8 +5275,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:00:40.21Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5569,12 +5326,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "606dcbadaabd435d10eb02a2"
+   "parentRef": "get-github-repository"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103d"
-   },
    "displayName": "Get Github Repository",
    "description": "Get the Gihub repository details based on the Github URL. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#get-a-repository",
    "category": "GitHub",
@@ -5584,8 +5338,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:39:09.095Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5646,12 +5399,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "606dcbadaabd435d10eb02a2"
+   "parentRef": "get-github-repository"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103e"
-   },
    "displayName": "Get Incidents",
    "description": "Get Incidents from ServiceNow with optional State",
    "category": "ServiceNow",
@@ -5661,8 +5411,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:54:03.745Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -5744,12 +5493,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c69365b20cfafa2eaeed89c"
+   "parentRef": "get-incidents"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000103f"
-   },
    "displayName": "Get Organization Info",
    "description": "Retrieves the details of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#get-an-organization",
    "category": "GitHub",
@@ -5759,8 +5505,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:02:22.71Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5813,12 +5558,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b3cc01c97815d3b8d9480"
+   "parentRef": "get-organization-info"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001040"
-   },
    "displayName": "Get Organization Info",
    "description": "Retrieves the details of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#get-an-organization",
    "category": "GitHub",
@@ -5828,8 +5570,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:39:32.254Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5892,12 +5633,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b3cc01c97815d3b8d9480"
+   "parentRef": "get-organization-info"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001041"
-   },
    "displayName": "Get Slack Channel Info",
    "description": "Retrieves the Slack channel information using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.info",
    "category": "Communication with Slack",
@@ -5907,8 +5645,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:10:16.902Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -5951,12 +5688,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050d692567ec556435f025d"
+   "parentRef": "get-slack-channel-info"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001042"
-   },
    "displayName": "Get Slack Channel Members",
    "description": "Retrieve the Slack channel members using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.members",
    "category": "Communication with Slack",
@@ -5966,8 +5700,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:10:32.085Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6010,12 +5743,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050cb66567ec556435f025c"
+   "parentRef": "get-slack-channel-members"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001043"
-   },
    "displayName": "Get Slack Channels",
    "description": "Retrieves the Slack channels using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.list",
    "category": "Communication with Slack",
@@ -6025,8 +5755,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:11:10.137Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6097,12 +5826,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050c7bd567ec556435f025b"
+   "parentRef": "get-slack-channels"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001044"
-   },
    "displayName": "Get Team In Organization",
    "description": "Retrieves the details of a team from a Github organization given the team name. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
    "category": "GitHub",
@@ -6112,8 +5838,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:04:48.884Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6176,12 +5901,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b40931c97815d3b8d9491"
+   "parentRef": "get-team-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001045"
-   },
    "displayName": "Get Team In Organization",
    "description": "Retrieves the details of a team from a Github organization given the team name. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
    "category": "GitHub",
@@ -6191,8 +5913,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:39:49.422Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6265,12 +5986,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b40931c97815d3b8d9491"
+   "parentRef": "get-team-in-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001046"
-   },
    "displayName": "Invite Collaborator to Project",
    "description": "Invites a Github user identified vie email to collaborate to a repository. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#add-a-repository-collaborator",
    "category": "GitHub",
@@ -6280,8 +5998,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:16:43.197Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6371,12 +6088,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6065e9e262c6952fc2e59645"
+   "parentRef": "invite-collaborator-to-project"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001047"
-   },
    "displayName": "Invite Member to Team",
    "description": "Invite a Github member to be a team member in the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#add-or-update-team-membership-for-a-user",
    "category": "GitHub",
@@ -6386,8 +6100,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:09:50.358Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6480,12 +6193,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b4c971c97815d3b8d94a5"
+   "parentRef": "invite-member-to-team"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001048"
-   },
    "displayName": "Invite Member to Team",
    "description": "Invite a Github member to be a team member in the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#add-or-update-team-membership-for-a-user",
    "category": "GitHub",
@@ -6495,8 +6205,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:40:18.548Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6599,12 +6308,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b4c971c97815d3b8d94a5"
+   "parentRef": "invite-member-to-team"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001049"
-   },
    "displayName": "Invite Members to Channel",
    "description": "Invite Slack users to a conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.invite",
    "category": "Communication with Slack",
@@ -6614,8 +6320,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:11:26.542Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6669,12 +6374,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050c4e1567ec556435f0259"
+   "parentRef": "invite-members-to-channel"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104a"
-   },
    "displayName": "Invite User to Organization",
    "description": "Invite an User to the member list of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#set-organization-membership-for-a-user",
    "category": "GitHub",
@@ -6684,8 +6386,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:11:33.286Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6768,12 +6469,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b50ba1c97815d3b8d94ad"
+   "parentRef": "invite-user-to-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104b"
-   },
    "displayName": "Invite User to Organization",
    "description": "Invite an User to the member list of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#set-organization-membership-for-a-user",
    "category": "GitHub",
@@ -6783,8 +6481,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T09:40:44.59Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -6877,12 +6574,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605b50ba1c97815d3b8d94ad"
+   "parentRef": "invite-user-to-organization"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104c"
-   },
    "displayName": "JSONPath To Parameter",
    "description": "Takes the first value returned by a valid JSONPath expression and sets as an output property",
    "category": "Utilities",
@@ -6892,8 +6586,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:43:20.545Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [],
@@ -6908,12 +6601,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5eab5488aecb0800014e0b87"
+   "parentRef": "jsonpath-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104d"
-   },
    "displayName": "JSONPath To Parameter",
    "description": "Takes the first value returned by a valid JSONPath expression and sets as an output property",
    "category": "Utilities",
@@ -6923,8 +6613,7 @@
     "reason": "Updated the result parameter",
     "date": {
      "$date": "2021-06-15T09:07:33.713Z"
-    },
-    "author": "608ca23d70bfa94ac91f8eef"
+    }
    },
    "spec": {
     "params": [
@@ -6975,12 +6664,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5eab5488aecb0800014e0b87"
+   "parentRef": "jsonpath-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104e"
-   },
    "displayName": "JSONPath To Parameter",
    "description": "Takes the first value returned by a valid JSONPath expression and sets as an output property",
    "category": "Utilities",
@@ -6990,8 +6676,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-16T06:43:57.124Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -7032,12 +6717,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5eab5488aecb0800014e0b87"
+   "parentRef": "jsonpath-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000104f"
-   },
    "displayName": "List Box Folders",
    "description": "Retrieves and lists an user's Box folders.",
    "category": "Box",
@@ -7047,8 +6729,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:31:52.739Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -7150,12 +6831,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6054c3917a38c63898cc4dcb"
+   "parentRef": "list-box-folders"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001050"
-   },
    "displayName": "List File Permissions",
    "description": "List a file's permissions.",
    "category": "Google Drive",
@@ -7165,8 +6843,7 @@
     "reason": "",
     "date": {
      "$date": "2022-04-20T22:53:14.956Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -7220,12 +6897,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "62608e805f8f60e852e306b0"
+   "parentRef": "list-file-permissions"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001051"
-   },
    "displayName": "List Files",
    "description": "Lists or searches files.\n\nThis method returns all files by default, including deleted files. Use the 'trashed=false' query parameter to filter trashed files from the results.",
    "category": "Google Drive",
@@ -7235,8 +6909,7 @@
     "reason": "",
     "date": {
      "$date": "2022-04-20T22:53:24.071Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -7309,12 +6982,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "625fec645f8f60e852e1ec06"
+   "parentRef": "list-files"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001052"
-   },
    "displayName": "Make Repositories Private",
    "description": "Make Repositories Private.",
    "category": "GitHub",
@@ -7324,8 +6994,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:50:28.351Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -7373,12 +7042,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5d3145ee988e7b6b6f24d870"
+   "parentRef": "make-repositories-private"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001053"
-   },
    "displayName": "Manual Approval",
    "description": "Pauses workflow until approval is actioned.",
    "category": "Workflow",
@@ -7388,8 +7054,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-18T04:45:17.83Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [],
@@ -7424,19 +7089,15 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5f6379c974f51934044cbbd6"
+   "parentRef": "manual-approval"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001054"
-   },
    "displayName": "Manual Approval",
    "description": "Pauses workflow until approval is actioned. If no approver group is specified then this task can be approved by anyone in the team, and only requires 1 approval.",
    "category": "Workflow",
    "icon": "Edit",
    "version": 2,
    "changelog": {
-    "author": "659f58f05a1f506d09f92aa9",
     "reason": "Updated Task Template",
     "date": {
      "$date": "2024-02-22T23:16:25.886Z"
@@ -7500,12 +7161,9 @@
     "workingDir": "",
     "additionalProperties": {}
    },
-   "parentRef": "5f6379c974f51934044cbbd6"
+   "parentRef": "manual-approval"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001055"
-   },
    "displayName": "Manual Task",
    "description": "Pauses workflow until manual task is actioned.",
    "category": "Workflow",
@@ -7515,8 +7173,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -7541,12 +7198,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5fa4144bcb28924ba43ab57c"
+   "parentRef": "manual-task"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001056"
-   },
    "displayName": "MongoDB Query Execution",
    "description": "Executes a provided query against a mongo databases endpoint.",
    "category": "Utilities",
@@ -7556,8 +7210,7 @@
     "reason": "",
     "date": {
      "$date": "2022-03-15T09:22:08.896Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -7702,12 +7355,9 @@
     "script": "mkdir $(dirname \"$(params.ouputfile)\")\nread -r FIXEDQUERY <<'EOF'\n    $(params.query)\nEOF\nmongosh mongodb://$(params.host):$(params.port)/$(params.database)?tls=$(params.tlsenabled) --username=$(params.username) --password=$(params.password) --eval=\"$FIXEDQUERY\" --authenticationMechanism=$(params.authenticationMechanism) --quiet > $(params.ouputfile)",
     "workingDir": ""
    },
-   "parentRef": "620636845b676b358e8c440c"
+   "parentRef": "mongodb-query-execution"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001057"
-   },
    "displayName": "Read File to Parameter",
    "description": "Read file and add contents to tasks result parameter",
    "category": "File Utilities",
@@ -7717,8 +7367,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T16:04:06.822Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -7747,12 +7396,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5c39015b352b1b51412e9c85"
+   "parentRef": "read-file-to-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001058"
-   },
    "displayName": "Read Parameters from File",
    "description": "Read parameters from file",
    "category": "File Utilities",
@@ -7762,8 +7408,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:47:13.803Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -7795,12 +7440,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c3fb7e2352b1b5141692f75"
+   "parentRef": "read-parameters-from-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001059"
-   },
    "displayName": "Release Lock",
    "description": "This task releases a lock with the specified name.",
    "category": "Workflow",
@@ -7810,8 +7452,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -7836,12 +7477,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "600b2f7220a674b1d2cb4731"
+   "parentRef": "release-lock"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105a"
-   },
    "displayName": "Remove Box Folder",
    "description": "Removes a Box folder.",
    "category": "Box",
@@ -7851,8 +7489,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:32:02.523Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -7952,12 +7589,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605874b07a38c63898cc4df2"
+   "parentRef": "remove-box-folder"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105b"
-   },
    "displayName": "Remove Collaborator From Project",
    "description": "Removes a Github Collaborator from a repository. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#remove-a-repository-collaborator",
    "category": "GitHub",
@@ -7967,8 +7601,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:17:33.173Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -8025,12 +7658,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6065ec8b62c6952fc2e59646"
+   "parentRef": "remove-collaborator-from-project"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105c"
-   },
    "displayName": "Remove Member from Channel",
    "description": "Removes a user from Slack conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.kick",
    "category": "Communication with Slack",
@@ -8040,8 +7670,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:11:43.632Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -8095,12 +7724,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "6050c2a3567ec556435f0258"
+   "parentRef": "remove-member-from-channel"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105d"
-   },
    "displayName": "Remove Member from Team",
    "description": "Remove a member from a team within the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#remove-team-membership-for-a-user",
    "category": "GitHub",
@@ -8110,8 +7736,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-29T23:50:07.967Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -8179,12 +7804,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "605b4e9b1c97815d3b8d94a9"
+   "parentRef": "remove-member-from-team"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105e"
-   },
    "displayName": "Remove User From Box Folder",
    "description": "Removes an user from a Box folder.",
    "category": "Box",
@@ -8194,8 +7816,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:32:11.594Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -8306,12 +7927,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "60586af37a38c63898cc4de8"
+   "parentRef": "remove-user-from-box-folder"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000105f"
-   },
    "displayName": "Replace String in File",
    "description": "Replace String in File.",
    "category": "File Utilities",
@@ -8321,8 +7939,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:46:57.432Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -8378,12 +7995,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5d1ed36a988e7b6b6f7b470b"
+   "parentRef": "replace-string-in-file"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001060"
-   },
    "displayName": "Replace Tokens in Files",
    "description": "Replace parameters between tokens. The default start and end delimiters allow you to replace parameters defined following the parameter reference syntax.",
    "category": "File Utilities",
@@ -8393,8 +8007,7 @@
     "reason": "",
     "date": {
      "$date": "2021-05-15T01:53:10.99Z"
-    },
-    "author": "608ca23d70bfa94ac91f8eef"
+    }
    },
    "spec": {
     "params": [
@@ -8476,12 +8089,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "600132e0d911287a826f0d75"
+   "parentRef": "replace-tokens-in-files"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001061"
-   },
    "displayName": "Replace Tokens in Files",
    "description": "Replace parameters between tokens. The default start and end delimiters allow you to replace parameters defined following the parameter reference syntax.",
    "category": "File Utilities",
@@ -8491,8 +8101,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-18T05:08:08.704Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -8579,12 +8188,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "600132e0d911287a826f0d75"
+   "parentRef": "replace-tokens-in-files"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001062"
-   },
    "displayName": "Run Custom Task",
    "description": "Run a trusted custom container as a task",
    "category": "Workflow",
@@ -8594,8 +8200,7 @@
     "reason": "Testing ",
     "date": {
      "$date": "2020-09-25T21:11:01.767Z"
-    },
-    "author": "5e736fb0a97b78000125ebe3"
+    }
    },
    "spec": {
     "params": [
@@ -8647,12 +8252,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5d9e703dc90b5240508869e2"
+   "parentRef": "run-custom-task"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001063"
-   },
    "displayName": "Run Python Script",
    "description": "Execute a Python script. The returned result of the script is returned as the result value of the task.",
    "category": "Utilities",
@@ -8662,8 +8264,7 @@
     "reason": "",
     "date": {
      "$date": "2021-04-22T14:36:01.177Z"
-    },
-    "author": "5e79e5ae2e0ee000015cacde"
+    }
    },
    "spec": {
     "params": [
@@ -8711,12 +8312,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "60797cab3df7807907be1551"
+   "parentRef": "run-python-script"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001064"
-   },
    "displayName": "Run Python Script",
    "description": "Execute a Python script. The returned result of the script is returned as the result value of the task.",
    "category": "Utilities",
@@ -8726,8 +8324,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-15T17:30:20.043Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -8807,12 +8404,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "60797cab3df7807907be1551"
+   "parentRef": "run-python-script"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001065"
-   },
    "displayName": "Run Scheduled Workflow",
    "description": "This task runs the selected workflow one time in the future. It only schedules the workflow, it does not wait for it to execute. Additionally you can pass in workflow parameters if they have been defined.",
    "category": "Workflow",
@@ -8822,8 +8416,7 @@
     "reason": "",
     "date": {
      "$date": "2021-01-10T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -8888,12 +8481,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "61dcb509c570b75ec2c432f8"
+   "parentRef": "run-scheduled-workflow"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001066"
-   },
    "displayName": "Run Workflow",
    "description": "This task runs the selected workflow separately. It only triggers the workflow, it does not wait for completion. Additionally you can pass in parameters to the workflow if they have been defined.",
    "category": "Workflow",
@@ -8903,8 +8493,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -8940,12 +8529,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "603591f5c267b8ce33782571"
+   "parentRef": "run-workflow"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001067"
-   },
    "displayName": "Send Custom Slack Message",
    "description": "Send custom JSON payload to a specified Slack webhook URL. For more information on the underlying Slack API and potential configurations: https://api.slack.com/messaging/webhooks",
    "category": "Communication with Slack",
@@ -8955,8 +8541,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-19T23:34:09.258Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -8994,12 +8579,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5e1bcd210351fdc9e42fe4e0"
+   "parentRef": "send-custom-slack-message"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001068"
-   },
    "displayName": "Send Email with Postmark Template",
    "description": "Send an email from a template using a template ID and variables.",
    "category": "Communication",
@@ -9009,8 +8591,7 @@
     "reason": "",
     "date": {
      "$date": "2021-09-21T00:04:41.237Z"
-    },
-    "author": "614415021950a72949b00efb"
+    }
    },
    "spec": {
     "params": [
@@ -9109,12 +8690,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "612989ab63a78c0c37074e91"
+   "parentRef": "send-email-with-postmark-template"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001069"
-   },
    "displayName": "Send Email with Postmark Template",
    "description": "Send an email from a template using a template ID and variables.",
    "category": "Communication",
@@ -9124,8 +8702,7 @@
     "reason": "Added new optional message stream field.",
     "date": {
      "$date": "2021-11-17T00:06:37.929Z"
-    },
-    "author": "614415021950a72949b00efb"
+    }
    },
    "spec": {
     "params": [
@@ -9244,12 +8821,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "612989ab63a78c0c37074e91"
+   "parentRef": "send-email-with-postmark-template"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106a"
-   },
    "displayName": "Send Email with Sendgrid",
    "description": "Using your Sendgrid API Key, send a basic email.",
    "category": "Communication",
@@ -9259,8 +8833,7 @@
     "reason": "added fields ",
     "date": {
      "$date": "2020-10-13T17:06:14.513Z"
-    },
-    "author": "5ecd2d1d0eb5f000012d0895"
+    }
    },
    "spec": {
     "params": [
@@ -9393,12 +8966,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5f85dba0868d2e2ebebbe2d1"
+   "parentRef": "send-email-with-sendgrid"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106b"
-   },
    "displayName": "Send Email with Sendgrid",
    "description": "Using your Sendgrid API Key, send a basic email.",
    "category": "Communication",
@@ -9408,8 +8978,7 @@
     "reason": "",
     "date": {
      "$date": "2021-02-19T10:22:16.951Z"
-    },
-    "author": "5e79e5ae2e0ee000015cacde"
+    }
    },
    "spec": {
     "params": [
@@ -9552,12 +9121,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5f85dba0868d2e2ebebbe2d1"
+   "parentRef": "send-email-with-sendgrid"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106c"
-   },
    "displayName": "Send Email with Sendgrid",
    "description": "Using your Sendgrid API Key, send a basic email.",
    "category": "Communication",
@@ -9567,8 +9133,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-31T23:43:08.392Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -9697,12 +9262,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5f85dba0868d2e2ebebbe2d1"
+   "parentRef": "send-email-with-sendgrid"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106d"
-   },
    "displayName": "Send Email with Sendgrid Template",
    "description": "Using your Sendgrid API Key, send a Dynamic Template email using a template ID and dynamic data.",
    "category": "Communication",
@@ -9712,8 +9274,7 @@
     "reason": "",
     "date": {
      "$date": "2021-02-22T10:24:02.975Z"
-    },
-    "author": "5e79e5ae2e0ee000015cacde"
+    }
    },
    "spec": {
     "params": [],
@@ -9728,12 +9289,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "60338642cb88b80a95a63f6d"
+   "parentRef": "send-email-with-sendgrid-template"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106e"
-   },
    "displayName": "Send Email with Sendgrid Template",
    "description": "Using your Sendgrid API Key, send a Dynamic Template email using a template ID and dynamic data.",
    "category": "Communication",
@@ -9743,8 +9301,7 @@
     "reason": "",
     "date": {
      "$date": "2021-02-23T08:00:53.339Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -9862,12 +9419,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "60338642cb88b80a95a63f6d"
+   "parentRef": "send-email-with-sendgrid-template"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000106f"
-   },
    "displayName": "Send Platform Email",
    "description": "Send Email to Member with Subject and Message",
    "category": "IBM Services Essentials",
@@ -9877,8 +9431,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T04:35:49.492Z"
-    },
-    "author": "5fc9c3163727f831e8946186"
+    }
    },
    "spec": {
     "params": [
@@ -9918,12 +9471,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5bd98b105a5df954ad599bc2"
+   "parentRef": "send-platform-email"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001070"
-   },
    "displayName": "Send Platform Email",
    "description": "Send Email to Member with Subject and Message",
    "category": "IBM Services Essentials",
@@ -9933,8 +9483,7 @@
     "reason": "Added new URL endpoint",
     "date": {
      "$date": "2021-06-25T04:36:19.511Z"
-    },
-    "author": "5fc9c3163727f831e8946186"
+    }
    },
    "spec": {
     "params": [
@@ -9985,12 +9534,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5bd98b105a5df954ad599bc2"
+   "parentRef": "send-platform-email"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001071"
-   },
    "displayName": "Send Platform Notification",
    "description": "Send platform notification to user or team",
    "category": "IBM Services Essentials",
@@ -10000,8 +9546,7 @@
     "reason": "",
     "date": {
      "$date": "2021-06-25T04:36:29.565Z"
-    },
-    "author": "5fc9c3163727f831e8946186"
+    }
    },
    "spec": {
     "params": [
@@ -10059,12 +9604,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5d53016bd83be3cc84bae976"
+   "parentRef": "send-platform-notification"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001072"
-   },
    "displayName": "Send Platform Notification",
    "description": "Send platform notification to user or team",
    "category": "IBM Services Essentials",
@@ -10074,8 +9616,7 @@
     "reason": "Added new URL input parameter",
     "date": {
      "$date": "2021-06-25T04:36:52.164Z"
-    },
-    "author": "5fc9c3163727f831e8946186"
+    }
    },
    "spec": {
     "params": [
@@ -10144,12 +9685,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "5d53016bd83be3cc84bae976"
+   "parentRef": "send-platform-notification"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001073"
-   },
    "displayName": "Send Simple Slack Message",
    "description": "Easily configurable slack webhook message. To provide additional parameters, please see our Custom Slack Message task.",
    "category": "Communication with Slack",
@@ -10159,8 +9697,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-19T23:34:20.884Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -10231,12 +9768,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5b92f794844d0700016ea217"
+   "parentRef": "send-simple-slack-message"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001074"
-   },
    "displayName": "Send Slack Message with File Contents",
    "description": "Send slack message with file contents via webhook\n",
    "category": "Communication with Slack",
@@ -10246,8 +9780,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-19T23:34:29.466Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [
@@ -10351,12 +9884,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5e2866c8612203650e389491"
+   "parentRef": "send-slack-message-with-file-contents"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001075"
-   },
    "displayName": "Send Twilio SMS",
    "description": "Sends a text message using Twilio SMS",
    "category": "Communication",
@@ -10366,8 +9896,7 @@
     "reason": "",
     "date": {
      "$date": "2020-06-30T01:58:09.299Z"
-    },
-    "author": "5e71f175756f7e000192eb6c"
+    }
    },
    "spec": {
     "params": [],
@@ -10382,12 +9911,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5efa9c31aea46a0d823a67c4"
+   "parentRef": "send-twilio-sms"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001076"
-   },
    "displayName": "Send Twilio SMS",
    "description": "Sends a text message using Twilio SMS",
    "category": "Communication",
@@ -10397,8 +9923,7 @@
     "reason": "",
     "date": {
      "$date": "2021-05-15T01:52:48.818Z"
-    },
-    "author": "608ca23d70bfa94ac91f8eef"
+    }
    },
    "spec": {
     "params": [
@@ -10467,12 +9992,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5efa9c31aea46a0d823a67c4"
+   "parentRef": "send-twilio-sms"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001077"
-   },
    "displayName": "Set Result Parameter",
    "description": "Set a Result Parameter on the Workflow. These are then available in the workflows activity.",
    "category": "Workflow",
@@ -10482,8 +10004,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -10516,12 +10037,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5f6379c974f51934044cbbd4"
+   "parentRef": "set-result-parameter"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001078"
-   },
    "displayName": "Set Workflow Result Status",
    "description": "Override Workflow Execution Status",
    "category": "Workflow",
@@ -10531,8 +10049,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -10565,12 +10082,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "60f852430b07a54cdc48dc97"
+   "parentRef": "set-workflow-result-status"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001079"
-   },
    "displayName": "Sleep",
    "description": "Sleep for specified duration in milliseconds",
    "category": "Workflow",
@@ -10580,8 +10094,7 @@
     "reason": "",
     "date": {
      "$date": "2021-05-15T01:53:29.735Z"
-    },
-    "author": "608ca23d70bfa94ac91f8eef"
+    }
    },
    "spec": {
     "params": [
@@ -10602,12 +10115,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5bd97bea5a5df954ad592c06"
+   "parentRef": "sleep"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107a"
-   },
    "displayName": "Switch",
    "description": "Create a Switch Component",
    "category": "Workflow",
@@ -10617,8 +10127,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:23.337Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -10641,12 +10150,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c37af285616d5f3544568fd"
+   "parentRef": "switch"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107b"
-   },
    "displayName": "Update Data",
    "description": "Update cell data from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -10656,8 +10162,7 @@
     "reason": "",
     "date": {
      "$date": "2021-10-28T14:03:08.833Z"
-    },
-    "author": "60d46143b8cb91383e74dde5"
+    }
    },
    "spec": {
     "params": [
@@ -10768,12 +10273,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9ec8aae7066447752ea7"
+   "parentRef": "update-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107c"
-   },
    "displayName": "Update Data",
    "description": "Update cell data from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
    "category": "Google Sheets",
@@ -10783,8 +10285,7 @@
     "reason": "Consolidated and refactored authentication to remove three fields. ",
     "date": {
      "$date": "2022-04-20T09:14:02.023Z"
-    },
-    "author": "61d38d133aa9034ded32cae6"
+    }
    },
    "spec": {
     "params": [
@@ -10860,12 +10361,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "617a9ec8aae7066447752ea7"
+   "parentRef": "update-data"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107d"
-   },
    "displayName": "Update Incidents",
    "description": "Update Incidents from ServiceNow",
    "category": "ServiceNow",
@@ -10875,8 +10373,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:52:40.641Z"
-    },
-    "author": "5e8a6c6cd0827100011c2a35"
+    }
    },
    "spec": {
     "params": [
@@ -10958,12 +10455,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5c6939c620cfafa2eaeef2ad"
+   "parentRef": "update-incidents"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107e"
-   },
    "displayName": "Upload File To Box",
    "description": "Uploads the file at the specified path to the desired Box folder.",
    "category": "Box",
@@ -10973,8 +10467,7 @@
     "reason": "",
     "date": {
      "$date": "2022-05-19T15:29:46.121Z"
-    },
-    "author": "608fb6fb70bfa94ac91f90cb"
+    }
    },
    "spec": {
     "params": [
@@ -11090,12 +10583,9 @@
     "script": "",
     "workingDir": ""
    },
-   "parentRef": "605882237a38c63898cc4df3"
+   "parentRef": "upload-file-to-box"
   },
   {
-   "_id": {
-    "$oid": "5eed0000000000000000107f"
-   },
    "displayName": "Upload Slack File with Message",
    "description": "Upload a message to Slack using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/files.upload",
    "category": "Communication with Slack",
@@ -11105,8 +10595,7 @@
     "reason": "",
     "date": {
      "$date": "2020-04-30T22:53:22.305Z"
-    },
-    "author": "5e831153d0827100011c29f6"
+    }
    },
    "spec": {
     "params": [
@@ -11186,12 +10675,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5e1bf6ca0351fdc9e4319c3b"
+   "parentRef": "upload-slack-file-with-message"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001080"
-   },
    "displayName": "Upload Slack File with Message",
    "description": "Upload a message to Slack using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/files.upload",
    "category": "Communication with Slack",
@@ -11201,8 +10687,7 @@
     "reason": "",
     "date": {
      "$date": "2021-03-22T10:00:29.629Z"
-    },
-    "author": "5e79e5ae2e0ee000015cacde"
+    }
    },
    "spec": {
     "params": [
@@ -11303,12 +10788,9 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5e1bf6ca0351fdc9e4319c3b"
+   "parentRef": "upload-slack-file-with-message"
   },
   {
-   "_id": {
-    "$oid": "5eed00000000000000001081"
-   },
    "displayName": "Wait For Event",
    "description": "Wait for an event from an external system to resume workflow execution. The event can be a webhook or a Cloud Event.",
    "category": "Workflow",
@@ -11334,206 +10816,202 @@
     "script": null,
     "workingDir": null
    },
-   "parentRef": "5f7dcf1ce1d3ce8d52ea45d4"
+   "parentRef": "wait-for-event"
   },
- {
-  "_id": {
-   "$oid": "5eed00000000000000001082"
-  },
-  "displayName": "AI",
-  "description": "Send a prompt to an OpenAI-compatible model and capture its response as a result.",
-  "category": "AI",
-  "icon": "AI",
-  "version": 1,
-  "changelog": {
-   "reason": "Initial Task Template",
-   "date": {
-    "$date": "2026-09-16T00:00:00Z"
+  {
+   "displayName": "AI",
+   "description": "Send a prompt to an OpenAI-compatible model and capture its response as a result.",
+   "category": "AI",
+   "icon": "AI",
+   "version": 1,
+   "changelog": {
+    "reason": "Initial Task Template",
+    "date": {
+     "$date": "2026-09-16T00:00:00Z"
+    }
    },
-   "author": ""
-  },
-  "spec": {
-   "params": [
-    {
-     "description": "",
-     "label": "Endpoint",
-     "type": "text",
-     "required": true,
-     "placeholder": "",
-     "helpertext": "An OpenAI-compatible base URL - OpenRouter, LiteLLM, Azure AI Foundry or Ollama.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "endpoint"
-    },
-    {
-     "description": "",
-     "label": "API token",
-     "type": "password",
-     "required": true,
-     "placeholder": "",
-     "helpertext": "Blanked on every workspace-scoped read. It reaches the task pod as an environment variable.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "token"
-    },
-    {
-     "description": "",
-     "label": "Model",
-     "type": "text",
-     "required": true,
-     "placeholder": "",
-     "helpertext": "The model identifier the endpoint expects, for example openai/gpt-4o-mini.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "model"
-    },
-    {
-     "description": "",
-     "label": "System prompt",
-     "type": "texteditor::text",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Sent as the system message ahead of the prompt.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "systemPrompt"
-    },
-    {
-     "description": "",
-     "label": "Prompt",
-     "type": "texteditor::text",
-     "required": true,
-     "placeholder": "",
-     "helpertext": "Supports $(params.x) and $(tasks.x.results.y) references.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "prompt"
-    },
-    {
-     "description": "",
-     "label": "Temperature",
-     "type": "slider",
-     "min": 0.0,
-     "max": 2.0,
-     "step": 0.1,
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Sampling temperature. Lower is more deterministic.",
-     "defaultValue": "0.7",
-     "readOnly": false,
-     "name": "temperature"
-    },
-    {
-     "description": "",
-     "label": "Max tokens",
-     "type": "number",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Upper bound on the tokens the model may generate.",
-     "defaultValue": "1024",
-     "readOnly": false,
-     "name": "maxTokens"
-    },
-    {
-     "description": "",
-     "label": "Response format",
-     "type": "select",
-     "options": [
-      {
-       "key": "text",
-       "value": "text"
-      },
-      {
-       "key": "json",
-       "value": "json"
-      }
-     ],
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Ask the model for free text or a JSON object.",
-     "defaultValue": "text",
-     "readOnly": false,
-     "name": "responseFormat"
-    },
-    {
-     "description": "",
-     "label": "JSON Schema",
-     "type": "texteditor::text",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "A JSON Schema object. With Response format json, the reply is held to it (response_format json_schema, strict).",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "jsonSchema"
-    },
-    {
-     "description": "",
-     "label": "Seed",
-     "type": "number",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Optional sampling seed, for endpoints that honour one.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "seed"
-    },
-    {
-     "description": "",
-     "label": "Files",
-     "type": "text",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Comma-separated paths on the run workspace, read into the prompt context.",
-     "defaultValue": "",
-     "readOnly": false,
-     "name": "files"
-    },
-    {
-     "description": "",
-     "label": "Max context bytes",
-     "type": "number",
-     "required": false,
-     "placeholder": "",
-     "helpertext": "Byte budget for the files read into context. Reading stops at the budget.",
-     "defaultValue": "65536",
-     "readOnly": false,
-     "name": "maxContextBytes"
-    }
-   ],
-   "arguments": [],
-   "command": [],
-   "envs": null,
-   "image": "",
-   "results": [
-    {
-     "description": "The model's response text",
-     "name": "output"
-    },
-    {
-     "description": "Tokens consumed by the prompt",
-     "name": "promptTokens"
-    },
-    {
-     "description": "Tokens generated in the response",
-     "name": "completionTokens"
-    },
-    {
-     "description": "Prompt plus completion tokens, the value a platform sums to meter usage",
-     "name": "totalTokens"
-    },
-    {
-     "description": "Why the model stopped, as the endpoint reported it",
-     "name": "finishReason"
-    },
-    {
-     "description": "The model the endpoint actually served",
-     "name": "model"
-    }
-   ],
-   "script": null,
-   "workingDir": null
-  },
-  "parentRef": "5eed00000000000000002001"
- }
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Endpoint",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "An OpenAI-compatible base URL - OpenRouter, LiteLLM, Azure AI Foundry or Ollama.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "endpoint"
+     },
+     {
+      "description": "",
+      "label": "API token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Blanked on every workspace-scoped read. It reaches the task pod as an environment variable.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Model",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The model identifier the endpoint expects, for example openai/gpt-4o-mini.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "model"
+     },
+     {
+      "description": "",
+      "label": "System prompt",
+      "type": "texteditor::text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Sent as the system message ahead of the prompt.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "systemPrompt"
+     },
+     {
+      "description": "",
+      "label": "Prompt",
+      "type": "texteditor::text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Supports $(params.x) and $(tasks.x.results.y) references.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "prompt"
+     },
+     {
+      "description": "",
+      "label": "Temperature",
+      "type": "slider",
+      "min": 0.0,
+      "max": 2.0,
+      "step": 0.1,
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Sampling temperature. Lower is more deterministic.",
+      "defaultValue": "0.7",
+      "readOnly": false,
+      "name": "temperature"
+     },
+     {
+      "description": "",
+      "label": "Max tokens",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Upper bound on the tokens the model may generate.",
+      "defaultValue": "1024",
+      "readOnly": false,
+      "name": "maxTokens"
+     },
+     {
+      "description": "",
+      "label": "Response format",
+      "type": "select",
+      "options": [
+       {
+        "key": "text",
+        "value": "text"
+       },
+       {
+        "key": "json",
+        "value": "json"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Ask the model for free text or a JSON object.",
+      "defaultValue": "text",
+      "readOnly": false,
+      "name": "responseFormat"
+     },
+     {
+      "description": "",
+      "label": "JSON Schema",
+      "type": "texteditor::text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A JSON Schema object. With Response format json, the reply is held to it (response_format json_schema, strict).",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "jsonSchema"
+     },
+     {
+      "description": "",
+      "label": "Seed",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Optional sampling seed, for endpoints that honour one.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "seed"
+     },
+     {
+      "description": "",
+      "label": "Files",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Comma-separated paths on the run workspace, read into the prompt context.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "files"
+     },
+     {
+      "description": "",
+      "label": "Max context bytes",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Byte budget for the files read into context. Reading stops at the budget.",
+      "defaultValue": "65536",
+      "readOnly": false,
+      "name": "maxContextBytes"
+     }
+    ],
+    "arguments": [],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": [
+     {
+      "description": "The model's response text",
+      "name": "output"
+     },
+     {
+      "description": "Tokens consumed by the prompt",
+      "name": "promptTokens"
+     },
+     {
+      "description": "Tokens generated in the response",
+      "name": "completionTokens"
+     },
+     {
+      "description": "Prompt plus completion tokens, the value a platform sums to meter usage",
+      "name": "totalTokens"
+     },
+     {
+      "description": "Why the model stopped, as the endpoint reported it",
+      "name": "finishReason"
+     },
+     {
+      "description": "The model the endpoint actually served",
+      "name": "model"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "ai"
+  }
  ]
 }

@@ -161,7 +161,10 @@ The chain migrates exactly two starting points, an empty database and an in-plac
 application reads. `_0001` refuses anything else before writing: a v4 install, or a database a 5.0 beta already
 migrated (it holds `sys_changelog_loader`); a refusal is retried on every start (`_0001__GuardAndDetectGeneration.java:30,47`).
 Every unit retries after a failure (`@Recovery(ALWAYS_RETRY)`), so a start interrupted mid-migration resumes on
-the next one. Before upgrading a v3 database, check for two users sharing one email: `_0021` refuses to delete an
+the next one. The seeds in `src/main/resources/seed/` carry no ids: each unit matches on a natural key (a
+settings `key`, a role's `type` and `name`, a task's `name`, a template's `name` and `version`), a seeded document
+takes its id from MongoDB, and a seeded revision or template task names its catalogue task, resolved to the live id
+on insert (decision 0107). Before upgrading a v3 database, check for two users sharing one email: `_0021` refuses to delete an
 account, so a shared email fails the unique index and startup with it; two emails that differ only by case are
 left as they are and logged (`_0009__NormaliseUserEmails.java:109`).
 It records the generation once in `sys_migration_state` (`LegacyGenerationMarker.java:40`); v3-only units read that
@@ -174,7 +177,7 @@ a release ships the chain, changes are appended as new units.
 | `_0001__GuardAndDetectGeneration` | all | Refuses a v4 or beta database; records v3 / fresh |
 | `_0002__V3PrepareCollections` | v3 | Renames `teams` to `workspaces`; drops the Quartz store, `tokens`, `tasks_locks`, `workflows_activity_task` and the unprefixed `locks` |
 | `_0003__SeedRelationshipRoot` | all | Seeds the `root:root` graph node |
-| `_0004__SeedSystemWorkspace` | all | Seeds the `system` workspace and its graph node and edge |
+| `_0004__SeedSystemWorkspace` | all | Seeds the `system` workspace, found by name and type, and its graph node and edge |
 | `_0005__V3MigrateGlobalParameters` | v3 | `global_config` → `parameters` |
 | `_0006__V3MigrateTaskCatalogue` | v3 | `task_templates` with embedded revisions → `tasks` + `task_revisions`; task runs' template references |
 | `_0007__V3MigrateWorkspaces` | v3 | Reshapes v3 teams in `workspaces`; extracts `approver_groups` |
@@ -187,19 +190,20 @@ a release ships the chain, changes are appended as new units.
 | `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections |
 | `_0015__SeedRoles` | all | Seeds the five roles |
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
-| `_0017__SeedTaskCatalogue` | all | Seeds the 88 catalogue tasks and their revisions, matched by name |
+| `_0017__SeedTaskCatalogue` | all | Seeds the 88 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
 | `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
-| `_0020__SeedTemplates` | all | Seeds the starter workflow templates and the integration templates |
+| `_0020__SeedTemplates` | all | Seeds the starter workflow templates (by name and version) and the integration templates (by name) |
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
 | `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0106) |
 
-`_0016` finds each stored settings document by id, key or earlier key and rebuilds it from the seed under the stored
-id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3
+`_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
+`workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3
 `max.team.*` quota keys, `teamQuotas` → `workspaceQuotas`), except a value stored as another type (secured values
 are decrypted by type), the shipped 90-minute task ceiling, a `worker-flow` image and a choice that is no longer an
 option: those take the seed value. Entries the seed does not define are kept; retired entries and the v3 User
-Defaults and workflow storage documents are removed (`_0016__BuildSettingsFromSeed.java:47-89`).
+Defaults and workflow storage documents (keys `users` and `workflow`) are removed
+(`_0016__BuildSettingsFromSeed.java:49-95`).
 
 ## Not built
 The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.
