@@ -17,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * The engine token is registered once, survives restarts unchanged, is replaced when the
  * operator supplies a new value, and refuses a value too weak to be a global token.
  */
-class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
+class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
 
   private static final String FIRST = "bfg_" + "a".repeat(40);
   private static final String SECOND = "bfg_" + "b".repeat(40);
@@ -28,12 +28,12 @@ class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
 
   @AfterEach
   void removeEngineToken() {
-    tokenRepository.deleteById(EngineTokenService.ENGINE_TOKEN_ID);
+    tokenRepository.deleteById(BootstrapTokenService.ENGINE_TOKEN_ID);
     lookupCache.evictAll();
   }
 
-  private EngineTokenService engineToken(String value) {
-    return new EngineTokenService(value, tokenService, tokenRepository, lookupCache);
+  private BootstrapTokenService engineToken(String value) {
+    return new BootstrapTokenService(value, tokenService, tokenRepository, lookupCache);
   }
 
   @Test
@@ -42,7 +42,7 @@ class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
 
     assertThat(tokenService.validate(FIRST)).isTrue();
     TokenEntity stored =
-        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(BootstrapTokenService.ENGINE_TOKEN_ID).orElseThrow();
     assertThat(stored.getType()).isEqualTo(AuthScope.global);
     assertThat(stored.getActorKind()).isEqualTo(TokenActorKind.SERVICE);
     assertThat(stored.getToken()).isNotEqualTo(FIRST);
@@ -52,12 +52,12 @@ class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
   void registeringAgainChangesNothing() {
     engineToken(FIRST).register();
     TokenEntity first =
-        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(BootstrapTokenService.ENGINE_TOKEN_ID).orElseThrow();
 
     engineToken(FIRST).register();
 
     TokenEntity again =
-        tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID).orElseThrow();
+        tokenRepository.findById(BootstrapTokenService.ENGINE_TOKEN_ID).orElseThrow();
     assertThat(again.getCreationDate()).isEqualTo(first.getCreationDate());
   }
 
@@ -83,6 +83,6 @@ class EngineTokenServiceTest extends AbstractEngineIntegrationTest {
   void aBlankValueRegistersNothing() {
     engineToken("").register();
 
-    assertThat(tokenRepository.findById(EngineTokenService.ENGINE_TOKEN_ID)).isEmpty();
+    assertThat(tokenRepository.findById(BootstrapTokenService.ENGINE_TOKEN_ID)).isEmpty();
   }
 }

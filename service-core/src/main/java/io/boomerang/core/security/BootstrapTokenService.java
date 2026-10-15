@@ -27,7 +27,7 @@ import org.springframework.util.StringUtils;
  * a new value replaces the old one. Blank registers nothing.
  */
 @Service
-public class EngineTokenService {
+public class BootstrapTokenService {
 
   private static final Logger LOGGER = LogManager.getLogger();
 
@@ -41,7 +41,7 @@ public class EngineTokenService {
   private final TokenRepository tokenRepository;
   private final TokenLookupCache lookupCache;
 
-  public EngineTokenService(
+  public BootstrapTokenService(
       @Value("${flow.security.engine-token:}") String engineToken,
       TokenService tokenService,
       TokenRepository tokenRepository,
