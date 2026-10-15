@@ -1,4 +1,4 @@
-# 0109 — A task log is served from its stored copy first, then from the route its dispatcher registered
+# 0112 — A task log is served from its stored copy first, then from the route its dispatcher registered
 
 **Status:** accepted · **Date:** 2026-10-15
 
