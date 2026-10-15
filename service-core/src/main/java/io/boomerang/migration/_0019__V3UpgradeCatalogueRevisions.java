@@ -107,15 +107,10 @@ public class _0019__V3UpgradeCatalogueRevisions {
     LOG.info("{} declared {} param(s) from its seeded revision", taskName, missing.size());
   }
 
+  // In the seed, a revision's parentRef names its task.
   private static Document latestSeedRevision(String taskName) {
-    Object taskId =
-        SeedResources.load("seed/tasks.json").stream()
-            .filter(task -> taskName.equals(task.getString("name")))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("seed/tasks.json has no " + taskName))
-            .get("_id");
     return SeedResources.load("seed/task-revisions.json").stream()
-        .filter(revision -> taskId.toString().equals(revision.getString("parentRef")))
+        .filter(revision -> taskName.equals(revision.getString("parentRef")))
         .max(Comparator.comparing(revision -> revision.getInteger("version")))
         .orElseThrow(() -> new IllegalStateException("seed/task-revisions.json has no " + taskName));
   }

@@ -112,15 +112,16 @@ class MigrationChainTest {
   void aV3InstallIsMigratedInPlace() {
     MongoDatabase db = database("v3");
     markV3(db);
+    // v3's settings documents, under the ids and keys the real v3 dump holds.
     for (String[] setting :
         new String[][] {
           {"5f32cb19d09662744c0df51d", "controller"},
           {"62a7bec0a6166d30aff64a5b", "extensions"},
           {"60245957226920beece4fdf9", "activity"},
-          {"60245b56226920beece547e3", "execution"},
-          {"612904d60b07a54cdc4dc6a9", "toggles"},
-          {"61393f5966c5eea103dfe134", "quota"},
-          {"62b0f1f5a6166d30af05fa5d", "branding"}
+          {"60245b56226920beece547e3", "workflow"},
+          {"612904d60b07a54cdc4dc6a9", "features"},
+          {"61393f5966c5eea103dfe134", "teams"},
+          {"62b0f1f5a6166d30af05fa5d", "customizations"}
         }) {
       collection(db, "settings")
           .insertOne(new Document("_id", new ObjectId(setting[0])).append("key", setting[1]));
@@ -381,26 +382,60 @@ class MigrationChainTest {
   }
 
   /**
-   * A v3 task keeps the seed's id but takes its name from v3's display name. A task an install
-   * renamed is still found by its id, rather than inserted again under that id.
+   * The seed matches catalogue tasks by name. A v3 catalogue task an install renamed is not
+   * recognised: it is left as it is, and the seed adds its own copy beside it under a new id.
    */
   @Test
-  void theCatalogueSeedFindsARenamedV3TaskByItsId() {
+  void theCatalogueSeedAddsItsOwnCopyBesideARenamedV3Task() {
     MongoDatabase db = database("renamed-task");
-    ObjectId seededId = new ObjectId("600b2f5520a674b1d2cb4635");
+    ObjectId v3Id = new ObjectId("600b2f5520a674b1d2cb4635");
     collection(db, "tasks")
-        .insertOne(new Document("_id", seededId).append("name", "our-lock").append("status", "active"));
+        .insertOne(new Document("_id", v3Id).append("name", "our-lock").append("status", "active"));
 
     assertThatCode(
             () -> new _0017__SeedTaskCatalogue().execute(db, MigrationRunner.environment(PREFIX)))
         .doesNotThrowAnyException();
 
     MongoCollection<Document> tasks = collection(db, "tasks");
-    assertThat(tasks.countDocuments(Filters.eq("_id", seededId))).isEqualTo(1);
-    assertThat(tasks.find(Filters.eq("_id", seededId)).first().getString("name")).isEqualTo("our-lock");
-    assertThat(tasks.countDocuments(Filters.eq("name", "acquire-lock"))).isZero();
-    assertThat(collection(db, "task_revisions").countDocuments(Filters.eq("parentRef", seededId.toString())))
+    assertThat(tasks.find(Filters.eq("_id", v3Id)).first().getString("name")).isEqualTo("our-lock");
+    Document seeded = tasks.find(Filters.eq("name", "acquire-lock")).first();
+    assertThat(seeded.getObjectId("_id")).isNotEqualTo(v3Id);
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    assertThat(revisions.countDocuments(Filters.eq("parentRef", seeded.get("_id").toString()))).isPositive();
+    assertThat(revisions.countDocuments(Filters.eq("parentRef", v3Id.toString()))).isZero();
+  }
+
+  /**
+   * The seed carries no ids: every seeded document takes one from MongoDB, and a revision or a
+   * template task points at its catalogue task by that task's live id.
+   */
+  @Test
+  void seedsCarryNoIdsAndJoinByName() {
+    MongoDatabase db = migrate("natural-keys");
+    MongoCollection<Document> tasks = collection(db, "tasks");
+    Document shell = tasks.find(Filters.eq("name", "execute-shell")).first();
+    assertThat(shell.getObjectId("_id")).isNotEqualTo(new ObjectId("5c3907a1352b1b51412ed079"));
+    assertThat(collection(db, "task_revisions").countDocuments(Filters.eq("parentRef", shell.get("_id").toString())))
         .isPositive();
+    for (Document revision : collection(db, "task_revisions").find()) {
+      assertThat(tasks.find(Filters.eq("_id", new ObjectId(revision.getString("parentRef")))).first())
+          .as("revision %s v%s points at a live task", revision.getString("displayName"), revision.get("version"))
+          .isNotNull();
+    }
+    for (Document template : collection(db, "workflow_templates").find()) {
+      for (Document task : template.getList("tasks", Document.class)) {
+        if (task.getString("taskRef") != null) {
+          assertThat(tasks.find(Filters.eq("_id", new ObjectId(task.getString("taskRef")))).first())
+              .as("template %s task %s points at a live task", template.getString("name"), task.getString("name"))
+              .isNotNull();
+        }
+      }
+    }
+    Document system =
+        collection(db, "workspaces").find(Filters.eq("name", "system")).first();
+    assertThat(system.getObjectId("_id")).isNotEqualTo(new ObjectId("5eed00000000000000000001"));
+    assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", "workspace:" + system.get("_id"))).first())
+        .isNotNull();
   }
 
   // ===================================================================================

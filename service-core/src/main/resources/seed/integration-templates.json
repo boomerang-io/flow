@@ -1,9 +1,6 @@
 {
   "documents": [
     {
-      "_id": {
-        "$oid": "5eed00000000000000000200"
-      },
       "name": "GitHub",
       "type": "github_app",
       "description": "Integrate with GitHub and receive related events",
@@ -13,9 +10,6 @@
       "status": "active"
     },
     {
-      "_id": {
-        "$oid": "5eed00000000000000000201"
-      },
       "name": "Slack",
       "type": "slack",
       "description": "Send a message to Slack",

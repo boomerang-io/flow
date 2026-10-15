@@ -19,7 +19,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.bson.Document;
-import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
@@ -28,8 +27,8 @@ import org.springframework.core.env.Environment;
  * Build every settings document from {@code seed/settings.json}, so an empty database and an
  * upgraded v3 database both end with exactly the seed's documents, keys, wording and types.
  *
- * <p>A seed document replaces the stored document with its {@code _id}, its key or an earlier key,
- * keeping the stored {@code _id}; with no such document it is inserted. Each seed entry takes the
+ * <p>A seed document replaces the stored document with its key or an earlier key, keeping the
+ * stored {@code _id}; with no such document it is inserted. Each seed entry takes the
  * value stored under its key or an earlier key, except a value stored as another type (secured
  * values are encrypted at rest and decrypted by type), a value an earlier release shipped and no
  * longer means anything, and a choice that is no longer an option: those take the seed value, and
@@ -93,9 +92,7 @@ public class _0016__BuildSettingsFromSeed {
           "max.team.workflow.storage");
 
   /** The v3 User Defaults and workflow storage documents, which nothing reads any more. */
-  private static final ObjectId USER_DEFAULTS_ID = new ObjectId("6123c1e20b07a54cdce637c0");
-
-  private static final ObjectId WORKFLOW_STORAGE_ID = new ObjectId("60245b56226920beece547e3");
+  private static final List<String> RETIRED_DOCUMENT_KEYS = List.of("users", "workflow");
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {
@@ -114,10 +111,7 @@ public class _0016__BuildSettingsFromSeed {
     }
     long retired =
         settings
-            .deleteMany(
-                Filters.or(
-                    Filters.in("_id", USER_DEFAULTS_ID, WORKFLOW_STORAGE_ID),
-                    Filters.eq("key", "workflow")))
+            .deleteMany(Filters.in("key", RETIRED_DOCUMENT_KEYS))
             .getDeletedCount();
     LOG.info(
         "Settings built from the seed - {} inserted, {} rebuilt, {} retired document(s) deleted",
@@ -126,13 +120,8 @@ public class _0016__BuildSettingsFromSeed {
         retired);
   }
 
-  /** The stored document with the seed's {@code _id}, else with its key or an earlier key. */
+  /** The stored document with the seed's key or an earlier key. */
   private static Document stored(MongoCollection<Document> settings, Document seedDocument) {
-    Object id = seedDocument.get("_id");
-    Document byId = (id != null) ? settings.find(Filters.eq("_id", id)).first() : null;
-    if (byId != null) {
-      return byId;
-    }
     return withEarlierKeys(seedDocument.getString("key"), EARLIER_DOCUMENT_KEYS)
         .map(key -> settings.find(Filters.eq("key", key)).first())
         .filter(Objects::nonNull)

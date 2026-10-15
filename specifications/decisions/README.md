@@ -91,3 +91,4 @@ things by name, not by code.
 | 0104 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |
 | 0105 | [A dispatcher is the contract plus an SDK, and a separate process only where a boundary exists](0105-a-dispatcher-is-a-process-only-where-a-boundary-exists.md) | accepted | 2026-10-10 |
 | 0106 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0106-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
+| 0107 | [Seeds carry no ids and match on natural keys](0107-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |

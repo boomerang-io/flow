@@ -27,16 +27,16 @@ import org.springframework.core.env.Environment;
  *       integration} setting built by {@link _0016__BuildSettingsFromSeed}.
  * </ul>
  *
- * <p>Workflow templates are guarded on {@code _id} OR ({@code name} + {@code version}, the
- * entity's two indexed fields) and integration templates on {@code _id} OR {@code name}, so an
- * install that already holds either keeps its own — including an operator's enable/disable state
- * on an integration. The {@code _id} half of each guard is defence-in-depth: it skips a template
- * whose {@code _id} already exists even if its natural key has since changed.
+ * <p>Workflow templates are guarded on {@code name} + {@code version} (the entity's two indexed
+ * fields) and integration templates on {@code name}, so an install that already holds either keeps
+ * its own — including an operator's enable/disable state on an integration. The seed carries no
+ * ids: each template takes a new one, and a template task's {@code taskRef} names its catalogue
+ * task, resolved to the live id on insert.
  *
  * <p>Not generation-gated. The v3 units run before this seed, so on a v3-sourced install
  * {@link _0011__V3ExtractWorkflowTemplates} has already extracted the source template workflows
- * into {@code workflow_templates} under the same {@code _id}s this seed carries, and the guard
- * makes those two documents a no-op. {@code integration_templates} has no v3 counterpart at all -
+ * into {@code workflow_templates}, and the name-and-version guard makes those two documents a
+ * no-op. {@code integration_templates} has no v3 counterpart at all -
  * integrations are a v5 feature - so an upgraded install receives the out-of-the-box GitHub and
  * Slack integration templates exactly as a fresh install does; leaving it empty would have left
  * every upgraded install unable to configure an integration.
@@ -52,14 +52,13 @@ public class _0020__SeedTemplates {
     List<Document> workflowTemplates = SeedResources.load("seed/workflow-templates.json");
     int workflowsInserted = 0;
     for (Document template : workflowTemplates) {
+      resolveTaskRefs(db, names, template);
       if (SeedResources.insertIfAbsent(
           db,
           names.resolve("workflow_templates"),
-          Filters.or(
-              Filters.eq("_id", template.get("_id")),
-              Filters.and(
-                  Filters.eq("name", template.getString("name")),
-                  Filters.eq("version", template.getInteger("version")))),
+          Filters.and(
+              Filters.eq("name", template.getString("name")),
+              Filters.eq("version", template.getInteger("version"))),
           template)) {
         workflowsInserted++;
       }
@@ -72,14 +71,33 @@ public class _0020__SeedTemplates {
       if (SeedResources.insertIfAbsent(
           db,
           names.resolve("integration_templates"),
-          Filters.or(
-              Filters.eq("_id", template.get("_id")), Filters.eq("name", template.getString("name"))),
+          Filters.eq("name", template.getString("name")),
           template)) {
         integrationsInserted++;
       }
     }
     SeedResources.logSeeded(
         "integration templates", integrationsInserted, integrationTemplates.size());
+  }
+
+  /**
+   * In the seed a template task's {@code taskRef} names the catalogue task; stored, it is the task's
+   * id. The catalogue is seeded first, so every name resolves.
+   */
+  private static void resolveTaskRefs(MongoDatabase db, CollectionNames names, Document template) {
+    for (Document task : template.getList("tasks", Document.class, List.of())) {
+      String taskName = task.getString("taskRef");
+      if (taskName == null) {
+        continue;
+      }
+      Document live =
+          db.getCollection(names.resolve("tasks")).find(Filters.eq("name", taskName)).first();
+      if (live == null) {
+        throw new IllegalStateException(
+            "Workflow template " + template.getString("name") + " names unknown task " + taskName);
+      }
+      task.put("taskRef", live.get("_id").toString());
+    }
   }
 
   @Rollback
