@@ -25,19 +25,22 @@ COPY service-core/src service-core/src
 RUN --mount=type=cache,target=/root/.m2 \
     mvn --batch-mode --no-transfer-progress --projects service-core --also-make package -Dmaven.test.skip=true
 
-FROM eclipse-temurin:25-jre-alpine
-ENV JAVA_OPTS=""
+# Ubuntu's chiseled JRE: the Java 25 runtime, glibc and CA certificates, no shell, no package
+# manager, no coreutils - so no OpenSSL, busybox or coreutils advisories either. Patched from
+# Canonical's Ubuntu security stream. `25-26.04_edge` is the only Java 25 channel so far; the tag
+# is rebuilt in place, so the digest (the manifest list, one per architecture) is what pins the
+# build. Refresh it deliberately, with the SBOM review:
+#   docker buildx imagetools inspect ubuntu/jre:25-26.04_edge
+FROM ubuntu/jre:25-26.04_edge@sha256:c462b20df5b43f5dc6e3496da092623d4113cd07edca484abb5ad5679b78499d
 ENV BMRG_HOME=/opt/boomerang
-
 WORKDIR $BMRG_HOME
-COPY --from=build /build/service-core/target/service-core.jar service.jar
 
-# OpenShift requires a numeric, arbitrarily-assigned UID in group 0 rather than a named user;
-# chgrp/chmod g=u makes that arbitrary UID as capable as the intended one.
-RUN chmod -R u+x $BMRG_HOME \
-    && chgrp -R 0 $BMRG_HOME \
-    && chmod -R g=u $BMRG_HOME
-USER 2000
+# OpenShift runs the container as an arbitrary UID in group 0: group 0 owns the files and can
+# read and execute them. Set at copy time, since the runtime image has no shell for a RUN.
+COPY --from=build --chown=10001:0 --chmod=0664 /build/service-core/target/service-core.jar service.jar
+USER 10001
 
 EXPOSE 7700
-ENTRYPOINT [ "sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar ./service.jar" ]
+# No shell, so no `java $JAVA_OPTS`: the launcher reads JDK_JAVA_OPTIONS from the environment
+# instead, which is where a deployment puts heap and GC flags.
+ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "service.jar"]
