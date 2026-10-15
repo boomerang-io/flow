@@ -45,8 +45,8 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 - **Logs.** It serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`) to the engine alone: the
   route accepts only the bearer generated at every start and registered as `logsToken`
   (`dispatcher/LogAuthFilter.java`, `config/DispatcherConfig.java`). `flow.dispatcher.logs.url` is the address the
-  engine reads it at, registered as `logsUrl`; blank registers none, and the engine falls back to its own
-  `flow.agent.logstream.url`. With `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the
+  engine reads it at, registered as `logsUrl`; blank registers none, and a running task then has no log to follow.
+  With `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the
   runtime object is deleted and stored with the engine, where it is served first and outlives the pod
   (`dispatcher/TaskService.java`, `storeLog`; `dispatcher-contract.md`, "Logs").
 

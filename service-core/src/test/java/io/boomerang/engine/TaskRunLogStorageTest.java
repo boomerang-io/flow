@@ -57,8 +57,6 @@ class TaskRunLogStorageTest extends AbstractEngineIntegrationTest {
 
   @Test
   void theStoredLogIsServedAheadOfTheLiveRead() throws IOException {
-    // No stored log and a claim on a dispatcher that registered nothing: the live read answers
-    // with the fallback source, which no server backs in tests - so nothing is served yet.
     taskRunService.storeLog(task.getId(), Optional.of("d-1"), bytes("step one\nstep two\n"));
 
     assertThat(served()).isEqualTo("step one\nstep two\n");

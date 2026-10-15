@@ -1,4 +1,4 @@
-# 0107 — A task log is served from its stored copy first, then from the route its dispatcher registered
+# 0109 — A task log is served from its stored copy first, then from the route its dispatcher registered
 
 **Status:** accepted · **Date:** 2026-10-15
 
@@ -23,8 +23,9 @@ C. At registration a dispatcher sends `logsUrl` and `logsToken`; before its end 
 /dispatcher/v1/taskrun/{id}/log`, fenced on the claim and capped by `flow.engine.task.log.max-bytes`
 (`dispatcher/DispatcherControllerV1.java`, `engine/TaskRunService.java` `storeLog`). Core stores the log as a
 log-scoped artifact of the run (`workflow/ArtifactService.java` `storeTaskLog`) and serves a task's log from
-the first of: the stored copy, the registered route with the registered bearer, the configured fallback URL,
-a message (`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolve`). Core stays the only
+the first of: the stored copy, the registered route with the registered bearer, a message
+(`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolve`); the configured dispatcher URL
+core used to hold is gone, so nothing on core names a dispatcher. Core stays the only
 reader the webapp talks to, so authorization and secret scrubbing stay in one place. Flow's Kubernetes
 dispatcher generates the bearer at every start, accepts nothing else on its log route
 (`service-dispatcher/.../dispatcher/LogAuthFilter.java`), and uploads each finished pod log

@@ -360,8 +360,7 @@ public final class Dispatcher implements AutoCloseable {
      * appends {@code workflowRef}, {@code workflowRunRef} and {@code taskRunRef} as query
      * parameters and presents {@code token} as a bearer. A dispatcher with no live log surface
      * registers neither and stores finished logs through {@link TaskContext#uploadLog} instead,
-     * or serves none. {@code token} without a URL is still registered: the engine presents it at
-     * its configured fallback URL.
+     * or serves none; the engine names no dispatcher of its own.
      */
     public Builder logs(String url, String token) {
       this.logsUrl = (url != null && !url.isBlank()) ? url : null;

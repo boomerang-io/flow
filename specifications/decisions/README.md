@@ -89,7 +89,7 @@ things by name, not by code.
 | 0102 | [The dispatcher protocol is a published contract, and the SDK owns its own wire models](0102-the-dispatcher-protocol-is-a-published-contract.md) | accepted | 2026-10-08 |
 | 0103 | [Routes are grouped under one prefix per kind of caller](0103-routes-are-grouped-under-one-prefix-per-kind-of-caller.md) | accepted | 2026-10-13 |
 | 0104 | [One workspace per run; state across runs is a workflow-scoped artifact](0104-one-workspace-per-run-and-workflow-scoped-artifacts-for-state-across-runs.md) | accepted | 2026-10-13 |
-| 0107 | [A task log is served from its stored copy first, then from the route its dispatcher registered](0107-a-task-log-is-served-stored-first-then-from-the-dispatchers-registered-route.md) | accepted | 2026-10-15 |
+| 0109 | [A task log is served from its stored copy first, then from the route its dispatcher registered](0109-a-task-log-is-served-stored-first-then-from-the-dispatchers-registered-route.md) | accepted | 2026-10-15 |
 | 0105 | [A dispatcher is the contract plus an SDK, and a separate process only where a boundary exists](0105-a-dispatcher-is-a-process-only-where-a-boundary-exists.md) | accepted | 2026-10-10 |
 | 0106 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0106-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
 | 0107 | [Seeds carry no ids and match on natural keys](0107-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |
