@@ -72,6 +72,10 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - The engine never calls the **platform** side (`core`, `workspace`, `schedule`, `integrations`) synchronously;
   it publishes `ApplicationEvent`s those packages listen to. `engine` ↔ `workflow` are the two halves of one
   bounded context (runs and definitions) and do call each other directly.
+- A dispatcher is anything that implements `contracts/dispatcher-v1.yaml`; the contract is the boundary, not the
+  process. `service-core` MUST NOT gain Kubernetes, Tekton or Docker dependencies, and a new executor gets its
+  own deployable only where a boundary (credentials, network zone, trust, placement) separates it from core;
+  otherwise it embeds the dispatcher SDK (decision 0105).
 - The custom HTTP client configuration (`RestConfig`: proxy, trust-all option, per-template timeouts, streaming
   template) is a product requirement for enterprises behind proxies and internal CAs. Framework upgrades MUST
   preserve it.

@@ -8,6 +8,37 @@ generated from the engine as an OpenAPI document — served at `/api/docs/spec/d
 fails when the two differ. This document gives the semantics the document cannot. Paths below are under
 `service-core/src/main/java/io/boomerang/` unless they start with a module name.
 
+## Topologies
+
+The contract is the boundary; the process is not. A dispatcher is its own deployable only when a boundary
+exists between it and core: credentials core must not hold, a different network zone, isolation of untrusted
+content, or placement on infrastructure core cannot reach (decision 0105). Where none exists, the poll loop
+runs inside another process through `dispatcher-sdk`, which carries the client, the poll loop, slots, leases
+and the `TaskHandler` and `WorkflowHandler` interfaces (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/`)
+and nothing Kubernetes-specific.
+
+| Shape | Boundary | Where the loop runs |
+| --- | --- | --- |
+| Kubernetes Jobs or Tekton (`service-dispatcher`) | Cluster credentials, `runtimeClassName` placement, a network zone of its own | Its own image |
+| Docker, for local development | None in development; the Docker socket is root, so it is not a production executor | A small SDK-based process in the compose stack |
+| Serverless containers | Outside the cluster, scale to zero, its own credentials | Its own deployable; its autoscaler needs a queue-depth read the contract does not yet have |
+| Warm pool of microVMs | Isolation per task, short life | Each VM is a dispatcher that registers, polls with `limit=1`, ends and exits; registration expiry is not yet built |
+| In-process (ARCHIE) | None | The host embeds the SDK and implements `TaskHandler` |
+
+## Where the contract ends
+
+The contract covers registration, the two queues, start, heartbeat, end, termination orders and storage
+release, and nothing else. How a task is run — image, command, volumes, resources, placement — is the
+dispatcher's own, described for Flow's Kubernetes dispatcher in `task-runtime.md`. Two things a complete
+dispatcher needs sit outside it today:
+
+- **Task logs** flow the other way. Core proxies `GET /api/v2/taskrun/{id}/log` to one dispatcher at
+  `flow.agent.logstream.url` (`engine/LogClient.java:33`; `service-dispatcher/.../dispatcher/LogV1Controller.java:14-30`),
+  the only call from core to a dispatcher. It assumes one long-lived dispatcher with an HTTP surface and a pod to
+  read from, and so works for none of the other shapes.
+- **Dispatcher identity** is a long-lived record upserted on name and host (`dispatcher/DispatcherService.java:98-125`)
+  with no expiry or deregistration route.
+
 ## Versioning and compatibility
 
 The protocol carries its own version, `1`, apart from the product version.

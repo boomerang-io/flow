@@ -2,8 +2,10 @@
 
 Boomerang Flow is one Maven monorepo (`pom.xml:10-14`) plus one pnpm web client, built into four images
 and one published library that ship together under a single product version. Workflows are directed acyclic
-graphs (DAGs) executed by `service-core`; the container work for each task is carried out by a separate
-`service-dispatcher`.
+graphs (DAGs) executed by `service-core`; the work for each task is carried out by a dispatcher — any process
+that implements the published contract (`dispatcher-contract.md`). `service-dispatcher` is the Kubernetes one.
+A dispatcher runs as its own process only where a boundary exists between it and core (credentials, network
+zone, trust, placement); otherwise its poll loop is embedded through `dispatcher-sdk` (decision 0105).
 
 ## Modules
 
@@ -145,5 +147,6 @@ first (`:18-27`); the Playwright suite in `e2e/` and the throughput harness in `
 
 ## Not built
 
-A local Docker dispatcher (no Kubernetes) and folding `lib-common` into `service-core` are planned, not started;
-the dispatcher no longer depends on it.
+A local Docker dispatcher built on `dispatcher-sdk` and folding `lib-common` into `service-core` are planned,
+not started; the dispatcher no longer depends on it. Serverless and warm-pool dispatchers wait for the two
+additive contract changes they need (`dispatcher-contract.md`, "Where the contract ends").
