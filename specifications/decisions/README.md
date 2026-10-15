@@ -92,3 +92,4 @@ things by name, not by code.
 | 0105 | [A dispatcher is the contract plus an SDK, and a separate process only where a boundary exists](0105-a-dispatcher-is-a-process-only-where-a-boundary-exists.md) | accepted | 2026-10-10 |
 | 0106 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0106-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
 | 0107 | [Seeds carry no ids and match on natural keys](0107-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |
+| 0108 | [The Java images run on Ubuntu's chiseled JRE](0108-the-java-images-run-on-ubuntus-chiseled-jre.md) | accepted | 2026-10-15 |

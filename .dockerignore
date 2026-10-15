@@ -11,4 +11,5 @@
 !dispatcher-sdk/src
 !service-dispatcher/pom.xml
 !service-dispatcher/src
+!docker/health
 **/target

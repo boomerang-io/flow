@@ -7,6 +7,11 @@ tag's release notes.
 
 ### Upgrading
 
+- **The Java images have no shell.** `flow-service-core` and `flow-service-dispatcher` run on Ubuntu's chiseled
+  JRE: no shell, package manager or `keytool`. Set JVM flags in `JDK_JAVA_OPTIONS` (the `JAVA_OPTS` variable and
+  the `sh -c java …` command the v3 chart used no longer apply), and trust an internal CA by mounting a
+  truststore and naming it there (`-Djavax.net.ssl.trustStore=…`) rather than importing a certificate at
+  container start. The container runs as uid 10001 in group 0.
 - **Migrations run inside `service-core` as it starts.** The `flow-service-loader` image and its pre-deploy
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
