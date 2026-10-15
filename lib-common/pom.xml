@@ -74,6 +74,16 @@
                     <target>${maven.compiler.target}</target>
                 </configuration>
             </plugin>
+            <!-- A library has no main class: lets `mvn -pl service-core -am spring-boot:run` pass
+                 through this module instead of failing on it (this POM does not inherit the
+                 aggregator's skip). -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

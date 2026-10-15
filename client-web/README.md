@@ -12,11 +12,24 @@ This project is built with [Vite](https://vitejs.dev/).
 
 ## Local Development
 
-### Run with Stubs
+The webapp is React Router 7 in framework mode with server rendering on; `server/index.js` is the Express
+server that wraps the built request handler and is the single origin the browser talks to. Against the
+repository's compose stack with `service-core` on the host (the root README, "Developing"):
 
-`npm run start`
+```bash
+pnpm install && pnpm run build                     # build/client (browser assets) + build/server (SSR handler)
+cd server && npm install
+cp config/.env.example config/.env.local     # PORT, APP_ROOT, CORE_SERVICE_INTERNAL_ORIGIN
+node --env-file=config/.env.local index.js         # http://localhost:3000/apps/flow
+```
 
-### Run with Local Services
+`pnpm start` (the Vite dev server) does not boot with server rendering on, so a change means
+`pnpm run build` and a restart of the server. Unit tests: `pnpm test` (vitest + MSW, run in UTC).
+
+The sections below describe the v4 setup against a Kubernetes-hosted backend and are kept for reference
+only.
+
+### Run with Local Services (v4)
 
 #### Kubernetes Setup
 

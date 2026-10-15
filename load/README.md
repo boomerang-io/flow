@@ -29,7 +29,7 @@ Exit code is 0 only when every submission returned 2xx and every run ended `succ
 | Profile | Workflow | Needs |
 | --- | --- | --- |
 | `inline` | `start → setwfproperty → decision → setwfproperty ×FANOUT → end`, plus one never-taken decision branch. Every task type is executed inside the engine (`TaskExecutionService`), so the numbers are the engine and MongoDB only. | The compose stack |
-| `dispatch` | `inline` plus one `execute-shell` script task (`echo load`) before `end`, which only a dispatcher can claim and run as a container. | `service-dispatcher` running against a cluster: layer `docker-compose.kube.yml` as described in its header comment |
+| `dispatch` | `inline` plus one `execute-shell` script task (`echo load`) before `end`, which only a dispatcher can claim and run as a container. | `service-dispatcher` running against a cluster: `docker compose up -d --build service-dispatcher` (the service's comment in `docker-compose.yml` explains the kubeconfig) |
 
 The workflow is named `load-<profile>-fanout<N>` and reused across invocations; delete it (or
 the workspace) to recreate it.
