@@ -71,8 +71,8 @@ describe("SignedOut --- mode oidc", () => {
     expect(form).not.toBeNull();
     expect(form).toHaveAttribute("method", "post");
     expect(form?.getAttribute("action")).toMatch(/\/auth\/signin$/);
-    // The return path derives from the router location (useHref - basename-aware and SSR-safe),
-    // not window.location, which the server does not have.
+    // The return path is the router location (no basename: the callback's redirect goes through
+    // the router, which prepends it), not window.location, which the server does not have.
     // eslint-disable-next-line testing-library/no-node-access
     const returnPath = form?.querySelector<HTMLInputElement>('input[name="returnPath"]');
     expect(returnPath?.value).toBe("/boomerang/activity?phase=succeeded");

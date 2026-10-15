@@ -2,7 +2,7 @@ import React from "react";
 import { Button, InlineLoading } from "@carbon/react";
 import { Login } from "@carbon/react/icons";
 import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Form, useFetcher, useHref, useLocation } from "react-router-dom";
+import { Form, useFetcher, useLocation } from "react-router-dom";
 import type { AuthConfig } from "./authClient";
 
 /*
@@ -30,10 +30,12 @@ export default function SignedOut({ config, onReloadConfig }: SignedOutProps) {
   const fetcher = useFetcher<{ ok: boolean }>();
   // One proxy attempt per mount, ever - even across bootstrap revalidations.
   const proxyAttempted = React.useRef(false);
-  // The return path derives from the router location (basename-aware via useHref, SSR-safe),
-  // not window.location, which does not exist during the server render.
+  // The return path is the router location, not window.location (which does not exist during
+  // the server render) and not a useHref: the sign-in callback redirects to it through the
+  // router, which prepends the basename itself, so a value that already carried it would land
+  // on /apps/flow/apps/flow/….
   const location = useLocation();
-  const returnPath = useHref({ pathname: location.pathname, search: location.search });
+  const returnPath = `${location.pathname}${location.search}`;
 
   const mode = config?.mode ?? null;
 

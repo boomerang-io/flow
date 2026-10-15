@@ -72,18 +72,30 @@ function callbackUriFor(request: Request): string {
   return `${publicOrigin(request)}${url.pathname.replace(/\.data$/, "").replace(/\/auth\/signin$/, "/auth/callback")}`;
 }
 
-/** The app root for this deployment, derived the same way: strip the auth route's own segments. */
-function appRootPathFor(request: Request): string {
+// Every redirect a loader or action returns goes through the router, which prepends the
+// basename to a path exactly as a <Link to> would (react-router's static handler normalises the
+// Location header). So the paths this module redirects to are router paths: "/" is the app
+// root and "/auth/signin" the sign-in route, whatever basename the deployment serves under.
+const APP_ROOT = "/";
+const SIGNIN_ERROR_PATH = "/auth/signin?error=start";
+
+/** The deployment's basename with its trailing slash, from the request's own path: "/apps/flow/". */
+function basenameFor(request: Request): string {
   return new URL(request.url).pathname.replace(/\.data$/, "").replace(/\/auth\/(signin|callback)$/, "/");
 }
 
 // The returnPath round-trips through a browser cookie, so it is untrusted on the way back out:
-// only a same-origin absolute path may be navigated to (never "//host" or a full URL).
+// only a same-origin absolute path may be navigated to (never "//host" or a full URL). It is
+// returned as a router path: the signed-out form sends the router location, and a value that
+// already carries the basename (a stale form, a hand-written one) has it stripped, because the
+// router adds it back on redirect.
 function safeReturnPath(candidate: unknown, request: Request): string {
-  if (typeof candidate === "string" && candidate.startsWith("/") && !candidate.startsWith("//")) {
-    return candidate;
+  if (typeof candidate !== "string" || !candidate.startsWith("/") || candidate.startsWith("//")) {
+    return APP_ROOT;
   }
-  return appRootPathFor(request);
+  const basename = basenameFor(request);
+  const routerPath = candidate.startsWith(basename) ? `/${candidate.slice(basename.length)}` : candidate;
+  return routerPath.startsWith("//") ? APP_ROOT : routerPath;
 }
 
 function writeSigninStash(nonce: string, returnPath: string): string {
@@ -147,7 +159,7 @@ async function buildStrategy(request: Request): Promise<FlowOidcStrategy> {
 export async function signinAction({ request }: ActionFunctionArgs): Promise<Response> {
   const formData = await request.clone().formData();
   const returnPath = safeReturnPath(formData.get("returnPath"), request);
-  const errorPath = `${new URL(request.url).pathname}?error=start`;
+  const errorPath = SIGNIN_ERROR_PATH;
   const nonce = randomNonce();
   try {
     const strategy = await buildStrategy(request);
@@ -169,7 +181,7 @@ export async function signinLoader({ request }: LoaderFunctionArgs) {
   if (new URL(request.url).searchParams.has("error")) {
     return { error: "Sign-in could not be started - the sign-in configuration or the identity provider could not be reached." };
   }
-  return redirect(appRootPathFor(request));
+  return redirect(APP_ROOT);
 }
 
 // The callback leg: the issuer redirects back with ?code&state (a top-level GET document load,
