@@ -44,7 +44,7 @@ Quotas are not a deployment property: the stored `features.workspaceQuotas` sett
 no run duration of its own, so its runs inherit the platform default ceiling from the `quotas` settings
 (`service-core/src/main/resources/seed/workspace.json`, `workspace/WorkspaceService.java:1012-1025`). Deployment shape is `flow.<subsystem>.<switch>`
 properties; runtime product toggles are `features.<name>` stored settings; a switch lives in exactly one tier
-(decision 0108).
+(decision 0109).
 
 The webapp never reads a property. It renders from the flags `GET /api/v2/features` returns, and a flag is on
 only when its setting is on and the shape leaves a surface behind it (`core/FeatureService.java:34-82`):

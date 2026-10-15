@@ -31,7 +31,7 @@ things by name, not by code.
 | 0030 | [Relationship checks use direct queries anchored on the caller, not an in-memory graph](0030-relationship-checks-use-direct-queries-anchored-on-the-caller.md) | accepted | 2026-07-23 |
 | 0031 | [Permission checks enforce: a mismatch is a real 403, not a shadow metric](0031-permission-checks-enforce-a-mismatch-is-a-real-403.md) | accepted | 2026-08-31 |
 | 0032 | [With security off, requests run as a synthetic global admin that is never stored](0032-security-off-runs-as-a-synthetic-global-admin-that-is-never-stored.md) | accepted | 2026-08-26 |
-| 0033 | [One property, `flow.security.enabled`, gates authentication and authorization, defaulting by mode](0033-one-property-gates-authentication-and-authorization-defaulting-by-mode.md) | superseded by 0108 | 2026-08-15 |
+| 0033 | [One property, `flow.security.enabled`, gates authentication and authorization, defaulting by mode](0033-one-property-gates-authentication-and-authorization-defaulting-by-mode.md) | superseded by 0109 | 2026-08-15 |
 | 0034 | [A global-scope token ignores the workspace path segment by design](0034-a-global-scope-token-ignores-the-workspace-path-segment.md) | accepted | 2026-08-24 |
 | 0035 | [Sign-in is one token exchange for every identity provider, with a session cookie thereafter](0035-unified-token-exchange-with-a-session-cookie-thereafter.md) | accepted | 2026-08-18 |
 | 0040 | [Parameters reach a task by engine-side substitution and environment variables](0040-parameters-reach-tasks-by-engine-substitution-and-environment-variables.md) | accepted | 2026-08-22 |
@@ -94,4 +94,4 @@ things by name, not by code.
 | 0106 | [A v3 install upgrades with its chart Secret as it is, or without its pair](0106-a-v3-install-upgrades-with-its-chart-secret-or-without-its-pair.md) | accepted | 2026-10-14 |
 | 0107 | [Seeds carry no ids and match on natural keys](0107-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |
 | 0108 | [The Java images run on Ubuntu's chiseled JRE](0108-the-java-images-run-on-ubuntus-chiseled-jre.md) | accepted | 2026-10-15 |
-| 0108 | [Deployment shape is properties, not a mode](0108-deployment-shape-is-properties-not-a-mode.md) | accepted | 2026-10-15 |
+| 0109 | [Deployment shape is properties, not a mode](0109-deployment-shape-is-properties-not-a-mode.md) | accepted | 2026-10-15 |

@@ -1,4 +1,4 @@
-# 0108 — Deployment shape is properties, not a mode
+# 0109 — Deployment shape is properties, not a mode
 
 **Status:** accepted · **Date:** 2026-10-15
 
