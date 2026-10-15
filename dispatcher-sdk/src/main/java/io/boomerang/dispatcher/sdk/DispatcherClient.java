@@ -145,6 +145,26 @@ public class DispatcherClient {
         .toBodilessEntity();
   }
 
+  /**
+   * {@code PUT /taskrun/{id}/log}: store a task's finished log with the engine, fenced on this
+   * dispatcher's claim. Optional in the protocol: send it before the end so the log outlives the
+   * runtime. A 503 means the engine has no artifact store and stores no logs; a 413 means the log
+   * is over the engine's limit and was not stored.
+   */
+  public void uploadLog(String dispatcherId, String taskRunId, byte[] log) {
+    http.put()
+        .uri(
+            builder ->
+                builder
+                    .path("/taskrun/{id}/log")
+                    .queryParam("dispatcherRef", "{dispatcherRef}")
+                    .build(Map.of("id", taskRunId, "dispatcherRef", dispatcherId)))
+        .contentType(MediaType.TEXT_PLAIN)
+        .body(log)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   /** {@code PUT /{id}/heartbeat}: renew the lease of each task run still being worked on. */
   public void heartbeat(String dispatcherId, List<String> taskRunIds) {
     http.put()

@@ -136,7 +136,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state |
 | The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them today; request-signature verification is not wired (boomerang-io/flow#374) |
-| The eight routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines |
+| The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
 workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore

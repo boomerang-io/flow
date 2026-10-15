@@ -82,6 +82,10 @@ public class ArtifactService {
   public static final String RETENTION_DEFAULT_DAYS = "retention.default.days";
   public static final String RETENTION_MAX_DAYS = "retention.max.days";
   public static final String MAX_ARTIFACT_SIZE = "max.artifact.size";
+  /** Whether task logs dispatchers send are stored, and for how many days; both admin settings. */
+  public static final String LOGS_ENABLED = "logs.enabled";
+  public static final String LOG_RETENTION_DAYS = "logs.retention.days";
+  private static final int LOG_RETENTION_DEFAULT_DAYS = 7;
 
   // The upload and download task params; Flow fills the link ones when the task is handed out.
   public static final String NAME_PARAM = "name";
@@ -94,6 +98,9 @@ public class ArtifactService {
   public static final String CONTENT_TYPE_PARAM = "contentType";
   /** The download task's result: true once a file was downloaded, false on an optional miss. */
   public static final String FOUND_RESULT = "found";
+
+  /** The content type a stored task log is written with. */
+  public static final String LOG_CONTENT_TYPE = "text/plain; charset=utf-8";
 
   /** What a hand-out resolved to: a link to dispatch, or - for an optional download - nothing. */
   public enum LinkOutcome {
@@ -157,6 +164,32 @@ public class ArtifactService {
         settingsService.getSettingConfig(ARTIFACTS_SETTINGS_KEY, name).getValue().trim());
   }
 
+  // The log settings were added after the artifact ones: a settings document built before they
+  // existed has no entry for them, and reads as the seed's defaults until it is rebuilt.
+  private String settingOr(String name, String fallback) {
+    try {
+      String value = settingsService.getSettingConfig(ARTIFACTS_SETTINGS_KEY, name).getValue();
+      return (value == null || value.isBlank()) ? fallback : value.trim();
+    } catch (IllegalArgumentException e) {
+      return fallback;
+    }
+  }
+
+  /** Whether task logs dispatchers send are stored (the `logs.enabled` setting, on by default). */
+  public boolean logsEnabled() {
+    return Boolean.parseBoolean(settingOr(LOGS_ENABLED, "true"));
+  }
+
+  /** Days a stored task log is kept (the `logs.retention.days` setting), never less than one. */
+  int logRetentionDays() {
+    try {
+      return Math.max(
+          1, Integer.parseInt(settingOr(LOG_RETENTION_DAYS, String.valueOf(LOG_RETENTION_DEFAULT_DAYS))));
+    } catch (NumberFormatException e) {
+      return LOG_RETENTION_DEFAULT_DAYS;
+    }
+  }
+
   /*
    * Retention = the task's request when set, otherwise the workspace's; never more than the
    * workspace's, never more than the platform maximum, never less than a day.
@@ -170,7 +203,7 @@ public class ArtifactService {
     return Math.max(1, Math.min(days, setting(RETENTION_MAX_DAYS)));
   }
 
-  /** Bytes held by the given workflows' available and uploading artifacts. */
+  /** Bytes held by the given workflows' available and uploading artifacts; task logs not counted. */
   public long storedBytes(List<String> workflowRefs) {
     if (workflowRefs.isEmpty()) {
       return 0;
@@ -183,7 +216,9 @@ public class ArtifactService {
                         where("workflowRef")
                             .in(workflowRefs)
                             .and("status")
-                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())),
+                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())
+                            .and("scope")
+                            .ne(ArtifactScope.log.name())),
                     group().sum("size").as("total")),
                 ArtifactEntity.class,
                 Document.class)
@@ -384,20 +419,84 @@ public class ArtifactService {
     return messageSource.getMessage(e.getReason(), e.getArgs(), e.getReason(), Locale.ENGLISH);
   }
 
+  // ── Task logs ─────────────────────────────────────────────────────────────
+
+  /**
+   * Store the finished log a dispatcher sent for a task as the task's log artifact: scope {@code
+   * log}, named after the task run, kept for the log retention setting, available at once. A second
+   * upload for the same task run - a requeued attempt - replaces the first, file and record. A log
+   * is read only through the task run's log route, is not listed with the run's artifacts and does
+   * not count toward the workspace's artifact storage. Refused with {@code TASKRUN_LOGS_DISABLED}
+   * when the setting is off, and with {@code ARTIFACTS_NOT_CONFIGURED} when there is no store.
+   */
+  public void storeTaskLog(TaskRunEntity taskRun, byte[] content) {
+    ArtifactStore store = requireStore();
+    if (!logsEnabled()) {
+      throw new BoomerangException(BoomerangError.TASKRUN_LOGS_DISABLED);
+    }
+    String name = logName(taskRun.getId());
+    Date now = new Date();
+    int retentionDays = logRetentionDays();
+    ArtifactEntity artifact =
+        artifactRepository
+            .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)
+            .orElseGet(ArtifactEntity::new);
+    artifact.setName(name);
+    artifact.setWorkflowRef(taskRun.getWorkflowRef());
+    artifact.setWorkflowRunRef(taskRun.getWorkflowRunRef());
+    artifact.setTaskRunRef(taskRun.getId());
+    artifact.setScope(ArtifactScope.log);
+    artifact.setStorageKey("runs/" + taskRun.getWorkflowRunRef() + "/logs/" + taskRun.getId());
+    artifact.setSize(content.length);
+    artifact.setContentType(LOG_CONTENT_TYPE);
+    artifact.setSha256(sha256(content));
+    artifact.setRetentionDays(retentionDays);
+    artifact.setCreationDate(now);
+    artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+    store.put(artifact.getStorageKey(), content, LOG_CONTENT_TYPE);
+    artifact.setStatus(ArtifactStatus.available);
+    artifactRepository.save(artifact);
+  }
+
+  /** The task's stored log, when a dispatcher uploaded one and it has not expired. */
+  public Optional<ArtifactEntity> taskLog(TaskRunEntity taskRun) {
+    return artifactRepository
+        .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), logName(taskRun.getId()))
+        .filter(artifact -> artifact.scopeOrRun() == ArtifactScope.log)
+        .filter(artifact -> artifact.getStatus() == ArtifactStatus.available);
+  }
+
+  /** An open stream of a stored log's file; the caller closes it. */
+  public InputStream openLog(ArtifactEntity log) {
+    return requireStore().open(log.getStorageKey());
+  }
+
+  static String logName(String taskRunId) {
+    return taskRunId + ".log";
+  }
+
   // ── The workspace-scoped API ──────────────────────────────────────────────
 
   public List<Artifact> listForRun(String workspace, String workflowRunId) {
     requireRunInWorkspace(workspace, workflowRunId);
     return artifactRepository.findByWorkflowRunRefOrderByCreationDateAsc(workflowRunId).stream()
         .filter(artifact -> artifact.getStatus() != ArtifactStatus.uploading)
+        .filter(artifact -> artifact.scopeOrRun() != ArtifactScope.log)
         .map(Artifact::new)
         .toList();
   }
 
-  /** The artifact and an open stream of its file; the caller closes the stream. */
+  /**
+   * The artifact and an open stream of its file; the caller closes the stream. A task log is not
+   * an artifact here: it is served, scrubbed, by the task run's log route only.
+   */
   public ArtifactFile open(String workspace, String workflowRunId, String name) {
     requireRunInWorkspace(workspace, workflowRunId);
-    ArtifactEntity artifact = availableArtifact(ownedByRun(workflowRunId, name), name);
+    ArtifactEntity artifact =
+        availableArtifact(
+            ownedByRun(workflowRunId, name)
+                .filter(found -> found.scopeOrRun() != ArtifactScope.log),
+            name);
     return new ArtifactFile(new Artifact(artifact), requireStore().open(artifact.getStorageKey()));
   }
 
@@ -413,7 +512,7 @@ public class ArtifactService {
   /**
    * The workspace's artifacts in the given statuses (available by default), largest first,
    * narrowed to one scope and to one workflow (by name) when asked. A record written before scopes
-   * existed is run-scoped.
+   * existed is run-scoped. Task logs are listed only when asked for by scope.
    */
   public Page<Artifact> query(
       String workspace,
@@ -431,12 +530,16 @@ public class ArtifactService {
                     statuses
                         .filter(list -> !list.isEmpty())
                         .orElse(List.of(ArtifactStatus.available))));
-    scope.ifPresent(
-        wanted ->
-            query.addCriteria(
-                (wanted == ArtifactScope.workflow)
-                    ? where("scope").is(ArtifactScope.workflow)
-                    : where("scope").ne(ArtifactScope.workflow)));
+    query.addCriteria(
+        scope
+            .map(
+                wanted ->
+                    switch (wanted) {
+                      case workflow -> where("scope").is(ArtifactScope.workflow);
+                      case log -> where("scope").is(ArtifactScope.log);
+                      case run -> where("scope").nin(ArtifactScope.workflow, ArtifactScope.log);
+                    })
+            .orElse(where("scope").ne(ArtifactScope.log)));
     Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "size"));
     return PageableExecutionUtils.getPage(
             mongoTemplate.find(query.with(pageable), ArtifactEntity.class),
@@ -613,7 +716,11 @@ public class ArtifactService {
       return ArtifactScope.run;
     }
     try {
-      return ArtifactScope.valueOf(value.trim());
+      ArtifactScope scope = ArtifactScope.valueOf(value.trim());
+      if (scope == ArtifactScope.log) {
+        throw new IllegalArgumentException(value);
+      }
+      return scope;
     } catch (IllegalArgumentException e) {
       throw new BoomerangException(
           BoomerangError.ARTIFACT_INVALID_SCOPE,
@@ -656,6 +763,14 @@ public class ArtifactService {
 
   private String headersJson(Map<String, String> headers) {
     return objectMapper.writeValueAsString(headers != null ? headers : Map.of());
+  }
+
+  private static String sha256(byte[] content) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   private static String sha256(ArtifactStore store, String key) {

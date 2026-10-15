@@ -27,17 +27,12 @@ and nothing Kubernetes-specific.
 
 ## Where the contract ends
 
-The contract covers registration, the two queues, start, heartbeat, end, termination orders and storage
-release, and nothing else. How a task is run — image, command, volumes, resources, placement — is the
-dispatcher's own, described for Flow's Kubernetes dispatcher in `task-runtime.md`. Two things a complete
-dispatcher needs sit outside it today:
-
-- **Task logs** flow the other way. Core proxies `GET /api/v2/taskrun/{id}/log` to one dispatcher at
-  `flow.agent.logstream.url` (`engine/LogClient.java:33`; `service-dispatcher/.../dispatcher/LogV1Controller.java:14-30`),
-  the only call from core to a dispatcher. It assumes one long-lived dispatcher with an HTTP surface and a pod to
-  read from, and so works for none of the other shapes.
-- **Dispatcher identity** is a long-lived record upserted on name and host (`dispatcher/DispatcherService.java:98-125`)
-  with no expiry or deregistration route.
+The contract covers registration, the two queues, start, heartbeat, end, termination orders, storage release
+and the two optional log pieces ("Logs"), and nothing else. How a task is run — image, command, volumes,
+resources, placement — is the dispatcher's own, described for Flow's Kubernetes dispatcher in
+`task-runtime.md`; so is what sits behind a dispatcher's live log route. One thing a complete dispatcher needs
+sits outside it today: **dispatcher identity** is a long-lived record upserted on name and host
+(`dispatcher/DispatcherService.java:98-130`) with no expiry or deregistration route.
 
 ## Versioning and compatibility
 
@@ -69,16 +64,18 @@ independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoint
 | Ask for task work | `GET /{id}/tasks` (long poll) | task runs to run or to terminate |
 | Say a task is starting | `PUT /taskrun/{id}/start` | the task run, which says whether to go on |
 | Keep long tasks alive | `PUT /{id}/heartbeat` | — |
+| Store the finished log (optional) | `PUT /taskrun/{id}/log` | — |
 | Report the outcome | `PUT /taskrun/{id}/end` | the task run |
 | Release storage | `POST /workspaces/releasable` | which held volumes may go |
 
-(`dispatcher/DispatcherControllerV1.java:64-205`)
+(`dispatcher/DispatcherControllerV1.java:69-248`)
 
 ## Registration
 
-`POST /register` takes `name`, `host`, `version` and `taskTypes`. The record is upserted on name and host, so a
-restarting dispatcher keeps its id (`dispatcher/DispatcherService.java:99-126`). A dispatcher registered for
-no task types is answered 204 on every task poll (`:274`).
+`POST /register` takes `name`, `host`, `version` and `taskTypes`, and optionally `logsUrl` and `logsToken`
+("Logs"). The record is upserted on name and host, so a restarting dispatcher keeps its id, and the log
+source is replaced whole on every registration (`dispatcher/DispatcherService.java:98-130`). A dispatcher
+registered for no task types is answered 204 on every task poll (`:279`).
 
 ## Polling
 
@@ -154,6 +151,24 @@ ids the dispatcher is still working on; the engine sets each owned one's lease 9
 task that can outlive a minute. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
 (`engine/WorkflowWatcher.java:76`), gets the task requeued or abandoned (`execution-model.md`).
 
+## Logs
+
+A task's log is read through core alone — `GET /api/v2/taskrun/{id}/log`, which authorizes the reader and
+scrubs the run's secrets (`workflow/WorkflowRunService.java:433-455`) — and core serves it from the first of
+these (`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolve`):
+
+| Source | When |
+| --- | --- |
+| The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end. Core stores it as a log-scoped artifact of the run for the task-log retention setting, 7 days by default (`workflow/ArtifactService.java` `storeTaskLog`; `data-model.md`, "Artifacts") and answers 204. 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. A later upload for the same task run replaces the earlier one. |
+| The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream. What answers there — the pod, Loki — is the dispatcher's own. |
+| `flow.agent.logstream.url` | The claim's dispatcher registered no `logsUrl`, or the task has no claim: the one-dispatcher fallback on core, called with the registered token when there is one. Blank disables it. |
+| A message | None of the above: a 200 whose body says no log is available. |
+
+A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished,
+and MAY both serve live and upload. A dispatcher with no HTTP surface registers no `logsUrl` and uploads; one
+whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
+dispatcher does both (`task-runtime.md`, "Flow's dispatcher").
+
 ## Storage
 
 `GET /{id}/workflows` hands out workflow runs that declare a workspace, claimed for provisioning; the dispatcher
@@ -180,9 +195,9 @@ neither modelled nor listed as deliberately not. Paths are under `dispatcher-sdk
 | Class | Gives the author |
 | --- | --- |
 | `DispatcherClient` | One method per route over the host's `RestClient` (keeping its proxy, certificates and timeouts), the token on engine calls only (`DispatcherClient.java:56-64`) |
-| `Dispatcher` | Registration retried with backoff until the engine answers; one long-poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java:100-148`, `:189-224`) |
-| `TaskRunner` | The start answer honoured; the end retried with backoff until the engine takes it or refuses it with a 4xx, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`TaskRunner.java:89-220`) |
-| `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` (`TaskFailure.exceededQuota`, `startTimeout` for the requeued reasons); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal and the artifact transfer |
+| `Dispatcher` | Registration retried with backoff until the engine answers, with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one long-poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java`) |
+| `TaskRunner` | The start answer honoured; the end retried with backoff until the engine takes it or refuses it with a 4xx, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`TaskRunner.java`) |
+| `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` (`TaskFailure.exceededQuota`, `startTimeout` for the requeued reasons); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`LogUploader.java`) |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim time, the download verified against `sha256` (`ArtifactTransfer.java:83-131`) |
 
 It is published to GitHub Packages as `io.boomerang:dispatcher-sdk`, versioned with the product tag
@@ -196,3 +211,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `limit` on the task poll; `ExceededQuota` and `StartTimeout` end reasons; the start answer's `completed` means do not run | Additive (flow#500) |
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
+| `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0107) |

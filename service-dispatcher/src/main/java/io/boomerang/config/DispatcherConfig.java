@@ -31,6 +31,12 @@ public class DispatcherConfig {
     return new DispatcherClient(http, engineUrl, token);
   }
 
+  /**
+   * The log route's bearer is new on every start and registered with the engine, which presents
+   * it when it reads a live log here ({@code LogAuthFilter}); nothing else ever holds it. The URL
+   * is registered only when configured - the engine otherwise reads this dispatcher at its own
+   * fallback URL, still with the token.
+   */
   @Bean(initMethod = "start", destroyMethod = "stop")
   public Dispatcher dispatcher(
       DispatcherClient dispatcherClient,
@@ -40,7 +46,8 @@ public class DispatcherConfig {
       @Value("${flow.dispatcher.task-types}") List<String> taskTypes,
       @Value("${flow.dispatcher.task.max-in-flight:25}") int maxInFlight,
       @Value("${flow.dispatcher.lease.enabled:true}") boolean leaseEnabled,
-      @Value("${flow.dispatcher.lease.beat-ms:30000}") long beatMs) {
+      @Value("${flow.dispatcher.lease.beat-ms:30000}") long beatMs,
+      @Value("${flow.dispatcher.logs.url:}") String logsUrl) {
     return Dispatcher.builder()
         .client(dispatcherClient)
         .name(name)
@@ -48,6 +55,7 @@ public class DispatcherConfig {
         .tasks(taskService, () -> maxInFlight)
         .workflows(workflowService)
         .heartbeatInterval(leaseEnabled ? Duration.ofMillis(beatMs) : Duration.ZERO)
+        .logs(logsUrl, Dispatcher.Builder.randomLogsToken())
         .build();
   }
 }

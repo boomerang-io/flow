@@ -58,10 +58,13 @@ class DispatcherConfigTest {
             List.of("template", "ai"),
             25,
             true,
-            30000)) {
+            30000,
+            "http://service-dispatcher:7702/api/v1/logs/stream")) {
       assertThat(built.client()).isSameAs(dispatcherClient);
       assertThat(built.isRegistered()).isFalse();
       assertThat(built.inFlight()).isEmpty();
+      // The log route's bearer is generated at build and is what LogAuthFilter checks.
+      assertThat(built.logsToken()).isNotBlank();
     }
   }
 }

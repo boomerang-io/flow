@@ -22,6 +22,10 @@ public class DispatcherEntity {
   private Date creationDate = new Date();
   private Date lastConnectedDate = new Date();
   private List<TaskType> taskTypes;
+  // Where the engine reads the live log of a task this dispatcher holds, and the bearer it presents
+  // there; absent when the dispatcher advertised none at registration (engine/LogClient.java).
+  private String logsUrl;
+  private String logsToken;
 
   public DispatcherEntity() {
     // Default constructor for serialization/deserialization

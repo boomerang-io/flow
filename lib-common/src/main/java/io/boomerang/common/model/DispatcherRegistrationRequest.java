@@ -12,6 +12,11 @@ public class DispatcherRegistrationRequest {
   private List<String> workflowAnnotations = new ArrayList<>();
   private List<String> taskAnnotations = new ArrayList<>();
   private List<String> taskTypes = new ArrayList<>();
+  // Where the engine reads the live log of a task this dispatcher runs, and the bearer it presents
+  // there. Both optional: a dispatcher with no log surface sends neither and uploads finished
+  // logs instead, or serves none.
+  private String logsUrl;
+  private String logsToken;
 
   public DispatcherRegistrationRequest() {
     // Default constructor

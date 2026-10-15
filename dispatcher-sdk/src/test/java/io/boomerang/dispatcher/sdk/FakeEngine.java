@@ -43,6 +43,8 @@ class FakeEngine extends DispatcherClient {
   final Queue<Runnable> endAnswers = new ConcurrentLinkedQueue<>();
   final Queue<List<TaskRun>> taskPolls = new ConcurrentLinkedQueue<>();
   final Queue<List<WorkflowRun>> workflowPollAnswers = new ConcurrentLinkedQueue<>();
+  final Map<String, String> logs = new ConcurrentHashMap<>();
+  final Queue<Runnable> logAnswers = new ConcurrentLinkedQueue<>();
 
   FakeEngine() {
     super(RestClient.create(), "http://fake-engine", null);
@@ -60,6 +62,24 @@ class FakeEngine extends DispatcherClient {
   static RestClientException failing() {
     return HttpServerErrorException.create(
         HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8);
+  }
+
+  /** The engine's answer when log storage is switched off: 503 with the standard error body. */
+  static RestClientException logsDisabled() {
+    byte[] body =
+        ("{\"code\":1508,\"reason\":\"TASKRUN_LOGS_DISABLED\",\"status\":\"503 SERVICE_UNAVAILABLE\"}")
+            .getBytes(StandardCharsets.UTF_8);
+    return HttpServerErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, body, StandardCharsets.UTF_8);
+  }
+
+  /** The engine's answer when it has no artifact store: 503 with the standard error body. */
+  static RestClientException noArtifactStore() {
+    byte[] body =
+        ("{\"code\":2007,\"reason\":\"ARTIFACTS_NOT_CONFIGURED\",\"status\":\"503 SERVICE_UNAVAILABLE\"}")
+            .getBytes(StandardCharsets.UTF_8);
+    return HttpServerErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, body, StandardCharsets.UTF_8);
   }
 
   List<TaskRunEndRequest> endsOf(String taskRunId) {
@@ -107,6 +127,15 @@ class FakeEngine extends DispatcherClient {
   @Override
   public void heartbeat(String dispatcherId, List<String> taskRunIds) {
     heartbeats.add(taskRunIds);
+  }
+
+  @Override
+  public void uploadLog(String dispatcherId, String taskRunId, byte[] log) {
+    Runnable answer = logAnswers.poll();
+    if (answer != null) {
+      answer.run();
+    }
+    logs.put(taskRunId, new String(log, StandardCharsets.UTF_8));
   }
 
   @Override

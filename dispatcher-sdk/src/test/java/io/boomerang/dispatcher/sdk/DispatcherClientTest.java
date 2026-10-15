@@ -222,6 +222,24 @@ class DispatcherClientTest {
   }
 
   @Test
+  void uploadLogPutsTheTextFencedOnTheClaim() {
+    server
+        .expect(requestTo(ENGINE + "/taskrun/t-1/log?dispatcherRef=d-1"))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(header("Authorization", "Bearer secret"))
+        .andExpect(header("Content-Type", "text/plain"))
+        .andExpect(
+            request ->
+                assertThat(((MockClientHttpRequest) request).getBodyAsString())
+                    .isEqualTo("line 1\nline 2\n"))
+        .andRespond(withNoContent());
+
+    client.uploadLog("d-1", "t-1", "line 1\nline 2\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+    server.verify();
+  }
+
+  @Test
   void heartbeatListsTheTaskRunIds() {
     server
         .expect(requestTo(ENGINE + "/d-1/heartbeat"))

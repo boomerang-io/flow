@@ -97,6 +97,44 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/TaskRun"
+  /dispatcher/v1/taskrun/{taskRunId}/log:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "Store the Task Run's finished log. Optional: send it before the end\
+        \ so the log outlives the runtime; a dispatcher that serves logs at its registered\
+        \ logsUrl may skip it."
+      operationId: "storeTaskRunLog"
+      parameters:
+      - name: "taskRunId"
+        in: "path"
+        description: "ID of the Task Run"
+        required: true
+        schema:
+          type: "string"
+      - name: "dispatcherRef"
+        in: "query"
+        description: "The registered id of the dispatcher holding the claim"
+        required: false
+        schema:
+          type: "string"
+      requestBody:
+        description: "The log, as text"
+        content:
+          text/plain:
+            schema:
+              type: "string"
+        required: true
+      responses:
+        "204":
+          description: "Stored"
+        "409":
+          description: "The claim is held by another dispatcher"
+        "413":
+          description: "The log is over flow.engine.task.log.max-bytes and was not\
+            \ stored"
+        "503":
+          description: "No artifact store is configured"
   /dispatcher/v1/taskrun/{taskRunId}/end:
     put:
       tags:
@@ -660,6 +698,10 @@ components:
           type: "array"
           items:
             type: "string"
+        logsUrl:
+          type: "string"
+        logsToken:
+          type: "string"
   securitySchemes:
     BearerAuth:
       type: "http"

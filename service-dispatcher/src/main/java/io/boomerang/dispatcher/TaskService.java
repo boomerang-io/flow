@@ -11,6 +11,7 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.kube.KubeLogService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
 import java.text.ParseException;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -44,17 +46,32 @@ public class TaskService implements TaskHandler {
   @Value("${kube.task.timeout}")
   private Long taskTimeout;
 
+  // Whether a finished task's pod log is stored with the engine, so it outlives the pod and is
+  // served without this dispatcher. Off, or an engine with no artifact store, leaves the engine
+  // reading this dispatcher's log route for as long as the pod exists.
+  @Value("${flow.dispatcher.logs.upload:true}")
+  private boolean uploadLogs;
+
   private final TaskExecutor executor;
 
   private final TaskImageResolver imageResolver;
+
+  private final ObjectProvider<KubeLogService> logs;
 
   // Proxy to self so the delete goes through the @Async proxy and hops threads; a plain self-call
   // is not intercepted and would run the delete, grace included, on the dispatch thread.
   @Autowired @Lazy private TaskService self;
 
   public TaskService(TaskExecutor executor, TaskImageResolver imageResolver) {
+    this(executor, imageResolver, null);
+  }
+
+  @Autowired
+  public TaskService(
+      TaskExecutor executor, TaskImageResolver imageResolver, ObjectProvider<KubeLogService> logs) {
     this.executor = executor;
     this.imageResolver = imageResolver;
+    this.logs = logs;
     LOGGER.info("Task executor: " + executor.getClass().getSimpleName());
   }
 
@@ -70,7 +87,7 @@ public class TaskService implements TaskHandler {
   public TaskResult run(TaskRun task, TaskContext context) {
     try {
       return TaskResult.of(
-          execute(task), "Task (" + task.getId() + ") has been executed successfully.");
+          execute(task, context), "Task (" + task.getId() + ") has been executed successfully.");
     } catch (TaskExecutionException e) {
       throw new TaskFailure(e.getStatusReason(), e.getMessage(), e.getResults());
     } catch (BoomerangException e) {
@@ -84,11 +101,18 @@ public class TaskService implements TaskHandler {
     executor.cancel(task);
   }
 
-  /**
-   * Create the task's runtime object, wait for it to finish and return its results. Throws {@link
-   * TaskExecutionException} carrying the typed reason when it failed or never started.
-   */
+  /** {@link #execute(TaskRun, TaskContext)} with no context: nothing stores the log. */
   public List<RunResult> execute(TaskRun task) {
+    return execute(task, null);
+  }
+
+  /**
+   * Create the task's runtime object, wait for it to finish, store its log with the engine, and
+   * return its results. Throws {@link TaskExecutionException} carrying the typed reason when it
+   * failed or never started; the log is stored on that path too, since it is where the failure
+   * shows.
+   */
+  public List<RunResult> execute(TaskRun task, TaskContext context) {
     List<RunResult> results = new ArrayList<>();
     // Resolved, not read off the spec: an `ai` task carries no image of its own and the
     // dispatcher supplies the worker image for it (TaskImageResolver).
@@ -96,13 +120,11 @@ public class TaskService implements TaskHandler {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
     }
     Long timeout = getTaskTimeout(task.getTimeout());
+    boolean succeeded = false;
     try {
       executor.create(task, timeout);
       results = executor.watch(task, timeout);
-      if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.OnSuccess)) {
-        // This will only delete on success as failure throws an Exception.
-        self.deleteTaskRun(task);
-      }
+      succeeded = true;
     } catch (KubernetesClientException e) {
       // A namespace quota refusing the object is the cluster being full, not the task being
       // wrong: reported as ExceededQuota, which the engine requeues for another attempt.
@@ -126,12 +148,31 @@ public class TaskService implements TaskHandler {
     } catch (ParseException e) {
       throw new TaskExecutionException("DeadlineExceeded", "TASK_CREATION_TIMEOUT_ERROR - " + e.getMessage());
     } finally {
-      if (getTaskDeletion(task.getSpec().getDeletion()).equals(TaskDeletion.Always)) {
+      // The pod holds the log, so it is read before the runtime object is deleted.
+      storeLog(task, context);
+      TaskDeletion deletion = getTaskDeletion(task.getSpec().getDeletion());
+      if (deletion.equals(TaskDeletion.Always)
+          || (succeeded && deletion.equals(TaskDeletion.OnSuccess))) {
         self.deleteTaskRun(task);
       }
       LOGGER.info("Task (" + task.getId() + ") has completed.");
     }
     return results;
+  }
+
+  // Best effort: a pod that never existed, or one whose log cannot be read, leaves the engine to
+  // read the live route instead; it never fails the task.
+  private void storeLog(TaskRun task, TaskContext context) {
+    KubeLogService podLogs = (logs != null) ? logs.getIfAvailable() : null;
+    if (!uploadLogs || context == null || podLogs == null) {
+      return;
+    }
+    try {
+      context.uploadLog(
+          podLogs.getPodLog(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), null));
+    } catch (RuntimeException e) {
+      LOGGER.warn("Task (" + task.getId() + ") log not read from its pod: " + e.getMessage());
+    }
   }
 
   /**
