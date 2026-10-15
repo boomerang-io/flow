@@ -26,7 +26,7 @@ import org.springframework.test.context.TestPropertySource;
  * Insights read the runs and task runs a workspace still holds, scoped through the relationship
  * graph, and roll them up per workflow and per task.
  */
-@TestPropertySource(properties = "flow.mode=engine")
+@TestPropertySource(properties = {"flow.workspace.single=true", "flow.security.enabled=false"})
 class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
 
   private static final String SYSTEM_WORKSPACE = "system";

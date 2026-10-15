@@ -18,11 +18,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
 /**
- * Insights roll up the audit trail's workflow-run events, which the engine writes in both modes,
- * so a run submitted against the engine-mode {@code system} workspace appears in its insights.
+ * Insights roll up the audit trail's workflow-run events, which the engine writes in every
+ * deployment, so a run submitted against the {@code system} workspace of a single-workspace
+ * instance appears in its insights.
  */
-@TestPropertySource(properties = "flow.mode=engine")
-class EngineModeInsightsTest extends AbstractEngineIntegrationTest {
+@TestPropertySource(properties = {"flow.workspace.single=true", "flow.security.enabled=false"})
+class SingleWorkspaceInsightsTest extends AbstractEngineIntegrationTest {
 
   private static final String SYSTEM_WORKSPACE = "system";
   private static final String TASK_SLUG = "engine-insights-test-task";

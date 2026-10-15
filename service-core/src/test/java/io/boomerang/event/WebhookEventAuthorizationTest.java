@@ -28,6 +28,8 @@ import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import io.boomerang.integrations.GitHubService;
+import io.boomerang.integrations.IntegrationService;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -144,8 +146,8 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
         new WebhookEventService(
             workflowService,
             workflowRunService,
-            Optional.empty(),
-            Optional.empty(),
+            mock(IntegrationService.class),
+            mock(GitHubService.class),
             realRelationshipService);
   }
 

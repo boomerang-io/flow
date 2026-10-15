@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +21,8 @@ import io.boomerang.workflow.WorkflowService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
+import io.boomerang.integrations.GitHubService;
+import io.boomerang.integrations.IntegrationService;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,8 +55,8 @@ class WebhookEventEmptyDataTest {
         new WebhookEventService(
             workflowService,
             workflowRunService,
-            Optional.empty(),
-            Optional.empty(),
+            mock(IntegrationService.class),
+            mock(GitHubService.class),
             relationshipService);
     when(relationshipService.check(
             RelationshipType.WORKFLOW, WORKFLOW_REF, Optional.empty(), Optional.empty()))

@@ -22,13 +22,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The standalone half of the engine-mode submit fix ({@link EngineModeWorkflowSubmitTest}): making
- * quotas a feature that is off in engine mode must not disable them in standalone, which is the
- * whole regression risk of that change. Standalone is the default mode here (no {@code flow.mode}
- * property), so {@code flow.quotas.enabled} defaults on - see
- * {@link io.boomerang.workspace.FlowQuotaProperties}.
+ * Workspace quotas are enforced by the stored {@code features.workspaceQuotas} setting alone, and
+ * the run-duration ceiling comes from the workspace's own quota whatever that setting says.
  */
-class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
+class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
 
   private static final String QUOTA_FEATURE = "workspaceQuotas";
 
@@ -53,7 +50,7 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void theWorkflowCountQuotaIsStillEnforcedInStandaloneMode() {
+  void theWorkflowCountQuotaIsEnforced() {
     String workspace = createWorkspace("standalone-quota-count", quotasWithWorkflowCount(0));
     workflowService.create(workspace, runnableWorkflow("quota-first-workflow", TASK_SLUG));
 
@@ -69,9 +66,9 @@ class StandaloneQuotaEnforcementTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void theRunDurationCeilingStillComesFromTheWorkspaceQuotaInStandaloneMode() {
-    // The ceiling is gated on the quota subsystem (mode), not on the "workspaceQuotas" feature
-    // setting - unchanged from before the fix, so this must hold with the feature off.
+  void theRunDurationCeilingComesFromTheWorkspaceQuota() {
+    // The ceiling is not gated on the "workspaceQuotas" feature setting, so this holds with the
+    // feature off.
     String workspace = createWorkspace("standalone-quota-duration", quotasWithRunDuration(7));
     workflowService.create(
         workspace, runnableWorkflow("quota-duration-workflow", TASK_SLUG));
