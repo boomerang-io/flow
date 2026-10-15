@@ -150,6 +150,11 @@ services:
       FLOW_ENGINE_SERVICE_HOST: ${FLOW_ENGINE_SERVICE_HOST:-host.docker.internal:7700}
       FLOW_ENGINE_DISPATCHER_TOKEN: ""
       FLOW_DISPATCHER_LEASE_ENABLED: "true"
+      # Registered with the engine as where it reads a running task's log, with the bearer the
+      # dispatcher generates at start. service-core on the host reaches the published port; set
+      # FLOW_DISPATCHER_LOGS_URL=http://service-dispatcher:7702/api/v1/logs/stream with the `stack`
+      # profile. A finished task's log is stored with the engine as well, when it has an artifact store.
+      FLOW_DISPATCHER_LOGS_URL: ${FLOW_DISPATCHER_LOGS_URL:-http://localhost:7702/api/v1/logs/stream}
       # Spelled out rather than left to the default so the laptop cluster is an explicit place an
       # ai task can be exercised end to end. The pod runs the worker image
       # (FLOW_DISPATCHER_AI_IMAGE, boomerangio/task-ai:1.1.0 by default), released from the
@@ -205,9 +210,9 @@ services:
       FLOW_ARTIFACTS_STORE_BUCKET: flow-artifacts
       FLOW_ARTIFACTS_STORE_ACCESS_KEY: flow-local
       FLOW_ARTIFACTS_STORE_SECRET_KEY: flow-local-secret
-      # The dispatcher above registers without a token, and task logs stream from it.
+      # The dispatcher above registers without a token. Live task logs are read at the URL it
+      # registers (FLOW_DISPATCHER_LOGS_URL), so pair it with service-dispatcher:7702 here.
       FLOW_DISPATCHER_AUTH_ENABLED: "false"
-      FLOW_AGENT_SERVICE_HOST: service-dispatcher:7702
     depends_on:
       mongo:
         condition: service_healthy

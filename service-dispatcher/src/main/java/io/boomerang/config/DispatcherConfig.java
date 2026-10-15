@@ -34,8 +34,8 @@ public class DispatcherConfig {
   /**
    * The log route's bearer is new on every start and registered with the engine, which presents
    * it when it reads a live log here ({@code LogAuthFilter}); nothing else ever holds it. The URL
-   * is registered only when configured - the engine otherwise reads this dispatcher at its own
-   * fallback URL, still with the token.
+   * is registered only when configured; without it the engine serves only the stored logs this
+   * dispatcher uploads.
    */
   @Bean(initMethod = "start", destroyMethod = "stop")
   public Dispatcher dispatcher(

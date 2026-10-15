@@ -161,8 +161,7 @@ these (`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolv
 | --- | --- |
 | The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end. Core stores it as a log-scoped artifact of the run for the task-log retention setting, 7 days by default (`workflow/ArtifactService.java` `storeTaskLog`; `data-model.md`, "Artifacts") and answers 204. 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. A later upload for the same task run replaces the earlier one. |
 | The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream. What answers there — the pod, Loki — is the dispatcher's own. |
-| `flow.agent.logstream.url` | The claim's dispatcher registered no `logsUrl`, or the task has no claim: the one-dispatcher fallback on core, called with the registered token when there is one. Blank disables it. |
-| A message | None of the above: a 200 whose body says no log is available. |
+| A message | Neither: a 200 whose body says no log is available. Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
 
 A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished,
 and MAY both serve live and upload. A dispatcher with no HTTP surface registers no `logsUrl` and uploads; one
@@ -211,4 +210,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `limit` on the task poll; `ExceededQuota` and `StartTimeout` end reasons; the start answer's `completed` means do not run | Additive (flow#500) |
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
-| `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0107) |
+| `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0109) |

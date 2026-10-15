@@ -12,7 +12,6 @@ import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,13 +24,12 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * Reads a task's live log from the dispatcher holding its claim. The dispatcher said where at
- * registration ({@code logsUrl}) and which bearer to present there ({@code logsToken}); a
- * dispatcher that advertised no URL is read at {@code flow.agent.logstream.url}, the
- * one-dispatcher fallback, still with its registered token. This is the only call the engine makes
- * to a dispatcher. A task with no source at all is answered with a message rather than an error:
- * its stored log, when a dispatcher uploaded one, was served before this client is reached
- * ({@link TaskRunService#streamLog}).
+ * Reads a task's live log from the dispatcher holding its claim, at the URL the dispatcher said at
+ * registration ({@code logsUrl}) and with the bearer it said to present ({@code logsToken}). This is
+ * the only call the engine makes to a dispatcher. A task whose dispatcher registered no URL, or
+ * that has no claim, is answered with a message rather than an error: its stored log, when a
+ * dispatcher uploaded one, was served before this client is reached ({@link
+ * TaskRunService#streamLog}).
  */
 @Service
 public class LogClient {
@@ -40,40 +38,36 @@ public class LogClient {
 
   static final String NO_SOURCE_MESSAGE =
       "No log is available for this task: no stored log was uploaded, and its dispatcher"
-          + " advertises no log source.";
+          + " registered no live log route.";
 
   // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
   private final RestTemplate restTemplate;
   private final DispatcherRepository dispatcherRepository;
-  private final String fallbackUrl;
 
   public LogClient(
       @Qualifier("streamingRestTemplate") RestTemplate restTemplate,
-      DispatcherRepository dispatcherRepository,
-      @Value("${flow.agent.logstream.url:}") String fallbackUrl) {
+      DispatcherRepository dispatcherRepository) {
     this.restTemplate = restTemplate;
     this.dispatcherRepository = dispatcherRepository;
-    this.fallbackUrl = fallbackUrl;
   }
 
   /** Where the task's live log can be read, if anywhere. */
   Optional<LogSource> resolve(TaskRunEntity task) {
-    Optional<DispatcherEntity> dispatcher =
-        Optional.ofNullable(task.getClaim())
-            .map(RunClaim::getBy)
-            .flatMap(dispatcherRepository::findById);
-    String url =
-        dispatcher
-            .map(DispatcherEntity::getLogsUrl)
-            .filter(StringUtils::hasText)
-            .orElse(fallbackUrl);
-    if (!StringUtils.hasText(url)) {
-      return Optional.empty();
-    }
-    return Optional.of(
-        new LogSource(
-            buildLogStreamUri(url, task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId()),
-            dispatcher.map(DispatcherEntity::getLogsToken).filter(StringUtils::hasText).orElse(null)));
+    return Optional.ofNullable(task.getClaim())
+        .map(RunClaim::getBy)
+        .flatMap(dispatcherRepository::findById)
+        .filter(dispatcher -> StringUtils.hasText(dispatcher.getLogsUrl()))
+        .map(
+            dispatcher ->
+                new LogSource(
+                    buildLogStreamUri(
+                        dispatcher.getLogsUrl(),
+                        task.getWorkflowRef(),
+                        task.getWorkflowRunRef(),
+                        task.getId()),
+                    StringUtils.hasText(dispatcher.getLogsToken())
+                        ? dispatcher.getLogsToken()
+                        : null));
   }
 
   public StreamingResponseBody streamLog(TaskRunEntity task) {

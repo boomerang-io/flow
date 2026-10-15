@@ -14,16 +14,16 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Where the engine reads a task's live log: at the URL the claim's dispatcher registered, with the
- * token it registered; at the configured fallback when it registered no URL; nowhere when there is
- * neither. The query string is built encoded, so a value holding {@code &}, {@code =} or a space
- * cannot inject or truncate a parameter.
+ * token it registered; nowhere when the dispatcher registered no URL or the task has no claim. The
+ * query string is built encoded, so a value holding {@code &}, {@code =} or a space cannot inject
+ * or truncate a parameter.
  */
 class LogClientTest {
 
-  private static final String FALLBACK = "http://service-dispatcher/api/v1/logs/stream";
+  private static final String ROUTE = "http://kube-dispatcher:7702/api/v1/logs/stream";
 
   private final DispatcherRepository dispatchers = mock(DispatcherRepository.class);
-  private final LogClient logClient = new LogClient(null, dispatchers, FALLBACK);
+  private final LogClient logClient = new LogClient(null, dispatchers);
 
   private static TaskRunEntity taskClaimedBy(String dispatcherId) {
     TaskRunEntity task = new TaskRunEntity();
@@ -48,47 +48,40 @@ class LogClientTest {
 
   @Test
   void aTaskIsReadAtTheUrlItsDispatcherRegisteredWithItsToken() {
-    registered("d-1", "http://kube-dispatcher:7702/api/v1/logs/stream", "secret-1");
+    registered("d-1", ROUTE, "secret-1");
 
     LogClient.LogSource source = logClient.resolve(taskClaimedBy("d-1")).orElseThrow();
 
     assertThat(source.uri().toString())
-        .isEqualTo(
-            "http://kube-dispatcher:7702/api/v1/logs/stream"
-                + "?workflowRef=workflow-1&workflowRunRef=run-1&taskRunRef=taskrun-1");
+        .isEqualTo(ROUTE + "?workflowRef=workflow-1&workflowRunRef=run-1&taskRunRef=taskrun-1");
     assertThat(source.token()).isEqualTo("secret-1");
   }
 
   @Test
-  void aDispatcherThatRegisteredNoUrlIsReadAtTheFallbackWithItsToken() {
-    registered("d-2", null, "secret-2");
+  void aRegisteredUrlWithoutATokenIsReadWithNoBearer() {
+    registered("d-2", ROUTE, null);
 
-    LogClient.LogSource source = logClient.resolve(taskClaimedBy("d-2")).orElseThrow();
-
-    assertThat(source.uri().toString()).startsWith(FALLBACK + "?");
-    assertThat(source.token()).isEqualTo("secret-2");
+    assertThat(logClient.resolve(taskClaimedBy("d-2")).orElseThrow().token()).isNull();
   }
 
   @Test
-  void anUnclaimedTaskIsReadAtTheFallbackWithNoToken() {
-    LogClient.LogSource source = logClient.resolve(taskClaimedBy(null)).orElseThrow();
+  void aDispatcherThatRegisteredNoUrlIsNoSource() {
+    registered("d-3", "", "secret-3");
 
-    assertThat(source.uri().toString()).startsWith(FALLBACK + "?");
-    assertThat(source.token()).isNull();
+    assertThat(logClient.resolve(taskClaimedBy("d-3"))).isEmpty();
   }
 
   @Test
-  void noRegisteredUrlAndNoFallbackIsNoSource() {
-    registered("d-3", "", null);
-    LogClient withoutFallback = new LogClient(null, dispatchers, "");
+  void anUnclaimedOrUnknownClaimantIsNoSource() {
+    when(dispatchers.findById("gone")).thenReturn(Optional.empty());
 
-    assertThat(withoutFallback.resolve(taskClaimedBy("d-3"))).isEmpty();
-    assertThat(withoutFallback.resolve(taskClaimedBy(null))).isEmpty();
+    assertThat(logClient.resolve(taskClaimedBy(null))).isEmpty();
+    assertThat(logClient.resolve(taskClaimedBy("gone"))).isEmpty();
   }
 
   @Test
   void encodesAmpersandEqualsAndSpaceInParamValues() {
-    URI uri = LogClient.buildLogStreamUri(FALLBACK, "wf id", "run&ref", "task=run");
+    URI uri = LogClient.buildLogStreamUri(ROUTE, "wf id", "run&ref", "task=run");
 
     String query = uri.getRawQuery();
     // Exactly three top-level params must survive - not more, which would indicate an injected

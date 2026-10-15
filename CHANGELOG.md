@@ -54,8 +54,9 @@ tag's release notes.
   task's log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core
   serves that copy first, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
   log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
-  `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`); blank, the default,
-  keeps core's `flow.agent.logstream.url` as the one-dispatcher fallback. The dispatcher's `/api/v1/logs` route
+  `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`). Core's
+  `flow.agent.service.host` and `flow.agent.logstream.url` are gone: nothing on core names a dispatcher, and a
+  dispatcher that registers no URL has no live log to follow. The dispatcher's `/api/v1/logs` route
   now accepts only the bearer it generates at start and registers; nothing but core can read it. Two new keys
   in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
   apart from artifact retention; stored logs never count toward artifact storage. Set
