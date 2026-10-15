@@ -110,7 +110,7 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
 
     StreamingResponseBody rawLog =
         out -> out.write(("connected as " + SECRET + "\n").getBytes(StandardCharsets.UTF_8));
-    when(logClient.streamLog(any(), any(), any())).thenReturn(rawLog);
+    when(logClient.streamLog(any())).thenReturn(rawLog);
 
     // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
     // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
@@ -229,7 +229,7 @@ class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
     sibling.setParams(List.of(new RunParam(TASK_PARAM, TASK_SECRET)));
     taskRunRepository.save(sibling);
 
-    when(logClient.streamLog(any(), any(), any()))
+    when(logClient.streamLog(any()))
         .thenReturn(
             (StreamingResponseBody)
                 out -> out.write(("calling with " + TASK_SECRET + "\n").getBytes(StandardCharsets.UTF_8)));

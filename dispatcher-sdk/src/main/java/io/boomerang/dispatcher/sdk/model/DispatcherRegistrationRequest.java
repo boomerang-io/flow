@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Who a dispatcher is and which task types it runs. The engine upserts on name and host, so a
- * restarted dispatcher keeps its id.
+ * Who a dispatcher is, which task types it runs, and where the engine may read the live log of a
+ * task it holds. The engine upserts on name and host, so a restarted dispatcher keeps its id.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -19,6 +19,8 @@ public class DispatcherRegistrationRequest {
   private List<String> workflowAnnotations = new ArrayList<>();
   private List<String> taskAnnotations = new ArrayList<>();
   private List<String> taskTypes = new ArrayList<>();
+  private String logsUrl;
+  private String logsToken;
 
   public DispatcherRegistrationRequest() {}
 
@@ -26,6 +28,27 @@ public class DispatcherRegistrationRequest {
     this.name = name;
     this.host = host;
     this.taskTypes = taskTypes;
+  }
+
+  /**
+   * Where the engine reads the live log of a task this dispatcher holds, with {@code workflowRef},
+   * {@code workflowRunRef} and {@code taskRunRef} query parameters appended; null for no live log.
+   */
+  public String getLogsUrl() {
+    return logsUrl;
+  }
+
+  public void setLogsUrl(String logsUrl) {
+    this.logsUrl = logsUrl;
+  }
+
+  /** The bearer the engine presents at {@link #getLogsUrl()}; null for none. */
+  public String getLogsToken() {
+    return logsToken;
+  }
+
+  public void setLogsToken(String logsToken) {
+    this.logsToken = logsToken;
   }
 
   public String getName() {

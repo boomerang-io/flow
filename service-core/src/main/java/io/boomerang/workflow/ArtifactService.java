@@ -95,6 +95,9 @@ public class ArtifactService {
   /** The download task's result: true once a file was downloaded, false on an optional miss. */
   public static final String FOUND_RESULT = "found";
 
+  /** The content type a stored task log is written with. */
+  public static final String LOG_CONTENT_TYPE = "text/plain; charset=utf-8";
+
   /** What a hand-out resolved to: a link to dispatch, or - for an optional download - nothing. */
   public enum LinkOutcome {
     FILLED,
@@ -170,7 +173,7 @@ public class ArtifactService {
     return Math.max(1, Math.min(days, setting(RETENTION_MAX_DAYS)));
   }
 
-  /** Bytes held by the given workflows' available and uploading artifacts. */
+  /** Bytes held by the given workflows' available and uploading artifacts; task logs not counted. */
   public long storedBytes(List<String> workflowRefs) {
     if (workflowRefs.isEmpty()) {
       return 0;
@@ -183,7 +186,9 @@ public class ArtifactService {
                         where("workflowRef")
                             .in(workflowRefs)
                             .and("status")
-                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())),
+                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())
+                            .and("scope")
+                            .ne(ArtifactScope.log.name())),
                     group().sum("size").as("total")),
                 ArtifactEntity.class,
                 Document.class)
@@ -384,20 +389,80 @@ public class ArtifactService {
     return messageSource.getMessage(e.getReason(), e.getArgs(), e.getReason(), Locale.ENGLISH);
   }
 
+  // ── Task logs ─────────────────────────────────────────────────────────────
+
+  /**
+   * Store the finished log a dispatcher sent for a task as the task's log artifact: scope {@code
+   * log}, named after the task run, under the run's default retention, available at once. A second
+   * upload for the same task run - a requeued attempt - replaces the first, file and record. A log
+   * is read only through the task run's log route, is not listed with the run's artifacts and does
+   * not count toward the workspace's artifact storage.
+   */
+  public void storeTaskLog(TaskRunEntity taskRun, byte[] content) {
+    ArtifactStore store = requireStore();
+    String name = logName(taskRun.getId());
+    Date now = new Date();
+    int retentionDays = resolveRetentionDays(null, quotasFor(taskRun.getWorkflowRunRef()));
+    ArtifactEntity artifact =
+        artifactRepository
+            .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)
+            .orElseGet(ArtifactEntity::new);
+    artifact.setName(name);
+    artifact.setWorkflowRef(taskRun.getWorkflowRef());
+    artifact.setWorkflowRunRef(taskRun.getWorkflowRunRef());
+    artifact.setTaskRunRef(taskRun.getId());
+    artifact.setScope(ArtifactScope.log);
+    artifact.setStorageKey("runs/" + taskRun.getWorkflowRunRef() + "/logs/" + taskRun.getId());
+    artifact.setSize(content.length);
+    artifact.setContentType(LOG_CONTENT_TYPE);
+    artifact.setSha256(sha256(content));
+    artifact.setRetentionDays(retentionDays);
+    artifact.setCreationDate(now);
+    artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+    store.put(artifact.getStorageKey(), content, LOG_CONTENT_TYPE);
+    artifact.setStatus(ArtifactStatus.available);
+    artifactRepository.save(artifact);
+  }
+
+  /** The task's stored log, when a dispatcher uploaded one and it has not expired. */
+  public Optional<ArtifactEntity> taskLog(TaskRunEntity taskRun) {
+    return artifactRepository
+        .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), logName(taskRun.getId()))
+        .filter(artifact -> artifact.scopeOrRun() == ArtifactScope.log)
+        .filter(artifact -> artifact.getStatus() == ArtifactStatus.available);
+  }
+
+  /** An open stream of a stored log's file; the caller closes it. */
+  public InputStream openLog(ArtifactEntity log) {
+    return requireStore().open(log.getStorageKey());
+  }
+
+  static String logName(String taskRunId) {
+    return taskRunId + ".log";
+  }
+
   // ── The workspace-scoped API ──────────────────────────────────────────────
 
   public List<Artifact> listForRun(String workspace, String workflowRunId) {
     requireRunInWorkspace(workspace, workflowRunId);
     return artifactRepository.findByWorkflowRunRefOrderByCreationDateAsc(workflowRunId).stream()
         .filter(artifact -> artifact.getStatus() != ArtifactStatus.uploading)
+        .filter(artifact -> artifact.scopeOrRun() != ArtifactScope.log)
         .map(Artifact::new)
         .toList();
   }
 
-  /** The artifact and an open stream of its file; the caller closes the stream. */
+  /**
+   * The artifact and an open stream of its file; the caller closes the stream. A task log is not
+   * an artifact here: it is served, scrubbed, by the task run's log route only.
+   */
   public ArtifactFile open(String workspace, String workflowRunId, String name) {
     requireRunInWorkspace(workspace, workflowRunId);
-    ArtifactEntity artifact = availableArtifact(ownedByRun(workflowRunId, name), name);
+    ArtifactEntity artifact =
+        availableArtifact(
+            ownedByRun(workflowRunId, name)
+                .filter(found -> found.scopeOrRun() != ArtifactScope.log),
+            name);
     return new ArtifactFile(new Artifact(artifact), requireStore().open(artifact.getStorageKey()));
   }
 
@@ -413,7 +478,7 @@ public class ArtifactService {
   /**
    * The workspace's artifacts in the given statuses (available by default), largest first,
    * narrowed to one scope and to one workflow (by name) when asked. A record written before scopes
-   * existed is run-scoped.
+   * existed is run-scoped. Task logs are listed only when asked for by scope.
    */
   public Page<Artifact> query(
       String workspace,
@@ -431,12 +496,16 @@ public class ArtifactService {
                     statuses
                         .filter(list -> !list.isEmpty())
                         .orElse(List.of(ArtifactStatus.available))));
-    scope.ifPresent(
-        wanted ->
-            query.addCriteria(
-                (wanted == ArtifactScope.workflow)
-                    ? where("scope").is(ArtifactScope.workflow)
-                    : where("scope").ne(ArtifactScope.workflow)));
+    query.addCriteria(
+        scope
+            .map(
+                wanted ->
+                    switch (wanted) {
+                      case workflow -> where("scope").is(ArtifactScope.workflow);
+                      case log -> where("scope").is(ArtifactScope.log);
+                      case run -> where("scope").nin(ArtifactScope.workflow, ArtifactScope.log);
+                    })
+            .orElse(where("scope").ne(ArtifactScope.log)));
     Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "size"));
     return PageableExecutionUtils.getPage(
             mongoTemplate.find(query.with(pageable), ArtifactEntity.class),
@@ -613,7 +682,11 @@ public class ArtifactService {
       return ArtifactScope.run;
     }
     try {
-      return ArtifactScope.valueOf(value.trim());
+      ArtifactScope scope = ArtifactScope.valueOf(value.trim());
+      if (scope == ArtifactScope.log) {
+        throw new IllegalArgumentException(value);
+      }
+      return scope;
     } catch (IllegalArgumentException e) {
       throw new BoomerangException(
           BoomerangError.ARTIFACT_INVALID_SCOPE,
@@ -656,6 +729,14 @@ public class ArtifactService {
 
   private String headersJson(Map<String, String> headers) {
     return objectMapper.writeValueAsString(headers != null ? headers : Map.of());
+  }
+
+  private static String sha256(byte[] content) {
+    try {
+      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   private static String sha256(ArtifactStore store, String key) {

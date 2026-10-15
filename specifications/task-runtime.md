@@ -42,8 +42,13 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 - **Engine and token.** It calls `flow.engine.url` (`http://${flow.engine.service.host}`) through `RestConfig`'s
   pooled client and sends `flow.engine.dispatcher.token` as `Authorization: Bearer` on engine calls only
   (`config/DispatcherConfig.java:23-32`, `application.properties:94-95`); what the engine accepts is in the contract.
-- **Logs** flow the other way: the dispatcher serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`)
-  and the engine proxies them through `flow.agent.logstream.url` (`engine/LogClient.java:34`).
+- **Logs.** It serves `/api/v1/logs[/stream]` (`dispatcher/LogV1Controller.java:14-30`) to the engine alone: the
+  route accepts only the bearer generated at every start and registered as `logsToken`
+  (`dispatcher/LogAuthFilter.java`, `config/DispatcherConfig.java`). `flow.dispatcher.logs.url` is the address the
+  engine reads it at, registered as `logsUrl`; blank registers none, and the engine falls back to its own
+  `flow.agent.logstream.url`. With `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the
+  runtime object is deleted and stored with the engine, where it is served first and outlives the pod
+  (`dispatcher/TaskService.java`, `storeLog`; `dispatcher-contract.md`, "Logs").
 
 ## Executors
 

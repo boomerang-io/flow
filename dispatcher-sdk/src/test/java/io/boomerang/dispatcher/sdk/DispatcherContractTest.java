@@ -172,8 +172,9 @@ class DispatcherContractTest {
     client.heartbeat("d-1", List.of("t-1"));
     client.startWorkflowRun("w-1");
     client.releasable(new WorkspaceReleaseQuery());
+    client.uploadLog("d-1", "t-1", new byte[] {'x'});
 
-    assertThat(calls).hasSize(8);
+    assertThat(calls).hasSize(9);
     List<String> routes = routes();
     calls.forEach(
         call ->

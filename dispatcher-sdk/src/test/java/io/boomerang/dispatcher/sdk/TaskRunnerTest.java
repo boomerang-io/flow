@@ -57,6 +57,7 @@ class TaskRunnerTest {
         running,
         task -> registered.contains(task.getType().name()),
         task -> null,
+        new LogUploader(engine, () -> "d-1"),
         executor,
         FAST,
         abandoned::get);

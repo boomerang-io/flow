@@ -22,12 +22,12 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`lib-common`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`lib-common`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`lib-common`; `engine`) |
-| `artifacts` | One file an upload task attached to a run: its run, task run and workflow references, scope (`run` or `workflow`), size, SHA-256, store key, status and expiry (see "Artifacts" below) | `ArtifactEntity` (`lib-common`; `workflow`) |
+| `artifacts` | One file an upload task attached to a run, or a task's stored log: its run, task run and workflow references, scope (`run`, `workflow` or `log`), size, SHA-256, store key, status and expiry (see "Artifacts" below) | `ArtifactEntity` (`lib-common`; `workflow`) |
 | `workflow_schedules` | Cron and one-off schedules: `nextFireAt`, `lastFiredAt`, `retryCount` | `WorkflowScheduleEntity` (`lib-common`; `schedule`) |
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`lib-common`; `workflow`) |
 | `task_locks` | Per-key lock documents for the `acquirelock` / `releaselock` tasks | `TaskLockEntity` (`engine`) |
 | `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (capped at 1024 characters) and `deadAt`; inbound event receipts with processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
-| `dispatchers` | Registered dispatcher workers and the task types they serve | `DispatcherEntity` (`dispatcher`) |
+| `dispatchers` | Registered dispatcher workers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent) | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (personal, team, system): settings, quotas, parameters | `WorkspaceEntity` (`workspace`) |
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts; hashed bearer tokens with principal, permissions, expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
@@ -128,6 +128,14 @@ Each artifact has a scope, set by the task's `scope` param (`run` by default, ab
 `run`; `ArtifactEntity.scopeOrRun`). A run-scoped artifact belongs to the run that uploaded it and only that run
 can download it. A workflow-scoped artifact is the workflow's state across runs: any later run of the workflow
 downloads it by name, it has no `expirationDate`, and a later verified upload of the same name replaces it.
+
+A task's finished log, when its dispatcher uploads it (`PUT /dispatcher/v1/taskrun/{id}/log`), is the third
+scope, `log`: named `<task run id>.log`, keyed `runs/<run>/logs/<task run id>`, written by service-core itself
+and `available` at once under the run's default retention (`workflow/ArtifactService.java` `storeTaskLog`). It is
+read only through the task run's log route (`engine/TaskRunService.java` `streamLog`): the run's artifact list,
+the workspace storage total and the artifact download exclude it, and the workspace query returns it only when
+asked for by scope. An upload task may not set scope `log`. A second upload for the same task run replaces the
+first, file and record.
 
 | Status | Written when | File |
 | --- | --- | --- |

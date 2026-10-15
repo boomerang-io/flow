@@ -51,6 +51,7 @@ final class TaskRunner {
   private final Map<String, TaskContext> running;
   private final Predicate<TaskRun> registered;
   private final Function<TaskRun, ArtifactTransfer> artifacts;
+  private final LogUploader logs;
   private final Executor executor;
   private final Backoff endBackoff;
   private final BooleanSupplier abandoned;
@@ -59,6 +60,8 @@ final class TaskRunner {
    * @param running the contexts of the tasks running in this dispatcher, shared by every runner so
    *     a terminate order reaches the task wherever it runs
    * @param registered whether a task run's type is one this dispatcher registered
+   * @param logs stores a task's finished log with the engine, shared so that an engine with no
+   *     store is asked once
    * @param abandoned whether the dispatcher has stopped past its drain timeout and interrupted the
    *     tasks still running, which then report nothing
    */
@@ -70,6 +73,7 @@ final class TaskRunner {
       Map<String, TaskContext> running,
       Predicate<TaskRun> registered,
       Function<TaskRun, ArtifactTransfer> artifacts,
+      LogUploader logs,
       Executor executor,
       Backoff endBackoff,
       BooleanSupplier abandoned) {
@@ -80,6 +84,7 @@ final class TaskRunner {
     this.running = running;
     this.registered = registered;
     this.artifacts = artifacts;
+    this.logs = logs;
     this.executor = executor;
     this.endBackoff = endBackoff;
     this.abandoned = abandoned;
@@ -119,7 +124,8 @@ final class TaskRunner {
       if (!start(task)) {
         return;
       }
-      TaskContext context = new TaskContext(task, dispatcherId.get(), artifacts.apply(task));
+      TaskContext context =
+          new TaskContext(task, dispatcherId.get(), artifacts.apply(task), logs);
       running.put(id, context);
       TaskRunEndRequest end;
       try {

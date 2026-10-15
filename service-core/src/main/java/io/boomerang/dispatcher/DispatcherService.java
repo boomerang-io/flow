@@ -101,16 +101,21 @@ public class DispatcherService {
     }
 
     // Idempotent registration: an agent re-registering with the same name and host refreshes its
-    // record instead of colliding on the unique index.
+    // record instead of colliding on the unique index. The log source is replaced whole: a
+    // dispatcher that stops advertising one clears what it registered before.
+    Update update =
+        new Update()
+            .set("taskTypes", TaskType.convertToTaskTypeList(request.getTaskTypes()))
+            .set("version", request.getVersion())
+            .set("lastConnectedDate", new Date())
+            .setOnInsert("creationDate", new Date());
+    setOrUnset(update, "logsUrl", request.getLogsUrl());
+    setOrUnset(update, "logsToken", request.getLogsToken());
     DispatcherEntity entity =
         mongoTemplate.findAndModify(
             Query.query(
                 Criteria.where("name").is(request.getName()).and("host").is(request.getHost())),
-            new Update()
-                .set("taskTypes", TaskType.convertToTaskTypeList(request.getTaskTypes()))
-                .set("version", request.getVersion())
-                .set("lastConnectedDate", new Date())
-                .setOnInsert("creationDate", new Date()),
+            update,
             new FindAndModifyOptions().upsert(true).returnNew(true),
             DispatcherEntity.class);
 
@@ -122,6 +127,14 @@ public class DispatcherService {
         request.getTaskTypes());
 
     return entity.getId();
+  }
+
+  private static void setOrUnset(Update update, String field, String value) {
+    if (value == null || value.isBlank()) {
+      update.unset(field);
+    } else {
+      update.set(field, value);
+    }
   }
 
   /**

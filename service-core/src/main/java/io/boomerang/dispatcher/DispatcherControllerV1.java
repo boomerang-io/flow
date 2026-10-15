@@ -14,12 +14,17 @@ import io.boomerang.engine.TaskRunService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -210,5 +215,42 @@ public class DispatcherControllerV1 {
           String taskRunId,
       @RequestBody Optional<TaskRunEndRequest> taskRunRequest) {
     return taskRunService.end(taskRunId, taskRunRequest);
+  }
+
+  @PutMapping(value = "/taskrun/{taskRunId}/log", consumes = MediaType.ALL_VALUE)
+  @Operation(
+      summary =
+          "Store the Task Run's finished log. Optional: send it before the end so the log outlives"
+              + " the runtime; a dispatcher that serves logs at its registered logsUrl may skip it.",
+      requestBody =
+          @io.swagger.v3.oas.annotations.parameters.RequestBody(
+              description = "The log, as text",
+              required = true,
+              content =
+                  @Content(
+                      mediaType = MediaType.TEXT_PLAIN_VALUE,
+                      schema = @Schema(type = "string"))))
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "Stored"),
+        @ApiResponse(responseCode = "409", description = "The claim is held by another dispatcher"),
+        @ApiResponse(
+            responseCode = "413",
+            description = "The log is over flow.engine.task.log.max-bytes and was not stored"),
+        @ApiResponse(responseCode = "503", description = "No artifact store is configured")
+      })
+  public ResponseEntity<Void> storeTaskRunLog(
+      @Parameter(name = "taskRunId", description = "ID of the Task Run", required = true)
+          @PathVariable(required = true)
+          String taskRunId,
+      @Parameter(
+              name = "dispatcherRef",
+              description = "The registered id of the dispatcher holding the claim")
+          @RequestParam(required = false)
+          Optional<String> dispatcherRef,
+      HttpServletRequest request)
+      throws IOException {
+    taskRunService.storeLog(taskRunId, dispatcherRef, request.getInputStream());
+    return ResponseEntity.noContent().build();
   }
 }

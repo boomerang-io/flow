@@ -26,7 +26,8 @@ graph LR
 
 `service-flow` and `service-engine` were separate deployables in v4 and are now merged into `service-core`.
 The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`. The one call in the
-other direction is task log streaming, which core proxies to a single configured dispatcher URL.
+other direction is a task's live log, read from the dispatcher holding the claim at the URL it registered; a
+finished log a dispatcher stored is served from the artifact store instead.
 
 Every image is a multi-stage build from a clean checkout (`docker build -f service-core/Dockerfile .`,
 `docker build -f service-dispatcher/Dockerfile .`, `docker build client-web`): Maven and pnpm run inside

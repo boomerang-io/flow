@@ -1,4 +1,5 @@
 package io.boomerang.engine;
+import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -19,6 +20,9 @@ import io.boomerang.workflow.ArtifactService;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.ResultUtil;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -52,6 +56,10 @@ public class TaskRunService {
 
   @Value("${flow.engine.task.results.max-bytes:1048576}")
   private int resultsMaxBytes;
+
+  // The most bytes of a finished log a dispatcher may store for a task; see storeLog.
+  @Value("${flow.engine.task.log.max-bytes:10485760}")
+  private int logMaxBytes;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
@@ -1086,21 +1094,54 @@ public class TaskRunService {
     }
   }
 
+  /**
+   * The task's raw log, unscrubbed - the workspace-scoped route scrubs it. The stored copy a
+   * dispatcher uploaded is preferred: it outlives the dispatcher's runtime object and needs no
+   * dispatcher to be up. Without one, the live read from the claim's dispatcher.
+   */
   public StreamingResponseBody streamLog(String taskRunId) {
-    if (!Objects.isNull(taskRunId) && !taskRunId.isBlank()) {
-      LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
-      Optional<TaskRunEntity> optTaskRunEntity = taskRunRepository.findById(taskRunId);
-
-      // TODO sanitise and remove secure parameters
-      //    List<String> removeList = buildRemovalList(taskId, taskExecution, activity);
-      //    LOGGER.debug("Removal List Count: {} ", removeList.size());
-      if (optTaskRunEntity.isPresent()) {
-        return logClient.streamLog(
-            optTaskRunEntity.get().getWorkflowRef(),
-            optTaskRunEntity.get().getWorkflowRunRef(),
-            optTaskRunEntity.get().getId());
-      }
+    if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
+      throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
     }
-    throw new BoomerangException(BoomerangError.TASKRUN_INVALID_REF);
+    LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
+    TaskRunEntity taskRun =
+        taskRunRepository
+            .findById(taskRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
+    ArtifactService artifacts = artifactService.getObject();
+    Optional<ArtifactEntity> stored = artifacts.taskLog(taskRun);
+    if (stored.isPresent()) {
+      return outputStream -> {
+        try (InputStream in = artifacts.openLog(stored.get())) {
+          in.transferTo(outputStream);
+          outputStream.flush();
+        }
+      };
+    }
+    return logClient.streamLog(taskRun);
+  }
+
+  /**
+   * Store the finished log a dispatcher sends for a task as the task's log artifact, fenced on the
+   * claim like start and end. A body over {@code flow.engine.task.log.max-bytes} is refused whole:
+   * a truncated log would lose its tail, which is where a failure shows.
+   */
+  public void storeLog(String taskRunId, Optional<String> dispatcherRef, InputStream body) {
+    TaskRunEntity taskRun =
+        taskRunRepository
+            .findById(taskRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
+    rejectSupersededClaimant(taskRun, dispatcherRef);
+    byte[] content;
+    try {
+      content = body.readNBytes(logMaxBytes + 1);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    if (content.length > logMaxBytes) {
+      throw new BoomerangException(BoomerangError.TASKRUN_LOG_TOO_LARGE, logMaxBytes);
+    }
+    artifactService.getObject().storeTaskLog(taskRun, content);
+    LOGGER.info("[{}] Stored the task log ({} bytes).", taskRunId, content.length);
   }
 }

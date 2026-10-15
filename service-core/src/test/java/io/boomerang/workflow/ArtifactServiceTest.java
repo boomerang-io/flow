@@ -75,7 +75,7 @@ import org.springframework.web.context.WebApplicationContext;
  * upload of its name, and never expires on its own.
  */
 @Import(ArtifactServiceTest.InMemoryStoreConfiguration.class)
-class ArtifactServiceTest extends AbstractEngineIntegrationTest {
+public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   private static final String TASK_SLUG = "artifact-test-task";
   private static final String WORKFLOW_NAME = "artifact-workflow";
@@ -599,7 +599,69 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
         .containsExactly(org.assertj.core.groups.Tuple.tuple("kept.txt", ArtifactScope.workflow));
   }
 
+  @Test
+  void aStoredTaskLogIsNeitherListedNorCountedNorServedAsAnArtifact() {
+    String run = uploadTask.getWorkflowRunRef();
+    artifactService.storeTaskLog(uploadTask, "connected\n".getBytes(StandardCharsets.UTF_8));
+
+    ArtifactEntity log = artifactService.taskLog(uploadTask).orElseThrow();
+    assertThat(log.getScope()).isEqualTo(ArtifactScope.log);
+    assertThat(log.getTaskRunRef()).isEqualTo(uploadTask.getId());
+    assertThat(log.getExpirationDate()).isAfter(new Date());
+    assertThat(store.objects).containsKey(log.getStorageKey());
+
+    assertThat(artifactService.listForRun(workspace, run)).isEmpty();
+    assertThat(artifactService.storedBytes(List.of(workflowRef))).isZero();
+    assertThat(
+            artifactService
+                .query(workspace, Optional.empty(), Optional.empty(), Optional.empty(), 0, 10)
+                .getTotalElements())
+        .isZero();
+    assertThat(
+            artifactService
+                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.run), Optional.empty(), 0, 10)
+                .getTotalElements())
+        .isZero();
+    assertThat(
+            artifactService
+                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.log), Optional.empty(), 0, 10)
+                .getTotalElements())
+        .isEqualTo(1);
+    assertThatThrownBy(() -> artifactService.open(workspace, run, log.getName()))
+        .isInstanceOf(BoomerangException.class);
+
+    // A requeued attempt's upload replaces the first, file and record.
+    artifactService.storeTaskLog(uploadTask, "retried\n".getBytes(StandardCharsets.UTF_8));
+    assertThat(artifactRepository.findByWorkflowRunRefAndName(run, log.getName()))
+        .get()
+        .extracting(ArtifactEntity::getSize)
+        .isEqualTo(8L);
+    assertThat(store.objects.get(log.getStorageKey()))
+        .isEqualTo("retried\n".getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void anUploadTaskMayNotClaimTheLogScope() {
+    uploadTask.setParams(
+        List.of(new RunParam(ArtifactService.NAME_PARAM, "x.log"), new RunParam(ArtifactService.SCOPE_PARAM, "log")));
+
+    assertThatThrownBy(() -> artifactService.fillLinkParams(taskRunModelOf(uploadTask)))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            e -> assertThat(e.getReason()).isEqualTo("ARTIFACT_INVALID_SCOPE"));
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────
+
+  private static TaskRun taskRunModelOf(TaskRunEntity entity) {
+    TaskRun task = new TaskRun();
+    task.setId(entity.getId());
+    task.setType(TaskType.uploadartifact);
+    task.setWorkflowRef(entity.getWorkflowRef());
+    task.setWorkflowRunRef(entity.getWorkflowRunRef());
+    task.setParams(entity.getParams());
+    return task;
+  }
 
   private WorkflowRun submitRun() {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
@@ -776,13 +838,19 @@ class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     }
 
     @Override
+    public void put(String key, byte[] content, String contentType) {
+      objects.put(key, content);
+    }
+
+    @Override
     public void delete(String key) {
       objects.remove(key);
     }
   }
 
+  /** Shared with the engine's log storage test, which stores logs through the same store. */
   @TestConfiguration
-  static class InMemoryStoreConfiguration {
+  public static class InMemoryStoreConfiguration {
     @Bean
     InMemoryArtifactStore inMemoryArtifactStore() {
       return new InMemoryArtifactStore();

@@ -9,7 +9,7 @@ import java.util.Optional;
 /*
  * Where artifact files live. Tasks never hold store credentials: they get a short-lived link
  * scoped to one object and one method. service-core reads a file back only to verify an upload
- * and to stream a download.
+ * and to stream a download, and writes only the task logs dispatchers send it.
  */
 public interface ArtifactStore {
 
@@ -23,6 +23,9 @@ public interface ArtifactStore {
   Optional<StoredObject> head(String key);
 
   InputStream open(String key);
+
+  /** Write the object whole, replacing any object at the key. Only task logs are written here. */
+  void put(String key, byte[] content, String contentType);
 
   /** Delete the object; deleting an absent object succeeds, so every caller may retry. */
   void delete(String key);

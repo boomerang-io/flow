@@ -5,8 +5,10 @@ import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,6 +70,7 @@ public final class Dispatcher implements AutoCloseable {
   private final ExecutorService work =
       Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("dispatcher-work-", 0).factory());
   private final List<QueuePoller<?>> pollers = new ArrayList<>();
+  private final LogUploader logs;
 
   private ScheduledExecutorService heartbeats;
   private Thread starter;
@@ -82,6 +85,9 @@ public final class Dispatcher implements AutoCloseable {
         new DispatcherRegistrationRequest(
             builder.name, builder.host, new ArrayList<>(builder.taskTypes));
     this.registration.setVersion(builder.version);
+    this.registration.setLogsUrl(builder.logsUrl);
+    this.registration.setLogsToken(builder.logsToken);
+    this.logs = new LogUploader(client, this::id);
     this.taskTypes = Set.copyOf(builder.taskTypes);
     this.pools = List.copyOf(builder.pools);
     this.workflowHandler = builder.workflowHandler;
@@ -155,6 +161,14 @@ public final class Dispatcher implements AutoCloseable {
   /** The id the engine registered this dispatcher under, or null until it has. */
   public String id() {
     return id;
+  }
+
+  /**
+   * The bearer the engine presents when it reads a live log from this dispatcher, as registered;
+   * null when none was given. The host serving {@code logsUrl} MUST accept exactly this token.
+   */
+  public String logsToken() {
+    return registration.getLogsToken();
   }
 
   public boolean isRegistered() {
@@ -237,6 +251,7 @@ public final class Dispatcher implements AutoCloseable {
               running,
               task -> task.getType() != null && taskTypes.contains(task.getType().name()),
               task -> new ArtifactTransfer(artifactHttp, task),
+              logs,
               work,
               endBackoff,
               () -> abandoned);
@@ -279,6 +294,8 @@ public final class Dispatcher implements AutoCloseable {
     private String name;
     private String host;
     private Integer version;
+    private String logsUrl;
+    private String logsToken;
     private final List<String> taskTypes = new ArrayList<>();
     private final List<Pool> pools = new ArrayList<>();
     private WorkflowHandler workflowHandler;
@@ -336,6 +353,27 @@ public final class Dispatcher implements AutoCloseable {
     public Builder version(Integer version) {
       this.version = version;
       return this;
+    }
+
+    /**
+     * Register where the engine reads the live log of a task this dispatcher holds: the engine
+     * appends {@code workflowRef}, {@code workflowRunRef} and {@code taskRunRef} as query
+     * parameters and presents {@code token} as a bearer. A dispatcher with no live log surface
+     * registers neither and stores finished logs through {@link TaskContext#uploadLog} instead,
+     * or serves none. {@code token} without a URL is still registered: the engine presents it at
+     * its configured fallback URL.
+     */
+    public Builder logs(String url, String token) {
+      this.logsUrl = (url != null && !url.isBlank()) ? url : null;
+      this.logsToken = (token != null && !token.isBlank()) ? token : null;
+      return this;
+    }
+
+    /** Return a random bearer for {@link #logs}: 32 bytes, URL-safe base64, new on every call. */
+    public static String randomLogsToken() {
+      byte[] bytes = new byte[32];
+      new SecureRandom().nextBytes(bytes);
+      return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /**

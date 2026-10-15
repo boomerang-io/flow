@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,9 +20,12 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.kube.KubeLogService;
+import io.boomerang.kube.exception.KubeRuntimeException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -117,5 +121,48 @@ class TaskServiceHandlerTest {
     taskService.cancel(task);
 
     verify(executor).cancel(task);
+  }
+
+  @Test
+  void theFinishedPodLogIsReadForStoringOnSuccessAndOnFailure() throws Exception {
+    KubeLogService podLogs = mock(KubeLogService.class);
+    @SuppressWarnings("unchecked")
+    ObjectProvider<KubeLogService> provider = mock(ObjectProvider.class);
+    when(provider.getIfAvailable()).thenReturn(podLogs);
+    TaskService storing = new TaskService(executor, imageResolver, provider);
+    ReflectionTestUtils.setField(storing, "taskDeletion", TaskDeletion.Never);
+    ReflectionTestUtils.setField(storing, "taskTimeout", 60L);
+    ReflectionTestUtils.setField(storing, "uploadLogs", true);
+    when(executor.watch(any(), any()))
+        .thenReturn(List.of())
+        .thenThrow(new TaskExecutionException("OOMKilled", "boom"));
+    TaskRun task = task(TaskType.template);
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("run-1");
+
+    storing.run(task, new TaskContext(task, "d-1", null));
+    catchThrowableOfType(TaskFailure.class, () -> storing.run(task, new TaskContext(task, "d-1", null)));
+
+    verify(podLogs, times(2)).getPodLog("wf-1", "run-1", "task-1", null);
+  }
+
+  @Test
+  void aPodLogThatCannotBeReadNeverFailsTheTask() throws Exception {
+    KubeLogService podLogs = mock(KubeLogService.class);
+    @SuppressWarnings("unchecked")
+    ObjectProvider<KubeLogService> provider = mock(ObjectProvider.class);
+    when(provider.getIfAvailable()).thenReturn(podLogs);
+    when(podLogs.getPodLog(any(), any(), any(), any()))
+        .thenThrow(new KubeRuntimeException("No logs found for Task"));
+    TaskService storing = new TaskService(executor, imageResolver, provider);
+    ReflectionTestUtils.setField(storing, "taskDeletion", TaskDeletion.Never);
+    ReflectionTestUtils.setField(storing, "taskTimeout", 60L);
+    ReflectionTestUtils.setField(storing, "uploadLogs", true);
+    when(executor.watch(any(), any())).thenReturn(List.of(new RunResult("greeting", "hello")));
+    TaskRun task = task(TaskType.template);
+
+    TaskResult result = storing.run(task, new TaskContext(task, "d-1", null));
+
+    assertThat(result.getResults()).hasSize(1);
   }
 }

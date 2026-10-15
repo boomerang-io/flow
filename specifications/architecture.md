@@ -96,8 +96,9 @@ Each arrow is a direct in-process call unless marked. Every state change is a co
 | 9. Events out | Each CAS publishes a `TaskRunTransition`/`WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into the `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (sink off by default, `application.properties:50`). | `engine/TaskRunService.java:675-684`, `event/CloudEventsBridge.java:32-48`, `event/OutboxDispatcher.java:59-62` |
 | 10. Recovery | `WorkflowWatcher.sweep` runs ten isolated sweeps (timeouts, stalled runs, claims from gone dispatchers, deleted workflows, …); any core instance may reap any run. | `engine/WorkflowWatcher.java:129-147` |
 
-The one call from core to a dispatcher is log streaming: `engine/LogClient.java:34` reads
-`flow.agent.logstream.url` and proxies `GET /api/v1/logs/stream` (`service-dispatcher/.../dispatcher/LogV1Controller.java:14-19`).
+Core calls a dispatcher for one thing: a task's live log, read from the dispatcher holding the claim at the
+URL and with the bearer it registered (`engine/LogClient.java`). A finished log the dispatcher uploaded is
+served from the artifact store instead, ahead of any live read (`dispatcher-contract.md`, "Logs").
 
 ## Deployables, images and versioning
 

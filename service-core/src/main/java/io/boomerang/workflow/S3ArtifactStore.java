@@ -5,6 +5,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -73,6 +74,13 @@ public class S3ArtifactStore implements ArtifactStore {
   @Override
   public InputStream open(String key) {
     return client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build());
+  }
+
+  @Override
+  public void put(String key, byte[] content, String contentType) {
+    client.putObject(
+        PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
+        RequestBody.fromBytes(content));
   }
 
   @Override
