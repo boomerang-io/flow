@@ -27,9 +27,9 @@ import org.springframework.core.env.Environment;
  *   <li>quotas use the v5 {@code Quotas} field names — legacy {@code maxWorkflowExecutionMonthly}/
  *       {@code maxWorkflowExecutionTime}/{@code maxConcurrentWorkflows} became {@code
  *       maxWorkflowRunMonthly}/{@code maxWorkflowRunDuration}/{@code maxConcurrentRuns}, and v5
- *       replaced {@code maxWorkflowStorage} with {@code maxWorkspaceStorage}. The four limits stay
- *       at {@code Integer.MAX_VALUE} — the system workspace is unlimited — while {@code
- *       maxWorkflowRunDuration} is absent, so a run's duration ceiling inherits the platform
+ *       replaced {@code maxWorkflowStorage} with {@code maxWorkspaceStorage}. The four limits are
+ *       {@code 0} — unlimited, where the legacy document carried {@code Integer.MAX_VALUE} — while
+ *       {@code maxWorkflowRunDuration} is absent, so a run's duration ceiling inherits the platform
  *       default from the {@code quotas} settings ({@code
  *       WorkspaceService.getWorkflowMaxDurationForTeam}).
  *   <li>{@code type} is set to {@code system}; the legacy document had no type at all, v5's
