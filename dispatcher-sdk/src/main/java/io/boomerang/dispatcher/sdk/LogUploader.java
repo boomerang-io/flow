@@ -11,14 +11,17 @@ import org.springframework.web.client.HttpStatusCodeException;
 
 /**
  * Sends a task's finished log to the engine, best effort: a failure is logged and never fails the
- * task. Once the engine answers that it stores no logs (503 with {@code ARTIFACTS_NOT_CONFIGURED}),
- * nothing more is sent for the life of this dispatcher - every task would get the same answer.
+ * task. Once the engine answers that it has nowhere to store logs (503 with {@code
+ * ARTIFACTS_NOT_CONFIGURED}), nothing more is sent for the life of this dispatcher - every task
+ * would get the same answer. An engine whose log storage is switched off (503 with {@code
+ * TASKRUN_LOGS_DISABLED}) is asked again for every task, since the setting can be switched back on.
  */
 final class LogUploader {
 
   private static final Log LOGGER = LogFactory.getLog(LogUploader.class);
 
   static final String NOT_CONFIGURED = "ARTIFACTS_NOT_CONFIGURED";
+  static final String DISABLED = "TASKRUN_LOGS_DISABLED";
 
   private final DispatcherClient client;
   private final Supplier<String> dispatcherId;
@@ -44,11 +47,15 @@ final class LogUploader {
       LOGGER.info("TaskRun (" + task.getId() + ") log stored (" + log.length + " bytes).");
       return true;
     } catch (HttpStatusCodeException e) {
+      String body = e.getResponseBodyAsString(StandardCharsets.UTF_8);
       if (e.getStatusCode().isSameCodeAs(HttpStatus.SERVICE_UNAVAILABLE)
-          && e.getResponseBodyAsString(StandardCharsets.UTF_8).contains(NOT_CONFIGURED)) {
+          && body.contains(NOT_CONFIGURED)) {
         if (unsupported.compareAndSet(false, true)) {
           LOGGER.info("The engine stores no task logs (no artifact store); sending no more.");
         }
+      } else if (e.getStatusCode().isSameCodeAs(HttpStatus.SERVICE_UNAVAILABLE)
+          && body.contains(DISABLED)) {
+        LOGGER.info("TaskRun (" + task.getId() + ") log not stored: log storage is switched off.");
       } else {
         LOGGER.warn("TaskRun (" + task.getId() + ") log not stored: " + e.getMessage());
       }

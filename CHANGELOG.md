@@ -56,5 +56,7 @@ tag's release notes.
   log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
   `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`); blank, the default,
   keeps core's `flow.agent.logstream.url` as the one-dispatcher fallback. The dispatcher's `/api/v1/logs` route
-  now accepts only the bearer it generates at start and registers; nothing but core can read it. Set
-  `flow.dispatcher.logs.upload=false` to keep logs in the pod only.
+  now accepts only the bearer it generates at start and registers; nothing but core can read it. Two new keys
+  in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
+  apart from artifact retention; stored logs never count toward artifact storage. Set
+  `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.

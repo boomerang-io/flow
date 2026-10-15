@@ -37,4 +37,4 @@ dispatcher generates the bearer at every start, accepts nothing else on its log 
 - A core older than this change cannot read a newer dispatcher's logs during a version skew: the route now
   refuses an unauthenticated read. One tag ships both images.
 - `log` is a third artifact scope: unlisted, uncounted toward storage, unreadable through the artifact
-  routes. Revisit if logs need a retention or a cap of their own.
+  routes, with its own switch and retention in the Artifacts settings and the artifacts' expiry sweep.

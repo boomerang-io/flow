@@ -64,6 +64,15 @@ class FakeEngine extends DispatcherClient {
         HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, new byte[0], StandardCharsets.UTF_8);
   }
 
+  /** The engine's answer when log storage is switched off: 503 with the standard error body. */
+  static RestClientException logsDisabled() {
+    byte[] body =
+        ("{\"code\":1508,\"reason\":\"TASKRUN_LOGS_DISABLED\",\"status\":\"503 SERVICE_UNAVAILABLE\"}")
+            .getBytes(StandardCharsets.UTF_8);
+    return HttpServerErrorException.create(
+        HttpStatus.SERVICE_UNAVAILABLE, "Unavailable", HttpHeaders.EMPTY, body, StandardCharsets.UTF_8);
+  }
+
   /** The engine's answer when it has no artifact store: 503 with the standard error body. */
   static RestClientException noArtifactStore() {
     byte[] body =

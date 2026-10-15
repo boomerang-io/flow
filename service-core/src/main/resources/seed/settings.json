@@ -25,9 +25,25 @@
           "type": "number",
           "value": "1024",
           "readOnly": false
+        },
+        {
+          "description": "Store the finished log a dispatcher sends for each task and serve it ahead of the dispatcher's live log. Off tells dispatchers their logs are not stored; logs already stored are served until they expire.",
+          "key": "logs.enabled",
+          "label": "Store Task Logs",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Days a stored task log is kept. Independent of artifact retention; a log never counts toward artifact storage.",
+          "key": "logs.retention.days",
+          "label": "Task Log Retention (days)",
+          "type": "number",
+          "value": "7",
+          "readOnly": false
         }
       ],
-      "description": "Files that upload tasks attach to a run. An artifact's file is deleted when it expires; nothing is deleted to make room.",
+      "description": "Files that upload tasks attach to a run, and the task logs dispatchers store. A file is deleted when it expires; nothing is deleted to make room.",
       "key": "artifacts",
       "name": "Artifacts",
       "type": "ValuesList"

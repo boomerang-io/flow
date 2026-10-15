@@ -82,6 +82,10 @@ public class ArtifactService {
   public static final String RETENTION_DEFAULT_DAYS = "retention.default.days";
   public static final String RETENTION_MAX_DAYS = "retention.max.days";
   public static final String MAX_ARTIFACT_SIZE = "max.artifact.size";
+  /** Whether task logs dispatchers send are stored, and for how many days; both admin settings. */
+  public static final String LOGS_ENABLED = "logs.enabled";
+  public static final String LOG_RETENTION_DAYS = "logs.retention.days";
+  private static final int LOG_RETENTION_DEFAULT_DAYS = 7;
 
   // The upload and download task params; Flow fills the link ones when the task is handed out.
   public static final String NAME_PARAM = "name";
@@ -158,6 +162,32 @@ public class ArtifactService {
   private int setting(String name) {
     return Integer.parseInt(
         settingsService.getSettingConfig(ARTIFACTS_SETTINGS_KEY, name).getValue().trim());
+  }
+
+  // The log settings were added after the artifact ones: a settings document built before they
+  // existed has no entry for them, and reads as the seed's defaults until it is rebuilt.
+  private String settingOr(String name, String fallback) {
+    try {
+      String value = settingsService.getSettingConfig(ARTIFACTS_SETTINGS_KEY, name).getValue();
+      return (value == null || value.isBlank()) ? fallback : value.trim();
+    } catch (IllegalArgumentException e) {
+      return fallback;
+    }
+  }
+
+  /** Whether task logs dispatchers send are stored (the `logs.enabled` setting, on by default). */
+  public boolean logsEnabled() {
+    return Boolean.parseBoolean(settingOr(LOGS_ENABLED, "true"));
+  }
+
+  /** Days a stored task log is kept (the `logs.retention.days` setting), never less than one. */
+  int logRetentionDays() {
+    try {
+      return Math.max(
+          1, Integer.parseInt(settingOr(LOG_RETENTION_DAYS, String.valueOf(LOG_RETENTION_DEFAULT_DAYS))));
+    } catch (NumberFormatException e) {
+      return LOG_RETENTION_DEFAULT_DAYS;
+    }
   }
 
   /*
@@ -393,16 +423,20 @@ public class ArtifactService {
 
   /**
    * Store the finished log a dispatcher sent for a task as the task's log artifact: scope {@code
-   * log}, named after the task run, under the run's default retention, available at once. A second
+   * log}, named after the task run, kept for the log retention setting, available at once. A second
    * upload for the same task run - a requeued attempt - replaces the first, file and record. A log
    * is read only through the task run's log route, is not listed with the run's artifacts and does
-   * not count toward the workspace's artifact storage.
+   * not count toward the workspace's artifact storage. Refused with {@code TASKRUN_LOGS_DISABLED}
+   * when the setting is off, and with {@code ARTIFACTS_NOT_CONFIGURED} when there is no store.
    */
   public void storeTaskLog(TaskRunEntity taskRun, byte[] content) {
     ArtifactStore store = requireStore();
+    if (!logsEnabled()) {
+      throw new BoomerangException(BoomerangError.TASKRUN_LOGS_DISABLED);
+    }
     String name = logName(taskRun.getId());
     Date now = new Date();
-    int retentionDays = resolveRetentionDays(null, quotasFor(taskRun.getWorkflowRunRef()));
+    int retentionDays = logRetentionDays();
     ArtifactEntity artifact =
         artifactRepository
             .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)

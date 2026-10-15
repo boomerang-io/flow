@@ -131,11 +131,13 @@ downloads it by name, it has no `expirationDate`, and a later verified upload of
 
 A task's finished log, when its dispatcher uploads it (`PUT /dispatcher/v1/taskrun/{id}/log`), is the third
 scope, `log`: named `<task run id>.log`, keyed `runs/<run>/logs/<task run id>`, written by service-core itself
-and `available` at once under the run's default retention (`workflow/ArtifactService.java` `storeTaskLog`). It is
-read only through the task run's log route (`engine/TaskRunService.java` `streamLog`): the run's artifact list,
-the workspace storage total and the artifact download exclude it, and the workspace query returns it only when
-asked for by scope. An upload task may not set scope `log`. A second upload for the same task run replaces the
-first, file and record.
+and `available` at once (`workflow/ArtifactService.java` `storeTaskLog`). Two keys of the `artifacts` settings
+document govern it, apart from artifact retention: `logs.enabled` (on; off refuses uploads with
+`TASKRUN_LOGS_DISABLED` and keeps serving what is stored) and `logs.retention.days` (7); the same expiry sweep
+deletes the file when the date passes. It is read only through the task run's log route
+(`engine/TaskRunService.java` `streamLog`): the run's artifact list, the workspace storage total and the artifact
+download exclude it, and the workspace query returns it only when asked for by scope. An upload task may not set
+scope `log`. A second upload for the same task run replaces the first, file and record.
 
 | Status | Written when | File |
 | --- | --- | --- |

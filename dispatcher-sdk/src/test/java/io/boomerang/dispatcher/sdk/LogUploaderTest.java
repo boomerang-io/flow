@@ -56,6 +56,19 @@ class LogUploaderTest {
   }
 
   @Test
+  void anEngineWithLogStorageSwitchedOffIsAskedAgainNextTime() {
+    engine.logAnswers.add(
+        () -> {
+          throw FakeEngine.logsDisabled();
+        });
+
+    assertThat(uploader.upload(task("t-1"), bytes("off"))).isFalse();
+    assertThat(uploader.isUnsupported()).isFalse();
+    assertThat(uploader.upload(task("t-2"), bytes("on again"))).isTrue();
+    assertThat(engine.logs).containsOnlyKeys("t-2");
+  }
+
+  @Test
   void aRefusalForOneLogDoesNotStopTheNext() {
     engine.logAnswers.add(
         () -> {

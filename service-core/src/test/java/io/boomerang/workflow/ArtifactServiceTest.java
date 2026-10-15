@@ -118,6 +118,8 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   void resetSharedSettings() {
     setFeatureSetting(QUOTA_FEATURE, false);
     setArtifactSetting(ArtifactService.MAX_ARTIFACT_SIZE, "1024");
+    setArtifactSetting(ArtifactService.LOGS_ENABLED, "true");
+    setArtifactSetting(ArtifactService.LOG_RETENTION_DAYS, "7");
   }
 
   @Test
@@ -638,6 +640,27 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
         .isEqualTo(8L);
     assertThat(store.objects.get(log.getStorageKey()))
         .isEqualTo("retried\n".getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void taskLogsKeepTheirOwnRetentionAndCanBeSwitchedOff() {
+    setArtifactSetting(ArtifactService.LOG_RETENTION_DAYS, "2");
+    artifactService.storeTaskLog(uploadTask, "kept two days\n".getBytes(StandardCharsets.UTF_8));
+    ArtifactEntity log = artifactService.taskLog(uploadTask).orElseThrow();
+    assertThat(log.getRetentionDays()).isEqualTo(2);
+    long days =
+        TimeUnit.MILLISECONDS.toDays(
+            log.getExpirationDate().getTime() - log.getCreationDate().getTime());
+    assertThat(days).isEqualTo(2);
+
+    setArtifactSetting(ArtifactService.LOGS_ENABLED, "false");
+    assertThatThrownBy(
+            () -> artifactService.storeTaskLog(uploadTask, "refused\n".getBytes(StandardCharsets.UTF_8)))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            e -> assertThat(e.getReason()).isEqualTo("TASKRUN_LOGS_DISABLED"));
+    // What was stored before the switch is still served until it expires.
+    assertThat(artifactService.taskLog(uploadTask)).isPresent();
   }
 
   @Test
