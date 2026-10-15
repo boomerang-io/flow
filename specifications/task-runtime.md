@@ -152,13 +152,14 @@ characters are inserted verbatim: a multi-line prompt, a JSON body, a shell scri
 trailing newline reaches the container byte for byte
 (`ParameterManager.replaceStringInObject`). A reference that matches nothing is left as written. Substitution
 also runs over the values it inserts, so configuration composes - a workspace value containing
-`$(global.params.x)` resolves - with two exceptions, whose values are inserted as written (their `$(` escaped,
-`ParameterManager.java:328,359`):
+`$(global.params.x)` resolves - with three exceptions, whose values are inserted as written (their `$(` escaped,
+`ParameterManager.java:321,359`):
 
 | Inserted as written | Why |
 | --- | --- |
 | A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
-| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:80`, `:294`). Such a param is also kept as it arrived at run start (`:137`). On a manual, scheduled or API-submitted run every value resolves |
+| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:77`, `:287`). Such a param is also kept as it arrived at run start (`:130`). On a manual, scheduled or API-submitted run every value resolves |
+| In a spec field, a task's own param, read as `$(params.x)` | The spec resolves after the task's params, against their resolved values (`:168`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
 
 `$(params.x)` reads the nearest layer, so a task that defines `x` itself resolves its own value even when the run's
 `x` was supplied. A whole-value reference returns the referenced structure untouched. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
