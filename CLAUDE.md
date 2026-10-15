@@ -94,25 +94,29 @@ is on an older JDK:
 
 ```bash
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)      # macOS
-mvn -pl service-core -am clean package -DskipTests
-cd client-web && pnpm install && pnpm run build && cd ..
-docker compose up --build                             # Mongo, IDPZero, SeaweedFS, service-core, client-web
+docker compose up -d                                  # Mongo (kept in a volume), IDPZero, SeaweedFS, settings seeds
+mvn -pl service-core -am spring-boot:run -Dspring-boot.run.profiles=local        # API + engine on :7700
+cd client-web && pnpm install && pnpm run build && cd server && npm install \
+  && node --env-file=config/.env.local index.js       # webapp on :3000 (copy config/.env.example first)
+docker compose up -d --build service-dispatcher       # Kubernetes dispatcher against OrbStack; needs docker/kube/config
+docker compose --profile stack up -d --build          # or the whole product in Docker: what CI's e2e job runs
 ```
 
+- One compose file, no overlays. Every image is a multi-stage build from the checkout (Maven and pnpm run in
+  the build stage), so nothing is built on the host before `docker compose build`. The `local` Spring profile
+  carries the stack's host addresses; the dispatcher reaches a host-run service-core by default.
 - Browser-facing origin for manual and end-to-end testing: `http://localhost:3000` — client-web's own
   server-side-rendering server is the only thing the browser talks to; every service-core call happens
   server-side via `CORE_SERVICE_INTERNAL_ORIGIN`, so service-core needs no CORS. service-core's own
-  `http://localhost:7700` stays reachable for direct API use and the dispatcher.
+  `http://localhost:7700` stays reachable for direct API use and the dispatcher. The Vite dev server
+  (`pnpm start`) does not boot with server rendering on; run the built server.
 - The stack runs **secured** (`FLOW_SECURITY_ENABLED=true`) with a local IDPZero OpenID Connect provider on
   `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker and the first user to sign in on a fresh
   database becomes admin. Set `flow.security.enabled=false` only for a headless engine — requests then run as
   a synthetic admin (see `authorization.md`).
-- `service-dispatcher` is not in the default compose stack. To run it against a laptop Kubernetes (OrbStack) with the
-  plain-Jobs executor, layer `docker-compose.kube.yml` (header comment explains the kubeconfig at `docker/kube/config`)
-  and run the dispatcher scenarios: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
+- Dispatcher scenarios, with the dispatcher up: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
-  `cd e2e && npm ci && npx playwright test` against the compose stack (CI layers `docker-compose.ci.yml`,
-  which drops the artifact store).
+  `cd e2e && npm ci && npx playwright test` against the stack with the webapp on `:3000`.
 - Skills: `/spring-module` before any backend Java, `/design-system` before any UI, `/spec-maintenance`
   after any behaviour or design change, `/security-audit`, `/cve-review`, `/release`.
 

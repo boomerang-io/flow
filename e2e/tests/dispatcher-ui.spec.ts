@@ -11,8 +11,8 @@ import { APP_BASENAME, createWorkspace, executionStatusCopy, uniqueName, uiKebab
  * it from the UI, and the run executes through the real dispatcher on the real cluster. This is
  * exactly where a picker/form bug lives that no API test can catch.
  *
- * Requires the docker-compose.kube.yml stack (dispatcher against a laptop cluster) - gated by
- * E2E_DISPATCHER=true like the API suite.
+ * Requires the stack's dispatcher (`docker compose up -d service-dispatcher` against a laptop
+ * cluster) - gated by E2E_DISPATCHER=true like the API suite.
  */
 
 const ENABLED = process.env.E2E_DISPATCHER === "true";

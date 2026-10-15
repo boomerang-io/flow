@@ -19,8 +19,8 @@ import {
  * For-each tasks (a `foreach` setting on a workflow task, decision 0082) end to end: the engine
  * fans one task out into one ordinary claimable task run per item, a REAL dispatcher runs each
  * item as its own Kubernetes Job, and the parent collects each declared result into an array in
- * item order. Gated exactly like dispatcher-kube.spec.ts: E2E_DISPATCHER=true against the
- * docker-compose.kube.yml stack, and E2E_KUBECTL_CONTEXT for the checks that read the cluster.
+ * item order. Gated exactly like dispatcher-kube.spec.ts: E2E_DISPATCHER=true against the stack's
+ * dispatcher, and E2E_KUBECTL_CONTEXT for the checks that read the cluster.
  */
 
 const ENABLED = process.env.E2E_DISPATCHER === "true";

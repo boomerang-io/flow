@@ -28,6 +28,10 @@ graph LR
 The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`. The one call in the
 other direction is task log streaming, which core proxies to a single configured dispatcher URL.
 
+Every image is a multi-stage build from a clean checkout (`docker build -f service-core/Dockerfile .`,
+`docker build -f service-dispatcher/Dockerfile .`, `docker build client-web`): Maven and pnpm run inside
+the build stage, and the release workflow builds nothing on the runner first.
+
 ## Prerequisites
 
 1. **Java 25** — check this first if Maven fails. The default `java` on a dev machine is often still 21, and
@@ -41,27 +45,28 @@ other direction is task log streaming, which core proxies to a single configured
 4. Node + pnpm (for `client-web`)
 5. Docker (for the local stack and the Testcontainers-backed tests)
 
-## Running the whole product locally
+## Running locally
 
-`docker-compose.yml` brings up MongoDB, `service-core` (which migrates and seeds the database before
-it serves anything), `client-web`, a local
-IDPZero OIDC provider for real sign-in, and SeaweedFS as the S3-compatible artifact store. The e2e suite
-in GitHub Actions layers `docker-compose.ci.yml` over it, which leaves the artifact store out. `client-web`'s own SSR server is the single browser-facing
-origin — and the only thing the browser talks to (BFF end state): it serves documents, `/res/*`
-resource routes and `.data` requests, and every service-core call happens server-side via
-`CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts`). There is no `/api`
-forward and no separate gateway; `/api` remains service-core's own surface for integrations and
+`docker-compose.yml` is the local stack: MongoDB (in the `mongo_data` volume, kept until
+`docker compose down -v`), a local IDPZero OIDC provider for real sign-in, SeaweedFS as the S3-compatible
+artifact store, and two one-shot seeds that point the settings at them. Every image builds from a clean
+checkout: the Java Dockerfiles run Maven in a build stage and `client-web`'s runs pnpm, so nothing is built
+on the host first. Published `boomerangio/*` images are the v4 line and will not match this branch.
+
+`client-web`'s own SSR server is the single browser-facing origin and the only thing the browser talks
+to: it serves documents, `/res/*` resource routes and `.data` requests, and every service-core call
+happens server-side via `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts`). There is
+no `/api` forward and no separate gateway; `/api` remains service-core's own surface for integrations and
 the dispatcher.
 
-`service-dispatcher` is deliberately **not** in the stack — it drives Tekton on a real Kubernetes cluster.
-
-Published `boomerangio/*` images are the v4 line and will not match this branch, so build locally:
+### The whole product in Docker
 
 ```bash
-mvn -pl service-core -am clean package -DskipTests
-cd client-web && pnpm install && pnpm run build && cd ..
-docker compose up --build
+docker compose --profile stack up -d --build
 ```
+
+The `stack` profile adds `service-core` (which migrates and seeds the database before it serves anything)
+and `client-web`. This is what the e2e suite runs in GitHub Actions.
 
 | Surface | URL |
 |---|---|
@@ -71,23 +76,43 @@ docker compose up --build
 The stack runs secured (`FLOW_SECURITY_ENABLED=true`) with the real sign-in flow against the local
 IDPZero user picker; the first user to sign in on a fresh database becomes the founding admin.
 
+### Developing: the services on the host, the rest in Docker
+
+```bash
+docker compose up -d                                                        # Mongo, IDPZero, SeaweedFS, seeds
+export JAVA_HOME=$(/usr/libexec/java_home -v 25)
+mvn -pl service-core -am spring-boot:run -Dspring-boot.run.profiles=local   # the API + engine on :7700
+cd client-web && pnpm install && pnpm run build
+cd server && npm install && cp config/.env.example config/.env.local
+node --env-file=config/.env.local index.js                                  # the webapp on :3000
+```
+
+The `local` Spring profile (`service-core/src/main/resources/application-local.properties`) carries the
+stack's addresses and the same local-only encryption keys the stack uses, so one database serves both
+ways of running. The seeds wait for `service-core` to migrate the database, wherever it runs.
+
+The webapp's Vite dev server (`pnpm start`) does not boot with server rendering on; the built server above
+is the way to run it, so a frontend change means `pnpm run build` and a restart until that is fixed.
+
+### The dispatcher
+
+`service-dispatcher` drives a Kubernetes cluster, so it sits behind a compose profile. Against OrbStack's
+Kubernetes with the plain-Jobs executor (the kubeconfig at `docker/kube/config` is described on the
+service in `docker-compose.yml`):
+
+```bash
+docker compose up -d --build service-dispatcher     # naming the service enables its profile
+```
+
+It reaches `service-core` on the host by default; set `FLOW_ENGINE_SERVICE_HOST=service-core:7700` to pair
+it with the `stack` profile. The dispatcher scenarios then run with
+`cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
+
 ### End-to-end tests
 
 ```bash
-cd e2e && npm ci && npx playwright test    # requires the compose stack above to be up
+cd e2e && npm ci && npx playwright test    # requires the stack to be up and the webapp on :3000
 ```
-
-### Developing a single service
-
-```bash
-mvn clean install                                   # build everything
-export FLOW_ENCRYPT_SECRET=local-secret FLOW_ENCRYPT_SALT=local-salt   # required: core refuses a blank key
-mvn -pl service-core -am spring-boot:run            # run the API + engine
-cd client-web && pnpm start                         # run the webapp with hot reload
-```
-
-`service-core` encrypts secured settings with `flow.encrypt.secret` and `flow.encrypt.salt` and will not start
-without them. The `local` profile and the compose stack set local-only values; any other deployment sets its own.
 
 ## Deploying behind a reverse proxy
 

@@ -14,8 +14,9 @@ import {
 
 /*
  * End-to-end scenarios that need a REAL dispatcher executing container tasks on a REAL
- * Kubernetes cluster (docker-compose.kube.yml against a laptop cluster, or any deployment). The
- * default compose stack has no dispatcher, so this file is skipped unless E2E_DISPATCHER=true.
+ * Kubernetes cluster (`docker compose up -d service-dispatcher` against a laptop cluster, or any
+ * deployment). The dispatcher sits behind a compose profile, so this file is skipped unless
+ * E2E_DISPATCHER=true.
  *
  * Each scenario creates its own workflow in one shared workspace, submits it with start=true and
  * asserts the terminal run: statuses, typed statusReason values, results flowing between tasks,

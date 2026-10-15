@@ -1,0 +1,14 @@
+# Build context for the two Java images (service-core/Dockerfile, service-dispatcher/Dockerfile),
+# which use the repository root as their context: the Maven modules and nothing else. client-web
+# has its own context and its own .dockerignore.
+*
+!pom.xml
+!lib-common/pom.xml
+!lib-common/src
+!service-core/pom.xml
+!service-core/src
+!dispatcher-sdk/pom.xml
+!dispatcher-sdk/src
+!service-dispatcher/pom.xml
+!service-dispatcher/src
+**/target

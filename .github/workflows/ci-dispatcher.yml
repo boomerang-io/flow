@@ -48,29 +48,21 @@ jobs:
           fields: repo,message,commit,author,ref,workflow,took,job
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  build:
+  image:
     runs-on: ubuntu-latest
+    # The image is the build: service-dispatcher/Dockerfile runs Maven in its build stage from the
+    # checkout. Built here and never pushed; ci-release.yml pushes on a product tag.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Java and Maven
-        uses: actions/setup-java@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
         with:
-          java-version: '25'
-          distribution: 'temurin'
-          cache: 'maven'
-          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-          settings-path: ${{ github.workspace }} # location for the settings.xml file
-      - name: Maven Package
-        env:
-          GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
-        run: |
-          mvn clean package --projects service-dispatcher --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
-      - uses: actions/upload-artifact@v4
-        if: ${{ success() }}
-        with:
-          name: service-dispatcher.jar
-          path: service-dispatcher/target/service-dispatcher.jar
+          context: .
+          file: service-dispatcher/Dockerfile
+          push: false
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
@@ -79,5 +71,5 @@ jobs:
           fields: repo,message,commit,author,ref,workflow,took,job
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-# Release/deploy (Docker build + push) lives in ci-release.yml, triggered by the
-# product tag (`x.y.z`, optional `-beta.N`/`-rc.N`) — see AM-9 / DD-03. This workflow only tests and builds the jar.
+# Release (multi-platform image build and push) lives in ci-release.yml, triggered by the product tag
+# (`5.x.y`, optional `-beta.N`/`-rc.N`). This workflow tests the module and proves its image builds.

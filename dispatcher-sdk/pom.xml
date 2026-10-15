@@ -146,6 +146,16 @@
                     <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
+            <!-- A library has no main class: lets `mvn -pl service-dispatcher -am spring-boot:run`
+                 pass through this module instead of failing on it (this POM has no parent). -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

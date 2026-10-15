@@ -12,7 +12,6 @@ on:
       - 'client-web/**'
       - 'e2e/**'
       - 'docker-compose.yml'
-      - 'docker-compose.ci.yml'
       - 'docker/**'
       - '.github/workflows/ci-e2e.yml'
   pull_request:
@@ -22,7 +21,6 @@ on:
       - 'client-web/**'
       - 'e2e/**'
       - 'docker-compose.yml'
-      - 'docker-compose.ci.yml'
       - 'docker/**'
       - '.github/workflows/ci-e2e.yml'
 concurrency:
@@ -31,33 +29,16 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    # Every `docker compose` step runs the local stack minus the artifact store (docker-compose.ci.yml).
+    # The whole product in Docker: the `stack` profile adds service-core and client-web to the
+    # stack's Mongo, IDPZero, SeaweedFS and seeds. The dispatcher profile stays off (no cluster).
     env:
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+      COMPOSE_PROFILES: stack
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          java-version: '25'
-          distribution: 'temurin'
-          cache: 'maven'
-          server-id: github
-          settings-path: ${{ github.workspace }}
-
-      # Produces service-core/target/service-core.jar in place - the compose file's build context
-      # is the module directory, so no copying is needed (see docker-compose.yml's header comment
-      # for the jar contract).
-      - name: Build the service-core jar
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          mvn clean package --projects service-core --also-make --batch-mode -Dmaven.test.skip=true -s settings.xml
-
-      # client-web needs no host-side build: its Dockerfile's build stage runs pnpm install +
-      # pnpm run build itself, so `docker compose build client-web` is the whole build.
+      # Every image builds from the checkout: the Java Dockerfiles run Maven in a build stage and
+      # client-web's runs pnpm, so no host-side build precedes this.
       - name: Build stack images
         run: docker compose build service-core client-web
 

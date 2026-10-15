@@ -946,5 +946,5 @@ FodyWeavers.xsd
 !.claude/skills/release/
 !.claude/skills/release/**
 
-# Generated kubeconfig for the local dispatcher experiment (docker-compose.kube.yml)
+# Generated kubeconfig for the local dispatcher (the service-dispatcher service in docker-compose.yml)
 docker/kube/config

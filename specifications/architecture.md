@@ -17,15 +17,15 @@ zone, trust, placement); otherwise its poll loop is embedded through `dispatcher
 | `lib-common` | `service-core`'s wire and storage model (the dispatcher uses `dispatcher-sdk`'s own): 9 entities (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError`/`RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`) under `lib-common/src/main/java/io/boomerang/common/`. No beans, no repositories. | — |
 | `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by its own Node server (`client-web/Dockerfile`, `client-web/server/index.js`) with server rendering on (`client-web/react-router.config.ts:16-17`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:24`). | `service-core` over HTTP |
 
-All Java modules share the Spring Boot 4.1.0 parent and Java 25 (`pom.xml:18-19`, `ci-release.yml:26`).
-Every module reads `application.properties` overridden by environment variables (`docker-compose.yml:135-141`).
+All Java modules share the Spring Boot 4.1.0 parent and Java 25 (`pom.xml:18-19`, `service-core/Dockerfile:10`).
+Every module reads `application.properties` overridden by environment variables (`docker-compose.yml:190-196`).
 
 ## Run modes of `service-core`
 
 `flow.mode` selects one of two shapes; a missing or blank value means `standalone`
 (`service-core/src/main/java/io/boomerang/config/FlowMode.java:21-23,49-52`). Beans that belong to only one
 mode carry `@ConditionalOnFlowMode(...)` (`config/ConditionalOnFlowMode.java:31-35`). There is no separate
-engine image: the same jar runs in either mode (`.github/workflows/ci-release.yml:52-54`).
+engine image: the same jar runs in either mode (`.github/workflows/ci-release.yml:24-25`).
 
 | Concern | `standalone` (default) | `engine` |
 | --- | --- | --- |
@@ -108,14 +108,17 @@ and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
 
 | Image | Built from | Runtime | Job in `ci-release.yml` |
 | --- | --- | --- | --- |
-| `boomerangio/flow-service-core` | `service-core/target/service-core.jar` | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `build-core`/`deploy-core` (`:18,:49`) |
-| `boomerangio/flow-service-dispatcher` | `service-dispatcher/target/service-dispatcher.jar` | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `build-dispatcher`/`deploy-agent` (`:101,:132`) |
-| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`, so the image is complete from a clean checkout | `node:24-alpine`, port 3000 | `deploy-webapp` (`:218`) |
+| `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` (`service-core/Dockerfile:10-26`) | `eclipse-temurin:25-jre-alpine`, port 7700 (`application.properties:1`) | `deploy-core` (`:22`) |
+| `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:6-22`) | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `deploy-dispatcher` (`:72`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build` | `node:24-alpine`, port 3000 | `deploy-webapp` (`:156`) |
 
-Every product image is built for `linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each
-build step; the QEMU and Buildx setup steps each job already ran were doing nothing without it). A tag
-therefore runs on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no
-per-platform escape, so a single-architecture image simply fails to pull on the other.
+Every image is complete from a clean checkout; no job builds a jar first. Each build stage runs on the
+builder's own platform (`--platform=$BUILDPLATFORM`): a jar and a browser bundle are the same for every
+target, so the compile happens once and only the runtime stage is built per platform. A root
+`.dockerignore` limits the Java context to the Maven modules. Every product image is built for
+`linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each build step). A tag therefore runs
+on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no per-platform
+escape, so a single-architecture image simply fails to pull on the other.
 
 Task images are not product images and are not on this list: the catalogue images and the `ai` worker
 (`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
@@ -124,7 +127,7 @@ lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher
 
 The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets its
 version from the same tag and deploys it to this repository's GitHub Packages Maven registry
-(`ci-release.yml:182-217`, `dispatcher-sdk/pom.xml:88-94`). No other module is published.
+(`ci-release.yml:120-154`, `dispatcher-sdk/pom.xml:88-94`). No other module is published.
 
 The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
 authenticates with `flow.engine.dispatcher.token`
@@ -134,16 +137,20 @@ chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`) and the pr
 
 ## Local stack
 
-`docker-compose.yml` runs the product secured: `mongo`, `service-core` on `:7700` with `FLOW_MODE=standalone` and
-`FLOW_SECURITY_ENABLED=true` (`:146-179`), which migrates and seeds the database before its health check passes, a
-local IDPZero OpenID provider on `idp.localhost:4380` (`:80-94`), the `auth-oidc-seed` one-shot that points the
-`auth` settings at it once core is healthy (`:96-110`), SeaweedFS as the artifact store (`:116-144`), and
-`client-web` on `:3000`, which waits for the seed so sign-in never resolves to `proxy` (`:181-223`). The
-browser-facing origin is `http://localhost:3000`; there is no separate gateway — `client-web`'s server is the only
-thing the browser talks to, and it calls core at `http://service-core:7700` (`:210`). `service-dispatcher` is not in
-the stack because it needs a Kubernetes cluster (`:10-16`). Build the jar with Maven and the web app with pnpm
-first (`:18-27`); the Playwright suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`, see
-`performance.md`) run against this stack.
+One compose file runs the stack two ways. `docker compose up -d` starts what a developer keeps in Docker:
+`mongo` in a named volume, published on `127.0.0.1:27017` (`docker-compose.yml:28-37`), a local IDPZero OpenID
+provider on `idp.localhost:4380` (`:51-69`), SeaweedFS as the artifact store (`:71-102`), and two one-shot
+seeds that wait for core's migrations to create the settings they edit, wherever core runs: `auth-oidc-seed`
+points the `auth` settings at IDPZero so sign-in resolves to `oidc`, and `task-deletion-seed` sets the task
+deletion policy to Always so a finished run's storage claim can be released (`:105-127`,
+`docker/mongo/*.js`). `service-core` then runs on the host under the `local` Spring profile
+(`application-local.properties`) and `client-web`'s server from its checkout. The `stack` profile adds both
+to Docker instead, secured, with core on `:7700` and `client-web` on `:3000` calling it at
+`http://service-core:7700` (`:183-258`); that is what the e2e job runs (`ci-e2e.yml`, `COMPOSE_PROFILES`).
+`service-dispatcher` sits behind the `dispatcher` profile because it needs a Kubernetes cluster and the
+kubeconfig at `docker/kube/config`; it reaches a host-run core by default (`:140-181`). The browser-facing
+origin is `http://localhost:3000` either way; there is no separate gateway. The Playwright suite in `e2e/`
+and the throughput harness in `load/` (`node load/run.mjs`, see `performance.md`) run against this stack.
 
 ## Not built
 
