@@ -978,7 +978,8 @@ public class WorkspaceService {
   }
 
   /*
-   * Sets the custom quotes only for whats provided.
+   * Sets the custom quotas only for what is provided: an absent value keeps the platform default,
+   * a stored value replaces it - a stored 0 included, since 0 is unlimited (Quotas.limited).
    *
    * - Only store the set quotas on a team, so as not to override the defaults (which are retrieved
    * dynamically)
@@ -1009,21 +1010,23 @@ public class WorkspaceService {
     }
   }
 
+  /*
+   * The workspace's run-duration ceiling in minutes: its own stored quota when it has one - a
+   * stored 0 is no ceiling - else the platform default from the quotas settings.
+   */
   public Integer getWorkflowMaxDurationForTeam(String team) {
-    Integer d =
-        Integer.valueOf(
+    Integer stored =
+        workspaceRepository
+            .findByNameIgnoreCase(team)
+            .map(WorkspaceEntity::getQuotas)
+            .map(Quotas::getMaxWorkflowRunDuration)
+            .orElse(null);
+    return (stored != null)
+        ? stored
+        : Integer.valueOf(
             settingsService
                 .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
                 .getValue());
-
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
-    if (optWorkspaceEntity.isPresent()
-        && optWorkspaceEntity.get().getQuotas() != null
-        && optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration() != null
-        && optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration() != 0) {
-      d = optWorkspaceEntity.get().getQuotas().getMaxWorkflowRunDuration();
-    }
-    return d;
   }
 
   private CurrentQuotas setCurrentQuotas(CurrentQuotas currentQuotas, String team) {

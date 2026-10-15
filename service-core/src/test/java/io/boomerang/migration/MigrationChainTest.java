@@ -382,6 +382,39 @@ class MigrationChainTest {
   }
 
   /**
+   * v3 enforced a stored quota of 0 as a limit of zero; v5 reads a stored 0 as unlimited. The
+   * migration drops a v3 0 so the workspace inherits the platform default, and copies every
+   * positive value as it is.
+   */
+  @Test
+  void aV3QuotaOfZeroIsDroppedSoTheWorkspaceInheritsTheDefault() {
+    MongoDatabase db = database("quota-zero");
+    markV3(db);
+    Document team =
+        new Document("_id", new ObjectId())
+            .append("_class", "net.boomerangplatform.mongo.entity.TeamEntity")
+            .append("name", "Locked Team")
+            .append("isActive", true)
+            .append(
+                "quotas",
+                new Document("maxWorkflowCount", 0)
+                    .append("maxWorkflowExecutionMonthly", 50)
+                    .append("maxWorkflowExecutionTime", 0)
+                    .append("maxConcurrentWorkflows", 3));
+    collection(db, "workspaces").insertOne(team);
+
+    new _0007__V3MigrateWorkspaces().execute(db, MigrationRunner.environment(PREFIX));
+
+    Document quotas =
+        (Document)
+            collection(db, "workspaces").find(Filters.eq("_id", team.get("_id"))).first().get("quotas");
+    assertThat(quotas.getInteger("maxWorkflowCount")).isNull();
+    assertThat(quotas.getInteger("maxWorkflowRunDuration")).isNull();
+    assertThat(quotas.getInteger("maxWorkflowRunMonthly")).isEqualTo(50);
+    assertThat(quotas.getInteger("maxConcurrentRuns")).isEqualTo(3);
+  }
+
+  /**
    * The seed matches catalogue tasks by name. A v3 catalogue task an install renamed is not
    * recognised: it is left as it is, and the seed adds its own copy beside it under a new id.
    */

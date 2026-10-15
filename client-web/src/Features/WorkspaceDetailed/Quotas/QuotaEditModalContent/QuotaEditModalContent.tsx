@@ -19,6 +19,7 @@ interface QuotaEditProps {
   quotaProperty: string;
   quotaValue: number;
   minValue: number;
+  helperText?: string;
 }
 
 const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
@@ -32,6 +33,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
   quotaProperty,
   quotaValue,
   minValue,
+  helperText,
 }) => {
   // Posts to the Quotas tab's route action (see ../Quotas) - the displayed values live on the
   // parent layout route's workspace record, which the fetcher's completion revalidates.
@@ -74,7 +76,9 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
       }}
       onSubmit={handleOnSubmit}
       validationSchema={Yup.object().shape({
-        quotaFormValue: Yup.number().required("Value is required"),
+        quotaFormValue: Yup.number()
+          .required("Value is required")
+          .min(minValue, `Value must be at least ${minValue}`),
       })}
     >
       {(formikProps) => {
@@ -91,6 +95,7 @@ const QuotaEditModalContent: React.FC<QuotaEditProps> = ({
                     id="workspace-update-name-id"
                     data-testid="text-input-workspace-name"
                     label={inputLabel}
+                    helperText={helperText}
                     value={values.quotaFormValue}
                     step={stepValue}
                     min={minValue}

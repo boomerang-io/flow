@@ -1,6 +1,16 @@
 package io.boomerang.workspace.model;
 
+/**
+ * A workspace's quotas. A stored value has three states: absent inherits the platform default from
+ * the {@code quotas} settings document, {@code 0} is unlimited, and a positive number is the limit.
+ * The merge with the defaults resolves the absent state; {@link #limited} resolves the other two.
+ */
 public class Quotas {
+
+  /** Whether a quota value is a limit to enforce. {@code 0} is unlimited. */
+  public static boolean limited(Integer quota) {
+    return quota != null && quota > 0;
+  }
 
   private Integer maxWorkflowCount;
   private Integer maxWorkflowRunMonthly;

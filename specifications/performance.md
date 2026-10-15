@@ -150,8 +150,10 @@ it guards (decision 0063).
 ## Quotas
 
 Quotas are enforced at workflow create and run submit; nothing in the engine path re-checks them. The stored
-`features.workspaceQuotas` setting is the only switch (`workflow/WorkflowService.java:214-218`); the `system`
-workspace an embedded engine serves is seeded with its four limits unlimited and inherits the platform
+`features.workspaceQuotas` setting is the only switch (`workflow/WorkflowService.java:214-218`). A stored quota of
+`0` is unlimited and the check is skipped (`workspace/model/Quotas.java` `limited`, called by every check); an
+absent quota inherits the platform default from the `quotas` settings document. The `system` workspace an embedded
+engine serves is seeded with its four limits at `0` and no run duration of its own, so its runs inherit the platform
 run-duration default (`seed/workspace.json`).
 
 | Quota (settings key, `workspace/WorkspaceService.java:81-86`) | Enforced at | Code |
@@ -159,7 +161,7 @@ run-duration default (`seed/workspace.json`).
 | `max.workflow.count` | Workflow create | `WorkflowService.java:401,923-937` |
 | `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit | `WorkflowService.java:636,940-963` |
 | `max.workspace.storage` | Workflow save (create and update) and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:499-515,956-990` |
-| `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout | `WorkflowService.java:233-243` |
+| `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java` `defaultTimeout`) | `WorkflowService.java:243-255`, `workspace/WorkspaceService.java` `getWorkflowMaxDurationForTeam` |
 
 The two run counters come from different sources (decision 0071). Concurrent = the live count of
 non-terminal runs (`notstarted`/`ready`/`running`/`waiting`) over the workspace's Workflows

@@ -74,7 +74,10 @@ import org.springframework.core.env.Environment;
  *       the dump): {@code maxWorkflowCount}-\>{@code maxWorkflowCount}, {@code
  *       maxWorkflowExecutionMonthly}-\>{@code maxWorkflowRunMonthly}, {@code
  *       maxWorkflowExecutionTime}-\>{@code maxWorkflowRunDuration}, {@code
- *       maxConcurrentWorkflows}-\>{@code maxConcurrentRuns}. v3 {@code maxWorkflowStorage} capped
+ *       maxConcurrentWorkflows}-\>{@code maxConcurrentRuns}. A v3 value of {@code 0} is dropped
+ *       (stored as absent): v3 enforced it as a limit of zero, whereas v5 reads a stored {@code 0}
+ *       as unlimited, so inheriting the platform default is the closest meaning that survives.
+ *       v3 {@code maxWorkflowStorage} capped
  *       storage shared across a workflow's runs, which v5 no longer has, so it is dropped. {@code
  *       maxWorkspaceStorage} (the one shared workspace a run may declare) has no v3 source at all -
  *       defaulted to {@link #DEFAULT_MAX_WORKSPACE_STORAGE} (2), the numeric value of the {@code
@@ -228,13 +231,24 @@ public class _0007__V3MigrateWorkspaces {
     Document quotas = (Document) source.get("quotas");
     Document result = new Document();
     if (quotas != null) {
-      result.put("maxWorkflowCount", quotas.getInteger("maxWorkflowCount"));
-      result.put("maxWorkflowRunMonthly", quotas.getInteger("maxWorkflowExecutionMonthly"));
-      result.put("maxWorkflowRunDuration", quotas.getInteger("maxWorkflowExecutionTime"));
-      result.put("maxConcurrentRuns", quotas.getInteger("maxConcurrentWorkflows"));
+      result.put("maxWorkflowCount", limitOrAbsent(quotas.getInteger("maxWorkflowCount")));
+      result.put(
+          "maxWorkflowRunMonthly", limitOrAbsent(quotas.getInteger("maxWorkflowExecutionMonthly")));
+      result.put(
+          "maxWorkflowRunDuration", limitOrAbsent(quotas.getInteger("maxWorkflowExecutionTime")));
+      result.put("maxConcurrentRuns", limitOrAbsent(quotas.getInteger("maxConcurrentWorkflows")));
     }
     result.put("maxWorkspaceStorage", DEFAULT_MAX_WORKSPACE_STORAGE);
     return result;
+  }
+
+  /**
+   * v3 enforced a stored quota literally, so its {@code 0} was a limit of zero; in v5 a stored
+   * {@code 0} is unlimited. A v3 {@code 0} is dropped so the workspace inherits the platform
+   * default rather than flipping to the opposite meaning.
+   */
+  private static Integer limitOrAbsent(Integer v3Quota) {
+    return (v3Quota != null && v3Quota > 0) ? v3Quota : null;
   }
 
   /** See the class javadoc's "Approver groups" section. */

@@ -23,15 +23,16 @@ import org.springframework.stereotype.Service;
  *
  * <ol>
  *   <li><b>Default.</b> The request's timeout wins, else the revision's, else the run-duration
- *       quota itself - the workspace's own {@code maxWorkflowRunDuration} override when it has
- *       one, else the platform {@code workspaces}/{@code max.workflowrun.duration} setting. A run
- *       can no longer be created unguarded just because neither the caller nor the Workflow named
- *       a budget.
+ *       quota itself - the workspace's own {@code maxWorkflowRunDuration} when it is a limit, else
+ *       the platform {@code quotas}/{@code max.workflowrun.duration} setting. A run can no longer
+ *       be created unguarded just because neither the caller nor the Workflow named a budget.
  *   <li><b>Floor.</b> The timeout must be at least the critical path of the revision's task
  *       budgets - the longest chain of explicit task timeouts through the graph. A run guard
  *       beneath the budget of the work it guards reaps healthy tasks.
  *   <li><b>Ceiling.</b> The workspace's maximum run duration clamps whatever survives. A ceiling
- *       below the floor leaves no valid value, so it is refused rather than silently clamped.
+ *       below the floor leaves no valid value, so it is refused rather than silently clamped. A
+ *       workspace whose quota is 0 (unlimited) sets no ceiling: a declared timeout stands however
+ *       long, and only a run that declares none takes the platform default.
  * </ol>
  *
  * <p>A timeout of 0 means unguarded, and an unguarded run can never fire beneath a task, so it is
@@ -58,8 +59,9 @@ public class RunTimeoutPolicy {
    * @param requested the submit request's timeout, null or 0 when the caller named none
    * @param revisionTimeout the Workflow revision's timeout, null or 0 when it declares none
    * @param tasks the revision's tasks, the graph the floor is measured over
-   * @param ceiling the workspace's maximum run duration in minutes, 0 or less when no workspace
-   *     owns the Workflow - which is also the default when nobody declares a timeout
+   * @param ceiling the workspace's maximum run duration in minutes, 0 or less when the workspace's
+   *     quota is unlimited or no workspace owns the Workflow - a positive ceiling is also the
+   *     default when nobody declares a timeout
    * @return the timeout to stamp on the run, in minutes
    * @throws BoomerangException {@code WORKFLOWRUN_TIMEOUT_TOO_SHORT} when no value satisfies both
    *     the floor and the ceiling
@@ -148,9 +150,10 @@ public class RunTimeoutPolicy {
 
   /**
    * The default for a run nobody declared a timeout for: the run-duration quota itself. The
-   * workspace's own ceiling when it has one, and otherwise - a Workflow no workspace owns - the
-   * platform setting every workspace quota starts from. An install missing that setting has no
-   * quota to apply at all, so such a run stays unguarded rather than failing to submit.
+   * workspace's own ceiling when it has one, and otherwise - the workspace's quota is 0, or no
+   * workspace owns the Workflow - the platform setting every workspace quota starts from, so "no
+   * ceiling" never means "no guard". An install missing that setting has no quota to apply at all,
+   * so such a run stays unguarded rather than failing to submit.
    */
   private long defaultTimeout(long ceiling) {
     if (ceiling > 0) {

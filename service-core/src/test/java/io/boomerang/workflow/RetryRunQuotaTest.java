@@ -58,7 +58,8 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aRetryAtTheConcurrentRunLimitIsRefused() {
-    String workspace = createWorkspace("retry-quota-concurrent", quotasWithConcurrentRuns(0));
+    // The source run itself fills the one concurrent slot.
+    String workspace = createWorkspace("retry-quota-concurrent", quotasWithConcurrentRuns(1));
     workflowService.create(workspace, workflow("retry-quota-concurrent-workflow"));
     WorkflowRun source =
         workflowService.submit(workspace, "retry-quota-concurrent-workflow", request(), false);
@@ -96,12 +97,14 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
 
   @Test
   void anAutoRetryRefusedByQuotaLeavesTheRunTimedOutAndDoesNotThrow() {
-    String workspace = createWorkspace("retry-quota-auto", quotasWithConcurrentRuns(0));
+    String workspace = createWorkspace("retry-quota-auto", quotasWithConcurrentRuns(1));
     workflowService.create(workspace, workflow("retry-quota-auto-workflow"));
     WorkflowSubmitRequest request = request();
     request.setRetries(1L);
     WorkflowRun source =
         workflowService.submit(workspace, "retry-quota-auto-workflow", request, false);
+    // The source is terminal by the time its retry is evaluated, so another run holds the slot.
+    workflowService.submit(workspace, "retry-quota-auto-workflow", request(), false);
 
     // The state the watcher's timeout sweep finds a run in.
     WorkflowRunEntity running = workflowRunRepository.findById(source.getId()).get();
@@ -117,7 +120,7 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
 
     assertEquals(
         RunStatus.timedout, workflowRunRepository.findById(source.getId()).get().getStatus());
-    assertEquals(1, runsOf(source.getWorkflowRef()).size(), "the refused retry created no clone");
+    assertEquals(2, runsOf(source.getWorkflowRef()).size(), "the refused retry created no clone");
   }
 
   private List<WorkflowRunEntity> runsOf(String workflowRef) {

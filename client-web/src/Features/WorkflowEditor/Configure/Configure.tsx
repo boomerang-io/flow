@@ -24,6 +24,7 @@ import BasicSlider from "Components/Slider";
 import { TokenActorKind, TokenType } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
+import { isQuotaLimited } from "Utils/quotaHelper";
 import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureArtifacts from "./ConfigureArtifacts";
@@ -129,7 +130,8 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
               is: true,
               then: (schema) => {
                 const sized = schema.required("Enter the workspace size").min(1, "Size must be at least 1 GB");
-                return workspaceQuotasEnabled
+                // A quota of 0 is unlimited: no ceiling to validate against.
+                return workspaceQuotasEnabled && isQuotaLimited(workspace.quotas.maxWorkspaceStorage)
                   ? sized.max(
                       workspace.quotas.maxWorkspaceStorage,
                       `Size must not exceed quota of ${workspace.quotas.maxWorkspaceStorage} GB`,
@@ -156,7 +158,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
             ),
           displayName: Yup.string().optional(),
           retries: Yup.number().min(0),
-          timeout: workspaceQuotasEnabled
+          timeout: workspaceQuotasEnabled && isQuotaLimited(workspace.quotas.maxWorkflowRunDuration)
             ? Yup.number()
                 .min(0)
                 .max(
@@ -720,7 +722,7 @@ function Configure(props: ConfigureProps) {
                   id="timeout"
                   label="Timeout"
                   helperText={
-                    workspaceQuotasEnabled
+                    workspaceQuotasEnabled && isQuotaLimited(props.workspace.quotas.maxWorkflowRunDuration)
                       ? `In minutes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkflowRunDuration} minutes.`
                       : "In minutes."
                   }
@@ -782,16 +784,17 @@ function Configure(props: ConfigureProps) {
                     id="workspace.size"
                     data-testid="workspace.size"
                     min={1}
-                    // With quotas off there is no ceiling; the slider still needs one.
+                    // With quotas off, or a quota of 0 (unlimited), there is no ceiling; the
+                    // slider still needs one.
                     max={
-                      workspaceQuotasEnabled
+                      workspaceQuotasEnabled && isQuotaLimited(props.workspace.quotas.maxWorkspaceStorage)
                         ? props.workspace.quotas.maxWorkspaceStorage
                         : Math.max(values.workspace.size, 100)
                     }
                     inputType="text"
                     labelText="Size"
                     helperText={
-                      workspaceQuotasEnabled
+                      workspaceQuotasEnabled && isQuotaLimited(props.workspace.quotas.maxWorkspaceStorage)
                         ? `Size in gigabytes. Maximum defined by your Workspace quota is ${props.workspace.quotas.maxWorkspaceStorage} GB.`
                         : "Size in gigabytes"
                     }
