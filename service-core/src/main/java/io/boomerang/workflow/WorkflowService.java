@@ -328,7 +328,7 @@ public class WorkflowService {
     WorkflowResponsePage response =
         new WorkflowResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
 
-    LOGGER.debug("Workflow Response: {}", response.toString());
+    LOGGER.debug("Workflow Response: {} workflows", response.getContent().size());
     if (!response.getContent().isEmpty()) {
       response
           .getContent()
@@ -1208,7 +1208,7 @@ public class WorkflowService {
           task.setDependencies(dependencies);
           workflow.getTasks().add(task);
         });
-    LOGGER.debug("Converted Workflow: " + workflow.toString());
+    LOGGER.debug("Converted Workflow: {}", workflow.getName());
     return workflow;
   }
 
@@ -1452,11 +1452,14 @@ public class WorkflowService {
     List<Workflow> workflows = new LinkedList<>();
     wfEntities.forEach(
         e -> {
-          LOGGER.debug("Workflow: " + e.toString());
+          LOGGER.debug("Workflow: {}", e.getId());
           Optional<WorkflowRevisionEntity> optWfRevisionEntity =
               workflowRevisionRepository.findByWorkflowRefAndLatestVersion(e.getId());
           if (optWfRevisionEntity.isPresent()) {
-            LOGGER.debug("Revision: " + optWfRevisionEntity.get().toString());
+            LOGGER.debug(
+                "Revision: {} (version {})",
+                optWfRevisionEntity.get().getId(),
+                optWfRevisionEntity.get().getVersion());
             Workflow w = ConvertUtil.wfEntityToModel(e, optWfRevisionEntity.get());
             // Determine if there are template upgrades available
             areTaskUpgradesAvailable(w);
@@ -1584,7 +1587,7 @@ public class WorkflowService {
     Workflow workflow = ConvertUtil.wfEntityToModel(wfEntity, wfRevisionEntity);
     // Determine if there are template upgrades available
     areTaskUpgradesAvailable(workflow);
-    LOGGER.debug(workflow.toString());
+    LOGGER.debug("Workflow: {} (version {})", workflow.getId(), workflow.getVersion());
     return ResponseEntity.ok(workflow);
   }
 
@@ -2095,11 +2098,10 @@ public class WorkflowService {
   }
 
   private void logPayload(WorkflowRunRequest request) {
-    try {
-      String payload = objectMapper.writeValueAsString(request);
-      LOGGER.debug("Payload: {}", payload);
-    } catch (JacksonException e) {
-      LOGGER.error(e.getStackTrace());
-    }
+    // Names only: a param value may be a secret, typed or not yet stamped as one.
+    LOGGER.debug(
+        "Received Request: params [{}], labels {}",
+        ParameterUtil.runParamNames(request.getParams()),
+        request.getLabels() == null ? "[]" : request.getLabels().keySet());
   }
 }

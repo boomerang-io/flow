@@ -276,7 +276,7 @@ public class WorkspaceService {
    */
   public Workspace patch(String team, WorkspaceRequest request) {
     if (request != null) {
-      LOGGER.debug("Request: " + request.toString());
+      LOGGER.debug("[{}] Patch request received.", team);
       if (team == null || team.isBlank()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
@@ -323,7 +323,8 @@ public class WorkspaceService {
 
       // Create / Update Parameters
       if (request.getParameters() != null && !request.getParameters().isEmpty()) {
-        LOGGER.debug("Request Parameters: " + request.getParameters().toString());
+        LOGGER.debug(
+            "Request Parameters: {}", ParameterUtil.abstractParamNames(request.getParameters()));
         workspaceEntity.setParameters(
             createOrUpdateParameters(workspaceEntity.getParameters(), request.getParameters()));
       }
@@ -573,7 +574,7 @@ public class WorkspaceService {
   private List<AbstractParam> createOrUpdateParameters(
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
-      LOGGER.debug("Starting Parameters: " + parameters.toString());
+      LOGGER.debug("Starting Parameters: {}", ParameterUtil.abstractParamNames(parameters));
       // A secured parameter's value is never returned to the caller, so a request that only
       // edits another field arrives with a blank value - carry the stored secret forward
       // instead of letting the wholesale replacement below wipe it out.
@@ -607,7 +608,7 @@ public class WorkspaceService {
       // Add all new / updated params
       parameters.addAll(request);
     }
-    LOGGER.debug("Ending Parameters: " + parameters.toString());
+    LOGGER.debug("Ending Parameters: {}", ParameterUtil.abstractParamNames(parameters));
     return parameters;
   }
 

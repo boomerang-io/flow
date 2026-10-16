@@ -121,6 +121,22 @@ public class ParameterUtil {
    * the reference path separator in $(params.x) expressions, so a dotted name could never be
    * referenced unambiguously.
    */
+  /*
+   * The params' names, comma-joined, for a log line. A log carries names, never values: a value
+   * may be a secret, or a plain value that becomes one once its declared type is applied.
+   */
+  public static String runParamNames(List<RunParam> parameterList) {
+    return parameterList == null
+        ? ""
+        : parameterList.stream().map(RunParam::getName).collect(Collectors.joining(", "));
+  }
+
+  public static String abstractParamNames(List<AbstractParam> parameterList) {
+    return parameterList == null
+        ? ""
+        : parameterList.stream().map(AbstractParam::getName).collect(Collectors.joining(", "));
+  }
+
   public static final String PARAM_NAME_REGEX = "^[a-zA-Z_][a-zA-Z0-9_-]*$";
 
   public static boolean isValidParamName(String name) {

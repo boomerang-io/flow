@@ -135,7 +135,7 @@ public class ParamLayers {
 
   private void copyFlatParams(Map<String, Object> source, Map<String, Object> target, String prefix) {
     for (Entry<String, Object> entry : source.entrySet()) {
-      LOGGER.debug("Parameter: " + entry.toString());
+      LOGGER.debug("Parameter: {}", entry.getKey());
       String key = entry.getKey();
       Object value = entry.getValue();
       if (value != null) {
@@ -162,7 +162,7 @@ public class ParamLayers {
 
   private void copyFlatKeys(Map<String, Object> source, HashSet<String> target, String prefix) {
     for (Entry<String, Object> entry : source.entrySet()) {
-      LOGGER.debug("Parameter: " + entry.toString());
+      LOGGER.debug("Parameter: {}", entry.getKey());
       String key = entry.getKey();
       Object value = entry.getValue();
       if (value != null) {

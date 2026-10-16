@@ -338,6 +338,13 @@ and of every secret-typed param's value is scrubbed run-wide - from results and 
 spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
 them under another name (`DataAdapterUtil.java:227-316`).
 
+No value of a secret reaches a log, at any level. Log lines name params, tasks and Kubernetes objects
+and never print a value (`ParameterUtil.runParamNames`, `ParameterUtil.java:128`; the executors log
+`Created Job|TaskRun <name> in <namespace> (image ...)`). Behind them, `toString` prints a secret
+`RunParam` and a `password` field's default and value as `*****`, an env var by name only, and leaves a
+run spec's script, command and arguments out (`RunParam.java:36`, `AbstractParam.java:50`,
+`TaskEnvVar.java:24`, `TaskRunSpec.java:18-22`). Boomerang loggers default to INFO; DEBUG is opt-in.
+
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
 (`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
 owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already

@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.util.DataAdapterUtil;
 import lombok.Data;
 
 @Data
@@ -29,8 +30,11 @@ public class RunParam {
     this.value = value;
   }
 
+  // A secret's value never reaches a log: it prints as the redaction marker. Other values print,
+  // so a debug line still shows what a plain param resolved to.
   @Override
   public String toString() {
-    return "RunParam [name=" + name + ", type=" + type + ", value=" + value + "]";
+    Object shown = ParamType.secret.equals(type) ? DataAdapterUtil.REDACTED : value;
+    return "RunParam [name=" + name + ", type=" + type + ", value=" + shown + "]";
   }
 }

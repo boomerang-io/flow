@@ -433,7 +433,7 @@ public class TaskService {
   }
 
   public Task applyGlobal(String name, Task request, boolean replace) {
-    LOGGER.debug("Applying Task: {}", request.toString());
+    LOGGER.debug("Applying Task: {}", name);
     if (name.isBlank() || !name.matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
     }
