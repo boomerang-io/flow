@@ -32,4 +32,18 @@ public final class EngineConstants {
 
   /** Attempts a requeueable task gets beyond its first before it fails. */
   public static final int MAX_RETRIES = 3;
+
+  /**
+   * The types whose execution is a wait on something outside the engine's control: a person, an
+   * event, a child run, the clock, a lock. While every in-flight task of a run is one of these the
+   * run clock is stopped, and such a task is bounded only by a timeout its author declared.
+   */
+  public static final Set<TaskType> WAITING_TYPES =
+      EnumSet.of(
+          TaskType.approval,
+          TaskType.manual,
+          TaskType.eventwait,
+          TaskType.runworkflow,
+          TaskType.sleep,
+          TaskType.acquirelock);
 }
