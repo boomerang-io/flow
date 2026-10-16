@@ -3,6 +3,7 @@ package io.boomerang.workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunRequest;
+import io.boomerang.common.model.WorkflowRunRetryRequest;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -365,7 +366,7 @@ public class WorkspaceWorkflowRunControllerV2 {
               required = true)
           @PathVariable(required = true)
           String workflowRunId,
-      @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workflowRunService.retry(workspace, workflowRunId);
+      @RequestBody Optional<WorkflowRunRetryRequest> retryRequest) {
+    return workflowRunService.retry(workspace, workflowRunId, retryRequest);
   }
 }

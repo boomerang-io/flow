@@ -23,12 +23,23 @@ type Props = {
   executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
   // The names of the workflow's for-each tasks, from its definition - a TaskRun does not say.
   foreachTaskNames?: ReadonlySet<string>;
+  // Opens the page's retry modal with this task preselected; absent when the user may not
+  // action the run.
+  onRetryFrom?: (taskName: string) => void;
 };
 
 const TAB_TASK_LOG = 0;
 const TAB_ARTIFACTS = 1;
 
-function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", executionViewRedirect, foreachTaskNames }: Props) {
+function TaskRunLog({
+  workflowRun,
+  actions,
+  artifacts = [],
+  workspace = "",
+  executionViewRedirect,
+  foreachTaskNames,
+  onRetryFrom,
+}: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [tasksSort, setTasksSort] = useState<"desc" | "asc">("desc");
   const [activeTab, setActiveTab] = useState<number>(TAB_TASK_LOG);
@@ -133,6 +144,7 @@ function TaskRunLog({ workflowRun, actions, artifacts = [], workspace = "", exec
               executionViewRedirect={executionViewRedirect}
               isForeach={foreachTaskNames?.has(taskRun.name)}
               items={foreachItemRuns(tasks, taskRun.id)}
+              onRetryFrom={onRetryFrom}
             />
           ))}
           {endTask && (

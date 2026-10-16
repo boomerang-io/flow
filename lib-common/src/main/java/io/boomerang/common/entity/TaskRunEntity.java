@@ -61,6 +61,11 @@ public class TaskRunEntity {
   private String parentRef;
   private Integer index;
 
+  // Set on a TaskRun a scoped retry carried over instead of executing: the origin TaskRun it
+  // stands for. Its log is read through this id rather than duplicated. Absent on every TaskRun
+  // that ran.
+  private String reusedFromRef;
+
   // The foreach setting, on a parent only. Holds the resolved item array once the parent fans out.
   @JsonIgnore private WorkflowTaskForeach foreach;
 

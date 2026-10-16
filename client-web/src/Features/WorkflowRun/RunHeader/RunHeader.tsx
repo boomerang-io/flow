@@ -31,10 +31,19 @@ type Props = {
   workflowRun: WorkflowRun;
   version: number;
   executionViewRedirect: (args: { workflowRunRef: string }) => void;
+  // Opens the page's retry modal (WorkflowRun.tsx), which owns the retry submission.
+  onRetry?: () => void;
 };
 
 const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Ready, RunStatus.Running];
-const retryStatusTypes = [RunStatus.Cancelled, RunStatus.Failed, RunStatus.TimedOut, RunStatus.Invalid];
+// A finished run can be retried whatever its outcome: a succeeded one from a selected task.
+const retryStatusTypes = [
+  RunStatus.Cancelled,
+  RunStatus.Failed,
+  RunStatus.TimedOut,
+  RunStatus.Invalid,
+  RunStatus.Succeeded,
+];
 const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
 // The run's status tag takes the colour its tasks use: teal done, red failed or stopped, blue in
 // progress, gray not run.
@@ -51,20 +60,20 @@ const statusTagType: Partial<Record<RunStatus, "teal" | "red" | "blue" | "gray">
   [RunStatus.Skipped]: "gray",
 };
 
-// Copy for the toast each transition raises, keyed by the route action's intent - the five
-// handlers below were otherwise identical mutate/notify/notify blocks.
+// Copy for the toast each transition raises, keyed by the route action's intent - the four
+// handlers below were otherwise identical mutate/notify/notify blocks. Retry is submitted by the
+// retry modal, which raises its own toast and moves to the run it created.
 const TRANSITION_COPY: Record<
-  Exclude<RunActionIntent, "action" | "deleteArtifact">,
+  Exclude<RunActionIntent, "action" | "deleteArtifact" | "retry">,
   { title: string; success: string; failure: string }
 > = {
-  retry: { title: "Retry run", success: "Retry successful", failure: "Failed to retry this run" },
   cancel: { title: "Cancel run", success: "Run successfully cancelled", failure: "Failed to cancel this run" },
   start: { title: "Start run", success: "Run successfully started", failure: "Failed to start this run" },
   pause: { title: "Pause run", success: "Run successfully paused", failure: "Failed to pause this run" },
   resume: { title: "Resume run", success: "Run successfully resumed", failure: "Failed to resume this run" },
 };
 
-export default function RunHeader({ workflow, workflowRun, version, executionViewRedirect }: Props) {
+export default function RunHeader({ workflow, workflowRun, version, onRetry }: Props) {
   const { workspace } = useWorkspaceContext();
   const { user } = useAppContext();
   const location = useLocation();
@@ -74,7 +83,7 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   // queryClient.invalidateQueries(getWorkflowRun) each of these mutations used to run onSuccess.
   const fetcher = useFetcher<ActionResult>();
 
-  const { initiatedByRef, initiatedByWorkflowRunRef, trigger, creationDate, status, phase, paused, id, workflowName } =
+  const { initiatedByRef, initiatedByWorkflowRunRef, trigger, creationDate, status, phase, paused, workflowName } =
     workflowRun;
   // Ruled design (#359, Option A): a schedule-fired run stamps the firing Schedule's id into the
   // existing initiatedByRef field (mirrors the retry path's convention). The Schedules page has
@@ -84,9 +93,19 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
   // A child run: a runworkflow task started it, so initiatedByRef is that TaskRun's id. The run
   // that owns it comes back on initiatedByWorkflowRunRef, which is what the parent link needs.
   const isTaskTriggered = trigger === "task" && Boolean(initiatedByWorkflowRunRef);
+  // A retried run: initiatedByRef is the origin run, and retryFrom says where it started from
+  // when it was a scoped retry.
+  const isRetry = trigger === "retry" && Boolean(initiatedByRef);
+  const retryFromNodes = workflowRun.retryFrom?.nodes ?? [];
+  const retryFromCopy =
+    workflowRun.retryFrom?.scope === "nodes"
+      ? `from ${retryFromNodes.length === 1 ? "task" : "tasks"} ${retryFromNodes.join(", ")}`
+      : workflowRun.retryFrom?.scope === "failed"
+        ? "from the tasks that did not succeed"
+        : "";
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
-  const displayRetryButton = retryStatusTypes.includes(status);
+  const displayRetryButton = retryStatusTypes.includes(status) && Boolean(onRetry);
   // Start only admits a run still waiting to begin. An absent `paused` (older backends) is
   // treated as not paused, so Pause is the one shown rather than both or neither.
   const displayStartButton = startPhaseTypes.includes(phase);
@@ -106,14 +125,14 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
         : "";
 
   // The fetcher settles asynchronously, so the toast is raised from an effect once the result
-  // lands rather than from an awaited mutate call. Retry additionally redirects to the run it
-  // just created, which is why the redirect fires here too.
+  // lands rather than from an awaited mutate call.
   React.useEffect(() => {
     if (
       fetcher.state !== "idle" ||
       !fetcher.data ||
       fetcher.data.intent === "action" ||
-      fetcher.data.intent === "deleteArtifact"
+      fetcher.data.intent === "deleteArtifact" ||
+      fetcher.data.intent === "retry"
     ) {
       return;
     }
@@ -121,9 +140,6 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
     const copy = TRANSITION_COPY[intent];
     if (!isActionError(fetcher.data)) {
       notify(<ToastNotification kind="success" title={copy.title} subtitle={copy.success} />);
-      if (intent === "retry") {
-        executionViewRedirect({ workflowRunRef: id });
-      }
     } else {
       notify(
         <ToastNotification
@@ -133,14 +149,14 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
         />,
       );
     }
-    // `executionViewRedirect`/`id` are stable for a given run; keying the effect on the fetcher
-    // result alone stops a re-render from replaying the same toast.
+    // Keying the effect on the fetcher result alone stops a re-render from replaying the same
+    // toast.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, fetcher.data]);
 
-  const submitTransition = (intent: Exclude<RunActionIntent, "action">) => fetcher.submit({ intent }, { method: "post" });
+  const submitTransition = (intent: Exclude<RunActionIntent, "action" | "retry">) =>
+    fetcher.submit({ intent }, { method: "post" });
 
-  const handleRetryWorkflow = () => submitTransition("retry");
   const handleCancelWorkflow = () => submitTransition("cancel");
   const handleStartWorkflow = () => submitTransition("start");
   const handlePauseWorkflow = () => submitTransition("pause");
@@ -226,6 +242,20 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
                   {initiatedByWorkflowRunRef}
                 </Link>
               </dd>
+            ) : isRetry ? (
+              <dd className={styles.dataValue}>
+                <Link
+                  to={appLink.execution({ workspace: workspace.name, runId: initiatedByRef })}
+                  data-testid="initiated-by-origin-run-link"
+                >
+                  {initiatedByRef}
+                </Link>
+                {retryFromCopy ? (
+                  <span className={styles.retryFrom} data-testid="retry-from">
+                    {retryFromCopy}
+                  </span>
+                ) : null}
+              </dd>
             ) : initiatedByRef ? (
               <dd className={styles.dataValue}>{initiatedByRef}</dd>
             ) : (
@@ -288,24 +318,17 @@ export default function RunHeader({ workflow, workflowRun, version, executionVie
               />
             )}
             {canActionWorkflowRun && displayRetryButton && (
-              <ConfirmModal
-                affirmativeAction={handleRetryWorkflow}
-                children="Are you sure? A new execution of this Workflow will be started with all the same parameters."
-                title="Retry run"
-                modalTrigger={({ openModal }) => (
-                  <Button
-                    className={styles.cancelRun}
-                    data-testid="cancel-run"
-                    kind="primary"
-                    iconDescription="Retry run"
-                    onClick={openModal}
-                    renderIcon={Redo}
-                    size="md"
-                  >
-                    Retry run
-                  </Button>
-                )}
-              />
+              <Button
+                className={styles.cancelRun}
+                data-testid="retry-run"
+                kind="primary"
+                iconDescription="Retry run"
+                onClick={onRetry}
+                renderIcon={Redo}
+                size="md"
+              >
+                Retry run
+              </Button>
             )}
             {canActionWorkflowRun && displayPauseButton && (
               <ConfirmModal

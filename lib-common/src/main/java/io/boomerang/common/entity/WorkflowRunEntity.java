@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.RetryFrom;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
@@ -68,6 +69,10 @@ public class WorkflowRunEntity {
   // Auto-retry attempt count (absent/null = 0). initiatedByRef + trigger=retry carry the retry
   // lineage - all typed, never boomerang.io/* annotations.
   @JsonIgnore private Long retryCount;
+
+  // Where a scoped retry started: the scope and the task names it re-ran from. Absent on a plain
+  // retry and on every other run. Typed, so the engine and the webapp both read it.
+  private RetryFrom retryFrom;
 
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();

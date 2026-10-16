@@ -65,7 +65,7 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | Kind | Fields | Where |
 | --- | --- | --- |
 | Control state (typed, `@JsonIgnore`, never on the public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count}` (task), `waitUntil` (task), `pauseRequestedAt`, `retryCount` (workflow) | `WorkflowRunEntity.java:53-77`, `TaskRunEntity.java:65-81`, `RunClaim.java:19-22`, `RunRetry.java:17-18` |
-| Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retried run points at the run it retries) | `WorkflowRunEntity.java:72-73` |
+| Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retried run points at the run it retries); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry copied from the origin instead of executing | `WorkflowRunEntity.java:66-77`, `TaskRunEntity.java:64-67` |
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `TaskRunEntity.java:68-69` |
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `TaskRunEntity.java:72`, `lib-common/.../model/WorkflowTaskForeach.java` |
 | Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (task runs only; a closed string set of causes such as `OOMKilled`, `DeadlineExceeded`, `LeaseExpired`), `statusOverride` | `WorkflowRunEntity.java:41-44`, `TaskRunEntity.java:54` |

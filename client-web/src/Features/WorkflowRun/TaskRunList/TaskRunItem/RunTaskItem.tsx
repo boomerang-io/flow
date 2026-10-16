@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, ModalBody, Tag } from "@carbon/react";
-import { ArrowRight, ChevronDown, ChevronUp } from "@carbon/react/icons";
+import { ArrowRight, ChevronDown, ChevronUp, Redo } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
@@ -46,7 +46,20 @@ type Props = {
   isForeach?: boolean;
   // The item task runs of a for-each task, in item order, when this task run is their parent.
   items?: Array<TaskRun>;
+  // Opens the page's retry modal with this task preselected. Absent when the user may not
+  // action the run.
+  onRetryFrom?: (taskName: string) => void;
 };
+
+// A retry can start from a task that finished, well or badly; one still in flight, or never
+// started, is picked up by the retry's own rules.
+const retryFromStatuses = [
+  RunStatus.Succeeded,
+  RunStatus.Failed,
+  RunStatus.TimedOut,
+  RunStatus.Cancelled,
+  RunStatus.Invalid,
+];
 
 function RunTaskItem({
   taskRun,
@@ -55,6 +68,7 @@ function RunTaskItem({
   executionViewRedirect,
   isForeach: isForeachTask,
   items = [],
+  onRetryFrom,
 }: Props) {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
   const isForeach = Boolean(isForeachTask) || items.length > 0;
@@ -86,6 +100,12 @@ function RunTaskItem({
         <div className={`${styles.status} ${statusClassName}`}>
           <Icon aria-label={taskRun.status} className={styles.statusIcon} />
           <p>{ExecutionStatusCopy[taskRun.status]}</p>
+          {/* Carried over by a scoped retry: its results and log are the origin task run's. */}
+          {taskRun.reusedFromRef && (
+            <Tag className={styles.reusedTag} size="sm" type="gray" title="Carried over from the origin run">
+              Reused
+            </Tag>
+          )}
         </div>
       </section>
       {isForeach && (
@@ -137,6 +157,17 @@ function RunTaskItem({
         </ComposedModal>
         {/* A for-each parent never runs a pod of its own; each item below has the log. */}
         {hasLog(taskRun) && !isForeach && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
+        {onRetryFrom && !isSlim && retryFromStatuses.includes(taskRun.status) && (
+          <Button
+            data-testid="retry-from-task"
+            kind="ghost"
+            onClick={() => onRetryFrom(taskRun.name)}
+            renderIcon={Redo}
+            size="sm"
+          >
+            Retry from here
+          </Button>
+        )}
         {items.length > 0 && (
           <Button
             aria-controls={`task-${taskRun.name}-items`}

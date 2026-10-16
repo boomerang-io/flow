@@ -39,6 +39,7 @@ public class WorkflowRun {
   private String trigger;
   private String initiatedByRef;
   private String initiatedByWorkflowRunRef;
+  private RetryFrom retryFrom;
   private List<RunResult> results = new ArrayList<>();
   private WorkflowWorkspace workspace;
   private Boolean awaitingApproval;
@@ -225,6 +226,15 @@ public class WorkflowRun {
 
   public void setInitiatedByWorkflowRunRef(String initiatedByWorkflowRunRef) {
     this.initiatedByWorkflowRunRef = initiatedByWorkflowRunRef;
+  }
+
+  /** Where a scoped retry started from; absent on every other run. */
+  public RetryFrom getRetryFrom() {
+    return retryFrom;
+  }
+
+  public void setRetryFrom(RetryFrom retryFrom) {
+    this.retryFrom = retryFrom;
   }
 
   public List<RunResult> getResults() {

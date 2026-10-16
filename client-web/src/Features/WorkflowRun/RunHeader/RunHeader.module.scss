@@ -81,6 +81,14 @@
   @include text-overflow-ellipsis();
 }
 
+// "from task chair" after the origin run link of a scoped retry; task names keep their case.
+.retryFrom {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
+  text-transform: none;
+}
+
 .headerContentSkeleton {
   height: 4.31rem;
   width: 40rem;

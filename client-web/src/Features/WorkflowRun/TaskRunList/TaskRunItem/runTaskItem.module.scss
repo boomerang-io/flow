@@ -176,6 +176,11 @@
   width: 1rem;
 }
 
+// Beside the status of a task run a scoped retry carried over from its origin.
+.reusedTag {
+  margin-left: 0.5rem;
+}
+
 .status {
   align-items: center;
   display: flex;
