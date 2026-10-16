@@ -49,6 +49,7 @@ class ActionSummaryTest {
             mock(ApproverGroupRepository.class),
             mock(TaskRunService.class),
             mock(WorkflowService.class),
+            mock(WorkflowRunService.class),
             relationshipService,
             mock(UserService.class),
             mock(IdentityService.class),
