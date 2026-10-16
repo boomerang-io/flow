@@ -7,7 +7,6 @@ import java.util.Map;
 import lombok.Data;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -23,7 +22,7 @@ import io.boomerang.common.enums.TaskType;
 public class TaskEntity {
 
   @Id private String id;
-  @Indexed private String name;
+  private String name;
   private TaskType type;
   private TaskStatus status = TaskStatus.active;
   private Date creationDate = new Date();

@@ -8,8 +8,6 @@ import io.boomerang.common.enums.ArtifactStatus;
 import java.util.Date;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /*
@@ -25,16 +23,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('artifacts')}")
-@CompoundIndexes({
-  @CompoundIndex(name = "run_name_idx", def = "{'workflowRunRef': 1, 'name': 1}", unique = true),
-  @CompoundIndex(name = "status_expiration_idx", def = "{'status': 1, 'expirationDate': 1}"),
-  @CompoundIndex(name = "workflow_status_idx", def = "{'workflowRef': 1, 'status': 1}"),
-  @CompoundIndex(
-      name = "workflow_name_available_idx",
-      def = "{'workflowRef': 1, 'name': 1}",
-      unique = true,
-      partialFilter = "{'scope': 'workflow', 'status': 'available'}")
-})
 public class ArtifactEntity {
 
   @Id private String id;

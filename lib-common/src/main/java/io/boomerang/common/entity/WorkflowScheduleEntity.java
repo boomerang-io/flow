@@ -14,7 +14,6 @@ import java.util.Map;
 import lombok.Data;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -31,10 +30,9 @@ public class WorkflowScheduleEntity {
 
   private String workflowRef;
   // Legacy JobRunr job id - no longer written; kept to avoid a data migration.
-  @Indexed private String schedulerRef;
+  private String schedulerRef;
   // The next computed fire time. The ScheduleWatcher fires active schedules whose nextFireAt has
   // passed, then advances it in one Compare-And-Set - the advance is the exactly-once fence.
-  @Indexed(sparse = true)
   private Date nextFireAt;
   private Date lastFiredAt;
   // Auto-retry attempt count for a failed fire (mirrors WorkflowRunEntity.retryCount): incremented

@@ -4,10 +4,9 @@
 
 ## Context
 
-The engine read every task log from one configured dispatcher URL, with no authentication, from a pod that is
-deleted after seven days. With several dispatcher shapes (decision 0105) — some with no HTTP surface, some gone
-before anyone reads — that path serves one of them. IBM reads logs from Loki behind the dispatcher's log route
-and must keep doing so.
+The engine read every task log from one configured dispatcher URL, with no authentication, from a pod deleted
+after seven days. With several dispatcher shapes (decision 0105), some with no HTTP surface and some gone before
+anyone reads, that path serves one of them. IBM reads logs from Loki behind the dispatcher's log route and must keep doing so.
 
 ## Options
 

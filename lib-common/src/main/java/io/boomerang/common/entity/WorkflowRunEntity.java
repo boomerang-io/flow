@@ -17,16 +17,12 @@ import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('workflow_runs')}")
-@CompoundIndexes({@CompoundIndex(name = "status_phase_idx", def = "{'status': 1, 'phase': 1}")})
 public class WorkflowRunEntity {
 
   @Id private String id;
@@ -38,8 +34,8 @@ public class WorkflowRunEntity {
   private Long timeout;
   private Long retries;
   private Boolean debug;
-  @Indexed private RunStatus status = RunStatus.notstarted;
-  @Indexed private RunPhase phase = RunPhase.pending;
+  private RunStatus status = RunStatus.notstarted;
+  private RunPhase phase = RunPhase.pending;
   private RunStatus statusOverride;
   private String statusMessage;
   private boolean isAwaitingApproval;
@@ -54,13 +50,10 @@ public class WorkflowRunEntity {
 
   // Denormalised absolute deadline written at the start Compare-And-Set; absent = unguarded.
   // The watcher reaps on an indexed range scan - there are no in-memory timers.
-  @JsonIgnore
-  @Indexed(sparse = true)
-  private Date timeoutAt;
+  @JsonIgnore private Date timeoutAt;
 
   // Pause flag - never a status. Absent = not paused. Claiming, admission and the recovery
   // sweeps all exclude paused runs; resume clears the flag and reconciles.
-  @Indexed(sparse = true)
   private Date pauseRequestedAt;
 
   // Derived from pauseRequestedAt - orthogonal to status/phase. A paused run keeps its
