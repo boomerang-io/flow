@@ -450,9 +450,17 @@
           "type": "number",
           "value": "256",
           "readOnly": false
+        },
+        {
+          "description": "Days a finished run and its task runs, actions, artifacts and logs are kept. Floored at 60 so monthly quota counts stay complete.",
+          "key": "retention.days",
+          "label": "Activity Retention (days)",
+          "type": "number",
+          "value": "365",
+          "readOnly": false
         }
       ],
-      "description": "How deep a run may nest child workflows and how many items a for-each may fan out to.",
+      "description": "How deep a run may nest child workflows, how many items a for-each may fan out to, and how long finished runs are kept.",
       "key": "workflowrun",
       "lastModiifed": {
         "$date": "2021-02-10T22:15:18.729Z"

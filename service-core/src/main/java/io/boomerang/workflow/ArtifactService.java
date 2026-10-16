@@ -618,6 +618,16 @@ public class ArtifactService {
     } while (page.size() == pageSize);
   }
 
+  /**
+   * Delete a purged run's own artifacts and task logs, files first. A workflow-scoped artifact
+   * the run uploaded is the workflow's state and stays.
+   */
+  public void deleteForRun(String workflowRunRef) {
+    artifactRepository
+        .findByWorkflowRunRefAndScopeNot(workflowRunRef, ArtifactScope.workflow)
+        .forEach(this::remove);
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private ArtifactStore requireStore() {

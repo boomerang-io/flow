@@ -98,6 +98,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | `closeStrayActions` `:420` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
 | `expireArtifacts` `:174` | `available` artifacts past `expirationDate` (workflow-scoped ones have none and expire only when replaced) | deletes the file, then sets `expired` by CAS; the record stays |
 | `reapStaleArtifactUploads` `:183` | `uploading` artifacts older than `flow.artifacts.upload-grace-minutes` | deletes any partial file and the record |
+| `purgeExpiredRuns` `:218`, on its own hourly clock (`flow.watcher.retention-interval-ms`, `:203`) | `completed` runs created before now minus the Activity retention (`workflowrun`/`retention.days`, 365, floored at 60), oldest first on the `phase_creation_sweep` index, at most 20 pages a pass; a run another run names in `initiatedByRef` is skipped until that run is gone | deletes the run's run- and log-scoped artifacts (files first), actions, task runs, relationship node and the run document; workflow-scoped artifacts and audit records are kept (`data-model.md`, "Artifacts") |
 
 ## Timeouts and crash recovery
 
