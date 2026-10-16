@@ -31,7 +31,10 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
   runtime object, and reports nothing, not even when there is nothing left to cancel (`TaskRunner.java:208-220`).
 - **End.** Any executor exception ends the task `failed` with a typed `statusReason`
   (`error/TaskExecutionException.java`, `dispatcher/TaskService.java:74-78`) and the results the task wrote before
-  it failed; "Starting a task" below lists the reasons for a task that never started. The end is retried with
+  it failed; "Starting a task" below lists the reasons for a task that never started. The `statusMessage` is the
+  Job's or TaskRun's condition first, then the task container's exit code and termination reason and the last 20
+  lines of its log, capped at 4 KB, while its pod can still be read (`kube/KubeHelperService.java`
+  `failureDetail`); the container's termination log is the results channel, so an error never travels there. The end is retried with
   backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx (`TaskRunner.java:180-206`).
 - **Registration and stop.** Registration is retried the same way until the engine answers
   (`Dispatcher.java:189-224`). Stopping ends the polls and waits 10 s for the tasks in flight; one still running

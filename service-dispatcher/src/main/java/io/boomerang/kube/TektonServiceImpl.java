@@ -548,23 +548,28 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
 
   private TaskExecutionException failureFor(
       String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
+    // The status message is the TaskRun's condition first, then the container's own account of
+    // the failure (exit code, termination reason, log tail) while its pod can still be read.
+    KubernetesClient kubernetesClient = client.adapt(KubernetesClient.class);
+    String detail = helperKubeService.failureDetail(kubernetesClient, taskLabels);
+    String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", results, reason + " - " + message);
+      return new TaskExecutionException("DeadlineExceeded", results, text);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
+      return new TaskExecutionException("JobDeleted", results, text);
     }
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
       return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
     }
-    String podReason = helperKubeService.getPodFailureReason(client.adapt(KubernetesClient.class), taskLabels);
+    String podReason = helperKubeService.getPodFailureReason(kubernetesClient, taskLabels);
     if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", results, reason + " - " + message);
+      return new TaskExecutionException("OOMKilled", results, text);
     }
     if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", results, reason + " - " + message);
+      return new TaskExecutionException("ImagePull", results, text);
     }
-    return new TaskExecutionException("JobFailed", results, reason + " - " + message);
+    return new TaskExecutionException("JobFailed", results, text);
   }
 
   @Override

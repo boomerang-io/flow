@@ -451,20 +451,24 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   private TaskExecutionException failureFor(
       String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
+    // The status message is the Job's condition first, then the container's own account of the
+    // failure (exit code, termination reason, log tail) while its pod can still be read.
+    String detail = helperKubeService.failureDetail(client, taskLabels);
+    String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", results, reason + " - " + message);
+      return new TaskExecutionException("DeadlineExceeded", results, text);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", results, reason + " - " + message);
+      return new TaskExecutionException("JobDeleted", results, text);
     }
     String podReason = helperKubeService.getPodFailureReason(client, taskLabels);
     if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", results, reason + " - " + message);
+      return new TaskExecutionException("OOMKilled", results, text);
     }
     if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", results, reason + " - " + message);
+      return new TaskExecutionException("ImagePull", results, text);
     }
-    return new TaskExecutionException("JobFailed", results, reason + " - " + message);
+    return new TaskExecutionException("JobFailed", results, text);
   }
 
   /**
