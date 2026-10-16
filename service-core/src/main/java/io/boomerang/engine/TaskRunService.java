@@ -9,10 +9,10 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
-import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.core.config.SecretValueMongoListener;
 import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
@@ -77,6 +77,8 @@ public class TaskRunService {
   private final ObjectMapper objectMapper;
   // The upload task's completion lives with the artifacts; resolved late, as the two call each other.
   private final ObjectProvider<ArtifactService> artifactService;
+  // An Update never reaches the save hook, so the admission write seals secret values itself.
+  private final SecretValueMongoListener secretValues;
 
   public TaskRunService(
       @Lazy TaskExecutionService taskExecutionService,
@@ -85,7 +87,8 @@ public class TaskRunService {
       MongoTemplate mongoTemplate,
       ApplicationEventPublisher eventPublisher,
       ObjectMapper objectMapper,
-      ObjectProvider<ArtifactService> artifactService) {
+      ObjectProvider<ArtifactService> artifactService,
+      SecretValueMongoListener secretValues) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
@@ -93,6 +96,7 @@ public class TaskRunService {
     this.eventPublisher = eventPublisher;
     this.objectMapper = objectMapper;
     this.artifactService = artifactService;
+    this.secretValues = secretValues;
   }
 
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
@@ -325,10 +329,11 @@ public class TaskRunService {
     return preImage;
   }
 
-  // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params
-  // AND the resolved spec ($(params.x) substituted into script/command/arguments/envs) in the
-  // same guarded write. Returns the pre-image, or null when already admitted.
-  public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams, TaskRunSpec resolvedSpec) {
+  // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params -
+  // their values frozen here, secret values encrypted - in the same guarded write. The spec is not
+  // written: it keeps its $(...) references, filled in when a dispatcher claims the task
+  // (ParameterManager.fillSpec). Returns the pre-image, or null when already admitted.
+  public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -340,8 +345,7 @@ public class TaskRunService {
     Update update =
         new Update()
             .set("status", RunStatus.ready)
-            .set("params", resolvedParams)
-            .set("spec", resolvedSpec);
+            .set("params", secretValues.sealRunParams(resolvedParams));
     TaskRunEntity preImage =
         findAndModifyPreImage(query, update);
     if (preImage != null) {

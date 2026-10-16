@@ -1664,6 +1664,7 @@ public class WorkflowService {
         // Reject node params the Task Template does not declare
         validateDeclaredParams(wfTask, taskTemplate);
         validateForeach(wfTask, taskTemplate);
+        stampSecretParams(wfTask, taskTemplate);
       }
     }
     return wfRevisionEntity;
@@ -1727,6 +1728,30 @@ public class WorkflowService {
           wfTask.getName(),
           undeclaredNames.toString());
     }
+  }
+
+  /*
+   * A node param carries no type of its own; the Task Template declares it. A value given for a
+   * param the Template declares as `password` is stamped `secret` - the same mapping
+   * ParameterUtil.getRunParamType applies when a TaskRun is built - so the stored revision
+   * recognises it as a secret and encrypts it at rest (SecretValueMongoListener).
+   */
+  private static void stampSecretParams(WorkflowTask wfTask, Task taskTemplate) {
+    List<AbstractParam> declaredParams = taskTemplate.getSpec().getParams();
+    if (wfTask.getParams() == null || declaredParams == null || declaredParams.isEmpty()) {
+      return;
+    }
+    wfTask.getParams().stream()
+        .filter(p -> p.getName() != null)
+        .filter(
+            p ->
+                declaredParams.stream()
+                    .anyMatch(
+                        d ->
+                            p.getName().equalsIgnoreCase(d.getName())
+                                && ParamType.secret.equals(
+                                    ParameterUtil.getRunParamType(d.getType()))))
+        .forEach(p -> p.setType(ParamType.secret));
   }
 
   /*

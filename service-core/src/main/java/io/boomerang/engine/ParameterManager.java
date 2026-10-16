@@ -13,6 +13,7 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
@@ -195,22 +196,68 @@ public class ParameterManager {
               }
             });
     // Return WorkflowRun or TaskRun RunParams
+    // The spec is not resolved here: it is stored with its references and filled in when a
+    // dispatcher claims the task (fillSpec), so no secret value is written into it.
     if (optTaskRun.isPresent()) {
       optTaskRun.get().setParams(runParams);
-      // The spec is part of the contract too: $(params.x) in script/command/arguments/envs must
-      // resolve identically on every executor, so it happens here rather than relying on
-      // Tekton's controller-side substitution (which Kubernetes Jobs and Docker do not have).
-      // The spec reads the params as just resolved, so $(params.p) gets p's value rather than the
-      // reference p was written with.
-      paramLayers.paramLayers().setTaskParams(ParameterUtil.runParamListToMap(runParams));
-      resolveSpec(
-          optTaskRun.get().getSpec(),
-          wfRun.getId(),
-          new Layers(paramLayers.paramLayers(), paramLayers.suppliedParams(), true),
-          taskRunMemo);
     } else {
       wfRun.setParams(runParams);
     }
+  }
+
+  /*
+   * The TaskRun's spec with its references filled in, as the dispatcher receives it on a claim. The
+   * stored spec is left untouched - a copy is filled - so the references stay what is stored.
+   *
+   * The spec is part of the contract too: $(params.x) in script/command/arguments/envs must resolve
+   * identically on every executor, so it happens here rather than relying on Tekton's
+   * controller-side substitution (which Kubernetes Jobs and Docker do not have).
+   *
+   * - $(params.x) reads the task's params as stored at admission: resolved then, final now, and
+   *   inserted as written - a reference inside a value is not expanded again. A requeued claim
+   *   gets the same values.
+   * - $(tasks.t.results.r) reads the finished task runs; $(workflow.params.x) and
+   *   $(context.params.x) read the run.
+   * - $(workspace.params.x) and $(global.params.x) are read from their stores now, so an edit
+   *   made since admission shows here (decision 0114).
+   */
+  public TaskRunSpec fillSpec(WorkflowRunEntity wfRun, TaskRunEntity taskRun) {
+    TaskRunSpec filled = copySpec(taskRun.getSpec());
+    if (filled == null) {
+      return null;
+    }
+    Layers layers = buildParameterLayering(wfRun, Optional.of(taskRun));
+    resolveSpec(
+        filled,
+        wfRun.getId(),
+        new Layers(layers.paramLayers(), layers.suppliedParams(), true),
+        new HashMap<>());
+    return filled;
+  }
+
+  // A copy deep enough that filling it never writes into the stored spec's lists or env vars.
+  private static TaskRunSpec copySpec(TaskRunSpec spec) {
+    if (spec == null) {
+      return null;
+    }
+    TaskRunSpec copy = new TaskRunSpec();
+    copy.setImage(spec.getImage());
+    copy.setScript(spec.getScript());
+    copy.setWorkingDir(spec.getWorkingDir());
+    copy.setDebug(spec.getDebug());
+    copy.setTimeout(spec.getTimeout());
+    copy.setDeletion(spec.getDeletion());
+    copy.setCommand(spec.getCommand() != null ? new ArrayList<>(spec.getCommand()) : null);
+    copy.setArguments(spec.getArguments() != null ? new ArrayList<>(spec.getArguments()) : null);
+    if (spec.getEnvs() != null) {
+      List<TaskEnvVar> envs = new ArrayList<>(spec.getEnvs().size());
+      spec.getEnvs().forEach(env -> envs.add(new TaskEnvVar(env.getName(), env.getValue())));
+      copy.setEnvs(envs);
+    }
+    if (spec.getAdditionalProperties() != null) {
+      copy.getAdditionalProperties().putAll(spec.getAdditionalProperties());
+    }
+    return copy;
   }
 
   /*

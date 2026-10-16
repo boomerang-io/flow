@@ -45,6 +45,7 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private TaskRunService taskRunService;
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
+  @Autowired private ParameterManager parameterManager;
 
   @Test
   void submittedRunCompletesThroughAgentCallbacks() {
@@ -380,9 +381,11 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
 
     TaskRunEntity taskRun =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId).orElseThrow();
+    // The stored spec keeps its reference; the claim fills it in.
+    WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElseThrow();
     assertEquals(
         "#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF",
-        taskRun.getSpec().getScript(),
+        parameterManager.fillSpec(run, taskRun).getScript(),
         "the literal prompt must reach the container's script");
     assertEquals(
         "#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF",

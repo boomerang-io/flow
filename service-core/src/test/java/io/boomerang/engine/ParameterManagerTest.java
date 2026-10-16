@@ -17,6 +17,7 @@ import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
@@ -190,11 +191,15 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("GREETING", "$(params.greeting)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("#!/bin/sh\necho hello", task.getSpec().getScript());
-    assertEquals(List.of("run", "hello"), task.getSpec().getCommand());
-    assertEquals(List.of("--msg", "hello"), task.getSpec().getArguments());
-    assertEquals("hello", task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("#!/bin/sh\necho hello", spec.getScript());
+    assertEquals(List.of("run", "hello"), spec.getCommand());
+    assertEquals(List.of("--msg", "hello"), spec.getArguments());
+    assertEquals("hello", spec.getEnvs().get(0).getValue());
+    // The stored spec is untouched: admission resolves the params only.
+    assertEquals("#!/bin/sh\necho $(params.greeting)", task.getSpec().getScript());
+    assertEquals("$(params.greeting)", task.getSpec().getEnvs().get(0).getValue());
   }
 
   // The spec reads the params as resolved: $(params.p) gets p's value, even when p was written as a
@@ -209,10 +214,11 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("P", "$(params.p)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
     assertEquals("RV", task.getParams().get(0).getValue());
-    assertEquals("echo RV", task.getSpec().getScript());
-    assertEquals("RV", task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("echo RV", spec.getScript());
+    assertEquals("RV", spec.getEnvs().get(0).getValue());
   }
 
   // A result reached through a param is still a task's output: it reaches the spec as written, so
@@ -227,8 +233,9 @@ class ParameterManagerTest {
     task.getSpec().setScript("echo $(params.p)");
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("echo says $(workspace.params.w1)", task.getSpec().getScript());
+    assertEquals("echo says $(workspace.params.w1)", spec.getScript());
   }
 
   // A param written in terms of another still composes in the spec.
@@ -241,8 +248,27 @@ class ParameterManagerTest {
     task.getSpec().setScript("echo $(params.p)");
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("echo hi wv", task.getSpec().getScript());
+    assertEquals("echo hi wv", spec.getScript());
+  }
+
+  // A task param is frozen at admission; a workspace or global reference written straight into
+  // the spec is read when the spec is filled in, so an edit between the two shows (the accepted
+  // drift, decision 0114).
+  @Test
+  void fillSpecFreezesTaskParamsAndReadsScopedReferencesLive() {
+    workspaceStore.put("w1", "at-admission");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "$(workspace.params.w1)")));
+    task.getSpec().setScript("echo $(params.p) $(workspace.params.w1)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+    workspaceStore.put("w1", "at-claim");
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
+
+    assertEquals("echo at-admission at-claim", spec.getScript());
   }
 
   // Null spec fields survive substitution untouched; unresolved references stay verbatim.
@@ -254,10 +280,11 @@ class ParameterManagerTest {
     task.getSpec().setCommand(List.of("echo", "$(params.unknown)"));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals(null, task.getSpec().getScript());
-    assertEquals(null, task.getSpec().getArguments());
-    assertEquals(List.of("echo", "$(params.unknown)"), task.getSpec().getCommand());
+    assertEquals(null, spec.getScript());
+    assertEquals(null, spec.getArguments());
+    assertEquals(List.of("echo", "$(params.unknown)"), spec.getCommand());
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -502,9 +529,10 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("PROMPT", "$(params.prompt)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", task.getSpec().getScript());
-    assertEquals(prompt, task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", spec.getScript());
+    assertEquals(prompt, spec.getEnvs().get(0).getValue());
   }
 
   // ── layers read from their stores; values supplied or produced are inserted as written ─────────
