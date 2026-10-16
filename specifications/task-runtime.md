@@ -131,7 +131,7 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 So no secret value is ever written into a stored spec. At claim, `$(params.x)` reads the task's params as frozen at
 admission, so a requeued task gets the same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and
 `$(context.params.x)` read the run; `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec
-field are read from their stores, so an edit since admission, or across a requeue, shows (decision 0114).
+field are read from their stores, so an edit since admission, or across a requeue, shows (decision 0116).
 Admission has checked every reference (below), so the fill-in fails only for a workspace or global parameter
 deleted since; the task then ends `failed` with reason `SpecFillFailed` (`DispatcherService.java:396`). The
 termination order, the start and end answers and every consumer read carry the stored spec. The TaskRun's params

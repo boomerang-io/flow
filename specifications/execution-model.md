@@ -51,7 +51,7 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
 - The claim answer carries the task's spec filled in from its stored references (`ParameterManager.fillSpec`,
   called at `DispatcherService.java:338`); the stored spec keeps the references. Params are frozen at admission,
   so a requeued task is filled in with the same param values; a workspace or global reference written straight
-  into the spec is read at claim (decision 0114, `task-runtime.md`).
+  into the spec is read at claim (decision 0116, `task-runtime.md`).
 - A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:57-58`, `:166`, `:262`).
 
 ## Compare-and-set transitions instead of locks

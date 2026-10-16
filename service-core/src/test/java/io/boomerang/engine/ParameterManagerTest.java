@@ -265,7 +265,7 @@ class ParameterManagerTest {
 
   // A task param is frozen at admission; a workspace or global reference written straight into
   // the spec is read when the spec is filled in, so an edit between the two shows (the accepted
-  // drift, decision 0114).
+  // drift, decision 0116).
   @Test
   void fillSpecFreezesTaskParamsAndReadsScopedReferencesLive() {
     workspaceStore.put("w1", "at-admission");

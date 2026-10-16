@@ -1,4 +1,4 @@
-# 0114 — Secret values are encrypted at rest; spec references are filled in at claim
+# 0116 — Secret values are encrypted at rest; spec references are filled in at claim
 
 **Status:** accepted · **Date:** 2026-10-16
 

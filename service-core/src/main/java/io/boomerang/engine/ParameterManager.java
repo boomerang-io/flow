@@ -285,7 +285,7 @@ public class ParameterManager {
    * - $(tasks.t.results.r) reads the finished task runs; $(workflow.params.x) and
    *   $(context.params.x) read the run.
    * - $(workspace.params.x) and $(global.params.x) are read from their stores now, so an edit
-   *   made since admission shows here (decision 0114).
+   *   made since admission shows here (decision 0116).
    *
    * Admission has checked that every Flow reference names something declared, so one that does not
    * now - a workspace or global parameter deleted since - throws, and the claim ends the task
