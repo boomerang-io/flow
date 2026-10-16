@@ -496,8 +496,9 @@ public class WorkflowRunService {
   // name-join against BOTH type authorities filterSensitiveValues uses: the workflow revision's
   // param spec, and each task's own catalogue spec. Every task of the run is included, not just
   // the one being streamed - substitution can carry a sibling task's declared secret into this
-  // task's script, and a script that echoes either shows it in this log.
-  private Set<String> taskRunSensitiveValues(String workflowRunRef) {
+  // task's script, and a script that echoes either shows it in this log. Manual action
+  // instructions are scrubbed with the same values (ActionService).
+  Set<String> taskRunSensitiveValues(String workflowRunRef) {
     Set<String> secrets = new HashSet<>();
     workflowRunRepository
         .findById(workflowRunRef)
@@ -979,6 +980,8 @@ public class WorkflowRunService {
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
                 wfRunEntity.getParams(), optRunRequest.get().getParams()));
+        // The rule submit holds a merged request to: a secret is a string only.
+        WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
         // A request carrying a workspace overrides the run's; the dispatcher's start sends none.
         if (optRunRequest.get().getWorkspace() != null) {
           optRunRequest.get().getWorkspace().settle();
@@ -1147,6 +1150,7 @@ public class WorkflowRunService {
       // Overrides merge over the origin's own: a param replaces the one of that name, a label is
       // put over the one of that key.
       ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams());
+      WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
       wfRunEntity.getLabels().putAll(request.getLabels());
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
       // chained retries), trigger marks this run as a retry.

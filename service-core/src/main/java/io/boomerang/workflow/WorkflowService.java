@@ -265,21 +265,32 @@ public class WorkflowService {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
-    Workflow workflow = internalGet(team, name, version, withTasks);
+    Workflow workflow = get(workflowRef(team, name), version, withTasks).getBody();
 
-    // Filter out sensitive values
-    DataAdapterUtil.filterParamSpecValueByFieldType(
-        workflow.getParams(), FieldType.PASSWORD.value());
+    // Filter out sensitive values - before the slug conversion, while the task refs still resolve
+    filterSensitiveValues(List.of(workflow));
+
+    // Convert Workflow TaskRefs to Slugs
+    convertTaskRefsToSlugs(team, workflow);
 
     workflow.setId(null);
     return workflow;
   }
 
   /*
-   * This method is used by the compose methods but ensures the password values are not yet filtered.
+   * This method is used by the compose methods and duplicate, and ensures the password values are
+   * not filtered.
    */
   private Workflow internalGet(
       String team, String name, Optional<Integer> version, boolean withTasks) {
+    Workflow workflow = get(workflowRef(team, name), version, withTasks).getBody();
+
+    // Convert Workflow TaskRefs to Slugs
+    convertTaskRefsToSlugs(team, workflow);
+    return workflow;
+  }
+
+  private String workflowRef(String team, String name) {
     List<String> refs =
         relationshipService.filter(
             RelationshipType.WORKFLOW,
@@ -287,14 +298,46 @@ public class WorkflowService {
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(team)),
             false);
-    if (!refs.isEmpty()) {
-      Workflow workflow = get(refs.get(0), version, withTasks).getBody();
-
-      // Convert Workflow TaskRefs to Slugs
-      convertTaskRefsToSlugs(team, workflow);
-      return workflow;
+    if (refs.isEmpty()) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
-    throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    return refs.get(0);
+  }
+
+  /*
+   * Every read of a Workflow through the /api/v2 surface - get, query, export, and the create,
+   * apply and duplicate responses - hides its secrets: a password-typed workflow param's default
+   * is blanked, the convention the run form relies on (a blank leaves the stored default in place
+   * on a run), and a task node's value for a param its task declares as password reads as the
+   * redaction marker. The node's type is stamped from the task's spec here as well as at save, so
+   * a revision saved before stamping existed is hidden too; the specs are resolved in one batch for
+   * the whole page. The canvas reads (composeGet, composeApply) are deliberately not filtered.
+   * Must run while the task refs are still refs, before convertTaskRefsToSlugs.
+   */
+  private void filterSensitiveValues(List<Workflow> workflows) {
+    Set<TaskService.TaskRef> refs =
+        workflows.stream()
+            .filter(w -> w.getTasks() != null)
+            .flatMap(w -> w.getTasks().stream())
+            .filter(t -> t.getTaskRef() != null && t.getTaskVersion() != null)
+            .map(t -> new TaskService.TaskRef(t.getTaskRef(), t.getTaskVersion()))
+            .collect(Collectors.toSet());
+    Map<TaskService.TaskRef, TaskSpec> specs = taskService.getSpecs(refs);
+    for (Workflow workflow : workflows) {
+      DataAdapterUtil.filterParamSpecValueByFieldType(
+          workflow.getParams(), FieldType.PASSWORD.value());
+      if (workflow.getTasks() == null) {
+        continue;
+      }
+      for (WorkflowTask task : workflow.getTasks()) {
+        TaskSpec spec = specs.get(new TaskService.TaskRef(task.getTaskRef(), task.getTaskVersion()));
+        if (spec != null) {
+          ParameterUtil.stampSecretParams(task.getParams(), spec.getParams());
+        }
+        task.setParams(
+            DataAdapterUtil.filterRunParamValueByFieldType(task.getParams(), ParamType.secret));
+      }
+    }
   }
 
   /*
@@ -330,13 +373,12 @@ public class WorkflowService {
 
     LOGGER.debug("Workflow Response: {} workflows", response.getContent().size());
     if (!response.getContent().isEmpty()) {
+      // Filter out sensitive values
+      filterSensitiveValues(response.getContent());
       response
           .getContent()
           .forEach(
               w -> {
-                // Filter out sensitive values
-                DataAdapterUtil.filterParamSpecValueByFieldType(
-                    w.getParams(), FieldType.PASSWORD.value());
                 // Convert Workflow TaskRefs to Slugs
                 convertTaskRefsToSlugs(queryTeam, w);
                 w.setId(null);
@@ -380,6 +422,14 @@ public class WorkflowService {
    */
   //  @Audit(scope = PermissionScope.WORKFLOW)
   public Workflow create(String team, Workflow request) {
+    return create(team, request, true);
+  }
+
+  /*
+   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
+   * values as they are.
+   */
+  private Workflow create(String team, Workflow request, boolean filterTasks) {
     // Validate Access - same guard as TaskService.create: the caller must reach the workspace the
     // ownership edge below is written into. Guards every create-shaped route: create, apply and
     // composeApply (when the Workflow does not exist yet) and duplicate all funnel here.
@@ -442,8 +492,12 @@ public class WorkflowService {
     // TODO go through and ensure all the required ParamSpec elements are set
 
     // Filter out sensitive values
-    DataAdapterUtil.filterParamSpecValueByFieldType(
-        workflow.getParams(), FieldType.PASSWORD.value());
+    if (filterTasks) {
+      filterSensitiveValues(List.of(workflow));
+    } else {
+      DataAdapterUtil.filterParamSpecValueByFieldType(
+          workflow.getParams(), FieldType.PASSWORD.value());
+    }
 
     // Convert Workflow TaskRefs to Slugs
     convertTaskRefsToSlugs(team, workflow);
@@ -496,6 +550,14 @@ public class WorkflowService {
    * Workflow with supplied ID
    */
   public Workflow apply(String team, Workflow workflow, boolean replace) {
+    return apply(team, workflow, replace, true);
+  }
+
+  /*
+   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
+   * values as they are.
+   */
+  private Workflow apply(String team, Workflow workflow, boolean replace, boolean filterTasks) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
           relationshipService.filter(
@@ -528,8 +590,12 @@ public class WorkflowService {
         Workflow appliedWorkflow = apply(workflow, replace).getBody();
 
         // Filter out sensitive values
-        DataAdapterUtil.filterParamSpecValueByFieldType(
-            appliedWorkflow.getParams(), FieldType.PASSWORD.value());
+        if (filterTasks) {
+          filterSensitiveValues(List.of(appliedWorkflow));
+        } else {
+          DataAdapterUtil.filterParamSpecValueByFieldType(
+              appliedWorkflow.getParams(), FieldType.PASSWORD.value());
+        }
 
         // Convert Workflow TaskRefs(IDs) to Slugs
         convertTaskRefsToSlugs(team, appliedWorkflow);
@@ -540,7 +606,7 @@ public class WorkflowService {
     }
     if (workflow != null) {
       workflow.setId(null);
-      return this.create(team, workflow);
+      return this.create(team, workflow, filterTasks);
     }
     throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
@@ -791,8 +857,9 @@ public class WorkflowService {
    * Relationship checks are handled in the Get and Create methods
    */
   public Workflow duplicate(String team, String name) {
-    final Workflow response = this.get(team, name, Optional.empty(), true);
-    Workflow workflow = response;
+    // From the unfiltered read: a copy of the filtered one would carry the redaction marker in
+    // place of every secret, and the duplicate would lose them.
+    Workflow workflow = this.internalGet(team, name, Optional.empty(), true);
     workflow.setName(workflow.getName() + "-duplicate");
     workflow.setDisplayName(workflow.getDisplayName() + " (duplicate)");
     return this.create(team, workflow);
@@ -827,7 +894,7 @@ public class WorkflowService {
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
-    Workflow response = this.apply(team, workflow, replace);
+    Workflow response = this.apply(team, workflow, replace, false);
     return convertWorkflowToCanvas(response);
   }
 
@@ -1577,6 +1644,7 @@ public class WorkflowService {
     wfEntity.setTriggers(request.getTriggers());
 
     WorkflowRevisionEntity wfRevisionEntity = createWorkflowRevisionEntity(request, 1);
+    keepSecretValues(wfRevisionEntity, null);
     wfEntity = workflowRepository.save(wfEntity);
     request.setId(wfEntity.getId());
     wfRevisionEntity.setWorkflowRef(wfEntity.getId());
@@ -1671,6 +1739,48 @@ public class WorkflowService {
       }
     }
     return wfRevisionEntity;
+  }
+
+  /*
+   * The save-side partner of filterSensitiveValues: a client that read a Workflow and sends it
+   * back sends a blank for each password-typed workflow default and the redaction marker for each
+   * secret task-node value. Either keeps the stored value - the workflow param of the same name,
+   * and the node param of the same name on the node of the same name in the latest revision - so
+   * a read-edit-apply never wipes a secret. With nothing stored to keep (a new Workflow, or an
+   * import of an export into another one), a workflow default is saved blank and a marked node
+   * value is dropped from the node, so the task's own default applies on a run rather than the
+   * marker. Runs after createWorkflowRevisionEntity has stamped the node params secret.
+   */
+  private static void keepSecretValues(
+      WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
+    DataAdapterUtil.keepParamSpecValueByFieldType(
+        incoming.getParams(),
+        stored != null ? stored.getParams() : List.of(),
+        FieldType.PASSWORD.value());
+    if (incoming.getTasks() == null) {
+      return;
+    }
+    for (WorkflowTask task : incoming.getTasks()) {
+      if (task.getParams() == null) {
+        continue;
+      }
+      if (stored != null && stored.getTasks() != null) {
+        stored.getTasks().stream()
+            .filter(s -> s.getName() != null && s.getName().equals(task.getName()))
+            .findFirst()
+            .ifPresent(
+                s ->
+                    DataAdapterUtil.keepRunParamValueByFieldType(
+                        task.getParams(), s.getParams(), ParamType.secret));
+      }
+      task.setParams(
+          task.getParams().stream()
+              .filter(
+                  p ->
+                      !(ParamType.secret.equals(p.getType())
+                          && DataAdapterUtil.REDACTED.equals(p.getValue())))
+              .collect(Collectors.toCollection(LinkedList::new)));
+    }
   }
 
   /*
@@ -1879,6 +1989,7 @@ public class WorkflowService {
       version++;
     }
     newWorkflowRevisionEntity = createWorkflowRevisionEntity(workflow, version);
+    keepSecretValues(newWorkflowRevisionEntity, workflowRevisionEntity);
     if (replace) {
       newWorkflowRevisionEntity.setId(workflowRevisionEntity.getId());
     }
@@ -2017,9 +2128,10 @@ public class WorkflowService {
   /*
    * A secret is a string only: substitution, redaction and the container environment all treat
    * it as one. Checked on the merged params, so a declared secret and one sent as a secret on the
-   * request are held to the same rule. An absent value is allowed, as it is for any param.
+   * request are held to the same rule - here at submit, and on the start and retry requests
+   * (WorkflowRunService). An absent value is allowed, as it is for any param.
    */
-  private static void rejectNonStringSecrets(List<RunParam> params) {
+  static void rejectNonStringSecrets(List<RunParam> params) {
     if (params == null) {
       return;
     }
