@@ -232,12 +232,13 @@ a release ships the chain, changes are appended as new units.
 | `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections |
 | `_0015__SeedRoles` | all | Seeds the five roles |
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
-| `_0017__SeedTaskCatalogue` | all | Seeds the 88 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
+| `_0017__SeedTaskCatalogue` | all | Seeds the 90 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
 | `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates (by name and version) and the integration templates (by name) |
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
 | `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0106) |
+| `_0023__SeedAiTaskFamily` | all | Inserts `ai-prompt` and `ai-agent` from the seed files on a database seeded before they joined the catalogue; an empty database already has them from `_0017` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

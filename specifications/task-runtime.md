@@ -459,11 +459,21 @@ Kubernetes-only.
 
 ## AI tasks
 
-An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references the
-seeded `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher resolves the
-worker image from `flow.dispatcher.ai.image` because the catalogue entry declares none
-(`service-dispatcher/.../executor/TaskImageResolver.java:35-43`). Everything the model call needs is a declared
-param.
+An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references a
+seeded catalogue task of type `ai`, the engine treats it as any other dispatched type, and the dispatcher runs the
+worker image. The family is three catalogue tasks, all served by the `boomerangio/task-ai` image:
+
+| Task | Image and command | Params | Results |
+| --- | --- | --- | --- |
+| `ai` | None declared on the revision; the dispatcher substitutes `flow.dispatcher.ai.image` and the `prompt` command (`service-dispatcher/.../executor/TaskImageResolver.java:35-43`). The task-ai 1.1.0 contract, below, left as it is because downstream deployments pin it | The twelve below | Six: `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`, `model` |
+| `ai-prompt` | `boomerangio/task-ai:1.2.0`, `["prompt"]`, declared on the revision | The twelve below, with `endpoint` and `token` optional (the executor's defaults apply when absent), plus `messages` and `messagesFile` (an exact message array, inline or from the run workspace), `promptFile`, `parameters` (an open JSON map the request passes through, winning on conflict) and `outputFile` (the full reply written to the run workspace); 17 in all | The six plus `reasoningTokens`, `cachedPromptTokens` and `cost`, empty when the endpoint does not report them |
+| `ai-agent` | `boomerangio/task-ai:1.2.0`, `["agent"]`, declared on the revision | The 17 of `ai-prompt` plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls` and `toolResultReinforcement`; 26 in all | The nine plus `turns` and `toolCalls` |
+
+The `ai-prompt` and `ai-agent` entries in `seed/tasks.json` and `seed/task-revisions.json` are copies of the
+definition files in the `boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which
+are the source of their contract: a change there is one PR in that repository and a seed sync here. JSON-valued
+params are `json` text the image parses up front, failing `INVALID_PARAM` with the param's name. Everything the
+model call needs is a declared param; the `ai` revision declares these:
 
 | Param | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -514,11 +524,12 @@ can read the pod spec or exec into the pod can read the token.
 ## Task catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
-migrations seed 88 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
+migrations seed 90 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
 `task_revisions`, matched by name and inserting only what is absent
-(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:67-159`); the two artifact tasks
+(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
 follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
-after a release needs a change unit of its own to reach an existing database. A `template` or `script` task without
+after a release needs a change unit of its own to reach an existing database, which is what
+`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
