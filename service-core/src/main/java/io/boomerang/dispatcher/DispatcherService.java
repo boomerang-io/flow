@@ -335,7 +335,9 @@ public class DispatcherService {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
             TaskRun taskRun = new TaskRun(claimed);
-            taskRun.setSpec(fillSpec(claimed));
+            if (!fillSpec(claimed, taskRun)) {
+              continue;
+            }
             if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
               continue;
             }
@@ -372,15 +374,30 @@ public class DispatcherService {
   }
 
   /**
-   * The claimed task's spec with its references filled in. The stored spec keeps its references;
-   * only the copy handed to the dispatcher carries values. A termination order, and the start and
+   * Put the claimed task's spec, with its references filled in, on the run order. The stored spec
+   * keeps its references; only the copy handed to the dispatcher carries values. A termination order, and the start and
    * end answers, carry the stored spec, as nothing runs from them.
    */
-  private TaskRunSpec fillSpec(TaskRunEntity claimed) {
-    return workflowRunRepository
-        .findById(claimed.getWorkflowRunRef())
-        .map(run -> parameterManager.fillSpec(run, claimed))
-        .orElse(claimed.getSpec());
+  private boolean fillSpec(TaskRunEntity claimed, TaskRun taskRun) {
+    try {
+      TaskRunSpec filled =
+          workflowRunRepository
+              .findById(claimed.getWorkflowRunRef())
+              .map(run -> parameterManager.fillSpec(run, claimed))
+              .orElse(claimed.getSpec());
+      taskRun.setSpec(filled);
+      return true;
+    } catch (RuntimeException e) {
+      // Handing out the stored references would run the wrong script, and dropping the task would
+      // leave it claimed by a dispatcher that never heard of it: it ends failed with the reason.
+      LOGGER.error("[{}] The task's spec could not be filled in: {}", claimed.getId(), e.getMessage());
+      TaskRunEndRequest failed = new TaskRunEndRequest();
+      failed.setStatus(RunStatus.failed);
+      failed.setStatusReason("SpecFillFailed");
+      failed.setStatusMessage("The task's spec references could not be filled in at claim.");
+      taskRunService.end(claimed.getId(), Optional.of(failed));
+      return false;
+    }
   }
 
   /**

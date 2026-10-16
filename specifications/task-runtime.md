@@ -126,14 +126,15 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 | What | When | Stored |
 | --- | --- | --- |
 | The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:121`, `TaskExecutionService.java:205`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:224`, called from `dispatcher/DispatcherService.java:338,379`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:224`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. At claim, `$(params.x)` reads the task's params as frozen at
 admission, so a requeued task gets the same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and
 `$(context.params.x)` read the run; `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec
 field are read from their stores at claim, so an edit between admission and claim, or across a requeue, shows
 (decision 0114). Admission checks nothing about the spec's references - a reference that matches nothing is left
-as written at claim as before. The termination order, the start and end answers and every consumer read carry
+as written at claim as before. If the fill-in itself fails, the claimed task ends `failed` with reason
+`SpecFillFailed` rather than reaching the dispatcher with unfilled references. The termination order, the start and end answers and every consumer read carry
 the stored spec, with its references. The TaskRun's params are the
 task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
 A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
