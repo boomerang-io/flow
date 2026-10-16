@@ -659,18 +659,19 @@ class V3DumpMigrationTest {
     assertThat(names).as("task_templates dropped after migration").doesNotContain(prefixed("task_templates"));
 
     // 89 real v3 task_templates documents, all migrated (none dropped) - see
-    // _0006__V3MigrateTaskCatalogue's javadoc. _0017__SeedTaskCatalogue reconciles the 88-task
+    // _0006__V3MigrateTaskCatalogue's javadoc. _0017__SeedTaskCatalogue reconciles the 90-task
     // seed catalogue against them by name (all 87 legacy ones already present by legacy _id/name)
-    // and inserts exactly one new task, the v5-native ai entry; the install's own extra 2
-    // (Kubernetes CLI, Tysons Test Task) are untouched additions. _0018__SeedArtifactTasks then
-    // adds the upload-artifact and download-artifact tasks.
-    assertThat(collection("tasks").countDocuments()).isEqualTo(92);
+    // and inserts exactly three new tasks, the v5-native ai, ai-prompt and ai-agent entries; the
+    // install's own extra 2 (Kubernetes CLI, Tysons Test Task) are untouched additions.
+    // _0018__SeedArtifactTasks then adds the upload-artifact and download-artifact tasks, and
+    // _0023__SeedAiTaskFamily finds its two tasks already present.
+    assertThat(collection("tasks").countDocuments()).isEqualTo(94);
 
     // 131 real v3 revisions migrated 1:1, plus the additions _0017__SeedTaskCatalogue reconciles
     // (the seed catalogue's Manual Approval v2, absent from this install's own older snapshot,
-    // and the ai task's version 1) and the two artifact tasks' version 1
+    // and the ai, ai-prompt and ai-agent tasks' version 1) and the two artifact tasks' version 1
     // (_0018__SeedArtifactTasks).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(135);
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(137);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
@@ -1467,14 +1468,14 @@ class V3DumpMigrationTest {
 
     // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
     // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. The seeded ai,
-    // upload-artifact and download-artifact tasks, which no v3 install can hold, make 92 and are
-    // root-scoped the same way. ----
-    assertThat(collection("tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(92);
+    // ai-prompt, ai-agent, upload-artifact and download-artifact tasks, which no v3 install can
+    // hold, make 94 and are root-scoped the same way. ----
+    assertThat(collection("tasks").countDocuments()).isEqualTo(94);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(94);
     assertThat(
             collection("rel_edges")
                 .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(92);
+        .isEqualTo(94);
     assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "teamtask")))
         .as("v3 task_templates carries no team-scoping field at all")
         .isZero();
