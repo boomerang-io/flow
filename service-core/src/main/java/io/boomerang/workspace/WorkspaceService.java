@@ -313,10 +313,11 @@ public class WorkspaceService {
         workspaceEntity.setLabels(request.getLabels());
       }
 
-      // Set custom quotas
-      // Don't set default quotas as they can change over time and should be dynamic
-      Quotas quotas = new Quotas();
-      // Override quotas based on creation request
+      // Field-by-field merge onto the stored quotas: a quota the request does not carry keeps its
+      // value (absent = inherit the platform default, 0 = unlimited), so setting one quota never
+      // resets the others. Clearing one back to "inherit" is the quotas DELETE route.
+      Quotas quotas =
+          (workspaceEntity.getQuotas() != null) ? workspaceEntity.getQuotas() : new Quotas();
       setCustomQuotas(quotas, request.getQuotas());
       workspaceEntity.setQuotas(quotas);
 
