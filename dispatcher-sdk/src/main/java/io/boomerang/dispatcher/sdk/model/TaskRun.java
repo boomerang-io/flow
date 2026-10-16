@@ -43,6 +43,7 @@ public class TaskRun {
   private String workflowName;
   private String parentRef;
   private Integer index;
+  private String reusedFromRef;
 
   /** Whether this is an order to run the task. */
   @JsonIgnore
@@ -270,6 +271,18 @@ public class TaskRun {
 
   public void setIndex(Integer index) {
     this.index = index;
+  }
+
+  /**
+   * On a task run a scoped retry carried over instead of executing, the origin task run it stands
+   * for. Such a task run is never handed out to a dispatcher.
+   */
+  public String getReusedFromRef() {
+    return reusedFromRef;
+  }
+
+  public void setReusedFromRef(String reusedFromRef) {
+    this.reusedFromRef = reusedFromRef;
   }
 
   // Params are left out: a param may carry a password.

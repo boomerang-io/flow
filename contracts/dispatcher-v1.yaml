@@ -372,6 +372,19 @@ components:
           type: "string"
         accessMode:
           type: "string"
+    RetryFrom:
+      type: "object"
+      properties:
+        scope:
+          type: "string"
+          enum:
+          - "all"
+          - "failed"
+          - "nodes"
+        nodes:
+          type: "array"
+          items:
+            type: "string"
     RunResult:
       type: "object"
       properties:
@@ -490,6 +503,8 @@ components:
         index:
           type: "integer"
           format: "int32"
+        reusedFromRef:
+          type: "string"
     TaskRunSpec:
       type: "object"
       properties:
@@ -600,6 +615,8 @@ components:
           type: "string"
         initiatedByWorkflowRunRef:
           type: "string"
+        retryFrom:
+          $ref: "#/components/schemas/RetryFrom"
         results:
           type: "array"
           items:
