@@ -45,12 +45,17 @@ public record RunStatusSummary(
     Date startTime,
     long duration) {
 
-  // The full model leaves the platform, so its secret-typed params go out redacted. The filter
-  // copies the params, leaving the entity the model was copied from untouched.
+  // The full model leaves the platform, so its secret-typed params go out redacted, and their
+  // values are scrubbed from the free text it carries - results, status message, annotations and
+  // task spec - where a script that echoes a secret puts it under no param at all. The values are
+  // collected before the params are redacted. Every filter copies what it changes, leaving the
+  // entity the model was copied from untouched.
   public static Object project(WorkflowRun run, EventPayload payload) {
     if (EventPayload.full != payload) {
       return of(run);
     }
+    DataAdapterUtil.scrubWorkflowRunValues(
+        run, DataAdapterUtil.sensitiveValues(run, ParamType.secret));
     DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType.secret);
     return run;
   }
@@ -59,6 +64,8 @@ public record RunStatusSummary(
     if (EventPayload.full != payload) {
       return of(run);
     }
+    DataAdapterUtil.filterTaskRunValues(
+        run, DataAdapterUtil.sensitiveValues(run.getParams(), ParamType.secret));
     DataAdapterUtil.filterTaskRunValueByFieldType(run, ParamType.secret);
     return run;
   }

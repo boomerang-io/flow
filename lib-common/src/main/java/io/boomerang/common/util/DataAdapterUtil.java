@@ -4,14 +4,19 @@ import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowRun;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.BeanUtils;
 
 public class DataAdapterUtil {
 
@@ -19,7 +24,7 @@ public class DataAdapterUtil {
 
   // A resolved secret shorter than this is not value-scrubbed (scrubbing 1-3 character strings
   // would mangle unrelated text); the name-join blanking still hides it at the workflow level.
-  private static final int MIN_SCRUB_LENGTH = 4;
+  public static final int MIN_SCRUB_LENGTH = 4;
   public enum FieldType {
     PASSWORD("password");
 
@@ -98,13 +103,79 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Method for filtering sensitive data from Parameters based on AbstractConfig type (e.g. make
-   * null the value of any password type field)
-   *
-   * @param properties
-   * @param fieldType
-   * @return
+   * Redact by field type on a definition read (a catalogue task): returns a NEW list of copies in
+   * which each {@code fieldType} param's default and value, when set, read as {@code replacement}.
+   * An unset one stays unset, so a reader can tell "no default" from "a hidden default". Copies
+   * rather than mutates, because a model built with BeanUtils.copyProperties shares its spec with
+   * the entity it came from. The edit-side partner is {@link #keepParamSpecValueByFieldType}.
    */
+  public static List<AbstractParam> filterParamSpecValueByFieldType(
+      List<AbstractParam> params, String fieldType, String replacement) {
+    if (params == null || fieldType == null) {
+      return params;
+    }
+    return params.stream()
+        .map(
+            p -> {
+              if (!fieldType.equals(p.getType())) {
+                return p;
+              }
+              AbstractParam copy = new AbstractParam();
+              BeanUtils.copyProperties(p, copy);
+              copy.setDefaultValue(isUnset(p.getDefaultValue()) ? p.getDefaultValue() : replacement);
+              copy.setValue(isUnset(p.getValue()) ? p.getValue() : replacement);
+              return copy;
+            })
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * The edit-side partner of the field-type filters on a definition: a client that read a hidden
+   * default sends back {@link #REDACTED}, or a blank, for it. Each incoming {@code fieldType}
+   * param carrying either takes the stored default (and value) of the param with the same name,
+   * case-insensitively - the rule {@link #keepRunParamValueByFieldType} applies to run params. A
+   * {@link #REDACTED} left over, with nothing stored to keep, becomes blank: the marker is never
+   * saved as the secret.
+   */
+  public static void keepParamSpecValueByFieldType(
+      List<AbstractParam> incoming, List<AbstractParam> stored, String fieldType) {
+    if (incoming == null || fieldType == null) {
+      return;
+    }
+    incoming.stream()
+        .filter(p -> fieldType.equals(p.getType()) && p.getName() != null)
+        .forEach(
+            p -> {
+              Optional<AbstractParam> match =
+                  stored == null
+                      ? Optional.empty()
+                      : stored.stream()
+                          .filter(s -> p.getName().equalsIgnoreCase(s.getName()))
+                          .findFirst();
+              if (isMasked(p.getDefaultValue()) && match.isPresent()) {
+                p.setDefaultValue(match.get().getDefaultValue());
+              }
+              if (isMasked(p.getValue()) && match.isPresent()) {
+                p.setValue(match.get().getValue());
+              }
+              if (REDACTED.equals(p.getDefaultValue())) {
+                p.setDefaultValue("");
+              }
+              if (REDACTED.equals(p.getValue())) {
+                p.setValue("");
+              }
+            });
+  }
+
+  private static boolean isUnset(Object value) {
+    return value == null || (value instanceof String s && s.isBlank());
+  }
+
+  /** What a client sends back for a value it read hidden: nothing, a blank, or the marker. */
+  private static boolean isMasked(Object value) {
+    return isUnset(value) || REDACTED.equals(value);
+  }
+
   /**
    * The resolved values of the params whose SPEC type matches fieldType, joined by name
    * (case-insensitive, matching filterRunParamValueByFieldType). These are the strings that must
@@ -276,47 +347,76 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Scrub every occurrence of the given secret values from a WorkflowRun MODEL's results and from
-   * every task on it. Run-wide rather than per task: a secret declared on one task can be
-   * substituted into any other task's param, spec field or result. Mutates the model only.
+   * Scrub every occurrence of the given secret values from a WorkflowRun MODEL's results, status
+   * message and annotations, and from every task on it. Run-wide rather than per task: a secret
+   * declared on one task can be substituted into any other task's param, spec field or result.
+   * Each scrubbed list, map and result is a new object, so the entity a model was copied from with
+   * BeanUtils.copyProperties is left untouched.
    */
   public static void scrubWorkflowRunValues(WorkflowRun run, Set<String> secrets) {
     if (run == null || secrets == null || secrets.isEmpty()) {
       return;
     }
-    scrubResults(run.getResults(), secrets);
+    run.setResults(scrubResults(run.getResults(), secrets));
+    run.setStatusMessage(scrubString(run.getStatusMessage(), secrets));
+    run.setAnnotations(scrubAnnotations(run.getAnnotations(), secrets));
     if (run.getTasks() != null) {
       run.getTasks().forEach(task -> filterTaskRunValues(task, secrets));
     }
   }
 
   /**
-   * Scrub every occurrence of the given secret values from a TaskRun MODEL's params, results and
-   * spec (script/command/arguments/envs). Mutates the model only - never persist it.
+   * Scrub every occurrence of the given secret values from a TaskRun MODEL's params, results,
+   * status message, annotations and spec (script/command/arguments/envs). Each scrubbed part is a
+   * new object, so the entity the model was copied from is left untouched - never persist it.
    */
   public static void filterTaskRunValues(TaskRun task, Set<String> secrets) {
     if (task == null || secrets == null || secrets.isEmpty()) {
       return;
     }
     if (task.getParams() != null) {
-      task.getParams().forEach(p -> p.setValue(scrubValue(p.getValue(), secrets)));
+      task.setParams(
+          task.getParams().stream()
+              .map(p -> new RunParam(p.getName(), scrubValue(p.getValue(), secrets), p.getType()))
+              .collect(Collectors.toList()));
     }
-    scrubResults(task.getResults(), secrets);
+    task.setResults(scrubResults(task.getResults(), secrets));
+    task.setStatusMessage(scrubString(task.getStatusMessage(), secrets));
+    task.setAnnotations(scrubAnnotations(task.getAnnotations(), secrets));
     TaskRunSpec spec = task.getSpec();
     if (spec != null) {
-      spec.setScript(scrubString(spec.getScript(), secrets));
-      spec.setCommand(scrubStrings(spec.getCommand(), secrets));
-      spec.setArguments(scrubStrings(spec.getArguments(), secrets));
+      TaskRunSpec scrubbed = new TaskRunSpec();
+      BeanUtils.copyProperties(spec, scrubbed);
+      scrubbed.setScript(scrubString(spec.getScript(), secrets));
+      scrubbed.setCommand(scrubStrings(spec.getCommand(), secrets));
+      scrubbed.setArguments(scrubStrings(spec.getArguments(), secrets));
       if (spec.getEnvs() != null) {
-        spec.getEnvs().forEach(env -> env.setValue(scrubString(env.getValue(), secrets)));
+        scrubbed.setEnvs(
+            spec.getEnvs().stream()
+                .map(env -> new TaskEnvVar(env.getName(), scrubString(env.getValue(), secrets)))
+                .collect(Collectors.toList()));
       }
+      task.setSpec(scrubbed);
     }
   }
 
-  private static void scrubResults(List<RunResult> results, Set<String> secrets) {
-    if (results != null && secrets != null && !secrets.isEmpty()) {
-      results.forEach(r -> r.setValue(scrubValue(r.getValue(), secrets)));
+  private static List<RunResult> scrubResults(List<RunResult> results, Set<String> secrets) {
+    if (results == null || secrets == null || secrets.isEmpty()) {
+      return results;
     }
+    return results.stream()
+        .map(r -> new RunResult(r.getName(), r.getDescription(), scrubValue(r.getValue(), secrets)))
+        .collect(Collectors.toList());
+  }
+
+  private static Map<String, Object> scrubAnnotations(
+      Map<String, Object> annotations, Set<String> secrets) {
+    if (annotations == null) {
+      return null;
+    }
+    Map<String, Object> scrubbed = new HashMap<>();
+    annotations.forEach((key, value) -> scrubbed.put(key, scrubValue(value, secrets)));
+    return scrubbed;
   }
 
   private static Object scrubValue(Object value, Set<String> secrets) {
@@ -332,9 +432,13 @@ public class DataAdapterUtil {
     return scrubString(asString, secrets).equals(asString) ? value : REDACTED;
   }
 
-  private static String scrubString(String value, Set<String> secrets) {
-    if (value == null) {
-      return null;
+  /**
+   * Every occurrence of the given secret values in {@code value} replaced with {@link #REDACTED}:
+   * the value scrub the run reads apply to free text, for a caller holding one string.
+   */
+  public static String scrubString(String value, Set<String> secrets) {
+    if (value == null || secrets == null) {
+      return value;
     }
     String scrubbed = value;
     for (String secret : secrets) {
