@@ -11,6 +11,8 @@ public class RunParam {
 
   private String name;
   private Object value;
+  // Absent means string. A secret's value is in plain text here: keep it out of logs.
+  private ParamType type;
 
   public RunParam() {}
 
@@ -35,21 +37,30 @@ public class RunParam {
     this.value = value;
   }
 
+  public ParamType getType() {
+    return type;
+  }
+
+  public void setType(ParamType type) {
+    this.type = type;
+  }
+
   @Override
   public boolean equals(Object other) {
     return (other instanceof RunParam param)
         && Objects.equals(name, param.name)
-        && Objects.equals(value, param.value);
+        && Objects.equals(value, param.value)
+        && type == param.type;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(name, value);
+    return Objects.hash(name, value, type);
   }
 
   // The value is left out: a param may carry a password.
   @Override
   public String toString() {
-    return "RunParam[name=" + name + "]";
+    return "RunParam[name=" + name + ", type=" + type + "]";
   }
 }

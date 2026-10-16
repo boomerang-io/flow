@@ -112,6 +112,12 @@ Each claim is a compare-and-set on one document, so two dispatchers never receiv
 | `queued`, `ready` | Run it | MUST call start before running, and end when done |
 | `completed`, `cancelled` or `timedout` | Terminate it | MUST stop any runtime work it holds for that id, and MUST NOT call end |
 
+A run order carries the task's params already resolved, each with its `type`: absent means `string`, and
+`secret` marks a string whose value Flow never shows a consumer. The value is in plain text on the claim; a
+dispatcher MUST keep it out of its own logs and MAY deliver it exactly as a string (`task-runtime.md`,
+"Sensitive parameters"). The SDK reads an unknown type as `unknown`
+(`dispatcher-sdk/.../dispatcher/sdk/model/ParamType.java`).
+
 A terminate order also arrives for a task the engine has requeued while a dispatcher may still hold its work
 (`engine/TaskRunService.java:245-269`); it releases the claim, so the next attempt can be claimed. A dispatcher
 with nothing left to stop treats the order as done.
@@ -211,3 +217,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
 | `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0112) |
+| `type` on each `RunParam`, with `secret` | Additive (decision 0115) |

@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.util.DataAdapterUtil;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -131,5 +133,42 @@ class ParamRedactionTest {
     DataAdapterUtil.filterTaskRunValues(task, java.util.Set.of("ghp_secret42"));
 
     assertEquals(DataAdapterUtil.REDACTED, task.getParams().get(0).getValue());
+  }
+
+  // ── Redaction by type ──────────────────────────────────────────────────────
+
+  @Test
+  void aSecretTypedParamIsRedactedWithoutAnyDefinition() {
+    WorkflowRun run = new WorkflowRun();
+    RunParam secret = new RunParam("note", "private-note", ParamType.secret);
+    RunParam plain = new RunParam("greeting", "hello", ParamType.string);
+    List<RunParam> original = new java.util.LinkedList<>(List.of(secret, plain));
+    run.setParams(original);
+    TaskRun task = new TaskRun();
+    task.setParams(List.of(new RunParam("dsn", "postgres://app:pw@db", ParamType.secret)));
+    run.setTasks(List.of(task));
+
+    assertEquals(
+        java.util.Set.of("private-note", "postgres://app:pw@db"),
+        DataAdapterUtil.sensitiveValues(run, ParamType.secret));
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType.secret);
+
+    assertEquals(DataAdapterUtil.REDACTED, run.getParams().get(0).getValue());
+    assertEquals(ParamType.secret, run.getParams().get(0).getType());
+    assertEquals("hello", run.getParams().get(1).getValue());
+    assertEquals(DataAdapterUtil.REDACTED, task.getParams().get(0).getValue());
+    // A model copied with BeanUtils shares its list with the entity: the entity must keep its value.
+    assertEquals("private-note", secret.getValue(), "redaction copies, it never mutates in place");
+    assertEquals("private-note", original.get(0).getValue());
+  }
+
+  @Test
+  void anUntypedParamIsNotRedactedByType() {
+    TaskRun task = new TaskRun();
+    task.setParams(List.of(new RunParam("note", "plain-value")));
+
+    DataAdapterUtil.filterTaskRunValueByFieldType(task, ParamType.secret);
+
+    assertEquals("plain-value", task.getParams().get(0).getValue());
   }
 }

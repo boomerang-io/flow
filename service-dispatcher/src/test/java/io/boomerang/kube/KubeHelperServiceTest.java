@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.dispatcher.sdk.Dispatcher;
+import io.boomerang.dispatcher.sdk.model.ParamType;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.error.BoomerangException;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import java.util.List;
@@ -48,6 +50,31 @@ public class KubeHelperServiceTest {
         new ObjectMapper().writeValueAsString(Map.of("key", "value")),
         findEnv(envVars, "PARAM_OBJECT_PARAM").orElseThrow().getValue());
     assertEquals("", findEnv(envVars, "PARAM_NULL_PARAM").orElseThrow().getValue());
+  }
+
+  // The claim payload carries each param's type. A secret is read off the wire and reaches the
+  // container exactly as a string does: per-task Kubernetes Secret injection is not built yet.
+  @Test
+  public void testASecretParamOnTheClaimBecomesAPlainParamEnvVar() {
+    TaskRun claimed =
+        new ObjectMapper()
+            .readValue(
+                "{\"id\": \"tr-1\", \"params\": ["
+                    + "{\"name\": \"dbPassword\", \"value\": \"s3cr3t\", \"type\": \"secret\"},"
+                    + "{\"name\": \"host\", \"value\": \"db\", \"type\": \"string\"},"
+                    + "{\"name\": \"untyped\", \"value\": \"u\"}]}",
+                TaskRun.class);
+
+    assertEquals(ParamType.secret, claimed.getParams().get(0).getType());
+    assertEquals(ParamType.string, claimed.getParams().get(1).getType());
+    List<EnvVar> envVars =
+        helperKubeService.createTaskEnvVars(false, claimed.getParams(), List.of());
+
+    assertEquals("s3cr3t", findEnv(envVars, "PARAM_DBPASSWORD").orElseThrow().getValue());
+    assertEquals("db", findEnv(envVars, "PARAM_HOST").orElseThrow().getValue());
+    assertEquals("u", findEnv(envVars, "PARAM_UNTYPED").orElseThrow().getValue());
+    assertEquals(
+        "dbPassword,host,untyped", findEnv(envVars, "PARAM_NAMES").orElseThrow().getValue());
   }
 
   @Test

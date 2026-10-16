@@ -12,6 +12,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -22,10 +23,12 @@ import org.springframework.web.context.request.WebRequest;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.error.RestErrorResponse;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.validation.ParamName;
 import io.boomerang.common.validation.ResourceName;
 import io.boomerang.core.security.FlowAuthenticationException;
 import jakarta.validation.ConstraintViolation;
+import tools.jackson.databind.exc.InvalidFormatException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -86,6 +89,27 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
           new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "body"));
     }
     return handleBoomerangException(new BoomerangException(errorFor(first), first.getRejectedValue()));
+  }
+
+  /*
+   * A parameter type Jackson cannot read (say "type": "password" on a run request) answers in the
+   * platform shape as PARAM_INVALID_TYPE rather than silently becoming a string or failing with
+   * Spring's default body. Any other unreadable body keeps the framework's handling.
+   */
+  @Override
+  protected ResponseEntity<Object> handleHttpMessageNotReadable(
+      HttpMessageNotReadableException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+      if (cause instanceof InvalidFormatException invalid
+          && ParamType.class.equals(invalid.getTargetType())) {
+        return handleBoomerangException(
+            new BoomerangException(BoomerangError.PARAM_INVALID_TYPE, invalid.getValue()));
+      }
+    }
+    return super.handleHttpMessageNotReadable(ex, headers, status, request);
   }
 
   private static BoomerangError errorFor(FieldError fieldError) {

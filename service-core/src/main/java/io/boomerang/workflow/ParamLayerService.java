@@ -83,11 +83,11 @@ public class ParamLayerService {
     List<SettingConfig> features = features();
     // Set Global Params
     if (enabled(features, "globalParameters")) {
-      buildGlobalParams(globalParams);
+      buildGlobalParams(globalParams, new HashSet<>());
     }
     // Set Workspace Params
     if (enabled(features, "workspaceParameters")) {
-      buildWorkspaceParams(workspaceParams, teamId);
+      buildWorkspaceParams(workspaceParams, new HashSet<>(), teamId);
     }
     // Set the Keys from the Workflow - ignore values
     for (AbstractParam wfParam : workflow.getParams()) {
@@ -129,10 +129,11 @@ public class ParamLayerService {
     ParamLayers paramLayers = new ParamLayers();
     List<SettingConfig> features = features();
     if (enabled(features, "workspaceParameters")) {
-      buildWorkspaceParams(paramLayers.getWorkspaceParams(), workspace);
+      buildWorkspaceParams(
+          paramLayers.getWorkspaceParams(), paramLayers.getSecretWorkspaceParams(), workspace);
     }
     if (enabled(features, "globalParameters")) {
-      buildGlobalParams(paramLayers.getGlobalParams());
+      buildGlobalParams(paramLayers.getGlobalParams(), paramLayers.getSecretGlobalParams());
     }
     if (workflow != null) {
       buildContextParams(
@@ -181,6 +182,10 @@ public class ParamLayerService {
   // apply).
   private static final int MIN_SECURED_VALUE_LENGTH = 4;
 
+  private static boolean isPassword(AbstractParam param) {
+    return FieldType.PASSWORD.value().equals(param.getType());
+  }
+
   private static boolean isSecured(AbstractParam param) {
     return FieldType.PASSWORD.value().equals(param.getType())
         && param.getValue() != null
@@ -190,11 +195,14 @@ public class ParamLayerService {
   /*
    * Build up global Params layer - defaultValue is not used with Global Params and can be ignored.
    */
-  private void buildGlobalParams(Map<String, Object> globalParams) {
+  private void buildGlobalParams(Map<String, Object> globalParams, Set<String> secretNames) {
     List<AbstractParam> params = this.parameterService.getAllUnfiltered();
     for (AbstractParam param : params) {
       if (param.getValue() != null) {
         globalParams.put(param.getName(), param.getValue());
+        if (isPassword(param)) {
+          secretNames.add(param.getName());
+        }
       }
     }
   }
@@ -202,7 +210,8 @@ public class ParamLayerService {
   /*
    * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
-  private void buildWorkspaceParams(Map<String, Object> workspaceParams, String team) {
+  private void buildWorkspaceParams(
+      Map<String, Object> workspaceParams, Set<String> secretNames, String team) {
     // A missing workspace contributes no params rather than failing the whole layer build, and so
     // does a run with no workspace at all: the derived query refuses a null name outright.
     if (team == null || team.isBlank()) {
@@ -216,6 +225,9 @@ public class ParamLayerService {
     if (workspaceEntity.getParameters() != null && !workspaceEntity.getParameters().isEmpty()) {
       for (AbstractParam param : workspaceEntity.getParameters()) {
         workspaceParams.put(param.getName(), param.getValue());
+        if (isPassword(param)) {
+          secretNames.add(param.getName());
+        }
       }
     }
   }
