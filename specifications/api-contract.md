@@ -308,7 +308,7 @@ and a task whose template declares `item` or `index`; it refuses a task name end
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in
 the webapp's canvas type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name
-(`lib-common/.../util/DataAdapterUtil.java:217-218`). boomerang-io/flow#377 tracks unifying the two.
+(`lib-common/.../util/DataAdapterUtil.java:243-244`). boomerang-io/flow#377 tracks unifying the two.
 
 ## How the webapp calls the API
 

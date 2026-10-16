@@ -1,4 +1,5 @@
 package io.boomerang.engine;
+import io.boomerang.core.config.SecretValueMongoListener;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -35,11 +36,16 @@ public class WorkflowRunStateHelper {
 
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
+  // An Update never reaches the save hook, so the admission write seals secret values itself.
+  private final SecretValueMongoListener secretValues;
 
   public WorkflowRunStateHelper(
-      MongoTemplate mongoTemplate, ApplicationEventPublisher eventPublisher) {
+      MongoTemplate mongoTemplate,
+      ApplicationEventPublisher eventPublisher,
+      SecretValueMongoListener secretValues) {
     this.mongoTemplate = mongoTemplate;
     this.eventPublisher = eventPublisher;
+    this.secretValues = secretValues;
   }
 
   // Return the page of ready/pending unclaimed WorkflowRuns for an agent to provision, oldest
@@ -164,7 +170,7 @@ public class WorkflowRunStateHelper {
                 .is(RunStatus.notstarted)
                 .and("phase")
                 .is(RunPhase.pending));
-    Update update = new Update().set("status", RunStatus.ready).set("params", resolvedParams);
+    Update update = new Update().set("status", RunStatus.ready).set("params", secretValues.sealRunParams(resolvedParams));
     WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
     if (preImage != null) {
       publish(preImage, RunStatus.ready, preImage.getPhase());

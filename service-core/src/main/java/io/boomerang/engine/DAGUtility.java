@@ -330,34 +330,53 @@ public class DAGUtility {
    * arguments, shellScript), not a catalogue Task Spec - matched by name case-insensitively. A
    * blank or absent image leaves spec.image untouched so the dispatcher's NO_TASK_IMAGE guard
    * still fires; a blank or absent param otherwise leaves the catalogue spec value in place.
+   *
+   * A secret-typed one of these params is copied as its reference, $(params.<name>), never its
+   * value: the stored spec holds references only, and the value is filled in at claim. A secret
+   * command or arguments therefore arrives as one element, not split into lines.
    */
   private void applyCustomTaskSpecFromParams(TaskRunEntity taskRunEntity) {
-    String image = findParamValueByName(taskRunEntity.getParams(), "image");
-    if (image != null && !image.isBlank()) {
-      taskRunEntity.getSpec().setImage(image);
+    RunParam image = findParamByName(taskRunEntity.getParams(), "image");
+    if (hasValue(image)) {
+      taskRunEntity.getSpec().setImage(specValue(image));
     }
-    String command = findParamValueByName(taskRunEntity.getParams(), "command");
-    if (command != null && !command.isBlank()) {
-      taskRunEntity.getSpec().setCommand(splitParamLines(command));
+    RunParam command = findParamByName(taskRunEntity.getParams(), "command");
+    if (hasValue(command)) {
+      taskRunEntity.getSpec().setCommand(specLines(command));
     }
-    String arguments = findParamValueByName(taskRunEntity.getParams(), "arguments");
-    if (arguments != null && !arguments.isBlank()) {
-      taskRunEntity.getSpec().setArguments(splitParamLines(arguments));
+    RunParam arguments = findParamByName(taskRunEntity.getParams(), "arguments");
+    if (hasValue(arguments)) {
+      taskRunEntity.getSpec().setArguments(specLines(arguments));
     }
-    String shellScript = findParamValueByName(taskRunEntity.getParams(), "shellScript");
-    if (shellScript != null && !shellScript.isBlank()) {
-      taskRunEntity.getSpec().setScript(shellScript);
+    RunParam shellScript = findParamByName(taskRunEntity.getParams(), "shellScript");
+    if (hasValue(shellScript)) {
+      taskRunEntity.getSpec().setScript(specValue(shellScript));
     }
   }
 
-  private String findParamValueByName(List<RunParam> params, String name) {
+  private RunParam findParamByName(List<RunParam> params, String name) {
     return params.stream()
         .filter(p -> name.equalsIgnoreCase(p.getName()))
-        .map(RunParam::getValue)
-        .filter(Objects::nonNull)
-        .map(Object::toString)
+        .filter(p -> p.getValue() != null)
         .findFirst()
         .orElse(null);
+  }
+
+  private static boolean hasValue(RunParam param) {
+    return param != null && !param.getValue().toString().isBlank();
+  }
+
+  // The value copied into the spec: the param's own value, or for a secret its reference.
+  private static String specValue(RunParam param) {
+    return ParamType.secret.equals(param.getType())
+        ? "$(params." + param.getName() + ")"
+        : param.getValue().toString();
+  }
+
+  private List<String> specLines(RunParam param) {
+    return ParamType.secret.equals(param.getType())
+        ? List.of(specValue(param))
+        : splitParamLines(param.getValue().toString());
   }
 
   private List<String> splitParamLines(String value) {

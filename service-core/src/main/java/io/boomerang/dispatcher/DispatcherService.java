@@ -13,14 +13,17 @@ import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
+import io.boomerang.engine.ParameterManager;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
 import io.boomerang.engine.model.ClaimFilter;
+import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ArtifactService;
 import java.time.Instant;
 import java.util.Date;
@@ -67,6 +70,8 @@ public class DispatcherService {
   private final MongoTemplate mongoTemplate;
   private final ArtifactService artifactService;
   private final ClaimFilterService claimFilterService;
+  private final ParameterManager parameterManager;
+  private final WorkflowRunRepository workflowRunRepository;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
@@ -74,13 +79,17 @@ public class DispatcherService {
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate,
       ArtifactService artifactService,
-      ClaimFilterService claimFilterService) {
+      ClaimFilterService claimFilterService,
+      ParameterManager parameterManager,
+      WorkflowRunRepository workflowRunRepository) {
     this.agentRepository = agentRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
     this.artifactService = artifactService;
     this.claimFilterService = claimFilterService;
+    this.parameterManager = parameterManager;
+    this.workflowRunRepository = workflowRunRepository;
   }
 
   /**
@@ -326,6 +335,9 @@ public class DispatcherService {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
             TaskRun taskRun = new TaskRun(claimed);
+            if (!fillSpec(claimed, taskRun)) {
+              continue;
+            }
             if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
               continue;
             }
@@ -359,6 +371,33 @@ public class DispatcherService {
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Put the claimed task's spec, with its references filled in, on the run order. The stored spec
+   * keeps its references; only the copy handed to the dispatcher carries values. A termination order, and the start and
+   * end answers, carry the stored spec, as nothing runs from them.
+   */
+  private boolean fillSpec(TaskRunEntity claimed, TaskRun taskRun) {
+    try {
+      TaskRunSpec filled =
+          workflowRunRepository
+              .findById(claimed.getWorkflowRunRef())
+              .map(run -> parameterManager.fillSpec(run, claimed))
+              .orElse(claimed.getSpec());
+      taskRun.setSpec(filled);
+      return true;
+    } catch (RuntimeException e) {
+      // Handing out the stored references would run the wrong script, and dropping the task would
+      // leave it claimed by a dispatcher that never heard of it: it ends failed with the reason.
+      LOGGER.error("[{}] The task's spec could not be filled in: {}", claimed.getId(), e.getMessage());
+      TaskRunEndRequest failed = new TaskRunEndRequest();
+      failed.setStatus(RunStatus.failed);
+      failed.setStatusReason("SpecFillFailed");
+      failed.setStatusMessage("The task's spec references could not be filled in at claim.");
+      taskRunService.end(claimed.getId(), Optional.of(failed));
+      return false;
+    }
   }
 
   /**

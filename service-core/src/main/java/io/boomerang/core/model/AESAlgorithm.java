@@ -42,7 +42,11 @@ public final class AESAlgorithm {
     return null;
   }
 
-  private static TextEncryptor textEncryptorFor(String secret, String salt) {
+  /**
+   * The encryptor for one key, for a caller that encrypts many values: deriving the key is the
+   * costly part, so it is done once here rather than on every value. The encryptor is thread-safe.
+   */
+  public static TextEncryptor textEncryptorFor(String secret, String salt) {
     String hexSalt = new String(Hex.encode(salt.getBytes(StandardCharsets.UTF_8)));
     return Encryptors.delux(secret, hexSalt);
   }

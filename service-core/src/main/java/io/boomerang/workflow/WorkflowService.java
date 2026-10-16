@@ -1664,6 +1664,7 @@ public class WorkflowService {
         // Reject node params the Task Template does not declare
         validateDeclaredParams(wfTask, taskTemplate);
         validateForeach(wfTask, taskTemplate);
+        stampSecretParams(wfTask, taskTemplate);
       }
     }
     return wfRevisionEntity;
@@ -1727,6 +1728,15 @@ public class WorkflowService {
           wfTask.getName(),
           undeclaredNames.toString());
     }
+  }
+
+  /*
+   * A node param carries no type of its own; the Task Template declares it. A value given for a
+   * param the Template declares as `password` is stamped `secret`, so the stored revision
+   * recognises it as a secret and encrypts it at rest (SecretValueMongoListener).
+   */
+  private static void stampSecretParams(WorkflowTask wfTask, Task taskTemplate) {
+    ParameterUtil.stampSecretParams(wfTask.getParams(), taskTemplate.getSpec().getParams());
   }
 
   /*

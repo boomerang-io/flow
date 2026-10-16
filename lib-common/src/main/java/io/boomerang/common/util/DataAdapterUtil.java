@@ -187,6 +187,32 @@ public class DataAdapterUtil {
         .collect(Collectors.toList());
   }
 
+  /**
+   * The edit-side partner of {@link #filterRunParamValueByFieldType(List, ParamType)}: a client
+   * that read a masked secret sends back {@link #REDACTED}, or a blank, for it. Each incoming param
+   * of {@code paramType} carrying either takes the stored value of the param with the same name, so
+   * an edit to anything else never overwrites the secret - the rule global and workspace parameter
+   * edits follow for a blank value.
+   */
+  public static void keepRunParamValueByFieldType(
+      List<RunParam> incoming, List<RunParam> stored, ParamType paramType) {
+    if (incoming == null || stored == null || paramType == null) {
+      return;
+    }
+    incoming.stream()
+        .filter(p -> paramType.equals(p.getType()) && p.getName() != null)
+        .filter(
+            p ->
+                p.getValue() == null
+                    || (p.getValue() instanceof String s && (s.isBlank() || REDACTED.equals(s))))
+        .forEach(
+            p ->
+                stored.stream()
+                    .filter(s -> p.getName().equalsIgnoreCase(s.getName()))
+                    .findFirst()
+                    .ifPresent(s -> p.setValue(s.getValue())));
+  }
+
   /** {@link #filterRunParamValueByFieldType(List, ParamType)} on one TaskRun MODEL's params. */
   public static void filterTaskRunValueByFieldType(TaskRun task, ParamType paramType) {
     if (task != null) {

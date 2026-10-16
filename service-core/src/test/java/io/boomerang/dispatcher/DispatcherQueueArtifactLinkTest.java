@@ -57,7 +57,9 @@ class DispatcherQueueArtifactLinkTest {
           taskRunService,
           mock(MongoTemplate.class),
           artifactService,
-          new ClaimFilterService(mock(MongoTemplate.class)));
+          new ClaimFilterService(mock(MongoTemplate.class)),
+          mock(io.boomerang.engine.ParameterManager.class),
+          mock(io.boomerang.engine.repository.WorkflowRunRepository.class));
 
   @BeforeEach
   void setUp() {

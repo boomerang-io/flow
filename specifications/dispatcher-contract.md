@@ -112,7 +112,9 @@ Each claim is a compare-and-set on one document, so two dispatchers never receiv
 | `queued`, `ready` | Run it | MUST call start before running, and end when done |
 | `completed`, `cancelled` or `timedout` | Terminate it | MUST stop any runtime work it holds for that id, and MUST NOT call end |
 
-A run order carries the task's params already resolved, each with its `type`: absent means `string`, and
+A run order carries the task's spec with its references filled in by the engine at claim, so it arrives
+resolved as before (`dispatcher/DispatcherService.java:338`); the engine stores the spec with its references and
+fills in a copy for each claim. It carries the task's params already resolved, each with its `type`: absent means `string`, and
 `secret` marks a string whose value Flow never shows a consumer. The value is in plain text on the claim; a
 dispatcher MUST keep it out of its own logs and MAY deliver it exactly as a string (`task-runtime.md`,
 "Sensitive parameters"). The SDK reads an unknown type as `unknown`

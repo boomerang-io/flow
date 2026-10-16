@@ -91,6 +91,28 @@ Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` e
 (`workflow/tekton/TektonConverter.java:46-51`); `product`, `tier`, `*-ref`, `selector` are Kubernetes
 labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:276-434`).
 
+## Secret values at rest
+
+Secret parameter values are stored encrypted, as `crypt_v1{AESGCM|<ciphertext>}`, and read back as plaintext
+(`core/config/SecretValueMongoListener.java:91`; `task-runtime.md`, "Sensitive parameters"). No field is added;
+the stored value changes shape. A secret is recognised by the type stored beside its value:
+
+| Collection | Field | Secret when |
+| --- | --- | --- |
+| `parameters` (global) | `value` | `type == password` |
+| `workspaces` | `parameters[].value` | `type == password` |
+| `task_revisions` | `spec.params[].defaultValue` | `type == password` |
+| `workflow_revisions` | `params[].defaultValue` | `type == password` |
+| `workflow_revisions` | `tasks[].params[].value` | `type == secret`, stamped at save from the task's declared `password` param |
+| `workflow_schedules` | `params[].value` | `type == secret`, stamped at save from the workflow's declared `password` param |
+| `workflow_runs`, `task_runs` | `params[].value` | `type == secret` |
+
+A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled in
+on the claim payload only. Values stored before encryption load as they are and are encrypted on their next save;
+there is no migration. Not encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task
+`results`, and the `global-params`/`workspace-params` annotations that runs created before the layers were read
+from their stores still carry.
+
 ## Relationship graph schema
 `rel_nodes` and `rel_edges` are plain documents; the authorization reference describes the walk over them.
 | Collection | Document | Notes |
