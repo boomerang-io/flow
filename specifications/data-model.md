@@ -42,7 +42,9 @@ A workspace's five quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWor
 `maxConcurrentRuns`, `maxWorkflowRunDuration`; `workspace/model/Quotas.java`) each have three stored states: absent
 inherits the platform default from the `quotas` settings document when the workspace is read
 (`workspace/WorkspaceService.java` `setCustomQuotas`), `0` is unlimited (`Quotas.limited`, the one resolver every
-check calls), and a positive number is the limit. A stored `0` survives the merge as `0`. The v3 migration drops a v3
+check calls), and a positive number is the limit. A stored `0` survives the merge as `0`. A workspace patch merges
+quotas field by field onto what is stored (`WorkspaceService.java` `patch`), so a request that carries one quota leaves
+the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only way back to absent. The v3 migration drops a v3
 `0`, which v3 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java`
 `limitOrAbsent`); decision 0111.
 
