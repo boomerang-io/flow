@@ -21,7 +21,13 @@ import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.ResultSpec;
+import io.boomerang.common.model.TaskSpec;
+import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.workflow.ParamLayerService;
+import io.boomerang.workflow.TaskService;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +52,7 @@ class ParameterManagerTest {
   private TaskRunRepository taskRunRepository;
   private ParameterManager parameterManager;
   private ParamLayerService paramLayerService;
+  private TaskService taskService;
   // What the stores hold for this test: ParamLayerService returns fresh copies on every call, as
   // it reads them from their stores each time.
   private final Map<String, Object> globalStore = new HashMap<>();
@@ -59,6 +66,7 @@ class ParameterManagerTest {
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
     paramLayerService = mock(ParamLayerService.class);
+    taskService = mock(TaskService.class);
     when(paramLayerService.buildParamLayers(any(), any(), any()))
         .thenAnswer(
             invocation -> {
@@ -75,7 +83,8 @@ class ParameterManagerTest {
             mock(WorkflowRunRepository.class),
             taskRunRepository,
             new ObjectMapper(),
-            paramLayerService);
+            paramLayerService,
+            taskService);
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.
@@ -288,12 +297,13 @@ class ParameterManagerTest {
     assertEquals(List.of("echo", "$(date)"), spec.getCommand());
   }
 
-  // ── Flow references that do not resolve, reported for admission ──────────────────────────────
+  // ── Flow references: undeclared ones are reported for admission, declared ones without a value
+  // resolve to an empty string ──────────────────────────────────────────────────────────────────
 
-  // Each Flow reference that resolves to nothing is reported under its field; shell command
+  // Each Flow reference naming nothing declared is reported under its field with why; shell command
   // substitution is not a Flow reference and is never reported.
   @Test
-  void reportsUnresolvedFlowReferencesByFieldAndIgnoresShellSubstitution() {
+  void reportsUndeclaredFlowReferencesByFieldAndIgnoresShellSubstitution() {
     WorkflowRunEntity run = run();
     TaskRunEntity task = new TaskRunEntity();
     task.setName("deploy");
@@ -306,40 +316,89 @@ class ParameterManagerTest {
 
     assertEquals(
         Map.of(
-            "param 'url'", Set.of("$(workflow.params.hots)"),
-            "script", Set.of("$(params.registryTokn)"),
-            "env 'R'", Set.of("$(global.params.missing)")),
+            "param 'url'", Set.of("$(workflow.params.hots): no such workflow param 'hots'"),
+            "script", Set.of("$(params.registryTokn): no such param 'registryTokn'"),
+            "env 'R'", Set.of("$(global.params.missing): no such global param 'missing'")),
         unresolved);
     assertEquals(
-        "Task 'deploy': param 'url' references $(workflow.params.hots) which does not resolve;"
-            + " script references $(params.registryTokn) which does not resolve; env 'R' references"
-            + " $(global.params.missing) which does not resolve",
+        "Task 'deploy': param 'url' references $(workflow.params.hots): no such workflow param"
+            + " 'hots'; script references $(params.registryTokn): no such param 'registryTokn';"
+            + " env 'R' references $(global.params.missing): no such global param 'missing'",
         ParameterManager.unresolvedMessage("deploy", unresolved));
   }
 
-  // An object path whose param exists but whose path does not, and a result path that matches
-  // nothing, do not resolve. A declared param holding no value is not a typo and is not reported.
+  // Declared but without a value is an empty string: an optional param, an object path that matches
+  // nothing on a declared object, a result path that matches nothing. An object path on an
+  // undeclared param is reported.
   @Test
-  void reportsMissingObjectAndResultPathsButNotADeclaredEmptyParam() {
+  void aDeclaredReferenceWithoutAValueIsAnEmptyString() {
     stubTask("t1", new RunResult("r1", Map.of("field", "fv")));
     WorkflowRunEntity run = run();
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(
         List.of(
             object("cfg", Map.of("region", "eu")),
-            new RunParam("optional", null, ParamType.array),
+            new RunParam("optional", null, ParamType.string),
             str("ok", "$(params.cfg.region) $(tasks.t1.results.r1.field)"),
-            str("bad", "$(params.cfg.zone) $(tasks.t1.results.r1.nope) $(params.optional)")));
+            str("empty", "[$(params.cfg.zone)][$(tasks.t1.results.r1.nope)][$(params.optional)]"),
+            str("bad", "$(params.nocfg.zone)")));
 
     Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
 
     assertEquals(
-        Map.of("param 'bad'", Set.of("$(params.cfg.zone)", "$(tasks.t1.results.r1.nope)")),
-        unresolved);
+        Map.of("param 'bad'", Set.of("$(params.nocfg.zone): no such param 'nocfg'")), unresolved);
     assertEquals("eu fv", taskValue(task, "ok"));
+    assertEquals("[][][]", taskValue(task, "empty"));
+    assertEquals("$(params.nocfg.zone)", taskValue(task, "bad"));
   }
 
-  // A run's own params are not checked: a reference that matches nothing is left as written.
+  // $(tasks.t.results.r) is declared when t is a task in the run's workflow revision and r is a
+  // result its catalogue task declares; a task that declares none may be asked for any result. A
+  // skipped task's declared result is an empty string.
+  @Test
+  void aTaskResultIsCheckedAgainstTheRevisionAndTheDeclaredResults() {
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setTasks(
+        List.of(node("build-a", "builder"), node("build-b", "builder"), node("say", "echoer")));
+    when(paramLayerService.getRevision("rev1")).thenReturn(revision);
+    TaskSpec builder = new TaskSpec();
+    ResultSpec url = new ResultSpec();
+    url.setName("url");
+    builder.setResults(List.of(url));
+    when(taskService.getSpecs(any()))
+        .thenAnswer(
+            invocation -> {
+              Set<TaskService.TaskRef> refs = invocation.getArgument(0);
+              Map<TaskService.TaskRef, TaskSpec> specs = new HashMap<>();
+              refs.forEach(r -> specs.put(r, "builder".equals(r.ref()) ? builder : new TaskSpec()));
+              return specs;
+            });
+    stubTaskRun("build-a", "builder", RunStatus.succeeded, new RunResult("url", "https://a"));
+    stubTaskRun("build-b", "builder", RunStatus.skipped, new RunResult("url", null));
+    stubTaskRun("say", "echoer", RunStatus.succeeded, new RunResult("anything", "said"));
+    WorkflowRunEntity run = run();
+    run.setWorkflowRevisionRef("rev1");
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("join", "[$(tasks.build-a.results.url)][$(tasks.build-b.results.url)]"),
+            str("free", "[$(tasks.say.results.anything)][$(tasks.say.results.other)]"),
+            str("bad", "$(tasks.biuld-a.results.url) $(tasks.build-a.results.uri)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of(
+            "param 'bad'",
+            Set.of(
+                "$(tasks.biuld-a.results.url): task 'biuld-a' is not in this workflow",
+                "$(tasks.build-a.results.uri): task 'build-a' declares no result 'uri'")),
+        unresolved);
+    assertEquals("[https://a][]", taskValue(task, "join"));
+    assertEquals("[said][]", taskValue(task, "free"));
+  }
+
+  // A run's own params are not checked: a reference naming nothing declared is left as written.
   @Test
   void aWorkflowRunParamIsNotChecked() {
     WorkflowRunEntity run = run(str("ref", "$(params.nothing)"));
@@ -362,7 +421,7 @@ class ParameterManagerTest {
     IllegalStateException e =
         assertThrows(IllegalStateException.class, () -> parameterManager.fillSpec(run, task));
     assertEquals(
-        "Task 'deploy': script references $(global.params.g1) which does not resolve",
+        "Task 'deploy': script references $(global.params.g1): no such global param 'g1'",
         e.getMessage());
   }
 
@@ -898,6 +957,27 @@ class ParameterManagerTest {
     task.setResults(List.of(result));
     when(taskRunRepository.findFirstByNameAndWorkflowRunRef(eq(name), eq(WF)))
         .thenReturn(Optional.of(task));
+  }
+
+  private void stubTaskRun(String name, String taskRef, RunStatus status, RunResult result) {
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName(name);
+    task.setType(TaskType.template);
+    task.setTaskRef(taskRef);
+    task.setTaskVersion(1);
+    task.setStatus(status);
+    task.setResults(List.of(result));
+    when(taskRunRepository.findFirstByNameAndWorkflowRunRef(eq(name), eq(WF)))
+        .thenReturn(Optional.of(task));
+  }
+
+  private static WorkflowTask node(String name, String taskRef) {
+    WorkflowTask node = new WorkflowTask();
+    node.setName(name);
+    node.setType(TaskType.template);
+    node.setTaskRef(taskRef);
+    node.setTaskVersion(1);
+    return node;
   }
 
   private WorkflowRunEntity run(RunParam... params) {
