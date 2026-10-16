@@ -1,4 +1,4 @@
-# 0113 — A secret is a parameter type
+# 0115 — A secret is a parameter type
 
 **Status:** accepted · **Date:** 2026-10-16
 

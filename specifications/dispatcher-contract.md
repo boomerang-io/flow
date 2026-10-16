@@ -217,4 +217,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `type`, `task` and `workflowLabel` task-poll filters; termination orders follow them | Additive (flow#502) |
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
 | `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0112) |
-| `type` on each `RunParam`, with `secret` | Additive (decision 0113) |
+| `type` on each `RunParam`, with `secret` | Additive (decision 0115) |

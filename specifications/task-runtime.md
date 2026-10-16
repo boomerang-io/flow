@@ -340,7 +340,7 @@ showing it.
 
 Downward, the dispatcher reads `type` (`dispatcher-sdk/.../model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
 and builds `PARAM_<NAME>` for a secret exactly as for a string. There is no encryption at rest and no
-per-task Kubernetes Secret yet; see decision 0113.
+per-task Kubernetes Secret yet; see decision 0115.
 
 ## Volumes and workspaces
 
