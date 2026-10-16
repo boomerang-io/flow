@@ -8,6 +8,7 @@ import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.PodStart;
 import tools.jackson.databind.ObjectMapper;
 import io.fabric8.kubernetes.api.model.Affinity;
+import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerState;
 import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
@@ -17,10 +18,12 @@ import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodAffinityTerm;
 import io.fabric8.kubernetes.api.model.PodAntiAffinity;
+import io.fabric8.kubernetes.api.model.PodSpec;
 import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Toleration;
 import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -479,6 +482,85 @@ public class KubeHelperService {
         .findFirst()
         .map(this::reasonFromContainerState)
         .orElse(null);
+  }
+
+  // The log tail carried on a failed Task's status message; the whole log is uploaded separately.
+  static final int FAILURE_LOG_TAIL_LINES = 20;
+  static final int FAILURE_LOG_TAIL_MAX_BYTES = 4096;
+
+  /**
+   * Describe how the Task's own container failed, for the status message: its exit code and
+   * termination reason, then the last lines of its log. Best effort: a pod that is gone or a log
+   * that cannot be read leaves out that part, and nothing readable returns null.
+   */
+  public String failureDetail(KubernetesClient client, Map<String, String> taskLabels) {
+    Pod pod;
+    try {
+      pod = client.pods().withLabels(taskLabels).list().getItems().stream().findFirst().orElse(null);
+    } catch (RuntimeException e) {
+      return null;
+    }
+    if (pod == null) {
+      return null;
+    }
+    StringBuilder detail = new StringBuilder();
+    Optional.ofNullable(pod.getStatus())
+        .map(PodStatus::getContainerStatuses)
+        .orElse(List.of())
+        .stream()
+        .filter(cs -> isTaskContainer(cs.getName()))
+        .map(ContainerStatus::getState)
+        .filter(Objects::nonNull)
+        .map(ContainerState::getTerminated)
+        .filter(Objects::nonNull)
+        .findFirst()
+        .ifPresent(
+            terminated -> {
+              detail.append("exit code ").append(terminated.getExitCode());
+              if (terminated.getReason() != null) {
+                detail.append(" (").append(terminated.getReason()).append(')');
+              }
+            });
+    String tail = logTail(client, pod);
+    if (tail != null) {
+      if (detail.length() > 0) {
+        detail.append('\n');
+      }
+      detail.append(tail);
+    }
+    return (detail.length() > 0) ? detail.toString() : null;
+  }
+
+  private String logTail(KubernetesClient client, Pod pod) {
+    try {
+      String container =
+          Optional.ofNullable(pod.getSpec())
+              .map(PodSpec::getContainers)
+              .orElse(List.of())
+              .stream()
+              .map(Container::getName)
+              .filter(KubeHelperService::isTaskContainer)
+              .findFirst()
+              .orElse(null);
+      PodResource resource =
+          client
+              .pods()
+              .inNamespace(pod.getMetadata().getNamespace())
+              .withName(pod.getMetadata().getName());
+      String log =
+          (container != null)
+              ? resource.inContainer(container).tailingLines(FAILURE_LOG_TAIL_LINES).getLog()
+              : resource.tailingLines(FAILURE_LOG_TAIL_LINES).getLog();
+      if (log == null || log.isBlank()) {
+        return null;
+      }
+      String trimmed = log.strip();
+      return (trimmed.length() > FAILURE_LOG_TAIL_MAX_BYTES)
+          ? trimmed.substring(trimmed.length() - FAILURE_LOG_TAIL_MAX_BYTES)
+          : trimmed;
+    } catch (RuntimeException e) {
+      return null;
+    }
   }
 
   // The Jobs executor names the container "task"; Tekton prefixes each step's container "step-".

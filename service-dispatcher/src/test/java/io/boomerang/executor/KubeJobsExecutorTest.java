@@ -35,6 +35,7 @@ import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
 import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
+import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -447,6 +448,7 @@ class KubeJobsExecutorRuntimeClassNamePropertyTest {
 class KubeJobsExecutorReconcileTest {
 
   KubernetesClient client;
+  KubernetesMockServer server;
 
   @Autowired private KubeServiceImpl kubeService;
 
@@ -624,6 +626,78 @@ class KubeJobsExecutorReconcileTest {
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("OOMKilled", ex.getStatusReason());
+  }
+
+  /*
+   * A failed Task's status message carries the container's own account of the failure - the Job
+   * condition first, then the exit code and termination reason, then the tail of the task
+   * container's log - so nobody has to fetch the pod log to learn why it failed.
+   */
+  @Test
+  public void testFailedTaskMessageCarriesExitCodeAndLogTail() throws Exception {
+    TaskRun task = task("taskrun-failure-detail");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setExitCode(1);
+    terminated.setReason("Error");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Container taskContainer = new Container();
+    taskContainer.setName("task");
+    taskContainer.setImage("busybox");
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withName("failure-detail-pod")
+            .withLabels(taskLabels)
+            .endMetadata()
+            .withNewSpec()
+            .withContainers(taskContainer)
+            .endSpec()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+    server
+        .expect()
+        .get()
+        .withPath(
+            "/api/v1/namespaces/"
+                + createdPod.getMetadata().getNamespace()
+                + "/pods/failure-detail-pod/log?pretty=false&container=task&tailLines=20")
+        .andReturn(200, "loading model\nerror: no model configured\n")
+        .always();
+
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    failed.setMessage("Job has reached the specified backoff limit");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+    assertEquals(
+        "BackoffLimitExceeded - Job has reached the specified backoff limit\n"
+            + "exit code 1 (Error)\n"
+            + "loading model\nerror: no model configured",
+        ex.getMessage());
   }
 
   /*
