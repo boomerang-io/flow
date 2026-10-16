@@ -53,6 +53,25 @@ public class TaskImageResolver {
   @Value("${flow.dispatcher.ai.token:}")
   private String aiToken;
 
+  @Value("${flow.dispatcher.ai.image-prefixes:boomerangio/task-ai}")
+  private List<String> aiImagePrefixes;
+
+  /**
+   * Whether an {@code ai} revision may declare this image: it starts with one of
+   * {@code flow.dispatcher.ai.image-prefixes}, compared on the string as declared, so a prefix of
+   * {@code boomerangio/task-ai} admits every tag and digest of that image and nothing else. The
+   * dispatcher refuses an {@code ai} task outside the prefixes before it runs, which keeps a
+   * dispatcher registered for {@code ai} the egress zone for the Boomerang worker alone unless an
+   * operator adds another prefix.
+   */
+  public boolean allowedAiImage(String image) {
+    return StringUtils.hasText(image)
+        && aiImagePrefixes != null
+        && aiImagePrefixes.stream()
+            .map(String::trim)
+            .anyMatch(prefix -> !prefix.isEmpty() && image.startsWith(prefix));
+  }
+
   /**
    * The task-defined environment, which for an {@code ai} task starts with the dispatcher's
    * credential defaults: {@code OPENAI_BASE_URL} from {@code flow.dispatcher.ai.endpoint} and

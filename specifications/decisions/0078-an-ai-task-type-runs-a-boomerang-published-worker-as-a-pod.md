@@ -4,10 +4,9 @@
 
 ## Context
 
-Calling a language model is now an ordinary step in an automation, but Flow had no way to express one: an
-author had to build and publish a container that held an API token, parsed a prompt and wrote results. The
-call itself is the same everywhere — an OpenAI-compatible endpoint, a model, a prompt, a token — so the work
-is declaring it, not packaging it. The question was where the call runs.
+Calling a language model is now an ordinary step in an automation, but Flow had no way to express one: an author
+had to build and publish a container that held an API token, parsed a prompt and wrote results. The call is the
+same everywhere (endpoint, model, prompt, token), so the work is declaring it, not packaging it: where does it run?
 
 ## Options
 
@@ -22,11 +21,12 @@ is declaring it, not packaging it. The question was where the call runs.
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
 (`engine/TaskExecutionService.java:243,373`); the dispatcher runs the image and command an `ai` revision declares,
 and `flow.dispatcher.ai.image` for one that declares none, the seeded `ai` task
-(`service-dispatcher/.../executor/TaskImageResolver.java:79-96`) — `boomerangio/task-ai` either way, released
+(`service-dispatcher/.../executor/TaskImageResolver.java:98-115`) — `boomerangio/task-ai` either way, released
 from `boomerang-io/tasks`, not a product image (decision 0006 stands). Two things
 decided it: untrusted prompt content must not be parsed in the same process that holds the dispatcher's engine
 credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress zone — one deployment, one
-network policy, no new concept (decision 0042).
+network policy, no new concept (decision 0042). The zone holds because a declared image must be under an allowed
+prefix (`flow.dispatcher.ai.image-prefixes`, default the Boomerang worker); any other is refused at dispatch.
 
 ## Consequences
 

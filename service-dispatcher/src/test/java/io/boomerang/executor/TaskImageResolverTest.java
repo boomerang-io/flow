@@ -1,7 +1,9 @@
 package io.boomerang.executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.TaskType;
@@ -29,6 +31,8 @@ class TaskImageResolverTest {
     TaskImageResolver resolver = new TaskImageResolver();
     ReflectionTestUtils.setField(resolver, "aiImage", AI_IMAGE);
     ReflectionTestUtils.setField(resolver, "artifactImage", ARTIFACT_IMAGE);
+    // The property's default prefix, as Spring would bind it.
+    ReflectionTestUtils.setField(resolver, "aiImagePrefixes", List.of("boomerangio/task-ai"));
     return resolver;
   }
 
@@ -133,6 +137,28 @@ class TaskImageResolverTest {
     // The resolver under test carries the properties' defaults: both blank.
     assertEquals(List.of(), resolver.environment(task(TaskType.ai, new TaskRunSpec())));
     assertEquals(List.of(), resolver.environment(task(TaskType.ai, null)));
+  }
+
+  @Test
+  void anAiImageIsAllowedOnlyUnderAConfiguredPrefix() {
+    // The resolver under test carries the property's default prefix, boomerangio/task-ai.
+    assertTrue(resolver.allowedAiImage("boomerangio/task-ai:2.0.0"));
+    assertTrue(resolver.allowedAiImage("boomerangio/task-ai@sha256:0123abcd"));
+    assertFalse(resolver.allowedAiImage("evil:latest"));
+    assertFalse(resolver.allowedAiImage("boomerangio/task-flow:3.2.1"));
+    assertFalse(resolver.allowedAiImage(""));
+    assertFalse(resolver.allowedAiImage(null));
+  }
+
+  @Test
+  void anOperatorsOwnPrefixAdmitsItsImages() {
+    TaskImageResolver configured = resolver();
+    ReflectionTestUtils.setField(
+        configured, "aiImagePrefixes", List.of("boomerangio/task-ai", " registry.example.com/ai/ "));
+
+    assertTrue(configured.allowedAiImage("registry.example.com/ai/agent:1.0"));
+    assertTrue(configured.allowedAiImage("boomerangio/task-ai:2.0.0"));
+    assertFalse(configured.allowedAiImage("registry.example.com/other:1.0"));
   }
 
   @Test

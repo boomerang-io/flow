@@ -463,8 +463,13 @@ An `ai` task calls an OpenAI-compatible endpoint. The author never builds a cont
 `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher runs the image and
 command the task's revision declares, exactly as declared (a revision with an image and no command runs the
 image's own entrypoint). The seeded `ai` task declares none, so the dispatcher falls back to the worker image
-`flow.dispatcher.ai.image` with its `prompt` command (`service-dispatcher/.../executor/TaskImageResolver.java:79-96`).
-An `ai` task never runs a script. Everything the model call needs is a declared param.
+`flow.dispatcher.ai.image` with its `prompt` command (`service-dispatcher/.../executor/TaskImageResolver.java:98-115`).
+A declared image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
+`boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
+`ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
+property (`TaskImageResolver.allowedAiImage` `:67-73`, `dispatcher/TaskService.java:123-135`), so a dispatcher
+registered for `ai` stays the egress zone for the worker alone unless an operator adds a prefix. An `ai` task never
+runs a script. Everything the model call needs is a declared param.
 
 | Param | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -503,7 +508,7 @@ catalogue revision in this repository — a param or result added on one side ha
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
-each only when set, ahead of the task's own environment (`TaskImageResolver.java:64-75`); the task's own `endpoint`
+each only when set, ahead of the task's own environment (`TaskImageResolver.java:83-95`); the task's own `endpoint`
 and `token` params still arrive as `PARAM_ENDPOINT` and `PARAM_TOKEN` and win inside the image.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
