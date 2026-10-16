@@ -43,6 +43,10 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +55,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.ResponseEntity;
 
 /**
  * Secret parameter values are encrypted at rest and plain in memory, and a task run's stored spec
@@ -278,7 +283,7 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
     TaskRun claimed = claim(agent, slug, taskRunId);
     String script = claimed.getSpec().getScript();
     assertEquals(
-        "login node-token-0001\nregion region-at-claim\nmissing $(params.restNoSuchParam)\n", script);
+        "login node-token-0001\nregion region-at-claim\nhost $(cat /etc/hostname)\n", script);
     assertEquals("node-token-0001", runParam(claimed.getParams(), "registryToken").getValue());
     // Claiming fills in a copy: the stored spec still holds the references.
     assertTrue(
@@ -340,18 +345,71 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
     assertEquals("canvas-token-01", nodeValue(latest, "work", "registryToken"));
   }
 
+  // Admission guarantees every reference resolves; a global deleted between admission and claim
+  // is the one way a reference can fail at claim, and the claim then ends the task failed.
+  @Test
+  void aGlobalDeletedBetweenAdmissionAndClaimFailsTheClaim() {
+    String slug = scriptTask("rest-gone-task", "region $(global.params.restGone)\n").getName();
+    parameterService.create(declared("restGone", "text", null, "here-at-admission"));
+    Workflow workflow = new Workflow();
+    workflow.setName("rest-gone-workflow");
+    workflow.setTasks(
+        List.of(
+            node("start", TaskType.start, null, null),
+            node("work", TaskType.generic, slug, "start"),
+            node("end", TaskType.end, null, "work")));
+    workflowService.create(SYSTEM, workflow);
+    String wfRunId =
+        workflowService.submit(SYSTEM, "rest-gone-workflow", new WorkflowSubmitRequest(), false).getId();
+    workflowRunService.start(wfRunId, Optional.empty());
+    awaitAdmitted(wfRunId);
+    String taskRunId = taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId).orElseThrow().getId();
+
+    parameterService.delete("restGone");
+    String agent =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest("rest-gone-zone", "rest-gone-zone.local", List.of("generic")));
+    // Nothing is handed out, so the long poll would hold for its whole window: run it aside and
+    // interrupt it once the task has ended.
+    ExecutorService poller = Executors.newSingleThreadExecutor();
+    try {
+      Future<ResponseEntity<List<TaskRun>>> poll =
+          poller.submit(() -> dispatcherService.getTaskQueue(agent, 20, "generic", slug, null));
+      awaitEngine("the claim to fail the task")
+          .untilAsserted(
+              () -> {
+                TaskRunEntity after = taskRunRepository.findById(taskRunId).orElseThrow();
+                assertEquals(RunStatus.failed, after.getStatus());
+                assertEquals("SpecFillFailed", after.getStatusReason());
+              });
+      poller.shutdownNow();
+      List<TaskRun> handedOut = poll.get(5, TimeUnit.SECONDS).getBody();
+      assertTrue(
+          handedOut == null || handedOut.stream().noneMatch(t -> taskRunId.equals(t.getId())),
+          "a task whose spec cannot be filled in is not handed out");
+    } catch (Exception e) {
+      throw new AssertionError(e);
+    } finally {
+      poller.shutdownNow();
+    }
+  }
+
   // ── helpers ─────────────────────────────────────────────────────────────────────────────────
 
   // A generic catalogue task whose password param reaches the script by reference, beside a
-  // direct global reference and a reference that resolves to nothing.
+  // direct global reference and shell command substitution, which stays text.
   private Task secretTask(String name) {
+    return scriptTask(
+        name,
+        "login $(params.registryToken)\nregion $(global.params.restRegion)\nhost $(cat /etc/hostname)\n");
+  }
+
+  private Task scriptTask(String name, String script) {
     Task task = new Task();
     task.setName(name);
     task.setType(TaskType.generic);
     task.getSpec().setImage("busybox:latest");
-    task.getSpec()
-        .setScript(
-            "login $(params.registryToken)\nregion $(global.params.restRegion)\nmissing $(params.restNoSuchParam)\n");
+    task.getSpec().setScript(script);
     task.getSpec()
         .setParams(new LinkedList<>(List.of(declared("registryToken", "password", "template-default-1", null))));
     return taskService.createGlobal(task);

@@ -360,6 +360,15 @@ public class TaskRunService {
   // would make it claimable. Returns the pre-image, or null when another caller already
   // admitted/started the TaskRun - the loser performs no side effects.
   public TaskRunEntity tryInvalidate(String id, String statusMessage) {
+    return tryReject(id, RunStatus.invalid, null, statusMessage);
+  }
+
+  // Rejection Compare-And-Set, the general form of tryInvalidate: a notstarted/pending TaskRun
+  // takes the given terminal status, typed reason (when given) and message, so end() can complete
+  // it. Admission uses it with failed/ParamUnresolved when a reference does not resolve. Returns
+  // the pre-image, or null when another caller already admitted/started the TaskRun.
+  public TaskRunEntity tryReject(
+      String id, RunStatus status, String statusReason, String statusMessage) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -368,11 +377,13 @@ public class TaskRunService {
                 .is(RunStatus.notstarted)
                 .and("phase")
                 .is(RunPhase.pending));
-    Update update =
-        new Update().set("status", RunStatus.invalid).set("statusMessage", statusMessage);
+    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
+    if (statusReason != null) {
+      update.set("statusReason", statusReason);
+    }
     TaskRunEntity preImage = findAndModifyPreImage(query, update);
     if (preImage != null) {
-      publish(preImage, RunStatus.invalid, preImage.getPhase());
+      publish(preImage, status, preImage.getPhase());
     }
     return preImage;
   }

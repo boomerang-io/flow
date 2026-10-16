@@ -125,37 +125,35 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 
 | What | When | Stored |
 | --- | --- | --- |
-| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:121`, `TaskExecutionService.java:205`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:224`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:128`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:278`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. At claim, `$(params.x)` reads the task's params as frozen at
 admission, so a requeued task gets the same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and
 `$(context.params.x)` read the run; `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec
-field are read from their stores at claim, so an edit between admission and claim, or across a requeue, shows
-(decision 0114). Admission checks nothing about the spec's references - a reference that matches nothing is left
-as written at claim as before. If the fill-in itself fails, the claimed task ends `failed` with reason
-`SpecFillFailed` rather than reaching the dispatcher with unfilled references. The termination order, the start and end answers and every consumer read carry
-the stored spec, with its references. The TaskRun's params are the
-task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
-A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
-and `shellScript` — rather than from the catalogue entry, which declares no image
-(`DAGUtility.java:338`). A secret-typed one of these is copied as its reference `$(params.<name>)`, so it is
-filled in at claim; a secret `command` or `arguments` arrives as one element, not split into lines (`:370`).
+field are read from their stores, so an edit since admission, or across a requeue, shows (decision 0114).
+Admission has checked every reference (below), so the fill-in fails only for a workspace or global parameter
+deleted since; the task then ends `failed` with reason `SpecFillFailed` (`DispatcherService.java:396`). The
+termination order, the start and end answers and every consumer read carry the stored spec. The TaskRun's params
+are the task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
+A `custom` task takes its runtime from its own params - `image`, `command` and `arguments` (newline-split) and
+`shellScript` - not from the catalogue entry, which declares no image (`DAGUtility.java:338`). A secret-typed one
+is copied as its reference `$(params.<name>)`, filled in at claim, so a secret `command` or `arguments` arrives as
+one element (`:370`).
 
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
-from their stores each time it resolves (`engine/ParameterManager.java:238`, through
-`workflow/ParamLayerService.java:108`): at run start for the run's own params (`engine/WorkflowExecutionService.java:71`),
-at each task's admission for the task's params (`TaskExecutionService.java:205`), and at its claim for the
-spec (a for-each task's
-items at fan-out, `:605`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
-workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the
-revision it runs, so a version saved mid-run does not change it. The layers and the revision are served from a
-per-instance cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it
-off), so the tasks admitted together share one read of each store. A global or workspace parameter edited while
-a run is in progress reaches the tasks admitted after the edit: at once on the instance that took the edit, which
-clears its cache, and within the TTL on the others. Each task run keeps the param values it was admitted with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
-`context-params`; reads strip those keys (`workflow/WorkflowRunService.java:1153`) and a child run does not inherit
-them (`workflow/WorkflowService.java:708`).
+from their stores each time it resolves (`engine/ParameterManager.java:501`, through
+`workflow/ParamLayerService.java:108`): at run start for the run's params (`engine/WorkflowExecutionService.java:71`),
+at each task's admission (`TaskExecutionService.java:209`), at its claim for the spec, and for a for-each task's
+items at fan-out (`:620`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
+workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the revision
+it runs, so a version saved mid-run does not change it. The layers and the revision are served from a per-instance
+cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks
+admitted together share one read of each store. A global or workspace parameter edited mid-run reaches the tasks
+admitted after the edit: at once on the instance that took the edit, which clears its cache, and within the TTL on
+the others. Each task run keeps the param values it was admitted with. Runs created before this carried the values
+in `boomerang.io/global-params`, `workspace-params` and `context-params`; reads strip those keys
+(`workflow/WorkflowRunService.java:1153`) and a child run does not inherit them (`workflow/WorkflowService.java:708`).
 
 Parameter references, by where the value comes from (`engine/ParameterManager.java`, `common/model/ParamLayers.java`):
 
@@ -168,36 +166,38 @@ Parameter references, by where the value comes from (`engine/ParameterManager.ja
 | `$(context.params.x)` | Run context (`workflowrun-*` keys) |
 | `$(tasks.t.results.r)` | A result of task `t` |
 
-Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$`
-characters are inserted verbatim: a multi-line prompt, a JSON body, a shell script or a task result with a
-trailing newline reaches the container byte for byte
-(`ParameterManager.replaceStringInObject`). A reference that matches nothing is left as written. Substitution
-also runs over the values it inserts, so configuration composes - a workspace value containing
-`$(global.params.x)` resolves - with three exceptions, whose values are inserted as written (their `$(` escaped,
-`ParameterManager.java:321,359`):
+Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$` are
+inserted verbatim: a multi-line prompt, a JSON body or a result with a trailing newline reaches the container byte
+for byte (`ParameterManager.replaceStringInObject`). It also runs over the values it inserts, so configuration
+composes - a workspace value containing `$(global.params.x)` resolves - except for three kinds of value, inserted
+as written with their `$(` escaped (`ParameterManager.java:575,638`):
 
 | Inserted as written | Why |
 | --- | --- |
 | A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
-| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:77`, `:287`). Such a param is also kept as it arrived at run start (`:130`). On a manual, scheduled or API-submitted run every value resolves |
-| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:224`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
+| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:80`, `:541`). Such a param is also kept as it arrived at run start (`:148`). On a manual, scheduled or API-submitted run every value resolves |
+| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:278`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
 
 `$(params.x)` reads the nearest layer, so a task that defines `x` itself resolves its own value even when the run's
-`x` was supplied. A whole-value reference returns the referenced structure untouched. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
-(`{"k":"v"}`), matching how the dispatcher encodes a non-string param value.
+`x` was supplied. A replacement that is not a string, interpolated **into** a larger string, is written as JSON
+(`{"k":"v"}`), as the dispatcher encodes a non-string param value.
+
+A Flow reference - a `$(…)` whose body starts with `params.`, a scope above plus `.params.`, or
+`tasks.<name>.results.` - must resolve. Admission checks each one written in the task's params and in its
+`script`, `command`, `arguments` and env values (`ParameterManager.java:128`); one that resolves to nothing - an
+unknown name, an object or result path that matches nothing, a result the task did not produce - fails the task
+before it is claimable, `failed` with reason `ParamUnresolved` and a message naming the task, field and reference:
+`Task 'deploy': script references $(params.registryTokn) which does not resolve` (`TaskExecutionService.java:209`).
+A parameter declared without a value is not counted. Any other `$(…)`, such as `$(date)` or `$(cat file)`, is shell
+command substitution and stays text. Reference text inside a value inserted as written is not scanned, and a
+run's own params are not checked: an unmatched reference there is left as written.
 
 An `object`-typed param resolves to the referenced structure itself only when its value is **exactly one
-reference and nothing else** — `"$(params.config)"`, ignoring surrounding whitespace
-(`ParameterManager.isSingleReference`). Any other `object` value keeps its shape: the engine walks the Map,
-Collection or array, substitutes the string leaves and the string keys in place, and leaves numbers and
-booleans untouched, so `{"url": "$(params.host)/api", "retries": 3}` resolves to
-`{"url": "https://example.com/api", "retries": 3}`. References are discovered over the value's flattened
-text, so a reference nested in any leaf is still found; substitution then walks the real structure. A leaf
-that is itself a whole reference to an object follows the interpolation rule above and is written as JSON.
-
-If substitution fails for any reason — a value that resolves to itself, say — the original value is passed
-through unchanged and the failure is logged with the value's shape, never its content, because a
-password-typed param resolves through the same path.
+reference** - `"$(params.config)"`, ignoring surrounding whitespace (`ParameterManager.isSingleReference`). Any
+other `object` value keeps its shape: the string leaves and keys are substituted in place, so
+`{"url": "$(params.host)/api", "retries": 3}` becomes `{"url": "https://example.com/api", "retries": 3}`, and a leaf
+that is a whole reference to an object is written as JSON. If substitution fails - a value that resolves to itself,
+say - the value is passed through unchanged and the failure is logged with its shape, never its content.
 
 The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
 

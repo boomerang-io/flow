@@ -28,5 +28,6 @@ E, with database-level encryption of the typed values. A Spring Data Mongo hook 
   - detecting a change at claim through the parameter's modified time;
   - versioning global and workspace parameters and recording the version in the reference (`$(global.params.x@3)`);
   - a per-run snapshot of the layers.
+- Every Flow reference must resolve at admission (`ParamUnresolved` otherwise), so the claim's fill-in fails only for a workspace or global parameter deleted between the two, which ends the task `failed` with `SpecFillFailed`.
 - Existing plaintext values stay plaintext until their next save; there is no migration.
 - Workflow templates, task results and the parameter annotations on old runs are not encrypted.

@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -271,20 +272,98 @@ class ParameterManagerTest {
     assertEquals("echo at-admission at-claim", spec.getScript());
   }
 
-  // Null spec fields survive substitution untouched; unresolved references stay verbatim.
+  // Null spec fields survive substitution untouched; shell command substitution stays text.
   @Test
   void resolvesSpecFieldsNullSafeAndPassthrough() {
     WorkflowRunEntity run = run();
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(List.of());
-    task.getSpec().setCommand(List.of("echo", "$(params.unknown)"));
+    task.getSpec().setCommand(List.of("echo", "$(date)"));
 
-    parameterManager.resolveParamLayers(run, Optional.of(task));
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.of(task)));
     TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
     assertEquals(null, spec.getScript());
     assertEquals(null, spec.getArguments());
-    assertEquals(List.of("echo", "$(params.unknown)"), spec.getCommand());
+    assertEquals(List.of("echo", "$(date)"), spec.getCommand());
+  }
+
+  // ── Flow references that do not resolve, reported for admission ──────────────────────────────
+
+  // Each Flow reference that resolves to nothing is reported under its field; shell command
+  // substitution is not a Flow reference and is never reported.
+  @Test
+  void reportsUnresolvedFlowReferencesByFieldAndIgnoresShellSubstitution() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName("deploy");
+    task.setParams(List.of(str("registryToken", "t"), str("url", "$(workflow.params.hots)/api")));
+    task.getSpec().setScript("login $(params.registryTokn) $(date) $(cat /etc/hostname)");
+    task.getSpec().setArguments(List.of("$(params.registryToken)", "$(git rev-parse HEAD)"));
+    task.getSpec().setEnvs(List.of(new TaskEnvVar("R", "$(global.params.missing)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of(
+            "param 'url'", Set.of("$(workflow.params.hots)"),
+            "script", Set.of("$(params.registryTokn)"),
+            "env 'R'", Set.of("$(global.params.missing)")),
+        unresolved);
+    assertEquals(
+        "Task 'deploy': param 'url' references $(workflow.params.hots) which does not resolve;"
+            + " script references $(params.registryTokn) which does not resolve; env 'R' references"
+            + " $(global.params.missing) which does not resolve",
+        ParameterManager.unresolvedMessage("deploy", unresolved));
+  }
+
+  // An object path whose param exists but whose path does not, and a result path that matches
+  // nothing, do not resolve. A declared param holding no value is not a typo and is not reported.
+  @Test
+  void reportsMissingObjectAndResultPathsButNotADeclaredEmptyParam() {
+    stubTask("t1", new RunResult("r1", Map.of("field", "fv")));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            object("cfg", Map.of("region", "eu")),
+            new RunParam("optional", null, ParamType.array),
+            str("ok", "$(params.cfg.region) $(tasks.t1.results.r1.field)"),
+            str("bad", "$(params.cfg.zone) $(tasks.t1.results.r1.nope) $(params.optional)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of("param 'bad'", Set.of("$(params.cfg.zone)", "$(tasks.t1.results.r1.nope)")),
+        unresolved);
+    assertEquals("eu fv", taskValue(task, "ok"));
+  }
+
+  // A run's own params are not checked: a reference that matches nothing is left as written.
+  @Test
+  void aWorkflowRunParamIsNotChecked() {
+    WorkflowRunEntity run = run(str("ref", "$(params.nothing)"));
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.empty()));
+    assertEquals("$(params.nothing)", resolved(run, "ref"));
+  }
+
+  // Admission checked the spec; a global deleted before the claim fails the fill-in, naming it.
+  @Test
+  void fillSpecThrowsWhenAReferenceNoLongerResolves() {
+    globalStore.put("g1", "here");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName("deploy");
+    task.setParams(List.of());
+    task.getSpec().setScript("echo $(global.params.g1)");
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.of(task)));
+
+    globalStore.remove("g1");
+    IllegalStateException e =
+        assertThrows(IllegalStateException.class, () -> parameterManager.fillSpec(run, task));
+    assertEquals(
+        "Task 'deploy': script references $(global.params.g1) which does not resolve",
+        e.getMessage());
   }
 
   // ---------------------------------------------------------------------------------------------
