@@ -131,8 +131,9 @@ escape, so a single-architecture image simply fails to pull on the other.
 
 Task images are not product images and are not on this list: the catalogue images and the `ai` worker
 (`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
-lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher.ai.image` (see
-`task-runtime.md`). One product tag still builds every product image (decision 0006).
+lines, and the dispatcher runs the `ai` image a revision declares (under an allowed prefix) or, for the seeded `ai`
+task that declares none, `flow.dispatcher.ai.image` (see `task-runtime.md`). One product tag still builds every
+product image (decision 0006).
 
 The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets its
 version from the same tag and deploys it to this repository's GitHub Packages Maven registry

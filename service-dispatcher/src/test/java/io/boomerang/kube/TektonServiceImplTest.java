@@ -226,11 +226,9 @@ public class TektonServiceImplTest {
             new RunParam("prompt", "Summarise the run")));
     task.setResults(List.of());
     task.setWorkspace(null);
-    // The spec an `ai` TaskRun actually carries: empty. An image or command that somehow reached
-    // it must not be able to redirect the AI worker at another container.
+    // The spec the seeded `ai` TaskRun carries: no image and no command, so the dispatcher's
+    // configured worker runs with the `prompt` command.
     TaskRunSpec spec = new TaskRunSpec();
-    spec.setImage("evil:latest");
-    spec.setCommand(List.of("sh", "-c", "id"));
     spec.setDebug(false);
     task.setSpec(spec);
 
