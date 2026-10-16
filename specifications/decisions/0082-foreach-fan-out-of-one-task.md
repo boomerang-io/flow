@@ -34,3 +34,5 @@ change.
 - `[` and `]` are reserved in task names so an item can never collide with another task.
 - Not built: batching, a failure-tolerance rule, a per-task parallel limit, rerunning only failed items, and a
   multi-task body (option B). Reopen with real workflows that need them.
+- The webapp's "For each" palette item is only a way in: it creates an ordinary task with the setting on, the task's
+  Configure tab stores the same key, and nothing records which path made it (`design-system.md`, "Palette entry points").

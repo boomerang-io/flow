@@ -10,7 +10,7 @@ description: Keep specifications/ true after a change. ALWAYS use after changing
 | Kind | Where | You do |
 | --- | --- | --- |
 | Reference — how a subsystem works today | `specifications/<subsystem>.md` | Rewrite the sentences that are no longer true. Never append "as of <date>" notes or history; the doc describes the present. Keep it under 400 lines (aim 150–250). |
-| Decision — why a choice was made | `specifications/decisions/NNNN-<title>.md` | Add a new record from `TEMPLATE.md`; add its row to `decisions/README.md`. Never edit an accepted record except to set `Status: superseded by NNNN`. |
+| Decision — why a choice was made | `specifications/decisions/NNNN-<title>.md` | Add a new record from `TEMPLATE.md`; add its row to `decisions/README.md`. Until the first 5.0.0 release ships, rewrite a record in place when the code it cites moves, and delete one a later record absorbs; after it, never edit an accepted record except to set `Status: superseded by NNNN`. |
 
 ## After a change, in this order
 

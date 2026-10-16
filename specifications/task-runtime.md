@@ -419,8 +419,9 @@ param.
 `step` beside `options` (`lib-common/.../model/AbstractParam.java`).
 
 The task declares six results — `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`,
-`model` — as flat typed results on the TaskRun under the same 4 KB cap as every other task (decision 0041). A
-long `output` therefore fails the run with `RESULTS_TOO_LARGE` rather than truncating. There is no usage field
+`model` — as flat typed results on the TaskRun under the same results caps as every other task (decision 0041:
+the 1 MB engine guard, and 4 KB on the Kubernetes dispatcher). A long `output` therefore fails the run with
+`RESULTS_TOO_LARGE` rather than truncating. There is no usage field
 and no meter: a platform sums `totalTokens` across task runs through the existing query API.
 
 **Worker image.** The worker is a task image, not a product image. It is built and released from the

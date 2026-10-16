@@ -105,7 +105,7 @@ it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fe
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget, in
 minutes, is the smallest of three ceilings — the platform setting stamped as the run's `boomerang.io/task-timeout`
 annotation, the task's own declared timeout, and the run's timeout — with 0 at any step meaning unguarded
-(`engine/DAGUtility.java:196-222`). The run is a ceiling because of decision 0063: a guard must cover the work
+(`engine/DAGUtility.java:196-222`). The run is a ceiling because of decision 0014: a guard must cover the work
 beneath it, so a task can never outlive the run containing it. By default a task simply inherits its run's
 timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
 (`workflow/WorkflowService.java:654-668`), and the per-task ceiling is an optional operator control for capping a

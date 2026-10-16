@@ -6,7 +6,7 @@
 
 A task whose pod died while the dispatcher's Kubernetes watch was closed, or whose dispatcher thread died,
 was recovered only when its `timeoutAt` elapsed — sixty minutes by default — because `claim.leaseExpiresAt`
-was declared and indexed but never written (decision 0018). Every comparable execution tier studied in
+was declared and indexed but never written. Every comparable execution tier studied in
 `competitive-analysis.md` renews a lock separate from the job timeout and detects a dead worker within a minute.
 
 ## Options
@@ -21,7 +21,7 @@ was declared and indexed but never written (decision 0018). Every comparable exe
 
 Option C. Each executor thread stamps `LeaseRegistry` before its first wait and on every reconcile pass
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java`, `watch`); `LeaseHeartbeat` sends
-`PUT /api/v1/dispatcher/{id}/heartbeat {ids}` every `flow.dispatcher.lease.beat-ms` (30 s); the engine renews
+`PUT /dispatcher/v1/{id}/heartbeat {ids}` every `flow.dispatcher.lease.beat-ms` (30 s); the engine renews
 `claim.leaseExpiresAt` for the ids the caller still owns in one `updateMulti`
 (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `renewLeases`) with
 `flow.dispatcher.lease-ms` (90 s); the `reapExpiredLeases` sweep requeues or abandons a lapsed claim with

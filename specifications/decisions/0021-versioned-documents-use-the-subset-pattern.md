@@ -1,6 +1,6 @@
 # 0021 — Versioned documents use the subset pattern (parent plus revision documents)
 
-**Status:** accepted · **Date:** 2023-08-14
+**Status:** accepted · **Date:** 2026-08-14
 
 ## Context
 
@@ -19,14 +19,15 @@ separate revisions collection. Both leaked the storage shape into the user-facin
 ## Decision
 
 Option C. `WorkflowEntity` → `workflows` plus `WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` →
-`workflow_revisions` (`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:24-38`);
+`workflow_revisions` (`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:24-35`);
 `TaskEntity` → `tasks` plus `TaskRevisionEntity{parentRef, version, spec, …}` → `task_revisions`
 (`TaskRevisionEntity.java:23-34`). The domain services perform the join
-(`service-core/src/main/java/io/boomerang/workflow/TaskService.java:57-60`). A new version is always a new child
+(`service-core/src/main/java/io/boomerang/workflow/TaskService.java:647-656`). A new version is always a new child
 insert, so the parent is never rewritten for it and per-version queries stay small.
 
 ## Consequences
 
-- Versions are pageable and indexable on `(parent, version)`; the loader creates those indexes (`_0033__DefinitionIndexes`).
+- Versions are pageable and indexable on `(parent, version)`; the index inventory creates
+  `workflow_ref_version` and `parent_ref_version` (`service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:97-108`).
 - Every read of a definition is two lookups; deleting a parent MUST also delete its revisions.
 - `workflow_templates` is the one collection still carrying `version` on a single document.

@@ -4,9 +4,9 @@
 
 ## Context
 
-Decision 0066 rejected a node parameter saved without a value, reasoning that it could only be a defect. The
-maintainer overruled it: emptiness can be meaningful to a workflow, a substitution can legitimately resolve to
-empty, and empty values were supported before. The defect 0066 reacted to (a run-workflow node whose target was
+A save-time check that rejected a node parameter saved without a value was briefly added, reasoning that it could only be a defect. The
+maintainer reversed it: emptiness can be meaningful to a workflow, a substitution can legitimately resolve to
+empty, and empty values were supported before. The defect it reacted to (a run-workflow node whose target was
 never set failing with an unreadable message) is a run-time reporting problem, not a save-time validity problem.
 
 ## Options
@@ -30,4 +30,4 @@ invalid names, colliding names and undeclared names are still rejected at save.
 - Empty and absent values persist as authored and reach the container as empty `PARAM_*` values.
 - A task with an unmet value requirement fails its own run with the parameter named; nothing fails at save.
 - Catalogue entries whose parameters the engine reads stay declared (the `run-workflow` and
-  `run-scheduled-workflow` declarations from decision 0066's fix remain).
+  `run-scheduled-workflow` declarations remain).

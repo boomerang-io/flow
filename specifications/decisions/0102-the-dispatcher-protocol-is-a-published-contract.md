@@ -18,10 +18,10 @@ tied to Kubernetes and Tekton, and its wire models sit in `lib-common`, which Fl
 
 ## Decision
 
-B. `DispatcherContractConfiguration` publishes `/api/v1/dispatcher/**` as its own OpenAPI group, checked in at
+B. `DispatcherContractConfiguration` publishes `/dispatcher/v1/**` as its own OpenAPI group, checked in at
 `contracts/dispatcher-v1.yaml`; `DispatcherContractTest` fails on any drift
 (`service-core/.../dispatcher/DispatcherContractConfiguration.java`). `dispatcher-contract.md` gives the semantics
-and the compatibility policy: additive changes stay on v1, breaking ones go to `/api/v2/dispatcher`. The
+and the compatibility policy: additive changes stay on v1, breaking ones go to `/dispatcher/v2`. The
 `dispatcher-sdk` module (flow#504) owns its wire models as plain Jackson types and is the only artifact
 published to GitHub Packages; the engine keeps its own models.
 

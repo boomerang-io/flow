@@ -7,8 +7,8 @@
 A run carries two lifecycle fields: `status` (the user-facing outcome, `RunStatus`) and `phase`
 (the engine's orchestration position, `RunPhase`). The intent is that clients read `status` only,
 but one pair of classes — `WorkflowRun` and `TaskRun` in `lib-common` — is returned by both the
-public `/api/v2` controllers and `/api/v1/dispatcher`, and the dispatcher branches on `phase`
-(`service-dispatcher/src/main/java/io/boomerang/dispatcher/QueueService.java:47-55`).
+public `/api/v2` controllers and `/dispatcher/v1`, and the dispatcher branches on `phase`
+(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/TaskRunner.java:167`, `WorkflowRunner.java:12`).
 
 ## Options
 

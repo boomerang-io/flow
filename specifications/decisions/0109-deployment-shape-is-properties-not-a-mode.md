@@ -7,8 +7,8 @@
 `flow.mode=engine` amounted to three property defaults (security off, quotas off, one workspace) plus a
 parallel copy of the workspace surface: every webapp page that touched a workspace needed an engine-only
 controller and service beside the standard one (the workspace read, the profile read; PR #507 was the third
-such copy). Decisions 0084 and 0086 had already moved the webapp, schedules and insights off the mode, so what
-remained gated was a mode name standing in for a handful of switches.
+such copy). The webapp already rendered from feature flags (decision 0084) and schedules and insights loaded in
+both shapes, so what remained gated was a mode name standing in for a handful of switches.
 
 ## Options
 
@@ -21,8 +21,10 @@ remained gated was a mode name standing in for a handful of switches.
 ## Decision
 
 Option C. `flow.mode`, its condition and the engine copies are gone; `flow.security.enabled` defaults to
-`true` on its own (`service-core/src/main/java/io/boomerang/core/security/FlowSecurityProperties.java:19-20`)
-and the new `flow.workspace.single` (default `false`, `core/security/FlowWorkspaceProperties.java:19-20`)
+`true` on its own (`service-core/src/main/java/io/boomerang/core/security/FlowSecurityProperties.java:19-20`).
+That one property switches the authentication filter chain and endpoint authorization together: with only
+the authorization half on, every annotated route answers 401 against no identity, so the two halves were
+never separate properties. The new `flow.workspace.single` (default `false`, `core/security/FlowWorkspaceProperties.java:19-20`)
 keeps the system-workspace guard (`SingleWorkspaceInterceptorConfiguration.java:22-26`) and refuses workspace
 create and delete (`workspace/WorkspaceService.java:189,355`). The quota subsystem switch is gone too: the
 stored `features.workspaceQuotas` setting decides (`workflow/WorkflowService.java:214-218`). The deciding

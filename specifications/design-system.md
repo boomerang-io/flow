@@ -292,7 +292,7 @@ dropping it opens a `ComposedModal`, "Repeat a task for each item", that picks t
 items and then opens that task's normal form with the setting on
 (`client-web/src/Features/Reactflow/components/Foreach/ForeachModal.tsx:51,138`). What lands on the
 canvas is an ordinary task. The palette item and the Configure toggle store the same thing, so
-nothing records which path made it (decision 0083).
+nothing records which path made it (decision 0082).
 
 ### Fanned-out tasks on the canvas and in the run
 

@@ -1,4 +1,4 @@
-# 0090 — Administration is one "Manage" link to a tabbed page, and workflow templates leave the product UI
+# 0090 — Administration is one "Manage" link to a tabbed page
 
 **Status:** accepted · **Date:** 2026-09-30
 
@@ -20,11 +20,11 @@ header and breadcrumb.
 
 ## Decision
 
-B, the same shape Manage Workspace already has (`app/routes.ts`, the `manage` block). The tabs are Settings,
-Workspaces, Users, Parameters, Tokens, Tasks and Audit (`client-web/src/Features/Manage/Manage.tsx`); the
-"Global" prefix goes, since the area's name says it. Workflow templates keep their read-only API for the Home
-screen and lose their admin page; the catalogue moves to the public docs, the way Langflow publishes its
-use cases.
+B, the same shape Manage Workspace already has (`client-web/app/routes.ts:81-84`). The server sends the one
+link (`core/NavigationService.java:172`); the tabs are Settings, Workspaces, Users, Parameters, Tokens, Tasks
+and Audit, each shown only when the caller's grants and the feature flags allow it
+(`client-web/src/Features/Manage/manageTabs.ts:29-35`); the "Global" prefix goes, since the area's name says
+it. Workflow templates keep their read-only API for the Home screen and have no admin page (decision 0077).
 
 ## Consequences
 

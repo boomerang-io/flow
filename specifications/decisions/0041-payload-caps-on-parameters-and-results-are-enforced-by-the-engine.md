@@ -22,16 +22,18 @@ overflow after the fact by tailing the pod log.
 
 C. Resolved params are serialised and compared with `flow.engine.task.params.max-bytes` (16384) before the
 admission compare-and-set; an oversize task is invalidated with `PARAMS_TOO_LARGE` and never becomes
-claimable (`service-core/src/main/java/io/boomerang/engine/TaskExecutionService.java:161-175`). Reported
-results are compared with `flow.engine.task.results.max-bytes` (4096, the portable termination-message
-ceiling) in `TaskRunService.end`; an oversize task ends `failed` with `RESULTS_TOO_LARGE` and the results
-are not persisted (`engine/TaskRunService.java:765-773`). One clear engine message on every executor is the
-reason.
+claimable (`service-core/src/main/java/io/boomerang/engine/TaskExecutionService.java:212-217`). Reported
+results are compared with `flow.engine.task.results.max-bytes` (1048576, a storage guard) in
+`TaskRunService.end`; an oversize task ends `failed` with `RESULTS_TOO_LARGE`, `statusReason=ResultsTooLarge`,
+and the results are not persisted (`engine/TaskRunService.java:57-58,983-992`). Beneath the guard each
+dispatcher applies its own substrate limit and reports the same reason: on Kubernetes the 4096-byte
+termination message (`service-dispatcher/src/main/java/io/boomerang/kube/KubeServiceImpl.java:288`). One
+clear engine message on every executor is the reason.
 
 ## Consequences
 
-- Task authors see the same limit and message regardless of where the task runs.
-- Values above the cap must be passed by reference (workspace path or URI); no reference store exists yet
-  (decision 0045).
-- Raising a cap above a substrate's own limit reintroduces the substrate failure — the defaults sit at the
-  lowest common ceiling for that reason.
+- Task authors see the same message regardless of where the task runs; the effective limit is the lower of
+  the engine guard and the dispatcher's substrate.
+- Values above the cap are passed by reference: a workspace path, or an artifact (decision 0085).
+- Raising the engine guard above a substrate's own limit changes nothing on that substrate; the dispatcher's
+  limit is the one a task on it meets first.
