@@ -302,7 +302,8 @@ on the way up only; the engine, the claim and the container see the real value.
 | How a param becomes `secret` | Where |
 | --- | --- |
 | Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
-| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:68`) |
+| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:90`) |
+| A workflow node or schedule value whose declared param is `password` - the task template's, or the workflow's latest revision when the schedule is saved - is stamped at save | `ParameterUtil.stampSecretParams` (`:65`), from `WorkflowService` and `schedule/ScheduleService.java:242` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:193`) |
 
 Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:291`): a
@@ -317,7 +318,7 @@ them wins all taint. At submit, a secret whose value is not a string is rejected
 `PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:109`).
 
 Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
-with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:201`).
+with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:227`).
 It copies the param list rather than mutating it, because a model built with `BeanUtils.copyProperties`
 shares that list with its entity.
 
@@ -327,6 +328,7 @@ shares that list with its entity.
 | Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`) |
 | `full` status events | Type (`event/model/RunStatusSummary.java:54,62`) |
 | Task log stream | Value scrub (`WorkflowRunService.java:470-503`) |
+| Schedule `get`, `query`, create and apply responses | Type (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. An apply that sends `*****` or a blank for a secret keeps the stored value (`DataAdapterUtil.keepRunParamValueByFieldType`, `:197`) |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each
@@ -334,7 +336,7 @@ catalogue task's own spec (reached through `TaskRun.taskRef` + `taskVersion`, re
 `TaskService.getSpecs`); each blanks its own password-typed params by name. The **union** of those values
 and of every secret-typed param's value is scrubbed run-wide - from results and from every task's params,
 spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
-them under another name (`DataAdapterUtil.java:201-290`).
+them under another name (`DataAdapterUtil.java:227-316`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
 (`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the

@@ -7,10 +7,14 @@ import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.model.time.ExecutionTime;
 import com.cronutils.parser.CronParser;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowSchedule;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
@@ -83,7 +87,7 @@ public class ScheduleService {
             Optional.of(List.of(scheduleEntity.get().getWorkflowRef())),
             Optional.empty(),
             Optional.empty())) {
-      return convertScheduleEntityToModel(scheduleEntity.get());
+      return masked(convertScheduleEntityToModel(scheduleEntity.get()));
     }
     throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
   }
@@ -91,7 +95,7 @@ public class ScheduleService {
   /*
    * Internal Get
    *
-   * Used by ExecuteScheduleJob
+   * Used by ExecuteScheduleJob. Unmasked: the scheduled run must receive the real secret values.
    */
   public WorkflowSchedule internalGet(String scheduleId) {
     final Optional<WorkflowScheduleEntity> scheduleEntity = scheduleRepository.findById(scheduleId);
@@ -156,7 +160,7 @@ public class ScheduleService {
       List<WorkflowSchedule> workflowSchedules = new LinkedList<>();
       scheduleEntities.forEach(
           e -> {
-            workflowSchedules.add(convertScheduleEntityToModel(e));
+            workflowSchedules.add(masked(convertScheduleEntityToModel(e)));
           });
 
       Page<WorkflowSchedule> pages =
@@ -188,8 +192,7 @@ public class ScheduleService {
       if (!refs.isEmpty()) {
         schedule.setWorkflowRef(refs.get(0));
         WorkflowScheduleEntity scheduleEntity = internalCreate(team, schedule);
-        WorkflowSchedule response = convertScheduleEntityToModel(scheduleEntity);
-        return response;
+        return masked(convertScheduleEntityToModel(scheduleEntity));
       }
     }
     throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
@@ -211,6 +214,7 @@ public class ScheduleService {
             .getBody();
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
     BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
+    stampSecretParams(scheduleEntity, workflow);
     storeCronAsUnix(scheduleEntity);
     Boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
@@ -227,6 +231,25 @@ public class ScheduleService {
       createOrUpdateSchedule(scheduleEntity);
     }
     return scheduleRepository.save(scheduleEntity);
+  }
+
+  /*
+   * A schedule's params arrive without a type, as the UI and API send them. Each one the workflow
+   * declares as `password` (its latest revision, at save) is stamped `secret`, so it is encrypted at
+   * rest and masked on reads. A param that becomes `password` later stays untyped until the
+   * schedule is saved again.
+   */
+  private static void stampSecretParams(WorkflowScheduleEntity schedule, Workflow workflow) {
+    if (workflow != null) {
+      ParameterUtil.stampSecretParams(schedule.getParams(), workflow.getParams());
+    }
+  }
+
+  // Every schedule response masks its secret params; the copy leaves the entity's list untouched.
+  private static WorkflowSchedule masked(WorkflowSchedule schedule) {
+    schedule.setParams(
+        DataAdapterUtil.filterRunParamValueByFieldType(schedule.getParams(), ParamType.secret));
+    return schedule;
   }
 
   /*
@@ -361,16 +384,21 @@ public class ScheduleService {
          * The copy ignores ID, workflowRef and creationDate to ensure data integrity
          */
         WorkflowScheduleStatus previousStatus = scheduleEntity.getStatus();
+        List<RunParam> storedParams = scheduleEntity.getParams();
         BeanUtils.copyProperties(
             request, scheduleEntity, "id", "creationDate", "workflowRef", "schedulerRef");
         storeCronAsUnix(scheduleEntity);
+        Workflow workflow =
+            workflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
+        // A secret read back masked, or blank, keeps its stored value.
+        stampSecretParams(scheduleEntity, workflow);
+        DataAdapterUtil.keepRunParamValueByFieldType(
+            scheduleEntity.getParams(), storedParams, ParamType.secret);
 
         /*
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check
          */
         WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
-        Workflow workflow =
-            workflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
         Boolean enableJob = true;
         if (!previousStatus.equals(newStatus)) {
           if (WorkflowScheduleStatus.active.equals(previousStatus)
@@ -404,7 +432,7 @@ public class ScheduleService {
         if (enableJob) {
           createOrUpdateSchedule(scheduleEntity);
         }
-        return convertScheduleEntityToModel(scheduleEntity);
+        return masked(convertScheduleEntityToModel(scheduleEntity));
       }
     } else if (request != null) {
       request.setId(null);

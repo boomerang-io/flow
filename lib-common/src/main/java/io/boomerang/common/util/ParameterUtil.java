@@ -57,6 +57,28 @@ public class ParameterUtil {
   }
 
   /*
+   * Stamps `secret` on each value whose declared param is a `password` field, matched by name
+   * case-insensitively - the getRunParamType mapping a TaskRun is built with. A value given on a
+   * workflow node or a schedule carries no type of its own, and the stamp is what lets the store
+   * encrypt it at rest and reads mask it.
+   */
+  public static void stampSecretParams(List<RunParam> values, List<AbstractParam> declaredParams) {
+    if (values == null || declaredParams == null || declaredParams.isEmpty()) {
+      return;
+    }
+    values.stream()
+        .filter(p -> p.getName() != null)
+        .filter(
+            p ->
+                declaredParams.stream()
+                    .anyMatch(
+                        d ->
+                            p.getName().equalsIgnoreCase(d.getName())
+                                && ParamType.secret.equals(getRunParamType(d.getType()))))
+        .forEach(p -> p.setType(ParamType.secret));
+  }
+
+  /*
    * Add a parameter to an existing Run Parameter list
    *
    * @param the parameter list

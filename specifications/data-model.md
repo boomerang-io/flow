@@ -104,7 +104,8 @@ the stored value changes shape. A secret is recognised by the type stored beside
 | `task_revisions` | `spec.params[].defaultValue` | `type == password` |
 | `workflow_revisions` | `params[].defaultValue` | `type == password` |
 | `workflow_revisions` | `tasks[].params[].value` | `type == secret`, stamped at save from the task's declared `password` param |
-| `workflow_runs`, `task_runs`, `workflow_schedules` | `params[].value` | `type == secret` |
+| `workflow_schedules` | `params[].value` | `type == secret`, stamped at save from the workflow's declared `password` param |
+| `workflow_runs`, `task_runs` | `params[].value` | `type == secret` |
 
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled in
 on the claim payload only. Values stored before encryption load as they are and are encrypted on their next save;
