@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * ships. Static scan, no context boot: the same class filter and method match as {@link
  * MethodSecurityConfiguration.RestHandlerPointcut}.
  */
+@Tag("smoke")
 class AuthCriteriaCoverageTest {
 
   @Test

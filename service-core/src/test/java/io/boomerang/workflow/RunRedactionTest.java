@@ -23,9 +23,8 @@ import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.util.DataAdapterUtil;
-import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.AbstractSpiedEngineIntegrationTest;
 import io.boomerang.workflow.repository.TaskRepository;
-import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
@@ -36,7 +35,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * Sensitive means sensitive UPWARD: the workspace-scoped v2 read redacts password-typed params
@@ -44,7 +42,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * and the catalogue task's own spec for a value typed straight into a task node - while the
  * unscoped read the engine and dispatcher use keeps real values.
  */
-class RunRedactionTest extends AbstractEngineIntegrationTest {
+class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
 
   private static final String SECRET = "ghp_secret42";
   private static final String TASK_SECRET = "sk-task-declared-4242";
@@ -55,7 +53,6 @@ class RunRedactionTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private TaskRepository taskRepository;
   @Autowired private WorkspaceRepository workspaceRepository;
-  @MockitoSpyBean private TaskRevisionRepository spiedTaskRevisionRepository;
 
   @BeforeEach
   void resetSpy() {

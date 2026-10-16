@@ -27,6 +27,7 @@ import io.boomerang.workflow.WorkflowService;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * endTask. Regression tripwire for DAGUtility / TaskExecutionService changes
  * (standing gate G1) - this test must stay green through the whole v5 refactor.
  */
+@Tag("smoke")
 class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskService taskService;

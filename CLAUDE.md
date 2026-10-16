@@ -117,6 +117,13 @@ docker compose --profile stack up -d --build          # or the whole product in 
 - Dispatcher scenarios, with the dispatcher up: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),
   `cd e2e && npm ci && npx playwright test` against the stack with the webapp on `:3000`.
+- Smoke tier: `mvn test -Dgroups=smoke` runs only the classes tagged `@Tag("smoke")` — one context boot per
+  module, the run lifecycle, the dispatcher contract on both sides, the migration chain, the public-model
+  pin and the authorization coverage check. Per-class times land in `target/surefire-reports/TEST-*.xml`;
+  sort on their `time` attribute before guessing where a slow run goes. A `@SpringBootTest` that adds a
+  property, `@Import`, `@MockitoBean` or `@MockitoSpyBean` boots its own context (service-core's first
+  boot is ~33 s; each further one wires the application again), so put new spies on
+  `AbstractSpiedEngineIntegrationTest` and new properties beside an existing set.
 - Skills: `/spring-module` before any backend Java, `/design-system` before any UI, `/spec-maintenance`
   after any behaviour or design change, `/security-audit`, `/cve-review`, `/release`.
 

@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * Two field-scoped write paths that used to lose data: a workflow result written twice under one
@@ -25,10 +24,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * back an event that had already been delivered. Both drive the real {@code
  * TaskExecutionService.execute}.
  */
-class KeyedResultsAndEventArmingTest extends AbstractEngineIntegrationTest {
+class KeyedResultsAndEventArmingTest extends AbstractSpiedEngineIntegrationTest {
 
   @Autowired private TaskExecutionService taskExecutionService;
-  @MockitoSpyBean private TaskRunService spiedTaskRunService;
 
   @Test
   void secondSetResultParamWithSameKeyUpdatesRatherThanDuplicates() {

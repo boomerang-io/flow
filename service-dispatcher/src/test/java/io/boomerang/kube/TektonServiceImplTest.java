@@ -19,6 +19,7 @@ import io.fabric8.tekton.v1.TaskRunStatus;
 import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +43,7 @@ import io.fabric8.tekton.v1.TaskRunResult;
       "dispatcher.tasks.runtimeClassName=kata-qemu",
       "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
     })
+@Tag("smoke")
 public class TektonServiceImplTest {
 
   KubernetesClient client;

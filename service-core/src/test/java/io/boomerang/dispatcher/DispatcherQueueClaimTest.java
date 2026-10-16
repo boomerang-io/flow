@@ -124,7 +124,10 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
   }
 
   // Two agents polling for the same ready TaskRun: the per-document Compare-And-Set claim admits
-  // exactly one winner, which owns the claim block and the incremented claim seq.
+  // exactly one winner, which owns the claim block and the incremented claim seq. The loser has
+  // nothing to claim and would hold its long poll for the full window, so once the winner is back
+  // the loser's thread is interrupted, which ends a poll (DispatcherQueueErrorPathTest pins that)
+  // and keeps this test at the cost of one claim, not one poll window.
   @Test
   void exactlyOneAgentReceivesAReadyTaskRun() throws Exception {
     String agentA = registerAgent("race-agent-a");
@@ -135,20 +138,27 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     ExecutorService pool = Executors.newFixedThreadPool(2);
     try {
       CountDownLatch startGun = new CountDownLatch(1);
+      CountDownLatch firstBack = new CountDownLatch(1);
       Future<ResponseEntity<List<TaskRun>>> resultA =
           pool.submit(
               () -> {
                 startGun.await();
-                return dispatcherService.getTaskQueue(agentA);
+                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentA);
+                firstBack.countDown();
+                return response;
               });
       Future<ResponseEntity<List<TaskRun>>> resultB =
           pool.submit(
               () -> {
                 startGun.await();
-                return dispatcherService.getTaskQueue(agentB);
+                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentB);
+                firstBack.countDown();
+                return response;
               });
       startGun.countDown();
 
+      assertTrue(firstBack.await(45, TimeUnit.SECONDS), "one poll must return with the claim");
+      pool.shutdownNow();
       boolean aGotIt = containsId(resultA.get(45, TimeUnit.SECONDS), raceId);
       boolean bGotIt = containsId(resultB.get(45, TimeUnit.SECONDS), raceId);
       LOGGER.info("Claim race: agentA={}, agentB={} for TaskRun {}", aGotIt, bGotIt, raceId);

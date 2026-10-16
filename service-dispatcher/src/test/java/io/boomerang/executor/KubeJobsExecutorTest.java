@@ -43,6 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,6 +64,7 @@ import io.fabric8.kubernetes.api.model.Toleration;
       "kube.resource.request.cpu=100m",
       "kube.resource.limit.cpu=500m"
     })
+@Tag("smoke")
 public class KubeJobsExecutorTest {
 
   KubernetesClient client;

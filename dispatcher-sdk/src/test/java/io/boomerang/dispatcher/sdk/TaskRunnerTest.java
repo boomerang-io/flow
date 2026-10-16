@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -28,6 +29,7 @@ import org.springframework.http.HttpStatus;
  * whether it runs; the end is retried until the engine takes it; a terminate order stops the work
  * and reports nothing.
  */
+@Tag("smoke")
 class TaskRunnerTest {
 
   private static final Backoff FAST = new Backoff(Duration.ofMillis(1), Duration.ofMillis(5));

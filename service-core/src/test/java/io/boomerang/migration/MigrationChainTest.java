@@ -21,6 +21,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.env.Environment;
 import org.testcontainers.mongodb.MongoDBContainer;
@@ -30,6 +31,7 @@ import org.testcontainers.utility.DockerImageName;
  * The chain against its two starting points, an empty database and a v3 install, and against the
  * databases it refuses. Each test runs the chain outside Spring on its own database.
  */
+@Tag("smoke")
 class MigrationChainTest {
 
   private static final MongoDBContainer MONGO =
