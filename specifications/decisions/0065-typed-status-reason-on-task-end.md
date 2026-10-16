@@ -19,7 +19,7 @@ Code Engine, Tekton, Google Cloud Batch, Trigger.dev — carries a closed reason
 ## Decision
 
 Option B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason`
-(`lib-common/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java`); the closed set is `DeadlineExceeded`,
+(`service-core/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java`); the closed set is `DeadlineExceeded`,
 `JobDeleted`, `JobFailed`, `OOMKilled`, `ImagePull`, `AdmissionDenied`, `ResultsTooLarge`, `DispatchError`,
 `DispatcherGone`, `LeaseExpired`. The dispatcher maps Job and TaskRun condition reasons and the pod's container
 status onto it in `TaskExecutionException` (`service-dispatcher/src/main/java/io/boomerang/error/TaskExecutionException.java`);

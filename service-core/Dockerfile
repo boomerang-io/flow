@@ -10,14 +10,12 @@
 FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
 
-# Every module's POM, because the parent POM lists all four and the reactor refuses to start
-# without them; sources only for the modules this image needs. `--also-make` builds lib-common.
+# Every module's POM, because the parent POM lists all three and the reactor refuses to start
+# without them; sources only for the module this image needs.
 COPY pom.xml ./
-COPY lib-common/pom.xml lib-common/
 COPY service-core/pom.xml service-core/
 COPY dispatcher-sdk/pom.xml dispatcher-sdk/
 COPY service-dispatcher/pom.xml service-dispatcher/
-COPY lib-common/src lib-common/src
 COPY service-core/src service-core/src
 
 # The cache mount keeps the local Maven repository between builds, so a rebuild downloads only

@@ -34,5 +34,5 @@ to `bfk`; the old prefix is rejected outright, with no deprecation window
 - One vocabulary across API, code, database and docs.
 - Any v4 client that used `/api/v2/team/...` must change its paths; there is no compatibility window.
 - Some internals still say "team": the error code `TEAM_INVALID_REF`
-  (`lib-common/src/main/java/io/boomerang/common/error/BoomerangError.java:42`), and the `teamRef` parameter
+  (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java:42`), and the `teamRef` parameter
   names inside `WebhookEventService` and `ScheduleJob`. These are cosmetic and can be swept at any time.

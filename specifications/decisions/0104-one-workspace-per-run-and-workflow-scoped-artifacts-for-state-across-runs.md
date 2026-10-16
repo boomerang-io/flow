@@ -21,7 +21,7 @@ need a home.
 ## Decision
 
 B, with cross-run state moved to artifacts uploaded with `scope: workflow`. Presence of `workspace` is the switch
-(`lib-common/.../model/WorkflowWorkspace.java`); a task mounts it unless its node says `workspace: false`
+(`service-core/.../model/WorkflowWorkspace.java`); a task mounts it unless its node says `workspace: false`
 (`engine/DAGUtility.java:229`); the dispatcher provisions one claim keyed by the run id and the releasable query names
 runs only (`dispatcher/DispatcherService.java:389-408`). A workflow-scoped artifact is downloadable by any later run of
 its workflow by name, never expires, and is replaced by the next verified upload of that name, which expires the

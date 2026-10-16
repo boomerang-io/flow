@@ -44,7 +44,7 @@ starve fresh work and a burst of one workflow's tasks cannot jump the queue.
 dispatcher's registered types, `claim.by` absent, and `retry.after` absent or elapsed, sorted by
 `creationDate`, projected to `_id` only, then claims each candidate by CAS (page-then-CAS,
 `dispatcher/DispatcherService.java:300-325`). Backoff is one generic class: 10 s base, doubling per
-attempt, 5 min ceiling, up to 5 s jitter (`lib-common/src/main/java/io/boomerang/common/util/Backoff.java:12-22`),
+attempt, 5 min ceiling, up to 5 s jitter (`service-core/src/main/java/io/boomerang/common/util/Backoff.java:12-22`),
 with a budget of 3 requeues (`WorkflowWatcher.java:58`).
 
 A for-each task adds up to `max.foreach.items` (default 256) claimable items at once, created with their

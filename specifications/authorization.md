@@ -172,7 +172,7 @@ with no in-memory graph and no cache beyond a per-HTTP-request memo (`core/Relat
 `check()` first confirms some grant covers the resource type at all (`checkPermissions`, `:425-446`) —
 action granularity is layer 1's job. A failed `check()` returns `false` and counts `flow.security.denied`
 with `layer=relationship` (`:371-393`); callers typically raise `PERMISSION_DENIED`, which serialises as HTTP
-401 (`lib-common/src/main/java/io/boomerang/common/error/BoomerangError.java:22`). Workspace-scoped routes pass the `{workspace}` path segment
+401 (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java:22`). Workspace-scoped routes pass the `{workspace}` path segment
 as an intermediate containment (for example `WorkflowRunService.requireWorkspaceRelationship`,
 `workflow/WorkflowRunService.java:425-436`). Because `global` returns before the walk, a global token's
 requests ignore that path segment; the same caller could reach the object through its real workspace URL,

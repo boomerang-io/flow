@@ -281,7 +281,7 @@ surfaces this per node as a "New version available" prompt, driven by the `upgra
 ## Parameter names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
-to `PARAM_NAMES` (`lib-common/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
+to `PARAM_NAMES` (`service-core/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
 the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
 with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1782-1819`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:764`), and the node-value
@@ -295,7 +295,7 @@ are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PAR
 ## Sensitive parameters
 
 A secret is a parameter type: `ParamType.secret` beside `string`, `array` and `object`
-(`lib-common/.../enums/ParamType.java:15`), carried on every `RunParam` on the wire
+(`service-core/.../enums/ParamType.java:15`), carried on every `RunParam` on the wire
 (`common/model/RunParam.java:17`; absent means `string`). A secret is a string only. Values are filtered
 on the way up only; the engine, the claim and the container see the real value.
 
@@ -346,7 +346,7 @@ run spec's script, command and arguments out (`RunParam.java:36`, `AbstractParam
 `TaskEnvVar.java:24`, `TaskRunSpec.java:18-22`). Boomerang loggers default to INFO; DEBUG is opt-in.
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
-(`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
+(`:419-427`, `:435-452`; `service-core/.../FilterValuesOutputStream.java:21`), taken over every task of the
 owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already
 finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
 asynchronous completion of a streamed response without re-running authorization on it
@@ -381,7 +381,7 @@ task declares as `password` is stamped `type: secret` when the workflow is saved
 Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storage.data.memory=true` and the task
 param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:254-268`, `TektonServiceImpl.java:253`). Shared
 storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
-`accessMode`; `lib-common/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
+`accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
 submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1966`). The
 dispatcher provisions one persistent volume claim (PVC) keyed by the run id, labelled `boomerang.io/tier=workspace`
 and `boomerang.io/workspace-ref=<run id>`, before the run starts (`dispatcher/WorkflowService.java:42-57`), and
@@ -397,11 +397,11 @@ claim at that path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212
 binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
 hold the claim, so under `Never` it stays `Terminating` until retention removes them.
 
-`size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a workspace enters the engine (`lib-common/.../model/WorkflowWorkspace.java` `settle`), because a Kubernetes Quantity would read it as bytes. On save, create and update alike, a blank
+`size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a workspace enters the engine (`service-core/.../model/WorkflowWorkspace.java` `settle`), because a Kubernetes Quantity would read it as bytes. On save, create and update alike, a blank
 size takes the `max.workspace.storage` quota value and a blank mount path becomes `/workspace`; a size above the
 quota is refused with `QUOTA_EXCEEDED` when quotas are enforced, and the same check runs when a run is submitted
 with its own workspace (`workflow/WorkflowService.java:499-515,956-990`,
-`lib-common/.../util/StorageQuantityUtil.java:13`). Class and access mode default to `kube.workspace.storage.*`
+`service-core/.../util/StorageQuantityUtil.java:13`). Class and access mode default to `kube.workspace.storage.*`
 (1Gi, `ReadWriteMany`; `dispatcher/WorkspaceService.java:59-61`); a blank class leaves `storageClassName` unset so
 the cluster default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:162`).
 After creating a claim the dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or
@@ -481,7 +481,7 @@ param.
 | `maxContextBytes` | `number` | `65536` | Byte budget for `files` |
 
 `slider` is the only param type with a numeric range, so `AbstractParam` carries nullable `min`, `max` and
-`step` beside `options` (`lib-common/.../model/AbstractParam.java`).
+`step` beside `options` (`service-core/.../model/AbstractParam.java`).
 
 The task declares six results — `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`,
 `model` — as flat typed results on the TaskRun under the same results caps as every other task (decision 0041:
@@ -527,7 +527,7 @@ revision lacks, and moves any revision off the retired `worker-flow` image (`:44
 
 ## Task types handled inside the engine
 
-`TaskType` (`lib-common/.../enums/TaskType.java:15-32`) is dispatched in `TaskExecutionService.java:320-373`.
+`TaskType` (`service-core/.../enums/TaskType.java:15-32`) is dispatched in `TaskExecutionService.java:320-373`.
 
 | Type | Behaviour |
 | --- | --- |
