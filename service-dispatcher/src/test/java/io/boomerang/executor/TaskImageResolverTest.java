@@ -3,6 +3,7 @@ package io.boomerang.executor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
@@ -11,8 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * An {@code ai} task's author never builds a container, so the dispatcher - not the definition -
- * decides what runs. Every other type keeps taking its runtime from its own spec.
+ * An {@code ai} task runs the image and command its revision declares; one that declares no image
+ * runs the dispatcher's configured worker with the {@code prompt} command. Every other type keeps
+ * taking its runtime from its own spec.
  */
 class TaskImageResolverTest {
 
@@ -64,22 +66,80 @@ class TaskImageResolverTest {
   }
 
   @Test
-  void aiRunsTheConfiguredWorkerImageWithThePromptCommand() {
-    // The spec an `ai` TaskRun actually carries: no image, no command, no script.
+  void aiWithNoImageRunsTheConfiguredWorkerImageWithThePromptCommand() {
+    // The spec the seeded `ai` TaskRun carries: no image, no command, no script.
     TaskRun task = task(TaskType.ai, new TaskRunSpec());
 
     assertEquals(AI_IMAGE, resolver.image(task));
     assertEquals(List.of("prompt"), resolver.command(task));
+    assertNull(resolver.arguments(task));
     assertNull(resolver.script(task));
   }
 
   @Test
-  void aiIgnoresAnImageCommandOrScriptThatReachedItsSpec() {
-    // A definition must not be able to point the AI worker at another container.
-    TaskRun task = task(TaskType.ai, spec("evil:latest", List.of("sh", "-c", "id"), "#!/bin/sh\nid"));
+  void aiWithABlankImageIsTheSameAsNoImage() {
+    TaskRunSpec spec = spec("  ", List.of("agent"), null);
+    spec.setArguments(List.of("--verbose"));
+    TaskRun task = task(TaskType.ai, spec);
 
     assertEquals(AI_IMAGE, resolver.image(task));
     assertEquals(List.of("prompt"), resolver.command(task));
+    assertNull(resolver.arguments(task));
+  }
+
+  @Test
+  void aiRunsTheImageAndCommandItsRevisionDeclares() {
+    TaskRunSpec spec = spec("boomerangio/task-ai:2.0.0", List.of("agent"), null);
+    spec.setArguments(List.of("--max-turns", "10"));
+    TaskRun task = task(TaskType.ai, spec);
+
+    assertEquals("boomerangio/task-ai:2.0.0", resolver.image(task));
+    assertEquals(List.of("agent"), resolver.command(task));
+    assertEquals(List.of("--max-turns", "10"), resolver.arguments(task));
+    assertNull(resolver.script(task));
+  }
+
+  @Test
+  void aiWithAnImageAndNoCommandLeavesTheImagesEntrypointInPlace() {
+    TaskRun empty = task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", List.of(), null));
+    TaskRun absent = task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", null, null));
+
+    assertNull(resolver.command(empty));
+    assertNull(resolver.command(absent));
+  }
+
+  @Test
+  void aiGetsTheConfiguredCredentialDefaultsAheadOfItsOwnEnvironment() {
+    TaskImageResolver configured = resolver();
+    ReflectionTestUtils.setField(configured, "aiEndpoint", "https://openrouter.ai/api/v1");
+    ReflectionTestUtils.setField(configured, "aiToken", "sk-or-test");
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setEnvs(List.of(new TaskEnvVar("LOG_LEVEL", "debug")));
+
+    assertEquals(
+        List.of(
+            new TaskEnvVar("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
+            new TaskEnvVar("OPENAI_API_KEY", "sk-or-test"),
+            new TaskEnvVar("LOG_LEVEL", "debug")),
+        configured.environment(task(TaskType.ai, spec)));
+    // Every other type gets only what its spec defines.
+    assertEquals(
+        List.of(new TaskEnvVar("LOG_LEVEL", "debug")),
+        configured.environment(task(TaskType.custom, spec)));
+  }
+
+  @Test
+  void blankCredentialDefaultsInjectNothing() {
+    // The resolver under test carries the properties' defaults: both blank.
+    assertEquals(List.of(), resolver.environment(task(TaskType.ai, new TaskRunSpec())));
+    assertEquals(List.of(), resolver.environment(task(TaskType.ai, null)));
+  }
+
+  @Test
+  void aiNeverRunsAScriptWhateverItsSpecSays() {
+    TaskRun task =
+        task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", List.of("agent"), "#!/bin/sh\nid"));
+
     assertNull(resolver.script(task));
   }
 

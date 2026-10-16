@@ -20,9 +20,10 @@ is declaring it, not packaging it. The question was where the call runs.
 ## Decision
 
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`engine/TaskExecutionService.java:243,373`), the seeded `ai` catalogue task declares no image, and the dispatcher
-resolves `flow.dispatcher.ai.image` for the type (`service-dispatcher/.../executor/TaskImageResolver.java:42`) —
-`boomerangio/task-ai`, released from `boomerang-io/tasks`, not a product image (decision 0006 stands). Two things
+(`engine/TaskExecutionService.java:243,373`); the dispatcher runs the image and command an `ai` revision declares,
+and `flow.dispatcher.ai.image` for one that declares none, the seeded `ai` task
+(`service-dispatcher/.../executor/TaskImageResolver.java:79-96`) — `boomerangio/task-ai` either way, released
+from `boomerang-io/tasks`, not a product image (decision 0006 stands). Two things
 decided it: untrusted prompt content must not be parsed in the same process that holds the dispatcher's engine
 credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress zone — one deployment, one
 network policy, no new concept (decision 0042).
@@ -32,9 +33,8 @@ network policy, no new concept (decision 0042).
 - An author declares eleven params and gets a model call; the canvas renders them from the seeded revision.
 - `token` is password-typed, so it is blanked and scrubbed upward when declared as a workflow param and
   referenced from the node — a literal typed into the node is not, because the filter's type authority is the
-  workflow revision's param spec (decision 0043, true of all 84 catalogue password params). Downward it
-  reaches the pod as a plain `PARAM_TOKEN` environment variable. Per-task secrets would close both; revisit
-  when a customer needs the token withheld from anyone who can read the pod spec.
+  workflow revision's param spec (decision 0043, true of all 84 catalogue password params). Downward it reaches
+  the pod as a plain `PARAM_TOKEN` variable; per-task secrets would close both, revisit when a customer needs it.
 - `output` is an ordinary result under the results caps (decision 0041; 4 KB on Kubernetes), so a long response
   fails the task with `RESULTS_TOO_LARGE`. A long response belongs in an artifact (decision 0085), not in a raised cap.
 - Token usage is six flat results, not an entity field: a platform meters by summing `totalTokens` over task runs.

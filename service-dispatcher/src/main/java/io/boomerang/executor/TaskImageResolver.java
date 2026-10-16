@@ -1,11 +1,14 @@
 package io.boomerang.executor;
 
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * Decides what a Task's container actually runs. Every {@link TaskExecutor} asks this instead of
@@ -13,20 +16,19 @@ import org.springframework.stereotype.Component;
  * is the same on Tekton, Kubernetes Jobs and any later runtime.
  *
  * <p>For every authored type ({@code template}, {@code custom}, {@code script}) the answer is the
- * spec, unchanged. The {@code ai} type is the exception: its author never builds a container, so
- * the TaskRun carries no image or command at all and the dispatcher supplies both - the worker
- * image {@code flow.dispatcher.ai.image} and its {@code prompt} command. That image is an ordinary
- * task image released from the boomerang-io/tasks repository ({@code tasks/ai} ->
- * {@code boomerangio/task-ai}), versioned independently of the product tag. Any image, command or
- * script that somehow reached the spec of an {@code ai} task is ignored, so a definition cannot
- * redirect the AI worker at another container.
+ * spec, unchanged. An {@code ai} task runs the image and command its catalogue revision declares,
+ * exactly as declared; a revision that declares no image - the seeded {@code ai} task - runs the
+ * worker image {@code flow.dispatcher.ai.image} with its {@code prompt} command and no arguments.
+ * Either way the image is an ordinary task image released from the boomerang-io/tasks repository
+ * ({@code tasks/ai} -> {@code boomerangio/task-ai}), versioned independently of the product tag,
+ * and an {@code ai} task never runs a script.
  *
  * <p>Nothing else changes for {@code ai}: params still arrive as {@code PARAM_<NAME>} environment
  * variables and results are still read from {@code RESULTS_PATH}
  * ({@link io.boomerang.kube.KubeHelperService#createTaskEnvVars}).
  *
- * <p>The {@code uploadartifact} and {@code downloadartifact} types work the same way: the default
- * worker image {@code flow.dispatcher.artifact.image} runs its own entrypoint with the arguments
+ * <p>The {@code uploadartifact} and {@code downloadartifact} types always run the default worker
+ * image {@code flow.dispatcher.artifact.image} with its own entrypoint and the arguments
  * {@code artifact upload} or {@code artifact download}. The engine fills their link params when it
  * hands the task out, so they reach the worker as ordinary {@code PARAM_<NAME>} variables.
  */
@@ -45,10 +47,38 @@ public class TaskImageResolver {
   @Value("${flow.dispatcher.artifact.image}")
   private String artifactImage;
 
+  @Value("${flow.dispatcher.ai.endpoint:}")
+  private String aiEndpoint;
+
+  @Value("${flow.dispatcher.ai.token:}")
+  private String aiToken;
+
+  /**
+   * The task-defined environment, which for an {@code ai} task starts with the dispatcher's
+   * credential defaults: {@code OPENAI_BASE_URL} from {@code flow.dispatcher.ai.endpoint} and
+   * {@code OPENAI_API_KEY} from {@code flow.dispatcher.ai.token}, each only when configured. The
+   * task's own {@code endpoint} and {@code token} params still arrive as {@code PARAM_ENDPOINT} and
+   * {@code PARAM_TOKEN} and win inside the image; a task-defined variable of the same name wins
+   * over the default.
+   */
+  public List<TaskEnvVar> environment(TaskRun task) {
+    List<TaskEnvVar> environment = new ArrayList<>();
+    if (isAi(task) && StringUtils.hasText(aiEndpoint)) {
+      environment.add(new TaskEnvVar("OPENAI_BASE_URL", aiEndpoint));
+    }
+    if (isAi(task) && StringUtils.hasText(aiToken)) {
+      environment.add(new TaskEnvVar("OPENAI_API_KEY", aiToken));
+    }
+    if (spec(task).getEnvs() != null) {
+      environment.addAll(spec(task).getEnvs());
+    }
+    return environment;
+  }
+
   /** The container image to run; never null for an {@code ai} or artifact task. */
   public String image(TaskRun task) {
     if (isAi(task)) {
-      return aiImage;
+      return (declaresImage(task)) ? spec(task).getImage() : aiImage;
     }
     return isArtifact(task) ? artifactImage : spec(task).getImage();
   }
@@ -56,7 +86,11 @@ public class TaskImageResolver {
   /** The container command, or null to leave the image's own entrypoint in place. */
   public List<String> command(TaskRun task) {
     if (isAi(task)) {
-      return AI_COMMAND;
+      if (!declaresImage(task)) {
+        return AI_COMMAND;
+      }
+      List<String> command = spec(task).getCommand();
+      return (command != null && !command.isEmpty()) ? command : null;
     }
     return isArtifact(task) ? null : spec(task).getCommand();
   }
@@ -69,7 +103,7 @@ public class TaskImageResolver {
     if (TaskType.downloadartifact.equals(task.getType())) {
       return ARTIFACT_DOWNLOAD_ARGUMENTS;
     }
-    return spec(task).getArguments();
+    return (isAi(task) && !declaresImage(task)) ? null : spec(task).getArguments();
   }
 
   /**
@@ -87,6 +121,12 @@ public class TaskImageResolver {
 
   private boolean isAi(TaskRun task) {
     return TaskType.ai.equals(task.getType());
+  }
+
+  // A revision that names its own image: the seeded `ai` task leaves it blank.
+  private boolean declaresImage(TaskRun task) {
+    String image = spec(task).getImage();
+    return image != null && !image.isBlank();
   }
 
   private TaskRunSpec spec(TaskRun task) {

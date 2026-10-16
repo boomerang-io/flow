@@ -228,18 +228,18 @@ public class KubeJobsExecutorTest {
   }
 
   @Test
-  public void testCreateAiTaskIgnoresAnImageOrCommandOnItsSpec() throws Exception {
-    TaskRun task = commandTask("taskrun-ai-override", false);
+  public void testCreateAiTaskRunsTheImageAndCommandItsRevisionDeclares() throws Exception {
+    TaskRun task = commandTask("taskrun-ai-agent", false);
     task.setType(TaskType.ai);
-    task.getSpec().setImage("evil:latest");
-    task.getSpec().setCommand(List.of("sh", "-c", "id"));
+    task.getSpec().setImage("boomerangio/task-ai:2.0.0");
+    task.getSpec().setCommand(List.of("agent"));
 
     kubeJobsExecutor.create(task, 30L);
 
     Container container =
         soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
-    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
-    assertEquals(List.of("prompt"), container.getCommand());
+    assertEquals("boomerangio/task-ai:2.0.0", container.getImage());
+    assertEquals(List.of("agent"), container.getCommand());
   }
 
   @Test
