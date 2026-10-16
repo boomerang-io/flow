@@ -95,7 +95,8 @@ public class WebhookEventService {
     request.setTrigger(TriggerEnum.event);
     request.setParams(eventToRunParams(event));
 
-    LOGGER.debug("Webhook Request: " + request.toString());
+    LOGGER.debug(
+        "Webhook Request: params [{}]", ParameterUtil.runParamNames(request.getParams()));
 
     // Check principal has relationship to the Workflow
     if (!relationshipService.check(
@@ -119,7 +120,8 @@ public class WebhookEventService {
     request.setTrigger(TriggerEnum.webhook);
     request.setParams(payloadToRunParams(payload));
 
-    LOGGER.debug("Webhook Request: " + request.toString());
+    LOGGER.debug(
+        "Webhook Request: params [{}]", ParameterUtil.runParamNames(request.getParams()));
 
     // Get the Workflows team
     String teamRef =

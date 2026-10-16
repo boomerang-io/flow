@@ -241,9 +241,14 @@ public class KubeJobsExecutor implements TaskExecutor {
     job.setMetadata(jobMeta);
     job.setSpec(jobSpec);
 
-    LOGGER.info(job);
     Job result = client.batch().v1().jobs().resource(job).create();
-    LOGGER.info(result);
+    // Name, namespace and image only: the pod spec carries the task's env values and the
+    // filled-in script, any of which may be a secret.
+    LOGGER.info(
+        "Created Job {} in {} (image {})",
+        result.getMetadata().getName(),
+        result.getMetadata().getNamespace(),
+        container.getImage());
   }
 
   private void addDataVolume(List<Volume> volumes, List<VolumeMount> volumeMounts, List<RunParam> params) {

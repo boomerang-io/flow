@@ -438,9 +438,14 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
             .endSpec()
             .build();
 
-    LOGGER.info(taskRun);
-
     TaskRun result = client.v1().taskRuns().resource(taskRun).create();
+    // Name, namespace and image only: the spec carries the task's filled-in params, env values
+    // and script, any of which may be a secret.
+    LOGGER.info(
+        "Created TaskRun {} in {} (image {})",
+        result.getMetadata().getName(),
+        result.getMetadata().getNamespace(),
+        image);
 
     //    client.v1().taskRuns().withLabels(helperKubeService.getTaskLabels(workflowId,
     // workflowActivityId, taskId, taskActivityId, customLabels)).waitUntilReady(waitSeconds,

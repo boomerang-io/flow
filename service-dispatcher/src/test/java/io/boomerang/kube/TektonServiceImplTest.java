@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.config.LogCapture;
 import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.RunParam;
@@ -89,6 +90,48 @@ public class TektonServiceImplTest {
     assertEquals(
         "kata-qemu", taskRuns.get(0).getSpec().getPodTemplate().getRuntimeClassName());
     assertTrue(taskRuns.get(0).getSpec().getWorkspaces().isEmpty(), "no workspace declared");
+  }
+
+  @Test
+  public void testCreateTaskRunLogsNoParamEnvOrScriptValue() throws Exception {
+    String secret = "tekton-s3cr3t-7777";
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-log");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    RunParam password = new RunParam("apiKey", secret);
+    password.setType(io.boomerang.dispatcher.sdk.model.ParamType.secret);
+    task.setParams(List.of(password));
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setScript("echo " + secret);
+    spec.setEnvs(List.of(new io.boomerang.dispatcher.sdk.model.TaskEnvVar("TOKEN", secret)));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    List<String> lines;
+    try (LogCapture logs = LogCapture.start(org.apache.logging.log4j.Level.DEBUG, "io.boomerang")) {
+      tektonService.create(task, 30L);
+      lines = logs.lines();
+    }
+
+    // The value really went into the TaskRun, and only the name, namespace and image were logged.
+    String created =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems().stream()
+            .filter(t -> t.getMetadata().getName().contains("taskrun-tekton-log"))
+            .findFirst()
+            .orElseThrow()
+            .toString();
+    assertTrue(created.contains(secret), "the TaskRun carries the value");
+    assertTrue(
+        lines.stream().anyMatch(l -> l.startsWith("Created TaskRun ") && l.contains("alpine:3.19")),
+        "the creation is logged by name: " + lines);
+    assertTrue(
+        lines.stream().noneMatch(l -> l.contains(secret)), "a secret value was logged: " + lines);
   }
 
   @Test

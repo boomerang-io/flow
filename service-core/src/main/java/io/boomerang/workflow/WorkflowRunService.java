@@ -1526,12 +1526,10 @@ public class WorkflowRunService {
   }
 
   private void logPayload(WorkflowRunRequest request) {
-    try {
-      String payload = objectMapper.writeValueAsString(request);
-      LOGGER.info("Received Request Payload: ");
-      LOGGER.info(payload);
-    } catch (JacksonException e) {
-      LOGGER.error(e.getStackTrace());
-    }
+    // Names only: a param value may be a secret, typed or not yet stamped as one.
+    LOGGER.info(
+        "Received Request: params [{}], labels {}",
+        ParameterUtil.runParamNames(request.getParams()),
+        request.getLabels() == null ? "[]" : request.getLabels().keySet());
   }
 }

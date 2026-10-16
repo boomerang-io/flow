@@ -181,11 +181,11 @@ public class DAGUtility {
             LOGGER.debug(
                 "[{}] Task Template Params: {}",
                 wfRunEntity.getId(),
-                task.getSpec().getParams().toString());
+                ParameterUtil.abstractParamNames(task.getSpec().getParams()));
             LOGGER.debug(
                 "[{}] Revision Task Params: {}",
                 wfRunEntity.getId(),
-                wfRevisionTask.getParams().toString());
+                ParameterUtil.runParamNames(wfRevisionTask.getParams()));
             taskRunEntity.setParams(
                 ParameterUtil.addUniqueParams(
                     ParameterUtil.abstractParamToRunParam(task.getSpec().getParams()),
@@ -194,10 +194,13 @@ public class DAGUtility {
             LOGGER.debug(
                 "[{}] Task Template Params: {}",
                 wfRunEntity.getId(),
-                wfRevisionTask.getParams().toString());
+                ParameterUtil.runParamNames(wfRevisionTask.getParams()));
             taskRunEntity.setParams(wfRevisionTask.getParams());
           }
-          LOGGER.debug("[{}] Task Run Params: {}", wfRunEntity.getId(), taskRunEntity.getParams());
+          LOGGER.debug(
+              "[{}] Task Run Params: {}",
+              wfRunEntity.getId(),
+              ParameterUtil.runParamNames(taskRunEntity.getParams()));
           // Timeout, in minutes, is the smallest of three ceilings, in this order:
           //   1. the platform default (the boomerang.io/task-timeout annotation),
           //   2. the task's own declared timeout, when set and not greater,
@@ -300,7 +303,10 @@ public class DAGUtility {
         taskList.add(taskRunEntity);
       }
     }
-    LOGGER.info("[{}] Task List: {}", wfRunEntity.getId(), taskList.toString());
+    LOGGER.info(
+        "[{}] Task List: {}",
+        wfRunEntity.getId(),
+        taskList.stream().map(TaskRunEntity::getName).collect(Collectors.joining(", ")));
     return taskList;
   }
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.config.LogCapture;
 import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.RunParam;
@@ -119,6 +120,37 @@ public class KubeJobsExecutorTest {
         client.batch().v1().jobs().withLabels(Map.of("boomerang.io/taskrun-ref", taskRunRef)).list().getItems();
     assertEquals(1, jobs.size());
     return jobs.get(0);
+  }
+
+  @Test
+  public void testCreateLogsNoParamEnvOrScriptValue() throws Exception {
+    String secret = "jobs-s3cr3t-8888";
+    TaskRun task = commandTask("taskrun-jobs-log", false);
+    RunParam password = new RunParam("apiKey", secret);
+    password.setType(io.boomerang.dispatcher.sdk.model.ParamType.secret);
+    task.setParams(List.of(password));
+    task.getSpec().setCommand(null);
+    task.getSpec().setScript("echo " + secret);
+    task.getSpec()
+        .setEnvs(List.of(new io.boomerang.dispatcher.sdk.model.TaskEnvVar("TOKEN", secret)));
+
+    List<String> lines;
+    try (LogCapture logs = LogCapture.start(org.apache.logging.log4j.Level.DEBUG, "io.boomerang")) {
+      kubeJobsExecutor.create(task, 30L);
+      lines = logs.lines();
+    }
+
+    // The value really went into the Job, and only the name, namespace and image were logged.
+    Container container =
+        soleJobFor("taskrun-jobs-log").getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertTrue(
+        container.getEnv().stream().anyMatch(e -> secret.equals(e.getValue())),
+        "the Job carries the value");
+    assertTrue(
+        lines.stream().anyMatch(l -> l.startsWith("Created Job ") && l.contains("alpine:3.19")),
+        "the creation is logged by name: " + lines);
+    assertTrue(
+        lines.stream().noneMatch(l -> l.contains(secret)), "a secret value was logged: " + lines);
   }
 
   @Test

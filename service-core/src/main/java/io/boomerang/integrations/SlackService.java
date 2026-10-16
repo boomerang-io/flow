@@ -868,7 +868,6 @@ public class SlackService {
   public Boolean verifySignature(String signature, String timestamp, String body) {
     String key =
         this.settingsService.getSettingConfig("integration", "slack.signingSecret").getValue();
-    LOGGER.debug("Key: " + key);
     LOGGER.debug("Slack Timestamp: " + timestamp);
     LOGGER.debug("Slack Body: " + body);
     Generator generator = new Generator(key);

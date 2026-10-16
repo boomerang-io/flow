@@ -98,6 +98,7 @@ public class TaskRunSpec {
 
   @Override
   public String toString() {
-    return "TaskRunSpec[image=" + image + ", command=" + command + ", deletion=" + deletion + "]";
+    // The command is left out: it is filled in at claim and may carry a secret's value.
+    return "TaskRunSpec[image=" + image + ", deletion=" + deletion + "]";
   }
 }

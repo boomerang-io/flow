@@ -91,14 +91,14 @@ public class ParameterService {
       if (paramRepository.countByName(request.getName()) > 0) {
         throw new BoomerangException(BoomerangError.PARAMS_NON_UNIQUE_REFERENCE);
       }
-      LOGGER.debug("Requested GlobalParamEntity: " + request.toString());
+      LOGGER.debug("Requested GlobalParamEntity: {}", request.getName());
 
       GlobalParamEntity entity = new GlobalParamEntity();
       BeanUtils.copyProperties(request, entity, "id");
-      LOGGER.debug("Creating GlobalParamEntity: " + entity.toString());
+      LOGGER.debug("Creating GlobalParamEntity: {}", entity.getName());
       entity = paramRepository.save(entity);
       paramLayerCache.evictAll();
-      LOGGER.debug("Saving GlobalParamEntity: " + entity.toString());
+      LOGGER.debug("Saving GlobalParamEntity: {} ({})", entity.getName(), entity.getId());
       return convertToAbstractParamAndFilter(entity);
     }
     throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
@@ -121,9 +121,9 @@ public class ParameterService {
   private AbstractParam convertToAbstractParamAndFilter(GlobalParamEntity entity) {
     AbstractParam param = new AbstractParam();
     BeanUtils.copyProperties(entity, param);
-    LOGGER.debug("Copied GlobalParamEntity to AbstractParam: " + param.toString());
+    LOGGER.debug("Copied GlobalParamEntity to AbstractParam: {}", param.getName());
     param = DataAdapterUtil.filterAbstractParam(param, false, FieldType.PASSWORD.value());
-    LOGGER.debug("Converted GlobalParamEntity to AbstractParam: " + param.toString());
+    LOGGER.debug("Converted GlobalParamEntity to AbstractParam: {}", param.getName());
     return param;
   }
 }

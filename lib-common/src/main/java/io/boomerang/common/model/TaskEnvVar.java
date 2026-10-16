@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
+import lombok.ToString;
 
 /*
  * Partially replicates Tekton EnvVar but ensures that the SDK Model is not exposed
@@ -18,7 +19,9 @@ public class TaskEnvVar {
   @JsonProperty("name")
   private String name;
 
+  // Left out of toString: a value can be a filled-in secret that carries no type.
   @JsonProperty("value")
+  @ToString.Exclude
   private String value;
 
   /** No args constructor for use in serialization */

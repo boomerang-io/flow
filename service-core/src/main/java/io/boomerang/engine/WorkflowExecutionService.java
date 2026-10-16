@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -75,7 +76,11 @@ public class WorkflowExecutionService {
     if (optWorkflowRevisionEntity.isPresent()) {
       WorkflowRevisionEntity wfRevisionEntity = optWorkflowRevisionEntity.get();
       final List<TaskRunEntity> tasks = dagUtility.createTaskList(wfRevisionEntity, wfRunEntity);
-      LOGGER.info("[{}] Found {} tasks: {}", wfRunEntity.getId(), tasks.size(), tasks.toString());
+      LOGGER.info(
+          "[{}] Found {} tasks: {}",
+          wfRunEntity.getId(),
+          tasks.size(),
+          tasks.stream().map(TaskRunEntity::getName).collect(Collectors.joining(", ")));
       if (dagUtility.validateWorkflow(wfRunEntity, tasks)) {
         // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
         // params in the same guarded write. A duplicate queue loses and performs no side effects.
