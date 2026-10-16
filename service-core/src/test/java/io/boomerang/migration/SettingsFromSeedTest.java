@@ -122,7 +122,7 @@ class SettingsFromSeedTest {
 
     // Retired entries and documents are gone.
     assertThat(keysOf(setting(db, "workflowrun")))
-        .containsExactly("max.nesting.depth", "max.foreach.items");
+        .containsExactly("max.nesting.depth", "max.foreach.items", "retention.days");
     assertThat(settings(db).find(Filters.eq("_id", new ObjectId(USER_DEFAULTS_ID))).first()).isNull();
     assertThat(settings(db).find(Filters.eq("_id", new ObjectId(WORKFLOW_ID))).first()).isNull();
     for (Document stored : settings(db).find()) {

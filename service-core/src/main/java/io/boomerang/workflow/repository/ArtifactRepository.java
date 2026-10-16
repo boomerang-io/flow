@@ -13,6 +13,10 @@ public interface ArtifactRepository extends MongoRepository<ArtifactEntity, Stri
 
   List<ArtifactEntity> findByWorkflowRunRefOrderByCreationDateAsc(String workflowRunRef);
 
+  // The run's own records: run- and log-scoped (a record without a scope is run-scoped), never
+  // the workflow-scoped ones a run uploaded, which outlive it.
+  List<ArtifactEntity> findByWorkflowRunRefAndScopeNot(String workflowRunRef, ArtifactScope scope);
+
   Optional<ArtifactEntity> findByWorkflowRunRefAndName(String workflowRunRef, String name);
 
   boolean existsByWorkflowRunRefAndName(String workflowRunRef, String name);
