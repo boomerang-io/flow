@@ -337,6 +337,13 @@ components:
         name:
           type: "string"
         value: {}
+        type:
+          type: "string"
+          enum:
+          - "string"
+          - "array"
+          - "object"
+          - "secret"
     WorkflowRunRequest:
       type: "object"
       properties:

@@ -84,9 +84,9 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
     workflow.setTasks(
         List.of(
             node("start", TaskType.start, null, null), work, node("end", TaskType.end, null, "work")));
-    String workflowId = workflowService.create(workflow, false).getBody().getId();
+    String workflowId = workflowService.create("system", workflow).getName();
 
-    String wfRunId = workflowService.submit(workflowId, new WorkflowSubmitRequest(), false).getId();
+    String wfRunId = workflowService.submit("system", workflowId, new WorkflowSubmitRequest(), false).getId();
     workflowRunService.start(wfRunId, Optional.empty());
     awaitEngine("generic TaskRun claimable")
         .untilAsserted(
@@ -164,7 +164,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
                 new RunParam("note", "private-note-value", ParamType.secret),
                 new RunParam("extra", "extra-secret-value", ParamType.secret))));
 
-    String wfRunId = workflowService.submit(workflowId, request, false).getId();
+    String wfRunId = workflowService.submit("system", workflowId, request, false).getId();
 
     WorkflowRunEntity runEntity = workflowRunRepository.findById(wfRunId).orElseThrow();
     assertEquals(ParamType.secret, param(runEntity.getParams(), "note").getType(), "raised");
@@ -186,7 +186,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
 
     BoomerangException ex =
         assertThrows(
-            BoomerangException.class, () -> workflowService.submit(workflowId, request, false));
+            BoomerangException.class, () -> workflowService.submit("system", workflowId, request, false));
     assertEquals(BoomerangError.PARAM_SECRET_NOT_STRING.getCode(), ex.getCode());
     assertEquals(400, ex.getStatus().value());
   }
@@ -197,7 +197,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setParams(new LinkedList<>(List.of(new RunParam("note", "plain-value"))));
 
-    String wfRunId = workflowService.submit(workflowId, request, false).getId();
+    String wfRunId = workflowService.submit("system", workflowId, request, false).getId();
 
     RunParam stored = param(workflowRunRepository.findById(wfRunId).orElseThrow().getParams(), "note");
     assertEquals(ParamType.string, stored.getType(), "the declared type stands");
@@ -222,7 +222,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
     workflow.setTasks(
         List.of(
             node("start", TaskType.start, null, null), work, node("end", TaskType.end, null, "work")));
-    return workflowService.create(workflow, false).getBody().getId();
+    return workflowService.create("system", workflow).getName();
   }
 
   private String catalogueTask(String name, AbstractParam... params) {
@@ -231,7 +231,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
     task.setType(TaskType.generic);
     task.getSpec().setImage("busybox:latest");
     task.getSpec().setParams(new LinkedList<>(List.of(params)));
-    return taskService.create(task).getId();
+    return taskService.createGlobal(task).getName();
   }
 
   private static AbstractParam declared(String name, String type) {

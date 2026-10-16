@@ -289,10 +289,10 @@ on the way up only; the engine, the claim and the container see the real value.
 | How a param becomes `secret` | Where |
 | --- | --- |
 | Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
-| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:83`) |
-| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:393`) |
+| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:68`) |
+| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:541`) |
 
-Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:235`): a
+Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:291`): a
 reference is a secret when the workflow or task layer that wins `params.<name>` holds a secret, so
 `dsn = "postgres://app:$(params.dbPassword)@db"` becomes a secret with the resolved value. Arrays and
 objects keep their type when a secret is substituted into them - a secret is a string only - and rely on
@@ -301,7 +301,7 @@ the value scrub below. The global and workspace layers are read from their typed
 `$(global.params.registryToken)`, `$(workspace.params.dbPass)` and the flat `$(params.<name>)` that one of
 them wins all taint. At submit, a secret whose value is not a string is rejected with
 `PARAM_SECRET_NOT_STRING` (1217, `WorkflowService.rejectNonStringSecrets`), and an unknown `type` with
-`PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:100`).
+`PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:109`).
 
 Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
 with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:201`).
@@ -310,10 +310,10 @@ shares that list with its entity.
 
 | Read | Filter |
 | --- | --- |
-| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:178-201`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:619`, `WorkflowRunService.java:207`) |
+| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:185-209`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`) |
 | `full` status events | Type (`event/model/RunStatusSummary.java:54,62`) |
-| Task log stream | Value scrub (`WorkflowRunService.java:480-494`) |
+| Task log stream | Value scrub (`WorkflowRunService.java:470-503`) |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each
@@ -321,7 +321,7 @@ catalogue task's own spec (reached through `TaskRun.taskRef` + `taskVersion`, re
 `TaskService.getSpecs`); each blanks its own password-typed params by name. The **union** of those values
 and of every secret-typed param's value is scrubbed run-wide - from results and from every task's params,
 spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
-them under another name (`DataAdapterUtil.java:139-211`).
+them under another name (`DataAdapterUtil.java:201-290`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
 (`:419-427`, `:435-452`; `lib-common/.../FilterValuesOutputStream.java:21`), taken over every task of the
@@ -333,7 +333,7 @@ container, carry the real values. A resolved value shorter than four characters 
 value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
 
 The union also holds the values of the run workspace's password-typed **global and workspace** parameters
-(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:161`, read uncached; `WorkflowRunService.java:184,489`),
+(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:162`, read uncached; `WorkflowRunService.java:192,489`),
 which neither definition declares yet substitution writes into task params, scripts and results. They are read
 once per workspace per response, and with their current values: a run that used a value since rotated keeps
 showing it.
