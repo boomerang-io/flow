@@ -145,6 +145,19 @@ request, so its critical path cannot have moved. When the quota refuses an autom
 terminal, so the timeout path logs and stops rather than failing (`WorkflowExecutionService.java:250-263`); a
 user-initiated retry gets the 400 `QUOTA_EXCEEDED`.
 
+A user retry takes a scope (`WorkflowRunRetryRequest`: `scope` of `all`, `failed` or `nodes`, plus `nodes`,
+`params` and `labels`). With `failed` or `nodes`, every origin task run that succeeded or was skipped and is not
+downstream of the retry point is copied under the new run with its results and a typed `reusedFromRef`, and with
+claim, deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and
+only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Everything that did not succeed re-runs
+in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
+tasks stay on the new run; the ones a re-run set-property task writes are dropped first. A scoped retry of an
+origin that is still active cancels the origin after the new run is queued, so one lineage never has two live
+runs; a plain retry leaves the origin alone. The run records the point as `retryFrom`. Refused before anything is
+written, as `WORKFLOWRUN_RETRY_INVALID` naming the task: an unknown name, the start or end node, a name inside an
+acquire-lock/release-lock pair, `failed` on a run where everything succeeded, or names with any other scope. The
+origin's revision is the one re-run; a for-each parent re-runs whole when any item failed.
+
 A requeue of a claimed attempt keeps `claim.by` (a pod may still be alive) and bumps `claim.seq`, so the stale attempt cannot report and the next
 attempt cannot start until the dispatcher's termination poll releases the claim (`TaskRunService.java:530-592`, `tryClaimForTermination` `:155`).
 

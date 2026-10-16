@@ -7,8 +7,10 @@ import tools.jackson.databind.ObjectMapper;
 import io.boomerang.common.model.WorkflowRunResponsePage;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ActionStatus;
+import io.boomerang.common.enums.RetryScope;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -400,6 +402,14 @@ public class WorkflowRunService {
    * Retry WorkflowRun
    */
   public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {
+    return retry(team, workflowRunId, Optional.empty());
+  }
+
+  /*
+   * Retry WorkflowRun with a scope: an absent body is a fresh run of the whole graph.
+   */
+  public ResponseEntity<WorkflowRun> retry(
+      String team, String workflowRunId, Optional<WorkflowRunRetryRequest> retryRequest) {
     requireWorkspaceRelationship(team, workflowRunId);
 
     // Refuse-first: an unresolvable owner fails the request BEFORE the clone is created, keeping
@@ -410,7 +420,8 @@ public class WorkflowRunService {
     // owners permanently.
     owningWorkspace(workflowRunId);
 
-    return ResponseEntity.ok(retry(workflowRunId, false, 1));
+    return ResponseEntity.ok(
+        retry(workflowRunId, false, 1, retryRequest.orElseGet(WorkflowRunRetryRequest::new)));
   }
 
   /**
@@ -443,11 +454,21 @@ public class WorkflowRunService {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
     LOGGER.info("Getting TaskRun[{}] log...", taskRunId);
-    StreamingResponseBody body = taskRunService.streamLog(taskRunId);
+    // A task run a scoped retry carried over never ran: its log is the origin task run's.
+    String loggedTaskRunId =
+        (taskRun.getReusedFromRef() != null) ? taskRun.getReusedFromRef() : taskRunId;
+    StreamingResponseBody body = taskRunService.streamLog(loggedTaskRunId);
     // Sensitive-upward, the same rule filterSensitiveValues applies to the run payloads: a script
     // that echoes a password-typed param shows it in its log, so the stream is scrubbed at this
-    // workspace-scoped surface. The dispatcher/engine never read logs through here.
+    // workspace-scoped surface. The dispatcher/engine never read logs through here. A carried-over
+    // log is scrubbed with the origin run's values as well, since the override may have changed
+    // them.
     Set<String> secrets = taskRunSensitiveValues(taskRun.getWorkflowRunRef());
+    if (taskRun.getReusedFromRef() != null) {
+      taskRunRepository
+          .findById(taskRun.getReusedFromRef())
+          .ifPresent(origin -> secrets.addAll(taskRunSensitiveValues(origin.getWorkflowRunRef())));
+    }
     if (secrets.isEmpty()) {
       return body;
     }
@@ -1034,6 +1055,18 @@ public class WorkflowRunService {
   }
 
   public WorkflowRun retry(String workflowRunId, boolean start, long retryCount) {
+    return retry(workflowRunId, start, retryCount, new WorkflowRunRetryRequest());
+  }
+
+  /**
+   * Retry as a new run. With a scope other than {@code all}, every task run of the origin that
+   * succeeded or was skipped and is not downstream of the retry point is carried over as a copy
+   * under the new run - results included, claim and deadline dropped - so the plan adopts it by
+   * name and only the rest executes. The origin is cancelled when it is still active, so one
+   * lineage never has two live runs.
+   */
+  public WorkflowRun retry(
+      String workflowRunId, boolean start, long retryCount, WorkflowRunRetryRequest request) {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
@@ -1052,6 +1085,9 @@ public class WorkflowRunService {
         workflowRunRepository.findById(workflowRunId);
     if (optWfRunEntity.isPresent()) {
       WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
+      // Resolved against the origin before it is turned into the clone below, and before anything
+      // is written: a refused scope leaves the origin untouched.
+      RetryPlan plan = retryPlan(wfRunEntity, request);
       // The clone is a new run, so it clears the same quotas a submit clears, and it is clamped
       // to the ceiling as it stands now - which may have been lowered since the original submit.
       // The floor cannot have moved: a retry re-runs the same revision with the same request.
@@ -1083,7 +1119,13 @@ public class WorkflowRunService {
       wfRunEntity.setTimeoutAt(null);
       wfRunEntity.setAwaitingApproval(false);
       wfRunEntity.setStatusOverride(null);
-      wfRunEntity.setResults(new LinkedList<>());
+      // A scoped retry keeps the run results its carried-over tasks produced; a fresh run has none.
+      wfRunEntity.setResults((plan != null) ? plan.carriedResults() : new LinkedList<>());
+      wfRunEntity.setRetryFrom((plan != null) ? plan.retryFrom() : null);
+      // Overrides merge over the origin's own: a param replaces the one of that name, a label is
+      // put over the one of that key.
+      ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams());
+      wfRunEntity.getLabels().putAll(request.getLabels());
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
       // chained retries), trigger marks this run as a retry.
       if (!TriggerEnum.retry.getTrigger().equals(wfRunEntity.getTrigger())) {
@@ -1091,6 +1133,9 @@ public class WorkflowRunService {
         wfRunEntity.setTrigger(TriggerEnum.retry.getTrigger());
       }
       workflowRunRepository.save(wfRunEntity);
+      if (plan != null) {
+        carryOver(plan.carried(), wfRunEntity.getId());
+      }
 
       // Recorded before the clone is queued, so it never executes as reachable-but-unowned
       // (visible in /query via its Workflow yet denied on GET /{id}).
@@ -1108,6 +1153,13 @@ public class WorkflowRunService {
 
       workflowExecutionService.queue(wfRunEntity.getId());
 
+      // A scoped retry taken while the origin still runs - the usual case when a run sits at a
+      // review gate and a stage is redone - cancels the origin once the new run is in place. A
+      // plain retry leaves the origin alone, as it always has.
+      if (plan != null && plan.originActive()) {
+        workflowExecutionService.cancel(workflowRunId);
+      }
+
       if (start) {
         return this.start(wfRunEntity.getId(), Optional.empty());
       } else {
@@ -1118,6 +1170,197 @@ public class WorkflowRunService {
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
+  }
+
+  /**
+   * What a scoped retry carries over and what it re-runs, resolved from the origin's task runs and
+   * its revision's graph. {@code null} for the whole-graph retry.
+   */
+  private record RetryPlan(
+      RetryFrom retryFrom,
+      List<TaskRunEntity> carried,
+      List<RunResult> carriedResults,
+      boolean originActive) {}
+
+  private RetryPlan retryPlan(WorkflowRunEntity origin, WorkflowRunRetryRequest request) {
+    RetryScope scope = (request.getScope() != null) ? request.getScope() : RetryScope.all;
+    List<String> nodes = (request.getNodes() != null) ? request.getNodes() : List.of();
+    if (scope != RetryScope.nodes && !nodes.isEmpty()) {
+      throw retryInvalid("Task names are only read when the scope is nodes.");
+    }
+    if (scope == RetryScope.all) {
+      return null;
+    }
+    if (scope == RetryScope.nodes && nodes.isEmpty()) {
+      throw retryInvalid("The scope nodes needs at least one task name.");
+    }
+    WorkflowRevisionEntity revision =
+        Optional.ofNullable(origin.getWorkflowRevisionRef())
+            .flatMap(workflowRevisionRepository::findById)
+            .orElseThrow(() -> retryInvalid("The run's workflow revision no longer exists."));
+    Map<String, WorkflowTask> tasksByName = new HashMap<>();
+    Map<String, Set<String>> upstream = new HashMap<>();
+    Map<String, Set<String>> downstream = new HashMap<>();
+    for (WorkflowTask task : revision.getTasks()) {
+      tasksByName.put(task.getName(), task);
+      upstream.computeIfAbsent(task.getName(), k -> new HashSet<>());
+      downstream.computeIfAbsent(task.getName(), k -> new HashSet<>());
+      for (WorkflowTaskDependency dependency : task.getDependencies()) {
+        upstream.get(task.getName()).add(dependency.getTaskRef());
+        downstream.computeIfAbsent(dependency.getTaskRef(), k -> new HashSet<>()).add(task.getName());
+      }
+    }
+    Map<String, TaskRunEntity> runsByName =
+        taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(origin.getId()).stream()
+            .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
+
+    // Everything that did not succeed re-runs in every scope; named tasks are added to that.
+    Set<String> seed = new HashSet<>();
+    for (WorkflowTask task : revision.getTasks()) {
+      if (!isCarriable(runsByName.get(task.getName()))) {
+        seed.add(task.getName());
+      }
+    }
+    if (scope == RetryScope.failed && seed.isEmpty()) {
+      throw retryInvalid("No task of this run failed.");
+    }
+    for (String name : nodes) {
+      WorkflowTask task = tasksByName.get(name);
+      if (task == null) {
+        throw retryInvalid("Task " + name + " is not in this run's workflow.");
+      }
+      if (TaskType.start.equals(task.getType()) || TaskType.end.equals(task.getType())) {
+        throw retryInvalid("Task " + name + " is the start or end of the workflow.");
+      }
+      refuseInsideLock(name, tasksByName, closure(Set.of(name), upstream), closure(Set.of(name), downstream));
+      seed.add(name);
+    }
+    Set<String> rerun = closure(seed, downstream);
+
+    List<TaskRunEntity> carried = new LinkedList<>();
+    for (WorkflowTask task : revision.getTasks()) {
+      if (!rerun.contains(task.getName())) {
+        carried.add(runsByName.get(task.getName()));
+      }
+    }
+    // A run result written by a set-property task that re-runs is written again; the rest stay.
+    Set<String> rewritten = new HashSet<>();
+    for (String name : rerun) {
+      WorkflowTask task = tasksByName.get(name);
+      if (TaskType.setwfproperty.equals(task.getType())
+          && ParameterUtil.containsName(task.getParams(), "output")) {
+        rewritten.add(String.valueOf(ParameterUtil.getValue(task.getParams(), "output")));
+      }
+    }
+    List<RunResult> carriedResults =
+        origin.getResults().stream().filter(r -> !rewritten.contains(r.getName())).toList();
+
+    RetryFrom retryFrom = new RetryFrom();
+    retryFrom.setScope(scope);
+    retryFrom.setNodes(new LinkedList<>(nodes));
+    return new RetryPlan(
+        retryFrom,
+        carried,
+        new LinkedList<>(carriedResults),
+        !RunPhase.completed.equals(origin.getPhase()));
+  }
+
+  // A task run is carried over only when it finished well; absent, failed, cancelled, timed out,
+  // or still in flight all re-run.
+  private static boolean isCarriable(TaskRunEntity taskRun) {
+    return taskRun != null
+        && (RunStatus.succeeded.equals(taskRun.getStatus())
+            || RunStatus.skipped.equals(taskRun.getStatus()));
+  }
+
+  // Every task reachable from the seed over the given edges, the seed included.
+  private static Set<String> closure(Set<String> seed, Map<String, Set<String>> edges) {
+    Set<String> reached = new HashSet<>(seed);
+    List<String> frontier = new LinkedList<>(seed);
+    while (!frontier.isEmpty()) {
+      for (String next : edges.getOrDefault(frontier.removeFirst(), Set.of())) {
+        if (reached.add(next)) {
+          frontier.add(next);
+        }
+      }
+    }
+    return reached;
+  }
+
+  // A retry point between an acquire-lock and the release-lock of the same key would re-run the
+  // release without the acquire, or hold a lock the origin already released.
+  private static void refuseInsideLock(
+      String name,
+      Map<String, WorkflowTask> tasksByName,
+      Set<String> ancestors,
+      Set<String> descendants) {
+    for (String ancestor : ancestors) {
+      WorkflowTask acquire = tasksByName.get(ancestor);
+      if (acquire == null || !TaskType.acquirelock.equals(acquire.getType())) {
+        continue;
+      }
+      Object key = ParameterUtil.getValue(acquire.getParams(), "key");
+      for (String descendant : descendants) {
+        WorkflowTask release = tasksByName.get(descendant);
+        if (release != null
+            && TaskType.releaselock.equals(release.getType())
+            && Objects.equals(key, ParameterUtil.getValue(release.getParams(), "key"))) {
+          throw retryInvalid(
+              "Task " + name + " sits between acquirelock " + ancestor + " and releaselock "
+                  + descendant + ".");
+        }
+      }
+    }
+  }
+
+  private static BoomerangException retryInvalid(String detail) {
+    return new BoomerangException(BoomerangError.WORKFLOWRUN_RETRY_INVALID, detail);
+  }
+
+  // Copies of the carried-over task runs under the new run, a for-each parent's items included.
+  // The plan adopts each by name as if it had run (DAGUtility.createTaskList).
+  private void carryOver(List<TaskRunEntity> carried, String newRunId) {
+    for (TaskRunEntity origin : carried) {
+      TaskRunEntity copy = taskRunRepository.save(reusedCopy(origin, newRunId, null));
+      for (TaskRunEntity item : taskRunRepository.findByParentRefOrderByIndexAsc(origin.getId())) {
+        taskRunRepository.save(reusedCopy(item, newRunId, copy.getId()));
+      }
+    }
+  }
+
+  // Everything the origin recorded, under a new id and run, pointing back at the origin. Claim,
+  // deadline, retry and wait state stay absent: a copy is never claimable or reapable.
+  private static TaskRunEntity reusedCopy(TaskRunEntity origin, String newRunId, String parentRef) {
+    TaskRunEntity copy = new TaskRunEntity();
+    copy.setType(origin.getType());
+    copy.setName(origin.getName());
+    copy.setLabels(new HashMap<>(origin.getLabels()));
+    copy.setAnnotations(new HashMap<>(origin.getAnnotations()));
+    copy.setCreationDate(origin.getCreationDate());
+    copy.setStartTime(origin.getStartTime());
+    copy.setDuration(origin.getDuration());
+    copy.setTimeout(origin.getTimeout());
+    copy.setParams(new LinkedList<>(origin.getParams()));
+    copy.setResults(new LinkedList<>(origin.getResults()));
+    copy.setWorkspace(origin.getWorkspace());
+    copy.setSpec(origin.getSpec());
+    copy.setStatus(origin.getStatus());
+    copy.setPhase(origin.getPhase());
+    copy.setStatusMessage(origin.getStatusMessage());
+    copy.setStatusReason(origin.getStatusReason());
+    copy.setPreApproved(origin.isPreApproved());
+    copy.setDecisionValue(origin.getDecisionValue());
+    copy.setDependencies(origin.getDependencies());
+    copy.setTaskRef(origin.getTaskRef());
+    copy.setTaskVersion(origin.getTaskVersion());
+    copy.setWorkflowRef(origin.getWorkflowRef());
+    copy.setWorkflowRevisionRef(origin.getWorkflowRevisionRef());
+    copy.setWorkflowRunRef(newRunId);
+    copy.setParentRef(parentRef);
+    copy.setIndex(origin.getIndex());
+    copy.setForeach(origin.getForeach());
+    copy.setReusedFromRef(origin.getId());
+    return copy;
   }
 
   /*

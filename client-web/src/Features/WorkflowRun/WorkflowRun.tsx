@@ -26,6 +26,7 @@ import {
 } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
 import { foreachTaskNames } from "Utils/taskRunHelper";
+import RetryRunModal from "./RetryRunModal";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
 import WorkflowActions from "./WorkflowActions";
@@ -188,7 +189,10 @@ export async function loader({
 
 export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action" | "deleteArtifact";
 
-export type ActionResult = { intent: RunActionIntent } | ({ intent: RunActionIntent } & ActionError);
+// A retry answers with the run it created, so the page can move to it.
+export type ActionResult =
+  | { intent: RunActionIntent; workflowRunRef?: string }
+  | ({ intent: RunActionIntent } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
   Exclude<RunActionIntent, "action" | "deleteArtifact">,
@@ -259,6 +263,18 @@ export async function action({
   }
 
   try {
+    if (intent === "retry") {
+      // The retry body: what to re-run. The modal sends the task names as a JSON list; an absent
+      // scope is the whole graph, which is what the backend defaults to as well.
+      const scope = String(formData.get("scope") ?? "all");
+      const nodes = JSON.parse(String(formData.get("nodes") ?? "[]")) as string[];
+      const created = await api({
+        url: requestConfig.url({ workspace, id }),
+        method: requestConfig.method,
+        data: { scope, nodes },
+      });
+      return { intent, workflowRunRef: created?.data?.id };
+    }
     await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method });
     return { intent };
   } catch (error) {
@@ -350,6 +366,9 @@ type MainProps = {
 function Main(props: MainProps) {
   const { workflow, workflowRun, actions, artifacts, workspace, version, executionViewRedirect } = props;
   const [reactFlowInstance, setReactFlowInstance] = React.useState<WorkflowReactFlowInstance | null>(null);
+  // One retry modal for the page: the header opens it empty, a task row opens it with that task
+  // preselected. Null while closed.
+  const [retry, setRetry] = React.useState<{ nodes: Array<string> } | null>(null);
 
   const { status, tasks: runTasks } = workflowRun;
   const hasFinished = TERMINAL_STATUSES.includes(status);
@@ -367,6 +386,14 @@ function Main(props: MainProps) {
         workflowRun={workflowRun}
         version={version}
         executionViewRedirect={executionViewRedirect}
+        onRetry={() => setRetry({ nodes: [] })}
+      />
+      <RetryRunModal
+        workflowRun={workflowRun}
+        isOpen={retry !== null}
+        initialNodes={retry?.nodes ?? []}
+        onClose={() => setRetry(null)}
+        executionViewRedirect={executionViewRedirect}
       />
       <section aria-label="Executions" className={styles.executionResultContainer}>
         <RunTaskLog
@@ -376,6 +403,7 @@ function Main(props: MainProps) {
           workspace={workspace}
           executionViewRedirect={executionViewRedirect}
           foreachTaskNames={foreachTaskNames(workflow.nodes)}
+          onRetryFrom={(taskName) => setRetry({ nodes: [taskName] })}
         />
         <div className={styles.executionDesignerContainer}>
           <div className={styles.executionWorkflowActions}>

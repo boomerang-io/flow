@@ -940,6 +940,9 @@ export interface WorkflowRun {
   params: Array<Param>;
   // Populated on the wire (WorkflowRunService#get copies the entity's phase across).
   phase: RunPhase;
+  // Where a scoped retry started from: the scope, and the task names when the scope is "nodes".
+  // Absent on a plain retry and on every other run.
+  retryFrom?: { scope: RetryScope; nodes?: Array<string> };
   // Derived from the pause admission gate, not a status/phase value - a paused run keeps its
   // underlying status and phase (the raw pauseRequestedAt timestamp is not exposed). Optional:
   // older responses may not carry it.
@@ -988,7 +991,12 @@ export interface TaskRun {
   parentRef?: string;
   /** Set on an item of a for-each task: the item's position, from 0. */
   index?: number;
+  /** Set on a task run a scoped retry carried over instead of executing: the origin task run it stands for. */
+  reusedFromRef?: string;
 }
+
+/** What a retry re-runs: the whole graph, the tasks that did not succeed and after, or named tasks and after. */
+export type RetryScope = "all" | "failed" | "nodes";
 
 export enum ArtifactStatus {
   Uploading = "uploading",

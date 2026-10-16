@@ -206,7 +206,6 @@ function submit(fields: Record<string, string>) {
 const runUrl = serviceUrl.workspace.workflowrun;
 
 const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: string }> = [
-  { intent: "retry", path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "cancel", path: runUrl.deleteCancelWorkflow({ workspace, id: runId }), method: HttpMethod.Delete },
   { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "pause", path: runUrl.putPauseWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
@@ -223,6 +222,31 @@ describe("WorkflowRun --- action", () => {
       expect(result).toEqual({ intent });
       expect(captured).toEqual([{ path, method, body: "" }]);
     });
+  });
+
+  // A retry carries its scope as the request body: no scope from the form is the whole graph,
+  // and the modal's task names travel as a JSON list.
+  it("issues a PUT retry request with the whole graph as its scope by default", async () => {
+    const captured = captureRequests();
+
+    const result = await submit({ intent: "retry" });
+
+    expect(result).toMatchObject({ intent: "retry" });
+    expect(captured).toEqual([
+      {
+        path: runUrl.putRetryWorkflow({ workspace, id: runId }),
+        method: HttpMethod.Put,
+        body: JSON.stringify({ scope: "all", nodes: [] }),
+      },
+    ]);
+  });
+
+  it("sends the chosen scope and task names on a scoped retry", async () => {
+    const captured = captureRequests();
+
+    await submit({ intent: "retry", scope: "nodes", nodes: JSON.stringify(["chair"]) });
+
+    expect(captured[0].body).toEqual(JSON.stringify({ scope: "nodes", nodes: ["chair"] }));
   });
 
   it("sends the approval decision as a one-element array", async () => {

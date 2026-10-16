@@ -68,6 +68,9 @@ public class WorkflowRun {
   // stored - the entity keeps only the lineage pair above.
   private String initiatedByWorkflowRunRef;
 
+  // Where a scoped retry started from. Absent on a plain retry and on every other run.
+  private RetryFrom retryFrom;
+
   private List<RunParam> params = new LinkedList<>();
   private List<RunResult> results = new LinkedList<>();
   private WorkflowWorkspace workspace;

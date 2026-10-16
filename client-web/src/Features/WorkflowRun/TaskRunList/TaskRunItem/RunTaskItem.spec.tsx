@@ -101,3 +101,36 @@ describe("TaskItem --- RTL", () => {
     expect(screen.getByTestId("taskitem-time")).toHaveTextContent(/^Started at .+ in .+$/);
   });
 });
+
+// A scoped retry starts from a task row, and marks the rows it carried over from the origin.
+describe("TaskItem --- Retry from", () => {
+  it("offers 'Retry from here' on a finished task when the page can open the retry modal", () => {
+    const onRetryFrom = vi.fn();
+    renderWithRouter(<TaskItem {...props} onRetryFrom={onRetryFrom} />);
+
+    screen.getByTestId("retry-from-task").click();
+
+    expect(onRetryFrom).toHaveBeenCalledWith("Send Slack Message");
+  });
+
+  it("offers nothing without a retry handler, on START/END, or on a task still running", () => {
+    const { unmount } = renderWithRouter(<TaskItem {...props} />);
+    expect(screen.queryByTestId("retry-from-task")).not.toBeInTheDocument();
+    unmount();
+
+    const view = renderWithRouter(<TaskItem {...props} onRetryFrom={() => {}} taskRun={{ ...taskRun, type: NodeType.Start }} />);
+    expect(screen.queryByTestId("retry-from-task")).not.toBeInTheDocument();
+    view.unmount();
+
+    renderWithRouter(
+      <TaskItem {...props} onRetryFrom={() => {}} taskRun={{ ...taskRun, status: RunStatus.Running, phase: RunPhase.Running }} />,
+    );
+    expect(screen.queryByTestId("retry-from-task")).not.toBeInTheDocument();
+  });
+
+  it("marks a task run the retry carried over as reused", () => {
+    renderWithRouter(<TaskItem {...props} taskRun={{ ...taskRun, reusedFromRef: "5c36289096052900012cc800" }} />);
+
+    expect(screen.getByText("Reused")).toBeInTheDocument();
+  });
+});

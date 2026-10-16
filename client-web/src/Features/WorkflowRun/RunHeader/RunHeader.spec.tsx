@@ -127,11 +127,32 @@ describe("RunHeader --- Initiated by", () => {
     expect(link).toHaveAttribute("href", `/${workspace}/schedules?workflows=${workflowName}`);
   });
 
-  it("keeps a retried run's initiatedByRef as plain text, not a link", () => {
+  // A retried run's initiatedByRef is the origin run, so it links there; a scoped retry also says
+  // where it started from.
+  it("links a retried run's initiatedByRef to the origin run", () => {
     renderRunHeader({ trigger: "retry", initiatedByRef: "651e4789ab1cb56bc8976ae9" });
 
-    expect(screen.getByText("651e4789ab1cb56bc8976ae9")).toBeInTheDocument();
+    const link = screen.getByTestId("initiated-by-origin-run-link");
+    expect(link).toHaveTextContent("651e4789ab1cb56bc8976ae9");
+    expect(link).toHaveAttribute("href", `/${workspace}/activity/651e4789ab1cb56bc8976ae9`);
+    expect(screen.queryByTestId("retry-from")).not.toBeInTheDocument();
     expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();
+  });
+
+  it("says which tasks a scoped retry started from", () => {
+    renderRunHeader({
+      trigger: "retry",
+      initiatedByRef: "651e4789ab1cb56bc8976ae9",
+      retryFrom: { scope: "nodes", nodes: ["chair"] },
+    });
+
+    expect(screen.getByTestId("retry-from")).toHaveTextContent("from task chair");
+  });
+
+  it("says a retry started from the tasks that did not succeed", () => {
+    renderRunHeader({ trigger: "retry", initiatedByRef: "651e4789ab1cb56bc8976ae9", retryFrom: { scope: "failed" } });
+
+    expect(screen.getByTestId("retry-from")).toHaveTextContent("from the tasks that did not succeed");
   });
 
   it("falls back to the robot glyph for a schedule-triggered run with no recorded initiatedByRef", () => {
