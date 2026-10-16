@@ -137,10 +137,7 @@ public class WorkflowExecutionService {
         workflowRunRepository
             .findById(wfRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    long duration = 0;
-    if (workflowExecution.getStartTime() != null) {
-      duration = new Date().getTime() - workflowExecution.getStartTime().getTime();
-    }
+    long duration = RunTimeouts.executionMillis(workflowExecution, new Date());
     // Completion Compare-And-Set: only a run that has not yet completed can be cancelled - a
     // terminal status is never overwritten.
     if (workflowRunStateHelper.tryComplete(
@@ -231,10 +228,7 @@ public class WorkflowExecutionService {
       return;
     }
     LOGGER.info("[{}] Timeout Workflow Async...", wfRunId);
-    long duration =
-        wfRunEntity.getStartTime() != null
-            ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
-            : 0;
+    long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
 
     // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
     // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate

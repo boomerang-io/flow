@@ -221,7 +221,8 @@ public class WorkflowRunStateHelper {
             .set("status", status)
             .set("phase", RunPhase.completed)
             .set("duration", duration)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("waitingSince");
     if (statusMessage != null) {
       update.set("statusMessage", statusMessage);
     }
@@ -260,17 +261,62 @@ public class WorkflowRunStateHelper {
         > 0;
   }
 
-  // Resume Compare-And-Set: clears the pause flag. Returns whether this caller won.
+  // Resume Compare-And-Set: clears the pause flag and moves the deadline forward by the time
+  // paused. Returns whether this caller won.
   public boolean tryResume(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("pauseRequestedAt").exists(true));
+    WorkflowRunEntity run = mongoTemplate.findById(id, WorkflowRunEntity.class);
+    return run != null
+        && run.getPauseRequestedAt() != null
+        && tryClearStop(run, "pauseRequestedAt", run.getPauseRequestedAt(), run.getWaitingSince());
+  }
+
+  // Stop Compare-And-Set: a running run whose in-flight work is all waiting records when the
+  // wait began, and the timeout sweep leaves it alone from then on. Returns whether this caller
+  // won.
+  public boolean tryMarkWaiting(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.running)
+                .and("waitingSince")
+                .exists(false));
     return mongoTemplate
-            .updateFirst(query, new Update().unset("pauseRequestedAt"), WorkflowRunEntity.class)
+            .updateFirst(query, new Update().set("waitingSince", new Date()), WorkflowRunEntity.class)
             .getModifiedCount()
         > 0;
   }
 
-  // Paused runs are excluded from both recovery sweeps. The deadline deliberately does not
-  // advance while paused - a run paused past its deadline is reaped on resume.
+  // Work resumed: clears the wait and moves the deadline forward by the time spent waiting. A
+  // no-op on a run that is not waiting, so every "a task is executing" path may call it.
+  public boolean tryResumeWaiting(String id) {
+    WorkflowRunEntity run = mongoTemplate.findById(id, WorkflowRunEntity.class);
+    return run != null
+        && run.getWaitingSince() != null
+        && tryClearStop(run, "waitingSince", run.getWaitingSince(), run.getPauseRequestedAt());
+  }
+
+  // Clear one stop flag and extend the deadline by the time that flag alone accounts for: up to
+  // the other flag when it is also set and began later (the rest is that flag's to add when it
+  // clears), else up to now. Fenced on the flag's stored value, so a concurrent clear loses and
+  // the deadline moves exactly once per stop. An unguarded run has no deadline to move.
+  private boolean tryClearStop(WorkflowRunEntity run, String flag, Date since, Date otherSince) {
+    long stopped =
+        (otherSince != null)
+            ? Math.max(0, otherSince.getTime() - since.getTime())
+            : System.currentTimeMillis() - since.getTime();
+    Update update = new Update().unset(flag);
+    if (run.getTimeoutAt() != null && stopped > 0) {
+      update.set("timeoutAt", new Date(run.getTimeoutAt().getTime() + stopped));
+    }
+    Query query = Query.query(Criteria.where("_id").is(run.getId()).and(flag).is(since));
+    return mongoTemplate.updateFirst(query, update, WorkflowRunEntity.class).getModifiedCount() > 0;
+  }
+
+  // Paused and waiting runs are excluded: their clock is stopped, and the deadline moves forward
+  // by the time stopped when they resume, so neither is reaped on resume for time it did not
+  // spend executing.
   public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
     Query query =
         Query.query(
@@ -279,6 +325,8 @@ public class WorkflowRunStateHelper {
                     .and("phase")
                     .is(RunPhase.running)
                     .and("pauseRequestedAt")
+                    .exists(false)
+                    .and("waitingSince")
                     .exists(false))
             .with(Sort.by(Sort.Direction.ASC, "timeoutAt"))
             .limit(limit)

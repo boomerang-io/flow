@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
@@ -80,6 +81,26 @@ class SubmitRunTimeoutPolicyTest extends AbstractEngineIntegrationTest {
     String message = messageSource.getMessage(ex.getReason(), ex.getArgs(), Locale.ENGLISH);
     assertTrue(message.contains("50 minutes"), message);
     assertTrue(message.contains("10 minutes"), message);
+  }
+
+  @Test
+  void aWaitsOwnTimeoutDoesNotRaiseTheFloor() {
+    String workspace = createWorkspace("timeout-wait-floor", (int) WORKSPACE_RUN_DURATION);
+    Task approval = new Task();
+    approval.setName("run-timeout-policy-approval");
+    approval.setType(TaskType.approval);
+    taskService.createGlobal(approval);
+    Workflow workflow = workflow("timeout-wait-floor-workflow", 20, 0);
+    // A gate that may sit for an hour between the two tasks: a wait, so not execution time.
+    WorkflowTask gate = task("gate", TaskType.approval, approval.getName(), "first", 60);
+    workflow.getTasks().add(2, gate);
+    workflow.getTasks().get(3).getDependencies().get(0).setTaskRef("gate");
+    workflowService.create(workspace, workflow);
+
+    WorkflowRun run =
+        workflowService.submit(workspace, "timeout-wait-floor-workflow", request(20L), false);
+
+    assertEquals(20L, run.getTimeout());
   }
 
   @Test
