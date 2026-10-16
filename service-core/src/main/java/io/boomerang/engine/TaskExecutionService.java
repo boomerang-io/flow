@@ -93,6 +93,8 @@ public class TaskExecutionService {
   static final String FOREACH_TOO_MANY_ITEMS = "ForeachTooManyItems";
   static final String ITEM_FAILED = "ItemFailed";
   static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
+  // The typed cause a task fails with at admission when a Flow reference does not resolve.
+  static final String PARAM_UNRESOLVED = "ParamUnresolved";
   // MongoDB's codes for a document that grows past its 16 MB limit: BSONObjectTooLarge, and an
   // update whose resulting document is too large.
   private static final Set<Integer> DOCUMENT_TOO_LARGE_CODES = Set.of(10334, 17419);
@@ -201,8 +203,22 @@ public class TaskExecutionService {
         return;
       }
 
-      // Resolve Parameter Substitutions
-      paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
+      // Resolve Parameter Substitutions. A Flow reference in the params or the spec that does not
+      // resolve fails the task here, before it is claimable, through the same rejection
+      // Compare-And-Set as the params cap below.
+      Map<String, Set<String>> unresolved =
+          paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
+      if (!unresolved.isEmpty()) {
+        String message = ParameterManager.unresolvedMessage(taskExecution.getName(), unresolved);
+        if (taskRunService.tryReject(taskExecutionId, RunStatus.failed, PARAM_UNRESOLVED, message)
+            == null) {
+          LOGGER.info("[{}] TaskRun already admitted or started. Not failing.", taskExecutionId);
+          return;
+        }
+        LOGGER.error("[{}] {}", taskExecutionId, message);
+        self.end(taskExecutionId);
+        return;
+      }
 
       // Engine-enforced params cap, identical on every executor and checked BEFORE admission so
       // an oversize task is never claimable. Substrate limits differ (128 KiB per env string,
@@ -227,10 +243,9 @@ public class TaskExecutionService {
 
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
       // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
-      // queued by both parents) loses here and performs no side effects.
-      if (taskRunService.tryAdmit(
-              taskExecutionId, taskExecution.getParams(), taskExecution.getSpec())
-          == null) {
+      // queued by both parents) loses here and performs no side effects. The spec is not passed:
+      // it is stored with its references and filled in when a dispatcher claims the task.
+      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }

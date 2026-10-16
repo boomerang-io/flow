@@ -18,7 +18,7 @@ released by the dispatcher reconciling what it holds against the engine, never b
 
 | Transition | Task run (`engine/TaskRunService.java`) | Workflow run (`engine/WorkflowRunStateHelper.java`) |
 | --- | --- | --- |
-| admit (persists resolved params) | `tryAdmit` `:278` | `tryAdmit` `:96` |
+| admit (persists resolved params, secret values sealed; the task spec is not written) | `tryAdmit` `:336` | `tryAdmit` `:164` |
 | claim (a dispatcher takes it) | `tryClaim` `:232` | `tryClaimForProvision` `:66` — only for runs that declare a workspace (`findClaimableForProvision` `:48`) |
 | release a stale claim | `tryRequeue` `:548` | `tryReleaseProvisionClaim` `:117` — back to `ready/pending`, fenced on `claim.seq` |
 | start (bakes `timeoutAt`) | `tryStartExecution` `:380` | `tryStart` `:113` |
@@ -48,6 +48,10 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
   `flow.dispatcher.lease-ms`). A requeue unsets it (`TaskRunService.java:583`). A claim that was never
   heartbeated holds no lease and is recovered by the deadline and gone-dispatcher sweeps alone.
+- The claim answer carries the task's spec filled in from its stored references (`ParameterManager.fillSpec`,
+  called at `DispatcherService.java:338`); the stored spec keeps the references. Params are frozen at admission,
+  so a requeued task is filled in with the same param values; a workspace or global reference written straight
+  into the spec is read at claim (decision 0116, `task-runtime.md`).
 - A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:57-58`, `:166`, `:262`).
 
 ## Compare-and-set transitions instead of locks

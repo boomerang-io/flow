@@ -41,8 +41,41 @@ public class ParameterUtil {
    */
   public static List<RunParam> abstractParamToRunParam(List<AbstractParam> parameterList) {
     return parameterList.stream()
-        .map(p -> new RunParam(p.getName(), p.getDefaultValue(), getTektonParamType(p.getType())))
+        .map(p -> new RunParam(p.getName(), p.getDefaultValue(), getRunParamType(p.getType())))
         .collect(Collectors.toList());
+  }
+
+  /*
+   * The run-time type of a UI field: a `password` field is a secret, every other field takes its
+   * Tekton type. Kept apart from getTektonParamType because a Tekton export has no secret type -
+   * there a password is still a string.
+   */
+  public static ParamType getRunParamType(String fieldType) {
+    return ConfigType.PASSWORD.equals(ConfigType.getConfigType(fieldType))
+        ? ParamType.secret
+        : getTektonParamType(fieldType);
+  }
+
+  /*
+   * Stamps `secret` on each value whose declared param is a `password` field, matched by name
+   * case-insensitively - the getRunParamType mapping a TaskRun is built with. A value given on a
+   * workflow node or a schedule carries no type of its own, and the stamp is what lets the store
+   * encrypt it at rest and reads mask it.
+   */
+  public static void stampSecretParams(List<RunParam> values, List<AbstractParam> declaredParams) {
+    if (values == null || declaredParams == null || declaredParams.isEmpty()) {
+      return;
+    }
+    values.stream()
+        .filter(p -> p.getName() != null)
+        .filter(
+            p ->
+                declaredParams.stream()
+                    .anyMatch(
+                        d ->
+                            p.getName().equalsIgnoreCase(d.getName())
+                                && ParamType.secret.equals(getRunParamType(d.getType()))))
+        .forEach(p -> p.setType(ParamType.secret));
   }
 
   /*
@@ -61,10 +94,18 @@ public class ParameterUtil {
     if (parameterList.stream().noneMatch(p -> param.getName().equalsIgnoreCase(p.getName()))) {
       parameterList.add(param);
     } else {
+      // The declared type wins, with one exception: a value sent as a secret makes the param a
+      // secret. A type is only ever raised to secret here, never lowered from it.
       parameterList.stream()
           .filter(p -> param.getName().equalsIgnoreCase(p.getName()))
           .findFirst()
-          .ifPresent(p -> p.setValue(param.getValue()));
+          .ifPresent(
+              p -> {
+                p.setValue(param.getValue());
+                if (ParamType.secret.equals(param.getType())) {
+                  p.setType(ParamType.secret);
+                }
+              });
     }
     return parameterList;
   }

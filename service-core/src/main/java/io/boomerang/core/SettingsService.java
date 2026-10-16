@@ -3,8 +3,6 @@ package io.boomerang.core;
 import io.boomerang.common.util.DateUtil;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.ConfigurationType;
-import io.boomerang.core.model.AESAlgorithm;
-import io.boomerang.core.model.EncryptionConfig;
 import io.boomerang.core.model.Setting;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.repository.SettingsRepository;
@@ -14,7 +12,6 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 public class SettingsService {
@@ -31,15 +28,15 @@ public class SettingsService {
   private String eventUrl;
 
   private final SettingsRepository settingsRepository;
-  private final EncryptionConfig encryptConfig;
+  private final SecretCipher secretCipher;
   private final ParamLayerCache paramLayerCache;
 
   public SettingsService(
       SettingsRepository settingsRepository,
-      EncryptionConfig encryptConfig,
+      SecretCipher secretCipher,
       ParamLayerCache paramLayerCache) {
     this.settingsRepository = settingsRepository;
-    this.encryptConfig = encryptConfig;
+    this.secretCipher = secretCipher;
     this.paramLayerCache = paramLayerCache;
   }
 
@@ -152,26 +149,12 @@ public class SettingsService {
 
   // Blank values and values already carrying the label pass through; everything else is encrypted.
   private String encrypt(String value) {
-    if (!StringUtils.hasText(value) || value.startsWith("crypt_v1")) {
-      return value;
-    }
-
-    return "crypt_v1{AESGCM|"
-        + AESAlgorithm.encrypt(value, encryptConfig.getSecretKey(), encryptConfig.getSalt())
-        + "}";
+    return secretCipher.encrypt(value);
   }
 
   // A value without the label was stored as plaintext by an earlier release and is returned as-is;
   // it is encrypted on its next save.
   private String decrypt(String value) {
-    if (!StringUtils.hasText(value) || !value.startsWith("crypt_v1")) {
-      return value;
-    }
-
-    // Only the AESGCM label exists in storage: _0022__ReencryptSettingsAesGcm rewrites the retired
-    // CBC scheme as the context starts, before anything is served.
-    String replacedValue = value.replace("crypt_v1{AESGCM|", "").replace("}", "");
-    return AESAlgorithm.decrypt(
-        replacedValue, encryptConfig.getSecretKey(), encryptConfig.getSalt());
+    return secretCipher.decrypt(value);
   }
 }

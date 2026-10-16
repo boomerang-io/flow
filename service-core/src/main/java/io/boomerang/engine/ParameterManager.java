@@ -9,26 +9,35 @@ import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskEnvVar;
 import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.common.model.TaskSpec;
+import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
+import io.boomerang.workflow.TaskService;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -87,34 +96,65 @@ public class ParameterManager {
   private final TaskRunRepository taskRunRepository;
   private final ObjectMapper objectMapper;
   private final ParamLayerService paramLayerService;
+  private final TaskService taskService;
 
   public ParameterManager(
       WorkflowRunRepository workflowRunRepository,
       TaskRunRepository taskRunRepository,
       ObjectMapper objectMapper,
-      ParamLayerService paramLayerService) {
+      ParamLayerService paramLayerService,
+      TaskService taskService) {
     this.workflowRunRepository = workflowRunRepository;
     this.taskRunRepository = taskRunRepository;
     this.objectMapper = objectMapper;
     this.paramLayerService = paramLayerService;
+    this.taskService = taskService;
   }
 
   /*
    * The layers one resolution reads, the run params whose values were supplied rather than written
    * in the workspace (lower-cased, as references match case-insensitively), and whether the task
-   * layer already holds resolved values - final, so inserted as written.
+   * layer already holds resolved values - final, so inserted as written - and the workflow revision
+   * the run executes, which names the tasks a $(tasks.t.results.r) may reference.
    */
   private record Layers(
-      ParamLayers paramLayers, Set<String> suppliedParams, boolean taskParamsResolved) {}
+      ParamLayers paramLayers,
+      Set<String> suppliedParams,
+      boolean taskParamsResolved,
+      WorkflowRevisionEntity revision) {}
 
   /*
-   * Resolve all RunParams for either WorkflowRun or TaskRun
+   * The upstream lookups one resolution makes, memoised for its duration: a value can reference the
+   * same task's results many times, and upstream results are final by now. A task's declared result
+   * names are empty when it is not in the workflow, and an empty set inside means any name.
    */
-  public void resolveParamLayers(WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
+  private static final class Upstream {
+    private final Map<String, Optional<TaskRunEntity>> taskRuns = new HashMap<>();
+    private final Map<String, Optional<Set<String>>> declaredResults = new HashMap<>();
+  }
+
+  /*
+   * The outcome of resolving one value: the value, and whether a reference to a secret was
+   * substituted into it. The flag is how a string param inherits the secret type.
+   */
+  private record Resolution(Object value, boolean secret) {}
+
+  /*
+   * Resolve all RunParams for either WorkflowRun or TaskRun.
+   *
+   * For a TaskRun it returns the Flow references that name nothing declared, by field: those written
+   * in the task's params, and those written in the spec fields fillSpec fills in, checked against
+   * the params just resolved. Admission fails the task when this is not empty. A reference to
+   * something declared that has no value resolves to an empty string. Only what the author wrote is
+   * scanned - a reference inside an inserted value (a supplied param, a task result) is text. For a
+   * WorkflowRun it is always empty: a run param naming nothing declared is left as written.
+   */
+  public Map<String, Set<String>> resolveParamLayers(
+      WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
     Layers paramLayers = buildParameterLayering(wfRun, optTaskRun);
-    // Memo of upstream TaskRun lookups for the duration of one resolution: a param string can
-    // reference the same task's results many times, and upstream results are final by now.
-    Map<String, Optional<TaskRunEntity>> taskRunMemo = new HashMap<>();
+    Map<String, Set<String>> unresolved = new LinkedHashMap<>();
+    Set<String> secretKeys = secretReferenceKeys(wfRun, optTaskRun, paramLayers.paramLayers());
+    Upstream upstream = new Upstream();
     List<RunParam> runParams;
     String wfRunId = wfRun.getId();
     if (optTaskRun.isPresent()) {
@@ -130,50 +170,175 @@ public class ParameterManager {
               if (optTaskRun.isEmpty() && isSuppliedParam(p.getName(), paramLayers)) {
                 return;
               }
+              // Name and type only: a secret's value must never reach a log.
               LOGGER.debug(
-                  "Resolving Parameters: " + p.getName() + "(" + p.getType() == null
-                      ? "string"
-                      : p.getType() + ") = " + p.getValue());
-              if (ParamType.string.equals(p.getType()) || p.getType() == null) {
+                  "Resolving Parameter: {} ({})",
+                  p.getName(),
+                  p.getType() == null ? ParamType.string : p.getType());
+              if (ParamType.string.equals(p.getType())
+                  || ParamType.secret.equals(p.getType())
+                  || p.getType() == null) {
                 // Default to String replacement. This also allows recursive use of Params and
-                // multiple Param replacement
-                p.setValue(
+                // multiple Param replacement. A secret is a string and resolves the same way.
+                Resolution resolution =
                     resolveParam(
                         ParamType.string,
                         p.getValue() != null ? p.getValue().toString() : "",
                         wfRunId,
-                        paramLayers, taskRunMemo));
+                        paramLayers,
+                        upstream,
+                        secretKeys,
+                        collector(unresolved, optTaskRun, p));
+                p.setValue(resolution.value());
+                // Taint: a string that now carries a secret's value is itself a secret. Arrays
+                // and objects keep their type - a secret is a string only - and rely on the value
+                // scrub on the way out (DataAdapterUtil.scrubWorkflowRunValues).
+                if (resolution.secret()) {
+                  p.setType(ParamType.secret);
+                }
               } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof List) {
                 // Type safety. If you attempt to convert a string or object (JSON = HashMap) then
                 // this causes an exception
                 ArrayList<String> valueList = (ArrayList<String>) p.getValue();
                 p.setValue(
                     valueList.stream()
-                        .map(v -> resolveParam(ParamType.string, v, wfRunId, paramLayers, taskRunMemo))
+                        .map(
+                            v ->
+                                resolveParam(
+                                        ParamType.string,
+                                        v,
+                                        wfRunId,
+                                        paramLayers,
+                                        upstream,
+                                        secretKeys,
+                                        collector(unresolved, optTaskRun, p))
+                                    .value())
                         .collect(Collectors.toList()));
               } else if (ParamType.object.equals(p.getType())) {
                 // Replace Param with Object. Treated as JSON and allows for the extra JSONPath
                 // retrieval.
-                p.setValue(resolveParam(p.getType(), p.getValue(), wfRunId, paramLayers, taskRunMemo));
+                p.setValue(
+                    resolveParam(
+                            p.getType(),
+                            p.getValue(),
+                            wfRunId,
+                            paramLayers,
+                            upstream,
+                            secretKeys,
+                            collector(unresolved, optTaskRun, p))
+                        .value());
               }
             });
     // Return WorkflowRun or TaskRun RunParams
+    // The spec is not resolved here: it is stored with its references and filled in when a
+    // dispatcher claims the task (fillSpec), so no secret value is written into it.
     if (optTaskRun.isPresent()) {
       optTaskRun.get().setParams(runParams);
-      // The spec is part of the contract too: $(params.x) in script/command/arguments/envs must
-      // resolve identically on every executor, so it happens here rather than relying on
-      // Tekton's controller-side substitution (which Kubernetes Jobs and Docker do not have).
-      // The spec reads the params as just resolved, so $(params.p) gets p's value rather than the
-      // reference p was written with.
-      paramLayers.paramLayers().setTaskParams(ParameterUtil.runParamListToMap(runParams));
-      resolveSpec(
-          optTaskRun.get().getSpec(),
-          wfRun.getId(),
-          new Layers(paramLayers.paramLayers(), paramLayers.suppliedParams(), true),
-          taskRunMemo);
+      // The spec is checked now, against the params just resolved, so a reference that would not
+      // fill in at claim fails the task here instead.
+      fillSpec(wfRun, optTaskRun.get(), unresolved);
     } else {
       wfRun.setParams(runParams);
     }
+    return nonEmpty(unresolved);
+  }
+
+  // Where a param's unresolved references are recorded: only for a TaskRun's params.
+  private static Set<String> collector(
+      Map<String, Set<String>> unresolved, Optional<TaskRunEntity> optTaskRun, RunParam p) {
+    return optTaskRun.isPresent()
+        ? unresolved.computeIfAbsent("param '" + p.getName() + "'", k -> new LinkedHashSet<>())
+        : null;
+  }
+
+  /*
+   * The message a task fails with when references name nothing declared, naming the task, each
+   * field, each reference and why - never a value.
+   */
+  public static String unresolvedMessage(String taskName, Map<String, Set<String>> unresolved) {
+    return "Task '"
+        + taskName
+        + "': "
+        + unresolved.entrySet().stream()
+            .filter(e -> !e.getValue().isEmpty())
+            .map(e -> e.getKey() + " references " + String.join(", ", e.getValue()))
+            .collect(Collectors.joining("; "));
+  }
+
+  // Drop the fields whose references all resolved.
+  private static Map<String, Set<String>> nonEmpty(Map<String, Set<String>> unresolved) {
+    unresolved.values().removeIf(Set::isEmpty);
+    return unresolved;
+  }
+
+  /*
+   * The TaskRun's spec with its references filled in, as the dispatcher receives it on a claim. The
+   * stored spec is left untouched - a copy is filled - so the references stay what is stored.
+   *
+   * The spec is part of the contract too: $(params.x) in script/command/arguments/envs must resolve
+   * identically on every executor, so it happens here rather than relying on Tekton's
+   * controller-side substitution (which Kubernetes Jobs and Docker do not have).
+   *
+   * - $(params.x) reads the task's params as stored at admission: resolved then, final now, and
+   *   inserted as written - a reference inside a value is not expanded again. A requeued claim
+   *   gets the same values.
+   * - $(tasks.t.results.r) reads the finished task runs; $(workflow.params.x) and
+   *   $(context.params.x) read the run.
+   * - $(workspace.params.x) and $(global.params.x) are read from their stores now, so an edit
+   *   made since admission shows here (decision 0116).
+   *
+   * Admission has checked that every Flow reference names something declared, so one that does not
+   * now - a workspace or global parameter deleted since - throws, and the claim ends the task
+   * failed. One declared but holding no value fills in as an empty string.
+   */
+  public TaskRunSpec fillSpec(WorkflowRunEntity wfRun, TaskRunEntity taskRun) {
+    Map<String, Set<String>> unresolved = new LinkedHashMap<>();
+    TaskRunSpec filled = fillSpec(wfRun, taskRun, unresolved);
+    if (!nonEmpty(unresolved).isEmpty()) {
+      throw new IllegalStateException(unresolvedMessage(taskRun.getName(), unresolved));
+    }
+    return filled;
+  }
+
+  private TaskRunSpec fillSpec(
+      WorkflowRunEntity wfRun, TaskRunEntity taskRun, Map<String, Set<String>> unresolved) {
+    TaskRunSpec filled = copySpec(taskRun.getSpec());
+    if (filled == null) {
+      return null;
+    }
+    Layers layers = buildParameterLayering(wfRun, Optional.of(taskRun));
+    resolveSpec(
+        filled,
+        wfRun.getId(),
+        new Layers(layers.paramLayers(), layers.suppliedParams(), true, layers.revision()),
+        new Upstream(),
+        unresolved);
+    return filled;
+  }
+
+  // A copy deep enough that filling it never writes into the stored spec's lists or env vars.
+  private static TaskRunSpec copySpec(TaskRunSpec spec) {
+    if (spec == null) {
+      return null;
+    }
+    TaskRunSpec copy = new TaskRunSpec();
+    copy.setImage(spec.getImage());
+    copy.setScript(spec.getScript());
+    copy.setWorkingDir(spec.getWorkingDir());
+    copy.setDebug(spec.getDebug());
+    copy.setTimeout(spec.getTimeout());
+    copy.setDeletion(spec.getDeletion());
+    copy.setCommand(spec.getCommand() != null ? new ArrayList<>(spec.getCommand()) : null);
+    copy.setArguments(spec.getArguments() != null ? new ArrayList<>(spec.getArguments()) : null);
+    if (spec.getEnvs() != null) {
+      List<TaskEnvVar> envs = new ArrayList<>(spec.getEnvs().size());
+      spec.getEnvs().forEach(env -> envs.add(new TaskEnvVar(env.getName(), env.getValue())));
+      copy.setEnvs(envs);
+    }
+    if (spec.getAdditionalProperties() != null) {
+      copy.getAdditionalProperties().putAll(spec.getAdditionalProperties());
+    }
+    return copy;
   }
 
   /*
@@ -182,45 +347,78 @@ public class ParameterManager {
    * an array), and references inside a structure are substituted into its string leaves.
    */
   public Object resolveParamValue(WorkflowRunEntity wfRun, TaskRunEntity taskRun, Object value) {
+    Layers layers = buildParameterLayering(wfRun, Optional.of(taskRun));
     return resolveParam(
-        ParamType.object,
-        value,
-        wfRun.getId(),
-        buildParameterLayering(wfRun, Optional.of(taskRun)),
-        new HashMap<>());
+            ParamType.object,
+            value,
+            wfRun.getId(),
+            layers,
+            new Upstream(),
+            secretReferenceKeys(wfRun, Optional.of(taskRun), layers.paramLayers()),
+            null)
+        .value();
   }
 
   /*
-   * Resolve $(params.x) references inside the TaskRun spec's string fields. Same one-pass
-   * semantics as a param value referencing another param; unresolved references are left as-is.
+   * Resolve the references inside the TaskRun spec's string fields - script, command, arguments
+   * and env values. Same one-pass semantics as a param value referencing another param; each Flow
+   * reference that does not resolve is recorded under its field.
    */
   private void resolveSpec(
       TaskRunSpec spec,
       String wfRunId,
       Layers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Upstream upstream,
+      Map<String, Set<String>> unresolved) {
     if (spec == null) {
       return;
     }
-    spec.setScript(resolveString(spec.getScript(), wfRunId, paramLayers, taskRunMemo));
-    spec.setCommand(resolveStrings(spec.getCommand(), wfRunId, paramLayers, taskRunMemo));
-    spec.setArguments(resolveStrings(spec.getArguments(), wfRunId, paramLayers, taskRunMemo));
+    spec.setScript(
+        resolveString(
+            spec.getScript(), wfRunId, paramLayers, upstream, field(unresolved, "script")));
+    spec.setCommand(
+        resolveStrings(
+            spec.getCommand(), wfRunId, paramLayers, upstream, field(unresolved, "command")));
+    spec.setArguments(
+        resolveStrings(
+            spec.getArguments(),
+            wfRunId,
+            paramLayers,
+            upstream,
+            field(unresolved, "arguments")));
     if (spec.getEnvs() != null) {
       spec.getEnvs()
           .forEach(
-              env -> env.setValue(resolveString(env.getValue(), wfRunId, paramLayers, taskRunMemo)));
+              env ->
+                  env.setValue(
+                      resolveString(
+                          env.getValue(),
+                          wfRunId,
+                          paramLayers,
+                          upstream,
+                          field(unresolved, "env '" + env.getName() + "'"))));
     }
+  }
+
+  private static Set<String> field(Map<String, Set<String>> unresolved, String name) {
+    return unresolved.computeIfAbsent(name, k -> new LinkedHashSet<>());
   }
 
   private String resolveString(
       String value,
       String wfRunId,
       Layers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Upstream upstream,
+      Set<String> unresolved) {
     if (value == null) {
       return null;
     }
-    Object resolved = resolveParam(ParamType.string, value, wfRunId, paramLayers, taskRunMemo);
+    // Spec fields are not params and carry no type; a secret substituted into one is covered by
+    // the value scrub on the way out, so the taint flag is not needed here.
+    Object resolved =
+        resolveParam(
+                ParamType.string, value, wfRunId, paramLayers, upstream, Set.of(), unresolved)
+            .value();
     return resolved != null ? resolved.toString() : null;
   }
 
@@ -228,13 +426,85 @@ public class ParameterManager {
       List<String> values,
       String wfRunId,
       Layers paramLayers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Upstream upstream,
+      Set<String> unresolved) {
     if (values == null) {
       return null;
     }
     return values.stream()
-        .map(v -> resolveString(v, wfRunId, paramLayers, taskRunMemo))
+        .map(v -> resolveString(v, wfRunId, paramLayers, upstream, unresolved))
         .collect(Collectors.toList());
+  }
+
+  /*
+   * The flat reference keys whose value is a secret, following the same precedence
+   * ParamLayers.getFlatMap applies to the values: global, workspace, workflow, task, then context,
+   * each later layer winning `params.<name>`, and a null value never written (so never winning).
+   * The global and workspace layers are read from their typed stores, so a password-typed global
+   * or workspace parameter is a secret (ParamLayers.getSecretGlobalParams); the workflow and task
+   * layers carry their own type.
+   */
+  private static Set<String> secretReferenceKeys(
+      WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun, ParamLayers paramLayers) {
+    Map<String, Boolean> secretByKey = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    markLayer(
+        secretByKey, paramLayers.getGlobalParams(), paramLayers.getSecretGlobalParams(), "global");
+    markLayer(
+        secretByKey,
+        paramLayers.getWorkspaceParams(),
+        paramLayers.getSecretWorkspaceParams(),
+        ParamLayers.WORKSPACE_SCOPE,
+        ParamLayers.DEPRECATED_WORKSPACE_SCOPE);
+    markSecretKeys(secretByKey, wfRun.getParams(), "workflow");
+    optTaskRun.ifPresent(taskRun -> markSecretKeys(secretByKey, taskRun.getParams(), null));
+    markLayer(secretByKey, paramLayers.getContextParams(), Set.of(), "context");
+    Set<String> secretKeys = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    secretByKey.forEach(
+        (key, secret) -> {
+          if (secret) {
+            secretKeys.add(key);
+          }
+        });
+    return secretKeys;
+  }
+
+  private static void markSecretKeys(
+      Map<String, Boolean> secretByKey, List<RunParam> params, String prefix) {
+    if (params == null) {
+      return;
+    }
+    for (RunParam p : params) {
+      if (p.getName() == null || p.getValue() == null) {
+        continue;
+      }
+      boolean secret = ParamType.secret.equals(p.getType());
+      if (prefix != null) {
+        secretByKey.put(prefix + ".params." + p.getName(), secret);
+      }
+      secretByKey.put("params." + p.getName(), secret);
+    }
+  }
+
+  // A value layer: a name is a secret when the layer's store typed it so.
+  private static void markLayer(
+      Map<String, Boolean> secretByKey,
+      Map<String, Object> values,
+      Set<String> secretNames,
+      String... prefixes) {
+    if (values == null) {
+      return;
+    }
+    values.forEach(
+        (name, value) -> {
+          if (name == null || value == null) {
+            return;
+          }
+          boolean secret = secretNames != null && secretNames.contains(name);
+          for (String prefix : prefixes) {
+            secretByKey.put(prefix + ".params." + name, secret);
+          }
+          secretByKey.put("params." + name, secret);
+        });
   }
 
   /*
@@ -276,7 +546,7 @@ public class ParameterManager {
       paramLayers.setTaskParams(ParameterUtil.runParamListToMap(optTaskRun.get().getParams()));
     }
 
-    return new Layers(paramLayers, suppliedParamNames(wfRun, revision), false);
+    return new Layers(paramLayers, suppliedParamNames(wfRun, revision), false, revision);
   }
 
   /*
@@ -353,6 +623,116 @@ public class ParameterManager {
   }
 
   /*
+   * Why $(params.x) or $(<scope>.params.x) names nothing declared, or null when a layer declares x
+   * with or without a value: the scope's own layer, or for a bare $(params.x) (scope null) any
+   * layer. A declared parameter holding no value resolves to an empty string.
+   */
+  private static String undeclaredParam(Layers layers, String scope, String name) {
+    if (declares(layers.paramLayers(), scope, name)) {
+      return null;
+    }
+    String layer =
+        scope == null
+            ? ""
+            : (ParamLayers.DEPRECATED_WORKSPACE_SCOPE.equalsIgnoreCase(scope)
+                    ? ParamLayers.WORKSPACE_SCOPE
+                    : scope.toLowerCase())
+                + " ";
+    return "no such " + layer + "param '" + name + "'";
+  }
+
+  /*
+   * Why $(tasks.t.results.r) names nothing declared, or null when it does: t is a task in this run's
+   * workflow and r is a result t declares. A task that declares no results at all - a script that
+   * emits whatever it writes - may be asked for any result.
+   */
+  private String undeclaredResult(
+      String taskName, String resultName, String wfRunId, Layers layers, Upstream upstream) {
+    Optional<Set<String>> declared =
+        upstream.declaredResults.computeIfAbsent(
+            taskName, t -> declaredResultNames(t, wfRunId, layers.revision(), upstream));
+    if (declared.isEmpty()) {
+      return "task '" + taskName + "' is not in this workflow";
+    }
+    if (declared.get().isEmpty() || declared.get().contains(resultName)) {
+      return null;
+    }
+    return "task '" + taskName + "' declares no result '" + resultName + "'";
+  }
+
+  /*
+   * The result names a task of this run declares - empty meaning any - or empty when the run's
+   * workflow revision has no such task. Declared where DAGUtility.createTaskList reads them: a
+   * script, custom or generic task on its workflow node, any other on its catalogue task's revision
+   * (the TaskRun's taskRef and taskVersion, through TaskService.getSpecs). A result the task has
+   * already emitted is counted too, so a result the engine itself writes is never refused.
+   */
+  private Optional<Set<String>> declaredResultNames(
+      String taskName, String wfRunId, WorkflowRevisionEntity revision, Upstream upstream) {
+    Optional<TaskRunEntity> taskRun = upstreamTaskRun(taskName, wfRunId, upstream);
+    WorkflowTask node =
+        revision == null || revision.getTasks() == null
+            ? null
+            : revision.getTasks().stream()
+                .filter(t -> taskName.equals(t.getName()))
+                .findFirst()
+                .orElse(null);
+    // The revision is the authority on which tasks exist; without one, the run's TaskRuns are.
+    if (node == null && (revision != null || taskRun.isEmpty())) {
+      return Optional.empty();
+    }
+    TaskType type = node != null ? node.getType() : taskRun.get().getType();
+    List<ResultSpec> specs;
+    if (TaskType.script.equals(type) || TaskType.custom.equals(type) || TaskType.generic.equals(type)) {
+      specs = node != null ? node.getResults() : null;
+    } else {
+      String ref = taskRun.map(TaskRunEntity::getTaskRef).orElse(node != null ? node.getTaskRef() : null);
+      Integer version =
+          taskRun.map(TaskRunEntity::getTaskVersion).orElse(node != null ? node.getTaskVersion() : null);
+      TaskService.TaskRef taskRef = new TaskService.TaskRef(ref, version);
+      TaskSpec spec = taskService.getSpecs(Set.of(taskRef)).get(taskRef);
+      specs = spec != null ? spec.getResults() : null;
+    }
+    Set<String> names = new HashSet<>();
+    if (specs != null) {
+      specs.stream().map(ResultSpec::getName).filter(Objects::nonNull).forEach(names::add);
+    }
+    if (!names.isEmpty() && taskRun.isPresent() && taskRun.get().getResults() != null) {
+      taskRun.get().getResults().stream()
+          .map(RunResult::getName)
+          .filter(Objects::nonNull)
+          .forEach(names::add);
+    }
+    return Optional.of(names);
+  }
+
+  private Optional<TaskRunEntity> upstreamTaskRun(
+      String taskName, String wfRunId, Upstream upstream) {
+    return upstream.taskRuns.computeIfAbsent(
+        taskName, tn -> taskRunRepository.findFirstByNameAndWorkflowRunRef(tn, wfRunId));
+  }
+
+  private static boolean declares(ParamLayers layers, String scope, String name) {
+    if (scope == null) {
+      return definesIgnoringCase(layers.getTaskParams(), name)
+          || definesIgnoringCase(layers.getWorkflowParams(), name)
+          || definesIgnoringCase(layers.getWorkspaceParams(), name)
+          || definesIgnoringCase(layers.getGlobalParams(), name)
+          || definesIgnoringCase(layers.getContextParams(), name);
+    }
+    if ("global".equalsIgnoreCase(scope)) {
+      return definesIgnoringCase(layers.getGlobalParams(), name);
+    }
+    if ("workflow".equalsIgnoreCase(scope)) {
+      return definesIgnoringCase(layers.getWorkflowParams(), name);
+    }
+    if ("context".equalsIgnoreCase(scope)) {
+      return definesIgnoringCase(layers.getContextParams(), name);
+    }
+    return definesIgnoringCase(layers.getWorkspaceParams(), name);
+  }
+
+  /*
    * Escape every reference opening in a value inserted as written, so the substitutor emits "$(" as
    * text instead of expanding it ("$$(" is its escape for "$(").
    */
@@ -366,20 +746,28 @@ public class ParameterManager {
    * - Handles returning String or Object. (Array is looped in higher level method)
    * - Handles JSONPath tree searching using simple dot notation
    * - Handles resolving multiple param inheritance layers.
+   *
+   * A Flow reference is a $(...) whose body starts with one of Flow's scopes - params.,
+   * <scope>.params. or tasks.<name>.results. Anything else, $(date) or $(cat file), is shell
+   * command substitution and stays text. A reference to something declared that has no value at run
+   * time resolves to an empty string. One naming nothing declared is left as written and, when
+   * `unresolved` is given, added to it as "$(<body>): <why>".
    */
-  private Object resolveParam(
+  private Resolution resolveParam(
       ParamType type,
       Object originalValue,
       String wfRunId,
       Layers layers,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo) {
+      Upstream upstream,
+      Set<String> secretKeys,
+      Set<String> unresolved) {
     // Case-insensitive matching (ruled 2026-08-26): $(params.myparam) resolves a param declared
     // MyParam. The GitHub Actions model - insensitive lookup paired with the definition-side
     // rejection of case/separator-variant duplicates (ParameterUtil.paramNameCollisions).
     Map<String, Object> flatParamLayers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     flatParamLayers.putAll(layers.paramLayers().getFlatMap());
     if (Objects.isNull(originalValue)) {
-      return originalValue;
+      return new Resolution(originalValue, false);
     }
     // References are discovered over the value's flattened text, which is how a reference nested
     // inside a Map or a List is found at all; substitution then walks the real structure.
@@ -391,40 +779,70 @@ public class ParameterManager {
     // suffix and every other key were dropped and an object silently became a string.
     boolean singleReference = ParamType.object.equals(type) && isSingleReference(originalValue);
     Map<String, Object> foundKeyValues = new HashMap<>();
+    // Set where a reference is known to have resolved: whether any of them named a secret.
+    boolean secret = false;
     while (m.find()) {
       String foundKey = m.group(0);
       String[] separatedKey = foundKey.split("\\.");
       // Dispatch the reference to its shape; the per-shape extraction lives in private helpers.
+      // Every shape below is a Flow reference; a body that matches none is shell text.
       Object foundValue = null;
+      // Why the reference names nothing declared; null when it names something that is.
+      String undeclared = null;
       if ((separatedKey.length == 2) && "params".equalsIgnoreCase(separatedKey[0])) {
         // params.<name>
         foundValue = flatParamLayers.get(foundKey);
+        undeclared = undeclaredParam(layers, null, separatedKey[1]);
       } else if ((separatedKey.length > 2) && "params".equalsIgnoreCase(separatedKey[0])) {
         // params.<name>.<jsonpath> - query into a child of an object param
         foundValue = objectPathValue(foundKey, 2, flatParamLayers);
+        undeclared = undeclaredParam(layers, null, separatedKey[1]);
       } else if ((separatedKey.length == 3)
           && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>
         warnIfDeprecatedScope(separatedKey[0], foundKey);
         foundValue = flatParamLayers.get(foundKey);
+        undeclared = undeclaredParam(layers, separatedKey[0], separatedKey[2]);
       } else if ((separatedKey.length > 3)
           && "params".equalsIgnoreCase(separatedKey[1])
           && isReservedScope(separatedKey[0])) {
         // <scope>.params.<name>.<jsonpath>
         warnIfDeprecatedScope(separatedKey[0], foundKey);
         foundValue = objectPathValue(foundKey, 3, flatParamLayers);
+        undeclared = undeclaredParam(layers, separatedKey[0], separatedKey[2]);
       } else if ((separatedKey.length >= 4)
           && "tasks".equalsIgnoreCase(separatedKey[0])
           && "results".equalsIgnoreCase(separatedKey[2])) {
         // tasks.<name>.results.<result>[.<jsonpath>]
-        foundValue = taskResultValue(foundKey, separatedKey, wfRunId, taskRunMemo, originalValue);
+        undeclared = undeclaredResult(separatedKey[1], separatedKey[3], wfRunId, layers, upstream);
+        if (undeclared == null) {
+          foundValue = taskResultValue(foundKey, separatedKey, wfRunId, upstream);
+        }
+      } else {
+        // Not a Flow reference: shell text.
+        continue;
+      }
+      if (undeclared != null) {
+        // Left as written in a run param; recorded, and so failing the task, everywhere else.
+        if (unresolved != null) {
+          unresolved.add("$(" + foundKey + "): " + undeclared);
+        }
+        continue;
+      }
+      if (Objects.isNull(foundValue)) {
+        // Declared, but no value at run time - a skipped or not-yet-run task, a result it did not
+        // emit, an optional param, a path that matches nothing: an empty string.
+        foundValue = "";
       }
       if (!Objects.isNull(foundValue)) {
+        boolean foundSecret = secretKeys.contains(foundKey);
         if (singleReference) {
-          return foundValue;
+          return new Resolution(foundValue, foundSecret);
         }
-        LOGGER.debug("Pattern Matched: " + foundKey + " = " + foundValue.toString());
+        secret |= foundSecret;
+        // The key only: the value may be a secret.
+        LOGGER.debug("Pattern Matched: {}", foundKey);
         foundKeyValues.put(foundKey, foundValue);
       }
     }
@@ -433,8 +851,7 @@ public class ParameterManager {
       resolvedValue =
           replaceStringInObject(resolvedValue, flatParamLayers, key -> insertedAsWritten(key, layers));
     }
-    LOGGER.debug("Resolved Value: " + resolvedValue);
-    return resolvedValue;
+    return new Resolution(resolvedValue, secret);
   }
 
   /*
@@ -452,21 +869,15 @@ public class ParameterManager {
   }
 
   /*
-   * tasks.<name>.results.<result> with an optional trailing JSONPath. A missing task/result yields
-   * null (verbatim passthrough); a trailing path that matches nothing falls back to the original
-   * value (preserved v4 behaviour). The upstream TaskRun lookup is memoised for the resolution.
+   * tasks.<name>.results.<result> with an optional trailing JSONPath. A task run not found, a result
+   * it did not produce, or a trailing path that matches nothing yields null, which the caller fills
+   * as an empty string once undeclaredResult has passed the reference.
    */
   private Object taskResultValue(
-      String foundKey,
-      String[] separatedKey,
-      String wfRunId,
-      Map<String, Optional<TaskRunEntity>> taskRunMemo,
-      Object originalValue) {
+      String foundKey, String[] separatedKey, String wfRunId, Upstream upstream) {
     String taskName = separatedKey[1];
     String resultName = separatedKey[3];
-    Optional<TaskRunEntity> taskRunEntity =
-        taskRunMemo.computeIfAbsent(
-            taskName, tn -> taskRunRepository.findFirstByNameAndWorkflowRunRef(tn, wfRunId));
+    Optional<TaskRunEntity> taskRunEntity = upstreamTaskRun(taskName, wfRunId, upstream);
     if (taskRunEntity.isEmpty() || taskRunEntity.get().getResults().isEmpty()) {
       return null;
     }
@@ -480,8 +891,7 @@ public class ParameterManager {
     if (separatedKey.length > 4) {
       int index = ordinalIndexOf(foundKey, ".", 4);
       String searchPath = foundKey.substring(index + 1);
-      Object reducedValue = reduceObjectByJsonPath(searchPath, result.get().getValue());
-      return reducedValue != null ? reducedValue : originalValue;
+      return reduceObjectByJsonPath(searchPath, result.get().getValue());
     }
     return result.get().getValue();
   }

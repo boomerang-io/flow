@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -17,13 +18,22 @@ import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskEnvVar;
+import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.ResultSpec;
+import io.boomerang.common.model.TaskSpec;
+import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.workflow.ParamLayerService;
+import io.boomerang.workflow.TaskService;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -42,16 +52,21 @@ class ParameterManagerTest {
   private TaskRunRepository taskRunRepository;
   private ParameterManager parameterManager;
   private ParamLayerService paramLayerService;
+  private TaskService taskService;
   // What the stores hold for this test: ParamLayerService returns fresh copies on every call, as
   // it reads them from their stores each time.
   private final Map<String, Object> globalStore = new HashMap<>();
   private final Map<String, Object> workspaceStore = new HashMap<>();
   private final Map<String, Object> contextStore = new HashMap<>();
+  // The names the global and workspace stores type as password.
+  private final Set<String> globalSecrets = new HashSet<>();
+  private final Set<String> workspaceSecrets = new HashSet<>();
 
   @BeforeEach
   void setUp() {
     taskRunRepository = mock(TaskRunRepository.class);
     paramLayerService = mock(ParamLayerService.class);
+    taskService = mock(TaskService.class);
     when(paramLayerService.buildParamLayers(any(), any(), any()))
         .thenAnswer(
             invocation -> {
@@ -59,6 +74,8 @@ class ParameterManagerTest {
               layers.setGlobalParams(new HashMap<>(globalStore));
               layers.setWorkspaceParams(new HashMap<>(workspaceStore));
               layers.setContextParams(new HashMap<>(contextStore));
+              layers.setSecretGlobalParams(new HashSet<>(globalSecrets));
+              layers.setSecretWorkspaceParams(new HashSet<>(workspaceSecrets));
               return layers;
             });
     parameterManager =
@@ -66,7 +83,8 @@ class ParameterManagerTest {
             mock(WorkflowRunRepository.class),
             taskRunRepository,
             new ObjectMapper(),
-            paramLayerService);
+            paramLayerService,
+            taskService);
   }
 
   // (a) plain param: $(params.<name>) resolves from the flattened layer.
@@ -183,11 +201,15 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("GREETING", "$(params.greeting)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("#!/bin/sh\necho hello", task.getSpec().getScript());
-    assertEquals(List.of("run", "hello"), task.getSpec().getCommand());
-    assertEquals(List.of("--msg", "hello"), task.getSpec().getArguments());
-    assertEquals("hello", task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("#!/bin/sh\necho hello", spec.getScript());
+    assertEquals(List.of("run", "hello"), spec.getCommand());
+    assertEquals(List.of("--msg", "hello"), spec.getArguments());
+    assertEquals("hello", spec.getEnvs().get(0).getValue());
+    // The stored spec is untouched: admission resolves the params only.
+    assertEquals("#!/bin/sh\necho $(params.greeting)", task.getSpec().getScript());
+    assertEquals("$(params.greeting)", task.getSpec().getEnvs().get(0).getValue());
   }
 
   // The spec reads the params as resolved: $(params.p) gets p's value, even when p was written as a
@@ -202,10 +224,11 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("P", "$(params.p)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
     assertEquals("RV", task.getParams().get(0).getValue());
-    assertEquals("echo RV", task.getSpec().getScript());
-    assertEquals("RV", task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("echo RV", spec.getScript());
+    assertEquals("RV", spec.getEnvs().get(0).getValue());
   }
 
   // A result reached through a param is still a task's output: it reaches the spec as written, so
@@ -220,8 +243,9 @@ class ParameterManagerTest {
     task.getSpec().setScript("echo $(params.p)");
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("echo says $(workspace.params.w1)", task.getSpec().getScript());
+    assertEquals("echo says $(workspace.params.w1)", spec.getScript());
   }
 
   // A param written in terms of another still composes in the spec.
@@ -234,23 +258,171 @@ class ParameterManagerTest {
     task.getSpec().setScript("echo $(params.p)");
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("echo hi wv", task.getSpec().getScript());
+    assertEquals("echo hi wv", spec.getScript());
   }
 
-  // Null spec fields survive substitution untouched; unresolved references stay verbatim.
+  // A task param is frozen at admission; a workspace or global reference written straight into
+  // the spec is read when the spec is filled in, so an edit between the two shows (the accepted
+  // drift, decision 0116).
+  @Test
+  void fillSpecFreezesTaskParamsAndReadsScopedReferencesLive() {
+    workspaceStore.put("w1", "at-admission");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("p", "$(workspace.params.w1)")));
+    task.getSpec().setScript("echo $(params.p) $(workspace.params.w1)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+    workspaceStore.put("w1", "at-claim");
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
+
+    assertEquals("echo at-admission at-claim", spec.getScript());
+  }
+
+  // Null spec fields survive substitution untouched; shell command substitution stays text.
   @Test
   void resolvesSpecFieldsNullSafeAndPassthrough() {
     WorkflowRunEntity run = run();
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(List.of());
-    task.getSpec().setCommand(List.of("echo", "$(params.unknown)"));
+    task.getSpec().setCommand(List.of("echo", "$(date)"));
 
-    parameterManager.resolveParamLayers(run, Optional.of(task));
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.of(task)));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals(null, task.getSpec().getScript());
-    assertEquals(null, task.getSpec().getArguments());
-    assertEquals(List.of("echo", "$(params.unknown)"), task.getSpec().getCommand());
+    assertEquals(null, spec.getScript());
+    assertEquals(null, spec.getArguments());
+    assertEquals(List.of("echo", "$(date)"), spec.getCommand());
+  }
+
+  // ── Flow references: undeclared ones are reported for admission, declared ones without a value
+  // resolve to an empty string ──────────────────────────────────────────────────────────────────
+
+  // Each Flow reference naming nothing declared is reported under its field with why; shell command
+  // substitution is not a Flow reference and is never reported.
+  @Test
+  void reportsUndeclaredFlowReferencesByFieldAndIgnoresShellSubstitution() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName("deploy");
+    task.setParams(List.of(str("registryToken", "t"), str("url", "$(workflow.params.hots)/api")));
+    task.getSpec().setScript("login $(params.registryTokn) $(date) $(cat /etc/hostname)");
+    task.getSpec().setArguments(List.of("$(params.registryToken)", "$(git rev-parse HEAD)"));
+    task.getSpec().setEnvs(List.of(new TaskEnvVar("R", "$(global.params.missing)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of(
+            "param 'url'", Set.of("$(workflow.params.hots): no such workflow param 'hots'"),
+            "script", Set.of("$(params.registryTokn): no such param 'registryTokn'"),
+            "env 'R'", Set.of("$(global.params.missing): no such global param 'missing'")),
+        unresolved);
+    assertEquals(
+        "Task 'deploy': param 'url' references $(workflow.params.hots): no such workflow param"
+            + " 'hots'; script references $(params.registryTokn): no such param 'registryTokn';"
+            + " env 'R' references $(global.params.missing): no such global param 'missing'",
+        ParameterManager.unresolvedMessage("deploy", unresolved));
+  }
+
+  // Declared but without a value is an empty string: an optional param, an object path that matches
+  // nothing on a declared object, a result path that matches nothing. An object path on an
+  // undeclared param is reported.
+  @Test
+  void aDeclaredReferenceWithoutAValueIsAnEmptyString() {
+    stubTask("t1", new RunResult("r1", Map.of("field", "fv")));
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            object("cfg", Map.of("region", "eu")),
+            new RunParam("optional", null, ParamType.string),
+            str("ok", "$(params.cfg.region) $(tasks.t1.results.r1.field)"),
+            str("empty", "[$(params.cfg.zone)][$(tasks.t1.results.r1.nope)][$(params.optional)]"),
+            str("bad", "$(params.nocfg.zone)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of("param 'bad'", Set.of("$(params.nocfg.zone): no such param 'nocfg'")), unresolved);
+    assertEquals("eu fv", taskValue(task, "ok"));
+    assertEquals("[][][]", taskValue(task, "empty"));
+    assertEquals("$(params.nocfg.zone)", taskValue(task, "bad"));
+  }
+
+  // $(tasks.t.results.r) is declared when t is a task in the run's workflow revision and r is a
+  // result its catalogue task declares; a task that declares none may be asked for any result. A
+  // skipped task's declared result is an empty string.
+  @Test
+  void aTaskResultIsCheckedAgainstTheRevisionAndTheDeclaredResults() {
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setTasks(
+        List.of(node("build-a", "builder"), node("build-b", "builder"), node("say", "echoer")));
+    when(paramLayerService.getRevision("rev1")).thenReturn(revision);
+    TaskSpec builder = new TaskSpec();
+    ResultSpec url = new ResultSpec();
+    url.setName("url");
+    builder.setResults(List.of(url));
+    when(taskService.getSpecs(any()))
+        .thenAnswer(
+            invocation -> {
+              Set<TaskService.TaskRef> refs = invocation.getArgument(0);
+              Map<TaskService.TaskRef, TaskSpec> specs = new HashMap<>();
+              refs.forEach(r -> specs.put(r, "builder".equals(r.ref()) ? builder : new TaskSpec()));
+              return specs;
+            });
+    stubTaskRun("build-a", "builder", RunStatus.succeeded, new RunResult("url", "https://a"));
+    stubTaskRun("build-b", "builder", RunStatus.skipped, new RunResult("url", null));
+    stubTaskRun("say", "echoer", RunStatus.succeeded, new RunResult("anything", "said"));
+    WorkflowRunEntity run = run();
+    run.setWorkflowRevisionRef("rev1");
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("join", "[$(tasks.build-a.results.url)][$(tasks.build-b.results.url)]"),
+            str("free", "[$(tasks.say.results.anything)][$(tasks.say.results.other)]"),
+            str("bad", "$(tasks.biuld-a.results.url) $(tasks.build-a.results.uri)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Map.of(
+            "param 'bad'",
+            Set.of(
+                "$(tasks.biuld-a.results.url): task 'biuld-a' is not in this workflow",
+                "$(tasks.build-a.results.uri): task 'build-a' declares no result 'uri'")),
+        unresolved);
+    assertEquals("[https://a][]", taskValue(task, "join"));
+    assertEquals("[said][]", taskValue(task, "free"));
+  }
+
+  // A run's own params are not checked: a reference naming nothing declared is left as written.
+  @Test
+  void aWorkflowRunParamIsNotChecked() {
+    WorkflowRunEntity run = run(str("ref", "$(params.nothing)"));
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.empty()));
+    assertEquals("$(params.nothing)", resolved(run, "ref"));
+  }
+
+  // Admission checked the spec; a global deleted before the claim fails the fill-in, naming it.
+  @Test
+  void fillSpecThrowsWhenAReferenceNoLongerResolves() {
+    globalStore.put("g1", "here");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName("deploy");
+    task.setParams(List.of());
+    task.getSpec().setScript("echo $(global.params.g1)");
+    assertEquals(Map.of(), parameterManager.resolveParamLayers(run, Optional.of(task)));
+
+    globalStore.remove("g1");
+    IllegalStateException e =
+        assertThrows(IllegalStateException.class, () -> parameterManager.fillSpec(run, task));
+    assertEquals(
+        "Task 'deploy': script references $(global.params.g1): no such global param 'g1'",
+        e.getMessage());
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -495,9 +667,10 @@ class ParameterManagerTest {
     task.getSpec().setEnvs(List.of(new TaskEnvVar("PROMPT", "$(params.prompt)")));
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", task.getSpec().getScript());
-    assertEquals(prompt, task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("#!/bin/sh\ncat <<'EOF'\n" + prompt + "\nEOF", spec.getScript());
+    assertEquals(prompt, spec.getEnvs().get(0).getValue());
   }
 
   // ── layers read from their stores; values supplied or produced are inserted as written ─────────
@@ -654,11 +827,157 @@ class ParameterManagerTest {
     assertSame(structure, task.getParams().get(0).getValue());
   }
 
+  // ── Taint: a string that takes in a secret becomes a secret ────────────────
+
+  @Test
+  void aStringParamThatSubstitutesASecretBecomesASecret() {
+    WorkflowRunEntity run =
+        run(
+            secret("dbPassword", "s3cr3t-pa55"),
+            str("dsn", "postgres://app:$(params.dbPassword)@db"),
+            str("host", "db"),
+            str("url", "https://$(params.host)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("postgres://app:s3cr3t-pa55@db", resolved(run, "dsn"));
+    assertEquals(ParamType.secret, type(run, "dsn"));
+    assertEquals("https://db", resolved(run, "url"));
+    assertEquals(ParamType.string, type(run, "url"), "no secret in, no taint");
+  }
+
+  @Test
+  void theScopedWorkflowReferenceTaintsToo() {
+    WorkflowRunEntity run =
+        run(secret("token", "tok-123456"), str("header", "Bearer $(workflow.params.token)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("Bearer tok-123456", resolved(run, "header"));
+    assertEquals(ParamType.secret, type(run, "header"));
+  }
+
+  // Absent type is string, as it always was: substituted, and tainted like any string.
+  @Test
+  void anUntypedParamResolvesAsAStringAndCanBeTainted() {
+    WorkflowRunEntity run =
+        run(secret("pw", "hunter2-long"), new RunParam("plain", "x-$(params.pw)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("x-hunter2-long", resolved(run, "plain"));
+    assertEquals(ParamType.secret, type(run, "plain"));
+  }
+
+  @Test
+  void aSecretParamResolvesItsOwnReferencesAndStaysSecret() {
+    WorkflowRunEntity run = run(str("user", "app"), secret("login", "$(params.user):pw-9999"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("app:pw-9999", resolved(run, "login"));
+    assertEquals(ParamType.secret, type(run, "login"));
+  }
+
+  // A secret is a string only: an array or object that takes one in keeps its type, and the
+  // value scrub on the way out covers it.
+  @Test
+  void anArrayOrObjectThatSubstitutesASecretKeepsItsType() {
+    WorkflowRunEntity run =
+        run(
+            secret("pw", "hunter2-long"),
+            new RunParam("args", new java.util.ArrayList<>(List.of("--pw=$(params.pw)")), ParamType.array),
+            object("cfg", Map.of("auth", "$(params.pw)")));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals(List.of("--pw=hunter2-long"), value(run, "args"));
+    assertEquals(ParamType.array, type(run, "args"));
+    assertEquals(Map.of("auth", "hunter2-long"), value(run, "cfg"));
+    assertEquals(ParamType.object, type(run, "cfg"));
+  }
+
+  // The task layer: a task param referencing a workflow secret becomes a secret; a task param of
+  // the same name shadows the workflow secret, exactly as it shadows its value.
+  @Test
+  void aTaskParamTakesTheTaintOfTheLayerThatWins() {
+    WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"), secret("shadowed", "wf-secret-1"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("header", "X-Key: $(params.apiKey)"),
+            str("shadowed", "task-value"),
+            str("uses", "$(params.shadowed)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("X-Key: sk-live-0001", taskValue(task, "header"));
+    assertEquals(ParamType.secret, taskType(task, "header"));
+    assertEquals("task-value", taskValue(task, "uses"));
+    assertEquals(ParamType.string, taskType(task, "uses"));
+  }
+
+  // The global and workspace layers are read from their typed stores, so a password-typed global or
+  // workspace parameter is a secret: a string that takes one in becomes a secret, by its scoped and
+  // its flat reference alike.
+  @Test
+  void aStringThatTakesInAPasswordGlobalOrWorkspaceParamBecomesASecret() {
+    globalStore.put("registryToken", "glob-tok-0001");
+    globalSecrets.add("registryToken");
+    workspaceStore.put("dbPass", "ws-pass-0001");
+    workspaceSecrets.add("dbPass");
+    workspaceStore.put("region", "ap-southeast-2");
+    WorkflowRunEntity run =
+        run(
+            str("auth", "Bearer $(global.params.registryToken)"),
+            str("dsn", "pg://app:$(workspace.params.dbPass)@db"),
+            str("legacy", "$(team.params.dbPass)"),
+            str("flat", "$(params.registryToken)"),
+            str("where", "$(workspace.params.region)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("Bearer glob-tok-0001", resolved(run, "auth"));
+    assertEquals(ParamType.secret, type(run, "auth"));
+    assertEquals(ParamType.secret, type(run, "dsn"));
+    assertEquals(ParamType.secret, type(run, "legacy"));
+    assertEquals(ParamType.secret, type(run, "flat"));
+    assertEquals(ParamType.string, type(run, "where"), "a plain workspace value does not taint");
+  }
+
+  // Precedence follows the values: a workflow param of the same name wins the flat reference, and
+  // carries its own type.
+  @Test
+  void aWorkflowParamShadowsAPasswordGlobalParamOfTheSameName() {
+    globalStore.put("token", "glob-tok-0001");
+    globalSecrets.add("token");
+    WorkflowRunEntity run = run(str("token", "public"), str("uses", "$(params.token)"));
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("public", resolved(run, "uses"));
+    assertEquals(ParamType.string, type(run, "uses"));
+  }
+
   private void stubTask(String name, RunResult result) {
     TaskRunEntity task = new TaskRunEntity();
     task.setResults(List.of(result));
     when(taskRunRepository.findFirstByNameAndWorkflowRunRef(eq(name), eq(WF)))
         .thenReturn(Optional.of(task));
+  }
+
+  private void stubTaskRun(String name, String taskRef, RunStatus status, RunResult result) {
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName(name);
+    task.setType(TaskType.template);
+    task.setTaskRef(taskRef);
+    task.setTaskVersion(1);
+    task.setStatus(status);
+    task.setResults(List.of(result));
+    when(taskRunRepository.findFirstByNameAndWorkflowRunRef(eq(name), eq(WF)))
+        .thenReturn(Optional.of(task));
+  }
+
+  private static WorkflowTask node(String name, String taskRef) {
+    WorkflowTask node = new WorkflowTask();
+    node.setName(name);
+    node.setType(TaskType.template);
+    node.setTaskRef(taskRef);
+    node.setTaskVersion(1);
+    return node;
   }
 
   private WorkflowRunEntity run(RunParam... params) {
@@ -670,6 +989,34 @@ class ParameterManagerTest {
 
   private static RunParam str(String name, String value) {
     return new RunParam(name, value, ParamType.string);
+  }
+
+  private static RunParam secret(String name, String value) {
+    return new RunParam(name, value, ParamType.secret);
+  }
+
+  private static ParamType type(WorkflowRunEntity run, String name) {
+    return run.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getType();
+  }
+
+  private static Object taskValue(TaskRunEntity task, String name) {
+    return task.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
+  }
+
+  private static ParamType taskType(TaskRunEntity task, String name) {
+    return task.getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getType();
   }
 
   private static RunParam object(String name, Object value) {

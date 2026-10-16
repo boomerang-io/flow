@@ -216,7 +216,7 @@ filtering built on `type` and `subject` are unaffected by the setting.
 | `payload` | `data` | Use |
 | --- | --- | --- |
 | `thin` (default) | The run's identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason` (task events), `phase`, `labels`, `creationDate`, `startTime`, `duration`. Absent fields are omitted, never `null` | A consumer triggers on the event and reads the run back over the API |
-| `full` | The whole public `WorkflowRun` / `TaskRun` model, `params`, `results` and `annotations` included | A consumer processes result values without calling back |
+| `full` | The whole public `WorkflowRun` / `TaskRun` model, `params`, `results` and `annotations` included; a `secret` param's value is `*****` | A consumer processes result values without calling back |
 
 One projection step builds both (`event/model/RunStatusSummary.java:46-53`); the shapes are pinned by
 `service-core/src/test/java/io/boomerang/event/StatusEventPayloadTest.java`. `thin` never carries
@@ -284,7 +284,12 @@ which keys prefixed `boomerang.io/` are reserved for the server.
 
 Definitions declare parameters as `AbstractParam` (a UI-driven field: `name`, `type`,
 `label`, `defaultValue`, `options`, `required`, ...; `common/model/AbstractParam.java:16-34`);
-runtime values are `RunParam` (`name`, `value`; `common/model/RunParam.java:10-12`).
+runtime values are `RunParam` (`name`, `value`, `type`; `common/model/RunParam.java:12-17`). `type` is
+one of `string`, `array`, `object` or `secret` and is omitted when absent, which means `string`; an
+unknown value is `400 PARAM_INVALID_TYPE` (1216), and a `secret` whose value is not a string is
+`400 PARAM_SECRET_NOT_STRING` (1217). A `secret` param's value is returned as `*****` on every run read,
+submit and lifecycle response and `full` status event; the dispatcher claim carries the real value
+(`task-runtime.md`, "Sensitive parameters").
 
 | Object | Field | Element type |
 | --- | --- | --- |
@@ -305,7 +310,7 @@ and a task whose template declares `item` or `index`; it refuses a task name end
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in
 the webapp's canvas type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name
-(`lib-common/.../util/DataAdapterUtil.java:217-218`). boomerang-io/flow#377 tracks unifying the two.
+(`lib-common/.../util/DataAdapterUtil.java:243-244`). boomerang-io/flow#377 tracks unifying the two.
 
 ## How the webapp calls the API
 

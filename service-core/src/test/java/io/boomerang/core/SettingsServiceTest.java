@@ -41,7 +41,9 @@ class SettingsServiceTest {
     EncryptionConfig encryptionConfig = new EncryptionConfig();
     encryptionConfig.setSecretKey("test-secret");
     encryptionConfig.setSalt("test-salt");
-    settingsService = new SettingsService(settingsRepository, encryptionConfig, paramLayerCache);
+    settingsService =
+        new SettingsService(
+            settingsRepository, new SecretCipher(encryptionConfig), paramLayerCache);
   }
 
   @Test
