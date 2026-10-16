@@ -19,7 +19,7 @@ carry the old spelling, and a v3 database is upgraded in place, so it cannot sim
 ## Decision
 
 B. `ParamLayers.getFlatMap` exposes workspace parameters under both prefixes and `getFlatKeys` suggests only
-`workspace` (`lib-common/.../ParamLayers.java`); `ParameterManager` accepts both scopes and logs a warning once
+`workspace` (`service-core/.../ParamLayers.java`); `ParameterManager` accepts both scopes and logs a warning once
 per `team.params` reference (`engine/ParameterManager.java`, `warnIfDeprecatedScope`). The webapp shows
 `$(workspace.params.x)`.
 

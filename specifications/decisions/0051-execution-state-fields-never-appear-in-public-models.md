@@ -19,7 +19,7 @@ the entities could no longer be reshaped freely.
 ## Decision
 
 Option B. `WorkflowRun` and `TaskRun` are standalone classes
-(`lib-common/src/main/java/io/boomerang/common/model/TaskRun.java:19-23`), and
+(`service-core/src/main/java/io/boomerang/common/model/TaskRun.java:19-23`), and
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:43-76` fails
 the build if `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`,
 `agentRef` or `dispatcherRef` is serialised. Pause is exposed only as the derived boolean `paused`

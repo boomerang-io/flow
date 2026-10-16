@@ -8,12 +8,10 @@ on:
       - main
     paths:
       - 'service-core/**'
-      - 'lib-common/**'
       - '.github/workflows/ci-core.yml'
   pull_request:
     paths:
       - 'service-core/**'
-      - 'lib-common/**'
       - '.github/workflows/ci-core.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

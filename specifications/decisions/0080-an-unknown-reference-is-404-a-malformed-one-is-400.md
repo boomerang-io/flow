@@ -21,7 +21,7 @@ a client protocol error.
 ## Decision
 
 Option C. A `*_INVALID_REF*` code now answers `404` and means the resource the request path
-addresses does not exist (`lib-common/src/main/java/io/boomerang/common/error/BoomerangError.java`);
+addresses does not exist (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java`);
 blank, missing or unusable input answers `400` under the matching `*_INVALID_REQ` code
 (`TEAM_INVALID_REQ`, `WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ` join the
 existing `WORKFLOWRUN_INVALID_REQ`, `TASKRUN_INVALID_REQ`, `SCHEDULE_INVALID_REQ`). A reference that
