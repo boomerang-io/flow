@@ -21,19 +21,12 @@ import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('task_runs')}")
-@CompoundIndexes({
-  @CompoundIndex(name = "status_phase_type_idx", def = "{'status': 1, 'phase': 1, 'type': 1}"),
-  @CompoundIndex(name = "parent_index", def = "{'parentRef': 1, 'index': 1}", sparse = true)
-})
 public class TaskRunEntity {
 
   @Id private String id;
@@ -49,8 +42,8 @@ public class TaskRunEntity {
   private List<RunResult> results = new LinkedList<>();
   private WorkflowWorkspace workspace;
   private TaskRunSpec spec = new TaskRunSpec();
-  @Indexed private RunStatus status;
-  @Indexed private RunPhase phase;
+  private RunStatus status;
+  private RunPhase phase;
   private String statusMessage;
 
   private String statusReason;
@@ -61,7 +54,7 @@ public class TaskRunEntity {
   private Integer taskVersion;
   private String workflowRef;
   private String workflowRevisionRef;
-  @Indexed private String workflowRunRef; // Indexed when retrieving task runs for a workflow run
+  private String workflowRunRef;
 
   // A foreach task's item: the parent TaskRun's id and the item's position from 0. Absent on every
   // other TaskRun. Items are never graph vertices; the parent stands for them in the graph.
@@ -78,9 +71,7 @@ public class TaskRunEntity {
 
   // Denormalised absolute deadline (budget + grace) written at claim/start; absent = unguarded.
   // The watcher reaps on an indexed range scan - there are no in-memory timers.
-  @JsonIgnore
-  @Indexed(sparse = true)
-  private Date timeoutAt;
+  @JsonIgnore private Date timeoutAt;
 
   // Retry state. Absent = fully eligible; retry.after gates claim eligibility until the backoff
   // elapses. Written only by the fenced requeue, which never clears claim.seq.
@@ -88,7 +79,5 @@ public class TaskRunEntity {
 
   // Wake time for a durable wait (sleep, or an acquirelock backoff). A waiting row is re-driven by
   // the watcher when waitUntil elapses - never a held thread. Absent = not a timed wait.
-  @JsonIgnore
-  @Indexed(sparse = true)
-  private Date waitUntil;
+  @JsonIgnore private Date waitUntil;
 }

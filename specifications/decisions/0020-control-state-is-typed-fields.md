@@ -29,5 +29,7 @@ never written; `PublicRunModelSerialisationTest` pins that control fields never 
 
 - Claim, sweep and pause queries run on indexed typed fields (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`).
 - `RunStatus` stays a closed enum; pause and supersede are orthogonal fields, never status values.
-- Still read from annotations, to be moved incrementally: the workspace executor settings (`task-timeout`,
-  `task-default-image`, `task-deletion`), the parameter layers (`*-params`), `workspace-name` and `status`.
+- Still read from annotations, to be moved incrementally: the executor settings stamped at submit
+  (`task-timeout`, `task-default-image`, `task-deletion`, `engine/DAGUtility.java:213-284`), `workspace-name`
+  (`engine/ParameterManager.java:249`) and `status` (`engine/TaskExecutionService.java:1294`). The parameter
+  layers left annotations with decision 0093 and are read from their stores.

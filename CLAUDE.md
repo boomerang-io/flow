@@ -37,7 +37,7 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 | Kind | Where | Rule |
 | --- | --- | --- |
 | Reference — how a subsystem works today | `specifications/<subsystem>.md` | Neutral description, rewritten in place when the code changes, no history, aim for 150–250 lines (400 at most), `path:line` citations. |
-| Decision — why something was chosen | `specifications/decisions/NNNN-<title>.md` | Context · Options · Decision · Consequences, ≤ 40 lines, never edited after acceptance except its Status (`superseded by NNNN`). |
+| Decision — why something was chosen | `specifications/decisions/NNNN-<title>.md` | Context · Options · Decision · Consequences, ≤ 40 lines. Until the first 5.0.0 release: rewritten in place when the code moves, deleted when a later record absorbs it. After it: never edited except its Status (`superseded by NNNN`). |
 
 Audits, findings logs and work plans do not live here: bugs are GitHub issues, plans are GitHub issues with
 sub-issues, history is git. After changing behaviour, update the reference doc that describes it; after

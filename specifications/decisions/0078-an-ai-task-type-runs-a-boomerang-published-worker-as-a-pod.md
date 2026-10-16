@@ -20,11 +20,12 @@ is declaring it, not packaging it. The question was where the call runs.
 ## Decision
 
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`engine/TaskExecutionService.java:208-212,340`), the seeded `ai` catalogue task declares no image, and the dispatcher
-resolves `flow.dispatcher.ai.image` for the type — `boomerangio/task-ai`, released from `boomerang-io/tasks`, not a
-product image (decision 0006 stands). Two things decided it: untrusted prompt content must not be parsed in the same
-process that holds the dispatcher's engine credential, and a dispatcher registered with `taskTypes=[ai]` is by itself
-the egress zone — one deployment, one network policy, no new concept (decision 0042).
+(`engine/TaskExecutionService.java:243,373`), the seeded `ai` catalogue task declares no image, and the dispatcher
+resolves `flow.dispatcher.ai.image` for the type (`service-dispatcher/.../executor/TaskImageResolver.java:42`) —
+`boomerangio/task-ai`, released from `boomerang-io/tasks`, not a product image (decision 0006 stands). Two things
+decided it: untrusted prompt content must not be parsed in the same process that holds the dispatcher's engine
+credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress zone — one deployment, one
+network policy, no new concept (decision 0042).
 
 ## Consequences
 
@@ -34,7 +35,6 @@ the egress zone — one deployment, one network policy, no new concept (decision
   workflow revision's param spec (decision 0043, true of all 84 catalogue password params). Downward it
   reaches the pod as a plain `PARAM_TOKEN` environment variable. Per-task secrets would close both; revisit
   when a customer needs the token withheld from anyone who can read the pod spec.
-- `output` is an ordinary result under the 4 KB cap (decision 0041), so a long response fails the task with
-  `RESULTS_TOO_LARGE`. Revisit with the artefact store (decision 0045), not by raising the cap.
-- Token usage is six flat results, not an entity field: a platform meters by summing `totalTokens` over task
-  runs through the existing query API.
+- `output` is an ordinary result under the results caps (decision 0041; 4 KB on Kubernetes), so a long response
+  fails the task with `RESULTS_TOO_LARGE`. A long response belongs in an artifact (decision 0085), not in a raised cap.
+- Token usage is six flat results, not an entity field: a platform meters by summing `totalTokens` over task runs.

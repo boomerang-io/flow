@@ -7,8 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /*
@@ -16,11 +14,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('rel_edges')}")
-@CompoundIndexes({
-  @CompoundIndex(name = "from_to_idx", def = "{'from' : -1, 'to': -1}"),
-  @CompoundIndex(name = "from_to_label_idx", def = "{'from' : -1, 'to': -1, 'label': -1}"),
-  @CompoundIndex(name = "to_label_idx", def = "{'to': -1, 'label': -1}")
-})
 public class RelationshipEdgeEntity {
 
   @Id private String id;

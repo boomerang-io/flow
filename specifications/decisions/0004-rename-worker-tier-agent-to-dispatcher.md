@@ -19,19 +19,19 @@ relays the result.
 
 ## Decision
 
-Option C. The module is `service-dispatcher` (`pom.xml:12`), the image `boomerangio/flow-service-dispatcher`
-(`.github/workflows/ci-release.yml:156`), the wire is `/api/v1/dispatcher/**`
-(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:41`) guarded by
-`DispatcherAuthFilter`, the registry collection is `dispatchers` (renamed by the loader's
-`_0015__DispatcherRename`), and the claim owner is written as `claim.by`. The old `/api/v1/agent` path was
-dropped outright rather than dual-served, because nothing on the v4 line had adopted it. "Agent" is
-reserved for the AI task types. Per-runtime selection lives inside the one module as `dispatcher.executor`
-(`tekton` or `kube-jobs`) rather than as separate `dispatcher-tekton`/`dispatcher-docker` builds.
+Option C. The module is `service-dispatcher` (`service-dispatcher/pom.xml:6`), the image
+`boomerangio/flow-service-dispatcher` (`.github/workflows/ci-release.yml:95`), the wire is `/dispatcher/v1/**`
+(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:53`) guarded by
+`DispatcherAuthFilter` (`dispatcher/DispatcherSecurityConfiguration.java:19`), the registry collection is
+`dispatchers` (indexed by `migration/_0021__Indexes.java:138`), and the claim owner is written as `claim.by`.
+The old `/api/v1/agent` path was dropped outright rather than dual-served, because nothing on the v4 line had
+adopted it. "Agent" is reserved for the AI task types. Per-runtime selection lives inside the one module as
+`dispatcher.executor` (`tekton` or `kube-jobs`, `service-dispatcher/src/main/resources/application.properties:65`)
+rather than as separate `dispatcher-tekton`/`dispatcher-docker` builds.
 
 ## Consequences
 
-- One unambiguous word for the worker tier in code, API, properties and images.
-- Two names survive as property keys core reads for the log stream, `flow.agent.service.host` and
-  `flow.agent.logstream.url` (`service-core/src/main/resources/application.properties:70-72`); rename
-  when the log path is next touched.
-- The release job that pushes the dispatcher image is still called `deploy-agent` (`ci-release.yml:131`).
+- One unambiguous word for the worker tier in code, API, properties, images and the release job
+  (`deploy-dispatcher`, `ci-release.yml:72`).
+- Core holds no property naming a dispatcher at all: the log route a dispatcher serves is registered by the
+  dispatcher itself (decision 0112).

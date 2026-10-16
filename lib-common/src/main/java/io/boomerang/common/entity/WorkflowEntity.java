@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -20,7 +19,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class WorkflowEntity {
 
   @Id private String id;
-  @Indexed private String name;
+  private String name;
   private String displayName;
   private WorkflowStatus status = WorkflowStatus.active;
   private Date creationDate = new Date();

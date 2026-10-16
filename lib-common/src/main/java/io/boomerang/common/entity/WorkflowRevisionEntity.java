@@ -8,9 +8,6 @@ import java.util.LinkedList;
 import java.util.List;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /*
@@ -22,13 +19,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 @Document(collection = "#{@mongoConfiguration.fullCollectionName('workflow_revisions')}")
-@CompoundIndexes({
-  @CompoundIndex(name = "workflow_ref_version_idx", def = "{'workflowRef': 1, 'version': 1}")
-})
 public class WorkflowRevisionEntity {
   @Id private String id;
   private Integer version;
-  @Indexed private String workflowRef;
+  private String workflowRef;
   private List<WorkflowTask> tasks = new LinkedList<>();
   private ChangeLog changelog;
   private String markdown;

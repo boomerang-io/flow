@@ -15,7 +15,7 @@ needed for the security-off case, and the question was whether it should be a st
 | --- | --- | --- |
 | A. Seed a default admin user in MongoDB | operators want a visible, editable account | it appears in member lists and exports of every secured install, and whoever registers its email at the identity provider inherits an admin record |
 | B. Null identity, null-checks everywhere | nothing | every consumer keeps its own fallback; audit stays blank |
-| C. A per-request synthetic token and matching in-memory admin user | local development, end-to-end tests, `engine` mode | repository lookups by id `system` find nothing |
+| C. A per-request synthetic token and matching in-memory admin user | local development, end-to-end tests, an embedded engine with security off | repository lookups by id `system` find nothing |
 
 ## Decision
 

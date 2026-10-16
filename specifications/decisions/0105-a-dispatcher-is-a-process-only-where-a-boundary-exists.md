@@ -33,7 +33,7 @@ capacity, heartbeats and is fenced on a lease — so the contract, not the proce
 
 - `service-core` never gains Kubernetes, Tekton or Docker dependencies; the task types the engine already runs
   itself (`task-runtime.md`, "Task types handled inside the engine") remain the only execution inside it.
-- The one call from core to a dispatcher, log streaming at a single URL (`engine/LogClient.java:33`), assumes
-  one long-lived dispatcher and must move onto the contract before a second dispatcher shape ships.
+- Core reaches a dispatcher only through what it registered: the log route and bearer (decision 0112,
+  `engine/LogClient.java:28-29,55`); nothing on core names a dispatcher.
 - Ephemeral dispatchers need registration expiry and a queue-depth read for autoscalers. Both are additive v1
   changes, built when a pool or serverless dispatcher is built, not before.

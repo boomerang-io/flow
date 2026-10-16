@@ -1,13 +1,13 @@
 # 0006 — One product version and tag builds every image
 
-**Status:** accepted · **Date:** 2026-07-22 (alias tags dropped 2026-08-15 and 2026-09-01)
+**Status:** accepted · **Date:** 2026-07-22
 
 ## Context
 
 Version 4 tagged each service on its own line, so operators had to know which engine, flow, loader and
-web versions worked together. With flow and engine merged into one deployable (0001), engine mode became
-configuration rather than a separate artefact, and a separate engine version line would have recreated
-the compatibility matrix the merge removed.
+web versions worked together. With flow and engine merged into one deployable (0001), the headless shape
+became properties rather than a separate artefact (0109), and a separate engine version line would have
+recreated the compatibility matrix the merge removed.
 
 ## Options
 
@@ -19,12 +19,12 @@ the compatibility matrix the merge removed.
 
 ## Decision
 
-Option B. A tag matching `5.x.y`, `5.x.y-beta.z` or `5.x.y-rc.z` triggers `.github/workflows/ci-release.yml:9-13`,
-which builds and pushes `flow-service-core`, `flow-service-dispatcher`, `flow-service-loader` and
-`flow-client-web` with that tag; `:latest` is added only for a stable tag (`ci-release.yml:73-80`).
-`sbom.yml:11-14` scans on the same patterns. The alias tags of option C were dropped: v5 has never
-shipped, so there is no v5 embedder to carry through a deprecation window, and v4 embedders keep pulling
-the v4 image tags, which stay published. No independent engine version line exists.
+Option B. A tag matching `5.x.y`, `5.x.y-beta.z` or `5.x.y-rc.z` triggers `.github/workflows/ci-release.yml:9-12`,
+which builds and pushes `flow-service-core`, `flow-service-dispatcher` and `flow-client-web` with that tag
+and publishes the `dispatcher-sdk` artifact at the same version; `:latest` is added only for a stable tag
+(`ci-release.yml:41-50`). `sbom.yml:11-14` scans on the same patterns. The alias tags of option C were
+dropped: v5 has never shipped, so there is no v5 embedder to carry through a deprecation window, and v4
+embedders keep pulling the v4 image tags, which stay published. No independent engine version line exists.
 
 ## Consequences
 

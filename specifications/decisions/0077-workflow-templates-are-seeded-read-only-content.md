@@ -6,7 +6,7 @@
 
 Workflow Templates shipped with a full management surface — create, apply and delete over
 `/api/v2/workflowtemplate`, plus an admin screen to import and remove them — yet nothing produced a
-template except the loader's seed file and the v3 upgrade. The management paths had no users, and
+template except the seed file and the v3 upgrade. The management paths had no users, and
 half of the original controller had already been commented out since v4.
 
 ## Options
@@ -20,18 +20,19 @@ half of the original controller had already been commented out since v4.
 ## Decision
 
 Option B. Templates are content, not a managed resource: `WorkflowTemplateControllerV2` keeps only
-`GET /{name}` and `GET /query` (`service-core/src/main/java/io/boomerang/workflow/WorkflowTemplateControllerV2.java:57,84`),
+`GET /{name}` and `GET /query` (`service-core/src/main/java/io/boomerang/workflow/WorkflowTemplateControllerV2.java:43,73`),
 and `WorkflowTemplateService` is read-only. The one reason that decided it: every template in every
-deployment came from the loader, so the write routes protected nothing and cost a screen, an
+deployment came from the seed, so the write routes protected nothing and cost a screen, an
 import flow and a delete confirmation. Creating a Workflow from a template stays a plain Workflow
-create with the template body (`client-web/src/Features/Home/Home.tsx:61-78`).
+create with the template body (`client-web/src/Features/Home/Home.tsx:73-85`).
 
 ## Consequences
 
 - The webapp keeps browsing templates and starting a Workflow from one; the import and delete
   screens are gone, as is `POST`/`PUT`/`DELETE` on the route.
-- The `workflow_templates` collection is unchanged, and `_0010__V3ExtractWorkflowTemplates` still
+- The `workflow_templates` collection is unchanged, and `_0011__V3ExtractWorkflowTemplates` still
   lands a v3 database's `scope=template` workflows in it.
-- A new template ships in `service-loader/src/main/resources/seed/workflow-templates.json`, so it
-  needs a release. Revisit if a customer asks to author templates of their own — that would restore
-  a write route, with per-workspace ownership this never had.
+- A new template ships in `service-core/src/main/resources/seed/workflow-templates.json`, seeded by
+  `_0020__SeedTemplates` (`migration/_0020__SeedTemplates.java:52`), so it needs a release. Revisit if a
+  customer asks to author templates of their own — that would restore a write route, with per-workspace
+  ownership this never had.

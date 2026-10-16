@@ -21,19 +21,20 @@ enough to walk in both directions.
 Option B, on all four points. The child is submitted through
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and the submitting
 TaskRun's id, so the lineage stays the typed pair decision 0020 chose. `wait=true` parks the task as `waiting`
-with no `waitUntil` (`TaskRunService.tryArmWait`), armed before the submit so a fast child cannot outrun it, and
-`ChildWorkflowRunListener` ends it from the `WorkflowRunTransition` event through `TaskRunService.end` — the
-dispatcher's own wire-level end, so its completion compare-and-set makes a redelivered event a no-op. The same
-listener cancels in-flight children of a cancelled or timed-out run, and the depth walk climbs `initiatedByRef`
-against the `workflowrun` setting `max.nesting.depth` (default 5) before any child is created
-(`service-core/src/main/java/io/boomerang/engine/TaskExecutionService.java:794-900`,
-`engine/ChildWorkflowRunListener.java`).
+with no `waitUntil` (`TaskRunService.tryArmWait`, `service-core/src/main/java/io/boomerang/engine/TaskRunService.java:830`),
+armed before the submit so a fast child cannot outrun it, and `ChildWorkflowRunListener` ends it from the
+`WorkflowRunTransition` event through `TaskRunService.end` — the dispatcher's own wire-level end, so its
+completion compare-and-set makes a redelivered event a no-op. The same listener cancels in-flight children of
+a cancelled or timed-out run, and the depth walk climbs `initiatedByRef` against the `workflowrun` setting
+`max.nesting.depth` (default 5) before any child is created
+(`engine/TaskExecutionService.java:1061-1136,1166-1184`, `engine/ChildWorkflowRunListener.java`).
 
 ## Consequences
 
 - Composition works with no new run field, no held thread and no new engine→workflow synchronous call; the
   parent's own `timeoutAt` remains the only bound on a wait.
-- A cascade needs `workflow_runs {initiatedByRef, phase}` (`_0046__DeclareRunWorkflowWaitParam`), and the depth
-  check costs two lookups per ancestor level, capped by the limit itself.
+- A cascade needs `workflow_runs {initiatedByRef, phase}` (`migration/_0021__Indexes.java:91`), the seeded
+  `run-workflow` task declares the `wait` parameter (`seed/task-revisions.json`), and the depth check costs two
+  lookups per ancestor level, capped by the limit itself.
 - Pause deliberately does not cascade — it is an admission flag on one run (decision 0013). Revisit if a paused
   parent leaving a child running is reported as a real operational problem.

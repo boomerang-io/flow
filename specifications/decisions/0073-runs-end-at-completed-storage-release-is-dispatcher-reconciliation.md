@@ -5,7 +5,7 @@
 ## Context
 
 `RunPhase` carried a sixth value, `finalized`, one step past `completed`. It existed for one job: a
-run that declared workspaces was claimed a second time by a dispatcher, which deleted the run-scoped
+run that declared a workspace was claimed a second time by a dispatcher, which deleted the run-scoped
 volume and then called `PUT /workflowrun/{id}/finalize`, and a watcher sweep finalised the
 workspace-less runs no dispatcher would ever claim. So the run record carried cleanup state, every
 phase guard had to name two terminal values, and a run whose dispatcher died before the callback sat
@@ -22,17 +22,18 @@ phase guard had to name two terminal values, and a run whose dispatcher died bef
 ## Decision
 
 Option C. The dispatcher lists the volumes it actually holds and asks
-`POST /api/v1/dispatcher/workspaces/releasable` which of their owners are finished — a run that is
-completed or gone, a workflow that is deleted or gone (`dispatcher/DispatcherService.java:288`) —
-then deletes those; the run record says nothing about release, and `completed` is terminal
-(`lib-common/.../enums/RunPhase.java:11-14`). Every comparable system does the same: Kubernetes
-Jobs, Tekton, Argo Workflows and Azure Container Apps Jobs all stop at a terminal state and clean up
-by TTL or garbage collection against the live resource. None of them models cleanup as a further
-state of the run, because the cluster — not the record — is what still holds the thing.
+`POST /dispatcher/v1/workspaces/releasable` which of their owning runs are finished — completed or gone
+(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:176-187`,
+`dispatcher/DispatcherService.java:389-411`) — then deletes those; the run record says nothing about
+release, and `completed` is terminal (`lib-common/src/main/java/io/boomerang/common/enums/RunPhase.java:8-15`).
+Every comparable system does the same: Kubernetes Jobs, Tekton, Argo Workflows and Azure Container Apps
+Jobs all stop at a terminal state and clean up by TTL or garbage collection against the live resource.
+None of them models cleanup as a further state of the run, because the cluster — not the record — is what
+still holds the thing.
 
 ## Consequences
 
 - Phase guards, the finalize transition, its sweep, its two routes and the teardown half of the workflow queue are all gone; a crashed dispatcher no longer strands a run, and a new dispatcher releases volumes it never provisioned.
 - The engine cannot answer "was this run's storage released?"; only the cluster can. Revisit if that outcome has to reach a user.
 - 0050's remaining reason to expose `phase` is `queued` — the one position `status` cannot express. Closing that gap is now the whole of the public/dispatcher model split.
-- Databases carrying the old value are rewritten forward by `_0043__RunPhaseFinalizedIsCompleted`; nothing reads `finalized` any more.
+- The releasable query names runs only: the one volume is the run's (decision 0104).

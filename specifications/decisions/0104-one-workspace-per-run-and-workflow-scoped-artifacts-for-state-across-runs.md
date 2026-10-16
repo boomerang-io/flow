@@ -22,10 +22,10 @@ need a home.
 
 B, with cross-run state moved to artifacts uploaded with `scope: workflow`. Presence of `workspace` is the switch
 (`lib-common/.../model/WorkflowWorkspace.java`); a task mounts it unless its node says `workspace: false`
-(`engine/DAGUtility.java`); the dispatcher provisions one claim keyed by the run id and the releasable query names
-runs only (`dispatcher/DispatcherService.java`). A workflow-scoped artifact is downloadable by any later run of
+(`engine/DAGUtility.java:229`); the dispatcher provisions one claim keyed by the run id and the releasable query names
+runs only (`dispatcher/DispatcherService.java:389-408`). A workflow-scoped artifact is downloadable by any later run of
 its workflow by name, never expires, and is replaced by the next verified upload of that name, which expires the
-previous record (`workflow/ArtifactService.java`). The comparable systems all key cross-run state by name, not by
+previous record (`workflow/ArtifactService.java:69-72,312`). The comparable systems all key cross-run state by name, not by
 volume, and a keyed artifact works on every executor. v3 workflows that declared Workflow storage are marked on
 upgrade and refused at submit until saved again, so the loss is loud rather than silent.
 
@@ -34,6 +34,6 @@ upgrade and refused at submit until saved again, so the loss is loud rather than
 - One default mount, `/workspace`; upgraded v3 workflows keep `/workspace/workflowrun` pinned explicitly.
 - The `quotas` group has one storage cap for the run workspace (`max.workspace.storage`); kept artifacts hold the
   artifact quota until replaced or deleted.
-- Supersedes the workflow-volume half of 0073; 0067 and 0085 stand. Revisit if a second backing for the run
+- Revisit if a second backing for the run
   workspace arrives (an artifact-synced workspace for executors without volumes), which fits as a field on the
   object, not a second list entry.

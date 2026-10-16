@@ -145,7 +145,7 @@ grace (`service-dispatcher/src/main/resources/application.properties:41,28`).
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all
 template, and per-template timeouts are product features that a framework upgrade MUST preserve with
 equivalent behaviour (decision 0062). A run's timeout MUST be at least the transport timeout of the work
-it guards (decision 0063).
+it guards (decision 0014).
 
 ## Quotas
 
@@ -163,7 +163,7 @@ run-duration default (`seed/workspace.json`).
 | `max.workspace.storage` | Workflow save (create and update) and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:499-515,956-990` |
 | `max.workflowrun.duration` | Run submit, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java` `defaultTimeout`) | `WorkflowService.java:243-255`, `workspace/WorkspaceService.java` `getWorkflowMaxDurationForTeam` |
 
-The two run counters come from different sources (decision 0071). Concurrent = the live count of
+The two run counters come from different sources (decision 0019). Concurrent = the live count of
 non-terminal runs (`notstarted`/`ready`/`running`/`waiting`) over the workspace's Workflows
 (`workflow/WorkflowRunService.countForQuota`, the `workflow_ref_status` index) — what is running
 now, which deletion legitimately reduces. Monthly = `max(audit count, live count)`: the month's

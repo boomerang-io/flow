@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Data
@@ -25,10 +24,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class WorkflowTemplateEntity {
 
   @Id @JsonIgnore private String id;
-  @Indexed private String name;
+  private String name;
   private String displayName;
   private Date creationDate = new Date();
-  @Indexed private Integer version;
+  private Integer version;
   private String icon;
   private String description;
   private String markdown;
