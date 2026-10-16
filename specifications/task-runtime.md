@@ -121,26 +121,38 @@ are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives
 
-The engine substitutes `$(params.x)`, `$(tasks.x.results.y)` and the other references into the TaskRun's own
-parameter values and into `spec.script`, `spec.command`, `spec.arguments` and `spec.envs`
-(`engine/ParameterManager.java:111,121-136`), then persists the resolved copy with the admission
-compare-and-set (`TaskExecutionService.java:181`; `TaskRunService.java:278`). The TaskRun's params are the
+The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other references in two places, at two times:
+
+| What | When | Stored |
+| --- | --- | --- |
+| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:121`, `TaskExecutionService.java:205`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:224`, called from `dispatcher/DispatcherService.java:338,379`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+
+So no secret value is ever written into a stored spec. At claim, `$(params.x)` reads the task's params as frozen at
+admission, so a requeued task gets the same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and
+`$(context.params.x)` read the run; `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec
+field are read from their stores at claim, so an edit between admission and claim, or across a requeue, shows
+(decision 0114). Admission checks nothing about the spec's references - a reference that matches nothing is left
+as written at claim as before. The termination order, the start and end answers and every consumer read carry
+the stored spec, with its references. The TaskRun's params are the
 task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
 A `custom` task takes its runtime from its own params — `image`, `command` and `arguments` (newline-split)
 and `shellScript` — rather than from the catalogue entry, which declares no image
-(`DAGUtility.java:247,302`).
+(`DAGUtility.java:338`). A secret-typed one of these is copied as its reference `$(params.<name>)`, so it is
+filled in at claim; a secret `command` or `arguments` arrives as one element, not split into lines (`:370`).
 
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
 from their stores each time it resolves (`engine/ParameterManager.java:238`, through
 `workflow/ParamLayerService.java:108`): at run start for the run's own params (`engine/WorkflowExecutionService.java:71`),
-and at each task's admission for the task's params and spec (`TaskExecutionService.java:205`; a for-each task's
+at each task's admission for the task's params (`TaskExecutionService.java:205`), and at its claim for the
+spec (a for-each task's
 items at fan-out, `:605`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
 workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the
 revision it runs, so a version saved mid-run does not change it. The layers and the revision are served from a
 per-instance cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it
 off), so the tasks admitted together share one read of each store. A global or workspace parameter edited while
 a run is in progress reaches the tasks admitted after the edit: at once on the instance that took the edit, which
-clears its cache, and within the TTL on the others. Each task run keeps the values it was resolved with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
+clears its cache, and within the TTL on the others. Each task run keeps the param values it was admitted with. Runs created before this carried the values in `boomerang.io/global-params`, `workspace-params` and
 `context-params`; reads strip those keys (`workflow/WorkflowRunService.java:1153`) and a child run does not inherit
 them (`workflow/WorkflowService.java:708`).
 
@@ -167,7 +179,7 @@ also runs over the values it inserts, so configuration composes - a workspace va
 | --- | --- |
 | A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
 | A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:77`, `:287`). Such a param is also kept as it arrived at run start (`:130`). On a manual, scheduled or API-submitted run every value resolves |
-| In a spec field, a task's own param, read as `$(params.x)` | The spec resolves after the task's params, against their resolved values (`:168`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
+| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:224`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
 
 `$(params.x)` reads the nearest layer, so a task that defines `x` itself resolves its own value even when the run's
 `x` was supplied. A whole-value reference returns the referenced structure untouched. A replacement that is not a string and is interpolated **into** a larger string is written as JSON
@@ -203,8 +215,8 @@ param carrying the path.
 An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claimed by `id` and run like any
 other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
 JSON-encoded) and `index` (its position from 0, as text), so the container sees `PARAM_ITEM` and `PARAM_INDEX`,
-and `$(params.item)` resolves in the spec. Its params and spec resolve when the item is admitted, not when the
-parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspace as the parent,
+and `$(params.item)` resolves in the spec. Its params resolve when the item is admitted and its spec when it is
+claimed, not when the parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspace as the parent,
 so all items of a run share the run's workspace.
 
 ## Results and payload caps
@@ -339,8 +351,20 @@ once per workspace per response, and with their current values: a run that used 
 showing it.
 
 Downward, the dispatcher reads `type` (`dispatcher-sdk/.../model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
-and builds `PARAM_<NAME>` for a secret exactly as for a string. There is no encryption at rest and no
-per-task Kubernetes Secret yet; see decision 0115.
+and builds `PARAM_<NAME>` for a secret exactly as for a string. There is no per-task Kubernetes Secret yet;
+see decision 0115.
+
+Secret values are encrypted at rest and plain in memory (decision 0116). `core/config/SecretValueMongoListener.java`
+works on the BSON document: it encrypts on save (`:59`) and decrypts on load before the document is mapped
+(`:66`), so every read - repository, template, find-and-modify, aggregation - hands out plaintext, the masking
+above works unchanged, and nothing in Flow sees ciphertext. The two admission writes set params through a Mongo
+update, which never reaches the save hook, so they seal the values themselves (`sealRunParams` `:76`;
+`TaskRunService.java:336`, `WorkflowRunStateHelper.java:164`). The cipher is `core/SecretCipher.java`, shared with
+secured settings: AES-256-GCM under `flow.encrypt.secret`/`flow.encrypt.salt`, written as
+`crypt_v1{AESGCM|<ciphertext>}`. A value already carrying the label is not encrypted again, a value without it
+loads as it is and is encrypted on its next save, and a value that will not decrypt is kept as stored. The
+encrypted fields are listed in `data-model.md`, "Secret values at rest". A workflow node's value for a param its
+task declares as `password` is stamped `type: secret` when the workflow is saved (`workflow/WorkflowService.java:1739`).
 
 ## Volumes and workspaces
 
