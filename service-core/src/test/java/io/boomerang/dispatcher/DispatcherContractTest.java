@@ -8,6 +8,7 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,6 +25,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * without the contract changing with it. Run with {@code -Dcontract.update=true} to rewrite the
  * file after a deliberate change, then review the diff.
  */
+@Tag("smoke")
 class DispatcherContractTest extends AbstractEngineIntegrationTest {
 
   // Surefire runs each module from its own directory; the contract lives at the repository root.

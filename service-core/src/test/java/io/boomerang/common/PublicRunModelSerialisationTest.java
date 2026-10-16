@@ -10,6 +10,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowTaskForeach;
 import java.util.Date;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -37,6 +38,7 @@ import tools.jackson.databind.node.ObjectNode;
  *       also reaches {@code /api/v2}. See {@link #phaseIsStillSerialisedOnThePublicModels()}.
  * </ul>
  */
+@Tag("smoke")
 class PublicRunModelSerialisationTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();

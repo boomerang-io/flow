@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.client.MockClientHttpResponse;
@@ -42,6 +43,7 @@ import tools.jackson.dataformat.yaml.YAMLMapper;
  * engine serves and is itself tested against. A field, enum value or schema the engine adds fails
  * here until the SDK models it or lists it below as deliberately not modelled.
  */
+@Tag("smoke")
 class DispatcherContractTest {
 
   // Surefire runs each module from its own directory; the contract lives at the repository root.

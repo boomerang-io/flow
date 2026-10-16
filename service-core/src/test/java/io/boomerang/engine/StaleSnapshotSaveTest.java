@@ -20,7 +20,6 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunSpec;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
-import io.boomerang.engine.repository.TaskRunRepository;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -31,7 +30,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * Q-127 residue — handler paths that still write a WHOLE stale document instead of a
@@ -41,17 +39,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * genuinely crosses (a database round trip between its entry read and its save), which is exactly
  * where a second instance's write lands in production; nothing about the handler is stubbed out.
  */
-class StaleSnapshotSaveTest extends AbstractEngineIntegrationTest {
+class StaleSnapshotSaveTest extends AbstractSpiedEngineIntegrationTest {
 
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private WorkflowRunService workflowRunService;
 
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
   @Autowired private MongoTemplate mongoTemplate;
-
-  @MockitoSpyBean private DAGUtility dagUtility;
-  @MockitoSpyBean private TaskRunService spiedTaskRunService;
-  @MockitoSpyBean private TaskRunRepository spiedTaskRunRepository;
 
   /**
    * Q-127 #6/#11 — the admission Compare-And-Set was supposed to make a join queued by both
