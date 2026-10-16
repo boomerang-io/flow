@@ -265,6 +265,10 @@ services:
       # The browser-facing origin only opens once sign-in resolves to `oidc`, never `proxy`.
       auth-oidc-seed:
         condition: service_completed_successfully
+      # A one-shot that nothing depends on counts as a failed container to `up --wait`; this
+      # dependency is what lets it exit, and the deletion policy is in place before any test runs.
+      task-deletion-seed:
+        condition: service_completed_successfully
     networks: [flow]
 
 volumes:
