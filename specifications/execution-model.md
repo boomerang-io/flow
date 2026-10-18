@@ -85,7 +85,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 | Sweep (`WorkflowWatcher.java`) | Selects | Does |
 | --- | --- | --- |
 | `reapTaskTimeouts` `:160` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:445`) | requeues a dispatched task — `template`, `custom`, `script`, `generic`, `ai` — with attempts < 3 (`tryRequeue` `:548`); otherwise marks it `timedout` (`tryTimeout` `:485`) and ends it |
-| `reapWorkflowTimeouts` `:190` | running, unpaused workflow runs past `timeoutAt` (`findTimedOut` `:206`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:893`) |
+| `reapWorkflowTimeouts` `:190` | running workflow runs past `timeoutAt` that are neither paused nor waiting (`findTimedOut` `:320`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:1052`) |
 | `recoverStalledRuns` `:203` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
 | `recoverForeachTasks` `:240` | for-each parents in the `running` phase for > 60 s, whatever their status (`TaskRunService.findRunningForeachParents` `:464`) | a parent whose outcome is recorded (terminal status, phase still `running`) is ended, paused or not — the completion CAS makes a repeat a no-op; any other with no item in flight (`existsInFlightItem` `:502`) and an unpaused run (`:251`, `:264`) re-runs the idempotent fan-out: creates missing items, queues unqueued ones, completes a parent whose items are all terminal (`TaskExecutionService.fanOutItems` `:636`). A paused run is skipped because the pause gate would refuse every item it queued; resume re-runs the fan-out |
 | `resumeDueWaitingTasks` `:225` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:771`) |
@@ -115,8 +115,29 @@ beneath it, so a task can never outlive the run containing it. By default a task
 timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
 (`workflow/WorkflowService.java:654-668`), and the per-task ceiling is an optional operator control for capping a
 single pod inside a long-running graph rather than a budget every task is entitled to spend.
-A task timeout on the final write times out the whole run (`TaskExecutionService.java:487-490`); a workflow timeout
+A task timeout on the final write times out the whole run (`TaskExecutionService.java:600`); a workflow timeout
 cancels every queued, running and pending task (`engine/WorkflowExecutionService.java:259-292`).
+
+**The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting` - an
+approval, a manual task, an event wait, a run-workflow task waiting on its child, a sleep or an acquire-lock wait
+(`EngineConstants.WAITING_TYPES` `:41`); a branch still admitted, claimed or running keeps the clock running. When
+the last executing task enters a wait, or a task ends and leaves only waits in flight, the run gains
+`waitingSince` by compare-and-set (`TaskRunService.allInFlightWaiting` `:819`, `WorkflowRunStateHelper.tryMarkWaiting`
+`:276`, called from `TaskExecutionService.java:462,629,1115`). The timeout sweep skips a run that has it
+(`findTimedOut` `:320`). When any task starts executing, or the task that ended was the wait, one compare-and-set
+clears the flag and moves `timeoutAt` forward by the time spent waiting (`tryResumeWaiting` `:293`, `tryClearStop`
+`:304`, called from `TaskExecutionService.java:391,596,1098`), so the run has exactly the execution budget it had
+before the wait. The reported `duration` is execution time, read back from the moved deadline and any stop still
+open (`RunTimeouts.executionMillis` `:28`); an unguarded run has no deadline to move, so only its open stop is
+excluded. A gate nobody answers leaves the run active until it is cancelled.
+
+**A wait is indefinite unless its task declares a timeout.** A waiting-type task is started with its own declared
+timeout as its budget, never the run's or the operator's per-task ceiling (`TaskExecutionService.declaredTimeout`
+`:470`, read from the revision through `ParamLayerService.getRevision`), so one that declares none carries no
+`timeoutAt` and waits for as long as it takes. One that does is reaped by `reapTaskTimeouts` like any other task in
+the running phase, ends `timedout`, and times out its run. Because a wait is not execution time, a waiting task's
+declared timeout is excluded from the critical path that floors the run budget (`RunTimeoutPolicy.java:147-151`):
+a gate that may sit for an hour does not force a run to ask for an hour.
 
 A run's timeout is settled at submit, in the one method every path that creates a run passes through
 (`workflow/WorkflowService.java:1878-1884`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
@@ -168,16 +189,18 @@ attempt cannot start until the dispatcher's termination poll releases the claim 
 
 ## Pause
 
-Pause is the `pauseRequestedAt` timestamp on `WorkflowRunEntity` (`service-core/.../entity/WorkflowRunEntity.java:64`),
-set and cleared by CAS (`WorkflowRunStateHelper.tryPause` `:179`, `tryResume` `:196`). It is enforced at exactly one
+Pause is the `pauseRequestedAt` timestamp on `WorkflowRunEntity` (`service-core/.../entity/WorkflowRunEntity.java:58`),
+set and cleared by CAS (`WorkflowRunStateHelper.tryPause` `:248`, `tryResume` `:266`). It is enforced at exactly one
 place: `TaskExecutionService.queue` returns before admitting a task when the run is paused
-(`TaskExecutionService.java:174-178`). The gate holds a for-each task before it fans out and each of its items
+(`TaskExecutionService.java:188-191`). The gate holds a for-each task before it fans out and each of its items
 before admission, since items are queued through the same method. Work already admitted, claimed or running
 continues and times out on its absolute deadline; the workflow-run deadline is not reaped while paused
-(`findTimedOut` `:206-216`). Resume clears the flag and calls `advance`, which re-queues whatever the gate held
-back, including the unadmitted items of a running for-each task (`TaskExecutionService.java:580-584`,
-`WorkflowRunService.java:971-986`). The for-each recovery sweep leaves a paused run's fan-out alone for the same
-reason (`WorkflowWatcher.java:251`).
+(`findTimedOut` `:320`), and resume moves it forward by the time paused (`tryClearStop` `:304`), the same way a wait
+does, so a run paused past its deadline is not reaped on the next sweep. A pause and a wait that overlap are
+counted once: the flag cleared first extends the deadline only up to the start of the other. Resume clears the
+flag and calls `advance`, which re-queues whatever the gate held back, including the unadmitted items of a running
+for-each task (`TaskExecutionService.java:637`, `WorkflowRunService.java:971-986`). The for-each recovery sweep
+leaves a paused run's fan-out alone for the same reason (`WorkflowWatcher.java:251`).
 
 ## The DAG advance
 
@@ -250,7 +273,8 @@ so a client can link a child back to its parent without a TaskRun lookup of its 
 **Wait.** The catalogue task declares a boolean `wait` param, default `false`. With `wait=false` the task records
 the child's id as the `workflowRunRef` result and ends `succeeded` at once. With `wait=true` the task parks as
 `waiting` with **no** `waitUntil` (`TaskRunService.tryArmWait`), exactly like an `eventwait` — so the watcher's
-time-based resume never picks it up, and only the child's completion or the task's own `timeoutAt` ends it. The
+time-based resume never picks it up, and only the child's completion or a timeout the task declared for itself
+ends it; the parent run's clock is stopped while nothing else of it executes ("Timeouts and crash recovery"). The
 arm happens *before* the submit, so a child that finishes immediately always finds a parent already waiting.
 
 **Ending the parent.** `ChildWorkflowRunListener` listens on the `WorkflowRunTransition` event every CAS winner

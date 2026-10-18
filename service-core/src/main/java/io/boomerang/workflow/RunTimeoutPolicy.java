@@ -5,6 +5,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.SettingsService;
+import io.boomerang.engine.EngineConstants;
 import io.boomerang.workspace.WorkspaceService;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -143,7 +144,11 @@ public class RunTimeoutPolicy {
       }
     }
     visiting.pop();
-    long total = upstream + value(task.getTimeout());
+    // A wait's own timeout bounds the wait, which the run clock does not count, so it never
+    // raises the floor on the run's execution budget.
+    long total =
+        upstream
+            + (EngineConstants.WAITING_TYPES.contains(task.getType()) ? 0 : value(task.getTimeout()));
     memo.put(task.getName(), total);
     return total;
   }

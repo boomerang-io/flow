@@ -63,6 +63,11 @@ public class WorkflowRunEntity {
     return pauseRequestedAt != null;
   }
 
+  // Set while every in-flight task is waiting (a gate, an event, a child run, a parked wait), so
+  // the run clock is stopped: the timeout sweep skips the run, and when work resumes the deadline
+  // moves forward by the time spent here. Absent = executing. Never on the public model.
+  @JsonIgnore private Date waitingSince;
+
   private String trigger;
   private String initiatedByRef;
 
