@@ -18,7 +18,7 @@ status, the run's workspace, and a result the next task can read.
 
 ## Decision
 
-C, the shape of Tekton's matrix. `WorkflowTask.foreach` (`lib-common/.../model/WorkflowTask.java:50`) holds an array
+C, the shape of Tekton's matrix. `WorkflowTask.foreach` (`service-core/.../model/WorkflowTask.java:50`) holds an array
 literal or one reference. At admission the engine resolves it, moves the one graph vertex, the parent, to running
 through its own compare-and-set, and creates one ordinary claimable task run per element named `<name>[<index>]` with
 `parentRef` and `index` (`service-core/.../engine/TaskExecutionService.java:593-701`). An item's end completes the

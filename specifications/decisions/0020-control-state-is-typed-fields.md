@@ -21,7 +21,7 @@ Option B. Anything the engine reads to make a decision, or queries and indexes o
 and `boomerang.io/*` annotations are non-identifying metadata (UI, catalogue, user tags). This is the norm in every
 comparable system (Kubernetes spec/status versus annotations, Tekton, Argo, Temporal, Airflow, n8n). Retry lineage
 became `initiatedByRef` + `trigger`, the retry count became `retryCount`
-(`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:72-77`), and the timeout cause needed
+(`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:72-77`), and the timeout cause needed
 no field because it only ever selected a `statusMessage`. `ControlStateFieldsTest` pins that the retired keys are
 never written; `PublicRunModelSerialisationTest` pins that control fields never serialise publicly.
 

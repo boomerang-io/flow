@@ -72,7 +72,7 @@ owning `WorkflowRun` instead (`workflow/WorkflowRunService.java:325-335`).
 ## Error response
 
 Every API error, including authentication failures, is a `RestErrorResponse`
-(`lib-common/src/main/java/io/boomerang/common/error/RestErrorResponse.java`), built by
+(`service-core/src/main/java/io/boomerang/common/error/RestErrorResponse.java`), built by
 `core/RestExceptionHandler.java:36-55` (`BoomerangException`) and `:72-84` (`AuthenticationException`).
 
 ```json
@@ -82,7 +82,7 @@ Every API error, including authentication failures, is a `RestErrorResponse`
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` enum constant (`lib-common/.../error/BoomerangError.java`); code ranges: 0–999 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter (`BoomerangError.java:13-17`) |
+| `code`, `reason`, HTTP status | The `BoomerangError` enum constant (`service-core/.../error/BoomerangError.java`); code ranges: 0–999 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter (`BoomerangError.java:13-17`) |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:12`); an explicit exception message wins (`RestExceptionHandler.java:42-50`) |
 | `cause` | Present only when the exception has a cause (`:53-55`) |
 
@@ -115,7 +115,7 @@ ascending version order, so the last entry is the latest (`workflow/TaskControll
 
 ## Public run models
 
-`WorkflowRun` and `TaskRun` (`lib-common/src/main/java/io/boomerang/common/model/`) are the
+`WorkflowRun` and `TaskRun` (`service-core/src/main/java/io/boomerang/common/model/`) are the
 public shapes; the entities are separate classes and MUST NOT be returned from a controller.
 
 | Rule | Where |
@@ -125,7 +125,7 @@ public shapes; the entities are separate classes and MUST NOT be returned from a
 | Lineage is public: `trigger`, `initiatedByRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run, whose `GET /taskrun/{id}/log` streams the origin task run's log | `WorkflowRun.java:64-72`; `TaskRun.java:55-59`; `WorkflowRunService.java` `streamTaskRunLog` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `WorkflowRunRetryRequest.java`; `WorkspaceWorkflowRunControllerV2.java` `retry` |
 | Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
-| `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `lib-common/.../enums/RunStatus.java` |
+| `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `service-core/.../enums/RunStatus.java` |
 | **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models because a dispatcher branches on it: the SDK reads it to tell an order to run from an order to terminate. `queued` is now the only position `status` cannot express, so it is the whole remaining reason the field is exposed | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:83,97,126`; `dispatcher-sdk/.../model/TaskRun.java:47-59`; tripwire `PublicRunModelSerialisationTest.java:117-129`, phase set pinned at `:137-141` |
 
 `TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
@@ -149,7 +149,7 @@ it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java
 
 | Read | Returns |
 | --- | --- |
-| `GET …/insights?fromDate&toDate&workflows&statuses&triggers` | `WorkflowRunInsightSummary` (`lib-common/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first. `workflows` takes names or ids. |
+| `GET …/insights?fromDate&toDate&workflows&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first. `workflows` takes names or ids. |
 | `GET …/insights/workflow/{workflow}?fromDate&toDate` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, queue-wait percentiles, `retriedRuns`, and up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
 
 Durations and waits are milliseconds; a percentile over no runs is `0`. Both reads are projections of the fields
@@ -310,7 +310,7 @@ and a task whose template declares `item` or `index`; it refuses a task name end
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in
 the webapp's canvas type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name
-(`lib-common/.../util/DataAdapterUtil.java:243-244`). boomerang-io/flow#377 tracks unifying the two.
+(`service-core/.../util/DataAdapterUtil.java:243-244`). boomerang-io/flow#377 tracks unifying the two.
 
 ## How the webapp calls the API
 

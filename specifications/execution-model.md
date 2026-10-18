@@ -8,8 +8,8 @@ Every run carries `status` (the externally visible outcome) and `phase` (where t
 
 | Field | Values | Source |
 | --- | --- | --- |
-| `RunStatus` | `notstarted`, `ready`, `running`, `waiting`, `succeeded`, `failed`, `invalid`, `skipped`, `cancelled`, `timedout` | `lib-common/.../enums/RunStatus.java:6-16` |
-| `RunPhase` | `pending`, `queued`, `running`, `completed` | `lib-common/.../enums/RunPhase.java:11-14` |
+| `RunStatus` | `notstarted`, `ready`, `running`, `waiting`, `succeeded`, `failed`, `invalid`, `skipped`, `cancelled`, `timedout` | `service-core/.../enums/RunStatus.java:6-16` |
+| `RunPhase` | `pending`, `queued`, `running`, `completed` | `service-core/.../enums/RunPhase.java:11-14` |
 
 The normal path is `notstarted/pending` → admit → `ready/pending` → claim → `ready/queued` → start → `running/running`
 → end → `<terminal>/completed`. `completed` is terminal and nothing follows it: a run's workspace storage is
@@ -42,7 +42,7 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   `engine/TaskExecutionService.java:546-570`). A request with no identity is accepted as the legacy protocol.
   `claim.seq` is not on the wire, so a dispatcher that lost and re-won the same claim is not distinguished from
   its earlier self.
-- `claim.leaseExpiresAt` on `RunClaim` (`lib-common/.../model/RunClaim.java:21`, indexed by
+- `claim.leaseExpiresAt` on `RunClaim` (`service-core/.../model/RunClaim.java:21`, indexed by
   `service-core/.../migration/_0021__Indexes.java:59`) is the dispatcher's liveness signal: each dispatcher sends one
   batched heartbeat every 30 s listing the task runs its executor threads are still working on, and the engine
   sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
@@ -131,7 +131,7 @@ naming the quota (`RunTimeoutPolicy.java:81-91`).
 ## Retry
 
 One backoff class exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 min, plus up to 5 s
-jitter (`lib-common/.../util/Backoff.java:12-21`). The result is stored as `retry.after` and gates claim eligibility;
+jitter (`service-core/.../util/Backoff.java:12-21`). The result is stored as `retry.after` and gates claim eligibility;
 `retry.count` counts attempts (`RunRetry.java:17-18`). What is retried:
 
 | Situation | Retried? | Where |
@@ -167,7 +167,7 @@ attempt cannot start until the dispatcher's termination poll releases the claim 
 
 ## Pause
 
-Pause is the `pauseRequestedAt` timestamp on `WorkflowRunEntity` (`lib-common/.../entity/WorkflowRunEntity.java:64`),
+Pause is the `pauseRequestedAt` timestamp on `WorkflowRunEntity` (`service-core/.../entity/WorkflowRunEntity.java:64`),
 set and cleared by CAS (`WorkflowRunStateHelper.tryPause` `:179`, `tryResume` `:196`). It is enforced at exactly one
 place: `TaskExecutionService.queue` returns before admitting a task when the run is paused
 (`TaskExecutionService.java:174-178`). The gate holds a for-each task before it fans out and each of its items
