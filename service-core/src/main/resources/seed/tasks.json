@@ -15,20 +15,6 @@
       "type": "acquirelock"
     },
     {
-      "name": "ai",
-      "status": "active",
-      "verified": true,
-      "labels": {},
-      "annotations": {
-        "boomerang#io/generation": "4",
-        "boomerang#io/kind": "Task"
-      },
-      "creationDate": {
-        "$date": "2026-09-16T00:00:00Z"
-      },
-      "type": "ai"
-    },
-    {
       "name": "add-box-folder",
       "status": "active",
       "verified": true,

@@ -18,11 +18,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 
 /**
- * Seed the out-of-the-box task catalogue — 90 tasks and their 133 revisions: the 87 tasks / 130
+ * Seed the out-of-the-box task catalogue — 89 tasks and their 132 revisions: the 87 tasks / 130
  * revisions the legacy loader ends up with after its full {@code flow_task_templates} chain, plus
- * the v5-native {@code ai}, {@code ai-prompt} and {@code ai-agent} tasks, which have no legacy
- * counterpart. Without it an empty database has an empty task palette and no workflow can be
- * composed.
+ * the v5-native {@code ai-prompt} and {@code ai-agent} tasks, which have no legacy counterpart.
+ * Without it an empty database has an empty task palette and no workflow can be composed.
  *
  * <p>v5 splits what v4 called a task template across two collections, and the legacy loader's own
  * v4 changesets already produced that split: {@code tasks} holds the stable identity ({@code

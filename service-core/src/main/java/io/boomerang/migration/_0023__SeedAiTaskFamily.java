@@ -25,7 +25,9 @@ import org.springframework.core.env.Environment;
  * <p>The two entries are copied from the tasks repository's {@code tasks/ai/catalog} definition
  * files, which are the source of their param and result contract. Idempotent: a task is matched by
  * {@code name}, its revision by {@code parentRef} + {@code version}, and its graph node and root
- * edge by id, exactly as the catalogue seed does.
+ * edge by id, exactly as the catalogue seed does. The earlier seeded {@code ai} task no longer
+ * ships, but an install that holds it keeps it, its revisions, node and edges untouched, because
+ * its workflows may reference it and what the catalogue ships says nothing about stored definitions.
  */
 @Change(id = "0023-seed-ai-task-family", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")

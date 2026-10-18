@@ -129,10 +129,10 @@ target, so the compile happens once and only the runtime stage is built per plat
 on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no per-platform
 escape, so a single-architecture image simply fails to pull on the other.
 
-Task images are not product images and are not on this list: the catalogue images and the `ai` worker
-(`boomerangio/task-ai`) are built and released from the `boomerang-io/tasks` repository on their own version
-lines, and the dispatcher resolves the `ai` one at runtime from `flow.dispatcher.ai.image` (see
-`task-runtime.md`). One product tag still builds every product image (decision 0006).
+Task images are not product images and are not on this list: the catalogue images and the AI worker
+(`boomerangio/task-ai`, which the `ai-prompt` and `ai-agent` revisions pin by tag) are built and released from the
+`boomerang-io/tasks` repository on their own version lines (see `task-runtime.md`). One product tag still builds
+every product image (decision 0006).
 
 The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets its
 version from the same tag and deploys it to this repository's GitHub Packages Maven registry

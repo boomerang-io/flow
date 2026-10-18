@@ -77,14 +77,13 @@ class MigrationChainTest {
 
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
-    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
+    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(134);
     assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
-    assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(92);
-    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(92);
-    assertAiTaskSeeded(db);
+    assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(91);
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
     assertAiTaskFamilySeeded(db);
     assertArtifactTasksSeeded(db);
     assertIndexInventory(db);
@@ -95,8 +94,8 @@ class MigrationChainTest {
     migrate("empty");
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
-    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
+    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(134);
     assertThat(collection(db, "workspaces").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_nodes").countDocuments()).isEqualTo(nodes);
     assertThat(collection(db, "rel_edges").countDocuments()).isEqualTo(edges);
@@ -205,11 +204,11 @@ class MigrationChainTest {
     assertThat(keyOf(settings, "60245957226920beece4fdf9")).isEqualTo("workflowrun");
     assertThat(settings.find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first()).isNull();
 
-    // The catalogue: both v3 tasks migrated beside the 92 seeded ones; task_templates is gone.
+    // The catalogue: both v3 tasks migrated beside the 91 seeded ones; task_templates is gone.
     MongoCollection<Document> tasks = collection(db, "tasks");
     MongoCollection<Document> revisions = collection(db, "task_revisions");
-    assertThat(tasks.countDocuments()).isEqualTo(94);
-    assertThat(revisions.countDocuments()).isEqualTo(136);
+    assertThat(tasks.countDocuments()).isEqualTo(93);
+    assertThat(revisions.countDocuments()).isEqualTo(135);
     assertThat(collection(db, "task_templates").countDocuments()).isZero();
     assertThat(tasks.find(Filters.eq("_id", minimalTaskId)).first().getString("name")).isEqualTo("legacy-task");
     Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
@@ -266,8 +265,8 @@ class MigrationChainTest {
     forgetHistory(db);
     migrate("v3");
     assertThat(settings.countDocuments()).isEqualTo(9);
-    assertThat(tasks.countDocuments()).isEqualTo(94);
-    assertThat(revisions.countDocuments()).isEqualTo(136);
+    assertThat(tasks.countDocuments()).isEqualTo(93);
+    assertThat(revisions.countDocuments()).isEqualTo(135);
     assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasApproverGroup"))).isEqualTo(1);
     assertThat(collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first().getString("taskRef"))
@@ -456,19 +455,28 @@ class MigrationChainTest {
       collection(db, "rel_nodes").deleteMany(Filters.eq("_id", "task:" + taskId));
       collection(db, "tasks").deleteOne(Filters.eq("_id", task.get("_id")));
     }
-    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(90);
+    assertThat(collection(db, "tasks").countDocuments()).isEqualTo(89);
+    // The install's own ai task, from before the catalogue stopped shipping it, is never touched.
+    ObjectId legacyAiId = new ObjectId();
+    collection(db, "tasks")
+        .insertOne(new Document("_id", legacyAiId).append("name", "ai").append("type", "ai"));
+    collection(db, "task_revisions")
+        .insertOne(new Document("parentRef", legacyAiId.toString()).append("version", 1));
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
-    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(92);
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
     assertAiTaskFamilySeeded(db);
+    assertThat(collection(db, "tasks").find(Filters.eq("_id", legacyAiId)).first()).isNotNull();
+    assertThat(collection(db, "task_revisions").countDocuments(Filters.eq("parentRef", legacyAiId.toString())))
+        .isEqualTo(1);
 
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
-    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(92);
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
   }
 
   /**
@@ -555,26 +563,6 @@ class MigrationChainTest {
   // Seeded content and helpers
   // ===================================================================================
 
-  /** The ai task: its params are its whole authoring surface, and the dispatcher picks its image. */
-  private static void assertAiTaskSeeded(MongoDatabase db) {
-    Document ai = collection(db, "tasks").find(Filters.eq("name", "ai")).first();
-    assertThat(ai.getString("type")).isEqualTo("ai");
-    Document revision =
-        collection(db, "task_revisions")
-            .find(Filters.and(Filters.eq("parentRef", ai.get("_id").toString()), Filters.eq("version", 1)))
-            .first();
-    assertThat(revision.getString("icon")).isEqualTo("AI");
-    Document spec = revision.get("spec", Document.class);
-    assertThat(spec.getString("image")).isEmpty();
-    List<Document> params = spec.getList("params", Document.class);
-    assertThat(params)
-        .extracting(param -> param.getString("name"))
-        .containsExactly(
-            "endpoint", "token", "model", "systemPrompt", "prompt", "temperature", "maxTokens",
-            "responseFormat", "jsonSchema", "seed", "files", "maxContextBytes");
-    assertThat(params.get(1).getString("type")).as("the token is a secret").isEqualTo("password");
-  }
-
   /**
    * The ai-prompt and ai-agent tasks, copied from the tasks repository's definition files: each
    * revision names its own image and command, which the dispatcher runs as declared.
@@ -595,7 +583,7 @@ class MigrationChainTest {
             .first();
     assertThat(revision).as("%s version 1 is seeded", name).isNotNull();
     Document spec = revision.get("spec", Document.class);
-    assertThat(spec.getString("image")).isEqualTo("boomerangio/task-ai:1.2.0");
+    assertThat(spec.getString("image")).isEqualTo("boomerangio/task-ai:2.0.0");
     assertThat(spec.getList("command", String.class)).containsExactly(command);
     assertThat(spec.getList("params", Document.class)).hasSize(params);
     assertThat(spec.getList("results", Document.class)).hasSize(results);
