@@ -19,7 +19,7 @@ separate revisions collection. Both leaked the storage shape into the user-facin
 ## Decision
 
 Option C. `WorkflowEntity` → `workflows` plus `WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` →
-`workflow_revisions` (`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:24-35`);
+`workflow_revisions` (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:24-35`);
 `TaskEntity` → `tasks` plus `TaskRevisionEntity{parentRef, version, spec, …}` → `task_revisions`
 (`TaskRevisionEntity.java:23-34`). The domain services perform the join
 (`service-core/src/main/java/io/boomerang/workflow/TaskService.java:647-656`). A new version is always a new child

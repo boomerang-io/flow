@@ -8,7 +8,6 @@ on:
       - main
     paths:
       - 'service-core/**'
-      - 'lib-common/**'
       - 'client-web/**'
       - 'e2e/**'
       - 'docker-compose.yml'
@@ -17,7 +16,6 @@ on:
   pull_request:
     paths:
       - 'service-core/**'
-      - 'lib-common/**'
       - 'client-web/**'
       - 'e2e/**'
       - 'docker-compose.yml'

@@ -13,6 +13,7 @@ import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
@@ -28,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -75,6 +77,16 @@ public class WorkflowWatcher {
   // protocol can cancel in-flight work.
   private static final long DISPATCHER_STALE_MILLIS = 60000;
 
+  // Days a finished run is kept: the "retention.days" key of the "workflowrun" settings document,
+  // 365 when the document predates the key, never below 60 so a month's quota counts stay whole.
+  private static final String RUN_RETENTION_KEY = "retention.days";
+  private static final int RUN_RETENTION_DEFAULT_DAYS = 365;
+  private static final int RUN_RETENTION_MIN_DAYS = 60;
+
+  // The scheduler is single-threaded, so one retention pass is bounded to keep the recovery
+  // sweeps on time; a backlog drains over several passes.
+  private static final int MAX_PURGE_PAGES = 20;
+
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
@@ -88,6 +100,7 @@ public class WorkflowWatcher {
   private final WorkflowScheduleRepository scheduleRepository;
   private final RelationshipService relationshipService;
   private final ArtifactService artifactService;
+  private final SettingsService settingsService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -115,7 +128,8 @@ public class WorkflowWatcher {
       TaskRunRepository taskRunRepository,
       WorkflowScheduleRepository scheduleRepository,
       RelationshipService relationshipService,
-      ArtifactService artifactService) {
+      ArtifactService artifactService,
+      SettingsService settingsService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -129,6 +143,7 @@ public class WorkflowWatcher {
     this.scheduleRepository = scheduleRepository;
     this.relationshipService = relationshipService;
     this.artifactService = artifactService;
+    this.settingsService = settingsService;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -178,6 +193,81 @@ public class WorkflowWatcher {
   /** Remove uploads that were never confirmed: the upload task died before it finished. */
   public void reapStaleArtifactUploads() {
     artifactService.reapStaleUploads(Duration.ofMinutes(artifactUploadGraceMinutes), PAGE_SIZE);
+  }
+
+  // Retention runs on its own, slower clock: hourly by default, never on a disabled watcher.
+  @Scheduled(
+      initialDelayString =
+          "#{T(java.util.concurrent.ThreadLocalRandom).current().nextLong(60000)}",
+      fixedDelayString = "${flow.watcher.retention-interval-ms:3600000}")
+  public void purgeExpiredRunsOnSchedule() {
+    if (enabled) {
+      SweepRunner.runIsolated(
+          "purgeExpiredRuns", this::purgeExpiredRuns, WorkflowWatcher::logSweepFailure);
+    }
+  }
+
+  /**
+   * Purge finished runs older than the Activity retention: each run's run- and log-scoped
+   * artifacts (files first), actions, task runs, relationship node and finally the run document.
+   * A run another run still points at through {@code initiatedByRef} (a retry's origin, a child's
+   * parent) is kept until that run is gone, so a carried-over task run never outlives the task run
+   * it stands for. In-flight runs, workflow-scoped artifacts and audit records are never touched.
+   * Every delete is by ref and idempotent: a pass that dies halfway is finished by the next one.
+   */
+  public void purgeExpiredRuns() {
+    Date cutoff = new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(runRetentionDays()));
+    Date after = new Date(0);
+    int purged = 0;
+    for (int pages = 0; pages < MAX_PURGE_PAGES; pages++) {
+      List<WorkflowRunEntity> page =
+          workflowRunRepository.findByPhaseAndCreationDateBetween(
+              RunPhase.completed,
+              after,
+              cutoff,
+              PageRequest.of(0, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "creationDate")));
+      for (WorkflowRunEntity wfRun : page) {
+        if (workflowRunRepository.existsByInitiatedByRef(wfRun.getId())) {
+          LOGGER.debug("[{}] Kept past retention: a later run points at it.", wfRun.getId());
+          continue;
+        }
+        try {
+          purgeRun(wfRun.getId());
+          purged++;
+        } catch (RuntimeException ex) {
+          LOGGER.error("[{}] Retention purge failed: {}", wfRun.getId(), ex.getMessage());
+        }
+      }
+      if (page.size() < PAGE_SIZE) {
+        break;
+      }
+      after = page.get(page.size() - 1).getCreationDate();
+    }
+    if (purged > 0) {
+      LOGGER.info("Retention purged {} run(s) created before {}.", purged, cutoff);
+    }
+  }
+
+  private void purgeRun(String wfRunId) {
+    artifactService.deleteForRun(wfRunId);
+    actionRepository.deleteByWorkflowRunRef(wfRunId);
+    taskRunRepository.deleteByWorkflowRunRef(wfRunId);
+    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOWRUN, wfRunId);
+    workflowRunRepository.deleteById(wfRunId);
+    LOGGER.debug("[{}] Purged past retention.", wfRunId);
+  }
+
+  /** Days a finished run is kept: the setting, 365 when absent or not a number, never below 60. */
+  int runRetentionDays() {
+    try {
+      String value =
+          settingsService
+              .getSettingConfig(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY, RUN_RETENTION_KEY)
+              .getValue();
+      return Math.max(RUN_RETENTION_MIN_DAYS, Integer.parseInt(value.trim()));
+    } catch (RuntimeException notConfigured) {
+      return RUN_RETENTION_DEFAULT_DAYS;
+    }
   }
 
   private static void logSweepFailure(String sweep, Exception ex) {

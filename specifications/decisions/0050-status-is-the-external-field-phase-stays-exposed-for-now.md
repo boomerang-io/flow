@@ -6,7 +6,7 @@
 
 A run carries two lifecycle fields: `status` (the user-facing outcome, `RunStatus`) and `phase`
 (the engine's orchestration position, `RunPhase`). The intent is that clients read `status` only,
-but one pair of classes — `WorkflowRun` and `TaskRun` in `lib-common` — is returned by both the
+but one pair of classes — `WorkflowRun` and `TaskRun` in `io.boomerang.common.model` — is returned by both the
 public `/api/v2` controllers and `/dispatcher/v1`, and the dispatcher branches on `phase`
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/TaskRunner.java:167`, `WorkflowRunner.java:12`).
 
@@ -24,7 +24,7 @@ Option A for now: `status` is the external field and `phase` is serialised along
 recorded as a known deviation rather than hidden. The tripwire
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:110-121`
 asserts the current behaviour and MUST be inverted when the split lands. The model comment at
-`lib-common/src/main/java/io/boomerang/common/model/TaskRun.java:19-23` states the reason.
+`service-core/src/main/java/io/boomerang/common/model/TaskRun.java:19-23` states the reason.
 
 ## Consequences
 

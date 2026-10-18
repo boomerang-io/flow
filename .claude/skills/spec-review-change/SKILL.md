@@ -35,14 +35,14 @@ Spawn an `Explore` agent with a focused search prompt built from the domain and 
 extracted in Phase 1.
 
 Tell the Explore agent to:
-- Find backend files across the relevant modules: `lib-common/`, `service-flow/`,
+- Find backend files across the relevant modules: `service-core/`, `service-flow/`,
   `service-engine/`, `service-dispatcher/` — entities (`**/entity/`), services, controllers
   (`*ControllerV1.java` / `*ControllerV2.java`), repositories, config.
 - Find spec files in `specifications/` that cover the same area, and the relevant
   the reference docs and decision records in `specifications/`.
 - Check `CLAUDE.md` for any **architecture invariant** the change touches (status-only
   external field, WorkflowRun as execution record, idempotent transition handlers,
-  lib-common purity, no new synchronous flow→engine HTTP calls).
+  `io.boomerang.common` purity, no new synchronous flow→engine HTTP calls).
 - Report: file paths + a one-line summary of what each file currently does.
 
 After the agent returns, list the files found with their one-line summaries.

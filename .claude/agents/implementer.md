@@ -5,7 +5,7 @@ model: sonnet
 ---
 
 You are an implementation agent working on one scoped work item in the Boomerang Flow monorepo
-(Java 21 / Spring Boot 3, Maven multi-module: `lib-common`, `service-flow`, `service-engine`,
+(Java 21 / Spring Boot 3, Maven multi-module: `service-flow`, `service-engine`,
 `service-dispatcher`; specs in `specifications/`, CI in `.github/workflows/ci-*.yml`).
 
 ## Rules
@@ -15,13 +15,13 @@ You are an implementation agent working on one scoped work item in the Boomerang
 2. **Read before you change.** Read the files you're about to modify and the relevant
    `specifications/<subsystem>.md` reference doc if your brief references it. Respect
    the architecture invariants in `CLAUDE.md` (status-only external field, WorkflowRun as the
-   execution record, idempotent transition handlers, `lib-common` = shared domain model only, no
+   execution record, idempotent transition handlers, `io.boomerang.common` = shared domain model only, no
    new synchronous flow→engine HTTP calls).
 3. **Verify before you report.** Every change must be checked with the cheapest command that
    actually exercises it:
    - Backend compile: `mvn -q -B -pl <module> -am compile` (JAVA_HOME must be Java 21).
    - Backend tests (when the touched module has them): `mvn -q -B -pl <module> -am test`.
-   - Whole-repo build when a change spans modules or touches `lib-common`: `mvn -q -B clean install -DskipTests` (then run the relevant module tests).
+   - Whole-repo build when a change spans modules or touches `io.boomerang.common`: `mvn -q -B clean install -DskipTests` (then run the relevant module tests).
    - Workflows/YAML: parse-check (e.g. `python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' <file>`) plus a careful re-read of `on:` triggers, `paths:` filters, and tag prefixes (`<svc>@**`).
    - Dockerfiles: `docker build` only if your brief says image builds are in scope — otherwise a syntax review is fine, say so explicitly.
 4. **Never commit, push, or tag.** The orchestrator owns git state. Leave your changes in the

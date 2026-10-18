@@ -9,7 +9,6 @@ WORKDIR /build
 # Every module's POM (the reactor needs them all); sources for the dispatcher and the SDK it is
 # built on, which `--also-make` builds first.
 COPY pom.xml ./
-COPY lib-common/pom.xml lib-common/
 COPY service-core/pom.xml service-core/
 COPY dispatcher-sdk/pom.xml dispatcher-sdk/
 COPY service-dispatcher/pom.xml service-dispatcher/

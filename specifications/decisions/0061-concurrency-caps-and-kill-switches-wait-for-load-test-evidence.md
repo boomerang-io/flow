@@ -21,9 +21,9 @@ Option B. The claim page filters only by what the dispatcher's poll asks for
 (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:100`); the single kill switch
 `flow.queue.enabled` stops claiming only and never gates the recovery sweeps
 (`dispatcher/DispatcherService.java:56-57,178,284`); retry is one exponential backoff — 10 s base,
-doubling, 5 min ceiling, up to 5 s jitter (`lib-common/src/main/java/io/boomerang/common/util/Backoff.java:12-21`)
+doubling, 5 min ceiling, up to 5 s jitter (`service-core/src/main/java/io/boomerang/common/util/Backoff.java:12-21`)
 — with a 3-attempt budget (`engine/EngineConstants.java:34`), and `RunRetry` carries only `after` and
-`count` (`lib-common/.../model/RunRetry.java:17-18`). Retry happens only when a requeueable task times
+`count` (`service-core/.../model/RunRetry.java:17-18`). Retry happens only when a requeueable task times
 out, its lease lapses or its dispatcher disappears; a task the dispatcher reports as `failed` is not
 retried. Building the designed classes ahead of a demonstrated need is over-abstraction; load testing
 reopens this, not speculation.

@@ -37,6 +37,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import java.util.List;
 import java.util.Objects;
@@ -185,7 +187,26 @@ public class TaskService {
     // Remove ID
     taskTemplate.setId(null);
 
-    return taskTemplate;
+    return filterSensitiveValues(taskTemplate);
+  }
+
+  /*
+   * Every read of a catalogue task through the /api/v2 surface - get, query, the Tekton YAML reads
+   * and the create and apply responses - shows a password-typed param's default as the redaction
+   * marker. The unscoped reads the engine and the workflow save use (get(ref, version), getSpecs,
+   * retrieveAndValidateTask) are not filtered: a task run needs the real default. The spec is
+   * copied rather than changed, as the model shares it with the revision entity.
+   */
+  private static Task filterSensitiveValues(Task task) {
+    if (task != null && task.getSpec() != null) {
+      TaskSpec spec = new TaskSpec();
+      BeanUtils.copyProperties(task.getSpec(), spec);
+      spec.setParams(
+          DataAdapterUtil.filterParamSpecValueByFieldType(
+              task.getSpec().getParams(), FieldType.PASSWORD.value(), DataAdapterUtil.REDACTED));
+      task.setSpec(spec);
+    }
+    return task;
   }
 
   /*
@@ -266,6 +287,7 @@ public class TaskService {
                 switchChangeLogAuthorToUserName(t.getChangelog());
                 // Remove ID
                 t.setId(null);
+                filterSensitiveValues(t);
               });
     }
     return response;
@@ -397,7 +419,7 @@ public class TaskService {
     Task taskTemplate = create(request);
     switchChangeLogAuthorToUserName(taskTemplate.getChangelog());
 
-    return taskTemplate;
+    return filterSensitiveValues(taskTemplate);
   }
 
   /*
@@ -467,7 +489,7 @@ public class TaskService {
     Task template = apply(request, replace);
     switchChangeLogAuthorToUserName(template.getChangelog());
 
-    return template;
+    return filterSensitiveValues(template);
   }
 
   // Override changelog date and set author. Used on creation/update of TaskTemplate.
@@ -693,6 +715,13 @@ public class TaskService {
     request.getAnnotations().put("boomerang.io/generation", ANNOTATION_GENERATION);
     request.getAnnotations().put("boomerang.io/kind", ANNOTATION_KIND);
 
+    // A hidden default sent back with nothing stored to keep (an import of an exported task) is
+    // saved blank, never as the marker.
+    if (request.getSpec() != null) {
+      DataAdapterUtil.keepParamSpecValueByFieldType(
+          request.getSpec().getParams(), List.of(), FieldType.PASSWORD.value());
+    }
+
     // Set as initial version
     request.setVersion(1);
     ChangeLog changelog = new ChangeLog(CHANGELOG_INITIAL);
@@ -743,6 +772,15 @@ public class TaskService {
         taskRevisionRepository.findByParentRefAndLatestVersion(request.getId());
     if (taskRevisionEntity.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
+    }
+
+    // A password default read hidden and sent back as the marker or blank keeps the stored one,
+    // so a read-edit-apply of anything else never overwrites the secret.
+    if (request.getSpec() != null && taskRevisionEntity.get().getSpec() != null) {
+      DataAdapterUtil.keepParamSpecValueByFieldType(
+          request.getSpec().getParams(),
+          taskRevisionEntity.get().getSpec().getParams(),
+          FieldType.PASSWORD.value());
     }
 
     // Update TaskTemplateEntity
