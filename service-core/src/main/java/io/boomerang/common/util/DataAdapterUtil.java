@@ -172,7 +172,7 @@ public class DataAdapterUtil {
   }
 
   /** What a client sends back for a value it read hidden: nothing, a blank, or the marker. */
-  private static boolean isMasked(Object value) {
+  public static boolean isMasked(Object value) {
     return isUnset(value) || REDACTED.equals(value);
   }
 

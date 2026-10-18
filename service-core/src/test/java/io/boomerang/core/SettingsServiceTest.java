@@ -84,8 +84,10 @@ class SettingsServiceTest {
         .isEqualTo("legacy-plain");
   }
 
+  // The internal write stores what it is given: a blank stays blank. The settings API save keeps a
+  // stored secret when it is sent back blank or masked - SettingsMaskingTest covers that path.
   @Test
-  void blankSecuredValuesPassThroughUntouched() {
+  void blankSecuredValuesOnTheInternalWritePassThroughUntouched() {
     SettingEntity entity = settingWith(config("slack.token", "secured", ""),
         config("slack.clientSecret", "secured", null));
 

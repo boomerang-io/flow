@@ -1,5 +1,6 @@
 package io.boomerang.core;
 
+import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DateUtil;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.ConfigurationType;
@@ -40,11 +41,17 @@ public class SettingsService {
     this.paramLayerCache = paramLayerCache;
   }
 
+  /**
+   * The settings as the API shows them: a secured entry that holds a value reads as {@link
+   * DataAdapterUtil#REDACTED}, and one with nothing set stays blank. Internal callers read a value
+   * through {@link #getSettingConfig}, which returns plaintext.
+   */
   public List<Setting> getAllSettings() {
     final List<Setting> settingList = new LinkedList<>();
     final List<SettingEntity> entityList = settingsRepository.findAll();
     for (final SettingEntity entity : entityList) {
       if (!entity.getKey().equals("internal")) {
+        showMaskedValues(entity);
         final Setting newSetting = new Setting(entity);
         settingList.add(newSetting);
       }
@@ -75,11 +82,18 @@ public class SettingsService {
               .parallel()
               .filter(x -> config.getKey().equals(x.getKey()))
               .findFirst();
-      if (result.isPresent()) {
-        final SettingConfig originalConfig = result.get();
-        originalConfig.setValue(newValue);
+      if (result.isPresent() && !keepsStoredValue(result.get(), newValue)) {
+        result.get().setValue(newValue);
       }
     }
+  }
+
+  // A secured entry is read masked, so a client sends back the marker, a blank, or - from an older
+  // client that read the stored form - the ciphertext. None of those is a new value: the stored
+  // one is kept. Any other value replaces it and is encrypted on save.
+  private static boolean keepsStoredValue(SettingConfig stored, String newValue) {
+    return SECURED_TYPE.equalsIgnoreCase(stored.getType())
+        && (DataAdapterUtil.isMasked(newValue) || SecretCipher.isEncrypted(newValue));
   }
 
   public String getWebhookURL() {
@@ -145,6 +159,16 @@ public class SettingsService {
     configuration.getConfig().stream()
         .filter(config -> SECURED_TYPE.equalsIgnoreCase(config.getType()))
         .forEach(c -> c.setValue(decrypt(c.getValue())));
+  }
+
+  private static void showMaskedValues(SettingEntity configuration) {
+    if (configuration.getConfig() == null) {
+      return;
+    }
+    configuration.getConfig().stream()
+        .filter(config -> SECURED_TYPE.equalsIgnoreCase(config.getType()))
+        .filter(config -> config.getValue() != null && !config.getValue().isBlank())
+        .forEach(c -> c.setValue(DataAdapterUtil.REDACTED));
   }
 
   // Blank values and values already carrying the label pass through; everything else is encrypted.
