@@ -76,8 +76,6 @@ class TaskDeleteAsyncTest {
                     "Never",
                     "kube.task.timeout",
                     "60",
-                    "flow.dispatcher.ai.image",
-                    "boomerangio/task-ai:latest",
                     "flow.dispatcher.artifact.image",
                     "boomerangio/task-flow:latest")));
     context.registerBean("taskRuntimeExecutor", TaskExecutor.class, () -> executor);

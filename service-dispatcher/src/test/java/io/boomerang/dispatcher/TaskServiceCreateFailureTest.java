@@ -2,14 +2,18 @@ package io.boomerang.dispatcher;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.dispatcher.sdk.model.TaskDeletion;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
@@ -46,6 +50,49 @@ class TaskServiceCreateFailureTest {
     doThrow(refusal).when(executor).create(any(), any());
     return assertThrows(TaskExecutionException.class, () -> taskService.execute(task()))
         .getStatusReason();
+  }
+
+  @Test
+  void anAiTaskWithNoImageIsRefusedAsNoTaskImageLikeAnyOtherType() throws Exception {
+    TaskRun task = task();
+    task.setType(TaskType.ai);
+    when(imageResolver.image(any())).thenReturn("");
+
+    TaskExecutionException refusal =
+        assertThrows(TaskExecutionException.class, () -> taskService.execute(task));
+
+    assertEquals("DispatchError", refusal.getStatusReason());
+    assertTrue(refusal.getMessage().startsWith("NO_TASK_IMAGE"));
+    verify(executor, never()).create(any(), any());
+  }
+
+  @Test
+  void anAiTaskDeclaringAnImageOutsideTheAllowedPrefixesIsRefusedBeforeItRuns() throws Exception {
+    TaskRun task = task();
+    task.setType(TaskType.ai);
+    task.getSpec().setImage("evil:latest");
+    when(imageResolver.image(any())).thenReturn("evil:latest");
+    when(imageResolver.allowedAiImage("evil:latest")).thenReturn(false);
+
+    TaskExecutionException refusal =
+        assertThrows(TaskExecutionException.class, () -> taskService.execute(task));
+
+    assertEquals("ImageNotAllowed", refusal.getStatusReason());
+    assertTrue(refusal.getMessage().contains("evil:latest"));
+    assertTrue(refusal.getMessage().contains("flow.dispatcher.ai.image-prefixes"));
+    verify(executor, never()).create(any(), any());
+  }
+
+  @Test
+  void onlyAnAiTaskIsHeldToTheImagePrefixes() throws Exception {
+    TaskRun task = task();
+    task.setType(TaskType.custom);
+    task.getSpec().setImage("evil:latest");
+    when(imageResolver.allowedAiImage(any())).thenReturn(false);
+
+    taskService.execute(task);
+
+    verify(executor).create(any(), any());
   }
 
   @Test

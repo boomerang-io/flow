@@ -156,9 +156,9 @@ services:
       # profile. A finished task's log is stored with the engine as well, when it has an artifact store.
       FLOW_DISPATCHER_LOGS_URL: ${FLOW_DISPATCHER_LOGS_URL:-http://localhost:7702/api/v1/logs/stream}
       # Spelled out rather than left to the default so the laptop cluster is an explicit place an
-      # ai task can be exercised end to end. The pod runs the worker image
-      # (FLOW_DISPATCHER_AI_IMAGE, boomerangio/task-ai:1.1.0 by default), released from the
-      # boomerang-io/tasks repository, so the tag has to exist before an ai run gets past the pull.
+      # ai task can be exercised end to end. The pod runs the image the ai catalogue revision
+      # declares (boomerangio/task-ai, released from the boomerang-io/tasks repository), so the tag
+      # has to exist before an ai run gets past the pull.
       FLOW_DISPATCHER_TASK_TYPES: template,custom,script,ai,uploadartifact,downloadartifact
       # Release run-scoped storage promptly so an end-to-end run can assert the claim is gone.
       FLOW_DISPATCHER_WORKSPACE_RECONCILE_ENABLED: "true"

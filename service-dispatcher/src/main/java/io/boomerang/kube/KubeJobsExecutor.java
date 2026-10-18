@@ -193,7 +193,7 @@ public class KubeJobsExecutor implements TaskExecutor {
         helperKubeService.createTaskEnvVars(
             spec.getDebug(),
             task.getParams(),
-            spec.getEnvs(),
+            imageResolver.environment(task),
             helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log"),
             // The ceiling a task writes to, so it can budget its own payload rather than guess.
             helperKubeService.createEnvVar(
