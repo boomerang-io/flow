@@ -531,13 +531,12 @@ class V3DumpMigrationTest {
         .containsExactlyInAnyOrder("debug", "default.image", "deletion.policy", "edit.verified", "default.timeout");
 
     // workflowrun (v3 "activity"): rebuilt under the seed's key and name; its four v3 storage
-    // entries are retired, so only the two engine ceilings remain.
+    // entries are retired, leaving the two engine ceilings and the finished-run retention.
     Document workflowrun =
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
     assertThat(workflowrun.getString("name")).isEqualTo("Run limits");
-    assertThat(configKeys(workflowrun))
-        .containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "retention.days");
+    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "retention.days");
     assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first())
         .as("the v3 execution-storage settings document must be removed")
         .isNull();
