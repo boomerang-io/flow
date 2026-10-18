@@ -536,7 +536,8 @@ class V3DumpMigrationTest {
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
     assertThat(workflowrun.getString("name")).isEqualTo("Run limits");
-    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items");
+    assertThat(configKeys(workflowrun))
+        .containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "retention.days");
     assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first())
         .as("the v3 execution-storage settings document must be removed")
         .isNull();

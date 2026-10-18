@@ -41,8 +41,7 @@ import io.fabric8.tekton.v1.TaskRunResult;
 @EnableKubernetesMockClient(crud = true)
 @TestPropertySource(
     properties = {
-      "dispatcher.tasks.runtimeClassName=kata-qemu",
-      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3"
+      "dispatcher.tasks.runtimeClassName=kata-qemu"
     })
 @Tag("smoke")
 public class TektonServiceImplTest {
@@ -208,10 +207,9 @@ public class TektonServiceImplTest {
   }
 
   @Test
-  public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
-    // An `ai` task is authored with params only - no image, no command, no script - and the
-    // dispatcher supplies the configured worker image and its `prompt` command. Everything else
-    // (PARAM_<NAME> env, RESULTS_PATH) is what every other type gets.
+  public void testCreateAiTaskRunsTheImageItsRevisionDeclaresWithTheParamEnv() throws Exception {
+    // An `ai` task runs the image and command its catalogue revision declares, never a script.
+    // Everything else (PARAM_<NAME> env, RESULTS_PATH) is what every other type gets.
     TaskRun task = new TaskRun();
     task.setId("taskrun-tekton-ai");
     task.setName("Ask the model");
@@ -226,11 +224,9 @@ public class TektonServiceImplTest {
             new RunParam("prompt", "Summarise the run")));
     task.setResults(List.of());
     task.setWorkspace(null);
-    // The spec an `ai` TaskRun actually carries: empty. An image or command that somehow reached
-    // it must not be able to redirect the AI worker at another container.
     TaskRunSpec spec = new TaskRunSpec();
-    spec.setImage("evil:latest");
-    spec.setCommand(List.of("sh", "-c", "id"));
+    spec.setImage("boomerangio/task-ai:1.2.3");
+    spec.setCommand(List.of("prompt"));
     spec.setDebug(false);
     task.setSpec(spec);
 

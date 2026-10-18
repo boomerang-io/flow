@@ -59,6 +59,7 @@ class PublicRunModelSerialisationTest {
           "retryAfter",
           "waitUntil",
           "pauseRequestedAt",
+          "waitingSince",
           "agentRef",
           "dispatcherRef",
           "dependencies",

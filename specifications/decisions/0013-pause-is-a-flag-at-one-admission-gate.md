@@ -18,7 +18,7 @@ and a sweep skip); the claim-query exclusion proved redundant and needlessly hel
 
 ## Decision
 
-Option C. `pauseRequestedAt` is a timestamp on `WorkflowRunEntity` (`lib-common/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:64`),
+Option C. `pauseRequestedAt` is a timestamp on `WorkflowRunEntity` (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:64`),
 set and cleared by CAS (`service-core/src/main/java/io/boomerang/engine/WorkflowRunStateHelper.java:229-252`). The single
 gate is `TaskExecutionService.queue`, which returns before admission when the run is paused
 (`engine/TaskExecutionService.java:141-145`). Resume clears the flag and calls `advance`, which re-queues whatever

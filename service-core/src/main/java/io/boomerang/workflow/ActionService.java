@@ -8,6 +8,7 @@ import io.boomerang.common.model.Actioner;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
@@ -27,9 +28,11 @@ import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
@@ -63,6 +66,7 @@ public class ActionService {
   private final ApproverGroupRepository approverGroupRepository;
   private final TaskRunService engineTaskRunService;
   private final WorkflowService workflowService;
+  private final WorkflowRunService workflowRunService;
   private final RelationshipService relationshipService;
   private final UserService userService;
   private final IdentityService identityService;
@@ -73,6 +77,7 @@ public class ActionService {
       ApproverGroupRepository approverGroupRepository,
       TaskRunService engineTaskRunService,
       WorkflowService workflowService,
+      WorkflowRunService workflowRunService,
       RelationshipService relationshipService,
       UserService userService,
       IdentityService identityService,
@@ -81,6 +86,7 @@ public class ActionService {
     this.approverGroupRepository = approverGroupRepository;
     this.engineTaskRunService = engineTaskRunService;
     this.workflowService = workflowService;
+    this.workflowRunService = workflowRunService;
     this.relationshipService = relationshipService;
     this.userService = userService;
     this.identityService = identityService;
@@ -199,6 +205,7 @@ public class ActionService {
 
   private Action convertToAction(ActionEntity actionEntity) {
     Action action = new Action(actionEntity);
+    action.setInstructions(filterSensitiveValues(actionEntity));
 
     action.setApprovalsRequired(actionEntity.getNumberOfApprovers());
 
@@ -246,6 +253,34 @@ public class ActionService {
     }
 
     return action;
+  }
+
+  /*
+   * A manual action's instructions are its task's resolved `instructions` param, so a reference
+   * to a secret - $(params.dbPassword) - is stored with the value in place. They are scrubbed on
+   * every read with the values the task log stream is scrubbed with
+   * (WorkflowRunService.taskRunSensitiveValues). Instructions that take in a secret are themselves
+   * secret-typed, so their whole text is among those values; it is left out when a secret inside
+   * it is scrubbed anyway, so the reader sees the instructions with only the secret hidden.
+   */
+  private String filterSensitiveValues(ActionEntity actionEntity) {
+    String instructions = actionEntity.getInstructions();
+    if (instructions == null
+        || instructions.isBlank()
+        || actionEntity.getWorkflowRunRef() == null) {
+      return instructions;
+    }
+    Set<String> secrets =
+        new HashSet<>(workflowRunService.taskRunSensitiveValues(actionEntity.getWorkflowRunRef()));
+    if (secrets.stream()
+        .anyMatch(
+            secret ->
+                !secret.equals(instructions)
+                    && secret.length() >= DataAdapterUtil.MIN_SCRUB_LENGTH
+                    && instructions.contains(secret))) {
+      secrets.remove(instructions);
+    }
+    return DataAdapterUtil.scrubString(instructions, secrets);
   }
 
   public Action get(String team, String id) {

@@ -141,7 +141,7 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes
   nothing (`:1054-1066`).
 - Results over `flow.engine.task.results.max-bytes` (1 MiB) fail the task as `ResultsTooLarge` (`:53`).
-- `statusReason` is a closed set (`lib-common/.../model/TaskRunEndRequest.java`). Two of them mean the task
+- `statusReason` is a closed set (`service-core/.../model/TaskRunEndRequest.java`). Two of them mean the task
   never started, and the engine requeues it instead of failing it — with backoff, on the same budget of three
   more attempts as a timed-out claimant — and fails it with that reason only once the budget is spent
   (`engine/TaskRunService.java:62`, `:1006`):

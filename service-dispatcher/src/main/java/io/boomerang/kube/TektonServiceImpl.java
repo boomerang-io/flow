@@ -98,7 +98,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         imageResolver.script(task),
         imageResolver.arguments(task),
         task.getParams(),
-        task.getSpec().getEnvs(),
+        imageResolver.environment(task),
         task.getResults(),
         task.getSpec().getWorkingDir(),
         task.getWorkspace(),

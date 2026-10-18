@@ -7,6 +7,7 @@ import io.boomerang.dispatcher.sdk.TaskResult;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskDeletion;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
@@ -114,10 +115,18 @@ public class TaskService implements TaskHandler {
    */
   public List<RunResult> execute(TaskRun task, TaskContext context) {
     List<RunResult> results = new ArrayList<>();
-    // Resolved, not read off the spec: an `ai` task carries no image of its own and the
-    // dispatcher supplies the worker image for it (TaskImageResolver).
-    if (imageResolver.image(task) == null) {
+    // Resolved, not read off the spec, so an artifact task's worker image counts (TaskImageResolver).
+    // Every other type, `ai` included, must declare its image.
+    String image = imageResolver.image(task);
+    if (image == null || image.isBlank()) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
+    }
+    // An `ai` revision may only declare an image under an allowed prefix; anything else is
+    // refused here, before anything is created, so the refusal is visible on the task.
+    if (TaskType.ai.equals(task.getType()) && !imageResolver.allowedAiImage(image)) {
+      throw new TaskExecutionException(
+          "ImageNotAllowed",
+          "IMAGE_NOT_ALLOWED - image '" + image + "' is not under flow.dispatcher.ai.image-prefixes");
     }
     Long timeout = getTaskTimeout(task.getTimeout());
     boolean succeeded = false;

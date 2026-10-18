@@ -62,7 +62,6 @@ import io.fabric8.kubernetes.api.model.Toleration;
 @TestPropertySource(
     properties = {
       "dispatcher.executor=kube-jobs",
-      "flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3",
       "kube.resource.request.cpu=100m",
       "kube.resource.limit.cpu=500m"
     })
@@ -179,7 +178,7 @@ public class KubeJobsExecutorTest {
   }
 
   @Test
-  public void testCreateAiTaskRunsTheResolvedWorkerImageWithTheParamEnv() throws Exception {
+  public void testCreateAiTaskRunsTheImageItsRevisionDeclaresWithTheParamEnv() throws Exception {
     // An `ai` task is authored with params only - no image, no command, no script - and the
     // dispatcher supplies the configured worker image and its `prompt` command.
     TaskRun task = new TaskRun();
@@ -197,7 +196,11 @@ public class KubeJobsExecutorTest {
             new RunParam("prompt", "Summarise the run")));
     task.setResults(List.of());
     task.setWorkspace(null);
-    task.setSpec(new TaskRunSpec());
+    // The spec an `ai` TaskRun carries: the image and command its catalogue revision declares.
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("boomerangio/task-ai:1.2.3");
+    spec.setCommand(List.of("prompt"));
+    task.setSpec(spec);
 
     kubeJobsExecutor.create(task, 30L);
 
@@ -228,18 +231,18 @@ public class KubeJobsExecutorTest {
   }
 
   @Test
-  public void testCreateAiTaskIgnoresAnImageOrCommandOnItsSpec() throws Exception {
-    TaskRun task = commandTask("taskrun-ai-override", false);
+  public void testCreateAiTaskRunsTheImageAndCommandItsRevisionDeclares() throws Exception {
+    TaskRun task = commandTask("taskrun-ai-agent", false);
     task.setType(TaskType.ai);
-    task.getSpec().setImage("evil:latest");
-    task.getSpec().setCommand(List.of("sh", "-c", "id"));
+    task.getSpec().setImage("boomerangio/task-ai:2.0.0");
+    task.getSpec().setCommand(List.of("agent"));
 
     kubeJobsExecutor.create(task, 30L);
 
     Container container =
         soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
-    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
-    assertEquals(List.of("prompt"), container.getCommand());
+    assertEquals("boomerangio/task-ai:2.0.0", container.getImage());
+    assertEquals(List.of("agent"), container.getCommand());
   }
 
   @Test

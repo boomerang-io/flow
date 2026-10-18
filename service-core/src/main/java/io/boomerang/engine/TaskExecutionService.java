@@ -5,6 +5,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.mongodb.MongoException;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.*;
@@ -19,6 +20,7 @@ import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.DateTimeException;
 import java.time.LocalTime;
@@ -125,6 +127,8 @@ public class TaskExecutionService {
   @Autowired private ParameterManager paramManager;
 
   @Autowired private SettingsService settingsService;
+
+  @Autowired private ParamLayerService paramLayerService;
 
   // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
   @Autowired @Lazy private TaskExecutionService self;
@@ -372,13 +376,19 @@ public class TaskExecutionService {
 
     // Execution-entry Compare-And-Set: ready becomes running exactly once, baking the durable
     // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
-    // side effects.
-    taskExecution =
-        taskRunService.tryStartExecution(taskExecutionId, new Date(), taskExecution.getTimeout());
+    // side effects. A wait is bounded by its own declared timeout alone, never by the run's
+    // budget or the operator's per-task ceiling - a gate nobody answers is indefinite.
+    Long budget =
+        EngineConstants.WAITING_TYPES.contains(taskType)
+            ? declaredTimeout(taskExecution, wfRunEntity)
+            : taskExecution.getTimeout();
+    taskExecution = taskRunService.tryStartExecution(taskExecutionId, new Date(), budget);
     if (taskExecution == null) {
       LOGGER.info("[{}] TaskRun already executing or completed. Nothing to do.", taskExecutionId);
       return;
     }
+    // A task executing means the run is no longer idle at a wait: its clock runs again.
+    workflowRunStateHelper.tryResumeWaiting(wfRunId);
 
     // If new TaskTypes are added, the following code needs updated as well as the IF statement at
     // the end of QUEUE
@@ -448,6 +458,39 @@ public class TaskExecutionService {
       // Persist the type-specific outcome (status, results, decision value) for end() to re-read.
       taskRunRepository.save(taskExecution);
       self.end(taskExecutionId);
+    } else if (EngineConstants.WAITING_TYPES.contains(taskType)) {
+      markWaitingIfIdle(wfRunId);
+    }
+  }
+
+  /*
+   * The timeout the revision's task declares for itself, in minutes, or null when it declares
+   * none. A foreach item reads its parent's declaration.
+   */
+  private Long declaredTimeout(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+    WorkflowRevisionEntity revision =
+        paramLayerService.getRevision(wfRunEntity.getWorkflowRevisionRef());
+    if (revision == null || revision.getTasks() == null) {
+      return null;
+    }
+    String name =
+        (taskExecution.getParentRef() != null)
+            ? taskExecution.getName().replaceAll("\\[\\d+]$", "")
+            : taskExecution.getName();
+    return revision.getTasks().stream()
+        .filter(task -> name.equals(task.getName()))
+        .findFirst()
+        .map(WorkflowTask::getTimeout)
+        .orElse(null);
+  }
+
+  /*
+   * Stop the run clock when nothing is executing: every in-flight task is waiting on a person,
+   * an event, a child run, the clock or a lock. Any task that starts executing restarts it.
+   */
+  private void markWaitingIfIdle(String wfRunId) {
+    if (taskRunService.allInFlightWaiting(wfRunId)) {
+      workflowRunStateHelper.tryMarkWaiting(wfRunId);
     }
   }
 
@@ -549,6 +592,8 @@ public class TaskExecutionService {
         "[{}] Marking Task as {}.",
         taskExecutionId,
         (taskTimedOut ? RunStatus.timedout : taskExecution.getStatus()));
+    // The task that ended may have been the wait the run was idle at: the clock runs again.
+    workflowRunStateHelper.tryResumeWaiting(wfRunEntity.getId());
 
     // Winner-only follow-on: a final task timeout times out the run rather than advancing it.
     if (taskTimedOut) {
@@ -579,6 +624,9 @@ public class TaskExecutionService {
     }
 
     executeNextStep(wfRunEntity, tasks, taskExecution, finishedAllDependencies);
+    // With this task gone, the run may be left with only waits in flight (a branch still at a
+    // gate while the other finished): its clock stops until something executes again.
+    markWaitingIfIdle(wfRunEntity.getId());
   }
 
   /*
@@ -1046,6 +1094,8 @@ public class TaskExecutionService {
     if (taskExecution == null) {
       return;
     }
+    // The wait is over: the run clock runs again while the task completes or re-attempts.
+    workflowRunStateHelper.tryResumeWaiting(taskExecution.getWorkflowRunRef());
     if (TaskType.sleep.equals(taskExecution.getType())) {
       taskExecution.setStatus(RunStatus.succeeded);
       taskRunRepository.save(taskExecution);
@@ -1061,6 +1111,8 @@ public class TaskExecutionService {
       if (acquireTaskLock(taskExecution, wfRunEntity)) {
         taskRunRepository.save(taskExecution);
         self.end(taskRunId);
+      } else {
+        markWaitingIfIdle(wfRunEntity.getId());
       }
     }
   }
@@ -1418,10 +1470,10 @@ public class TaskExecutionService {
         wfRunEntity.getStatusOverride() != null
             ? wfRunEntity.getStatusOverride()
             : (workflowCompleted ? RunStatus.succeeded : RunStatus.failed);
+    // Execution time, read from the run as it is now so a stop still open is excluded.
     long duration =
-        wfRunEntity.getStartTime() != null
-            ? new Date().getTime() - wfRunEntity.getStartTime().getTime()
-            : 0;
+        RunTimeouts.executionMillis(
+            workflowRunRepository.findById(wfRunEntity.getId()).orElse(wfRunEntity), new Date());
 
     // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
     // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.

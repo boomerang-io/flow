@@ -3,8 +3,6 @@
 # has its own context and its own .dockerignore.
 *
 !pom.xml
-!lib-common/pom.xml
-!lib-common/src
 !service-core/pom.xml
 !service-core/src
 !dispatcher-sdk/pom.xml

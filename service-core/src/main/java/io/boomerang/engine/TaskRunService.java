@@ -814,6 +814,33 @@ public class TaskRunService {
     return mongoTemplate.exists(query, TaskRunEntity.class);
   }
 
+  // Whether the run's in-flight work is all waiting: at least one waiting TaskRun and none
+  // executing - admitted (ready), claimed (queued) or running. The run clock stops only then.
+  public boolean allInFlightWaiting(String workflowRunRef) {
+    Query waiting =
+        Query.query(
+                Criteria.where("workflowRunRef")
+                    .is(workflowRunRef)
+                    .and("status")
+                    .is(RunStatus.waiting)
+                    .and("phase")
+                    .ne(RunPhase.completed))
+            .maxTimeMsec(5000);
+    Query executing =
+        Query.query(
+                Criteria.where("workflowRunRef")
+                    .is(workflowRunRef)
+                    .orOperator(
+                        Criteria.where("status").is(RunStatus.ready),
+                        Criteria.where("phase")
+                            .in(RunPhase.queued, RunPhase.running)
+                            .and("status")
+                            .ne(RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return mongoTemplate.exists(waiting, TaskRunEntity.class)
+        && !mongoTemplate.exists(executing, TaskRunEntity.class);
+  }
+
   // Return the page of waiting TaskRuns whose wait time has elapsed (sleep/lock parking).
   public List<TaskRunEntity> findWaitingDue(Date now, int limit) {
     Query query =
