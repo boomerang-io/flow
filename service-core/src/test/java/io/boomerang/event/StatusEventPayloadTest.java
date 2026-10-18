@@ -99,6 +99,30 @@ class StatusEventPayloadTest {
     assertThat(taskRun.getParams().get(0).getValue()).isEqualTo("postgres://app:pw@db");
   }
 
+  // A script that echoes a secret puts it in a result, the status message or an annotation under
+  // no param at all; the full payload scrubs the secret's value from all of them, and the entity
+  // the event was built from keeps its real results.
+  @Test
+  void theFullPayloadScrubsASecretFromResultsAndFreeText() throws Exception {
+    TaskRunEntity taskRun = taskRun();
+    taskRun.setParams(List.of(new RunParam("token", "ghp_echoed_secret", ParamType.secret)));
+    taskRun.setResults(List.of(new RunResult("output", "logged in as ghp_echoed_secret")));
+    taskRun.setStatusMessage("failed with ghp_echoed_secret");
+    taskRun.setAnnotations(Map.of("note", "ghp_echoed_secret"));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, EventPayload.full));
+    assertThat(taskRunData.toString()).doesNotContain("ghp_echoed_secret");
+    assertThat(taskRunData.get("results").get(0).get("value").asString())
+        .isEqualTo("logged in as *****");
+    assertThat(taskRun.getResults().get(0).getValue()).isEqualTo("logged in as ghp_echoed_secret");
+
+    WorkflowRunEntity wfRun = workflowRun();
+    wfRun.setParams(List.of(new RunParam("dbPassword", "wf-echoed-secret", ParamType.secret)));
+    wfRun.setResults(List.of(new RunResult("dsn", "postgres://app:wf-echoed-secret@db")));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, EventPayload.full));
+    assertThat(workflowRunData.toString()).doesNotContain("wf-echoed-secret");
+    assertThat(wfRun.getResults().get(0).getValue()).isEqualTo("postgres://app:wf-echoed-secret@db");
+  }
+
   @Test
   void theCloudEventEnvelopeIsTheSameForBothPayloads() throws Exception {
     var thin = EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.thin).toCloudEvent();

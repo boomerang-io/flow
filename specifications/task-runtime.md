@@ -318,17 +318,21 @@ them wins all taint. At submit, a secret whose value is not a string is rejected
 `PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:109`).
 
 Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
-with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:227`).
-It copies the param list rather than mutating it, because a model built with `BeanUtils.copyProperties`
-shares that list with its entity.
+with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:298`),
+copying rather than mutating, because a model built with `BeanUtils.copyProperties` shares its lists with the entity.
+Definitions are filtered on every `/api/v2` read too; an edit that sends a hidden value back as `*****` or a blank
+keeps the stored one (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
 
 | Read | Filter |
 | --- | --- |
 | Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:185-209`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`) |
-| `full` status events | Type (`event/model/RunStatusSummary.java:54,62`) |
-| Task log stream | Value scrub (`WorkflowRunService.java:470-503`) |
-| Schedule `get`, `query`, create and apply responses | Type (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. An apply that sends `*****` or a blank for a secret keeps the stored value (`DataAdapterUtil.keepRunParamValueByFieldType`, `:197`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit (`:983`, `:1152`) |
+| `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
+| Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
+| Catalogue task `get`, `query`, Tekton YAML, create and apply responses (global and workspace routes) | A `password` default reads `*****` (`workflow/TaskService.java:200`); `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
+| Workflow `get`, `query`, export, create, apply and duplicate responses | A `password` default reads blank - the run form's convention, where a blank leaves the default to apply - and a task node's secret value `*****`, its type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:317`). Apply keeps both from the latest revision by param name, and by node name for a node; with nothing stored (a new workflow, or an export imported elsewhere) a hidden default is saved blank and a hidden node value is dropped, so the task's default applies (`:1754`). Duplicate copies the unfiltered workflow (`:862`) |
+| Workflow canvas (`composeGet`, the `composeApply` response) | Deliberately not filtered; the workflow-level default is blanked in the `composeApply` response as before |
+| Schedule `get`, `query`, create and apply responses | Type (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. Apply keeps a hidden secret |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each
@@ -336,7 +340,7 @@ catalogue task's own spec (reached through `TaskRun.taskRef` + `taskVersion`, re
 `TaskService.getSpecs`); each blanks its own password-typed params by name. The **union** of those values
 and of every secret-typed param's value is scrubbed run-wide - from results and from every task's params,
 spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
-them under another name (`DataAdapterUtil.java:227-316`).
+them under another name (`DataAdapterUtil.java:298-420`).
 
 No value of a secret reaches a log, at any level. Log lines name params, tasks and Kubernetes objects
 and never print a value (`ParameterUtil.runParamNames`, `ParameterUtil.java:128`; the executors log
@@ -345,20 +349,16 @@ and never print a value (`ParameterUtil.runParamNames`, `ParameterUtil.java:128`
 run spec's script, command and arguments out (`RunParam.java:36`, `AbstractParam.java:50`,
 `TaskEnvVar.java:24`, `TaskRunSpec.java:18-22`). Boomerang loggers default to INFO; DEBUG is opt-in.
 
-The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union
-(`:419-427`, `:435-452`; `service-core/.../FilterValuesOutputStream.java:21`), taken over every task of the
-owning run rather than the streamed task alone. The dispatcher ends the stream when the pod is already
-finished or as soon as it finishes (`kube/KubeLogService.java:24`), and the engine permits the
-asynchronous completion of a streamed response without re-running authorization on it
-(`core/security/SecurityConfiguration.java:94-95`). Engine and dispatcher reads, and delivery into the
-container, carry the real values. A resolved value shorter than four characters is blanked by name but not
-value-scrubbed - replacing 1-3 character strings would mangle unrelated text (decision 0043).
+The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
+every task of the owning run (`service-core/.../FilterValuesOutputStream.java:21`). The dispatcher ends the
+stream when the pod finishes (`kube/KubeLogService.java:24`); its asynchronous completion skips a second
+authorization (`core/security/SecurityConfiguration.java:94-95`). A resolved value shorter than four characters
+is blanked by name but not value-scrubbed, which would mangle unrelated text (decision 0043).
 
-The union also holds the values of the run workspace's password-typed **global and workspace** parameters
-(`ParamLayerService.securedValues`, `workflow/ParamLayerService.java:162`, read uncached; `WorkflowRunService.java:192,489`),
-which neither definition declares yet substitution writes into task params, scripts and results. They are read
-once per workspace per response, and with their current values: a run that used a value since rotated keeps
-showing it.
+The union also holds the current values of the run workspace's password-typed **global and workspace**
+parameters (`workflow/ParamLayerService.java:162`, read uncached once per workspace per response;
+`WorkflowRunService.java:192,489`), which no definition declares yet substitution writes into task params,
+scripts and results. A run that used a value since rotated keeps showing it.
 
 Downward, the dispatcher reads `type` (`dispatcher-sdk/.../model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
 and builds `PARAM_<NAME>` for a secret exactly as for a string. There is no per-task Kubernetes Secret yet;

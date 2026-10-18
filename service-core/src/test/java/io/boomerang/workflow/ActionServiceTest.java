@@ -53,6 +53,7 @@ class ActionServiceTest {
   @Mock private ApproverGroupRepository approverGroupRepository;
   @Mock private TaskRunService engineTaskRunService;
   @Mock private WorkflowService workflowService;
+  @Mock private WorkflowRunService workflowRunService;
   @Mock private RelationshipService relationshipService;
   @Mock private UserService userService;
   @Mock private io.boomerang.core.security.IdentityService identityService;
@@ -68,6 +69,7 @@ class ActionServiceTest {
             approverGroupRepository,
             engineTaskRunService,
             workflowService,
+            workflowRunService,
             relationshipService,
             userService,
             identityService,
