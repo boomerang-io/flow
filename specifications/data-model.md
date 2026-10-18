@@ -177,7 +177,17 @@ scope `log`. A second upload for the same task run replaces the first, file and 
 | `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:306`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1036`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:362`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`:463`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete or its workflow's prune (`engine/WorkflowWatcher.java:160`). Limits are
+A record is removed only by a delete, its workflow's prune (`engine/WorkflowWatcher.java:160`) or its run's
+retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings document
+(365; `seed/settings.json:456`), read at each pass and floored at 60 so a month's quota counts stay whole
+(`WorkflowWatcher.runRetentionDays` `:261`). An hourly pass (`flow.watcher.retention-interval-ms`,
+`purgeExpiredRuns` `:218`) pages runs in phase `completed` created before the cutoff, oldest first, on the
+`phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first,
+`workflow/ArtifactService.java` `deleteForRun` `:625`), actions, task runs, relationship node and finally the run
+document. A run another run still names in `initiatedByRef` (a retry's origin, a child's parent) is kept until
+that run is gone, so a carried-over task run never outlives the one it stands for; a settings document built
+before the key existed reads as 365 until it is rebuilt. Workflow-scoped artifacts and audit events are never
+purged. Limits are
 admin settings: the `artifacts` document (default retention 30 days, maximum 90, largest artifact 1024 MB) and
 the `max.artifact.storage` workspace quota (5Gi), overridable per workspace with `artifactRetentionDays`. A task
 may ask for a shorter retention, never a longer one; a workflow-scoped upload may not set `retention-days` at all
