@@ -461,15 +461,16 @@ Kubernetes-only.
 
 An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references an
 `ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher runs the image and
-command the task's revision declares, exactly as declared (a revision with an image and no command runs the
-image's own entrypoint). The seeded `ai` task declares none, so the dispatcher falls back to the worker image
-`flow.dispatcher.ai.image` with its `prompt` command (`service-dispatcher/.../executor/TaskImageResolver.java:98-115`).
-A declared image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
-`boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
-`ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
-property (`TaskImageResolver.allowedAiImage` `:67-73`, `dispatcher/TaskService.java:123-135`), so a dispatcher
-registered for `ai` stays the egress zone for the worker alone unless an operator adds a prefix. An `ai` task never
-runs a script. Everything the model call needs is a declared param.
+command the task's revision declares, exactly as it does for `custom` or `template` (a revision with an image and
+no command runs the image's own entrypoint; one with no image is refused as `NO_TASK_IMAGE`;
+`service-dispatcher/.../executor/TaskImageResolver.java:91-98`, `dispatcher/TaskService.java:118-130`). There is no
+worker-image property: every `ai` revision declares its image. That image MUST start with one of
+`flow.dispatcher.ai.image-prefixes` (comma-separated, default `boomerangio/task-ai`, which admits every tag and
+digest of the Boomerang worker); the dispatcher refuses any other `ai` task before it runs, never-started with
+`statusReason=ImageNotAllowed` and a message naming the image and the property
+(`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone for the
+worker alone unless an operator adds a prefix. An `ai` task never runs a script. Everything the model call needs
+is a declared param.
 
 | Param | Type | Default | Meaning |
 | --- | --- | --- | --- |
@@ -499,16 +500,15 @@ and no meter: a platform sums `totalTokens` across task runs through the existin
 `boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
 `task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
 below). The product tag builds the four service and web images and not this one, so the worker and the product
-version lines move independently; `flow.dispatcher.ai.image` defaults to an exact version,
-`boomerangio/task-ai:1.1.0`, and an operator moves it to another `boomerangio/task-ai:<version>`
-(`service-dispatcher/src/main/resources/application.properties:105-112`). What ties the two together is the
-contract, not the tag: the twelve params above reach the image as `PARAM_<NAME>` environment variables and the
-six results come back through `RESULTS_PATH`, and that contract is shared between the image and the seeded `ai`
-catalogue revision in this repository — a param or result added on one side has to land on the other.
+version lines move independently; each `ai` catalogue revision pins the exact `boomerangio/task-ai:<version>` it
+was written against, and a deployment moves to a newer worker by seeding a new revision. What ties the two
+together is the contract, not the tag: the params above reach the image as `PARAM_<NAME>` environment variables
+and the results come back through `RESULTS_PATH`, and that contract is shared between the image and the `ai`
+catalogue revisions in this repository — a param or result added on one side has to land on the other.
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
-each only when set, ahead of the task's own environment (`TaskImageResolver.java:83-95`); the task's own `endpoint`
+each only when set, ahead of the task's own environment (`TaskImageResolver.java:76-88`); the task's own `endpoint`
 and `token` params still arrive as `PARAM_ENDPOINT` and `PARAM_TOKEN` and win inside the image.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks

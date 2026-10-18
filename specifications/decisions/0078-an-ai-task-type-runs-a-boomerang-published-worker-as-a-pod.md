@@ -19,10 +19,10 @@ same everywhere (endpoint, model, prompt, token), so the work is declaring it, n
 ## Decision
 
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`engine/TaskExecutionService.java:243,373`); the dispatcher runs the image and command an `ai` revision declares,
-and `flow.dispatcher.ai.image` for one that declares none, the seeded `ai` task
-(`service-dispatcher/.../executor/TaskImageResolver.java:98-115`) — `boomerangio/task-ai` either way, released
-from `boomerang-io/tasks`, not a product image (decision 0006 stands). Two things
+(`engine/TaskExecutionService.java:243,373`); the dispatcher runs the image and command the `ai` revision declares,
+like any other type, and the seeded revisions (`ai-prompt`, `ai-agent`) pin `boomerangio/task-ai:2.0.0`, released
+from `boomerang-io/tasks`, not a product image (decision 0006 stands;
+`service-dispatcher/.../executor/TaskImageResolver.java:91-98`). Two things
 decided it: untrusted prompt content must not be parsed in the same process that holds the dispatcher's engine
 credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress zone — one deployment, one
 network policy, no new concept (decision 0042). The zone holds because a declared image must be under an allowed

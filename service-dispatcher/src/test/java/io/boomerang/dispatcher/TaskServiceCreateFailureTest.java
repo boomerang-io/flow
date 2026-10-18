@@ -53,10 +53,25 @@ class TaskServiceCreateFailureTest {
   }
 
   @Test
+  void anAiTaskWithNoImageIsRefusedAsNoTaskImageLikeAnyOtherType() throws Exception {
+    TaskRun task = task();
+    task.setType(TaskType.ai);
+    when(imageResolver.image(any())).thenReturn("");
+
+    TaskExecutionException refusal =
+        assertThrows(TaskExecutionException.class, () -> taskService.execute(task));
+
+    assertEquals("DispatchError", refusal.getStatusReason());
+    assertTrue(refusal.getMessage().startsWith("NO_TASK_IMAGE"));
+    verify(executor, never()).create(any(), any());
+  }
+
+  @Test
   void anAiTaskDeclaringAnImageOutsideTheAllowedPrefixesIsRefusedBeforeItRuns() throws Exception {
     TaskRun task = task();
     task.setType(TaskType.ai);
     task.getSpec().setImage("evil:latest");
+    when(imageResolver.image(any())).thenReturn("evil:latest");
     when(imageResolver.allowedAiImage("evil:latest")).thenReturn(false);
 
     TaskExecutionException refusal =

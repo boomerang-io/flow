@@ -26,28 +26,33 @@ by default — add it explicitly to a deployment that should run it:
 | ---- | ----------------- | ------------- |
 | `template`, `custom`, `script` | Authored on the task or workflow node | Default |
 | `generic` | Authored | `flow.dispatcher.task-types=template,custom,script,generic` |
-| `ai` | Resolved by the dispatcher: `flow.dispatcher.ai.image` (`boomerangio/task-ai`) and the command `prompt` | Default |
+| `ai` | Declared on the catalogue revision (`boomerangio/task-ai`, command `prompt` or `agent`); the image must be under `flow.dispatcher.ai.image-prefixes` | Default |
 
-An `ai` task's author never builds a container and never names an image. `TaskImageResolver`
-(`io.boomerang.executor.TaskImageResolver`) supplies the image and command for type `ai` and ignores
-any image, command or script that reached the spec, so a definition cannot point the AI worker at a
-different container. Both executors ask the resolver instead of reading `spec.image` directly,
-so the behaviour is identical on Tekton and on Kubernetes Jobs. Params and results are unchanged:
-`PARAM_<NAME>` in, `RESULTS_PATH` out, with `RESULTS_MAX_BYTES` saying how much fits.
+An `ai` task's author never builds a container: the catalogue revision declares the image and
+command, and `TaskImageResolver` (`io.boomerang.executor.TaskImageResolver`) hands them to the
+executor like any other type, never a script. A declared image outside
+`flow.dispatcher.ai.image-prefixes` (default `boomerangio/task-ai`) is refused at dispatch as
+`ImageNotAllowed`, so a definition cannot point the AI zone at an arbitrary container. Both executors
+ask the resolver instead of reading `spec.image` directly, so the behaviour is identical on Tekton
+and on Kubernetes Jobs. Params and results are unchanged: `PARAM_<NAME>` in, `RESULTS_PATH` out,
+with `RESULTS_MAX_BYTES` saying how much fits. `flow.dispatcher.ai.endpoint` and
+`flow.dispatcher.ai.token`, when set, reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`;
+the task's own `endpoint` and `token` params win.
 
 **Where the image comes from.** The worker is an ordinary task image, not a product image: it is
 built and released from the [`boomerang-io/tasks`](https://github.com/boomerang-io/tasks) repository
 (`tasks/ai`) and published as `boomerangio/task-ai`, on its own version line from
 `task-ai@<version>` tags. The product tag (`5.x.y`) does not build it, so the two move
-independently — but the param and result contract is shared between that image and the seeded `ai`
-catalogue task in this repository, so a change to either side has to land on both. The contract is
+independently — but the param and result contract is shared between that image and the `ai`
+catalogue revisions in this repository, so a change to either side has to land on both. The contract is
 documented in that repository's `tasks/ai/README.md`.
 
-`flow.dispatcher.ai.image` defaults to an exact version, `boomerangio/task-ai:1.1.0`, so a deployment
-runs a reproducible worker. Move it deliberately:
+The catalogue revision pins an exact version (`boomerangio/task-ai:2.0.0`), so a deployment runs a
+reproducible worker and moves it by seeding a new revision. A deployment that builds its own ai
+worker adds its prefix:
 
 ```properties
-flow.dispatcher.ai.image=boomerangio/task-ai:1.2.3
+flow.dispatcher.ai.image-prefixes=boomerangio/task-ai,registry.example.com/ai/
 ```
 
 **An AI network zone.** A dispatcher deployment registered with `flow.dispatcher.task-types=ai`

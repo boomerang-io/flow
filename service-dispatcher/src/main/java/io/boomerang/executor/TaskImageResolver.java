@@ -15,16 +15,15 @@ import org.springframework.util.StringUtils;
  * reading {@code spec.image} / {@code spec.command} / {@code spec.script} directly, so the answer
  * is the same on Tekton, Kubernetes Jobs and any later runtime.
  *
- * <p>For every authored type ({@code template}, {@code custom}, {@code script}) the answer is the
- * spec, unchanged. An {@code ai} task runs the image and command its catalogue revision declares,
- * exactly as declared; a revision that declares no image - the seeded {@code ai} task - runs the
- * worker image {@code flow.dispatcher.ai.image} with its {@code prompt} command and no arguments.
- * Either way the image is an ordinary task image released from the boomerang-io/tasks repository
- * ({@code tasks/ai} -> {@code boomerangio/task-ai}), versioned independently of the product tag,
- * and an {@code ai} task never runs a script.
+ * <p>For every authored type ({@code template}, {@code custom}, {@code script}) and for {@code ai}
+ * the answer is the spec, unchanged: an {@code ai} catalogue revision declares its image and
+ * command like any other, with the one difference that the image must be under an allowed prefix
+ * ({@link #allowedAiImage}) and that an {@code ai} task never runs a script. The images are
+ * ordinary task images released from the boomerang-io/tasks repository ({@code tasks/ai} ->
+ * {@code boomerangio/task-ai}), versioned independently of the product tag.
  *
- * <p>Nothing else changes for {@code ai}: params still arrive as {@code PARAM_<NAME>} environment
- * variables and results are still read from {@code RESULTS_PATH}
+ * <p>Nothing else changes for {@code ai}: params arrive as {@code PARAM_<NAME>} environment
+ * variables and results are read from {@code RESULTS_PATH}
  * ({@link io.boomerang.kube.KubeHelperService#createTaskEnvVars}).
  *
  * <p>The {@code uploadartifact} and {@code downloadartifact} types always run the default worker
@@ -35,14 +34,8 @@ import org.springframework.util.StringUtils;
 @Component
 public class TaskImageResolver {
 
-  /** The worker image's entrypoint for a single chat completion. */
-  static final List<String> AI_COMMAND = List.of("prompt");
-
   static final List<String> ARTIFACT_UPLOAD_ARGUMENTS = List.of("artifact", "upload");
   static final List<String> ARTIFACT_DOWNLOAD_ARGUMENTS = List.of("artifact", "download");
-
-  @Value("${flow.dispatcher.ai.image}")
-  private String aiImage;
 
   @Value("${flow.dispatcher.artifact.image}")
   private String artifactImage;
@@ -94,23 +87,13 @@ public class TaskImageResolver {
     return environment;
   }
 
-  /** The container image to run; never null for an {@code ai} or artifact task. */
+  /** The container image to run; never null for an artifact task. */
   public String image(TaskRun task) {
-    if (isAi(task)) {
-      return (declaresImage(task)) ? spec(task).getImage() : aiImage;
-    }
     return isArtifact(task) ? artifactImage : spec(task).getImage();
   }
 
   /** The container command, or null to leave the image's own entrypoint in place. */
   public List<String> command(TaskRun task) {
-    if (isAi(task)) {
-      if (!declaresImage(task)) {
-        return AI_COMMAND;
-      }
-      List<String> command = spec(task).getCommand();
-      return (command != null && !command.isEmpty()) ? command : null;
-    }
     return isArtifact(task) ? null : spec(task).getCommand();
   }
 
@@ -122,7 +105,7 @@ public class TaskImageResolver {
     if (TaskType.downloadartifact.equals(task.getType())) {
       return ARTIFACT_DOWNLOAD_ARGUMENTS;
     }
-    return (isAi(task) && !declaresImage(task)) ? null : spec(task).getArguments();
+    return spec(task).getArguments();
   }
 
   /**
@@ -140,12 +123,6 @@ public class TaskImageResolver {
 
   private boolean isAi(TaskRun task) {
     return TaskType.ai.equals(task.getType());
-  }
-
-  // A revision that names its own image: the seeded `ai` task leaves it blank.
-  private boolean declaresImage(TaskRun task) {
-    String image = spec(task).getImage();
-    return image != null && !image.isBlank();
   }
 
   private TaskRunSpec spec(TaskRun task) {

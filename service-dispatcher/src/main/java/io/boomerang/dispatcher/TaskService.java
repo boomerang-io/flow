@@ -115,23 +115,18 @@ public class TaskService implements TaskHandler {
    */
   public List<RunResult> execute(TaskRun task, TaskContext context) {
     List<RunResult> results = new ArrayList<>();
-    // Resolved, not read off the spec: an `ai` task that declares no image gets the dispatcher's
-    // worker image (TaskImageResolver).
-    if (imageResolver.image(task) == null) {
+    // Resolved, not read off the spec, so an artifact task's worker image counts (TaskImageResolver).
+    // Every other type, `ai` included, must declare its image.
+    String image = imageResolver.image(task);
+    if (image == null || image.isBlank()) {
       throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
     }
     // An `ai` revision may only declare an image under an allowed prefix; anything else is
-    // refused here rather than swapped for the worker, so the refusal is visible on the task.
-    String declaredImage = (task.getSpec() != null) ? task.getSpec().getImage() : null;
-    if (TaskType.ai.equals(task.getType())
-        && declaredImage != null
-        && !declaredImage.isBlank()
-        && !imageResolver.allowedAiImage(declaredImage)) {
+    // refused here, before anything is created, so the refusal is visible on the task.
+    if (TaskType.ai.equals(task.getType()) && !imageResolver.allowedAiImage(image)) {
       throw new TaskExecutionException(
           "ImageNotAllowed",
-          "IMAGE_NOT_ALLOWED - image '"
-              + declaredImage
-              + "' is not under flow.dispatcher.ai.image-prefixes");
+          "IMAGE_NOT_ALLOWED - image '" + image + "' is not under flow.dispatcher.ai.image-prefixes");
     }
     Long timeout = getTaskTimeout(task.getTimeout());
     boolean succeeded = false;

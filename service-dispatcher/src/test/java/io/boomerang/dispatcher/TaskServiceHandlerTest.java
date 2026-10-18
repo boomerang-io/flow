@@ -71,7 +71,10 @@ class TaskServiceHandlerTest {
 
   @Test
   void anAiTaskRunsLikeAnyOtherContainerType() throws Exception {
-    // `ai` runs as a pod from the resolved worker image; only the image and command are resolved.
+    // `ai` runs as a pod from the image its revision declares, once that image passes the prefix
+    // check; nothing else about the handler differs.
+    when(imageResolver.image(any())).thenReturn("boomerangio/task-ai:2.0.0");
+    when(imageResolver.allowedAiImage("boomerangio/task-ai:2.0.0")).thenReturn(true);
     when(executor.watch(any(), any())).thenReturn(List.of());
     TaskRun task = task(TaskType.ai);
 

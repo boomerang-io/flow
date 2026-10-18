@@ -14,22 +14,17 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
- * An {@code ai} task runs the image and command its revision declares; one that declares no image
- * runs the dispatcher's configured worker with the {@code prompt} command. Every other type keeps
- * taking its runtime from its own spec.
+ * An {@code ai} task runs the image and command its revision declares, like every other authored
+ * type; the image must be under an allowed prefix and an {@code ai} task never runs a script.
  */
 class TaskImageResolverTest {
 
-  // The worker image is released from boomerang-io/tasks on its own version line, not the product
-  // tag, so the pinned tag under test is deliberately not a 5.x product version.
-  private static final String AI_IMAGE = "boomerangio/task-ai:1.2.3";
   private static final String ARTIFACT_IMAGE = "boomerangio/task-flow:9.9.9";
 
   private final TaskImageResolver resolver = resolver();
 
   private static TaskImageResolver resolver() {
     TaskImageResolver resolver = new TaskImageResolver();
-    ReflectionTestUtils.setField(resolver, "aiImage", AI_IMAGE);
     ReflectionTestUtils.setField(resolver, "artifactImage", ARTIFACT_IMAGE);
     // The property's default prefix, as Spring would bind it.
     ReflectionTestUtils.setField(resolver, "aiImagePrefixes", List.of("boomerangio/task-ai"));
@@ -70,28 +65,6 @@ class TaskImageResolverTest {
   }
 
   @Test
-  void aiWithNoImageRunsTheConfiguredWorkerImageWithThePromptCommand() {
-    // The spec the seeded `ai` TaskRun carries: no image, no command, no script.
-    TaskRun task = task(TaskType.ai, new TaskRunSpec());
-
-    assertEquals(AI_IMAGE, resolver.image(task));
-    assertEquals(List.of("prompt"), resolver.command(task));
-    assertNull(resolver.arguments(task));
-    assertNull(resolver.script(task));
-  }
-
-  @Test
-  void aiWithABlankImageIsTheSameAsNoImage() {
-    TaskRunSpec spec = spec("  ", List.of("agent"), null);
-    spec.setArguments(List.of("--verbose"));
-    TaskRun task = task(TaskType.ai, spec);
-
-    assertEquals(AI_IMAGE, resolver.image(task));
-    assertEquals(List.of("prompt"), resolver.command(task));
-    assertNull(resolver.arguments(task));
-  }
-
-  @Test
   void aiRunsTheImageAndCommandItsRevisionDeclares() {
     TaskRunSpec spec = spec("boomerangio/task-ai:2.0.0", List.of("agent"), null);
     spec.setArguments(List.of("--max-turns", "10"));
@@ -104,12 +77,48 @@ class TaskImageResolverTest {
   }
 
   @Test
+  void aiWithNoImageResolvesToNoneLikeAnyOtherType() {
+    // No worker-image fallback: the dispatcher refuses such a task as NO_TASK_IMAGE.
+    assertNull(resolver.image(task(TaskType.ai, new TaskRunSpec())));
+    assertEquals("", resolver.image(task(TaskType.ai, spec("", List.of("prompt"), null))));
+    assertNull(resolver.command(task(TaskType.ai, new TaskRunSpec())));
+  }
+
+  @Test
   void aiWithAnImageAndNoCommandLeavesTheImagesEntrypointInPlace() {
-    TaskRun empty = task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", List.of(), null));
     TaskRun absent = task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", null, null));
 
-    assertNull(resolver.command(empty));
     assertNull(resolver.command(absent));
+  }
+
+  @Test
+  void aiNeverRunsAScriptWhateverItsSpecSays() {
+    TaskRun task =
+        task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", List.of("agent"), "#!/bin/sh\nid"));
+
+    assertNull(resolver.script(task));
+  }
+
+  @Test
+  void anAiImageIsAllowedOnlyUnderAConfiguredPrefix() {
+    // The resolver under test carries the property's default prefix, boomerangio/task-ai.
+    assertTrue(resolver.allowedAiImage("boomerangio/task-ai:2.0.0"));
+    assertTrue(resolver.allowedAiImage("boomerangio/task-ai@sha256:0123abcd"));
+    assertFalse(resolver.allowedAiImage("evil:latest"));
+    assertFalse(resolver.allowedAiImage("boomerangio/task-flow:3.2.1"));
+    assertFalse(resolver.allowedAiImage(""));
+    assertFalse(resolver.allowedAiImage(null));
+  }
+
+  @Test
+  void anOperatorsOwnPrefixAdmitsItsImages() {
+    TaskImageResolver configured = resolver();
+    ReflectionTestUtils.setField(
+        configured, "aiImagePrefixes", List.of("boomerangio/task-ai", " registry.example.com/ai/ "));
+
+    assertTrue(configured.allowedAiImage("registry.example.com/ai/agent:1.0"));
+    assertTrue(configured.allowedAiImage("boomerangio/task-ai:2.0.0"));
+    assertFalse(configured.allowedAiImage("registry.example.com/other:1.0"));
   }
 
   @Test
@@ -137,36 +146,6 @@ class TaskImageResolverTest {
     // The resolver under test carries the properties' defaults: both blank.
     assertEquals(List.of(), resolver.environment(task(TaskType.ai, new TaskRunSpec())));
     assertEquals(List.of(), resolver.environment(task(TaskType.ai, null)));
-  }
-
-  @Test
-  void anAiImageIsAllowedOnlyUnderAConfiguredPrefix() {
-    // The resolver under test carries the property's default prefix, boomerangio/task-ai.
-    assertTrue(resolver.allowedAiImage("boomerangio/task-ai:2.0.0"));
-    assertTrue(resolver.allowedAiImage("boomerangio/task-ai@sha256:0123abcd"));
-    assertFalse(resolver.allowedAiImage("evil:latest"));
-    assertFalse(resolver.allowedAiImage("boomerangio/task-flow:3.2.1"));
-    assertFalse(resolver.allowedAiImage(""));
-    assertFalse(resolver.allowedAiImage(null));
-  }
-
-  @Test
-  void anOperatorsOwnPrefixAdmitsItsImages() {
-    TaskImageResolver configured = resolver();
-    ReflectionTestUtils.setField(
-        configured, "aiImagePrefixes", List.of("boomerangio/task-ai", " registry.example.com/ai/ "));
-
-    assertTrue(configured.allowedAiImage("registry.example.com/ai/agent:1.0"));
-    assertTrue(configured.allowedAiImage("boomerangio/task-ai:2.0.0"));
-    assertFalse(configured.allowedAiImage("registry.example.com/other:1.0"));
-  }
-
-  @Test
-  void aiNeverRunsAScriptWhateverItsSpecSays() {
-    TaskRun task =
-        task(TaskType.ai, spec("boomerangio/task-ai:2.0.0", List.of("agent"), "#!/bin/sh\nid"));
-
-    assertNull(resolver.script(task));
   }
 
   @Test
