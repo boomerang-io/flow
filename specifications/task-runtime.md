@@ -459,52 +459,37 @@ Kubernetes-only.
 
 ## AI tasks
 
-An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references an
-`ai` catalogue task, the engine treats it as any other dispatched type, and the dispatcher runs the image and
-command the task's revision declares, exactly as it does for `custom` or `template` (a revision with an image and
-no command runs the image's own entrypoint; one with no image is refused as `NO_TASK_IMAGE`;
-`service-dispatcher/.../executor/TaskImageResolver.java:91-98`, `dispatcher/TaskService.java:118-130`). There is no
-worker-image property: every `ai` revision declares its image. That image MUST start with one of
-`flow.dispatcher.ai.image-prefixes` (comma-separated, default `boomerangio/task-ai`, which admits every tag and
-digest of the Boomerang worker); the dispatcher refuses any other `ai` task before it runs, never-started with
-`statusReason=ImageNotAllowed` and a message naming the image and the property
-(`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone for the
-worker alone unless an operator adds a prefix. An `ai` task never runs a script. Everything the model call needs
-is a declared param.
+An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references one of
+two seeded catalogue tasks of type `ai`, the engine treats it as any other dispatched type, and the dispatcher runs
+the image and command the revision declares (`boomerangio/task-ai:2.0.0` with `prompt` or `agent`), exactly as it
+does for `custom` or `template` (a revision with an image and no command runs the image's own entrypoint; one with
+no image is refused as `NO_TASK_IMAGE`; `service-dispatcher/.../executor/TaskImageResolver.java:91-98`,
+`dispatcher/TaskService.java:118-130`). There is no worker-image property: every `ai` revision declares its image.
+That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
+`boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
+`ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
+property (`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone
+for the worker alone unless an operator adds a prefix. An `ai` task never runs a script. Everything the model call
+needs is a declared param:
 
-| Param | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `endpoint` | `text`, required | — | An OpenAI-compatible base URL: OpenRouter, LiteLLM, Azure AI Foundry, Ollama |
-| `token` | `password`, required | — | The endpoint's API token |
-| `model` | `text`, required | — | The model identifier the endpoint expects |
-| `systemPrompt` | `texteditor::text` | empty | Sent as the system message |
-| `prompt` | `texteditor::text`, required | — | Supports `$(params.x)` and `$(tasks.x.results.y)` |
-| `temperature` | `slider` 0–2 step 0.1 | `0.7` | Sampling temperature |
-| `maxTokens` | `number` | `1024` | Upper bound on generated tokens |
-| `responseFormat` | `select` `text`\|`json` | `text` | Free text or a JSON object |
-| `jsonSchema` | `texteditor::text` | empty | A JSON Schema object; with `responseFormat` `json` the reply is held to it (`response_format` `json_schema`, strict). Requires task-ai 1.1.0 |
-| `seed` | `number` | empty | Sampling seed, where the endpoint honours one |
-| `files` | `text` | empty | Comma-separated paths on the run workspace, read into context |
-| `maxContextBytes` | `number` | `65536` | Byte budget for `files` |
+| Task | Params | Results |
+| --- | --- | --- |
+| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace) | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
+| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all | The 9 plus `turns` and `toolCalls` |
 
-`slider` is the only param type with a numeric range, so `AbstractParam` carries nullable `min`, `max` and
-`step` beside `options` (`service-core/.../model/AbstractParam.java`).
-
-The task declares six results — `output`, `promptTokens`, `completionTokens`, `totalTokens`, `finishReason`,
-`model` — as flat typed results on the TaskRun under the same results caps as every other task (decision 0041:
-the 1 MB engine guard, and 4 KB on the Kubernetes dispatcher). A long `output` therefore fails the run with
-`RESULTS_TOO_LARGE` rather than truncating. There is no usage field
-and no meter: a platform sums `totalTokens` across task runs through the existing query API.
-
-**Worker image.** The worker is a task image, not a product image. It is built and released from the
-`boomerang-io/tasks` repository (`tasks/ai`) as `boomerangio/task-ai`, tagged from that repository's own
-`task-ai@<version>` tags — the same path as every other catalogue image (see "Task catalogue"
-below). The product tag builds the four service and web images and not this one, so the worker and the product
-version lines move independently; each `ai` catalogue revision pins the exact `boomerangio/task-ai:<version>` it
-was written against, and a deployment moves to a newer worker by seeding a new revision. What ties the two
-together is the contract, not the tag: the params above reach the image as `PARAM_<NAME>` environment variables
-and the results come back through `RESULTS_PATH`, and that contract is shared between the image and the `ai`
-catalogue revisions in this repository — a param or result added on one side has to land on the other.
+The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) are copies of the definition files in the
+`boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which are the source of the
+contract: a change there is one PR in that repository and a seed sync here, and a param or result added on one side
+has to land on the other. The worker is a task image, not a product image: it is released from the same repository
+on its own `task-ai@<version>` tags, each revision pins the exact `boomerangio/task-ai:<version>` it was written
+against, and a deployment moves to a newer worker by seeding a new revision. `slider` is the only param type with a
+numeric range, so `AbstractParam` carries nullable `min`, `max` and `step` beside `options`
+(`service-core/.../model/AbstractParam.java`). JSON-valued params are `json` text the image parses up front, failing
+`INVALID_PARAM` with the param's name. Params reach the image as `PARAM_<NAME>` environment variables and results
+come back through `RESULTS_PATH`, as flat typed results under the same caps as every other task (decision 0041: the
+1 MB engine guard, and 4 KB on the Kubernetes dispatcher), so a long `output` fails the task with
+`RESULTS_TOO_LARGE` rather than truncating; `outputFile` and the task log carry what does not fit. There is no usage
+field and no meter: a platform sums `totalTokens` across task runs through the existing query API.
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
@@ -525,11 +510,12 @@ can read the pod spec or exec into the pod can read the token.
 ## Task catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
-migrations seed 88 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
+migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
 `task_revisions`, matched by name and inserting only what is absent
-(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:67-159`); the two artifact tasks
+(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
 follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
-after a release needs a change unit of its own to reach an existing database. A `template` or `script` task without
+after a release needs a change unit of its own to reach an existing database, which is what
+`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3

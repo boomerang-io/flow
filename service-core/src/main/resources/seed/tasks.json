@@ -15,20 +15,6 @@
       "type": "acquirelock"
     },
     {
-      "name": "ai",
-      "status": "active",
-      "verified": true,
-      "labels": {},
-      "annotations": {
-        "boomerang#io/generation": "4",
-        "boomerang#io/kind": "Task"
-      },
-      "creationDate": {
-        "$date": "2026-09-16T00:00:00Z"
-      },
-      "type": "ai"
-    },
-    {
       "name": "add-box-folder",
       "status": "active",
       "verified": true,
@@ -1231,6 +1217,34 @@
         "$date": "2020-01-09T00:01:00Z"
       },
       "type": "eventwait"
+    },
+    {
+      "name": "ai-prompt",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-16T00:00:00Z"
+      },
+      "type": "ai"
+    },
+    {
+      "name": "ai-agent",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-16T00:00:00Z"
+      },
+      "type": "ai"
     }
   ]
 }

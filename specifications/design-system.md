@@ -249,7 +249,7 @@ exist here before the backend seeds a task that uses it**.
 
 | Icon key (`task.icon`) | Carbon icon | Typical category |
 | ---------------------- | ----------- | ---------------- |
-| `AI` | `MachineLearningModel` (`client-web/src/Utils/taskIcons.tsx:38`) | `AI` — the seeded `ai` task. |
+| `AI` | `MachineLearningModel` (`client-web/src/Utils/taskIcons.tsx:38`) | `AI` — the `ai-prompt` and `ai-agent` tasks. |
 | `API/HTTP call` | `Api` | `Utilities` |
 | `Automated task` | `Rocket` | any |
 | `Code`, `Terminal` | `Code`, `Terminal` | `Utilities` |
