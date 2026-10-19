@@ -37,6 +37,50 @@ tag's release notes.
   `max.artifact.storage` until replaced or deleted. The dispatcher's `kube.workflow.storage.*` properties are gone.
 - **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so a
   shared email stops startup until it is resolved. See "Upgrading from v3" in the README.
+- **`flow.mode` is gone; two properties express the deployment shape.** `flow.security.enabled` (default `true`)
+  switches authentication and authorization together, and `flow.workspace.single` (default `false`) serves the
+  seeded `system` workspace alone. An embedded, headless engine sets `false` and `true`. Remove `FLOW_MODE` from
+  every deployment. A secured install with no person to sign in takes its first credential from
+  `flow.security.bootstrap-token`, registered as a global machine token at start.
+- **Finished runs are now purged after the Activity retention, 365 days by default.** The new "Activity
+  Retention (days)" setting in the workflow-run group (floored at 60) deletes each finished run older than it,
+  with its task runs, actions and run-scoped artifacts and logs, once an hour. A run that a retry or a child run
+  still points at is kept until that run goes. Workflow-scoped artifacts and audit events are never touched.
+  The purge is on from the first start: its first pass runs within a minute and each hourly pass removes up to
+  1000 runs, so an upgraded install loses its runs older than a year within hours, before the setting can be
+  changed, and no value keeps every run. Export any history you need before upgrading.
+- **The seeded `ai` task is removed; the AI tasks are `ai-prompt` and `ai-agent` on `boomerangio/task-ai:2.0.0`.**
+  An upgraded database keeps any `ai` definition it already holds, so its workflows still resolve, but nothing
+  maintains it: move nodes to `ai-prompt`, whose param names are the same. `temperature` and `maxTokens` now have
+  no default and are sent only when set. On `service-dispatcher`, `flow.dispatcher.ai.image` is gone: every `ai`
+  revision declares its image, which must start with one of `flow.dispatcher.ai.image-prefixes` (default
+  `boomerangio/task-ai`) or the task is refused with `ImageNotAllowed`. `flow.dispatcher.ai.endpoint` and
+  `flow.dispatcher.ai.token` (blank) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`.
+- **`flow.uniquenames.enabled` is gone.** A task run's `taskRef` on the API, the status events and the dispatcher
+  protocol is the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task, as
+  workflow nodes already showed; storage keeps the id, so nothing is migrated. A dispatcher's `task` poll filter
+  takes the same form: a bare slug now matches only a global task.
+- **A workspace quota of 0 is unlimited, and an absent quota inherits the platform default.** A workspace PATCH
+  merges quotas field by field instead of replacing the stored set.
+
+### Added
+
+- A run's timeout bounds execution only: while every in-flight task waits on an approval, a manual task, an
+  event, a child run, a sleep or a lock, the deadline is parked and moved forward by the time waited, and the
+  same applies after a pause. A wait is indefinite unless its task declares a timeout. A run's reported duration
+  is execution time. Gated workflows no longer need a budget sized for their approvers.
+- A retry can start from the tasks that did not succeed, or from named tasks: `PUT …/workflowrun/{id}/retry` takes
+  an optional `{scope: all | failed | nodes, nodes, params, labels}`. The rest is carried over as copies marked
+  `reusedFromRef`, and the run records `retryFrom`. The run page's Retry run and each task's Retry from here open
+  the same choice.
+- `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
+  and never written to a log.
+- A run-workflow task may run for each item, one child run per item, and a waited child's results become the
+  task's results.
+- A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
+- A failed task's status message carries the container's exit code and the tail of its log.
+- `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
+  next major version.
 
 ### Changed
 
