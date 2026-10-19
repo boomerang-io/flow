@@ -14,6 +14,7 @@ import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
+import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
@@ -28,12 +29,16 @@ import io.boomerang.workflow.tekton.TektonTask;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +54,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -102,8 +106,14 @@ public class TaskService {
   private static final String ANNOTATION_GENERATION = "4";
   private static final String ANNOTATION_KIND = "Task";
 
-  @Value("${flow.uniquenames.enabled}")
-  private boolean uniqueNamesEnabled;
+  /** Joins a workspace and a task slug in a task's slug form: {@code <workspace>/<slug>}. */
+  public static final String SLUG_SEPARATOR = "/";
+
+  // A task's name is immutable, so a resolved slug form stays true until the task is deleted.
+  private static final Duration SLUG_TTL = Duration.ofSeconds(30);
+
+  private final Cache<String, String> slugByRef =
+      Caffeine.newBuilder().expireAfterWrite(SLUG_TTL).maximumSize(5000).build();
 
   private final TaskRepository taskRepository;
   private final TaskRevisionRepository taskRevisionRepository;
@@ -665,8 +675,7 @@ public class TaskService {
   // ── Unscoped operations (engine, workflow-definition and template callers) ─
 
   public Task get(String ref, Optional<Integer> version) {
-    Optional<TaskEntity> taskEntity =
-        uniqueNamesEnabled ? taskRepository.findByName(ref) : taskRepository.findById(ref);
+    Optional<TaskEntity> taskEntity = taskRepository.findById(ref);
     if (taskEntity.isPresent()) {
       Optional<TaskRevisionEntity> taskRevisionEntity;
       if (version.isPresent()) {
@@ -685,6 +694,92 @@ public class TaskService {
         BoomerangError.TASK_INVALID_REF, ref, version.isPresent() ? version.get() : "latest");
   }
 
+  // ── The slug form of a task reference ──────────────────────────────────────
+  //
+  // A stored reference is the task's id. On the API and the dispatcher protocol a reference is
+  // the task's slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task.
+
+  /**
+   * Return the slug form of each task id, keyed by id. An id no catalogue task carries is absent.
+   * At most three queries however many ids are given, and a resolved form is cached, so a run
+   * response or a claim batch costs nothing once warm.
+   */
+  public Map<String, String> slugsByRef(Collection<String> taskRefs) {
+    Map<String, String> slugs = new HashMap<>();
+    Set<String> missing = new HashSet<>();
+    for (String ref : taskRefs) {
+      String cached = (ref != null) ? slugByRef.getIfPresent(ref) : null;
+      if (cached != null) {
+        slugs.put(ref, cached);
+      } else if (ref != null) {
+        missing.add(ref);
+      }
+    }
+    if (missing.isEmpty()) {
+      return slugs;
+    }
+    Map<String, RelationshipNodeEntity> nodes =
+        relationshipService.nodesByRef(missing, RelationshipType.TASK, RelationshipType.TEAMTASK);
+    Map<String, RelationshipNodeEntity> workspaces =
+        relationshipService.parentsByLabel(
+            RelationshipLabel.HAS_TASK,
+            nodes.values().stream()
+                .filter(node -> RelationshipType.TEAMTASK.getLabel().equals(node.getType()))
+                .map(RelationshipNodeEntity::getId)
+                .toList());
+    nodes.forEach(
+        (ref, node) -> {
+          if (RelationshipType.TASK.getLabel().equals(node.getType())) {
+            slugs.put(ref, node.getSlug());
+          } else if (workspaces.containsKey(node.getId())) {
+            slugs.put(ref, workspaces.get(node.getId()).getSlug() + SLUG_SEPARATOR + node.getSlug());
+          }
+        });
+    missing.forEach(
+        ref -> {
+          if (slugs.containsKey(ref)) {
+            slugByRef.put(ref, slugs.get(ref));
+          }
+        });
+    return slugs;
+  }
+
+  /**
+   * Return the task id for each slug form, keyed as given, for a request scoped to {@code
+   * workspace}: a bare slug names a global task, {@code <workspace>/<slug>} names that workspace's
+   * task. A slug naming another workspace, or one no task carries, is absent.
+   */
+  public Map<String, String> refsBySlug(String workspace, Collection<String> slugs) {
+    Map<String, String> refs = new HashMap<>();
+    Set<String> global = new HashSet<>();
+    Set<String> scoped = new HashSet<>();
+    for (String slug : slugs) {
+      if (slug != null && !slug.isBlank()) {
+        (slug.contains(SLUG_SEPARATOR) ? scoped : global).add(slug);
+      }
+    }
+    if (!global.isEmpty()) {
+      relationshipService
+          .nodesBySlug(RelationshipType.TASK, global)
+          .forEach((slug, node) -> refs.put(slug, node.getRef()));
+    }
+    if (!scoped.isEmpty() && workspace != null) {
+      String prefix = workspace + SLUG_SEPARATOR;
+      Map<String, String> refByWorkspaceSlug = new HashMap<>();
+      relationshipService
+          .childrenByLabel(RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_TASK)
+          .forEach(node -> refByWorkspaceSlug.put(node.getSlug(), node.getRef()));
+      for (String slug : scoped) {
+        String ref =
+            slug.startsWith(prefix) ? refByWorkspaceSlug.get(slug.substring(prefix.length())) : null;
+        if (ref != null) {
+          refs.put(slug, ref);
+        }
+      }
+    }
+    return refs;
+  }
+
   /*
    * Create Task
    *
@@ -700,11 +795,6 @@ public class TaskService {
     }
 
     validateDeclaredParamNames(request);
-
-    // Unique Name Check
-    if (uniqueNamesEnabled && taskRepository.existsByName(request.getName().toLowerCase())) {
-      throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
-    }
 
     // Set Display Name if not provided
     if (request.getDisplayName() == null || request.getDisplayName().isBlank()) {
@@ -746,15 +836,11 @@ public class TaskService {
 
     validateDeclaredParamNames(request);
 
-    if (!uniqueNamesEnabled && request.getId().isEmpty()) {
+    // The scoped and global applies resolve the name through the relationship graph and pass the id.
+    if (request.getId() == null || request.getId().isBlank()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REQ, request.getName(), "latest");
     }
-
-    // Does it already exist?
-    Optional<TaskEntity> taskOpt =
-        uniqueNamesEnabled
-            ? taskRepository.findByName(request.getName())
-            : taskRepository.findById(request.getId());
+    Optional<TaskEntity> taskOpt = taskRepository.findById(request.getId());
     if (taskOpt.isEmpty()) {
       return this.create(request);
     }
@@ -969,9 +1055,9 @@ public class TaskService {
   /**
    * The specs of the given catalogue task references, resolved in TWO queries however many
    * references are asked for - one for the tasks, one for their revisions - so a run response with
-   * many tasks never costs one lookup per task. Ref resolution is the same switch {@link
-   * #get(String, Optional)} uses (by name or by id, per {@code flow.uniquenames.enabled}); a
-   * reference the catalogue no longer holds is simply absent from the result.
+   * many tasks never costs one lookup per task. A reference is the task's id, as {@link
+   * #get(String, Optional)} reads it; one the catalogue no longer holds is simply absent from the
+   * result.
    *
    * <p>A reference carrying no version is skipped - it cannot be joined in a batch, and {@code
    * DAGUtility.createTaskList} stamps the resolved version beside {@code taskRef} on every TaskRun
@@ -989,19 +1075,10 @@ public class TaskService {
       return Map.of();
     }
     Set<String> taskRefs = wanted.stream().map(TaskRef::ref).collect(Collectors.toSet());
-    List<TaskEntity> tasks =
-        uniqueNamesEnabled
-            ? taskRepository.findByNameIn(taskRefs)
-            : taskRepository.findAllById(taskRefs);
-    // The revisions hang off the TaskEntity id, which is the taskRef itself unless unique names
-    // are on - in which case the TaskRun records the name and the id has to be looked up.
+    // The revisions hang off the TaskEntity id, which is the taskRef itself.
     Map<String, String> parentRefByTaskRef =
-        tasks.stream()
-            .collect(
-                Collectors.toMap(
-                    t -> uniqueNamesEnabled ? t.getName() : t.getId(),
-                    TaskEntity::getId,
-                    (a, b) -> a));
+        taskRepository.findAllById(taskRefs).stream()
+            .collect(Collectors.toMap(TaskEntity::getId, TaskEntity::getId, (a, b) -> a));
     if (parentRefByTaskRef.isEmpty()) {
       return Map.of();
     }

@@ -14,6 +14,8 @@ import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -577,6 +579,71 @@ public class RelationshipService {
         .stream()
         .map(RelationshipNodeEntity::getRef)
         .collect(Collectors.toList());
+  }
+
+  // ── Batch node lookups, independent of the calling identity ────────────────
+
+  /** Return the nodes of any of the types with these refs, keyed by ref, in one query. */
+  public Map<String, RelationshipNodeEntity> nodesByRef(
+      Collection<String> refs, RelationshipType... types) {
+    Map<String, RelationshipNodeEntity> nodes = new HashMap<>();
+    nodeRepository
+        .findAllById(
+            Arrays.stream(types)
+                .flatMap(type -> refs.stream().map(ref -> type.getLabel() + ":" + ref))
+                .toList())
+        .forEach(node -> nodes.put(node.getRef(), node));
+    return nodes;
+  }
+
+  /** Return the nodes of one type carrying any of these slugs, keyed by slug, in one query. */
+  public Map<String, RelationshipNodeEntity> nodesBySlug(
+      RelationshipType type, Collection<String> slugs) {
+    Map<String, RelationshipNodeEntity> nodes = new HashMap<>();
+    nodeRepository
+        .findByTypeAndSlugIn(type.getLabel(), slugs)
+        .forEach(node -> nodes.put(node.getSlug(), node));
+    return nodes;
+  }
+
+  /**
+   * Return, for each node, the parent node reached by an incoming edge with the label, keyed by
+   * the child's id: one edge query and one node query however many children are asked for.
+   */
+  public Map<String, RelationshipNodeEntity> parentsByLabel(
+      RelationshipLabel label, Collection<String> childIds) {
+    if (childIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, String> parentIdByChild = new HashMap<>();
+    edgeRepository
+        .findByToInAndLabel(childIds, label.getLabel())
+        .forEach(edge -> parentIdByChild.putIfAbsent(edge.getTo(), edge.getFrom()));
+    Map<String, RelationshipNodeEntity> parentById = new HashMap<>();
+    nodeRepository
+        .findAllById(parentIdByChild.values())
+        .forEach(node -> parentById.put(node.getId(), node));
+    Map<String, RelationshipNodeEntity> parents = new HashMap<>();
+    parentIdByChild.forEach(
+        (child, parent) -> {
+          if (parentById.containsKey(parent)) {
+            parents.put(child, parentById.get(parent));
+          }
+        });
+    return parents;
+  }
+
+  /** Return the child nodes of a node reached by outgoing edges with the label. */
+  public List<RelationshipNodeEntity> childrenByLabel(
+      RelationshipType fromType, String from, RelationshipLabel label) {
+    return resolveNode(fromType, from)
+        .map(
+            node ->
+                nodeRepository.findAllById(
+                    edgeRepository.findByFromAndLabel(node.getId(), label.getLabel()).stream()
+                        .map(RelationshipEdgeEntity::getTo)
+                        .toList()))
+        .orElse(List.of());
   }
 
   /**

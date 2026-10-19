@@ -2,14 +2,17 @@ package io.boomerang.event;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.model.TaskRun;
 import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.config.EventSinkProperties.Destination;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
+import io.boomerang.workflow.TaskService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.format.EventFormat;
 import io.cloudevents.core.provider.EventFormatProvider;
 import io.cloudevents.jackson.JsonFormat;
+import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
@@ -29,11 +32,15 @@ public class EventSinkService {
 
   private final EventSinkProperties properties;
   private final RestTemplate restTemplate;
+  private final TaskService taskService;
 
   public EventSinkService(
-      EventSinkProperties properties, @Qualifier("internalRestTemplate") RestTemplate restTemplate) {
+      EventSinkProperties properties,
+      @Qualifier("internalRestTemplate") RestTemplate restTemplate,
+      TaskService taskService) {
     this.properties = properties;
     this.restTemplate = restTemplate;
+    this.taskService = taskService;
   }
 
   /**
@@ -59,6 +66,13 @@ public class EventSinkService {
   private TaskRunStatusEvent statusEvent(TaskRunEntity taskRunEntity) {
     TaskRunStatusEvent statusEvent =
         EventFactory.buildStatusUpdateEvent(taskRunEntity, properties.payload());
+    // A full payload is the public model, whose task reference is the slug form.
+    if (statusEvent.getData() instanceof TaskRun taskRun && taskRun.getTaskRef() != null) {
+      taskRun.setTaskRef(
+          taskService
+              .slugsByRef(List.of(taskRun.getTaskRef()))
+              .getOrDefault(taskRun.getTaskRef(), taskRun.getTaskRef()));
+    }
     statusEvent.setInitiatorId(initiatorLabel(taskRunEntity.getLabels(), LABEL_KEY_INITIATOR_ID));
     statusEvent.setInitiatorContext(
         initiatorLabel(taskRunEntity.getLabels(), LABEL_KEY_INITIATOR_CONTEXT));

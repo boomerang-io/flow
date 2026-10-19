@@ -55,7 +55,7 @@ class DispatcherRouteCollisionTest {
     when(dispatcherService.getTaskQueue(any(), any(), any(), any(), any()))
         .thenReturn(ResponseEntity.ok(List.<TaskRun>of()));
     when(workflowRunService.start(any(), any())).thenReturn(new WorkflowRun());
-    when(taskRunService.start(any(), any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+    when(dispatcherService.startTaskRun(any(), any())).thenReturn(ResponseEntity.ok(new TaskRun()));
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new DispatcherControllerV1(dispatcherService, workflowRunService, taskRunService))
@@ -72,7 +72,7 @@ class DispatcherRouteCollisionTest {
         .getTaskQueue(eq("workflowrun"), isNull(), isNull(), isNull(), isNull());
 
     verify(workflowRunService, never()).start(any(), any());
-    verify(taskRunService, never()).start(any(), any());
+    verify(dispatcherService, never()).startTaskRun(any(), any());
   }
 
   @Test
@@ -84,7 +84,7 @@ class DispatcherRouteCollisionTest {
     verify(dispatcherService).getWorkflowQueue(eq("taskrun"));
 
     verify(workflowRunService, never()).start(any(), any());
-    verify(taskRunService, never()).start(any(), any());
+    verify(dispatcherService, never()).startTaskRun(any(), any());
   }
 
   @Test
@@ -103,7 +103,7 @@ class DispatcherRouteCollisionTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
         .andExpect(status().isOk());
-    verify(taskRunService).start(eq("run-2"), any());
+    verify(dispatcherService).startTaskRun(eq("run-2"), any());
 
     verify(dispatcherService, never()).getWorkflowQueue(any());
     verify(dispatcherService, never()).getTaskQueue(any(), any(), any(), any(), any());

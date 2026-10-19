@@ -14,6 +14,7 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunSpec;
+import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
@@ -25,10 +26,13 @@ import io.boomerang.engine.WorkflowRunStateHelper;
 import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ArtifactService;
+import io.boomerang.workflow.TaskService;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,6 +76,7 @@ public class DispatcherService {
   private final ClaimFilterService claimFilterService;
   private final ParameterManager parameterManager;
   private final WorkflowRunRepository workflowRunRepository;
+  private final TaskService taskService;
 
   public DispatcherService(
       DispatcherRepository agentRepository,
@@ -81,7 +86,8 @@ public class DispatcherService {
       ArtifactService artifactService,
       ClaimFilterService claimFilterService,
       ParameterManager parameterManager,
-      WorkflowRunRepository workflowRunRepository) {
+      WorkflowRunRepository workflowRunRepository,
+      TaskService taskService) {
     this.agentRepository = agentRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
@@ -90,6 +96,35 @@ public class DispatcherService {
     this.claimFilterService = claimFilterService;
     this.parameterManager = parameterManager;
     this.workflowRunRepository = workflowRunRepository;
+    this.taskService = taskService;
+  }
+
+  /** The start answer, with the task reference in its slug form. */
+  public ResponseEntity<TaskRun> startTaskRun(
+      String taskRunId, Optional<TaskRunStartRequest> request) {
+    return slugTaskRef(taskRunService.start(taskRunId, request));
+  }
+
+  /** The end answer, with the task reference in its slug form. */
+  public ResponseEntity<TaskRun> endTaskRun(String taskRunId, Optional<TaskRunEndRequest> request) {
+    return slugTaskRef(taskRunService.end(taskRunId, request));
+  }
+
+  private ResponseEntity<TaskRun> slugTaskRef(ResponseEntity<TaskRun> answer) {
+    if (answer.getBody() != null) {
+      slugTaskRefs(List.of(answer.getBody()));
+    }
+    return answer;
+  }
+
+  // On the protocol a task reference is the task's slug form, resolved once per batch; a task the
+  // catalogue no longer holds keeps its id.
+  private void slugTaskRefs(List<TaskRun> taskRuns) {
+    Map<String, String> slugs =
+        taskService.slugsByRef(
+            taskRuns.stream().map(TaskRun::getTaskRef).filter(Objects::nonNull).toList());
+    taskRuns.forEach(
+        taskRun -> taskRun.setTaskRef(slugs.getOrDefault(taskRun.getTaskRef(), taskRun.getTaskRef())));
   }
 
   /**
@@ -363,6 +398,7 @@ public class DispatcherService {
 
       LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
       if (!taskRuns.isEmpty()) {
+        slugTaskRefs(taskRuns);
         return ResponseEntity.ok(taskRuns);
       }
       if (!pauseBeforeRecheck()) {

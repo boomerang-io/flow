@@ -55,6 +55,11 @@ points at its parent: `WorkflowRevisionEntity.workflowRef` + `version` (`service
 `TaskRevisionEntity.parentRef` + `version` (`TaskRevisionEntity.java:27,32`). A new version is a new child insert.
 `workflow_templates` keeps `version` on the one document (`WorkflowTemplateEntity.java:31`).
 
+A reference to a task is stored as the task's id: `taskRef` on a workflow revision's node (`WorkflowTask.java:34`)
+and on a task run (`TaskRunEntity.java:53`). The API and the dispatcher protocol read and write it in the task's
+slug form, translated through the relationship graph by node id and its `type_slug` and `to_label` indexes
+(`api-contract.md`, "Public run models"; decision 0119), so nothing stored carries a name.
+
 A revision's declared params are `AbstractParam` (`service-core/.../model/AbstractParam.java`), which carries the
 value alongside the UI metadata the canvas renders: `type` (a `ConfigType` label), `options` for `select`, and
 nullable `min` / `max` / `step` for `slider`. The three range fields are absent from every param of any other
