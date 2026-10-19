@@ -158,6 +158,11 @@ Before the first start against a v3 database:
 4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database
    migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
    one replica first. Replicas that start together wait on the migration lock for up to 30 minutes.
+5. **Export any run history you need to keep.** v5 deletes finished runs older than its Activity retention,
+   365 days by default, with their task runs, approvals, logs and run artifacts. The purge starts within a
+   minute of the first start and removes up to 1000 runs an hour, before the setting can be changed, and no
+   value turns it off. This is by design: Activity is bounded from day one. Workflows, workflow-scoped
+   artifacts and the audit trail are kept.
 
 Remove the `flow-service-loader` Job and image from the deployment: one product tag now builds
 `flow-service-core`, `flow-service-dispatcher` and `flow-client-web`.

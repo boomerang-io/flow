@@ -4,11 +4,9 @@
 
 ## Context
 
-A finished run and everything it owns — task runs with their params and results, actions, artifacts and task
-logs — stayed forever; only a deleted workflow's prune removed them (`engine/WorkflowWatcher.java` `pruneDeletedWorkflows`).
-Audit events and artifacts already expire on settings, and the products embedding Flow keep prompts and tool
-calls on task runs as audit evidence, so the Activity store needed a bound of its own. A retried run reuses its
-origin's task runs by reference (decision 0114), so the origin cannot go before the retry does.
+A finished run and everything it owns stayed forever; only a deleted workflow's prune removed it. Audit events
+and artifacts already expire on settings, and embedding products keep prompts and tool calls on task runs, so
+Activity needed a bound too. A retry reuses its origin's task runs (decision 0114), so the origin goes last.
 
 ## Options
 
@@ -32,9 +30,11 @@ it: a run is a graph of documents, not one, and lineage is the one rule a TTL ca
 
 ## Consequences
 
-- Activity is bounded without any operator action; the setting is the only knob and lives beside the run limits.
+- Activity is bounded without any operator action, deliberately from the first start: an upgraded install starts
+  purging its runs past 365 days within a minute, before the setting can be changed, and no value turns it off.
+  History worth keeping is exported before upgrading (README, "Upgrading from v3").
 - An origin run outlives its retention by as long as any retry or child that names it is kept.
-- A settings document built before the key existed reads as 365 until it is rebuilt, like the log settings.
-- Workflow-scoped artifacts and audit events are never purged by this sweep.
+- A settings document built before the key existed reads as 365 until it is rebuilt. Workflow-scoped artifacts
+  and audit events are never purged by this sweep.
 - Not built, each waiting for an ask with a case: a per-workspace override, a retention hold on one run, and a
   purge of one run through the API.

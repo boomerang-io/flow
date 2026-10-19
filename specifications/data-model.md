@@ -193,7 +193,9 @@ retention purge. Finished runs are kept for the `retention.days` key of the `wor
 document. A run another run still names in `initiatedByRef` (a retry's origin, a child's parent) is kept until
 that run is gone, so a carried-over task run never outlives the one it stands for; a settings document built
 before the key existed reads as 365 until it is rebuilt. Workflow-scoped artifacts and audit events are never
-purged. Limits are
+purged. The first pass runs within a minute of startup, so an upgraded install purges its old runs before the
+setting can be changed, and no value turns the purge off; history worth keeping is exported before upgrading
+(decision 0117). Limits are
 admin settings: the `artifacts` document (default retention 30 days, maximum 90, largest artifact 1024 MB) and
 the `max.artifact.storage` workspace quota (5Gi), overridable per workspace with `artifactRetentionDays`. A task
 may ask for a shorter retention, never a longer one; a workflow-scoped upload may not set `retention-days` at all
