@@ -204,6 +204,61 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     assertEquals("import-default-01", taskParam(wfRunId, "registryToken"));
   }
 
+  // ── values that are only a reference ─────────────────────────────────────────────────────────
+
+  @Test
+  void aCatalogueDefaultThatIsOnlyAReferenceReadsAsWrittenAndOneInsideTextStaysHidden() {
+    String lone = unique("read-ref-task");
+    taskService.createGlobal(secretTask(lone, "$(global.params.registryToken)"));
+    assertEquals(
+        "$(global.params.registryToken)",
+        declared(taskService.getGlobal(lone, Optional.empty()), "registryToken").getDefaultValue());
+
+    String wrapped = unique("read-ref-wrapped-task");
+    taskService.createGlobal(secretTask(wrapped, "Bearer $(params.token)"));
+    assertEquals(
+        DataAdapterUtil.REDACTED,
+        declared(taskService.getGlobal(wrapped, Optional.empty()), "registryToken").getDefaultValue());
+  }
+
+  @Test
+  void aNodeSecretThatIsOnlyAReferenceReadsAsWrittenRoundTripsAndResolvesHidden() throws Exception {
+    String task = unique("read-ref-node-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0002"));
+    String name = unique("read-ref-wf");
+    Workflow definition = linearWorkflow(name, task, "$(workflow.params.dbPassword)");
+    workflowService.create(SYSTEM, definition);
+
+    Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    RunParam token = nodeParam(read, "registryToken");
+    assertEquals("$(workflow.params.dbPassword)", token.getValue());
+    assertEquals(ParamType.secret, token.getType(), "the node param stays secret-typed");
+    assertHidden(read, "wf-default-0001");
+
+    // The read applied back stores the reference as sent.
+    read.setDescription("edited");
+    workflowService.apply(SYSTEM, read, false);
+    assertEquals("$(workflow.params.dbPassword)", nodeValue(latestRevision(name), "registryToken"));
+
+    // A run resolves it, and the resolved value is hidden on the run read.
+    String wfRunId = submitAndAdmit(name);
+    assertEquals("wf-default-0001", taskParam(wfRunId, "registryToken"));
+    assertThat(
+            MAPPER.writeValueAsString(workflowRunService.get(SYSTEM, wfRunId, true).getBody()))
+        .doesNotContain("wf-default-0001");
+  }
+
+  @Test
+  void aNodeSecretWithTextAroundAReferenceStaysHidden() {
+    String task = unique("read-ref-text-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0003"));
+    String name = unique("read-ref-text-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, "Bearer $(workflow.params.dbPassword)"));
+
+    Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    assertEquals(DataAdapterUtil.REDACTED, nodeParam(read, "registryToken").getValue());
+  }
+
   // ── run requests ─────────────────────────────────────────────────────────────────────────────
 
   @Test

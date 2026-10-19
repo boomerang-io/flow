@@ -129,6 +129,10 @@ with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)
 copying rather than mutating, because a model built with `BeanUtils.copyProperties` shares its lists with the entity.
 Definitions are filtered on every `/api/v2` read too, a `password` global or workspace param's default included; a
 hidden value sent back as `*****` or blank keeps it (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
+On a definition read only, a value that is exactly one Flow reference - `$(workflow.params.aiToken)`, nothing around
+it - holds no secret and reads as written (`common/util/ParameterUtil.java:52` `isSingleFlowReference`, applied by
+`DataAdapterUtil.filterDefinitionValueByFieldType` `:277` and the param-spec filters `:64-115`); it keeps its secret
+type, so the value it resolves to is masked on every run read (decision 0121).
 
 | Read | Filter |
 | --- | --- |
@@ -136,10 +140,10 @@ hidden value sent back as `*****` or blank keeps it (`keepParamSpecValueByFieldT
 | Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit (`:983`, `:1152`) |
 | `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
 | Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
-| Catalogue task `get`, `query`, Tekton YAML, create and apply responses (global and workspace routes) | A `password` default reads `*****` (`workflow/TaskService.java:200`); `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses | A `password` default reads blank - the run form's convention, where a blank leaves the default to apply - and a task node's secret value `*****`, its type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:317`). Apply keeps both from the latest revision by param name, and by node name for a node; with nothing stored (a new workflow, or an export imported elsewhere) a hidden default is saved blank and a hidden node value is dropped, so the task's default applies (`:1754`). Duplicate copies the unfiltered workflow (`:862`) |
+| Catalogue task `get`, `query`, Tekton YAML, create and apply responses (global and workspace routes) | A `password` default reads `*****`, or as written when it is a lone reference (`workflow/TaskService.java:210`); `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
+| Workflow `get`, `query`, export, create, apply and duplicate responses | A `password` default reads blank - the run form's convention, where a blank leaves the default to apply - and a task node's secret value `*****` (a lone reference, in either, as written), its type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:319`). Apply keeps both from the latest revision by param name, and by node name for a node; with nothing stored (a new workflow, or an export imported elsewhere) a hidden default is saved blank and a hidden node value is dropped, so the task's default applies (`:1754`). Duplicate copies the unfiltered workflow (`:862`) |
 | Workflow canvas (`composeGet`, the `composeApply` response) | Deliberately not filtered; the workflow-level default is blanked in the `composeApply` response as before |
-| Schedule `get`, `query`, create and apply responses | Type (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. Apply keeps a hidden secret |
+| Schedule `get`, `query`, create and apply responses | Type, a lone reference as written (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. Apply keeps a hidden secret |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each

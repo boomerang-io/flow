@@ -5,9 +5,62 @@ import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.*;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ParameterUtil {
+
+  /** The body of a {@code $(...)} reference: the one pattern references are discovered with. */
+  public static final Pattern REFERENCE_PATTERN = Pattern.compile("(?<=\\$\\().+?(?=\\))");
+
+  // The scopes a $(<scope>.params.<name>) reference may name.
+  private static final List<String> REFERENCE_SCOPES =
+      List.of(
+          "global",
+          ParamLayers.WORKSPACE_SCOPE,
+          ParamLayers.DEPRECATED_WORKSPACE_SCOPE,
+          "workflow",
+          "context");
+
+  /** Whether a scope is one a {@code $(<scope>.params.<name>)} reference may name, in any case. */
+  public static boolean isReferenceScope(String scope) {
+    return REFERENCE_SCOPES.stream().anyMatch(s -> s.equalsIgnoreCase(scope));
+  }
+
+  /**
+   * Whether a value is a String whose whole content, ignoring surrounding whitespace, is one
+   * {@code $(...)} - "$(params.config)" and nothing else, whatever the body.
+   */
+  public static boolean isSingleReference(Object value) {
+    if (!(value instanceof String string)) {
+      return false;
+    }
+    String trimmed = string.trim();
+    Matcher matcher = REFERENCE_PATTERN.matcher(trimmed);
+    return matcher.find()
+        && matcher.start() == 2
+        && matcher.end() == trimmed.length() - 1
+        && !matcher.find();
+  }
+
+  /**
+   * Whether a value is exactly one Flow reference - {@code $(params.x)}, {@code
+   * $(<scope>.params.x)} or {@code $(tasks.t.results.r)}, each with an optional path - and not
+   * shell text such as {@code $(date)}. A lone reference carries no secret's text.
+   */
+  public static boolean isSingleFlowReference(Object value) {
+    if (!isSingleReference(value)) {
+      return false;
+    }
+    String body = ((String) value).trim();
+    String[] parts = body.substring(2, body.length() - 1).split("\\.");
+    return (parts.length >= 2 && "params".equalsIgnoreCase(parts[0]))
+        || (parts.length >= 3 && "params".equalsIgnoreCase(parts[1]) && isReferenceScope(parts[0]))
+        || (parts.length >= 4
+            && "tasks".equalsIgnoreCase(parts[0])
+            && "results".equalsIgnoreCase(parts[2]));
+  }
 
   /*
    * Add a parameter to an existing Run Parameter list

@@ -248,7 +248,7 @@ public class ScheduleService {
   // Every schedule response masks its secret params; the copy leaves the entity's list untouched.
   private static WorkflowSchedule masked(WorkflowSchedule schedule) {
     schedule.setParams(
-        DataAdapterUtil.filterRunParamValueByFieldType(schedule.getParams(), ParamType.secret));
+        DataAdapterUtil.filterDefinitionValueByFieldType(schedule.getParams(), ParamType.secret));
     return schedule;
   }
 

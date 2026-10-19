@@ -41,7 +41,8 @@ public class DataAdapterUtil {
 
   /**
    * Method for filtering sensitive data from AbstractConfigs (e.g. make null the value of any
-   * password type field)
+   * password type field). A value that is exactly one Flow reference holds no secret and is left
+   * as written.
    *
    * @param properties
    * @param isDefaultValue - Specify if the defaultValue or the value should be made null
@@ -55,15 +56,7 @@ public class DataAdapterUtil {
     }
 
     for (AbstractParam property : properties) {
-      if (!fieldType.equals(property.getType())) {
-        continue;
-      }
-      if (isDefaultValue) {
-        property.setDefaultValue(null);
-      } else {
-        property.setValue(null);
-      }
-      property.setHiddenValue(Boolean.TRUE);
+      filterAbstractParam(property, isDefaultValue, fieldType);
     }
     return properties;
   }
@@ -74,6 +67,10 @@ public class DataAdapterUtil {
     // param short-circuited true and every param was redacted regardless of type - and a null param
     // with a non-null fieldType entered the block and threw.
     if (param != null && fieldType != null && fieldType.equals(param.getType())) {
+      Object hidden = isDefaultValue ? param.getDefaultValue() : param.getValue();
+      if (ParameterUtil.isSingleFlowReference(hidden)) {
+        return param;
+      }
       if (isDefaultValue) {
         param.setDefaultValue(null);
       } else {
@@ -86,7 +83,8 @@ public class DataAdapterUtil {
 
   /**
    * Method for filtering sensitive data from Parameters based on AbstractConfig type (e.g. make
-   * null the value of any password type field)
+   * null the value of any password type field). A value or default that is exactly one Flow
+   * reference holds no secret and is left as written.
    *
    * @param params
    * @param fieldType
@@ -97,17 +95,22 @@ public class DataAdapterUtil {
         .filter(p -> fieldType.equals(p.getType()))
         .forEach(
             p -> {
-              p.setValue("");
-              p.setDefaultValue("");
+              if (!ParameterUtil.isSingleFlowReference(p.getValue())) {
+                p.setValue("");
+              }
+              if (!ParameterUtil.isSingleFlowReference(p.getDefaultValue())) {
+                p.setDefaultValue("");
+              }
             });
   }
 
   /**
    * Redact by field type on a definition read (a catalogue task): returns a NEW list of copies in
    * which each {@code fieldType} param's default and value, when set, read as {@code replacement}.
-   * An unset one stays unset, so a reader can tell "no default" from "a hidden default". Copies
-   * rather than mutates, because a model built with BeanUtils.copyProperties shares its spec with
-   * the entity it came from. The edit-side partner is {@link #keepParamSpecValueByFieldType}.
+   * An unset one stays unset, so a reader can tell "no default" from "a hidden default", and one
+   * that is exactly one Flow reference stays as written. Copies rather than mutates, because a
+   * model built with BeanUtils.copyProperties shares its spec with the entity it came from. The
+   * edit-side partner is {@link #keepParamSpecValueByFieldType}.
    */
   public static List<AbstractParam> filterParamSpecValueByFieldType(
       List<AbstractParam> params, String fieldType, String replacement) {
@@ -122,8 +125,9 @@ public class DataAdapterUtil {
               }
               AbstractParam copy = new AbstractParam();
               BeanUtils.copyProperties(p, copy);
-              copy.setDefaultValue(isUnset(p.getDefaultValue()) ? p.getDefaultValue() : replacement);
-              copy.setValue(isUnset(p.getValue()) ? p.getValue() : replacement);
+              copy.setDefaultValue(
+                  shownAsWritten(p.getDefaultValue()) ? p.getDefaultValue() : replacement);
+              copy.setValue(shownAsWritten(p.getValue()) ? p.getValue() : replacement);
               return copy;
             })
         .collect(Collectors.toList());
@@ -169,6 +173,12 @@ public class DataAdapterUtil {
 
   private static boolean isUnset(Object value) {
     return value == null || (value instanceof String s && s.isBlank());
+  }
+
+  // What a definition read shows as stored: nothing, or a lone Flow reference, which holds no
+  // secret's text.
+  private static boolean shownAsWritten(Object value) {
+    return isUnset(value) || ParameterUtil.isSingleFlowReference(value);
   }
 
   /** What a client sends back for a value it read hidden: nothing, a blank, or the marker. */
@@ -253,6 +263,26 @@ public class DataAdapterUtil {
         .map(
             p ->
                 paramType.equals(p.getType())
+                    ? new RunParam(p.getName(), REDACTED, p.getType())
+                    : p)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * {@link #filterRunParamValueByFieldType(List, ParamType)} for the values a definition stores -
+   * a workflow task node's, a schedule's - which may be references rather than resolved values: a
+   * value that is exactly one Flow reference holds no secret's text and stays as written. The param
+   * keeps its type, so the value it resolves to is masked wherever a run shows it.
+   */
+  public static List<RunParam> filterDefinitionValueByFieldType(
+      List<RunParam> params, ParamType paramType) {
+    if (params == null || paramType == null) {
+      return params;
+    }
+    return params.stream()
+        .map(
+            p ->
+                paramType.equals(p.getType()) && !ParameterUtil.isSingleFlowReference(p.getValue())
                     ? new RunParam(p.getName(), REDACTED, p.getType())
                     : p)
         .collect(Collectors.toList());
