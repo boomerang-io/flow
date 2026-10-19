@@ -1,7 +1,10 @@
 package io.boomerang.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.ConfigurationType;
@@ -18,12 +21,13 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * A secured setting is ciphertext at rest and follows the one secret rule: it reads through the
- * settings API as the redaction marker when set and as nothing when unset, a save sending back the
- * marker or no value keeps it, and a blank clears it. Internal reads through {@link
- * SettingsService#getSettingConfig} stay plaintext.
+ * settings API as the redaction marker when set and as nothing when unset, a patch sending the
+ * marker or leaving the entry out keeps it, and a blank or a null clears it. Internal reads through
+ * {@link SettingsService#getSettingConfig} stay plaintext.
  */
 class SettingsMaskingTest extends AbstractEngineIntegrationTest {
 
@@ -34,8 +38,6 @@ class SettingsMaskingTest extends AbstractEngineIntegrationTest {
 
   @Autowired private SettingsService settingsService;
   @Autowired private MongoTemplate mongoTemplate;
-
-  private String settingId;
 
   @BeforeEach
   void seedSetting() {
@@ -54,7 +56,6 @@ class SettingsMaskingTest extends AbstractEngineIntegrationTest {
                 config("mask.unset", "secured", ""),
                 config("mask.channel", "text", "#general"))));
     settingsService.updateSetting(entity);
-    settingId = settingsRepository.findOneByKey(KEY).getId();
   }
 
   @Test
@@ -147,14 +148,48 @@ class SettingsMaskingTest extends AbstractEngineIntegrationTest {
     assertThat(settingsService.getSettingConfig(KEY, "mask.token").getValue()).isEqualTo(SECRET);
   }
 
+  @Test
+  void anExplicitNullClearsAnEntry() {
+    settingsService.patchSettings(
+        MAPPER.readTree("{\"" + KEY + "\":{\"mask.token\":null,\"mask.channel\":null}}"));
+
+    assertThat(settingsService.getSettingConfig(KEY, "mask.token").getValue()).isEmpty();
+    assertThat(settingsService.getSettingConfig(KEY, "mask.channel").getValue()).isEmpty();
+  }
+
+  @Test
+  void anUnknownGroupOrKeyOrANonScalarValueRefusesTheWholePatch() {
+    for (String patch :
+        new String[] {
+          "{\"" + KEY + "\":{\"mask.channel\":\"#builds\"},\"no-such-group\":{\"a\":\"b\"}}",
+          "{\"" + KEY + "\":{\"mask.channel\":\"#builds\",\"no.such.key\":\"x\"}}",
+          "{\"" + KEY + "\":{\"mask.channel\":{\"nested\":true}}}",
+          "{\"" + KEY + "\":\"not-an-object\"}",
+          "{\"internal\":{\"x\":\"y\"}}",
+          "[]"
+        }) {
+      BoomerangException refused =
+          assertThrows(
+              BoomerangException.class, () -> settingsService.patchSettings(MAPPER.readTree(patch)));
+      assertThat(refused.getCode()).as(patch).isEqualTo(BoomerangError.SETTINGS_INVALID_KEY.getCode());
+    }
+    assertThat(settingsService.getSettingConfig(KEY, "mask.channel").getValue())
+        .as("nothing in a refused patch is written")
+        .isEqualTo("#general");
+  }
+
+  // A merge patch of this test's group: a null argument leaves that entry out of the patch.
   private List<Setting> save(String token, String channel) {
-    Setting setting = new Setting();
-    setting.setId(settingId);
-    setting.setKey(KEY);
-    setting.setConfig(
-        new ArrayList<>(
-            List.of(config("mask.token", "secured", token), config("mask.channel", "text", channel))));
-    return settingsService.updateSettings(List.of(setting));
+    ObjectNode entries = MAPPER.createObjectNode();
+    if (token != null) {
+      entries.put("mask.token", token);
+    }
+    if (channel != null) {
+      entries.put("mask.channel", channel);
+    }
+    ObjectNode patch = MAPPER.createObjectNode();
+    patch.set(KEY, entries);
+    return settingsService.patchSettings(patch);
   }
 
   private String rawValue(String configKey) {

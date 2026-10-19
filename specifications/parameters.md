@@ -136,8 +136,9 @@ built with `BeanUtils.copyProperties` shares its lists with the entity. On the w
 
 | A client sends | Means | Where it is decided |
 | --- | --- | --- |
-| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and by `SettingsService.setConfigsValue` (`core/SettingsService.java:84`) |
+| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:110`) and `ParameterService.patch` (`workflow/ParameterService.java:72`) |
 | `""` | Clear it | the same |
+| `null` on a JSON Merge Patch (settings, global parameters) | Clear it: on a merge patch a null member removes the value, so only `*****` or leaving the member out keeps it | `SettingsService.patchGroup`, `ParameterService.patch` (decision 0123) |
 | Any other value | Replace it | the same |
 
 A stored value is matched by param name in any case, a node's by node name and then param name, and a
@@ -155,7 +156,7 @@ task specs is separate and unchanged.
 | Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit |
 | `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
 | Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
-| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:116`, `workspace/WorkspaceService.java:918`) |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:171`, `workspace/WorkspaceService.java:918`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:210`). The Tekton YAML read carries no param default at all, secret or not. `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
 | Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:318`, canvas `:850`, `:869`). Duplicate copies the unfiltered workflow |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:252`); `internalGet`, which fires the run, is not filtered |

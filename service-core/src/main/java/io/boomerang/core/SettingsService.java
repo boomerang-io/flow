@@ -1,5 +1,7 @@
 package io.boomerang.core;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DateUtil;
 import io.boomerang.core.entity.SettingEntity;
@@ -10,8 +12,10 @@ import io.boomerang.core.repository.SettingsRepository;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import tools.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +27,9 @@ public class SettingsService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String SECURED_TYPE = "secured";
+
+  // The group the API never shows or changes.
+  private static final String INTERNAL_GROUP = "internal";
 
   @Value("${flow.workflow.webhook.url}")
   private String webhookUrl;
@@ -55,7 +62,7 @@ public class SettingsService {
     final List<Setting> settingList = new LinkedList<>();
     final List<SettingEntity> entityList = settingsRepository.findAll();
     for (final SettingEntity entity : entityList) {
-      if (!entity.getKey().equals("internal")) {
+      if (!entity.getKey().equals(INTERNAL_GROUP)) {
         showMaskedValues(entity);
         final Setting newSetting = new Setting(entity);
         settingList.add(newSetting);
@@ -65,40 +72,72 @@ public class SettingsService {
     return settingList;
   }
 
-  public List<Setting> updateSettings(List<Setting> settings) {
-    for (final Setting setting : settings) {
-      final SettingEntity entity = this.getSettingById(setting.getId());
-      if (entity.getType() == ConfigurationType.ValuesList && setConfigsValue(setting, entity)) {
-        entity.setLastModiifed(DateUtil.asDate(LocalDateTime.now()));
-      }
-
-      this.updateSetting(entity);
+  /**
+   * Apply a merge patch to the settings, {@code {"<group>": {"<key>": value}}}: an absent entry is
+   * unchanged, a {@code null} one is cleared to empty, any other scalar replaces it. A secured entry
+   * sent as the redaction marker keeps the stored value. An unknown group or key, or a value that is
+   * not a scalar, refuses the whole patch before anything is written. A group is saved, and its
+   * modified time stamped, only when one of its values changed.
+   */
+  public List<Setting> patchSettings(JsonNode patch) {
+    if (patch == null || !patch.isObject()) {
+      throw invalidSettings("The body must be an object of settings groups.");
     }
-
+    List<SettingEntity> changed = new LinkedList<>();
+    for (Map.Entry<String, JsonNode> group : patch.properties()) {
+      SettingEntity entity =
+          INTERNAL_GROUP.equals(group.getKey())
+              ? null
+              : settingsRepository.findOneByKey(group.getKey());
+      if (entity == null || entity.getType() != ConfigurationType.ValuesList) {
+        throw invalidSettings("Unknown settings group: " + group.getKey() + ".");
+      }
+      if (!group.getValue().isObject()) {
+        throw invalidSettings("Group " + group.getKey() + " must be an object of keys.");
+      }
+      showDecryptedValues(entity);
+      if (patchGroup(entity, group.getValue())) {
+        entity.setLastModiifed(DateUtil.asDate(LocalDateTime.now()));
+        changed.add(entity);
+      }
+    }
+    changed.forEach(this::updateSetting);
     return this.getAllSettings();
   }
 
-  // Whether any value changed. A secured entry follows the one secret write rule
-  // (DataAdapterUtil.keepSecretValue): the marker, or no value, keeps the stored value; a blank
-  // clears it; anything else replaces it and is encrypted on save.
-  private boolean setConfigsValue(final Setting setting, final SettingEntity entity) {
+  // Whether any value of the group changed. A secured entry follows the one secret write rule
+  // (DataAdapterUtil.keepSecretValue) for the marker; on a patch a null clears rather than keeps.
+  private static boolean patchGroup(SettingEntity entity, JsonNode entries) {
     boolean changed = false;
-    for (final SettingConfig config : setting.getConfig()) {
-      final Optional<SettingConfig> result =
+    for (Map.Entry<String, JsonNode> entry : entries.properties()) {
+      SettingConfig stored =
           entity.getConfig().stream()
-              .filter(x -> config.getKey().equals(x.getKey()))
-              .findFirst();
-      if (result.isPresent()) {
-        SettingConfig stored = result.get();
-        String newValue =
-            SECURED_TYPE.equalsIgnoreCase(stored.getType())
-                ? (String) DataAdapterUtil.keepSecretValue(config.getValue(), stored.getValue())
-                : config.getValue();
-        changed |= !Objects.equals(stored.getValue(), newValue);
-        stored.setValue(newValue);
+              .filter(config -> entry.getKey().equals(config.getKey()))
+              .findFirst()
+              .orElseThrow(
+                  () ->
+                      invalidSettings(
+                          "Unknown setting: " + entity.getKey() + "/" + entry.getKey() + "."));
+      JsonNode value = entry.getValue();
+      if (!value.isValueNode()) {
+        throw invalidSettings(
+            "Setting " + entity.getKey() + "/" + entry.getKey() + " must be a string, number or"
+                + " boolean.");
       }
+      String incoming = value.isNull() ? "" : value.asString();
+      String newValue =
+          (SECURED_TYPE.equalsIgnoreCase(stored.getType())
+                  && DataAdapterUtil.REDACTED.equals(incoming))
+              ? (String) DataAdapterUtil.keepSecretValue(incoming, stored.getValue())
+              : incoming;
+      changed |= !Objects.equals(stored.getValue(), newValue);
+      stored.setValue(newValue);
     }
     return changed;
+  }
+
+  private static BoomerangException invalidSettings(String detail) {
+    return new BoomerangException(BoomerangError.SETTINGS_INVALID_KEY, detail);
   }
 
   public String getWebhookURL() {

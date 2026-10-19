@@ -323,8 +323,11 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
 
     // An edit between admission and claim: a global reference written straight into the script
     // is read at claim (the accepted drift).
-    AbstractParam region = declared("restRegion", "text", null, "region-at-claim");
-    parameterService.update(region);
+    parameterService.patch(
+        "restRegion",
+        tools.jackson.databind.json.JsonMapper.builder()
+            .build()
+            .readTree("{\"value\":\"region-at-claim\"}"));
 
     String agent =
         dispatcherService.register(

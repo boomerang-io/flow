@@ -11,12 +11,16 @@ import io.boomerang.workflow.entity.GlobalParamEntity;
 import io.boomerang.workflow.repository.GlobalParamRepository;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /*
  * CRUD for Global Params
@@ -28,11 +32,15 @@ public class ParameterService {
 
   private final GlobalParamRepository paramRepository;
   private final ParamLayerCache paramLayerCache;
+  private final ObjectMapper objectMapper;
 
   public ParameterService(
-      @Autowired GlobalParamRepository paramRepository, ParamLayerCache paramLayerCache) {
+      @Autowired GlobalParamRepository paramRepository,
+      ParamLayerCache paramLayerCache,
+      ObjectMapper objectMapper) {
     this.paramRepository = paramRepository;
     this.paramLayerCache = paramLayerCache;
+    this.objectMapper = objectMapper;
   }
 
   public List<AbstractParam> getAll() {
@@ -55,22 +63,69 @@ public class ParameterService {
     return params;
   }
 
-  public AbstractParam update(AbstractParam param) {
-    if (Objects.isNull(param) || param.getName() == null) {
+  /**
+   * Apply a JSON Merge Patch (RFC 7396) to the named global param: an absent member is unchanged, a
+   * {@code null} member is cleared, any other member replaces the stored one. A secured value or
+   * default sent as the redaction marker keeps the stored one. The name cannot change, and the
+   * read-only {@code hiddenValue} marker is never stored.
+   */
+  public AbstractParam patch(String name, JsonNode patch) {
+    if (patch == null || !patch.isObject()) {
+      throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
+    }
+    JsonNode patchedName = patch.get("name");
+    if (patchedName != null && !name.equals(patchedName.asString())) {
       throw new BoomerangException(BoomerangError.PARAMS_INVALID_REQ);
     }
     GlobalParamEntity entity =
         paramRepository
-            .findOneByName(param.getName())
+            .findOneByName(name)
             .orElseThrow(() -> new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE));
-    // The one secret write rule: a secured value or default sent back as the redaction marker, or
-    // not at all, keeps the stored one; a blank clears it; anything else replaces it.
-    DataAdapterUtil.keepParamSpecValueByFieldType(
-        List.of(param), List.of(entity), FieldType.PASSWORD.value());
-    BeanUtils.copyProperties(param, entity, "id");
+    AbstractParam stored = new AbstractParam();
+    BeanUtils.copyProperties(entity, stored);
+
+    ObjectNode members = ((ObjectNode) patch).deepCopy();
+    members.remove("name");
+    members.remove("hiddenValue");
+    ObjectNode merged = objectMapper.valueToTree(stored);
+    mergePatch(merged, members);
+    AbstractParam patched = objectMapper.treeToValue(merged, AbstractParam.class);
+    if (FieldType.PASSWORD.value().equals(patched.getType())) {
+      patched.setValue(keepMarker(patched.getValue(), stored.getValue()));
+      patched.setDefaultValue(keepMarker(patched.getDefaultValue(), stored.getDefaultValue()));
+    }
+
+    BeanUtils.copyProperties(patched, entity, "id");
     entity = paramRepository.save(entity);
     paramLayerCache.evictAll();
     return convertToAbstractParamAndFilter(entity);
+  }
+
+  // The redaction marker keeps the stored secret (DataAdapterUtil.keepSecretValue); on a patch a null
+  // is a clear, not a keep, so only the marker is handed to the rule.
+  private static Object keepMarker(Object patched, Object stored) {
+    return DataAdapterUtil.REDACTED.equals(patched)
+        ? DataAdapterUtil.keepSecretValue(patched, stored)
+        : patched;
+  }
+
+  // RFC 7396: a null member removes the target member, an object member merges into the target's
+  // object (created when absent), and any other member replaces the target member.
+  private static void mergePatch(ObjectNode target, JsonNode patch) {
+    for (Map.Entry<String, JsonNode> member : patch.properties()) {
+      JsonNode value = member.getValue();
+      if (value.isNull()) {
+        target.remove(member.getKey());
+      } else if (value.isObject()) {
+        ObjectNode child =
+            (target.get(member.getKey()) instanceof ObjectNode existing)
+                ? existing
+                : target.putObject(member.getKey());
+        mergePatch(child, value);
+      } else {
+        target.set(member.getKey(), value);
+      }
+    }
   }
 
   public AbstractParam create(AbstractParam request) {

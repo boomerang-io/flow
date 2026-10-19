@@ -19,13 +19,16 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v2")
@@ -34,6 +37,9 @@ import org.springframework.web.bind.annotation.RestController;
     description =
         "Register the instance, retrieve context and navigation, and manage global admin areas.")
 public class SystemControllerV2 {
+
+  /** The media type of a JSON Merge Patch (RFC 7396); plain JSON is accepted as the same thing. */
+  private static final String MERGE_PATCH_JSON = "application/merge-patch+json";
 
   @Autowired private SettingsService settingsService;
 
@@ -60,19 +66,26 @@ public class SystemControllerV2 {
     return settingsService.getAllSettings();
   }
 
-  @PutMapping(value = "/settings")
+  @PatchMapping(
+      value = "/settings",
+      consumes = {MERGE_PATCH_JSON, MediaType.APPLICATION_JSON_VALUE})
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
-  @Operation(summary = "Update Boomerang Flow Settings")
+  @Operation(
+      summary = "Update Boomerang Flow Settings",
+      description =
+          "A merge patch of {\"<group>\": {\"<key>\": value}}: an absent entry is unchanged, null"
+              + " clears it, any other value replaces it. A secured entry sent as ***** keeps the"
+              + " stored value. An unknown group or key refuses the whole patch.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
+        @ApiResponse(responseCode = "400", description = "Unknown group or key, or a non-scalar value")
       })
-  public List<Setting> updateSettings(@RequestBody List<Setting> settings) {
-    return settingsService.updateSettings(settings);
+  public List<Setting> patchSettings(@RequestBody JsonNode patch) {
+    return settingsService.patchSettings(patch);
   }
 
   @PutMapping(value = "/activate")
