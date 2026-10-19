@@ -99,7 +99,7 @@ labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kub
 ## Secret values at rest
 
 Secret parameter values are stored encrypted, as `crypt_v1{AESGCM|<ciphertext>}`, and read back as plaintext
-(`core/config/SecretValueMongoListener.java:92`; `parameters.md`, "Sensitive parameters"). No field is added;
+(`core/config/SecretValueMongoListener.java:95`; `parameters.md`, "Sensitive parameters"). No field is added;
 the stored value changes shape. A secret is recognised by the type stored beside its value:
 
 | Collection | Field | Secret when |
@@ -111,6 +111,7 @@ the stored value changes shape. A secret is recognised by the type stored beside
 | `workflow_revisions` | `tasks[].params[].value` | `type == secret`, stamped at save from the task's declared `password` param |
 | `workflow_schedules` | `params[].value` | `type == secret`, stamped at save from the workflow's declared `password` param |
 | `workflow_runs`, `task_runs` | `params[].value` | `type == secret` |
+| `integrations` | `data.accessToken`, `data.refreshToken`, the same two under `data.authedUser`, and `data.incomingWebhook.url` | always: a stored Slack OAuth response, whose webhook URL posts by itself |
 
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled in
 on the claim payload only. Values stored before encryption load as they are and are encrypted on their next save;

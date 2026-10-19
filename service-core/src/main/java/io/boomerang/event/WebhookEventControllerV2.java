@@ -96,9 +96,8 @@ public class WebhookEventControllerV2 {
         .getHeaderNames()
         .asIterator()
         .forEachRemaining(
-            headerName ->
-                LOGGER.debug(
-                    "Webhook Header::" + headerName + ": " + request.getHeader(headerName)));
+            // Names only: a header such as Authorization carries the caller's credential.
+            headerName -> LOGGER.debug("Webhook Header::{}", headerName));
     JsonNode payload =
         rawBody == null || rawBody.isBlank() ? null : objectMapper.readTree(rawBody);
     if (slackSignature.isPresent()) {
