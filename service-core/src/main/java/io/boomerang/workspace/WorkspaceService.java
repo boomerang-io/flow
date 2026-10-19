@@ -1,6 +1,7 @@
 package io.boomerang.workspace;
 
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
+import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByFieldType;
 
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
@@ -575,21 +576,10 @@ public class WorkspaceService {
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
       LOGGER.debug("Starting Parameters: {}", ParameterUtil.abstractParamNames(parameters));
-      // A secured parameter's value is never returned to the caller, so a request that only
-      // edits another field arrives with a blank value - carry the stored secret forward
-      // instead of letting the wholesale replacement below wipe it out.
-      Map<String, AbstractParam> existingByName =
-          parameters.stream()
-              .collect(Collectors.toMap(AbstractParam::getName, p -> p, (a, b) -> a));
-      request.forEach(
-          p -> {
-            AbstractParam existing = existingByName.get(p.getName());
-            if (existing != null
-                && FieldType.PASSWORD.value().equals(existing.getType())
-                && isBlankValue(p.getValue())) {
-              p.setValue(existing.getValue());
-            }
-          });
+      // A secured parameter's value and default are never returned to the caller, so a request
+      // that only edits another field sends them back blank or as the redaction marker - carry
+      // the stored secret forward instead of letting the wholesale replacement below wipe it out.
+      keepParamSpecValueByFieldType(request, parameters, FieldType.PASSWORD.value());
 
       List<String> names = request.stream().map(AbstractParam::getName).toList();
       names.stream()
@@ -610,12 +600,6 @@ public class WorkspaceService {
     }
     LOGGER.debug("Ending Parameters: {}", ParameterUtil.abstractParamNames(parameters));
     return parameters;
-  }
-
-  // Blank covers both a null value (a filtered secured value is never serialised) and an empty
-  // string (a client that round-trips a form field literally).
-  private static boolean isBlankValue(Object value) {
-    return value == null || (value instanceof String s && s.isBlank());
   }
 
   /*
@@ -928,9 +912,10 @@ public class WorkspaceService {
         });
     team.setApproverGroups(approverGroups);
 
-    // If the parameter is a password, do not return its value, for security reasons.
+    // If the parameter is a password, do not return its value or default, for security reasons.
     if (team.getParameters() != null) {
       filterValueByFieldType(team.getParameters(), false, FieldType.PASSWORD.value());
+      filterValueByFieldType(team.getParameters(), true, FieldType.PASSWORD.value());
     }
 
     return team;

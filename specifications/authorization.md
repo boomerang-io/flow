@@ -219,11 +219,13 @@ prefix so that it can be routed separately from the public API (`api-contract.md
 
 ## Secured settings at rest
 
-A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every read
-(`core/SettingsService.java:135-145`). The cipher is AES-256-GCM with a random initialisation vector per call
+A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every internal read
+(`getSettingConfig`, `core/SettingsService.java:111`). The settings API (`GET` and `PUT /api/v2/system/settings`) shows
+a set value as `*****` and a blank as blank (`:164`); a save that sends back `*****`, a blank or the stored ciphertext
+keeps the stored value, and any other value replaces it (`:94`). The cipher is AES-256-GCM with a random initialisation vector per call
 (`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme in its own
 label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value already labelled pass
-through untouched (`:147-156`).
+through the cipher untouched (`:175-183`).
 
 The key is `flow.encrypt.secret` and `flow.encrypt.salt` (`core/model/EncryptionConfig.java`), required on every
 install: a blank pair refuses startup. Two historical populations are brought forward by the change unit

@@ -31,6 +31,7 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>global parameters, workspace {@code parameters[]}: {@code type == password} → {@code value}
+ *       and {@code defaultValue}
  *   <li>task revision {@code spec.params[]}, workflow revision {@code params[]}: {@code type ==
  *       password} → {@code defaultValue}
  *   <li>workflow revision {@code tasks[].params[]}, workflow run, task run and schedule {@code
@@ -91,8 +92,10 @@ public class SecretValueMongoListener extends AbstractMongoEventListener<Object>
   private void apply(Class<?> type, Document document, UnaryOperator<String> transform) {
     if (GlobalParamEntity.class.isAssignableFrom(type)) {
       transformIf(document, PASSWORD, "value", transform);
+      transformIf(document, PASSWORD, "defaultValue", transform);
     } else if (WorkspaceEntity.class.isAssignableFrom(type)) {
       eachParam(document.get("parameters"), PASSWORD, "value", transform);
+      eachParam(document.get("parameters"), PASSWORD, "defaultValue", transform);
     } else if (TaskRevisionEntity.class.isAssignableFrom(type)) {
       if (document.get("spec") instanceof Document spec) {
         eachParam(spec.get("params"), PASSWORD, "defaultValue", transform);

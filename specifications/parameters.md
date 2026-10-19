@@ -127,8 +127,8 @@ them wins all taint. At submit, a secret whose value is not a string is rejected
 Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
 with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:298`),
 copying rather than mutating, because a model built with `BeanUtils.copyProperties` shares its lists with the entity.
-Definitions are filtered on every `/api/v2` read too; an edit that sends a hidden value back as `*****` or a blank
-keeps the stored one (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
+Definitions are filtered on every `/api/v2` read too, a `password` global or workspace param's default included; a
+hidden value sent back as `*****` or blank keeps it (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
 
 | Read | Filter |
 | --- | --- |
@@ -178,7 +178,7 @@ above works unchanged, and nothing in Flow sees ciphertext. The two admission wr
 update, which never reaches the save hook, so they seal the values themselves (`sealRunParams` `:76`;
 `TaskRunService.java:336`, `WorkflowRunStateHelper.java:164`). The cipher is `core/SecretCipher.java`, shared with
 secured settings: AES-256-GCM under `flow.encrypt.secret`/`flow.encrypt.salt`, written as
-`crypt_v1{AESGCM|<ciphertext>}`. A value already carrying the label is not encrypted again, a value without it
-loads as it is and is encrypted on its next save, and a value that will not decrypt is kept as stored. The
-encrypted fields are listed in `data-model.md`, "Secret values at rest". A workflow node's value for a param its
-task declares as `password` is stamped `type: secret` when the workflow is saved (`workflow/WorkflowService.java:1739`).
+`crypt_v1{AESGCM|<ciphertext>}`; the settings API reads a secured entry as `*****`, and a save sending back `*****`, a
+blank or the ciphertext keeps it (`SettingsService.java:94`). A labelled value is not encrypted again, an unlabelled one
+is encrypted on its next save, one that will not decrypt is kept; fields: `data-model.md`, "Secret values at rest". A
+node's value for a `password` task param is stamped `type: secret` at workflow save (`workflow/WorkflowService.java:1739`).
