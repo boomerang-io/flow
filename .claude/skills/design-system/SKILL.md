@@ -19,8 +19,9 @@ top and the **Boomerang Carbon add-ons** as the component library. Signature bra
 Read: specifications/design-system.md
 ```
 
-It holds the exact package versions, the canonical theme-wiring SCSS, the token system, and the
-verified component list. The spec is the source of truth; this skill is the how-to.
+It holds the package stack (versions in `client-web/package.json`), how the theme is wired (the recipe itself is
+`client-web/src/Styles/_carbon-components.scss`), the token system, and the verified component list. The spec is the
+source of truth; this skill is the how-to.
 
 ## Step 2: If a value or component is uncertain, read the real package
 

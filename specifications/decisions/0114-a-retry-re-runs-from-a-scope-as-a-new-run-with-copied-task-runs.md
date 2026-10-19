@@ -25,15 +25,15 @@ read as a mode, `nodes`, and param and label overrides. Everything that did not 
 `nodes` adds the named tasks and their descendants. The rest is copied with results and a `reusedFromRef`, with
 claim, deadline, retry and wait state dropped, before the clone is queued; `DAGUtility.createTaskList` adopts the
 copies unchanged. Lineage stays `initiatedByRef` = the origin run. A scoped retry of an active origin cancels the
-origin after the new run is written, as Temporal's reset terminates the original. The origin's revision is the
-one re-run.
+origin after the new run is written, as Temporal's reset terminates the original. The origin's revision is the one re-run.
 
 ## Consequences
 
 - A carried-over task run's log is streamed from the origin (`streamTaskRunLog`); retention and purge-by-run must
   hold a run while a newer run's task runs point at it.
-- A for-each parent re-runs whole when any item failed; re-running only the failed items needs the fan-out to
-  adopt existing items and is a `TaskExecutionService` change to review on its own.
+- A for-each parent re-runs whole; re-running only its failed items is deferred until a workflow proves the need,
+  since a retry resolves the items again and copies reused by position are correct only when they resolve identically.
+  Per-item retries belong in a child workflow fanned out by a `runworkflow` for-each; a failed child is retried alone.
 - Per-task param overrides are not built: the plan sets task params from the revision in `createTaskList`, so
   they would be a `DAGUtility` change to review on its own. Prompt templates that must change between retries
   belong in run params.

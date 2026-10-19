@@ -1,71 +1,23 @@
 # Design system
 
-**Status**: 📎 Reference (Stable core, Evolving token/component inventory)
-**Basis**: IBM Carbon Design System v11 + the Boomerang theme + Boomerang Carbon add-ons.
-
-> This is not the design system of either reference codebase (EY Motif, cheer.dev). Boomerang Flow's design system is
-> **IBM Carbon** with the **Boomerang theme** layered on top and the **Boomerang Carbon
-> add-ons** component library. Do not import EY Motif or cheer.dev design tokens/components here.
-
+Boomerang Flow's design system is IBM Carbon v11 with the Boomerang theme and the Boomerang Carbon add-ons; no
+other design system's tokens or components belong here.
 
 ## Package stack (`client-web/package.json`)
 
-| Package | Version | Role |
-| ------- | ------- | ---- |
-| `@carbon/react` | `1.75.0` | IBM Carbon v11 — components, SCSS, tokens, grid, type. |
-| `@boomerang-io/carbon-addons-boomerang-react` | `4.9.0-beta.15` | Boomerang component library + the `boomerang` Carbon theme + add-on SCSS. |
-| `@boomerang-io/styles` | `1.1.0` | Boomerang brand palette (colour ramps) and shared styles. |
-| `@boomerang-io/utils` | `1.1.0` | Shared Boomerang utilities. |
-| `@carbon/charts` + `@carbon/charts-react` | `^1.13.6` | Carbon data visualisation. |
-| `@carbon/pictograms-react` | `^11.50.0` | Carbon pictograms. |
-| React | `18.x` | UI runtime. |
+The webapp uses `@carbon/react` (Carbon v11 components, SCSS, tokens, grid and type),
+`@boomerang-io/carbon-addons-boomerang-react` (the Boomerang components, the `boomerang` theme and add-on SCSS),
+`@boomerang-io/styles` (the brand palette), `@boomerang-io/utils`, `@carbon/charts` with `@carbon/charts-react`,
+`@carbon/pictograms-react` and React 18; `client-web/package.json` holds the versions.
 
 Styling is **SCSS + CSS Modules** (`*.module.scss`), not Tailwind and not CSS-in-JS.
 
 ## Theme wiring (the canonical recipe)
 
-The Boomerang theme is Carbon's **White** theme with the Boomerang theme merged over it, applied
-under the `[data-carbon-theme="boomerang"]` selector. This is the theme wiring from
-`client-web/src/Styles/_carbon-components.scss:1-42` — replicate it verbatim for any new Carbon app:
-
-```scss
-@use "sass:map";
-
-// Carbon base
-@use "@carbon/react/scss/config" with ($use-akamai-cdn: true);
-@use "@carbon/react/scss/reset";
-@use "@carbon/react/scss/motion";
-@use "@carbon/react/scss/type";
-
-// Boomerang theme merged onto Carbon's white theme (compat layer)
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global/themes/boomerang";
-@use "@carbon/react/scss/compat/themes" as compat;
-@use "@carbon/react/scss/compat/theme" with (
-  $theme: map.merge(compat.$white, boomerang.$theme)
-);
-
-// Base + component tokens
-@use "@carbon/react/scss/fonts";
-@use "@carbon/react/scss/grid";
-@use "@carbon/react/scss/layer";
-@use "@carbon/react/scss/layout";
-@use "@carbon/react/scss/zone";
-@use "@carbon/react/scss/components/button/tokens" as button;
-@use "@carbon/react/scss/components/notification/tokens" as notification;
-@use "@carbon/react/scss/components/tag/tokens" as tag;
-@use "@carbon/react/scss/components";
-
-// Boomerang add-ons SCSS, boomerang mode on
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global" with ($use-theme-boomerang: true);
-
-// Emit the theme's CSS custom properties under the boomerang theme selector
-[data-carbon-theme="boomerang"] {
-  @include theme.add-component-tokens(map.merge(button.$button-tokens, boomerang.$v11-button-tokens));
-  @include theme.add-component-tokens(notification.$notification-tokens);
-  @include theme.add-component-tokens(tag.$tag-tokens);
-  @include theme.theme();
-}
-```
+The Boomerang theme is Carbon's **White** theme with the Boomerang theme merged over it through Carbon's compat layer,
+emitted as CSS custom properties under `[data-carbon-theme="boomerang"]` together with Carbon's button (merged with
+Boomerang's v11 button tokens), notification and tag component tokens. The canonical wiring is
+`client-web/src/Styles/_carbon-components.scss:1-42`; a new Carbon app copies that file rather than improvising a theme.
 
 Global stylesheet import order (`styles.scss`): `variables → animation → carbon-components →
 @boomerang-io/styles → base`.
@@ -427,13 +379,9 @@ lives in the public docs.
 
 ## Browser support
 
-Supported: Chrome, Firefox and Edge — the current version and the two previous versions. Safari
-has limited support. No version of Internet Explorer is supported. The build encodes a looser
-rule than the words: `client-web/package.json:138-149` sets `browserslist` production to
-`>0.2%`, `not dead`, `not op_mini all` (which admits Safari and excludes IE 11 only via "not
-dead") and development to the last Chrome/Firefox/Safari version. Any narrowing SHOULD change
-that field, not this paragraph.
-
+The production build targets every browser above 0.2% of usage that is still maintained, excluding Opera Mini, so
+current Chrome, Firefox, Edge and Safari are supported and Internet Explorer is not; development targets the latest
+Chrome, Firefox and Safari (`client-web/package.json:133-144`, `browserslist`).
 
 ## Accessibility and how tests locate things
 
