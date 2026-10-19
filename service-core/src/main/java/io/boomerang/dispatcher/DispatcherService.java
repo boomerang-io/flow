@@ -244,11 +244,17 @@ public class DispatcherService {
           WorkflowRunEntity claimed =
               workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
           if (claimed != null) {
-            workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+            // A run that cannot be handed out keeps its provisioning claim until the stale-claim
+            // sweep releases it; the rest of the page still goes out.
+            try {
+              workflowRuns.add(entityToModel(claimed, WorkflowRun.class));
+            } catch (RuntimeException e) {
+              LOGGER.error("[{}] The claimed workflow run could not be handed out", claimed.getId(), e);
+            }
           }
         }
       } catch (Exception e) {
-        LOGGER.error("Error retrieving workflows for agent {}: {}", agentId, e.getMessage());
+        LOGGER.error("Error retrieving workflows for agent {}", agentId, e);
       }
 
       LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
@@ -369,14 +375,10 @@ public class DispatcherService {
                 : List.<TaskRunEntity>of()) {
           TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
           if (claimed != null) {
-            TaskRun taskRun = new TaskRun(claimed);
-            if (!fillSpec(claimed, taskRun)) {
-              continue;
+            TaskRun taskRun = prepare(claimed);
+            if (taskRun != null) {
+              taskRuns.add(taskRun);
             }
-            if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
-              continue;
-            }
-            taskRuns.add(taskRun);
           }
         }
         // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher
@@ -393,7 +395,7 @@ public class DispatcherService {
           }
         }
       } catch (Exception e) {
-        LOGGER.error("Error retrieving tasks for agent {}: {}", agentId, e.getMessage());
+        LOGGER.error("Error retrieving tasks for agent {}", agentId, e);
       }
 
       LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
@@ -407,6 +409,32 @@ public class DispatcherService {
     }
     LOGGER.debug("Ending long poll queue for agent: {}", agentId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * The run order for a task this poll just claimed, or null when it was ended instead. A failure
+   * while preparing it ends the task failed with {@code DispatchPrepareFailed} rather than leaving
+   * it claimed by a dispatcher that never hears of it, and the rest of the batch still goes out.
+   */
+  private TaskRun prepare(TaskRunEntity claimed) {
+    try {
+      TaskRun taskRun = new TaskRun(claimed);
+      if (!fillSpec(claimed, taskRun)) {
+        return null;
+      }
+      if (ArtifactService.isArtifactTask(claimed.getType()) && !fillArtifactLink(taskRun)) {
+        return null;
+      }
+      return taskRun;
+    } catch (RuntimeException e) {
+      LOGGER.error("[{}] The claimed task could not be prepared for hand-out", claimed.getId(), e);
+      TaskRunEndRequest failed = new TaskRunEndRequest();
+      failed.setStatus(RunStatus.failed);
+      failed.setStatusReason("DispatchPrepareFailed");
+      failed.setStatusMessage("The task could not be prepared for its dispatcher: " + e.getMessage());
+      taskRunService.end(claimed.getId(), Optional.of(failed));
+      return null;
+    }
   }
 
   /**
