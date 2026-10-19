@@ -1,9 +1,9 @@
 package io.boomerang.workspace;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.Workspace;
@@ -17,7 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * The workspace-parameter path shares the same flaw as {@link
  * io.boomerang.workflow.ParameterService#update}: a read never returns a secured value, so a
- * patch that only edits some other field must not let the resulting blank wipe the stored secret.
+ * patch that only edits some other field, sending no value for it, must keep the stored secret.
  */
 class WorkspaceSecuredParameterUpdateTest extends AbstractEngineIntegrationTest {
 
@@ -40,7 +40,8 @@ class WorkspaceSecuredParameterUpdateTest extends AbstractEngineIntegrationTest 
     securedParam.setValue("hunter2");
     createRequest.setParameters(List.of(securedParam));
     Workspace created = workspaceService.create(createRequest);
-    assertNull(
+    assertEquals(
+        DataAdapterUtil.REDACTED,
         parameterNamed(created.getParameters(), "db-password").getValue(),
         "create's own response is already filtered");
 
