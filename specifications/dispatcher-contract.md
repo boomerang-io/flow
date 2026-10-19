@@ -88,7 +88,12 @@ second, and answers as soon as it has claimed something — at most a page of 20
 A dispatcher SHOULD poll again as soon as a poll returns runs or was held for its window, and SHOULD wait about
 5 s after a poll that failed or was answered at once with nothing — claiming switched off
 (`flow.queue.enabled=false`) and a filter that matches nothing both answer that way. The SDK's poller does
-exactly this (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`).
+exactly this (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:104-123`).
+
+A dispatcher with no free slot keeps a `limit=0` poll open so termination orders still reach it. It MAY open a
+work poll beside that one the moment a slot frees, rather than wait out the hold: each termination order is
+claimed by its own compare-and-set, so two polls never receive the same one (`DispatcherService.java:387-392`).
+The SDK does this, with at most one work poll in flight per pool (`dispatcher-sdk/.../dispatcher/sdk/Dispatcher.java:259-282`).
 
 The task poll takes optional query parameters:
 
@@ -381,7 +386,7 @@ neither modelled nor listed as deliberately not. Paths are under `dispatcher-sdk
 | Class | Gives the author |
 | --- | --- |
 | `DispatcherClient` | One method per route over the host's `RestClient` (keeping its proxy, certificates and timeouts), the token on engine calls only (`DispatcherClient.java:56-64`) |
-| `Dispatcher` | Registration retried with backoff until the engine answers, with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one long-poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java`) |
+| `Dispatcher` | Registration retried with backoff until the engine answers, with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters, and while the pool is full a `limit=0` poll for termination orders that a freed slot never waits behind; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java`) |
 | `TaskRunner` | The start answer honoured; the end retried with backoff until the engine takes it or refuses it with a 4xx, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`TaskRunner.java`) |
 | `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` (`TaskFailure.exceededQuota`, `startTimeout` for the requeued reasons); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`LogUploader.java`) |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim time, the download verified against `sha256` (`ArtifactTransfer.java:83-131`) |

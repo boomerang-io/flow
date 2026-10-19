@@ -53,13 +53,14 @@ other burst. Each item end reads its siblings once to decide whether the parent 
 costs n indexed reads of at most n documents.
 
 Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:48-50`),
-and reconnect as soon as a poll returns (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`). Each
+and reconnect as soon as a poll returns (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:104-123`). Each
 connected dispatcher therefore costs about 3 indexed queries per second when idle (task claim, task
 termination, run provision) and one request every 30 s per queue. A newly ready task waits at most about
-1 s for a connected dispatcher with a free slot. A dispatcher holds at most `flow.dispatcher.task.max-in-flight`
+1 s for a connected dispatcher with a free slot, including a slot that frees while the engine holds a full
+dispatcher's `limit=0` poll. A dispatcher holds at most `flow.dispatcher.task.max-in-flight`
 tasks (25), a Pending pod and a retried end report included, and each poll claims no more than its free slots, so
 under a backlog the work it cannot run stays claimable by other dispatchers
-(`dispatcher-sdk/.../dispatcher/sdk/InFlightTasks.java:28`).
+(`dispatcher-sdk/.../dispatcher/sdk/InFlightTasks.java:30`).
 `flow.queue.enabled=false` stops claiming only; sweeps keep running (`DispatcherService.java:57-58,166,262`).
 While claiming is off the engine answers each poll at once with 204, and the dispatcher then waits 5 s between
 polls.

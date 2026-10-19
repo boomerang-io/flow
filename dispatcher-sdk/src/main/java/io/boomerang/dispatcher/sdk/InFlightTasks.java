@@ -16,6 +16,8 @@ public final class InFlightTasks {
 
   private final Set<String> ids = ConcurrentHashMap.newKeySet();
 
+  private volatile Runnable onChange = () -> {};
+
   /**
    * Cap the tasks in flight at {@code maxInFlight}, read on every poll so it can change at
    * runtime; a value of 0 or less is no cap.
@@ -30,13 +32,30 @@ public final class InFlightTasks {
     return (max > 0) ? Math.max(0, max - ids.size()) : null;
   }
 
+  /** Return whether the cap is reached; never with no cap. */
+  boolean isFull() {
+    Integer free = free();
+    return free != null && free == 0;
+  }
+
+  /** Call {@code onChange} each time a task enters or leaves flight. */
+  void onChange(Runnable onChange) {
+    this.onChange = onChange;
+  }
+
   /** Take {@code taskRunId} into flight; false when it already is. */
   boolean add(String taskRunId) {
-    return ids.add(taskRunId);
+    boolean added = ids.add(taskRunId);
+    if (added) {
+      onChange.run();
+    }
+    return added;
   }
 
   void remove(String taskRunId) {
-    ids.remove(taskRunId);
+    if (ids.remove(taskRunId)) {
+      onChange.run();
+    }
   }
 
   public boolean contains(String taskRunId) {

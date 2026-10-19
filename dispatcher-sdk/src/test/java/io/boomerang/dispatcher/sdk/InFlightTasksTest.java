@@ -63,6 +63,30 @@ class InFlightTasksTest {
   }
 
   @Test
+  void aPoolIsFullAtItsCapAndNeverWithoutOne() {
+    InFlightTasks tasks = new InFlightTasks(() -> 1);
+    assertThat(tasks.isFull()).isFalse();
+    tasks.add("task-1");
+
+    assertThat(tasks.isFull()).isTrue();
+    assertThat(new InFlightTasks(() -> 0).isFull()).isFalse();
+  }
+
+  @Test
+  void eachTaskEnteringOrLeavingFlightIsReported() {
+    InFlightTasks tasks = new InFlightTasks(() -> 2);
+    AtomicInteger changes = new AtomicInteger();
+    tasks.onChange(changes::incrementAndGet);
+
+    tasks.add("task-1");
+    tasks.add("task-1");
+    tasks.remove("task-1");
+    tasks.remove("task-1");
+
+    assertThat(changes.get()).isEqualTo(2);
+  }
+
+  @Test
   void aTaskIsInFlightOnce() {
     InFlightTasks tasks = new InFlightTasks(() -> 0);
 

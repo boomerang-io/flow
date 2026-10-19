@@ -151,6 +151,11 @@ tag's release notes.
 - A running task's log streams as it is written, through `service-core` and the Kubernetes dispatcher, instead of
   arriving whole when the task ends. Read before its container starts, it shows one waiting line and then the live
   log.
+- A dispatcher whose task slots are all taken claims new work the moment one frees, instead of up to 30 s later
+  when the engine let go of its held poll. The dispatcher SDK keeps a poll that claims nothing open for
+  termination orders while full, and starts its work poll beside it as soon as a task ends; it never asks for
+  more than its free slots. This applies to `service-dispatcher` and to any dispatcher built on
+  `io.boomerang:dispatcher-sdk`; the wire is unchanged.
 - A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
   and is kept when the YAML is applied back unchanged.
 - An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas
