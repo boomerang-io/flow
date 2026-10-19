@@ -69,6 +69,18 @@ tag's release notes.
   `PATCH /api/v2/parameters/{name}` with only the members to change. An absent member is unchanged, `null` clears
   it, and a secured value sent as `*****` is kept. An unknown settings group or key is now a `400
   SETTINGS_INVALID_KEY` rather than ignored.
+- **One rule for secret values on every layer, and blank now clears.** A set secret reads `*****` and an unset one
+  reads `null` on parameters, workflow defaults and node values, task defaults, schedules, settings and runs
+  (workflow defaults used to read blank; node, schedule and run values used to read `*****` even when unset). On a
+  write, `*****`, `null` or a missing value keeps the stored secret, `""` clears it, and any other value sets it.
+  Before, a blank kept the secret: a client that sends `""` to mean "unchanged" must send `*****` or leave the
+  value out. On a run request, a param sent as `null` or `*****`, or left out, keeps the declared default for every
+  param type. A value that is only a reference, such as `$(workspace.params.token)`, reads as written.
+- **A workflow body's unknown top-level fields are ignored and no longer echoed back** in the save response, so the
+  response shows exactly what was stored.
+- **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
+  encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
+  migration.
 
 ### Added
 
@@ -87,6 +99,12 @@ tag's release notes.
 - Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
   run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
   OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.
+- Every task gets a `TRACEPARENT` derived from its run and task run ids, so one run's tasks share one trace, and
+  `TaskRun.traceparent()` in the dispatcher SDK computes the same value. On `service-dispatcher`,
+  `flow.dispatcher.ai.otel.endpoint`, `.headers` and `.protocol` (blank by default) give `ai` pods the OTLP
+  exporter settings. Flow stores no traces; point them at Langfuse, Phoenix, LangSmith or Tempo.
+- Insights filter by run `labels` and roll up AI usage: tokens, cost and a breakdown by model for the period, and
+  tokens and cost per task.
 - A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
