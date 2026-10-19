@@ -38,7 +38,10 @@ class SecuredParameterUpdateTest extends AbstractEngineIntegrationTest {
     AbstractParam updated = parameterService.update(edit);
 
     assertEquals("edited", updated.getDescription(), "the field actually being edited must change");
-    assertNull(updated.getValue(), "the response itself stays filtered");
+    assertEquals(
+        io.boomerang.common.util.DataAdapterUtil.REDACTED,
+        updated.getValue(),
+        "the response itself stays filtered");
 
     AbstractParam stored = unfiltered("secured-update-test-param");
     assertEquals("hunter2", stored.getValue(), "the stored secret must survive the edit");

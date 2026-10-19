@@ -124,26 +124,42 @@ them wins all taint. At submit, a secret whose value is not a string is rejected
 `PARAM_SECRET_NOT_STRING` (1217, `WorkflowService.rejectNonStringSecrets`), and an unknown `type` with
 `PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:109`).
 
-Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
-with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:298`),
-copying rather than mutating, because a model built with `BeanUtils.copyProperties` shares its lists with the entity.
-Definitions are filtered on every `/api/v2` read too, a `password` global or workspace param's default included; a
-hidden value sent back as `*****` or blank keeps it (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
-On a definition read only, a value that is exactly one Flow reference - `$(workflow.params.aiToken)`, nothing around
-it - holds no secret and reads as written (`common/util/ParameterUtil.java:52` `isSingleFlowReference`, applied by
-`DataAdapterUtil.filterDefinitionValueByFieldType` `:277` and the param-spec filters `:64-115`); it keeps its secret
-type, so the value it resolves to is masked on every run read (decision 0121).
+Every layer that holds a secret - global and workspace parameters, a workflow's param defaults and node
+values, a catalogue task's defaults, a schedule's values, secured settings, and a run's params - reads and
+writes it by one rule (decision 0122). On the way out a set secret reads as `*****` and an unset one as
+nothing (`DataAdapterUtil.maskSecretValue`, `common/util/DataAdapterUtil.java:173`); on a definition, a value
+that is exactly one Flow reference - `$(workflow.params.aiToken)`, nothing around it - holds no secret and
+reads as written, keeping its secret type so the value it resolves to is masked on every run read
+(`ParameterUtil.isSingleFlowReference`, `ParameterUtil.java:52`; decision 0121). A run holds resolved values, so
+its reads mask every set secret (`filterRunParamValueByFieldType` `:249`). Masks are copies, because a model
+built with `BeanUtils.copyProperties` shares its lists with the entity. On the way in:
+
+| A client sends | Means | Where it is decided |
+| --- | --- | --- |
+| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and by `SettingsService.setConfigsValue` (`core/SettingsService.java:84`) |
+| `""` | Clear it | the same |
+| Any other value | Replace it | the same |
+
+A stored value is matched by param name in any case, a node's by node name and then param name, and a
+setting's by key; a workspace PATCH replaces a case variant rather than adding a second entry. A node secret
+left with no value is dropped from the node so the task's default applies
+(`workflow/WorkflowService.java:1704`). A run request - submit, start, retry - follows the same rule against the
+declared defaults or the stored run: a param sent with no value, or as `*****` for a secret, leaves the value in
+place and `""` sets it empty (`ParameterUtil.suppliedParams`, `ParameterUtil.java:235`, called at
+`WorkflowService.java:2049` and `WorkflowRunService.java:967,1140`); the engine's own merge of node values over
+task specs is separate and unchanged.
 
 | Read | Filter |
 | --- | --- |
 | Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:185-209`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit (`:983`, `:1152`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit |
 | `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
 | Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
-| Catalogue task `get`, `query`, Tekton YAML, create and apply responses (global and workspace routes) | A `password` default reads `*****`, or as written when it is a lone reference (`workflow/TaskService.java:210`); `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses | A `password` default reads blank - the run form's convention, where a blank leaves the default to apply - and a task node's secret value `*****` (a lone reference, in either, as written), its type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:319`). Apply keeps both from the latest revision by param name, and by node name for a node; with nothing stored (a new workflow, or an export imported elsewhere) a hidden default is saved blank and a hidden node value is dropped, so the task's default applies (`:1754`). Duplicate copies the unfiltered workflow (`:862`) |
-| Workflow canvas (`composeGet`, the `composeApply` response), which the editor and the run page load | The same as the workflow `get` row above; saving the canvas back untouched keeps both stored values (`workflow/WorkflowService.java:850`, `:869`) |
-| Schedule `get`, `query`, create and apply responses | Type, a lone reference as written (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. Apply keeps a hidden secret |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:116`, `workspace/WorkspaceService.java:918`) |
+| Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:210`). The Tekton YAML read carries no param default at all, secret or not. `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
+| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:318`, canvas `:850`, `:869`). Duplicate copies the unfiltered workflow |
+| Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:252`); `internalGet`, which fires the run, is not filtered |
+| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:171`) |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each
@@ -182,7 +198,9 @@ above works unchanged, and nothing in Flow sees ciphertext. The two admission wr
 update, which never reaches the save hook, so they seal the values themselves (`sealRunParams` `:76`;
 `TaskRunService.java:336`, `WorkflowRunStateHelper.java:164`). The cipher is `core/SecretCipher.java`, shared with
 secured settings: AES-256-GCM under `flow.encrypt.secret`/`flow.encrypt.salt`, written as
-`crypt_v1{AESGCM|<ciphertext>}`; the settings API reads a secured entry as `*****`, and a save sending back `*****`, a
-blank or the ciphertext keeps it (`SettingsService.java:94`). A labelled value is not encrypted again, an unlabelled one
-is encrypted on its next save, one that will not decrypt is kept; fields: `data-model.md`, "Secret values at rest". A
-node's value for a `password` task param is stamped `type: secret` at workflow save (`workflow/WorkflowService.java:1739`).
+`crypt_v1{AESGCM|<ciphertext>}`. Only that whole label counts as encrypted (`isEncrypted`, `:38`): a value that
+merely starts with `crypt_v1` is plaintext and is encrypted, a labelled value is never encrypted twice, and an
+encryption failure throws rather than storing nothing (`:50`). An unlabelled value from an earlier release is
+encrypted on its next save, and one that will not decrypt is kept as stored - by the listener on load, and by
+settings on the next save of its group (`SettingsService.java:193`); fields: `data-model.md`, "Secret values at
+rest". A node's value for a `password` task param is stamped `type: secret` at workflow save.

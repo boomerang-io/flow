@@ -46,17 +46,68 @@ class DataAdapterUtilTest {
     assertEquals(REFERENCE, copied.get(0).getDefaultValue());
     assertEquals(DataAdapterUtil.REDACTED, copied.get(1).getDefaultValue());
 
-    List<AbstractParam> blanked = specs();
-    DataAdapterUtil.filterParamSpecValueByFieldType(blanked, "password");
-    assertEquals(REFERENCE, blanked.get(0).getDefaultValue());
-    assertEquals("", blanked.get(1).getDefaultValue());
+    List<AbstractParam> inPlace = specs();
+    DataAdapterUtil.filterParamSpecValueByFieldType(inPlace, "password");
+    assertEquals(REFERENCE, inPlace.get(0).getDefaultValue());
+    assertEquals(DataAdapterUtil.REDACTED, inPlace.get(1).getDefaultValue());
 
-    List<AbstractParam> nulled = specs();
-    DataAdapterUtil.filterValueByFieldType(nulled, true, "password");
-    assertEquals(REFERENCE, nulled.get(0).getDefaultValue());
-    assertNull(nulled.get(0).getHiddenValue(), "a shown reference is not flagged hidden");
-    assertNull(nulled.get(1).getDefaultValue());
-    assertEquals(Boolean.TRUE, nulled.get(1).getHiddenValue());
+    List<AbstractParam> flagged = specs();
+    DataAdapterUtil.filterValueByFieldType(flagged, true, "password");
+    assertEquals(REFERENCE, flagged.get(0).getDefaultValue());
+    assertNull(flagged.get(0).getHiddenValue(), "a shown reference is not flagged hidden");
+    assertEquals(DataAdapterUtil.REDACTED, flagged.get(1).getDefaultValue());
+    assertEquals(Boolean.TRUE, flagged.get(1).getHiddenValue());
+  }
+
+  @Test
+  void aSetSecretReadsAsTheMarkerAndAnUnsetOneAsNothingOnEveryForm() {
+    assertEquals(DataAdapterUtil.REDACTED, DataAdapterUtil.maskSecretValue("s3cr3t-value"));
+    assertNull(DataAdapterUtil.maskSecretValue(null));
+    assertNull(DataAdapterUtil.maskSecretValue(""));
+    assertEquals(REFERENCE, DataAdapterUtil.maskSecretValue(REFERENCE));
+
+    List<RunParam> unset =
+        new LinkedList<>(List.of(new RunParam("token", "", ParamType.secret)));
+    assertNull(value(DataAdapterUtil.filterRunParamValueByFieldType(unset, ParamType.secret), "token"));
+    assertNull(
+        value(DataAdapterUtil.filterDefinitionValueByFieldType(unset, ParamType.secret), "token"));
+
+    AbstractParam noDefault = new AbstractParam();
+    noDefault.setName("token");
+    noDefault.setType("password");
+    List<AbstractParam> specs = new LinkedList<>(List.of(noDefault));
+    DataAdapterUtil.filterParamSpecValueByFieldType(specs, "password");
+    assertNull(specs.get(0).getDefaultValue());
+  }
+
+  @Test
+  void theMarkerOrNoValueKeepsTheStoredSecretABlankClearsItAndAnythingElseReplacesIt() {
+    assertEquals("stored", DataAdapterUtil.keepSecretValue(DataAdapterUtil.REDACTED, "stored"));
+    assertEquals("stored", DataAdapterUtil.keepSecretValue(null, "stored"));
+    assertEquals("", DataAdapterUtil.keepSecretValue("", "stored"));
+    assertEquals("new", DataAdapterUtil.keepSecretValue("new", "stored"));
+    assertNull(
+        DataAdapterUtil.keepSecretValue(DataAdapterUtil.REDACTED, null),
+        "a marker with nothing stored is no value, never the secret");
+    assertNull(
+        DataAdapterUtil.keepSecretValue(DataAdapterUtil.REDACTED, DataAdapterUtil.REDACTED),
+        "a marker an earlier release stored is no value either");
+
+    List<RunParam> incoming =
+        new LinkedList<>(
+            List.of(
+                new RunParam("Token", DataAdapterUtil.REDACTED, ParamType.secret),
+                new RunParam("cleared", "", ParamType.secret),
+                new RunParam("fresh", DataAdapterUtil.REDACTED, ParamType.secret)));
+    DataAdapterUtil.keepRunParamValueByFieldType(
+        incoming,
+        List.of(
+            new RunParam("token", "stored-token", ParamType.secret),
+            new RunParam("cleared", "stored-cleared", ParamType.secret)),
+        ParamType.secret);
+    assertEquals("stored-token", value(incoming, "Token"), "matched by name in any case");
+    assertEquals("", value(incoming, "cleared"));
+    assertNull(value(incoming, "fresh"));
   }
 
   private static List<RunParam> values() {

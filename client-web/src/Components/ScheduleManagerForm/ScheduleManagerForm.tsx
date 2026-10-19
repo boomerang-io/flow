@@ -26,6 +26,8 @@ import {
 import cronstrue from "cronstrue";
 import moment from "moment-timezone";
 import * as Yup from "yup";
+import { DynamicSecretInput } from "Components/SecretInput";
+import { InputType, REDACTED } from "Constants";
 import { useWorkspaceContext } from "Hooks";
 import {
   ALL_DAYS,
@@ -131,6 +133,24 @@ export default function CreateEditForm(props: CreateEditFormProps) {
     }
   }
 
+  // A secret reads as the marker when set, on the schedule or as the workflow's default; its field
+  // keeps it unless replaced or cleared, and never shows or appends to the marker.
+  const scheduleSets = (name: string) =>
+    Array.isArray(scheduleParams) && scheduleParams.some((p) => p.name === name && p.value === REDACTED);
+  const paramInputs = workflowParams.map((param) =>
+    param.type === InputType.Password
+      ? {
+          ...param,
+          customComponent: DynamicSecretInput,
+          isSet: initFormValues[param.key] === REDACTED,
+          setHelperText: scheduleSets(param.name as string)
+            ? undefined
+            : "Uses the workflow's default. Type a value to override it.",
+          suggestReference: true,
+        }
+      : param,
+  );
+
   /**
    * Handle creating it from calendar click
    */
@@ -166,7 +186,7 @@ export default function CreateEditForm(props: CreateEditFormProps) {
       enableReinitialize
       validateOnMount
       initialValues={initFormValues}
-      inputs={toDynamicInputs(workflowParams)}
+      inputs={toDynamicInputs(paramInputs)}
       onSubmit={({ frequency, minute, ...values }: ScheduleManagerFormInputs) => {
         const stored = frequencyToSchedule(frequency, {
           days: values.days,

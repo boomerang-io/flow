@@ -95,7 +95,10 @@ class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
     // The display path redacts by name at the workflow level and by value below it.
     WorkflowRun display = workflowRunService.get(run.getId(), true);
     workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
-    assertEquals("", display.getParams().get(0).getValue(), "name-join blanks to empty, matching filterRunParamValueByFieldType");
+    assertEquals(
+        DataAdapterUtil.REDACTED,
+        display.getParams().get(0).getValue(),
+        "the name join masks a set secret as the type filter does");
     assertEquals(DataAdapterUtil.REDACTED, display.getTasks().get(0).getParams().get(0).getValue());
     assertFalse(display.getTasks().get(0).getSpec().getScript().contains(SECRET));
     assertTrue(
@@ -148,9 +151,9 @@ class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
     WorkflowRun display = workflowRunService.get(run.getId(), true);
     workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
     assertEquals(
-        "",
+        DataAdapterUtil.REDACTED,
         taskByName(display, "calls-api").getParams().get(0).getValue(),
-        "the task's own password-typed param is blanked by name");
+        "the task's own password-typed param is masked by name");
     assertFalse(taskByName(display, "calls-api").getSpec().getScript().contains(TASK_SECRET));
     assertEquals(
         "called with " + DataAdapterUtil.REDACTED,
@@ -186,7 +189,7 @@ class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
 
     WorkflowRun display = workflowRunService.get(run.getId(), true);
     workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
-    assertEquals("", taskByName(display, "uses-pin").getParams().get(0).getValue());
+    assertEquals(DataAdapterUtil.REDACTED, taskByName(display, "uses-pin").getParams().get(0).getValue());
     assertEquals(
         "pin is " + SHORT_SECRET,
         taskByName(display, "uses-pin").getResults().get(0).getValue(),
@@ -208,8 +211,8 @@ class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
     workflowRunService.filterSensitiveValues(display, new java.util.HashMap<>());
 
     verify(spiedTaskRevisionRepository, times(1)).findByParentRefInAndVersionIn(any(), any());
-    assertEquals("", taskByName(display, "a").getParams().get(0).getValue());
-    assertEquals("", taskByName(display, "b").getParams().get(0).getValue());
+    assertEquals(DataAdapterUtil.REDACTED, taskByName(display, "a").getParams().get(0).getValue());
+    assertEquals(DataAdapterUtil.REDACTED, taskByName(display, "b").getParams().get(0).getValue());
   }
 
   /**

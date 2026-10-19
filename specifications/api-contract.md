@@ -305,10 +305,12 @@ Definitions declare parameters as `AbstractParam` (a UI-driven field: `name`, `t
 runtime values are `RunParam` (`name`, `value`, `type`; `common/model/RunParam.java:12-17`). `type` is
 one of `string`, `array`, `object` or `secret` and is omitted when absent, which means `string`; an
 unknown value is `400 PARAM_INVALID_TYPE` (1216), and a `secret` whose value is not a string is
-`400 PARAM_SECRET_NOT_STRING` (1217). A `secret` param's value is returned as `*****` on every run read,
-submit and lifecycle response and `full` status event; the dispatcher claim carries the real value. Task and
-workflow definition reads hide secrets too, the workflow canvas included, and a hidden value sent back on an
-apply keeps the stored one (`parameters.md`, "Sensitive parameters").
+`400 PARAM_SECRET_NOT_STRING` (1217). Every secret - on a run, a definition, a schedule, a global or workspace
+parameter, or a secured setting - follows one rule: it reads as `*****` when set and as nothing when unset; a
+client that sends back `*****`, `null` or no value keeps the stored secret, `""` clears it, and any other value
+replaces it. A run request that sends no value, or `*****` for a secret, leaves the declared default in place.
+On a definition, a value that is exactly one Flow reference reads as written. The dispatcher claim carries the
+real value (`parameters.md`, "Sensitive parameters"; decision 0122).
 
 | Object | Field | Element type |
 | --- | --- | --- |

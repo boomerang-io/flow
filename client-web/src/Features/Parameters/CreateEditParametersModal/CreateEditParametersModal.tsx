@@ -4,7 +4,8 @@ import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/reac
 import { ComposedModal, ModalFlowForm, TextInput, Toggle } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
 import * as Yup from "yup";
-import { InputType, PROPERTY_KEY_REGEX } from "Constants";
+import SecretInput from "Components/SecretInput";
+import { InputType, PROPERTY_KEY_REGEX, REDACTED } from "Constants";
 import { Property } from "Types";
 import { ParameterScope, parameterReference } from "../ParametersTable/ParametersTable";
 import styles from "./createEditParametersModal.module.scss";
@@ -178,23 +179,32 @@ function Form({ closeModal, handleSubmit, isSubmitting, isEdit, error, initialSt
                   onChange={handleChange}
                 />
               </div>
-              <TextInput
-                id="value"
-                labelText="Value"
-                placeholder={isEdit && values.secured ? "Enter a new value to replace it" : "Value"}
-                name="value"
-                value={values.value}
-                onBlur={handleBlur}
-                onChange={handleChange}
-                invalid={Boolean(errors.value && touched.value)}
-                invalidText={errors.value}
-                type={values.secured ? "password" : "text"}
-                helperText={
-                  isEdit && values.secured
-                    ? "The current value is hidden because the parameter is secured."
-                    : null
-                }
-              />
+              {values.secured ? (
+                <SecretInput
+                  id="value"
+                  data-testid="parameter-secret-value"
+                  labelText="Value"
+                  placeholder="Value"
+                  value={values.value}
+                  isSet={isEdit && initialState.value === REDACTED}
+                  onBlur={handleBlur}
+                  onChange={(value) => setFieldValue("value", value)}
+                  invalid={Boolean(errors.value && touched.value)}
+                  invalidText={errors.value}
+                />
+              ) : (
+                <TextInput
+                  id="value"
+                  labelText="Value"
+                  placeholder="Value"
+                  name="value"
+                  value={values.value}
+                  onBlur={handleBlur}
+                  onChange={handleChange}
+                  invalid={Boolean(errors.value && touched.value)}
+                  invalidText={errors.value}
+                />
+              )}
               <Toggle
                 id="secured-workspace-parameters-toggle"
                 data-testid="secured-workspace-parameters-toggle"

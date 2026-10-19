@@ -203,7 +203,7 @@ public class TaskService {
   /*
    * Every read of a catalogue task through the /api/v2 surface - get, query, the Tekton YAML reads
    * and the create and apply responses - shows a password-typed param's default as the redaction
-   * marker. The unscoped reads the engine and the workflow save use (get(ref, version), getSpecs,
+   * marker when set and as nothing when unset. The unscoped reads the engine and the workflow save use (get(ref, version), getSpecs,
    * retrieveAndValidateTask) are not filtered: a task run needs the real default. The spec is
    * copied rather than changed, as the model shares it with the revision entity.
    */
@@ -805,8 +805,8 @@ public class TaskService {
     request.getAnnotations().put("boomerang.io/generation", ANNOTATION_GENERATION);
     request.getAnnotations().put("boomerang.io/kind", ANNOTATION_KIND);
 
-    // A hidden default sent back with nothing stored to keep (an import of an exported task) is
-    // saved blank, never as the marker.
+    // A hidden default sent back with nothing stored to keep (an import of an exported task) is no
+    // value, never the marker.
     if (request.getSpec() != null) {
       DataAdapterUtil.keepParamSpecValueByFieldType(
           request.getSpec().getParams(), List.of(), FieldType.PASSWORD.value());
@@ -860,8 +860,8 @@ public class TaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
     }
 
-    // A password default read hidden and sent back as the marker or blank keeps the stored one,
-    // so a read-edit-apply of anything else never overwrites the secret.
+    // The one secret write rule: a password default sent back as the marker, or not at all, keeps
+    // the stored one; a blank clears it; anything else replaces it.
     if (request.getSpec() != null && taskRevisionEntity.get().getSpec() != null) {
       DataAdapterUtil.keepParamSpecValueByFieldType(
           request.getSpec().getParams(),

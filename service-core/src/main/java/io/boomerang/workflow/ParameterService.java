@@ -63,9 +63,8 @@ public class ParameterService {
         paramRepository
             .findOneByName(param.getName())
             .orElseThrow(() -> new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE));
-    // GET never returns a secured value or default, so an edit to any other field sends them back
-    // blank or as the redaction marker - copying that through would destroy the stored secret.
-    // Keep the stored value and default whenever the incoming one carries nothing new.
+    // The one secret write rule: a secured value or default sent back as the redaction marker, or
+    // not at all, keeps the stored one; a blank clears it; anything else replaces it.
     DataAdapterUtil.keepParamSpecValueByFieldType(
         List.of(param), List.of(entity), FieldType.PASSWORD.value());
     BeanUtils.copyProperties(param, entity, "id");
@@ -86,7 +85,7 @@ public class ParameterService {
       }
       LOGGER.debug("Requested GlobalParamEntity: {}", request.getName());
 
-      // Nothing is stored yet, so a redaction marker sent on create becomes blank, never the secret.
+      // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
       DataAdapterUtil.keepParamSpecValueByFieldType(
           List.of(request), List.of(), FieldType.PASSWORD.value());
       GlobalParamEntity entity = new GlobalParamEntity();

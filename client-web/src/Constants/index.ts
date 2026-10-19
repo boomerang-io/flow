@@ -29,6 +29,11 @@ export const PROPERTY_KEY_REGEX = /^[a-zA-Z_]([a-zA-Z0-9-_])*$/;
 export const LABEL_KEY_PREFIX_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]{1,62}([.\1][a-zA-Z0-9-]{1,63})*$/;
 export const LABEL_NAME_AND_VALUE_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-_.]{0,61}[a-zA-Z0-9]$/;
 export const PASSWORD_CONSTANT = "******";
+/**
+ * The marker the API reads a set secret as, on every layer. Sending it back keeps the stored
+ * secret, a blank clears it, and any other value replaces it (the backend's REDACTED).
+ */
+export const REDACTED = "*****";
 
 /**
  * Enums
