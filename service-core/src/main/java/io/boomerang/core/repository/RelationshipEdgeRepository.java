@@ -19,6 +19,9 @@ public interface RelationshipEdgeRepository
   /** Outgoing edges for a set of nodes - one query per downward walk level. */
   List<RelationshipEdgeEntity> findByFromIn(Collection<String> from);
 
+  /** Incoming edges with one label for a set of nodes - the parents of each, in one query. */
+  List<RelationshipEdgeEntity> findByToInAndLabel(Collection<String> to, String label);
+
   @Query(value = "{'$or': [{'from': ?0},{to: ?0}]}", delete = true)
   void deleteByFromOrTo(String fromOrTo);
 

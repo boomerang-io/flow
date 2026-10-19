@@ -96,7 +96,7 @@ The task poll takes optional query parameters:
 | --- | --- |
 | `limit` | Most new task runs to claim for execution, held to a page. `0` claims none. Termination orders are never limited. A dispatcher SHOULD send its free capacity: a claimed task is committed to it. |
 | `type` | Task types to claim, a subset of those registered, else `400 QUERY_INVALID_FILTERS` |
-| `task` | Task slugs |
+| `task` | Tasks in their slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task; a bare slug never matches a workspace task of the same name, and `*` applies to the slug half (`dispatcher/ClaimFilterService.java:89`) |
 | `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels |
 
 `type`, `task` and the `workflowLabel` values are comma-separated lists in which `*` is the only wildcard,
@@ -107,7 +107,9 @@ still claims work a filtered poll would; reserving it is not built (flow#499).
 ## What a poll hands out
 
 Each claim is a compare-and-set on one document, so two dispatchers never receive the same run
-(`DispatcherService.java:300-325`). A task run in the answer is one of two orders:
+(`DispatcherService.java:300-325`). A task run's `taskRef` is its task's slug form, the same form the `task`
+filter takes, resolved once per answer for the poll, start and end alike; the engine stores the task's id
+(`DispatcherService.java:122`, `workflow/TaskService.java:707`). A task run in the answer is one of two orders:
 
 | Phase and status | Order | The dispatcher |
 | --- | --- | --- |
@@ -355,3 +357,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0112) |
 | `type` on each `RunParam`, with `secret` | Additive (decision 0115) |
 | `RateLimited` end reason, requeued like `ExceededQuota` | Additive |
+| `taskRef` on a task run is the task's slug form; the `task` filter takes the same form | Before the first release (decision 0119) |

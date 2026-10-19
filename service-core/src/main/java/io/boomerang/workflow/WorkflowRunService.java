@@ -163,7 +163,23 @@ public class WorkflowRunService {
     requireWorkspaceRelationship(team, workflowRunId);
     WorkflowRun wfRun = get(workflowRunId, withTasks);
     filterSensitiveValues(wfRun, new HashMap<>());
+    // Last, after the filters above joined the catalogue by id: a consumer reads the slug form.
+    slugTaskRefs(wfRun.getTasks());
     return ResponseEntity.ok(wfRun);
+  }
+
+  /**
+   * Rewrite each task run's {@code taskRef} from the stored task id to the task's slug form, in
+   * one batch; a task the catalogue no longer holds keeps its id.
+   */
+  public void slugTaskRefs(List<TaskRun> tasks) {
+    if (tasks == null || tasks.isEmpty()) {
+      return;
+    }
+    Map<String, String> slugs =
+        taskService.slugsByRef(
+            tasks.stream().map(TaskRun::getTaskRef).filter(Objects::nonNull).toList());
+    tasks.forEach(task -> task.setTaskRef(slugs.getOrDefault(task.getTaskRef(), task.getTaskRef())));
   }
 
   /*

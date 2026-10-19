@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.domain.Sort;
@@ -59,14 +60,17 @@ public class WorkflowRunInsightService {
   private final RelationshipService relationshipService;
   private final WorkflowRepository workflowRepository;
   private final MongoTemplate mongoTemplate;
+  private final TaskService taskService;
 
   public WorkflowRunInsightService(
       RelationshipService relationshipService,
       WorkflowRepository workflowRepository,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      TaskService taskService) {
     this.relationshipService = relationshipService;
     this.workflowRepository = workflowRepository;
     this.mongoTemplate = mongoTemplate;
+    this.taskService = taskService;
   }
 
   /**
@@ -123,9 +127,18 @@ public class WorkflowRunInsightService {
     detail.setP95QueueWait(percentile(waits, 0.95));
     detail.setRetriedRuns(
         runs.stream().filter(run -> run.getRetries() != null && run.getRetries() > 0).count());
-    detail.setTasks(taskRows(taskRuns));
+    detail.setTasks(slugTaskRefs(taskRows(taskRuns)));
     detail.setFailures(failures(runs, taskRuns));
     return detail;
+  }
+
+  // A row's task reference is read as the task's slug form, in one batch; a deleted task keeps its id.
+  private List<TaskRow> slugTaskRefs(List<TaskRow> rows) {
+    Map<String, String> slugs =
+        taskService.slugsByRef(
+            rows.stream().map(TaskRow::getTaskRef).filter(Objects::nonNull).toList());
+    rows.forEach(row -> row.setTaskRef(slugs.getOrDefault(row.getTaskRef(), row.getTaskRef())));
+    return rows;
   }
 
   // ── Reads ────────────────────────────────────────────────────────────────

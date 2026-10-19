@@ -1,6 +1,8 @@
 package io.boomerang.core.repository;
 
 import io.boomerang.core.entity.RelationshipNodeEntity;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
@@ -25,6 +27,9 @@ public interface RelationshipNodeRepository
   Optional<RelationshipNodeEntity> findOneByTypeAndRefOrSlug(String type, String refOrSlug);
 
   boolean existsById(String id);
+
+  /** Nodes of one type carrying any of the slugs; served by the {@code type_slug} index. */
+  List<RelationshipNodeEntity> findByTypeAndSlugIn(String type, Collection<String> slugs);
 
   @Query("{'type': ?0, '$or': [{'slug': ?1},{'ref': ?1}]}")
   @Update("{ '$set' : { 'slug' : ?2 } }")

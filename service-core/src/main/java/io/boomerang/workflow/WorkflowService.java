@@ -127,7 +127,6 @@ public class WorkflowService {
   private static final String ANNOTATION_GENERATION = "4";
   private static final String ANNOTATION_KIND = "Workflow";
 
-  private static final String TASK_REF_SEPERATOR = "/";
   // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns, and
   // runworkflow, whose items each submit a child run.
   private static final Set<TaskType> FOREACH_TASK_TYPES =
@@ -1282,43 +1281,27 @@ public class WorkflowService {
   }
 
   /*
-   * Helper methods to from TaskRef to TaskSlug and vice versa
-   *
-   * Duplicated in WorkflowRunService.impl
+   * A node's taskRef is the task's id in storage and its slug form on the API; TaskService owns
+   * the translation, in one batch per workflow.
    */
   private void convertTaskRefsToSlugs(String team, Workflow workflow) {
+    List<WorkflowTask> nodes =
+        workflow.getTasks().stream()
+            .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
+            .toList();
+    Map<String, String> taskSlugs =
+        taskService.slugsByRef(nodes.stream().map(WorkflowTask::getTaskRef).toList());
+    nodes.forEach(
+        t -> {
+          if (!taskSlugs.containsKey(t.getTaskRef())) {
+            LOGGER.warn("TaskRef not found: {} : {}", t.getName(), t.getTaskRef());
+          }
+          t.setTaskRef(taskSlugs.getOrDefault(t.getTaskRef(), ""));
+        });
     workflow
         .getTasks()
         .forEach(
             t -> {
-              // Convert the task ref to a slug
-              if (!t.getName().equals("start") && !t.getName().equals("end")) {
-                Boolean isTeamTask = false;
-                // Check for global task
-                List<String> slugs =
-                    relationshipService.filter(
-                        RelationshipType.TASK,
-                        Optional.of(List.of(t.getTaskRef())),
-                        Optional.empty(),
-                        Optional.empty());
-                if (slugs.isEmpty()) {
-                  isTeamTask = true;
-                  // Check for team task
-                  slugs =
-                      relationshipService.filter(
-                          RelationshipType.TEAMTASK,
-                          Optional.of(List.of(t.getTaskRef())),
-                          Optional.of(RelationshipType.WORKSPACE),
-                          Optional.of(List.of(team)));
-                }
-                if (slugs.isEmpty()) {
-                  LOGGER.warn("TaskRef not found: {} : {}", t.getName(), t.getTaskRef());
-                  t.setTaskRef("");
-                } else {
-                  t.setTaskRef(
-                      isTeamTask ? team + TASK_REF_SEPERATOR + slugs.get(0) : slugs.get(0));
-                }
-              }
               // Convert RunWorkflow and RunScheduledWorkflow Refs to slugs
               if (t.getType().equals(TaskType.runworkflow)
                   || t.getType().equals(TaskType.runscheduledworkflow)) {
@@ -1364,37 +1347,27 @@ public class WorkflowService {
     }
   }
 
+  // A slug form naming another workspace's task, or no task, refuses the save.
   private void convertTaskSlugsToRefs(String team, Workflow workflow) {
     validateTaskRefsPresent(workflow.getTasks());
+    List<WorkflowTask> nodes =
+        workflow.getTasks().stream()
+            .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
+            .toList();
+    Map<String, String> taskRefs =
+        taskService.refsBySlug(team, nodes.stream().map(WorkflowTask::getTaskRef).toList());
+    nodes.forEach(
+        t -> {
+          if (!taskRefs.containsKey(t.getTaskRef())) {
+            throw new BoomerangException(
+                BoomerangError.WORKFLOW_INVALID_TASK_REF, t.getName(), t.getTaskRef());
+          }
+          t.setTaskRef(taskRefs.get(t.getTaskRef()));
+        });
     workflow
         .getTasks()
         .forEach(
             t -> {
-              if (!t.getName().equals("start") && !t.getName().equals("end")) {
-                List<String> refs;
-                if (t.getTaskRef().contains(TASK_REF_SEPERATOR)) {
-                  refs =
-                      relationshipService.filter(
-                          RelationshipType.TEAMTASK,
-                          Optional.of(List.of(t.getTaskRef().split(TASK_REF_SEPERATOR)[1])),
-                          Optional.of(RelationshipType.WORKSPACE),
-                          Optional.of(List.of(team)),
-                          false);
-                } else {
-                  refs =
-                      relationshipService.filter(
-                          RelationshipType.TASK,
-                          Optional.of(List.of(t.getTaskRef())),
-                          Optional.empty(),
-                          Optional.empty(),
-                          false);
-                }
-                if (refs.isEmpty()) {
-                  throw new BoomerangException(
-                      BoomerangError.WORKFLOW_INVALID_TASK_REF, t.getName(), t.getTaskRef());
-                }
-                t.setTaskRef(refs.get(0));
-              }
               // Convert RunWorkflow and RunScheduledWorkflow Slugs to Refs
               if (t.getType().equals(TaskType.runworkflow)
                   || t.getType().equals(TaskType.runscheduledworkflow)) {

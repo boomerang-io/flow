@@ -199,7 +199,7 @@ public class DispatcherControllerV1 {
           @PathVariable(required = true)
           String taskRunId,
       @RequestBody Optional<TaskRunStartRequest> taskRunRequest) {
-    return taskRunService.start(taskRunId, taskRunRequest);
+    return dispatcherService.startTaskRun(taskRunId, taskRunRequest);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/end")
@@ -214,7 +214,7 @@ public class DispatcherControllerV1 {
           @PathVariable(required = true)
           String taskRunId,
       @RequestBody Optional<TaskRunEndRequest> taskRunRequest) {
-    return taskRunService.end(taskRunId, taskRunRequest);
+    return dispatcherService.endTaskRun(taskRunId, taskRunRequest);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/log", consumes = MediaType.ALL_VALUE)

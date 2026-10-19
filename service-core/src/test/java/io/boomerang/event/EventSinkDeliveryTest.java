@@ -1,6 +1,7 @@
 package io.boomerang.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -14,6 +15,7 @@ import io.boomerang.core.config.RestConfig;
 import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.config.EventSinkProperties.Destination;
 import io.boomerang.event.enums.EventPayload;
+import io.boomerang.workflow.TaskService;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -100,7 +102,8 @@ class EventSinkDeliveryTest {
     server.reset();
     new EventSinkService(
             new EventSinkProperties(false, EventPayload.thin, List.of(BARE_URL), List.of()),
-            restTemplate)
+            restTemplate,
+            mock(TaskService.class))
         .deliverStatusCloudEvent(workflowRun());
     server.verify();
   }
@@ -118,7 +121,9 @@ class EventSinkDeliveryTest {
   private static EventSinkService sinkService(
       RestTemplate restTemplate, List<String> urls, List<Destination> destinations) {
     return new EventSinkService(
-        new EventSinkProperties(true, EventPayload.thin, urls, destinations), restTemplate);
+        new EventSinkProperties(true, EventPayload.thin, urls, destinations),
+        restTemplate,
+        mock(TaskService.class));
   }
 
   private static WorkflowRunEntity workflowRun() {
