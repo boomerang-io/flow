@@ -8,6 +8,7 @@ import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.core.SecretCipher;
+import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.workflow.entity.GlobalParamEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import java.util.List;
@@ -36,6 +37,8 @@ import org.springframework.stereotype.Component;
  *       password} → {@code defaultValue}
  *   <li>workflow revision {@code tasks[].params[]}, workflow run, task run and schedule {@code
  *       params[]}: {@code type == secret} → {@code value}
+ *   <li>integrations {@code data}: {@code accessToken} and {@code refreshToken}, the same under
+ *       {@code authedUser}, and {@code incomingWebhook.url}
  * </ul>
  *
  * A value already carrying the label is not encrypted again, and a value without it loads as it
@@ -114,6 +117,25 @@ public class SecretValueMongoListener extends AbstractMongoEventListener<Object>
         || TaskRunEntity.class.isAssignableFrom(type)
         || WorkflowScheduleEntity.class.isAssignableFrom(type)) {
       eachParam(document.get("params"), SECRET, "value", transform);
+    } else if (IntegrationsEntity.class.isAssignableFrom(type)
+        && document.get("data") instanceof Document data) {
+      // A stored Slack OAuth response: its tokens, and the incoming-webhook URL that posts by itself.
+      transformFields(data, transform, "accessToken", "refreshToken");
+      if (data.get("authedUser") instanceof Document authedUser) {
+        transformFields(authedUser, transform, "accessToken", "refreshToken");
+      }
+      if (data.get("incomingWebhook") instanceof Document incomingWebhook) {
+        transformFields(incomingWebhook, transform, "url");
+      }
+    }
+  }
+
+  private static void transformFields(
+      Document document, UnaryOperator<String> transform, String... fields) {
+    for (String field : fields) {
+      if (document.get(field) instanceof String value) {
+        document.put(field, transform.apply(value));
+      }
     }
   }
 

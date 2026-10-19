@@ -29,6 +29,8 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workflow.model.Action;
+import io.boomerang.workflow.model.CanvasNodePosition;
+import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -49,8 +51,8 @@ import tools.jackson.databind.json.JsonMapper;
  * Secrets are hidden on every API read of a definition - a catalogue task's password default, a
  * Workflow's password default and a task node's secret value - and kept when a client sends the
  * hidden read back. Each read is checked on its whole serialised form, not one field, and each
- * keep against the stored revision and the values a run then receives. The canvas reads are out
- * of scope and covered by {@link SecretsAtRestTest}.
+ * keep against the stored revision and the values a run then receives. The canvas read and save,
+ * which the editor and the run page use, are held to the same rule.
  */
 class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
 
@@ -183,6 +185,39 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     WorkflowRevisionEntity copied = latestRevision(duplicate.getName());
     assertEquals("wf-default-0001", copied.getParams().get(0).getDefaultValue());
     assertEquals("node-token-0001", nodeValue(copied, "registryToken"));
+  }
+
+  // The canvas read is hidden like get, whoever reads it, and saving it back untouched - what the
+  // editor does with a field nobody edited - keeps both stored values.
+  @Test
+  void theCanvasReadIsHiddenAndAnUntouchedCanvasSaveKeepsTheSecrets() {
+    String task = unique("read-mask-canvas-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0001"));
+    String name = unique("read-mask-canvas-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, "node-token-0001"));
+
+    WorkflowCanvas canvas = workflowService.composeGet(SYSTEM, name, Optional.empty());
+    assertHidden(canvas, "wf-default-0001", "node-token-0001");
+    assertEquals("", canvas.getConfig().get(0).getDefaultValue());
+    assertEquals(DataAdapterUtil.REDACTED, canvasParam(canvas, "registryToken").getValue());
+
+    // A workflow saved through the API has no layout; the editor always sends one.
+    canvas.getNodes().stream()
+        .filter(n -> n.getPosition() == null)
+        .forEach(
+            n -> {
+              CanvasNodePosition position = new CanvasNodePosition();
+              position.setX(0);
+              position.setY(0);
+              n.setPosition(position);
+            });
+    assertHidden(workflowService.composeApply(SYSTEM, canvas, false), "wf-default-0001", "node-token-0001");
+
+    WorkflowRevisionEntity latest = latestRevision(name);
+    assertEquals(2, latest.getVersion());
+    assertEquals("wf-default-0001", latest.getParams().get(0).getDefaultValue());
+    assertEquals("node-token-0001", nodeValue(latest, "registryToken"));
+    assertEquals("node-token-0001", taskParam(submitAndAdmit(name), "registryToken"));
   }
 
   // An import of an exported Workflow into a new one has nothing stored to keep: the hidden
@@ -459,6 +494,19 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
         .filter(t -> "work".equals(t.getName()))
         .findFirst()
         .orElseThrow()
+        .getParams()
+        .stream()
+        .filter(p -> param.equals(p.getName()))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static RunParam canvasParam(WorkflowCanvas canvas, String param) {
+    return canvas.getNodes().stream()
+        .filter(n -> n.getData() != null && "work".equals(n.getData().getName()))
+        .findFirst()
+        .orElseThrow()
+        .getData()
         .getParams()
         .stream()
         .filter(p -> param.equals(p.getName()))

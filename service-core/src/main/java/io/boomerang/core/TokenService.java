@@ -211,9 +211,9 @@ public class TokenService {
     String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
 
     final String hashToken = hashString(uniqueToken);
-    LOGGER.debug("Token: " + uniqueToken);
     tokenEntity.setToken(hashToken);
     tokenEntity = tokenRepository.save(tokenEntity);
+    LOGGER.debug("Created {} token {}", request.getType(), tokenEntity.getId());
 
     // Create an Audit relationship
     // relationshipService.addRelationshipRef(RelationshipRef.USER,
