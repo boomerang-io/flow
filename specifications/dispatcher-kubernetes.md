@@ -19,12 +19,14 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 `config/DispatcherConfig.java:23-52`. SDK paths below are under `dispatcher-sdk/.../dispatcher/sdk/`.
 
 - **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and
-  waits until 5 s after the start of one that failed or was answered empty at once (`QueuePoller.java:19,68-87`).
+  waits until 5 s after the start of one that failed or was answered empty at once (`QueuePoller.java:23,104-123`).
   A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
 - **Slots.** It holds at most `flow.dispatcher.task.max-in-flight` tasks (25; 0 is no cap). A task is in flight from
   its claim - taken on the poll's thread, so the next poll counts it - until the engine has taken its end, a
-  Pending pod and a retried end included; each task poll sends `limit` = the free slots (`InFlightTasks.java:28`,
-  `TaskRunner.java:89-93`, `Dispatcher.java:246`). It sends no filters; termination orders take no slot.
+  Pending pod and a retried end included; each task poll sends `limit` = the free slots (`InFlightTasks.java:30`,
+  `TaskRunner.java:89-93`, `Dispatcher.java:265`). It sends no filters; termination orders take no slot. While
+  every slot is taken a `limit=0` poll keeps termination orders coming, and a slot that frees starts a work poll
+  at once beside it (`Dispatcher.java:259-282`).
 - **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, so a lease is
   renewed for as long as its handler runs and its end is pending (`Dispatcher.java:176-186`).
 - **Start answer.** It runs nothing when start answers `completed` or a 4xx, and goes ahead when the engine cannot

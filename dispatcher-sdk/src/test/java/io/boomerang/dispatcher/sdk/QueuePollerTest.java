@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
@@ -108,5 +109,62 @@ class QueuePollerTest {
 
     assertThat(stoppedAt).isGreaterThan(1);
     assertThat(polls.get()).isLessThanOrEqualTo(stoppedAt + 1);
+  }
+
+  @Test
+  void aPollerThatIsNotDuePollsAtOnceWhenWoken() throws Exception {
+    AtomicBoolean due = new AtomicBoolean();
+    AtomicInteger polls = new AtomicInteger();
+    // A spacing far longer than the test, so only the wake can explain a prompt poll.
+    QueuePoller<String> poller =
+        new QueuePoller<>(
+            "test",
+            () -> {
+              polls.incrementAndGet();
+              due.set(false);
+              return List.of("task");
+            },
+            handedOff::add,
+            Duration.ofSeconds(30),
+            due::get);
+
+    poller.start();
+    Thread.sleep(100);
+    assertThat(polls.get()).isZero();
+
+    long woken = System.nanoTime();
+    due.set(true);
+    poller.wake();
+    while (polls.get() == 0 && System.nanoTime() - woken < Duration.ofSeconds(5).toNanos()) {
+      Thread.sleep(5);
+    }
+    poller.stop();
+
+    assertThat(polls.get()).isEqualTo(1);
+    assertThat(Duration.ofNanos(System.nanoTime() - woken)).isLessThan(Duration.ofSeconds(1));
+  }
+
+  @Test
+  void aPollerThatIsNotDueChecksAgainWithinTheSpacingUnwoken() throws Exception {
+    AtomicBoolean due = new AtomicBoolean();
+    AtomicInteger polls = new AtomicInteger();
+    QueuePoller<String> poller =
+        new QueuePoller<>(
+            "test",
+            () -> {
+              polls.incrementAndGet();
+              due.set(false);
+              return List.of("task");
+            },
+            handedOff::add,
+            Duration.ofMillis(50),
+            due::get);
+
+    poller.start();
+    due.set(true);
+    Thread.sleep(300);
+    poller.stop();
+
+    assertThat(polls.get()).isEqualTo(1);
   }
 }
