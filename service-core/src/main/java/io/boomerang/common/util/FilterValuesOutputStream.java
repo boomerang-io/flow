@@ -12,11 +12,13 @@ import java.util.Set;
  * DataAdapterUtil applies to run payloads.
  *
  * <p>Log output is line-oriented: bytes buffer until a newline, each complete line is scrubbed as
- * UTF-8 text and forwarded. A line that never ends (or the tail of the stream) is scrubbed and
- * forwarded on flush/close. A single line larger than the buffer cap is forwarded in scrubbed
- * chunks, retaining a {@code longestSecret - 1} byte tail between chunks: a secret wholly inside
- * the tail is caught, but one straddling a chunk boundary of such an oversize line can leak a
- * fragment - an accepted edge for 64KB+ single log lines.
+ * UTF-8 text and forwarded. {@link #flush()} pushes the forwarded lines through to the reader but
+ * keeps an unfinished line back, so a secret split across two reads of a live log is never
+ * forwarded in halves; the unfinished tail is scrubbed and forwarded by {@link #finish()} or
+ * {@link #close()}. A single line larger than the buffer cap is forwarded in scrubbed chunks,
+ * retaining a {@code longestSecret - 1} byte tail between chunks: a secret wholly inside the tail
+ * is caught, but one straddling a chunk boundary of such an oversize line can leak a fragment - an
+ * accepted edge for 64KB+ single log lines.
  */
 public class FilterValuesOutputStream extends OutputStream {
 
@@ -62,15 +64,21 @@ public class FilterValuesOutputStream extends OutputStream {
     }
   }
 
+  // Complete lines are already forwarded as they end; an unfinished line stays until it ends.
   @Override
   public void flush() throws IOException {
+    out.flush();
+  }
+
+  /** Scrub and forward the unfinished tail, then flush, leaving the wrapped stream open. */
+  public void finish() throws IOException {
     scrubAndForward(length);
     out.flush();
   }
 
   @Override
   public void close() throws IOException {
-    scrubAndForward(length);
+    finish();
     out.close();
   }
 

@@ -16,7 +16,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.SequenceInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,12 +34,46 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
- * Unit tests for {@link KubeLogService#getPodLog(InputStream, String)} — the {@code
- * InputStream.transferTo} copy loop that replaced the manual {@code 1KB}-buffer {@code while
- * ((nRead = ...read(data)) > 0)} loop. No Spring context / Kubernetes mock server needed: the
- * method under test only touches the InputStream/OutputStream it's handed.
+ * Unit tests for {@link KubeLogService#getPodLog(InputStream, String)}, the copy that writes and
+ * flushes every read so a live log reaches the reader as the container writes it. No Spring
+ * context or Kubernetes mock server needed: the method under test only touches the streams it is
+ * handed.
  */
 public class KubeLogServiceTest {
+
+  @Test
+  public void testGetPodLogFlushesEachReadAsItArrives() throws Exception {
+    KubeLogService service = new KubeLogService(null, null);
+    InputStream twoReads =
+        new SequenceInputStream(
+            new ByteArrayInputStream("tick-1\n".getBytes(StandardCharsets.UTF_8)),
+            new ByteArrayInputStream("tick-2\n".getBytes(StandardCharsets.UTF_8)));
+    List<String> seenAtEachFlush = new ArrayList<>();
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    OutputStream reader =
+        new OutputStream() {
+          @Override
+          public void write(int b) {
+            sink.write(b);
+          }
+
+          @Override
+          public void write(byte[] bytes, int off, int len) {
+            sink.write(bytes, off, len);
+          }
+
+          @Override
+          public void flush() {
+            seenAtEachFlush.add(sink.toString(StandardCharsets.UTF_8));
+          }
+        };
+
+    service.getPodLog(twoReads, "pod-live").writeTo(reader);
+
+    // The first line is flushed on its own, before the second is read.
+    assertEquals("tick-1\n", seenAtEachFlush.get(0));
+    assertEquals("tick-1\ntick-2\n", sink.toString(StandardCharsets.UTF_8));
+  }
 
   @Test
   public void testGetPodLogStreamsAllBytes() throws Exception {
@@ -53,7 +93,7 @@ public class KubeLogServiceTest {
   public void testGetPodLogDoesNotStopEarlyOnALegalZeroLengthRead() throws Exception {
     // InputStream#read(byte[]) is legally allowed to return 0 without reaching end-of-stream. The
     // old `while ((nRead = inputStream.read(data)) > 0)` loop treated 0 as "done" and would have
-    // silently dropped the remaining bytes; transferTo loops correctly until -1.
+    // silently dropped the remaining bytes; the copy loops until -1.
     byte[] payload = "abcdef".getBytes();
     InputStream zeroThenData =
         new InputStream() {
@@ -237,5 +277,61 @@ class KubeLogServiceStreamTest {
     // hang) - this pins that the running-Pod branch (watchLog + termination poller) wires up and
     // completes cleanly rather than throwing.
     body.writeTo(output);
+  }
+
+  @Test
+  public void testStreamPodLogForPendingPodWaitsForItThenAnswersWithItsLog() throws Exception {
+    kubeLogService.setPodStartWait(Duration.ofSeconds(30));
+    String taskRunRef = "taskrun-pending";
+    Pod pod = createPod(taskRunRef, "Pending");
+    String podName = pod.getMetadata().getName();
+    String namespace = pod.getMetadata().getNamespace();
+    server
+        .expect()
+        .get()
+        .withPath("/api/v1/namespaces/" + namespace + "/pods/" + podName + "/log?pretty=true")
+        .andReturn(200, "hello once it started")
+        .once();
+
+    StreamingResponseBody body =
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null);
+    // The Pod leaves Pending (here straight to finished) while the stream is waiting for it.
+    Thread finisher =
+        new Thread(
+            () -> {
+              try {
+                Thread.sleep(500);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+              Pod current = client.pods().inNamespace(namespace).withName(podName).get();
+              current.getStatus().setPhase("Succeeded");
+              client.pods().resource(current).updateStatus();
+            });
+    finisher.start();
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    body.writeTo(output);
+    finisher.join();
+
+    // Kubernetes' own "waiting to start" status never becomes the log body.
+    assertEquals(
+        KubeLogService.WAITING_FOR_START_MESSAGE + "hello once it started",
+        output.toString(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  public void testStreamPodLogForPodThatNeverStartsSaysSoInsteadOfHanging() throws Exception {
+    kubeLogService.setPodStartWait(Duration.ofMillis(100));
+    createPod("taskrun-stuck", "Pending");
+
+    StreamingResponseBody body =
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", "taskrun-stuck", null);
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    body.writeTo(output);
+    kubeLogService.setPodStartWait(Duration.ofMinutes(5));
+
+    assertEquals(
+        KubeLogService.WAITING_FOR_START_MESSAGE + KubeLogService.DID_NOT_START_MESSAGE,
+        output.toString(StandardCharsets.UTF_8));
   }
 }
