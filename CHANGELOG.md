@@ -148,3 +148,7 @@ tag's release notes.
   log.
 - A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
   and is kept when the YAML is applied back unchanged.
+- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas
+  enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
+  poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
+  rest of the poll is still handed out.
