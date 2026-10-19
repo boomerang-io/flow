@@ -19,10 +19,10 @@ This repo is **spec-driven**: `specifications/<subsystem>.md` describes how each
 Read the pasted spec text and extract:
 
 - **Domain**: what system or feature area this covers (e.g. "workflow run lifecycle", "atomic
-  claiming / locking", "service consolidation", "agent runtime SPI", "auth/authz").
+  claiming / locking", "the dispatcher contract", "parameters", "auth/authz").
 - **Key entities and flows**: the data structures, state machines, and processes described
   (e.g. `WorkflowRunEntity`, phase vs status, TaskRun reconciliation, the claim query).
-- **Design decisions**: explicit choices made in the spec (named DD-01 style or implicit).
+- **Design decisions**: the choices the spec makes, stated or implied.
 - **Scope of change**: what is being added, removed, or changed relative to what likely
   exists today, and which reference doc and decision records it touches.
 
@@ -35,14 +35,19 @@ Spawn an `Explore` agent with a focused search prompt built from the domain and 
 extracted in Phase 1.
 
 Tell the Explore agent to:
-- Find backend files across the relevant modules: `service-core/`, `service-flow/`,
-  `service-engine/`, `service-dispatcher/` — entities (`**/entity/`), services, controllers
-  (`*ControllerV1.java` / `*ControllerV2.java`), repositories, config.
-- Find spec files in `specifications/` that cover the same area, and the relevant
-  the reference docs and decision records in `specifications/`.
-- Check `CLAUDE.md` for any **architecture invariant** the change touches (status-only
-  external field, WorkflowRun as execution record, idempotent transition handlers,
-  `io.boomerang.common` purity, no new synchronous flow→engine HTTP calls).
+- Find backend files across the relevant modules: `service-core/` (feature packages `core`,
+  `workspace`, `workflow`, `engine`, `dispatcher`, `schedule`, `event`, `integrations`,
+  `migration`, and the domain model in `common`), `dispatcher-sdk/`, `service-dispatcher/` —
+  entities (`**/entity/`), services, controllers (`*ControllerV1.java` / `*ControllerV2.java`),
+  repositories, config. Include `client-web/` when the change reaches the UI, and
+  `contracts/dispatcher-v1.yaml` when it reaches the dispatcher wire.
+- Find the reference docs in `specifications/` that cover the same area, and the decision
+  records in `specifications/decisions/` that already rule on it.
+- Check `CLAUDE.md` for any **architecture invariant** the change touches (`status` as the
+  external field with `phase` kept only for the dispatcher, WorkflowRun as execution record,
+  idempotent transition handlers, typed fields over annotations, `io.boomerang.common` purity,
+  the engine never calling the platform side synchronously, no Kubernetes dependency in
+  `service-core`).
 - Report: file paths + a one-line summary of what each file currently does.
 
 After the agent returns, list the files found with their one-line summaries.
@@ -66,12 +71,13 @@ actual file paths, line-level behaviour, and concrete spec text.
 
 List 5–8 targeted questions about:
 - Ambiguities in the spec (terms used without definition, behaviours left unspecified).
-- Missing edge cases (what happens when a claim races, a lease expires, an agent crashes
+- Missing edge cases (what happens when a claim races, a lease expires, a dispatcher crashes
   mid-task, a WorkflowRun is paused then the instance dies).
-- Unstated assumptions (does this assume a migration? a `flow.mode` gate? an optimistic
-  `@Version` write? a new index?).
+- Unstated assumptions (does this assume a migration? a new property or stored setting, and in
+  which tier? a compare-and-set transition? a new index?).
 - Scope questions (is this replacing X or extending it? what happens to existing data /
-  in-flight runs? does it hold in `engine` and `standalone` modes, not just `full`?).
+  in-flight runs / a v3 database being upgraded? does it hold with security off and on a
+  single-workspace install, not just the default shape?).
 
 Number each question. Be specific — quote the relevant spec text in each question.
 
@@ -85,8 +91,10 @@ alternative, and name the trade-off. Format:
 **Trade-off**: [what is gained vs. lost by the spec's choice]
 
 Focus on decisions that could have been made differently, not mechanical implementation
-details. For v5 work, always test a change against the ARCHIE lessons (do not over-abstract
-ahead of proven need) and the consolidation hypothesis (merge is not yet a decision).
+details. Always test a change against the `CLAUDE.md` rule not to build ahead of proven need
+(concurrency caps, retry classes and a separate reconciler were each considered and not built),
+and against the existing data model (an added field, wrapper or collection carries the burden
+of proof).
 
 ### Implementation Gaps
 
@@ -106,5 +114,6 @@ Include a row for every meaningful claim in the spec. Mark gaps as:
 ### Verdict
 
 2–3 sentences: Is this spec ready to hand to implementation, or are there blockers that must
-be resolved first? Name specific blockers, the phase gate it belongs behind, and any
-invariant it must not cross.
+be resolved first? Name specific blockers, the review gate it needs (the `DAGUtility` /
+`TaskExecutionService` method list, or a data-model change for discussion), and any invariant
+it must not cross.

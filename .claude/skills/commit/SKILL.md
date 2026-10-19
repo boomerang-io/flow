@@ -25,13 +25,15 @@ argument-hint: [optional message or scope hint]
    - `chore:` — build, tooling, dependencies
    - `ci:` — CI/CD changes
    - `perf:` — performance improvement
-4. Determine scope from the primary area of change. Prefer this repo's module/domain
-   names: `flow`, `engine`, `agent`, `common` (the Maven modules), or a finer domain
-   like `security`, `workflow`, `token`, `taskrun`. Examples: `feat(engine):`, `fix(security):`.
+4. Determine scope from the primary area of change. Prefer a feature package or module
+   name: `core`, `workspace`, `workflow`, `engine`, `schedule`, `security`, `migration`,
+   `dispatcher`, `client-web`, `specs`, or a finer domain like `params`, `secrets`, `logs`.
+   Examples: `feat(engine):`, `fix(security):`, `docs(specs):`.
 5. Write the commit message:
    - Subject: `<type>(<scope>): <imperative description>` — 50 chars max
    - Body (if needed): explain _why_, not _what_ — wrap at 72 chars
-   - Footer: reference issues if applicable (e.g., `Closes #42`)
+   - Footer: reference issues if applicable (e.g., `Closes #42`). A merge into `feat-v5` does
+     not close the issue; close it by hand after the merge.
 6. If $ARGUMENTS is provided, use it as guidance for the message
 7. Present the draft message for confirmation before committing
 8. Run `git commit -m "message"` only after approval
