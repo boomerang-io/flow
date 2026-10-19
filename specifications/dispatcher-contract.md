@@ -204,11 +204,15 @@ the params cap at its own admission.
 
 ## Leases and heartbeat
 
-A claim has no lease until the dispatcher's first heartbeat for it. `PUT /{id}/heartbeat` lists the task run
-ids the dispatcher is still working on; the engine sets each owned one's lease 90 s ahead
-(`flow.dispatcher.lease-ms`, `DispatcherService.java:62`, `:138-151`). A dispatcher SHOULD beat every 30 s for any
-task that can outlive a minute. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
-(`engine/WorkflowWatcher.java:76`), gets the task requeued or abandoned (`execution-model.md`).
+A claim carries a lease from the moment it is made: the claim sets it 90 s ahead (`flow.dispatcher.lease-ms`,
+`engine/TaskRunService.java:297`, `:323`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
+working on, and the engine moves each owned one's lease 90 s ahead again (`dispatcher/DispatcherService.java:189`,
+`engine/TaskRunService.java:638`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
+has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
+was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
+(`engine/WorkflowWatcher.java:78`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
+catches a dispatcher that crashes and comes back under the same id within that minute: it stays live, but its
+heartbeats no longer list the claims it lost.
 
 ## Logs
 

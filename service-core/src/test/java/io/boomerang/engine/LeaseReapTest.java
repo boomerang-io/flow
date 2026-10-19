@@ -9,22 +9,31 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunRetry;
+import io.boomerang.dispatcher.DispatcherService;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 /**
- * Lease-based crash recovery: a dispatcher's first heartbeat for a TaskRun creates {@code
- * claim.leaseExpiresAt} - {@link TaskRunService#tryClaim} never sets one - so a dispatcher that
- * never heartbeats opts itself out of this reap entirely, and only {@link
- * WorkflowWatcher#reapClaimsFromGoneDispatchers} (deregistration/staleness) can recover it.
+ * Lease-based crash recovery: {@link TaskRunService#tryClaim} sets {@code claim.leaseExpiresAt}
+ * one lease length ahead and each heartbeat renews it, so a claim its dispatcher stops reporting
+ * is requeued or abandoned once the lease lapses, even while the dispatcher itself stays live.
  */
 class LeaseReapTest extends AbstractEngineIntegrationTest {
 
+  private static final long LEASE_MILLIS = 90000;
+
   @Autowired private WorkflowWatcher watcher;
+  @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private DispatcherService dispatcherService;
 
   private TaskRunEntity claimedTaskRun(String name, String claimedBy, Date leaseExpiresAt) {
     WorkflowRunEntity wfRun = savedWorkflowRun(name + "-wf", RunStatus.running, RunPhase.running);
@@ -76,8 +85,51 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aClaimTheRestartedDispatcherNoLongerReportsIsReapedOnceItsClaimTimeLeaseLapses() {
+    DispatcherRegistrationRequest registration =
+        new DispatcherRegistrationRequest("lease-restart", "lease-restart.local", List.of("template"));
+    String dispatcherId = dispatcherService.register(registration);
+    WorkflowRunEntity wfRun = savedWorkflowRun("lease-restart-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            "lease-restart",
+            TaskType.template,
+            RunStatus.ready,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+
+    taskRunService.tryClaim(taskRun.getId(), dispatcherId);
+
+    RunClaim claim = taskRunRepository.findById(taskRun.getId()).orElseThrow().getClaim();
+    assertNotNull(claim.getLeaseExpiresAt(), "the claim sets the first lease");
+    assertEquals(claim.getAt().getTime() + LEASE_MILLIS, claim.getLeaseExpiresAt().getTime());
+
+    // The process crashes before its first heartbeat and starts again under the same name and
+    // host: the same id comes back, stays live, and heartbeats without the claim it lost.
+    assertEquals(dispatcherId, dispatcherService.register(registration));
+    dispatcherService.heartbeat(dispatcherId, List.of());
+    watcher.reapClaimsFromGoneDispatchers();
+    assertEquals(
+        RunPhase.queued,
+        taskRunRepository.findById(taskRun.getId()).orElseThrow().getPhase(),
+        "a live dispatcher's claim is not reaped as gone");
+
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(taskRun.getId())),
+        new Update().set("claim.leaseExpiresAt", new Date(System.currentTimeMillis() - 1000)),
+        TaskRunEntity.class);
+    watcher.reapExpiredLeases();
+
+    TaskRunEntity reaped = taskRunRepository.findById(taskRun.getId()).orElseThrow();
+    assertEquals(RunStatus.waiting, reaped.getStatus());
+    assertEquals(RunPhase.pending, reaped.getPhase());
+    assertEquals(1, reaped.getRetry().getCount());
+  }
+
+  @Test
   void aClaimedRunWithNoLeaseIsUntouched() {
-    // A dispatcher that never heartbeated: claim.by is set, claim.leaseExpiresAt never was.
+    // A claim with no lease is left to the deadline and gone-dispatcher sweeps.
     TaskRunEntity taskRun = claimedTaskRun("lease-never-set", "dispatcher-c", null);
 
     watcher.reapExpiredLeases();

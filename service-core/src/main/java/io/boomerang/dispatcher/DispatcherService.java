@@ -63,11 +63,6 @@ public class DispatcherService {
   @Value("${flow.queue.enabled:true}")
   private boolean queueEnabled;
 
-  // Lease length granted per heartbeat - see the property's own comment in application.properties
-  // for the floor and why it must stay there.
-  @Value("${flow.dispatcher.lease-ms:90000}")
-  private long leaseMillis;
-
   private final DispatcherRepository agentRepository;
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
@@ -183,9 +178,9 @@ public class DispatcherService {
 
   /**
    * Renews the lease for the TaskRun ids this dispatcher's executor threads are still working on,
-   * and refreshes its liveness timestamp. The FIRST heartbeat for a TaskRun creates its lease -
-   * {@link io.boomerang.engine.TaskRunService#tryClaim} does not set one - so a dispatcher that
-   * never heartbeats is opted out of lease-based reaping entirely.
+   * and refreshes its liveness timestamp. The claim sets the first lease ({@link
+   * io.boomerang.engine.TaskRunService#tryClaim}), so a claim left out of every heartbeat is
+   * reaped once that lease lapses.
    *
    * @param agentId the dispatcher sending the heartbeat
    * @param ids TaskRun ids the dispatcher still owns
@@ -200,8 +195,7 @@ public class DispatcherService {
     if (ids == null || ids.isEmpty()) {
       return 0;
     }
-    Date until = new Date(System.currentTimeMillis() + leaseMillis);
-    long renewed = taskRunService.renewLeases(ids, agentId, until);
+    long renewed = taskRunService.renewLeases(ids, agentId);
     LOGGER.debug("Renewed {} of {} lease(s) for dispatcher {}.", renewed, ids.size(), agentId);
     return renewed;
   }

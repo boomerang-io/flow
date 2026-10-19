@@ -57,7 +57,6 @@ class DispatcherConfigTest {
             "flow-tekton-dispatcher",
             List.of("template", "ai"),
             25,
-            true,
             30000,
             "http://service-dispatcher:7702/api/v1/logs/stream")) {
       assertThat(built.client()).isSameAs(dispatcherClient);
