@@ -15,7 +15,7 @@ split evenly between a new run that reuses results and mutating the run in place
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
 | A. Mutate the run in place: reset the chosen tasks and advance (Argo retry, Airflow clear, Prefect) | A run is the only record anyone keeps | Breaks the invariant that a completed run is terminal and that every re-run is a new run pointing back; the origin's rendered inputs and outputs, which are the embedding products' audit evidence, are overwritten |
-| B. Compose the workflow from sub-workflows or decision nodes and re-submit the stage | A stage is a genuinely reusable workflow | A child run returns status, not results, and every author must encode replay in every graph; the caller re-sequences the stages itself |
+| B. Compose the workflow from sub-workflows or decision nodes and re-submit the stage | A stage is a genuinely reusable workflow | Every stage becomes a run of its own and every author must encode replay in every graph; a retry of a stage starts a fresh child, and the caller re-sequences the stages after it itself |
 | C. Extend retry with a scope; copy the kept task runs under the new run and let the plan adopt them by name (Temporal reset, Dagster re-execute, Kestra replay) | Any multi-stage workflow | One copy loop and one typed field each on run and task run; a copied task run's log and action records live on the origin |
 
 ## Decision
