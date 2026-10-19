@@ -260,7 +260,9 @@ it can't read has no next occurrence and never fires.
 
 ## Child workflows
 
-A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:794-900`).
+A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1146-1226`). The
+child is submitted with the parent run's params and the task's own written over them, minus `workflowRef` and
+`wait` (`childParams` `:1228`), so a for-each item's `item` and `index` reach its child as run params.
 
 **Lineage.** The child is submitted through the lineage-stamping overload
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
@@ -280,9 +282,13 @@ arm happens *before* the submit, so a child that finishes immediately always fin
 **Ending the parent.** `ChildWorkflowRunListener` listens on the `WorkflowRunTransition` event every CAS winner
 publishes. On a transition into the `completed` phase it re-reads the run and, when `trigger == task` and the
 named TaskRun is still `waiting`, calls `TaskRunService.end` — the same wire-level end the dispatcher uses, so all
-its fencing applies and a re-delivered transition ends the task once. A `succeeded` child succeeds the task; any
-other terminal status fails it with `statusMessage` "Child run `<id>` ended `<status>`" and
-`statusReason = ChildRunFailed`. The engine never calls back into the workflow side synchronously for this.
+its fencing applies and a re-delivered transition ends the task once. A `succeeded` child succeeds the task and
+hands it the child run's results, the values its set-property tasks wrote, beside the `workflowRunRef` it already
+holds, so a downstream `$(tasks.x.results.y)` reads the child's result (`engine/ChildWorkflowRunListener.java:93-126`;
+decision 0118); any other terminal status fails it with `statusMessage` "Child run `<id>` ended `<status>`" and
+`statusReason = ChildRunFailed`, copying nothing. The engine never calls back into the workflow side
+synchronously for this. An item of a for-each `runworkflow` task is a task run of its own, so it is found and
+ended the same way.
 
 **Cascade cancel.** The same listener, when a run ends `cancelled` or `timedout`, cancels every child run whose
 `initiatedByRef` is one of that run's TaskRun ids and whose phase is still `pending`/`queued`/`running` (served by
@@ -298,17 +304,19 @@ itself stops at the cap, so a broken lineage cannot make it unbounded.
 ## For-each tasks
 
 A task with `foreach` set runs once per item of a JSON array, in parallel, in the same run; the setting is on the
-task, not a task type, and only the types a dispatcher runs may carry it (`template`, `script`, `custom`, `ai`,
-`generic`) — never `start` or `end`, which saving refuses and a run never copies the setting onto
-(`workflow/WorkflowService.java:1700-1708`, `engine/DAGUtility.java:151`). The graph still sees one task run per node: `retrieveTaskList` returns only task runs without a
-`parentRef` (`engine/DAGUtility.java:107`), so items are never vertices.
+task, not a task type, and only the types a dispatcher runs (`template`, `script`, `custom`, `ai`, `generic`, the
+two artifact types) and `runworkflow` may carry it — never `start` or `end`, which saving refuses
+(`workflow/WorkflowService.java:133-143`, `:1864-1872`; `engine/DAGUtility.java:146`). A for-each `runworkflow`
+task submits one child run per item ("Child workflows"). The graph still sees one task run per node:
+`retrieveTaskList` returns only task runs without a `parentRef` (`engine/DAGUtility.java:107`), so items are never
+vertices.
 
 | Step | What happens | Where |
 | --- | --- | --- |
 | Fan-out | When `queue` reaches a for-each task it resolves `foreach.items` against the task's parameter layers — a literal array, or one reference whose value is an array or text holding one — and checks the count against `workflowrun`/`max.foreach.items` (default 256). A CAS moves the parent `notstarted/pending` → `running/running` and records the resolved array on it. The parent never passes through `ready`, so it is never claimable, and it carries no claim and no `timeoutAt`, so no lease, orphan or deadline sweep reaps it | `TaskExecutionService.fanOut` `:600`, `TaskRunService.tryStartForeach` `:420` |
 | Items | One task run per element, named `<name>[<index>]`, with `parentRef`, `index`, the parent's type, task, spec, workspace, declared results, timeout, labels and annotations, no dependencies, and the parent's params plus `item` and `index`. An item is inserted only when its name is free, so the `{workflowRunRef, name}` unique index makes a concurrent duplicate lose; each unadmitted item is then queued. Items skip the graph check but pass the pause gate, the params cap and admission like any task, and are claimed, leased, timed out and retried by the machinery above | `TaskExecutionService.fanOutItems` `:636`, `newItem` `:670`, `queue` `:181-196` |
 | Parent completion | An item's end never advances the graph. After its own completion CAS it calls `completeParentIfItemsTerminal`, which first asks whether any item is unfinished or missing — an `exists` and a `count` on the parent's items — and only when none is loads the items, projected to `index`, `status` and `results`. The parent's outcome is then written field-scoped and fenced on the running phase, and the parent ends through the ordinary completion CAS, so of any number of concurrent last-item enders exactly one advances the graph. A lost end leaves the outcome recorded in the running phase, which `recoverForeachTasks` ends | `TaskExecutionService.java:545`, `:716-765`, `TaskRunService.allItemsCompleted` `:482`, `findItemOutcomes` `:491`, `tryRecordForeachOutcome` `:447` |
-| Outcome | `succeeded` when every item succeeded; otherwise `failed` with `statusReason = ItemFailed` and "`<n>` of `<m>` items did not succeed." Each declared result becomes a JSON array in item order with `null` for an item that did not succeed. When MongoDB refuses the combined arrays as over its 16 MB document limit, the parent fails with `ResultsTooLarge` and no results instead, and still ends. An empty array succeeds at once with empty arrays. Items that do not resolve to an array fail the task with `ForeachItemsInvalid`; more than the cap with `ForeachTooManyItems`, creating no item | `TaskExecutionService.java:716-778`, `:600-629` |
+| Outcome | `succeeded` when every item succeeded; otherwise `failed` with `statusReason = ItemFailed` and "`<n>` of `<m>` items did not succeed." Each declared result - or, for a task that declares none such as `runworkflow`, each result its items produced, in first-seen order (`producedResults` `:850`) - becomes a JSON array in item order with `null` for an item that did not succeed. When MongoDB refuses the combined arrays as over its 16 MB document limit, the parent fails with `ResultsTooLarge` and no results instead, and still ends. An empty array succeeds at once with empty arrays. Items that do not resolve to an array fail the task with `ForeachItemsInvalid`; more than the cap with `ForeachTooManyItems`, creating no item | `TaskExecutionService.java:716-778`, `:600-629` |
 
 An item that times out is a task timeout: it times out the whole run, which cancels the parent and the remaining
 items (`TaskExecutionService.java:529-533`). A cancel reaches every item because the cancel pass reads the stored

@@ -128,7 +128,8 @@ public class WorkflowService {
   private static final String ANNOTATION_KIND = "Workflow";
 
   private static final String TASK_REF_SEPERATOR = "/";
-  // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns.
+  // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns, and
+  // runworkflow, whose items each submit a child run.
   private static final Set<TaskType> FOREACH_TASK_TYPES =
       EnumSet.of(
           TaskType.template,
@@ -137,7 +138,8 @@ public class WorkflowService {
           TaskType.ai,
           TaskType.generic,
           TaskType.uploadartifact,
-          TaskType.downloadartifact);
+          TaskType.downloadartifact,
+          TaskType.runworkflow);
   // One whole-value reference such as $(tasks.stage.results.batches) or $(params.repos).
   private static final Pattern FOREACH_ITEM_NAME_PATTERN = Pattern.compile("^.*\\[\\d+\\]$");
   private static final Pattern FOREACH_REFERENCE_PATTERN = Pattern.compile("^\\$\\([^()\\s]+\\)$");
