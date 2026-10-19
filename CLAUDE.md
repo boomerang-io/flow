@@ -48,8 +48,9 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 | `execution-model.md` | Run states, claims and fencing, compare-and-set transitions, watcher sweeps, timeouts, retry, pause, outbox, schedules, what is deliberately not built. |
 | `data-model.md` | Collections, versioning pattern, typed fields vs labels vs annotations, indexes, the migration chain. |
 | `authorization.md` | Security switch, authentication paths, token kinds and scopes, permission checks, the relationship walk, security-off identity. |
-| `dispatcher-contract.md` | The engine–dispatcher protocol a dispatcher implements: routes (`contracts/dispatcher-v1.yaml`), polling and filters, claims, start and end, leases, compatibility policy. |
-| `task-runtime.md` | Flow's Kubernetes dispatcher, executors, the parameter/result contract, sensitive values, isolation, task catalogue. |
+| `dispatcher-contract.md` | The engine–dispatcher protocol a dispatcher implements: routes (`contracts/dispatcher-v1.yaml`), polling and filters, claims, start and end, leases, compatibility policy; and what a task is to any dispatcher: the spec and params handed out, result caps, task types, the catalogue, the AI tasks. |
+| `dispatcher-kubernetes.md` | Flow's own Kubernetes dispatcher: executors, the container's environment, volumes, isolation and placement, resources, the AI image guard. |
+| `parameters.md` | Parameter layers and references, when values resolve, substitution, admission checks, names, sensitive values and encryption at rest. |
 | `api-contract.md` | URL and error shapes, pagination, public run models (status vs phase), YAML negotiation, webhooks/CloudEvents, labels. |
 | `performance.md` | Multi-instance behaviour, queue fairness and indexes, sweep cadences, HTTP timeouts, quotas, storage benchmarks, limits not yet built. |
 | `design-system.md` | Carbon v11 + Boomerang theme: tokens, typography, components, browser support. |

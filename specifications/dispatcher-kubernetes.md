@@ -1,17 +1,19 @@
-# Task runtime
+# Flow's Kubernetes dispatcher
 
-A task runs when the engine in `service-core` admits it to the claim-based queue, a `service-dispatcher`
-instance claims it over HTTP, and a `TaskExecutor` implementation runs the task's image on Kubernetes and
-reports the results back. Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
-(`engine/TaskExecutionService.java:208-212,340`); every other type runs inside the engine. The shipped dispatcher
-registers `template`, `custom`, `script`, `ai`, `uploadartifact` and `downloadartifact` (`flow.dispatcher.task-types`,
-`service-dispatcher/src/main/resources/application.properties:100`), so a `generic` task waits in the queue until a
-dispatcher registers that type. To give AI tasks their own network zone, remove `ai` from the general dispatcher's
-list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`.
+`service-dispatcher` is Flow's own dispatcher: the dispatcher SDK's runtime (`dispatcher-contract.md`, "SDK")
+with two Kubernetes handlers, which claims tasks over HTTP and runs each one's image on Kubernetes through a
+`TaskExecutor` implementation. What a task is to any dispatcher — which types reach one, the spec and params it
+receives, the caps, the catalogue — is in `dispatcher-contract.md`; how a parameter value gets there is in
+`parameters.md`. This document is the part that is this dispatcher's own: image, command, volumes, resources,
+placement. The shipped dispatcher registers `template`, `custom`, `script`, `ai`, `uploadartifact` and
+`downloadartifact` (`flow.dispatcher.task-types`, `service-dispatcher/src/main/resources/application.properties:100`),
+so a `generic` task waits in the queue until a dispatcher registers that type. To give AI tasks their own network
+zone, remove `ai` from the general dispatcher's list and run a second dispatcher deployment with
+`flow.dispatcher.task-types=ai`. Paths below are under `service-dispatcher/src/main/java/io/boomerang/` unless they
+start with a module name.
 
 ## Flow's dispatcher
 
-`service-dispatcher` is the dispatcher SDK's runtime (`dispatcher-contract.md`, "SDK") with two Kubernetes handlers:
 `TaskService` runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:69-85`), and `WorkflowService`
 provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java:36`), wired in
 `config/DispatcherConfig.java:23-52`. SDK paths below are under `dispatcher-sdk/.../dispatcher/sdk/`.
@@ -121,85 +123,9 @@ are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives
 
-The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other references in two places, at two times:
-
-| What | When | Stored |
-| --- | --- | --- |
-| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
-
-So no secret value is ever written into a stored spec. At claim, `$(params.x)` reads the task's params as frozen at
-admission, so a requeued task gets the same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and
-`$(context.params.x)` read the run; `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec
-field are read from their stores, so an edit since admission, or across a requeue, shows (decision 0116).
-Admission has checked every reference (below), so the fill-in fails only for a workspace or global parameter
-deleted since; the task then ends `failed` with reason `SpecFillFailed` (`DispatcherService.java:396`). The
-termination order, the start and end answers and every consumer read carry the stored spec. The TaskRun's params
-are the task's declared params merged with the values authored on the workflow node (`engine/DAGUtility.java:183`).
-A `custom` task takes its runtime from its own params - `image`, `command` and `arguments` (newline-split) and
-`shellScript` - not from the catalogue entry, which declares no image (`DAGUtility.java:338`). A secret-typed one
-is copied as its reference `$(params.<name>)`, filled in at claim, so a secret `command` or `arguments` arrives as
-one element (`:370`).
-
-The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
-from their stores each time it resolves (`engine/ParameterManager.java:517`, through
-`workflow/ParamLayerService.java:108`): at run start for the run's params (`engine/WorkflowExecutionService.java:71`),
-at each task's admission (`TaskExecutionService.java:209`), at its claim for the spec, and for a for-each task's
-items at fan-out (`:620`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
-workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the revision
-it runs, so a version saved mid-run does not change it. The layers and the revision are served from a per-instance
-cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks
-admitted together share one read of each store. A global or workspace parameter edited mid-run reaches the tasks
-admitted after the edit: at once on the instance that took the edit, which clears its cache, and within the TTL on
-the others. Each task run keeps the param values it was admitted with.
-
-Parameter references, by where the value comes from (`engine/ParameterManager.java`, `common/model/ParamLayers.java`):
-
-| Reference | Value from |
-| --- | --- |
-| `$(params.x)` | The nearest layer that defines `x`: the task, then the workflow, then workspace and global |
-| `$(workflow.params.x)` | The workflow's parameters |
-| `$(workspace.params.x)` | The workspace's parameters. `$(team.params.x)` still resolves, is deprecated, logs a warning once per reference, and is removed in the next major version; the editor suggests only `workspace` |
-| `$(global.params.x)` | Global parameters |
-| `$(context.params.x)` | Run context (`workflowrun-*` keys) |
-| `$(tasks.t.results.r)` | A result of task `t` |
-
-Substitution writes into string leaves directly, so a replacement's quotes, newlines, backslashes and `$` are
-inserted verbatim: a multi-line prompt, a JSON body or a result with a trailing newline reaches the container byte
-for byte (`ParameterManager.replaceStringInObject`). It also runs over the values it inserts, so configuration
-composes - a workspace value containing `$(global.params.x)` resolves - except for three kinds of value, inserted
-as written with their `$(` escaped (`ParameterManager.java:591,739`):
-
-| Inserted as written | Why |
-| --- | --- |
-| A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
-| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:86`, `:557`). Such a param is also kept as it arrived at run start (`:170`). On a manual, scheduled or API-submitted run every value resolves |
-| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:294`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
-
-A task that defines `x` itself resolves its own `$(params.x)` even when the run's `x` was supplied. A non-string
-replacement interpolated **into** a larger string is written as JSON (`{"k":"v"}`), as the dispatcher encodes it.
-
-Admission checks each Flow reference - `$(params.…)`, `$(<scope>.params.…)`, `$(tasks.<name>.results.…)` - in the task's
-params, `script`, `command`, `arguments` and env values (`ParameterManager.java:152`); `$(date)` and the like are shell.
-
-| Reference | Declared when | Declared, no value at run time | Not declared |
-| --- | --- | --- | --- |
-| `$(tasks.t.results.r)` | `t` is a task in the run's workflow revision and declares `r` - on its node for `script`, `custom` and `generic`, else on its catalogue revision (`TaskService.getSpecs`); a task declaring no results allows any `r` (`ParameterManager.java:649-670`) | `""` - skipped, not yet run, failed and continued, or `r` not emitted | `task 't' is not in this workflow` / `task 't' declares no result 'r'` |
-| `$(params.x)`, `$(<scope>.params.x)` | A layer that reference reads holds `x`, with or without a value (`:630`) | `""` (`:836`) | `no such param 'x'` (`no such global param 'x'`, …) |
-| `$(params.cfg.path)` | `cfg` is declared | `""` when the path matches nothing | `no such param 'cfg'` |
-
-An undeclared reference fails the task before it is claimable - `failed`, reason `ParamUnresolved`, a message naming
-task, field, reference and why: `Task 'deploy': script references $(params.registryTokn): no such param 'registryTokn'`
-(`TaskExecutionService.java:209`). Values inserted as written are not scanned; a run's own params are not checked.
-
-An `object`-typed param resolves to the referenced structure itself only when its value is **exactly one
-reference** - `"$(params.config)"`, ignoring surrounding whitespace (`ParameterManager.isSingleReference`). Any
-other `object` value keeps its shape: the string leaves and keys are substituted in place, so
-`{"url": "$(params.host)/api", "retries": 3}` becomes `{"url": "https://example.com/api", "retries": 3}`, and a leaf
-that is a whole reference to an object is written as JSON. If substitution fails - a value that resolves to itself,
-say - the value is passed through unchanged and the failure is logged with its shape, never its content.
-
-The dispatcher then sets these environment variables (`kube/KubeHelperService.java:111-149`):
+The engine has filled in every reference before the task reaches the dispatcher: params at admission, the spec on
+the claim (`parameters.md`; `dispatcher-contract.md`, "What a poll hands out"). The dispatcher then sets these
+environment variables (`kube/KubeHelperService.java:111-149`):
 
 | Variable | Value |
 | --- | --- |
@@ -211,42 +137,22 @@ The dispatcher then sets these environment variables (`kube/KubeHelperService.ja
 
 Explicitly declared task env vars win on a name collision (`KubeHelperService.java:145-147`). There is no
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
-param carrying the path.
+param carrying the path. An item of a for-each task carries `item` and `index` like any other param
+(`dispatcher-contract.md`, "What a poll hands out"), so the container sees `PARAM_ITEM` and `PARAM_INDEX`. A
+secret-typed param is built into `PARAM_<NAME>` exactly as a string; there is no per-task Kubernetes Secret yet
+(decision 0115).
 
-An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claimed by `id` and run like any
-other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
-JSON-encoded) and `index` (its position from 0, as text), so the container sees `PARAM_ITEM` and `PARAM_INDEX`,
-and `$(params.item)` resolves in the spec. Its params resolve when the item is admitted and its spec when it is
-claimed, not when the parent fans out (`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspace as the parent,
-so all items of a run share the run's workspace.
+## Results on Kubernetes
 
-## Results and payload caps
-
-The params cap is the engine's, identical on every executor. The results limit belongs to the dispatcher that
-runs the task: on Kubernetes it is the 4096-byte container termination message, enforced by the dispatcher. The
-engine's results setting is only a storage guard, so a faulty dispatcher cannot grow a task run toward MongoDB's
-16 MB document limit. A task reports only the result names its definition declares
-(`TerminationMessageParser.java:24-27,72-73`).
-
-| Cap | Property (`service-core/.../application.properties:176-177`) | Where checked | Effect |
-| --- | --- | --- | --- |
-| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:205-219`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
-| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:909-919`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
-
-On Kubernetes an oversize payload never reaches the engine, because Kubernetes truncates a container
-termination message at 4096 bytes and the truncated prefix is broken JSON. `TerminationMessageParser` reports an
-unparseable message as absent rather than as "no results", and `KubeJobsExecutor.readResults` fails the task with
-`ResultsTooLarge` when the pod log carries Kubernetes' own too-large line or when the unparseable message is at
-the ceiling; a short unparseable message is a task writing something that is not a results payload, so it is
-logged and carries no results. On Tekton the overflow fails the TaskRun itself and is mapped the same way
-(`TektonServiceImpl.java:606`).
-
-A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
-the parent's results are the per-item values collected into arrays by the engine
-(`TaskExecutionService.completeParentIfItemsTerminal` `:716`), with no cap of their own. When MongoDB refuses the
-combined arrays as over its 16 MB document limit, the parent fails with `statusReason = ResultsTooLarge` and no
-results, and the run moves on (`TaskExecutionService.java:750-778`). A task that consumes the array still meets
-the params cap at its own admission.
+The results limit belongs to the dispatcher that runs the task (`dispatcher-contract.md`, "Ending"): on Kubernetes
+it is the 4096-byte container termination message, enforced here. An oversize payload never reaches the engine,
+because Kubernetes truncates a container termination message at 4096 bytes and the truncated prefix is broken JSON.
+`TerminationMessageParser` reports an unparseable message as absent rather than as "no results", and
+`KubeJobsExecutor.readResults` fails the task with `ResultsTooLarge` when the pod log carries Kubernetes' own
+too-large line or when the unparseable message is at the ceiling; a short unparseable message is a task writing
+something that is not a results payload, so it is logged and carries no results. On Tekton the overflow fails the
+TaskRun itself and is mapped the same way (`TektonServiceImpl.java:606`). A task reports only the result names its
+definition declares (`TerminationMessageParser.java:24-27,72-73`).
 
 ## Run labels on Kubernetes objects
 
@@ -264,136 +170,17 @@ merged into a TaskRun, Job or volume's labels — one place all executors share.
 Every alteration is logged at debug. So `team/name=platform/flow` is written as `team/name=platform_flow`
 rather than failing the volume with a 422.
 
-## Task versions on a workflow node
-
-A workflow node's `taskVersion` is pinned when the workflow is saved, not when it runs:
-`WorkflowService.createWorkflowRevisionEntity` resolves each non-start/end node through
-`TaskService.retrieveAndValidateTask` and stamps the resolved version onto the node — the version the node asked
-for, or the catalogue's latest when it asked for none. At run time `DAGUtility.createTaskList` resolves the same
-way and records the result on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version
-still resolves latest. Publishing a new Task version therefore changes nothing for workflows already saved
-against an older one, which is the point: a run is reproducible from its revision. To move a workflow forward,
-save it again with the node's `taskVersion` set to the target version (or omitted, to take latest); the editor
-surfaces this per node as a "New version available" prompt, driven by the `upgradesAvailable` flag
-`WorkflowService.areTaskUpgradesAvailable` sets
-(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
-
-## Parameter names
-
-Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
-to `PARAM_NAMES` (`service-core/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
-the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
-with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1782-1819`). Matching is case-insensitive everywhere:
-`$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:764`), and the node-value
-merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
-substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
-parameter (`engine/TaskExecutionService.java`, `runWorkflow`). The safety pair is rejection at save: names that
-are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PARAM_NAME_COLLISION` (code 1209,
-`BoomerangError.java:50`) at workflow save (`workflow/WorkflowService.java:1593-1599`) and task save
-(`workflow/TaskService.java:366-374`); the dispatcher repeats the check at dispatch (`KubeHelperService.java:131-140`).
-
-## Sensitive parameters
-
-A secret is a parameter type: `ParamType.secret` beside `string`, `array` and `object`
-(`service-core/.../enums/ParamType.java:15`), carried on every `RunParam` on the wire
-(`common/model/RunParam.java:17`; absent means `string`). A secret is a string only. Values are filtered
-on the way up only; the engine, the claim and the container see the real value.
-
-| How a param becomes `secret` | Where |
-| --- | --- |
-| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
-| Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:90`) |
-| A workflow node or schedule value whose declared param is `password` - the task template's, or the workflow's latest revision when the schedule is saved - is stamped at save | `ParameterUtil.stampSecretParams` (`:65`), from `WorkflowService` and `schedule/ScheduleService.java:242` |
-| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:193`) |
-
-Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:291`): a
-reference is a secret when the workflow or task layer that wins `params.<name>` holds a secret, so
-`dsn = "postgres://app:$(params.dbPassword)@db"` becomes a secret with the resolved value. Arrays and
-objects keep their type when a secret is substituted into them - a secret is a string only - and rely on
-the value scrub below. The global and workspace layers are read from their typed stores
-(`ParamLayerService.buildParamLayers`), so a password-typed global or workspace parameter is a secret too:
-`$(global.params.registryToken)`, `$(workspace.params.dbPass)` and the flat `$(params.<name>)` that one of
-them wins all taint. At submit, a secret whose value is not a string is rejected with
-`PARAM_SECRET_NOT_STRING` (1217, `WorkflowService.rejectNonStringSecrets`), and an unknown `type` with
-`PARAM_INVALID_TYPE` (1216, `core/RestExceptionHandler.java:109`).
-
-Redaction by type is authoritative for params: every consumer read replaces a secret-typed param's value
-with `*****` (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`, `DataAdapterUtil.java:298`),
-copying rather than mutating, because a model built with `BeanUtils.copyProperties` shares its lists with the entity.
-Definitions are filtered on every `/api/v2` read too; an edit that sends a hidden value back as `*****` or a blank
-keeps the stored one (`keepParamSpecValueByFieldType` `:140`, `keepRunParamValueByFieldType` `:268`).
-
-| Read | Filter |
-| --- | --- |
-| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:185-209`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:582`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit (`:983`, `:1152`) |
-| `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
-| Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
-| Catalogue task `get`, `query`, Tekton YAML, create and apply responses (global and workspace routes) | A `password` default reads `*****` (`workflow/TaskService.java:200`); `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses | A `password` default reads blank - the run form's convention, where a blank leaves the default to apply - and a task node's secret value `*****`, its type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:317`). Apply keeps both from the latest revision by param name, and by node name for a node; with nothing stored (a new workflow, or an export imported elsewhere) a hidden default is saved blank and a hidden node value is dropped, so the task's default applies (`:1754`). Duplicate copies the unfiltered workflow (`:862`) |
-| Workflow canvas (`composeGet`, the `composeApply` response) | Deliberately not filtered; the workflow-level default is blanked in the `composeApply` response as before |
-| Schedule `get`, `query`, create and apply responses | Type (`schedule/ScheduleService.java:249`); `internalGet`, which fires the run, is not filtered. Apply keeps a hidden secret |
-
-The name join and value scrub remain for runs stored before params carried a type and for secrets that
-land in free text. The join takes the definitions: the workflow revision's param spec and each
-catalogue task's own spec (reached through `TaskRun.taskRef` + `taskVersion`, resolved in one batch by
-`TaskService.getSpecs`); each blanks its own password-typed params by name. The **union** of those values
-and of every secret-typed param's value is scrubbed run-wide - from results and from every task's params,
-spec fields (script, command, arguments, envs) and results, because substitution moves a value into any of
-them under another name (`DataAdapterUtil.java:298-420`).
-
-No value of a secret reaches a log, at any level. Log lines name params, tasks and Kubernetes objects
-and never print a value (`ParameterUtil.runParamNames`, `ParameterUtil.java:128`; the executors log
-`Created Job|TaskRun <name> in <namespace> (image ...)`). Behind them, `toString` prints a secret
-`RunParam` and a `password` field's default and value as `*****`, an env var by name only, and leaves a
-run spec's script, command and arguments out (`RunParam.java:36`, `AbstractParam.java:50`,
-`TaskEnvVar.java:24`, `TaskRunSpec.java:18-22`). Boomerang loggers default to INFO; DEBUG is opt-in.
-
-The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
-every task of the owning run (`service-core/.../FilterValuesOutputStream.java:21`). The dispatcher ends the
-stream when the pod finishes (`kube/KubeLogService.java:24`); its asynchronous completion skips a second
-authorization (`core/security/SecurityConfiguration.java:94-95`). A resolved value shorter than four characters
-is blanked by name but not value-scrubbed, which would mangle unrelated text (decision 0043).
-
-The union also holds the current values of the run workspace's password-typed **global and workspace**
-parameters (`workflow/ParamLayerService.java:162`, read uncached once per workspace per response;
-`WorkflowRunService.java:192,489`), which no definition declares yet substitution writes into task params,
-scripts and results. A run that used a value since rotated keeps showing it.
-
-Downward, the dispatcher reads `type` (`dispatcher-sdk/.../model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
-and builds `PARAM_<NAME>` for a secret exactly as for a string. There is no per-task Kubernetes Secret yet;
-see decision 0115.
-
-Secret values are encrypted at rest and plain in memory (decision 0116). `core/config/SecretValueMongoListener.java`
-works on the BSON document: it encrypts on save (`:59`) and decrypts on load before the document is mapped
-(`:66`), so every read - repository, template, find-and-modify, aggregation - hands out plaintext, the masking
-above works unchanged, and nothing in Flow sees ciphertext. The two admission writes set params through a Mongo
-update, which never reaches the save hook, so they seal the values themselves (`sealRunParams` `:76`;
-`TaskRunService.java:336`, `WorkflowRunStateHelper.java:164`). The cipher is `core/SecretCipher.java`, shared with
-secured settings: AES-256-GCM under `flow.encrypt.secret`/`flow.encrypt.salt`, written as
-`crypt_v1{AESGCM|<ciphertext>}`. A value already carrying the label is not encrypted again, a value without it
-loads as it is and is encrypted on its next save, and a value that will not decrypt is kept as stored. The
-encrypted fields are listed in `data-model.md`, "Secret values at rest". A workflow node's value for a param its
-task declares as `password` is stamped `type: secret` when the workflow is saved (`workflow/WorkflowService.java:1739`).
-
 ## Volumes and workspaces
 
 Every task gets `/data`, a per-pod `emptyDir` (RAM-backed when `kube.task.storage.data.memory=true` and the task
 param `worker.storage.data.memory` is set; `KubeJobsExecutor.java:254-268`, `TektonServiceImpl.java:253`). Shared
-storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
-`accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
-submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1966`). The
-dispatcher provisions one persistent volume claim (PVC) keyed by the run id, labelled `boomerang.io/tier=workspace`
-and `boomerang.io/workspace-ref=<run id>`, before the run starts (`dispatcher/WorkflowService.java:42-57`), and
-deletes it when its reconciliation finds the run completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume
-is shared between runs: files that must survive a run are artifacts with scope `workflow` ("Artifacts" in
-`data-model.md`).
-
-Which tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's
-workspace unless its node says `workspace: false` (`engine/DAGUtility.java:229-240`); the canvas offers no way to
-set that, so the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath`
-settled to the declared path or `/workspace`, so nothing later in the run changes it. Both executors mount that one
-claim at that path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212-217`, one declaration and one
+storage is one workspace per run, declared on the workflow and copied onto the run and each TaskRun with its
+`mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher provisions one persistent volume claim
+(PVC) keyed by the run id, labelled `boomerang.io/tier=workspace` and `boomerang.io/workspace-ref=<run id>`, before
+the run starts (`dispatcher/WorkflowService.java:42-57`), and deletes it when its reconciliation finds the run
+completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume is shared between runs: files that must survive
+a run are artifacts with scope `workflow` ("Artifacts" in `data-model.md`). Both executors mount that one claim at
+the TaskRun's path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212-217`, one declaration and one
 binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
 hold the claim, so under `Never` it stays `Terminating` until retention removes them.
 
@@ -459,37 +246,15 @@ Kubernetes-only.
 
 ## AI tasks
 
-An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references one of
-two seeded catalogue tasks of type `ai`, the engine treats it as any other dispatched type, and the dispatcher runs
-the image and command the revision declares (`boomerangio/task-ai:2.0.0` with `prompt` or `agent`), exactly as it
-does for `custom` or `template` (a revision with an image and no command runs the image's own entrypoint; one with
-no image is refused as `NO_TASK_IMAGE`; `service-dispatcher/.../executor/TaskImageResolver.java:91-98`,
+An `ai` revision declares its image and command (`dispatcher-contract.md`, "AI tasks"), and this dispatcher runs
+them exactly as it does for `custom` or `template` (a revision with an image and no command runs the image's own
+entrypoint; one with no image is refused as `NO_TASK_IMAGE`; `executor/TaskImageResolver.java:91-98`,
 `dispatcher/TaskService.java:118-130`). There is no worker-image property: every `ai` revision declares its image.
 That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
 `boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
 `ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
 property (`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone
-for the worker alone unless an operator adds a prefix. An `ai` task never runs a script. Everything the model call
-needs is a declared param:
-
-| Task | Params | Results |
-| --- | --- | --- |
-| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace) | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
-| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all | The 9 plus `turns` and `toolCalls` |
-
-The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) are copies of the definition files in the
-`boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which are the source of the
-contract: a change there is one PR in that repository and a seed sync here, and a param or result added on one side
-has to land on the other. The worker is a task image, not a product image: it is released from the same repository
-on its own `task-ai@<version>` tags, each revision pins the exact `boomerangio/task-ai:<version>` it was written
-against, and a deployment moves to a newer worker by seeding a new revision. `slider` is the only param type with a
-numeric range, so `AbstractParam` carries nullable `min`, `max` and `step` beside `options`
-(`service-core/.../model/AbstractParam.java`). JSON-valued params are `json` text the image parses up front, failing
-`INVALID_PARAM` with the param's name. Params reach the image as `PARAM_<NAME>` environment variables and results
-come back through `RESULTS_PATH`, as flat typed results under the same caps as every other task (decision 0041: the
-1 MB engine guard, and 4 KB on the Kubernetes dispatcher), so a long `output` fails the task with
-`RESULTS_TOO_LARGE` rather than truncating; `outputFile` and the task log carry what does not fit. There is no usage
-field and no meter: a platform sums `totalTokens` across task runs through the existing query API.
+for the worker alone unless an operator adds a prefix. An `ai` task never runs a script.
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
@@ -500,45 +265,6 @@ and `token` params still arrive as `PARAM_ENDPOINT` and `PARAM_TOKEN` and win in
 (`DispatcherService.java:260-340`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher
 deployment — its own namespace, egress policy and `runtimeClassName` — exactly as decision 0042 frames
 isolation tiers. No configuration separates zones inside one dispatcher.
-
-**Token delivery.** `token` is password-typed, so it is a `secret` param: a literal typed into the node or a
-reference to a workflow param reads as `*****` on the run reads and is scrubbed from the log stream, per
-"Sensitive parameters" above. Downward it is a plain `PARAM_TOKEN`
-environment variable on the pod, like every other param — there are no per-task secrets yet, so anyone who
-can read the pod spec or exec into the pod can read the token.
-
-## Task catalogue
-
-Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
-migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
-`task_revisions`, matched by name and inserting only what is absent
-(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
-follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
-after a release needs a change unit of its own to reach an existing database, which is what
-`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
-an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
-The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
-(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
-install, `_0019__V3UpgradeCatalogueRevisions` adds whichever of them the seeded revision declares and the install's
-revision lacks, and moves any revision off the retired `worker-flow` image (`:44-46,72`).
-
-## Task types handled inside the engine
-
-`TaskType` (`service-core/.../enums/TaskType.java:15-32`) is dispatched in `TaskExecutionService.java:320-373`.
-
-| Type | Behaviour |
-| --- | --- |
-| `start`, `end` | Structural nodes of the graph; never executed |
-| `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `decision` | Evaluates the branch and ends `succeeded` |
-| `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
-| `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |
-| `runscheduledworkflow` | Schedule another workflow to run later, then end |
-| `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
-| `approval`, `manual` | Create an action and wait for a person |
-| `eventwait` | Wait for a matching inbound event unless pre-approved |
-| `sleep` | Park as waiting; the watcher completes it after the duration |
-| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
 
 ## Not built
 

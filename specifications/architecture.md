@@ -132,7 +132,7 @@ escape, so a single-architecture image simply fails to pull on the other.
 Task images are not product images and are not on this list: the catalogue images and the AI worker
 (`boomerangio/task-ai`, which the `ai-prompt` and `ai-agent` revisions pin by tag) are built and released from the
 `boomerang-io/tasks` repository on their own version lines, and the dispatcher runs the image an `ai` revision
-declares, under an allowed prefix (see `task-runtime.md`). One product tag still builds every product image
+declares, under an allowed prefix (see `dispatcher-kubernetes.md`). One product tag still builds every product image
 (decision 0006).
 
 The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets its

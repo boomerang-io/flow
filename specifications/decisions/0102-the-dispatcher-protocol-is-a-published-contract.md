@@ -5,7 +5,8 @@
 ## Context
 
 ARCHIE will run its own in-process dispatcher, and the non-container executors under discussion are dispatchers
-too. The protocol was described only inside `task-runtime.md` and implemented only inside `service-dispatcher`,
+too. The protocol was described only inside the Kubernetes dispatcher's reference document (now
+`dispatcher-kubernetes.md`) and implemented only inside `service-dispatcher`,
 tied to Kubernetes and Tekton, and its wire models sat in the `lib-common` module, since folded into `service-core`.
 
 ## Options
