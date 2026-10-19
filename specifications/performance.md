@@ -140,8 +140,9 @@ quiet-but-healthy stream is not cut at the control read timeout (`core/config/Re
 | `streamingRestTemplate` (`:110-116`) | 10 s | 10 min | 10 s | Trust-all | Dispatcher log streams |
 
 Pool: 200 total / 200 per route, keep-alive 5 min (`:48-54,174-189`). Companions: Mongo
-`connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout 600 s
-for the log stream (`:49`); dispatcher task default 60 min when the task sets none plus a 2 min watch
+`connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout two hours
+for a streamed response, so a running task's log is followed for that long, on both core (`:72`) and the
+dispatcher (`service-dispatcher/src/main/resources/application.properties:7`); dispatcher task default 60 min when the task sets none plus a 2 min watch
 grace (`service-dispatcher/src/main/resources/application.properties:41,28`).
 
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all

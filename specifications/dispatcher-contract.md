@@ -222,6 +222,12 @@ and MAY both serve live and upload. A dispatcher with no HTTP surface registers 
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
 dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
 
+A live route MUST write each line as the task writes it and flush it, never collect the body first: core relays
+every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:122`), and its scrub of the run's secrets
+passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about when the
+task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`, `application.properties:72`)
+and is cut by core after 10 minutes with no byte (`core/config/RestConfig.java` `STREAMING_READ_MINUTES`).
+
 ## Trace context
 
 Flow stores no traces; a task and a dispatcher export their own OpenTelemetry spans to the operator's backend

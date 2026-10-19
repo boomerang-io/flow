@@ -51,6 +51,10 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
   route accepts only the bearer generated at every start and registered as `logsToken`
   (`dispatcher/LogAuthFilter.java`, `config/DispatcherConfig.java`). `flow.dispatcher.logs.url` is the address the
   engine reads it at, registered as `logsUrl`; blank registers none, and a running task then has no log to follow.
+  A running pod's log is followed (`watchLog`) and every read is written and flushed at once
+  (`kube/KubeLogService.java` `watchedPodLog` `:122`, `copyAsWritten` `:273`); a Pending pod is answered with one
+  "waiting for the task's container to start" line and followed once it starts, or told it has not started after
+  five minutes (`startingPodLog` `:148`); a finished pod is read once (`finishedPodLog` `:190`).
   With `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the
   runtime object is deleted and stored with the engine, where it is served first and outlives the pod
   (`dispatcher/TaskService.java`, `storeLog`; `dispatcher-contract.md`, "Logs").

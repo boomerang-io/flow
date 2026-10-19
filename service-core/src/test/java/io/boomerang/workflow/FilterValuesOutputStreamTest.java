@@ -58,4 +58,51 @@ class FilterValuesOutputStreamTest {
         DataAdapterUtil.REDACTED + " and " + DataAdapterUtil.REDACTED + "\n",
         scrubbed(Set.of(SECRET, "s3cond"), SECRET + " and s3cond\n"));
   }
+
+  @Test
+  void aFlushPassesCompletedLinesOnAndHoldsAnUnfinishedOne() throws IOException {
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    FilterValuesOutputStream stream = new FilterValuesOutputStream(sink, Set.of(SECRET));
+
+    stream.write("tick-1\ntick-".getBytes(StandardCharsets.UTF_8));
+    stream.flush();
+    assertEquals("tick-1\n", sink.toString(StandardCharsets.UTF_8));
+
+    stream.write("2\n".getBytes(StandardCharsets.UTF_8));
+    stream.flush();
+    assertEquals("tick-1\ntick-2\n", sink.toString(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void aSecretSplitAcrossTwoFlushedReadsIsNeverForwardedInHalves() throws IOException {
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    FilterValuesOutputStream stream = new FilterValuesOutputStream(sink, Set.of(SECRET));
+
+    stream.write("auth: ghp_sec".getBytes(StandardCharsets.UTF_8));
+    stream.flush();
+    assertEquals("", sink.toString(StandardCharsets.UTF_8));
+
+    stream.write("ret42\n".getBytes(StandardCharsets.UTF_8));
+    stream.flush();
+    assertEquals("auth: " + DataAdapterUtil.REDACTED + "\n", sink.toString(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void finishForwardsTheUnfinishedTailAndLeavesTheStreamOpen() throws IOException {
+    boolean[] closed = {false};
+    ByteArrayOutputStream sink =
+        new ByteArrayOutputStream() {
+          @Override
+          public void close() {
+            closed[0] = true;
+          }
+        };
+    FilterValuesOutputStream stream = new FilterValuesOutputStream(sink, Set.of(SECRET));
+
+    stream.write(("last " + SECRET).getBytes(StandardCharsets.UTF_8));
+    stream.finish();
+
+    assertEquals("last " + DataAdapterUtil.REDACTED, sink.toString(StandardCharsets.UTF_8));
+    assertEquals(false, closed[0]);
+  }
 }

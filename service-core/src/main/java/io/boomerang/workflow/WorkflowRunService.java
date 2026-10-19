@@ -504,7 +504,11 @@ public class WorkflowRunService {
     if (secrets.isEmpty()) {
       return body;
     }
-    return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
+    return outputStream -> {
+      FilterValuesOutputStream scrubbed = new FilterValuesOutputStream(outputStream, secrets);
+      body.writeTo(scrubbed);
+      scrubbed.finish();
+    };
   }
 
   // The resolved values of every password-typed param on the owning run, per DataAdapterUtil's

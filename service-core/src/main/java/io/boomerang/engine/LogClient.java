@@ -5,6 +5,9 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -92,7 +95,7 @@ public class LogClient {
           };
       ResponseExtractor<Void> responseExtractor =
           response -> {
-            response.getBody().transferTo(outputStream);
+            copyAsWritten(response.getBody(), outputStream);
             return null;
           };
       LOGGER.info("Starting TaskRun[{}] log stream from {}", task.getId(), source.uri());
@@ -109,6 +112,23 @@ public class LogClient {
       }
       LOGGER.info("Finished TaskRun[{}] log stream.", task.getId());
     };
+  }
+
+  /**
+   * Copy a live log to the reader as it arrives: every read is written and flushed at once, so a
+   * line reaches the reader when the dispatcher sends it rather than when the response buffer
+   * fills or the task ends.
+   */
+  static long copyAsWritten(InputStream in, OutputStream out) throws IOException {
+    byte[] buffer = new byte[8192];
+    long copied = 0;
+    int read;
+    while ((read = in.read(buffer)) != -1) {
+      out.write(buffer, 0, read);
+      out.flush();
+      copied += read;
+    }
+    return copied;
   }
 
   static URI buildLogStreamUri(
