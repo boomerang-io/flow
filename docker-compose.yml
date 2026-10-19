@@ -149,7 +149,6 @@ services:
       FLOW_DISPATCHER_NAME: orbstack-kube-jobs
       FLOW_ENGINE_SERVICE_HOST: ${FLOW_ENGINE_SERVICE_HOST:-host.docker.internal:7700}
       FLOW_ENGINE_DISPATCHER_TOKEN: ""
-      FLOW_DISPATCHER_LEASE_ENABLED: "true"
       # Registered with the engine as where it reads a running task's log, with the bearer the
       # dispatcher generates at start. service-core on the host reaches the published port; set
       # FLOW_DISPATCHER_LOGS_URL=http://service-dispatcher:7702/api/v1/logs/stream with the `stack`

@@ -61,6 +61,11 @@ public class TaskRunService {
   @Value("${flow.engine.task.log.max-bytes:10485760}")
   private int logMaxBytes;
 
+  // Lease length set at claim and renewed by each heartbeat - see the property's own comment in
+  // application.properties for the floor and why it must stay there.
+  @Value("${flow.dispatcher.lease-ms:90000}")
+  private long leaseMillis;
+
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
 
@@ -285,8 +290,9 @@ public class TaskRunService {
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
   // cannot both win. Bakes the task's real deadline (claimedAt + effectiveTimeout + grace) in the
   // same write, computed once here from the pre-claim document - the same RunTimeouts helper
-  // tryStartExecution uses, so the two cannot drift. A dispatcher that dies before reporting the
-  // start is still caught by the same timeout sweep that reaps a stalled execution.
+  // tryStartExecution uses, so the two cannot drift. The same write sets the first lease, so a
+  // claim its dispatcher never heartbeats - one lost in a crash and restart under the same
+  // dispatcher id - is reaped once the lease lapses.
   // Returns the pre-image, or null when another claimant won.
   public TaskRunEntity tryClaim(String id, String claimedBy) {
     Date now = new Date();
@@ -308,11 +314,13 @@ public class TaskRunService {
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
     Date timeoutAt = RunTimeouts.deadline(now, current.getTimeout());
+    Date leaseExpiresAt = new Date(now.getTime() + leaseMillis);
     Update update =
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
             .set("claim.at", now)
+            .set("claim.leaseExpiresAt", leaseExpiresAt)
             .inc("claim.seq", 1)
             .unset("retry.after");
     if (timeoutAt != null) {
@@ -326,6 +334,7 @@ public class TaskRunService {
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
       preImage.setClaim(claimApplied(preImage.getClaim(), claimedBy, now));
+      preImage.getClaim().setLeaseExpiresAt(leaseExpiresAt);
       preImage.setTimeoutAt(timeoutAt);
     }
     return preImage;
@@ -624,10 +633,10 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
-  // Renew the lease on the ids this dispatcher still owns, fenced on claim.by so ids the caller
-  // does not own are silently skipped. A dispatcher's first heartbeat for a TaskRun CREATES its
-  // lease - tryClaim never sets one - opting the dispatcher into lease-based reaping.
-  public long renewLeases(List<String> ids, String by, Date until) {
+  // Renew the lease on the ids this dispatcher still owns, one lease length from now, fenced on
+  // claim.by so ids the caller does not own are silently skipped.
+  public long renewLeases(List<String> ids, String by) {
+    Date until = new Date(System.currentTimeMillis() + leaseMillis);
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -640,8 +649,8 @@ public class TaskRunService {
     return mongoTemplate.updateMulti(query, update, TaskRunEntity.class).getModifiedCount();
   }
 
-  // Return the page of TaskRuns whose lease has expired - a dispatcher that heartbeated at least
-  // once and then went quiet without deregistering (reapClaimsFromGoneDispatchers only catches a
+  // Return the page of TaskRuns whose lease has expired - a dispatcher that stopped heartbeating a
+  // claim without its registration going stale (reapClaimsFromGoneDispatchers only catches a
   // dispatcher whose registration itself is gone/stale). Oldest lease first.
   public List<TaskRunEntity> findLeaseExpired(int limit) {
     Criteria criteria =

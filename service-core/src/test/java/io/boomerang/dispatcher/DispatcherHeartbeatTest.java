@@ -22,10 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * The heartbeat endpoint (DispatcherControllerV1 PUT /{id}/heartbeat) is what CREATES a TaskRun's
- * lease - {@link io.boomerang.engine.TaskRunService#tryClaim} never sets {@code
- * claim.leaseExpiresAt}, so a dispatcher that never heartbeats opts itself out of
- * WorkflowWatcher.reapExpiredLeases entirely (opt-in by behaviour).
+ * The heartbeat endpoint (DispatcherControllerV1 PUT /{id}/heartbeat) renews the lease on the
+ * TaskRuns the calling dispatcher owns and refreshes its liveness; the claim set the first lease.
  */
 class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
 
@@ -89,7 +87,7 @@ class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
 
     assertEquals(1, renewed, "only the caller's own claim is renewed");
     TaskRunEntity ownedAfter = taskRunRepository.findById(owned.getId()).orElseThrow();
-    assertNotNull(ownedAfter.getClaim().getLeaseExpiresAt(), "the first heartbeat creates the lease");
+    assertNotNull(ownedAfter.getClaim().getLeaseExpiresAt(), "the heartbeat sets the lease");
     TaskRunEntity notOwnedAfter = taskRunRepository.findById(notOwned.getId()).orElseThrow();
     assertNull(
         notOwnedAfter.getClaim().getLeaseExpiresAt(),
@@ -116,7 +114,7 @@ class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
         withPhaseAndStatus(terminal, RunPhase.completed, RunStatus.succeeded));
 
     long renewed =
-        taskRunService.renewLeases(List.of(terminal.getId()), owner, new Date());
+        taskRunService.renewLeases(List.of(terminal.getId()), owner);
 
     assertEquals(0, renewed, "a terminal TaskRun must never be renewed");
     TaskRunEntity after = taskRunRepository.findById(terminal.getId()).orElseThrow();

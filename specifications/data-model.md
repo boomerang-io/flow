@@ -214,7 +214,9 @@ A download whose artifact does not exist fails the task with `ArtifactRefused`, 
 ends succeeded gets `found=true` appended by the engine (`engine/TaskRunService.java` `reportArtifactFound`
 `:1056`), so a decision after the task can branch on `found`. The store is any S3-compatible service
 (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*` and off unless `flow.artifacts.enabled`
-(`workflow/config/ArtifactStoreConfiguration.java:28`).
+(`workflow/config/ArtifactStoreConfiguration.java:30`). Its client sends checksums only where S3 requires them
+(`:83-84`): the SDK's default checksum on every upload is refused intermittently by S3-compatible stores such as
+SeaweedFS, while AWS S3 and MinIO accept either.
 
 ## Migrations
 `service-core` runs every pending change unit on Flamingock while its context starts, before the web server,

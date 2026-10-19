@@ -434,7 +434,11 @@ public final class Dispatcher implements AutoCloseable {
       return this;
     }
 
-    /** How often to renew leases; zero or null sends no heartbeat. */
+    /**
+     * How often to renew leases. The engine sets a 90 s lease at claim, so it MUST stay well under
+     * that; zero or null sends no heartbeat, and the engine then requeues every claim once its
+     * first lease lapses.
+     */
     public Builder heartbeatInterval(Duration heartbeatInterval) {
       this.heartbeatInterval = heartbeatInterval;
       return this;

@@ -81,6 +81,11 @@ tag's release notes.
 - **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
   encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
   migration.
+- **A dispatcher must heartbeat every task it holds; `flow.dispatcher.lease.enabled` is gone.** A claim now carries
+  a lease from the moment it is made, 90 s ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a
+  claim its dispatcher stops reporting is requeued even when the dispatcher restarts under the same id. Flow's
+  Kubernetes dispatcher and the dispatcher SDK heartbeat every 30 s from the claim; a dispatcher written against
+  the protocol directly that sends no heartbeat has every claim requeued 90 s after it was made.
 
 ### Added
 
@@ -114,6 +119,9 @@ tag's release notes.
 
 ### Changed
 
+- Task logs and artifacts store reliably on S3-compatible stores such as SeaweedFS: the store's client sends
+  checksums only where S3 requires them, so a log is no longer refused now and then with "The Content-Md5 you
+  specified is not valid".
 - Settings are built from the shipped seed on first start, carrying an upgraded install's own values, so an
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.
@@ -150,3 +158,7 @@ tag's release notes.
   `io.boomerang:dispatcher-sdk`; the wire is unchanged.
 - A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
   and is kept when the YAML is applied back unchanged.
+- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas
+  enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
+  poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
+  rest of the poll is still handed out.

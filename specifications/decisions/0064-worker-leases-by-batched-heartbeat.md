@@ -26,8 +26,8 @@ Option C. Each executor thread stamps `LeaseRegistry` before its first wait and 
 (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `renewLeases`) with
 `flow.dispatcher.lease-ms` (90 s); the `reapExpiredLeases` sweep requeues or abandons a lapsed claim with
 `statusReason=LeaseExpired` (`service-core/src/main/java/io/boomerang/engine/WorkflowWatcher.java`). A thread that
-dies stops stamping, so its id drops out of the batch and its lease lapses. The first heartbeat creates the lease:
-a dispatcher that never heartbeats holds no lease and is recovered exactly as before.
+dies stops stamping, so its id drops out of the batch and its lease lapses. The claim sets the first lease, so a
+dispatcher MUST heartbeat what it holds (decision 0124).
 
 ## Consequences
 

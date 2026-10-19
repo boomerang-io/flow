@@ -25,11 +25,13 @@ import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -187,6 +189,26 @@ class WorkflowRunRetryScopeTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.cancelled, workflowRunRepository.findById(originId).orElseThrow().getStatus());
     assertEquals(RunPhase.completed, workflowRunRepository.findById(originId).orElseThrow().getPhase());
     assertNotNull(tasksOf(retried.getId()).get("d").getReusedFromRef());
+  }
+
+  @Test
+  void startingAScopedRetryQueuesTheFirstTaskAfterTheCarriedOverOnes() {
+    String workflowId = createWorkflow("retry-scope-start");
+    String originId = submit(workflowId);
+    for (String name : List.of("a", "d", "b", "c", "end")) {
+      end(originId, name, RunStatus.succeeded, null);
+    }
+    complete(originId, RunStatus.succeeded);
+
+    // b depends only on a and d, both carried over: nothing ends in the new run to queue it.
+    WorkflowRun retried = workflowRunService.retry(WORKSPACE, originId, Optional.of(request(RetryScope.nodes, List.of("b")))).getBody();
+    workflowRunService.start(retried.getId(), Optional.empty());
+
+    // Well inside the stalled-run sweep's one-minute grace, so the start itself queued b.
+    Awaitility.await("b is queued by the start")
+        .atMost(Duration.ofSeconds(10))
+        .until(() -> RunStatus.ready.equals(tasksOf(retried.getId()).get("b").getStatus()));
+    assertEquals(RunStatus.notstarted, tasksOf(retried.getId()).get("c").getStatus());
   }
 
   private static WorkflowRunRetryRequest request(RetryScope scope, List<String> nodes) {

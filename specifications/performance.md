@@ -15,10 +15,10 @@ instance. Correctness rests on three primitives, all in the live path:
 | Status-CAS transitions (`tryTransition`, `tryComplete`, `tryRequeue`) | `TaskRunService.java:548-590`, `engine/WorkflowRunStateHelper.java` | Concurrent advance from two instances converges: the second CAS finds the state already changed and performs no side effects. |
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:36-41` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
-Worker leases are not used (`claim.leaseExpiresAt` is only ever unset, `TaskRunService.java:185,216,583`,
-so the `lease_sweep` index at `_0021__Indexes.java:59` stays empty);
-crash recovery is the absolute `timeoutAt` written at claim = now + timeout + 5 s grace
-(`TaskRunService.java:251,260`; `engine/RunTimeouts.java:14-17`) plus the gone-dispatcher sweep below.
+Crash recovery is the lease the claim sets 90 s ahead and each 30 s heartbeat renews
+(`TaskRunService.java:323`, `:638`; served by the `lease_sweep` index, `_0021__Indexes.java:62`), the absolute
+`timeoutAt` written at claim = now + timeout + 5 s grace (`engine/RunTimeouts.java:14-17`), and the gone-dispatcher
+sweep below.
 
 Two caches are per instance and trade a bounded staleness for fewer reads; a write clears them only on the
 instance that took it.
@@ -143,7 +143,12 @@ quiet-but-healthy stream is not cut at the control read timeout (`core/config/Re
 Pool: 200 total / 200 per route, keep-alive 5 min (`:48-54,174-189`). Companions: Mongo
 `connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout two hours
 for a streamed response, so a running task's log is followed for that long, on both core (`:72`) and the
-dispatcher (`service-dispatcher/src/main/resources/application.properties:7`); dispatcher task default 60 min when the task sets none plus a 2 min watch
+dispatcher (`service-dispatcher/src/main/resources/application.properties:7`). It reaches only the three
+routes that answer asynchronously: core's task log and artifact download and the dispatcher's task log
+(`workflow/TaskRunControllerV2.java`, `workflow/WorkspaceArtifactControllerV2.java`,
+`dispatcher/LogV1Controller.java`); the dispatcher queue's long polls are synchronous and keep their 30 s hold. A
+log the dispatcher has sent nothing on for 10 minutes ends at the streaming template's read timeout above, with a
+closing line to the reader; dispatcher task default 60 min when the task sets none plus a 2 min watch
 grace (`service-dispatcher/src/main/resources/application.properties:41,28`).
 
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all
@@ -233,7 +238,6 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 | Per-class kill switches | One global `flow.queue.enabled` that stops claiming only | An incident needs one class stopped while others run |
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
-| Worker leases and renewal | Absolute `timeoutAt` at claim; gone-dispatcher sweep at 60 s | Worker-crash recovery latency is shown to matter |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`kube/TektonServiceImpl.java`, `executor/JobWatcher.java`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
 | An event-driven dispatcher poll | A 30 s long poll that re-checks every 1 s (`dispatcher/DispatcherService.java:48-49`); the dispatcher reconnects at once | A measured idle-query cost at the dispatcher count in use, or a workload that needs task-to-task hops well under 1 s |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, creationDate) has picked the ready tasks, keeping oldest first (`TaskRunService.java:182-191`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |

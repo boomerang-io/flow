@@ -135,11 +135,16 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 | What | When | Stored |
 | --- | --- | --- |
 | The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:450`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. Admission has checked every reference, so the fill-in
 fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
-`SpecFillFailed` (`DispatcherService.java:396`). The termination order, the start and end answers and every
+`SpecFillFailed` (`DispatcherService.java:460`). Any other failure while a claimed task is prepared for hand-out
+ends it `failed` with reason `DispatchPrepareFailed`, logged with its id and the cause, and the other tasks
+claimed in the same poll are still handed out, so no claim stays with a dispatcher that never hears of it
+(`DispatcherService.prepare` `:419`). Preparing a task reads nothing from the caller: a dispatcher call carries
+no user identity, so an artifact task's storage quota is read from its run's workspace
+(`workspace/WorkspaceService.getArtifactStorageQuota` `:782`). The termination order, the start and end answers and every
 consumer read carry the stored spec. The TaskRun's params are the task's declared params merged with the values
 authored on the workflow node (`engine/DAGUtility.java:183`). A `custom` task takes its runtime from its own
 params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue entry, which
@@ -204,11 +209,15 @@ the params cap at its own admission.
 
 ## Leases and heartbeat
 
-A claim has no lease until the dispatcher's first heartbeat for it. `PUT /{id}/heartbeat` lists the task run
-ids the dispatcher is still working on; the engine sets each owned one's lease 90 s ahead
-(`flow.dispatcher.lease-ms`, `DispatcherService.java:62`, `:138-151`). A dispatcher SHOULD beat every 30 s for any
-task that can outlive a minute. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
-(`engine/WorkflowWatcher.java:76`), gets the task requeued or abandoned (`execution-model.md`).
+A claim carries a lease from the moment it is made: the claim sets it 90 s ahead (`flow.dispatcher.lease-ms`,
+`engine/TaskRunService.java:297`, `:323`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
+working on, and the engine moves each owned one's lease 90 s ahead again (`dispatcher/DispatcherService.java:189`,
+`engine/TaskRunService.java:638`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
+has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
+was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
+(`engine/WorkflowWatcher.java:78`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
+catches a dispatcher that crashes and comes back under the same id within that minute: it stays live, but its
+heartbeats no longer list the claims it lost.
 
 ## Logs
 
@@ -227,11 +236,16 @@ and MAY both serve live and upload. A dispatcher with no HTTP surface registers 
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
 dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
 
-A live route MUST write each line as the task writes it and flush it, never collect the body first: core relays
-every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:122`), and its scrub of the run's secrets
-passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about when the
-task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`, `application.properties:72`)
-and is cut by core after 10 minutes with no byte (`core/config/RestConfig.java` `STREAMING_READ_MINUTES`).
+A live route MUST write each line as the task writes it and get it onto the network, never collect the body first.
+Under Spring 7 a `StreamingResponseBody`'s own `flush()` does not reach the network, so both of Flow's log routes
+flush the servlet response instead (`common/util/ResponseFlushingOutputStream.java`, used at
+`workflow/TaskRunControllerV2.java:57`; the dispatcher's twin at `dispatcher/LogV1Controller.java:27`): core relays
+every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:145`), and its scrub of the run's secrets
+passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about a second
+after the task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`,
+`application.properties:72`). When the dispatcher sends nothing for 10 minutes, core's read gives up
+(`core/config/RestConfig.java` `STREAMING_READ_MINUTES`) and the reader's stream ends with a line saying it stopped
+following (`LogClient` `IDLE_MESSAGE` `:47`); opening the log again follows it from the start of the pod's log.
 
 ## Trace context
 

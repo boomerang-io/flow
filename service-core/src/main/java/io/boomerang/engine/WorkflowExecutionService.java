@@ -200,6 +200,11 @@ public class WorkflowExecutionService {
             taskExecutionService.queue(next.getId());
           }
         }
+        // A scoped retry's carried-over tasks are already completed, so queueing refuses them and
+        // nothing would end to queue their dependants: advance from them as a finished task would.
+        if (wfRunEntity.getRetryFrom() != null) {
+          taskExecutionService.advance(wfRunEntity.getId());
+        }
       } catch (Exception e) {
         updateStatusAndSaveWorkflow(
             wfRunEntity,
