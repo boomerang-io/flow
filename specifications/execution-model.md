@@ -175,7 +175,9 @@ A user retry takes a scope (`WorkflowRunRetryRequest`: `scope` of `all`, `failed
 `params` and `labels`). With `failed` or `nodes`, every origin task run that succeeded or was skipped and is not
 downstream of the retry point is copied under the new run with its results and a typed `reusedFromRef`, and with
 claim, deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and
-only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Everything that did not succeed re-runs
+only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Queueing refuses a completed task
+run, so the start advances from the copies as if each had just ended (`WorkflowExecutionService.java:203-207`).
+Everything that did not succeed re-runs
 in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
 tasks stay on the new run; the ones a re-run set-property task writes are dropped first. A scoped retry of an
 origin that is still active cancels the origin after the new run is queued, so one lineage never has two live
