@@ -344,6 +344,35 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void pruningADeletedWorkflowRemovesItsRunsRelationshipNodes() {
+    WorkflowEntity workflow = savedWorkflow("pruned-nodes-wf", WorkflowStatus.deleted);
+    WorkflowEntity other = savedWorkflow("kept-wf", WorkflowStatus.active);
+    WorkflowRunEntity first =
+        savedWorkflowRun(workflow.getId(), RunStatus.succeeded, RunPhase.completed);
+    WorkflowRunEntity second =
+        savedWorkflowRun(workflow.getId(), RunStatus.failed, RunPhase.completed);
+    WorkflowRunEntity kept =
+        savedWorkflowRun(other.getId(), RunStatus.succeeded, RunPhase.completed);
+    for (WorkflowRunEntity run : List.of(first, second, kept)) {
+      relationshipService.createNode(
+          RelationshipType.WORKFLOWRUN, run.getId(), run.getId(), Optional.empty());
+    }
+
+    watcher.pruneDeletedWorkflows();
+
+    assertFalse(workflowRunRepository.existsById(first.getId()));
+    assertFalse(workflowRunRepository.existsById(second.getId()));
+    assertFalse(
+        relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKFLOWRUN, first.getId()));
+    assertFalse(
+        relationshipService.doesSlugOrRefExistForType(
+            RelationshipType.WORKFLOWRUN, second.getId()));
+    assertTrue(workflowRunRepository.existsById(kept.getId()));
+    assertTrue(
+        relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKFLOWRUN, kept.getId()));
+  }
+
+  @Test
   void deletedWorkflowWithInFlightRunIsNotPruned() {
     WorkflowEntity workflow = savedWorkflow("still-running-wf", WorkflowStatus.deleted);
     WorkflowRunEntity inFlight =

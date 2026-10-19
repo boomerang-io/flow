@@ -417,12 +417,13 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Prune deleted (tombstoned) Workflows whose runs have all completed: hard-delete the
-   * workflow's TaskRuns, WorkflowRuns, revisions, leftover Actions and schedules, its
-   * relationship node, and finally the workflow document itself. A workflow with a run still in
-   * flight is skipped - the cancel sweep finishes first, so live work is never pruned. Audit
-   * records are never touched: they are the record that outlives the deletion. Every delete is
-   * by-ref and idempotent, so overlapping sweeps are harmless.
+   * Prune deleted (tombstoned) Workflows whose runs have all completed: purge each run the way
+   * retention does (its artifacts, actions, task runs, relationship node and the run itself), then
+   * hard-delete the workflow's revisions, leftover actions and schedules, its relationship node,
+   * and finally the workflow document itself. A workflow with a run still in flight is skipped -
+   * the cancel sweep finishes first, so live work is never pruned. Audit records are never
+   * touched: they are the record that outlives the deletion. Every delete is by-ref and
+   * idempotent, so overlapping sweeps are harmless.
    */
   public void pruneDeletedWorkflows() {
     SweepRunner.forEachIsolated(
@@ -433,17 +434,26 @@ public class WorkflowWatcher {
               .isEmpty()) {
             return;
           }
+          // Each purge deletes its run, so the first page advances until the workflow has none.
+          List<WorkflowRunEntity> runs;
+          while (!(runs =
+                  workflowRunRepository.findByWorkflowRef(
+                      workflow.getId(), PageRequest.of(0, PAGE_SIZE)))
+              .isEmpty()) {
+            runs.forEach(run -> purgeRun(run.getId()));
+          }
           artifactService.deleteForWorkflow(workflow.getId(), PAGE_SIZE);
+          // Catch-all for task runs whose run document is already gone.
           taskRunRepository.deleteByWorkflowRef(workflow.getId());
-          workflowRunRepository.deleteByWorkflowRef(workflow.getId());
           workflowRevisionRepository.deleteByWorkflowRef(workflow.getId());
           actionRepository.deleteByWorkflowRef(workflow.getId());
           scheduleRepository.deleteByWorkflowRef(workflow.getId());
           relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflow.getId());
           workflowRepository.deleteById(workflow.getId());
           LOGGER.info(
-              "[{}] Pruned deleted Workflow: its runs, artifacts, revisions, actions, schedules and"
-                  + " relationship node are removed; audit records are kept.",
+              "[{}] Pruned deleted Workflow: its runs with their relationship nodes, artifacts,"
+                  + " revisions, actions, schedules and its own node are removed; audit records"
+                  + " are kept.",
               workflow.getId());
         },
         (workflow, ex) ->
