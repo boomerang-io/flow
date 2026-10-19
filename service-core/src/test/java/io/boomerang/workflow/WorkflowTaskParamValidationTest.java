@@ -12,6 +12,7 @@ import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.LinkedList;
@@ -41,7 +42,18 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedFixtures() {
-    relationshipService.createNode(RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, java.util.Optional.empty());
+    // Under root, so a run-workflow node's workflowRef resolves the child by name in the workspace.
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, WORKSPACE)) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.ROOT,
+          "root",
+          RelationshipLabel.CONTAINS,
+          RelationshipType.WORKSPACE,
+          WORKSPACE,
+          WORKSPACE,
+          java.util.Optional.empty(),
+          java.util.Optional.empty());
+    }
     setFeatureSetting("workspaceQuotas", false);
   }
 
@@ -234,6 +246,78 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
             BoomerangException.class, () -> workflowService.create(WORKSPACE, workflow));
 
     assertEquals("PARAM_INVALID_NAME", ex.getReason());
+  }
+
+  @Test
+  void aRunWorkflowNodeMayCarryAParamItsChildDeclares() {
+    String child = childWorkflow("param-validation-child-declares", "samples");
+    Workflow parent =
+        runWorkflowParent(
+            "param-validation-forwards-wf",
+            new RunParam("workflowRef", child),
+            new RunParam("samples", "$(tasks.plan.results.samples)"));
+
+    Workflow saved = workflowService.create(WORKSPACE, parent);
+
+    assertEquals("param-validation-forwards-wf", saved.getName());
+  }
+
+  @Test
+  void aRunWorkflowNodeParamItsChildDoesNotDeclareIsRejected() {
+    String child = childWorkflow("param-validation-child-lacks", "samples");
+    Workflow parent =
+        runWorkflowParent(
+            "param-validation-child-lacks-wf",
+            new RunParam("workflowRef", child),
+            new RunParam("sample", "x"));
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> workflowService.create(WORKSPACE, parent));
+
+    assertEquals("WORKFLOW_INVALID_CHILD_PARAM", ex.getReason());
+    assertTrue(List.of(ex.getArgs()).contains(child), "the exception must name the child");
+    assertTrue(List.of(ex.getArgs()).contains("[sample]"), "the exception must name the param");
+  }
+
+  /** A workflow declaring {@code paramName}, for a run-workflow node to name. */
+  private String childWorkflow(String name, String paramName) {
+    AbstractParam param = new AbstractParam();
+    param.setName(paramName);
+    param.setType("text");
+    Workflow child =
+        workflowWithTaskParams(name, declaredParamTask("param-validation-child-task", "greeting"));
+    child.setParams(new LinkedList<>(List.of(param)));
+    return workflowService.create(WORKSPACE, child).getName();
+  }
+
+  /** start -> work (a run-workflow node with {@code params}) -> end. */
+  private Workflow runWorkflowParent(String name, RunParam... params) {
+    Workflow workflow = workflowWithTaskParams(name, runWorkflowTask(), params);
+    WorkflowTask work = workflow.getTasks().get(1);
+    work.setType(TaskType.runworkflow);
+    return workflow;
+  }
+
+  /** Creates (idempotently) a run-workflow catalogue task declaring workflowRef and wait. */
+  private String runWorkflowTask() {
+    String name = "param-validation-run-workflow";
+    if (!relationshipService
+        .filter(RelationshipType.TASK, java.util.Optional.of(List.of(name)))
+        .isEmpty()) {
+      return name;
+    }
+    Task task = new Task();
+    task.setName(name);
+    task.setType(TaskType.runworkflow);
+    AbstractParam workflowRef = new AbstractParam();
+    workflowRef.setName("workflowRef");
+    workflowRef.setType("text");
+    AbstractParam wait = new AbstractParam();
+    wait.setName("wait");
+    wait.setType("boolean");
+    task.getSpec().setParams(new LinkedList<>(List.of(workflowRef, wait)));
+    taskService.createGlobal(task);
+    return name;
   }
 
   private static Workflow workflowWithTaskParams(

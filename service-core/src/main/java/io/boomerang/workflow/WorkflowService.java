@@ -1740,10 +1740,44 @@ public class WorkflowService {
             .map(RunParam::getName)
             .filter(name -> declaredNames.stream().noneMatch(d -> d.equalsIgnoreCase(name)))
             .collect(Collectors.toList());
-    if (!undeclaredNames.isEmpty()) {
+    if (!undeclaredNames.isEmpty() && TaskType.runworkflow.equals(wfTask.getType())) {
+      validateChildParams(wfTask, undeclaredNames);
+    } else if (!undeclaredNames.isEmpty()) {
       throw new BoomerangException(
           BoomerangError.WORKFLOW_INVALID_TASK_PARAM,
           wfTask.getName(),
+          undeclaredNames.toString());
+    }
+  }
+
+  /*
+   * A run-workflow node hands its params to the child run (TaskExecutionService.childParams), so
+   * the ones its catalogue task does not declare must be declared by the child workflow's latest
+   * revision, the one the child runs. By now workflowRef holds the child's id (convertTaskSlugsToRefs).
+   */
+  private void validateChildParams(WorkflowTask wfTask, List<String> forwardedNames) {
+    Object workflowRef = ParameterUtil.getValue(wfTask.getParams(), "workflowRef");
+    List<String> childNames =
+        Optional.ofNullable(workflowRef)
+            .flatMap(
+                ref -> workflowRevisionRepository.findByWorkflowRefAndLatestVersion(ref.toString()))
+            .map(WorkflowRevisionEntity::getParams)
+            .orElse(List.of())
+            .stream()
+            .map(AbstractParam::getName)
+            .toList();
+    List<String> undeclaredNames =
+        forwardedNames.stream()
+            .filter(name -> childNames.stream().noneMatch(c -> c.equalsIgnoreCase(name)))
+            .toList();
+    if (!undeclaredNames.isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_CHILD_PARAM,
+          wfTask.getName(),
+          Optional.ofNullable(workflowRef)
+              .flatMap(ref -> workflowRepository.findById(ref.toString()))
+              .map(WorkflowEntity::getName)
+              .orElse(String.valueOf(workflowRef)),
           undeclaredNames.toString());
     }
   }

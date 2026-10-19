@@ -103,6 +103,9 @@ tag's release notes.
   changes or clears a secret names it in the event's `detail`, never its value.
 - A run-workflow task may run for each item, one child run per item, and a waited child's results become the
   task's results.
+- A run-workflow node may carry params its child workflow declares, such as an upstream task's result; the child
+  run receives them resolved. A param the child does not declare is refused at save with
+  `WORKFLOW_INVALID_CHILD_PARAM` (1218).
 - Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
   run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
   OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.
