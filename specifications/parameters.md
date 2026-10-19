@@ -8,10 +8,10 @@ below are under `service-core/src/main/java/io/boomerang/` unless they start wit
 ## Layers and references
 
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
-from their stores each time it resolves (`engine/ParameterManager.java:517`, through
+from their stores each time it resolves (`engine/ParameterManager.java:527`, through
 `workflow/ParamLayerService.java:108`): at run start for the run's params (`engine/WorkflowExecutionService.java:71`),
 at each task's admission (`TaskExecutionService.java:209`), at its claim for the spec, and for a for-each task's
-items at fan-out (`:620`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
+items at fan-out (`:354`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
 workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the revision
 it runs, so a version saved mid-run does not change it. The layers and the revision are served from a per-instance
 cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks
@@ -23,7 +23,7 @@ Parameter references, by where the value comes from (`engine/ParameterManager.ja
 
 | Reference | Value from |
 | --- | --- |
-| `$(params.x)` | The nearest layer that defines `x`: the task, then the workflow, then workspace and global |
+| `$(params.x)` | The nearest layer that defines `x`: the task, then the workflow, then workspace and global. In a task param named `x` that is the param itself, so it reads the workflow's as `$(workflow.params.x)` |
 | `$(workflow.params.x)` | The workflow's parameters |
 | `$(workspace.params.x)` | The workspace's parameters. `$(team.params.x)` still resolves, is deprecated, logs a warning once per reference, and is removed in the next major version; the editor suggests only `workspace` |
 | `$(global.params.x)` | Global parameters |
@@ -33,10 +33,10 @@ Parameter references, by where the value comes from (`engine/ParameterManager.ja
 ## When a value resolves
 
 The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other references in two places, at two times:
-the TaskRun's own parameter values at admission (`engine/ParameterManager.java:152`,
+the TaskRun's own parameter values at admission (`engine/ParameterManager.java:148`,
 `TaskExecutionService.java:209`), frozen by the admission compare-and-set (`TaskRunService.java:336`) with secret
 values encrypted; and `spec.script`, `spec.command`, `spec.arguments` and `spec.envs` when a dispatcher claims the
-task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`), where the stored
+task (`ParameterManager.fillSpec` `:299`, called from `dispatcher/DispatcherService.java:338,381`), where the stored
 spec keeps its references and only the copy on the claim carries values. So no secret value is ever written into
 a stored spec. At claim, `$(params.x)` reads the task's params as frozen at admission, so a requeued task gets the
 same values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and `$(context.params.x)` read the run;
@@ -52,13 +52,13 @@ Substitution writes into string leaves directly, so a replacement's quotes, newl
 inserted verbatim: a multi-line prompt, a JSON body or a result with a trailing newline reaches the container byte
 for byte (`ParameterManager.replaceStringInObject`). It also runs over the values it inserts, so configuration
 composes - a workspace value containing `$(global.params.x)` resolves - except for three kinds of value, inserted
-as written with their `$(` escaped (`ParameterManager.java:591,739`):
+as written with their `$(` escaped (`ParameterManager.java:596,836`):
 
 | Inserted as written | Why |
 | --- | --- |
 | A task result, `$(tasks.t.results.r)` | It is what a task produced, not what anyone in the workspace wrote |
-| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:86`, `:557`). Such a param is also kept as it arrived at run start (`:170`). On a manual, scheduled or API-submitted run every value resolves |
-| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:294`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
+| A supplied run param, read as `$(params.x)` or `$(workflow.params.x)` | On a run started by a webhook, event, GitHub event, Run workflow task or retry, every param whose value differs from its revision default (`:82`, `:562`). Such a param is also kept as it arrived at run start (`:168`). On a manual, scheduled or API-submitted run every value resolves |
+| In a spec field, a task's own param, read as `$(params.x)` | The spec is filled in at claim against the params frozen at admission (`:299`), so `script: echo $(params.p)` with `p = $(tasks.t.results.r)` receives the result. A resolved value is final, so a reference inside it - a result's text, say - stays text |
 
 A task that defines `x` itself resolves its own `$(params.x)` even when the run's `x` was supplied. A non-string
 replacement interpolated **into** a larger string is written as JSON (`{"k":"v"}`), as the dispatcher encodes it.
@@ -73,17 +73,22 @@ say - the value is passed through unchanged and the failure is logged with its s
 ## Admission checks
 
 Admission checks each Flow reference - `$(params.…)`, `$(<scope>.params.…)`, `$(tasks.<name>.results.…)` - in the task's
-params, `script`, `command`, `arguments` and env values (`ParameterManager.java:152`); `$(date)` and the like are shell.
+params, `script`, `command`, `arguments` and env values (`ParameterManager.java:148`); `$(date)` and the like are shell.
 
 | Reference | Declared when | Declared, no value at run time | Not declared |
 | --- | --- | --- | --- |
-| `$(tasks.t.results.r)` | `t` is a task in the run's workflow revision and declares `r` - on its node for `script`, `custom` and `generic`, else on its catalogue revision (`TaskService.getSpecs`); a task declaring no results allows any `r` (`ParameterManager.java:649-670`) | `""` - skipped, not yet run, failed and continued, or `r` not emitted | `task 't' is not in this workflow` / `task 't' declares no result 'r'` |
-| `$(params.x)`, `$(<scope>.params.x)` | A layer that reference reads holds `x`, with or without a value (`:630`) | `""` (`:836`) | `no such param 'x'` (`no such global param 'x'`, …) |
+| `$(tasks.t.results.r)` | `t` is a task in the run's workflow revision and declares `r` - on its node for `script`, `custom` and `generic`, else on its catalogue revision (`TaskService.getSpecs`); a task declaring no results allows any `r` (`ParameterManager.java:746-766`) | `""` - skipped, not yet run, failed and continued, or `r` not emitted | `task 't' is not in this workflow` / `task 't' declares no result 'r'` |
+| `$(params.x)`, `$(<scope>.params.x)` | A layer that reference reads holds `x`, with or without a value (`:812`) | `""` (`:933`) | `no such param 'x'` (`no such global param 'x'`, …) |
 | `$(params.cfg.path)` | `cfg` is declared | `""` when the path matches nothing | `no such param 'cfg'` |
 
 An undeclared reference fails the task before it is claimable - `failed`, reason `ParamUnresolved`, a message naming
 task, field, reference and why: `Task 'deploy': script references $(params.registryTokn): no such param 'registryTokn'`
 (`TaskExecutionService.java:209`). Values inserted as written are not scanned; a run's own params are not checked.
+
+A task param on a reference cycle among the task's own params fails the same way, because `$(params.x)` reads the
+task's own `x` first and the value can never resolve. `x: $(params.x)` fails with `refers to itself; use
+$(workflow.params.x) for the workflow's param`; `x: $(params.y)` with `y: $(params.x)` fails both, with `params 'x'
+and 'y' reference each other in a cycle` (`ParameterManager.java:173`, `:636`).
 
 ## Names
 
@@ -91,7 +96,7 @@ Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is rese
 to `PARAM_NAMES` (`service-core/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
 the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
 with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1839-1876`). Matching is case-insensitive everywhere:
-`$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:764`), and the node-value
+`$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:864`), and the node-value
 merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
 substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
 parameter (`engine/TaskExecutionService.java`, `runWorkflow`). The safety pair is rejection at save: names that
@@ -111,9 +116,9 @@ on the way up only; the engine, the claim and the container see the real value.
 | Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:90`) |
 | A workflow node or schedule value whose declared param is `password` - the task template's, or the workflow's latest revision when the schedule is saved - is stamped at save | `ParameterUtil.stampSecretParams` (`:65`), from `WorkflowService` and `schedule/ScheduleService.java:249` |
-| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:193`) |
+| A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:202`) |
 
-Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:291`): a
+Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:452`): a
 reference is a secret when the workflow or task layer that wins `params.<name>` holds a secret, so
 `dsn = "postgres://app:$(params.dbPassword)@db"` becomes a secret with the resolved value. Arrays and
 objects keep their type when a secret is substituted into them - a secret is a string only - and rely on
