@@ -21,13 +21,13 @@ import io.boomerang.common.model.WorkflowRunInsightUsage.ModelUsage;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail.Failure;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail.TaskRow;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumSet;
@@ -204,14 +204,13 @@ public class WorkflowRunInsightService {
     }
     Query query =
         new Query(
-            Criteria.where("workflowRef").in(workflowRefs).and("creationDate").gte(from).lt(to));
-    // The run query's own label filter, ANDed as one clause so two entries on a key never collide.
-    List<Criteria> labelCriteria = WorkflowRunService.labelCriteria(labels);
-    if (!labelCriteria.isEmpty()) {
-      query.addCriteria(new Criteria().andOperator(labelCriteria));
-    }
-    statuses.ifPresent(list -> query.addCriteria(Criteria.where("status").in(list)));
-    triggers.ifPresent(list -> query.addCriteria(Criteria.where("trigger").in(list)));
+            new QueryCriteria()
+                .in("workflowRef", workflowRefs)
+                .between("creationDate", Optional.of(from), Optional.of(to))
+                .labels(labels)
+                .in("status", statuses)
+                .in("trigger", triggers)
+                .build());
     query
         .fields()
         .include(

@@ -4,10 +4,8 @@ import io.boomerang.common.entity.WorkflowTemplateEntity;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowTemplate;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.workflow.repository.WorkflowTemplateRepository;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -20,7 +18,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
@@ -79,37 +76,8 @@ public class WorkflowTemplateService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryNames.isPresent()) {
-      Criteria criteria = Criteria.where("name").in(queryNames.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(new QueryCriteria().labels(queryLabels).in("name", queryNames).build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
