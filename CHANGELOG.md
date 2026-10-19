@@ -114,6 +114,9 @@ tag's release notes.
 
 ### Changed
 
+- A followed task log that has written nothing for 10 minutes ends with a line saying the view stopped following,
+  instead of the connection dropping mid-log; open the log again to keep following. No new property: the two-hour
+  async request timeout applies only to the streamed routes, both task logs and artifact downloads.
 - Settings are built from the shipped seed on first start, carrying an upgraded install's own values, so an
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.

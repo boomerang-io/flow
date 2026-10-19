@@ -222,11 +222,16 @@ and MAY both serve live and upload. A dispatcher with no HTTP surface registers 
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
 dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
 
-A live route MUST write each line as the task writes it and flush it, never collect the body first: core relays
-every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:122`), and its scrub of the run's secrets
-passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about when the
-task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`, `application.properties:72`)
-and is cut by core after 10 minutes with no byte (`core/config/RestConfig.java` `STREAMING_READ_MINUTES`).
+A live route MUST write each line as the task writes it and get it onto the network, never collect the body first.
+Under Spring 7 a `StreamingResponseBody`'s own `flush()` does not reach the network, so both of Flow's log routes
+flush the servlet response instead (`common/util/ResponseFlushingOutputStream.java`, used at
+`workflow/TaskRunControllerV2.java:57`; the dispatcher's twin at `dispatcher/LogV1Controller.java:27`): core relays
+every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:145`), and its scrub of the run's secrets
+passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about a second
+after the task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`,
+`application.properties:72`). When the dispatcher sends nothing for 10 minutes, core's read gives up
+(`core/config/RestConfig.java` `STREAMING_READ_MINUTES`) and the reader's stream ends with a line saying it stopped
+following (`LogClient` `IDLE_MESSAGE` `:47`); opening the log again follows it from the start of the pod's log.
 
 ## Trace context
 

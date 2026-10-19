@@ -142,7 +142,12 @@ quiet-but-healthy stream is not cut at the control read timeout (`core/config/Re
 Pool: 200 total / 200 per route, keep-alive 5 min (`:48-54,174-189`). Companions: Mongo
 `connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout two hours
 for a streamed response, so a running task's log is followed for that long, on both core (`:72`) and the
-dispatcher (`service-dispatcher/src/main/resources/application.properties:7`); dispatcher task default 60 min when the task sets none plus a 2 min watch
+dispatcher (`service-dispatcher/src/main/resources/application.properties:7`). It reaches only the three
+routes that answer asynchronously: core's task log and artifact download and the dispatcher's task log
+(`workflow/TaskRunControllerV2.java`, `workflow/WorkspaceArtifactControllerV2.java`,
+`dispatcher/LogV1Controller.java`); the dispatcher queue's long polls are synchronous and keep their 30 s hold. A
+log the dispatcher has sent nothing on for 10 minutes ends at the streaming template's read timeout above, with a
+closing line to the reader; dispatcher task default 60 min when the task sets none plus a 2 min watch
 grace (`service-dispatcher/src/main/resources/application.properties:41,28`).
 
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all
