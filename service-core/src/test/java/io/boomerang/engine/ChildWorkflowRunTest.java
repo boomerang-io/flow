@@ -116,6 +116,49 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aParamTheChildDeclaresIsForwardedResolved() {
+    String childWorkflowId =
+        createWorkflow(
+            "child-forwarded-param",
+            node("work", TaskType.template, echoTaskRef, "start", null),
+            ExecutionCondition.success,
+            List.of(param("greeting", "text")));
+    AbstractParam who = param("who", "text");
+    who.setDefaultValue("world");
+    String parentWorkflowId =
+        createWorkflow(
+            "parent-forwarded-param",
+            node(
+                "child",
+                TaskType.runworkflow,
+                runWorkflowTaskRef,
+                "start",
+                new LinkedList<>(
+                    List.of(
+                        new RunParam("workflowRef", childWorkflowId),
+                        new RunParam("wait", "false"),
+                        new RunParam("greeting", "hello $(params.who)")))),
+            ExecutionCondition.always,
+            List.of(who));
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the child run was submitted")
+        .until(() -> resultValue(parentTask(parentRunId), "workflowRunRef") != null);
+    WorkflowRunEntity childRun =
+        workflowRunRepository
+            .findById(resultValue(parentTask(parentRunId), "workflowRunRef"))
+            .orElseThrow();
+    assertEquals(
+        "hello world",
+        childRun.getParams().stream()
+            .filter(p -> "greeting".equals(p.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getValue());
+  }
+
+  @Test
   void waitParksTheParentAndSucceedsItWhenTheChildSucceeds() {
     String childWorkflowId = createLeafWorkflow("child-wait-succeeds");
     String parentWorkflowId = createParentWorkflow("parent-wait-succeeds", childWorkflowId, true);
@@ -329,10 +372,19 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
    */
   private String createWorkflow(
       String name, WorkflowTask middle, ExecutionCondition endCondition) {
+    return createWorkflow(name, middle, endCondition, List.of());
+  }
+
+  private String createWorkflow(
+      String name,
+      WorkflowTask middle,
+      ExecutionCondition endCondition,
+      List<AbstractParam> params) {
     WorkflowTask end = node("end", TaskType.end, null, middle.getName(), null);
     end.getDependencies().get(0).setExecutionCondition(endCondition);
     Workflow workflow = new Workflow();
     workflow.setName(name + "-" + System.nanoTime());
+    workflow.setParams(new LinkedList<>(params));
     workflow.setTasks(
         new LinkedList<>(List.of(node("start", TaskType.start, null, null, null), middle, end)));
     Workflow created = workflowService.create(workflow, false).getBody();

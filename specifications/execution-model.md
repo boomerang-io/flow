@@ -265,7 +265,9 @@ it can't read has no next occurrence and never fires.
 
 A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1146-1226`). The
 child is submitted with the parent run's params and the task's own written over them, minus `workflowRef` and
-`wait` (`childParams` `:1228`), so a for-each item's `item` and `index` reach its child as run params.
+`wait` (`childParams` `:1228`), so a for-each item's `item` and `index` reach its child as run params. A node's
+params beyond `workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses
+any other with `WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`).
 
 **Lineage.** The child is submitted through the lineage-stamping overload
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
