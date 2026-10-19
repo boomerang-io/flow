@@ -268,7 +268,8 @@ migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/ta
 (`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
 follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
 after a release needs a change unit of its own to reach an existing database, which is what
-`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
+`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`; a new revision of a seeded task needs one too, which is
+what `_0024__SeedAiImageInputRevisions` is for their revision 2. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
@@ -291,15 +292,19 @@ surfaces this per node as a "New version available" prompt, driven by the `upgra
 
 An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references one of
 two seeded catalogue tasks of type `ai`, the engine treats it as any other dispatched type, and a dispatcher runs
-the image and command the revision declares, `boomerangio/task-ai:2.0.0` with `prompt` or `agent` (how Flow's
+the image and command the revision declares, `boomerangio/task-ai:2.1.0` at revision 2 and `2.0.0` at revision 1,
+with `prompt` or `agent` (how Flow's
 Kubernetes dispatcher does, and which images it admits, is in `dispatcher-kubernetes.md`, "AI tasks"; an
 in-process dispatcher runs the same contract in its own handler and ignores the image). Everything the model call
 needs is a declared param:
 
 | Task | Params | Results |
 | --- | --- | --- |
-| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace) | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
-| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all | The 9 plus `turns` and `toolCalls` |
+| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace); revision 2 adds `images` (run-workspace paths or https URLs, sent as image content parts), `imageDetail` and `maxImageBytes`, 20 in all | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
+| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all, 29 at revision 2 with the same three image params | The 9 plus `turns` and `toolCalls` |
+
+Revision 1 of each stays seeded beside revision 2, so a workflow pinned to it keeps running unchanged. A workspace
+image over `maxImageBytes` fails the task with the reason prefix `FILE_TOO_LARGE`; it is never resized or skipped.
 
 The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) are copies of the definition files in the
 `boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which are the source of the
