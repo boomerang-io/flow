@@ -64,10 +64,12 @@ public class TaskRunService {
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
 
-  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota, or
-  // its pod never left Pending. Nothing ran, so the task is handed back for another attempt on any
-  // dispatcher, on the same budget as a timed-out claimant, and fails only once that is spent.
-  private static final Set<String> RETRYABLE_END_REASONS = Set.of("ExceededQuota", "StartTimeout");
+  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota,
+  // its pod never left Pending, or the runtime or a gateway behind it refused it for rate. Nothing
+  // ran, so the task is handed back for another attempt on any dispatcher, on the same budget as a
+  // timed-out claimant, and fails only once that is spent.
+  private static final Set<String> RETRYABLE_END_REASONS =
+      Set.of("ExceededQuota", "StartTimeout", "RateLimited");
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;

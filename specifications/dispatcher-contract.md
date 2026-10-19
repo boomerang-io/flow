@@ -170,12 +170,13 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 - `statusReason` is a closed set (`service-core/.../model/TaskRunEndRequest.java`). Two of them mean the task
   never started, and the engine requeues it instead of failing it — with backoff, on the same budget of three
   more attempts as a timed-out claimant — and fails it with that reason only once the budget is spent
-  (`engine/TaskRunService.java:62`, `:1006`):
+  (`engine/TaskRunService.java:71`, `:1059`):
 
 | Reason | Send when |
 | --- | --- |
 | `ExceededQuota` | The runtime refused to create the task's work for lack of capacity |
 | `StartTimeout` | The task's work was created but never began within the dispatcher's start deadline |
+| `RateLimited` | The runtime or a gateway behind it refused the task for rate, so it should be tried again later |
 
 **Caps.** The params cap is the engine's, identical on every dispatcher. The results limit belongs to the
 dispatcher that runs the task (on Kubernetes it is the 4096-byte container termination message,
@@ -353,3 +354,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | The routes moved from `/api/v1/dispatcher` to `/dispatcher/v1` | Path, before the first release |
 | `logsUrl` and `logsToken` at registration; `PUT /taskrun/{id}/log` stores the finished log | Additive (decision 0112) |
 | `type` on each `RunParam`, with `secret` | Additive (decision 0115) |
+| `RateLimited` end reason, requeued like `ExceededQuota` | Additive |

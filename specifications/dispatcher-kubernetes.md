@@ -117,8 +117,9 @@ rather than failed:
 Each reconcile tick reads the task's pod - init containers included, and Tekton's `step-task` container as well
 as the Jobs executor's `task` - until the pod leaves Pending (`kube/KubeHelperService.java:480-523`,
 `executor/PodStartWatch.java`, `KubeJobsExecutor.java:439`, `TektonServiceImpl.java:540`). The engine requeues
-`ExceededQuota` and `StartTimeout` on the same budget as a timed-out claimant: three more attempts with backoff,
-then the task fails with that reason (`engine/TaskRunService.java:1004`). Kubernetes 429, 5xx and network errors
+`ExceededQuota` and `StartTimeout` (and `RateLimited`, which this dispatcher never sends) on the same budget as a
+timed-out claimant: three more attempts with backoff, then the task fails with that reason
+(`engine/TaskRunService.java:1059`). Kubernetes 429, 5xx and network errors
 are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives

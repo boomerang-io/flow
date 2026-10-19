@@ -194,6 +194,18 @@ class TaskRunnerTest {
   }
 
   @Test
+  void aRateLimitedFailureIsReportedForTheEngineToRequeue() {
+    runner((task, context) -> {
+          throw TaskFailure.rateLimited("RATE_LIMITED - the gateway answered 429");
+        })
+        .accept(runOrder());
+
+    TaskRunEndRequest end = soleEnd();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(end.getStatusReason()).isEqualTo("RateLimited");
+  }
+
+  @Test
   void anyOtherExceptionEndsTheTaskAsADispatchError() {
     runner((task, context) -> {
           throw new IllegalStateException("boom");

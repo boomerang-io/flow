@@ -8,10 +8,11 @@ import java.util.List;
  * {@link TaskHandler}; any other exception a handler throws ends the task as {@value
  * #DISPATCH_ERROR}.
  *
- * <p>The engine treats two reasons as "never started" and requeues the task instead of failing it,
- * on a budget of three more attempts with backoff: use {@link #exceededQuota} when the runtime
- * refused the work for lack of capacity, and {@link #startTimeout} when the work was created but
- * never began within the dispatcher's start deadline. Other reasons the engine records include
+ * <p>The engine treats three reasons as "never started" and requeues the task instead of failing
+ * it, on a budget of three more attempts with backoff: use {@link #exceededQuota} when the runtime
+ * refused the work for lack of capacity, {@link #startTimeout} when the work was created but never
+ * began within the dispatcher's start deadline, and {@link #rateLimited} when the runtime or a
+ * gateway behind it refused the task for rate. Other reasons the engine records include
  * {@code DeadlineExceeded}, {@code JobFailed}, {@code OOMKilled}, {@code ImagePull}, {@code
  * AdmissionDenied} and {@code ResultsTooLarge}; one it does not know is an ordinary failure.
  */
@@ -27,6 +28,9 @@ public class TaskFailure extends RuntimeException {
 
   /** The task's work never began within the start deadline; the engine requeues it. */
   public static final String START_TIMEOUT = "StartTimeout";
+
+  /** The runtime or a gateway behind it refused the task for rate; the engine requeues it. */
+  public static final String RATE_LIMITED = "RateLimited";
 
   private final String statusReason;
 
@@ -56,6 +60,11 @@ public class TaskFailure extends RuntimeException {
   /** Return a failure that tells the engine the task's work never began in time. */
   public static TaskFailure startTimeout(String message) {
     return new TaskFailure(START_TIMEOUT, message);
+  }
+
+  /** Return a failure that tells the engine the task was refused for rate and should be retried. */
+  public static TaskFailure rateLimited(String message) {
+    return new TaskFailure(RATE_LIMITED, message);
   }
 
   public String getStatusReason() {

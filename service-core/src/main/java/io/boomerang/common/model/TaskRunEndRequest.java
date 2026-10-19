@@ -26,8 +26,8 @@ public class TaskRunEndRequest {
    * DeadlineExceeded, JobDeleted, JobFailed, OOMKilled, ImagePull, AdmissionDenied,
    * ResultsTooLarge, DispatchError, DispatcherGone, LeaseExpired, ChildRunFailed,
    * NestingDepthExceeded, ItemFailed, ForeachItemsInvalid, ForeachTooManyItems, ExceededQuota,
-   * StartTimeout. The last two mean the task never started; the engine requeues it while its
-   * retry budget lasts instead of failing it.
+   * StartTimeout, RateLimited. The last three mean the task never started; the engine requeues it
+   * while its retry budget lasts instead of failing it.
    */
   private String statusReason;
 
