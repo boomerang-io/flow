@@ -302,7 +302,7 @@ one of `string`, `array`, `object` or `secret` and is omitted when absent, which
 unknown value is `400 PARAM_INVALID_TYPE` (1216), and a `secret` whose value is not a string is
 `400 PARAM_SECRET_NOT_STRING` (1217). A `secret` param's value is returned as `*****` on every run read,
 submit and lifecycle response and `full` status event; the dispatcher claim carries the real value. Task and
-workflow definition reads hide secrets too, except the workflow canvas, and a hidden value sent back on an
+workflow definition reads hide secrets too, the workflow canvas included, and a hidden value sent back on an
 apply keeps the stored one (`parameters.md`, "Sensitive parameters").
 
 | Object | Field | Element type |

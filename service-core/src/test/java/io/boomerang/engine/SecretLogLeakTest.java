@@ -20,6 +20,10 @@ import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.TokenService;
+import io.boomerang.core.model.TokenCreateRequest;
+import io.boomerang.core.model.TokenCreateResponse;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.workflow.ParameterService;
 import io.boomerang.workflow.WorkflowRunService;
@@ -27,6 +31,7 @@ import io.boomerang.workflow.WorkflowService;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.apache.logging.log4j.Level;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +62,7 @@ class SecretLogLeakTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private DispatcherService dispatcherService;
   @Autowired private ParameterService parameterService;
+  @Autowired private TokenService tokenService;
 
   @Test
   void noSecretValueIsLoggedAtDebug() {
@@ -156,6 +162,28 @@ class SecretLogLeakTest extends AbstractEngineIntegrationTest {
       List<String> leaks = lines.stream().filter(l -> l.contains(secret)).toList();
       assertTrue(leaks.isEmpty(), "secret value logged: " + leaks);
     }
+  }
+
+  // A token's raw value exists only in the create response; the log names the token by id.
+  @Test
+  void aCreatedTokenIsNeverLoggedAtDebug() {
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.key);
+    request.setName("secret-log-token-" + UUID.randomUUID());
+    request.setPrincipal("workflow-" + UUID.randomUUID());
+    request.setPermissions(List.of("workflow/read"));
+    TokenCreateResponse created;
+    List<String> lines;
+    try (LogCapture logs = LogCapture.start(Level.DEBUG, "io.boomerang", "io.boomerang.core")) {
+      created = tokenService.create(request);
+      lines = logs.lines();
+    }
+
+    assertTrue(
+        lines.stream().anyMatch(l -> l.contains(created.getId())), "the token is logged by its id");
+    List<String> leaks = lines.stream().filter(l -> l.contains(created.getToken())).toList();
+    assertTrue(leaks.isEmpty(), "raw token logged: " + leaks);
+    tokenService.delete(created.getId());
   }
 
   private static AbstractParam declared(String name, String type) {

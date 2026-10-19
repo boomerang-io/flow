@@ -195,7 +195,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     }
 
     if (token.startsWith("Bearer ")) {
-      LOGGER.debug("AuthFilter() - " + token);
+      LOGGER.debug("AuthFilter() - Bearer JWT");
       JWTClaimsSet claims;
       try {
         Object jwt = JWTParser.parse(token.replace("Bearer ", ""));
@@ -246,7 +246,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       String base64Credentials =
           request.getHeader(AUTHORIZATION_HEADER).substring("Basic".length()).trim();
 
-      LOGGER.debug("AuthFilter() - Basic : " + base64Credentials);
+      LOGGER.debug("AuthFilter() - Basic");
       byte[] credDecoded = Base64.getDecoder().decode(base64Credentials);
       String credentials = new String(credDecoded, StandardCharsets.UTF_8);
 

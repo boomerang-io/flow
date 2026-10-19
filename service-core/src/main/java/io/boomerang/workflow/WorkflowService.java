@@ -279,8 +279,7 @@ public class WorkflowService {
   }
 
   /*
-   * This method is used by the compose methods and duplicate, and ensures the password values are
-   * not filtered.
+   * The unfiltered read, for duplicate only: a copy must carry the stored secrets, not the marker.
    */
   private Workflow internalGet(
       String team, String name, Optional<Integer> version, boolean withTasks) {
@@ -312,8 +311,9 @@ public class WorkflowService {
    * node's value for a param its task declares as password, read as the redaction marker when set
    * and as nothing when unset; one that is exactly one Flow reference reads as written. The node's
    * type is stamped from the task's spec here as well as at save, so a revision saved before
-   * stamping existed is hidden too; the specs are resolved in one batch for the whole page. Must
-   * run while the task refs are still refs, before convertTaskRefsToSlugs.
+   * stamping existed is hidden too; the specs are resolved in one batch for the whole page. The
+   * canvas reads (composeGet, composeApply) are filtered the same way. Must run while the task refs
+   * are still refs, before convertTaskRefsToSlugs.
    */
   private void filterSensitiveValues(List<Workflow> workflows) {
     Set<TaskService.TaskRef> refs =
@@ -423,14 +423,6 @@ public class WorkflowService {
    */
   //  @Audit(scope = PermissionScope.WORKFLOW)
   public Workflow create(String team, Workflow request) {
-    return create(team, request, true);
-  }
-
-  /*
-   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
-   * values as they are.
-   */
-  private Workflow create(String team, Workflow request, boolean filterTasks) {
     // Validate Access - same guard as TaskService.create: the caller must reach the workspace the
     // ownership edge below is written into. Guards every create-shaped route: create, apply and
     // composeApply (when the Workflow does not exist yet) and duplicate all funnel here.
@@ -493,12 +485,7 @@ public class WorkflowService {
     // TODO go through and ensure all the required ParamSpec elements are set
 
     // Filter out sensitive values
-    if (filterTasks) {
-      filterSensitiveValues(List.of(workflow));
-    } else {
-      DataAdapterUtil.filterParamSpecValueByFieldType(
-          workflow.getParams(), FieldType.PASSWORD.value());
-    }
+    filterSensitiveValues(List.of(workflow));
 
     // Convert Workflow TaskRefs to Slugs
     convertTaskRefsToSlugs(team, workflow);
@@ -551,14 +538,6 @@ public class WorkflowService {
    * Workflow with supplied ID
    */
   public Workflow apply(String team, Workflow workflow, boolean replace) {
-    return apply(team, workflow, replace, true);
-  }
-
-  /*
-   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
-   * values as they are.
-   */
-  private Workflow apply(String team, Workflow workflow, boolean replace, boolean filterTasks) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
           relationshipService.filter(
@@ -591,12 +570,7 @@ public class WorkflowService {
         Workflow appliedWorkflow = apply(workflow, replace).getBody();
 
         // Filter out sensitive values
-        if (filterTasks) {
-          filterSensitiveValues(List.of(appliedWorkflow));
-        } else {
-          DataAdapterUtil.filterParamSpecValueByFieldType(
-              appliedWorkflow.getParams(), FieldType.PASSWORD.value());
-        }
+        filterSensitiveValues(List.of(appliedWorkflow));
 
         // Convert Workflow TaskRefs(IDs) to Slugs
         convertTaskRefsToSlugs(team, appliedWorkflow);
@@ -607,7 +581,7 @@ public class WorkflowService {
     }
     if (workflow != null) {
       workflow.setId(null);
-      return this.create(team, workflow, filterTasks);
+      return this.create(team, workflow);
     }
     throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
@@ -878,7 +852,10 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
-    final Workflow response = this.internalGet(team, name, version, true);
+    // The same masked read as get, keeping the id the canvas carries.
+    Workflow response = get(workflowRef(team, name), version, true).getBody();
+    filterSensitiveValues(List.of(response));
+    convertTaskRefsToSlugs(team, response);
     return convertWorkflowToCanvas(response);
   }
 
@@ -895,7 +872,7 @@ public class WorkflowService {
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
-    Workflow response = this.apply(team, workflow, replace, false);
+    Workflow response = this.apply(team, workflow, replace);
     return convertWorkflowToCanvas(response);
   }
 

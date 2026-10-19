@@ -523,7 +523,10 @@ public class SlackService {
           slack
               .methods()
               .oauthV2Access(req -> req.clientId(clientId).clientSecret(clientSecret).code(code));
-      LOGGER.debug("Auth Response: " + authResponse.toString());
+      LOGGER.debug(
+          "Slack OAuth response: ok={}, team={}",
+          authResponse.isOk(),
+          (authResponse.getTeam() != null) ? authResponse.getTeam().getId() : null);
       if (authResponse.isOk()) {
         saveSlackAuthToken(authResponse);
       }
@@ -565,7 +568,7 @@ public class SlackService {
       authExtension.setLabels(labels);
     }
     extensionsRepository.save(authExtension);
-    LOGGER.debug(authExtension.toString());
+    LOGGER.debug("Saved Slack Team Auth {}", authExtension.getId());
   }
 
   /*
@@ -591,8 +594,7 @@ public class SlackService {
       IntegrationsEntity authExtension = authExtensions.get(0);
       //            authExtension.getUsers().add(userId);
       extensionsRepository.save(authExtension);
-      LOGGER.debug("Added user to Slack Team Extension");
-      LOGGER.debug(authExtension.toString());
+      LOGGER.debug("Added user to Slack Team Extension {}", authExtension.getId());
     }
   }
 
@@ -651,12 +653,12 @@ public class SlackService {
     if (!authsList.isEmpty()) {
       Map<String, Object> data = (Map<String, Object>) authsList.get(0).getData();
       String teamAuthToken = data.get("accessToken").toString();
-      LOGGER.debug("Using existing team Slack auth token: " + teamAuthToken);
+      LOGGER.debug("Using the stored Slack auth token for team {}", teamId);
       return teamAuthToken;
     }
     String defaultAuthToken =
         settingsService.getSettingConfig("integration", "slack.token").getValue();
-    LOGGER.debug("Using default Slack auth token: " + defaultAuthToken);
+    LOGGER.debug("Using the default Slack auth token for team {}", teamId);
     return defaultAuthToken;
   }
 
