@@ -4,6 +4,7 @@ import queryString, { StringifyOptions } from "query-string";
 import { Route } from "react-router-dom";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as fixtures from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
@@ -29,6 +30,24 @@ const WORKSPACE = "tyson-workspace"; // matches ApiServer/fixtures/workspaces.js
 function renderInsights(route: string = `/${WORKSPACE}/insights`) {
   return renderWithContext(<Route path="/:workspace/insights" loader={loader} element={<Insights />} />, { route });
 }
+
+const sums = (totalTokens: number, cost: number | null) => ({
+  aiTaskRuns: 3,
+  promptTokens: totalTokens - 100,
+  completionTokens: 100,
+  totalTokens,
+  reasoningTokens: 0,
+  cachedPromptTokens: 0,
+  cost,
+});
+
+const usage = {
+  ...sums(12_400, 0.0312),
+  byModel: [
+    { model: "openai/gpt-4o-mini", ...sums(12_000, 0.0312) },
+    { model: null, ...sums(400, null) },
+  ],
+};
 
 describe("Insights --- page", () => {
   test("leads with the period's numbers and their previous-period comparison", async () => {
@@ -99,6 +118,62 @@ describe("Insights --- page", () => {
     await waitFor(() =>
       expect(history.location.search).toBe(
         "?" + queryString.stringify({ workflows: "Personal - Java - Deploy" }, queryStringOptions),
+      ),
+    );
+  });
+
+  test("shows no model usage panel when the period ran no ai task", async () => {
+    renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    expect(screen.queryByTestId("insights-usage")).not.toBeInTheDocument();
+  });
+
+  test("shows model usage, with cost and one row per model, when the period ran ai tasks", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () =>
+        HttpResponse.json({ ...fixtures.insights, usage }),
+      ),
+    );
+    renderInsights();
+
+    const panel = await screen.findByTestId("insights-usage");
+    expect(panel).toHaveTextContent("Total tokens12,400");
+    expect(panel).toHaveTextContent("Cost0.0312");
+    expect(panel).toHaveTextContent("openai/gpt-4o-mini");
+    // A model the endpoint did not name is still its own row.
+    expect(panel).toHaveTextContent("Not reported");
+  });
+
+  test("the selected workflow's ai tasks show their tokens and cost", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.getInsightsWorkflow({ workspace: ":workspace", workflow: ":workflow" }), () =>
+        HttpResponse.json({
+          ...fixtures.insightsWorkflow,
+          tasks: [
+            { ...fixtures.insightsWorkflow.tasks[0], totalTokens: null, cost: null },
+            { ...fixtures.insightsWorkflow.tasks[1], totalTokens: 12_000, cost: 0.0312 },
+          ],
+          usage,
+        }),
+      ),
+    );
+    renderInsights(`/${WORKSPACE}/insights?workflow=cheer-finding-verify`);
+
+    await screen.findByTestId("insights-detail-usage");
+    expect(screen.getByTestId("insights-task-usage-run-verifier")).toHaveTextContent("12,000 tokens · 0.0312");
+    expect(screen.getByTestId("insights-task-usage-fetch-findings")).toBeEmptyDOMElement();
+  });
+
+  test("filtering by label updates the URL search params on Enter", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.type(screen.getByLabelText("Filter by label"), "archie.analysisType=knowledge{enter}");
+
+    await waitFor(() =>
+      expect(history.location.search).toBe(
+        "?" + queryString.stringify({ labels: "archie.analysisType=knowledge" }, queryStringOptions),
       ),
     );
   });
@@ -179,6 +254,34 @@ describe("Insights --- loader", () => {
       fromDate: "100",
       toDate: "200",
     });
+  });
+
+  test("passes the label filter to both the summary and the selected workflow's detail", async () => {
+    const captured: Record<string, string> = {};
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), ({ request }) => {
+        captured.summary = new URL(request.url).search;
+        return HttpResponse.json({});
+      }),
+      http.get(
+        serviceUrl.workspace.getInsightsWorkflow({ workspace: ":workspace", workflow: ":workflow" }),
+        ({ request }) => {
+          captured.detail = new URL(request.url).search;
+          return HttpResponse.json({});
+        },
+      ),
+    );
+
+    await loader({
+      params: { workspace: WORKSPACE },
+      request: new Request(
+        `http://localhost/${WORKSPACE}/insights?workflow=w&labels=archie.analysisType%3Dknowledge,team%3Dai`,
+      ),
+    });
+
+    const expected = ["archie.analysisType=knowledge", "team=ai"];
+    expect(queryString.parse(captured.summary, queryStringOptions).labels).toEqual(expected);
+    expect(queryString.parse(captured.detail, queryStringOptions).labels).toEqual(expected);
   });
 
   // The default window must be computed per request: this module is imported once into a

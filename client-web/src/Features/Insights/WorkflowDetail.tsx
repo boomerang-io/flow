@@ -3,9 +3,20 @@ import { Link } from "react-router-dom";
 import { Tag } from "@carbon/react";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
-import { InsightsWorkflowDetail } from "Types";
-import { formatDuration } from "./format";
+import cx from "classnames";
+import { InsightsTaskRow, InsightsWorkflowDetail } from "Types";
+import { formatCost, formatDuration, formatTokens } from "./format";
+import UsagePanel from "./UsagePanel";
 import styles from "./Insights.module.scss";
+
+/** "12,345 tokens · 0.0021"; empty for a task that is not an ai task. */
+function taskUsage(task: InsightsTaskRow): string {
+  if (task.totalTokens === null || task.totalTokens === undefined) {
+    return "";
+  }
+  const tokens = `${formatTokens(task.totalTokens)} tokens`;
+  return task.cost === null || task.cost === undefined ? tokens : `${tokens} · ${formatCost(task.cost)}`;
+}
 
 type TagType = "red" | "purple" | "gray" | "teal";
 
@@ -25,6 +36,9 @@ interface WorkflowDetailProps {
 export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProps) {
   const longest = Math.max(1, ...detail.tasks.map((task) => task.p50Duration), detail.p50QueueWait);
   const failed = detail.failures.reduce((sum, failure) => sum + failure.count, 0);
+  // Task rows carry a usage column only when the workflow ran an ai task in the period.
+  const usage = detail.usage && detail.usage.aiTaskRuns > 0 ? detail.usage : null;
+  const rowClass = cx(styles.taskRow, { [styles.taskRowUsage]: usage });
 
   return (
     <div className={styles.detail} data-testid="insights-workflow-detail">
@@ -40,7 +54,7 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
         ) : (
           <ul className={styles.taskList}>
             {detail.tasks.map((task) => (
-              <li key={task.name} className={styles.taskRow}>
+              <li key={task.name} className={rowClass}>
                 <span className={styles.taskName} title={task.taskRef ?? undefined}>
                   {task.name}
                 </span>
@@ -51,14 +65,20 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
                   {formatDuration(task.p50Duration)}
                   {task.failed > 0 ? <span className={styles.muted}> · {task.failed} failed</span> : null}
                 </span>
+                {usage ? (
+                  <span className={`${styles.taskValue} ${styles.muted}`} data-testid={`insights-task-usage-${task.name}`}>
+                    {taskUsage(task)}
+                  </span>
+                ) : null}
               </li>
             ))}
-            <li className={styles.taskRow}>
+            <li className={rowClass}>
               <span className={`${styles.taskName} ${styles.muted}`}>queue wait</span>
               <span className={styles.bar} aria-hidden="true">
                 <span className={`${styles.barFill} ${styles.barNeutral}`} style={{ width: `${(detail.p50QueueWait / longest) * 100}%` }} />
               </span>
               <span className={`${styles.taskValue} ${styles.muted}`}>{formatDuration(detail.p50QueueWait)}</span>
+              {usage ? <span /> : null}
             </li>
           </ul>
         )}
@@ -106,6 +126,8 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
         )}
         <p className={styles.panelNote}>Each row links to the newest run that ended that way.</p>
       </section>
+
+      {usage ? <UsagePanel id="insights-detail-usage" title={`Model usage · ${detail.workflowName}`} usage={usage} /> : null}
     </div>
   );
 }

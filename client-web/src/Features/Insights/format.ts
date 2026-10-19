@@ -20,6 +20,30 @@ export function formatDuration(ms: number): string {
   return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`;
 }
 
+/** "a=b, c=d" typed in the label filter, as the list the API takes; blank entries dropped. */
+export function parseLabels(text: string): Array<string> {
+  return text
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+/** "1,234,567"; tokens are counts, so grouped digits read better than an abbreviation. */
+export function formatTokens(tokens: number | null | undefined): string {
+  return (tokens ?? 0).toLocaleString("en-US");
+}
+
+/**
+ * "12.3456"; cost is the endpoint's own figure in its own currency, so no symbol is shown.
+ * Small amounts keep four decimals; "n/a" when nothing reported a cost.
+ */
+export function formatCost(cost: number | null | undefined): string {
+  if (cost === null || cost === undefined) {
+    return "n/a";
+  }
+  return cost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
 /** "87.4%"; "n/a" when nothing finished with an outcome. */
 export function formatPercent(rate: number | null | undefined): string {
   return rate === null || rate === undefined ? "n/a" : `${(rate * 100).toFixed(1)}%`;

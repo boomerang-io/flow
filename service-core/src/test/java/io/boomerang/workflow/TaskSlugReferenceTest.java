@@ -105,7 +105,11 @@ class TaskSlugReferenceTest extends AbstractEngineIntegrationTest {
 
     WorkflowRunInsightWorkflowDetail detail =
         insightService.workflowDetail(
-            workspace, name, new Date(System.currentTimeMillis() - 3_600_000L), new Date(System.currentTimeMillis() + 60_000L));
+            workspace,
+            name,
+            new Date(System.currentTimeMillis() - 3_600_000L),
+            new Date(System.currentTimeMillis() + 60_000L),
+            Optional.empty());
 
     Map<String, WorkflowRunInsightWorkflowDetail.TaskRow> rows =
         byName(detail.getTasks(), WorkflowRunInsightWorkflowDetail.TaskRow::getName);

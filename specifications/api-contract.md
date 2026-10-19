@@ -142,7 +142,7 @@ its combined results exceed MongoDB's 16 MB document limit, when it fails for a 
 
 ## Insights
 
-Two reads under `/api/v2/workspace/{workspace}/insights` (`workspace/WorkspaceInsightsControllerV2.java:41,79`),
+Two reads under `/api/v2/workspace/{workspace}/insights` (`workspace/WorkspaceInsightsControllerV2.java:45,83`),
 both computed from the WorkflowRuns and TaskRuns the workspace still holds
 (`workflow/WorkflowRunInsightService.java`), never from the audit trail. A deleted workflow's runs are gone with
 it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java`) serves the monthly quotas only
@@ -150,13 +150,25 @@ it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java
 
 | Read | Returns |
 | --- | --- |
-| `GET …/insights?fromDate&toDate&workflows&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first. `workflows` takes names or ids. |
-| `GET …/insights/workflow/{workflow}?fromDate&toDate` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, queue-wait percentiles, `retriedRuns`, and up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
+| `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first; `usage` over the period's runs. `workflows` takes names or ids. |
+| `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on an `ai` task's row (null otherwise), queue-wait percentiles, `retriedRuns`, up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run, and `usage` over the workflow's runs. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
+
+`labels` is the run query's own filter, read by the same code (`workflow/WorkflowRunService.java:683`
+`labelCriteria`): URL-encoded `key=value` entries, comma-separated, all of which must match; an entry without a
+value is `400 QUERY_INVALID_FILTERS`. It narrows both periods of the summary.
+
+`usage` (`service-core/…/model/WorkflowRunInsightUsage.java`) sums the results the `ai` task runs of the counted
+runs reported: `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`,
+`cachedPromptTokens` and `cost`, and the same sums per `model` result in `byModel`, most tokens first
+(`workflow/WorkflowRunInsightService.java:294` `aiUsage`). A result that is empty or not a number adds nothing, so
+a task that did not report `cost` leaves it `null`; `cost` is the endpoint's own figure in its own currency and
+is summed as reported. A for-each parent holds its items' results as arrays and is left out; its items count,
+under the parent's name on the detail's task rows. A task that is not an `ai` task never counts.
 
 Durations and waits are milliseconds; a percentile over no runs is `0`. Both reads are projections of the fields
 the statistics need, scoped to the workspace's workflows through the relationship graph like every other run query;
-the task-run read goes through the `workflowRunRef` index using the runs already fetched, so no new index exists for
-it.
+the task-run read and the one `usage` aggregation per response go through the `workflowRunRef`-first `task_runs`
+indexes using the runs already fetched, so no new index exists for either.
 
 ## YAML content negotiation
 

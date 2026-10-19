@@ -4,6 +4,7 @@ import {
   FeatureHeader as Header,
   FeatureHeaderTitle as HeaderTitle,
   FeatureHeaderSubtitle as HeaderSubtitle,
+  TextInput,
   Toggle,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sortByProp } from "@boomerang-io/utils";
@@ -20,8 +21,10 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import type { FlowWorkspace, InsightsSummary, InsightsWorkflowDetail, MultiSelectItem, MultiSelectItems, Workflow } from "Types";
 import DurationSpread from "./DurationSpread";
+import { parseLabels } from "./format";
 import HeadlineTiles from "./HeadlineTiles";
 import RunsPerDayChart from "./RunsPerDayChart";
+import UsagePanel from "./UsagePanel";
 import WorkflowDetail from "./WorkflowDetail";
 import WorkflowTable from "./WorkflowTable";
 import styles from "./Insights.module.scss";
@@ -80,7 +83,7 @@ function asString(value: string | Array<string> | null | undefined): string | nu
 }
 
 // Server loader (ssr:true). Runs in Node, so it uses serverFetch(request) rather than the browser
-// axios instance. Every filter (statuses/workflows/triggers/fromDate/toDate) and the selected
+// axios instance. Every filter (statuses/workflows/triggers/labels/fromDate/toDate) and the selected
 // workflow are read off the request URL, the same names the component navigates with.
 export async function loader({
   params,
@@ -94,6 +97,7 @@ export async function loader({
     statuses,
     workflows,
     triggers,
+    labels,
     workflow,
     fromDate = defaultFromDate(),
     toDate = defaultToDate(),
@@ -102,9 +106,13 @@ export async function loader({
 
   // One wave: the summary, the workflow filter options and the selected workflow's detail are
   // independent reads, and a loader blocks first paint. `allSettled` keeps each failure its own.
+  // The label filter narrows both, so the detail always describes the runs the summary counted.
   const api = serverFetch(request);
-  const summaryQuery = queryString.stringify({ statuses, workflows, triggers, fromDate, toDate }, queryStringOptions);
-  const detailQuery = queryString.stringify({ fromDate, toDate }, queryStringOptions);
+  const summaryQuery = queryString.stringify(
+    { statuses, workflows, triggers, labels, fromDate, toDate },
+    queryStringOptions,
+  );
+  const detailQuery = queryString.stringify({ labels, fromDate, toDate }, queryStringOptions);
   const [summaryResult, workflowsResult, detailResult] = await Promise.allSettled([
     api.get(serviceUrl.workspace.getInsights({ workspace, query: summaryQuery })),
     api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
@@ -163,6 +171,9 @@ export default function Insights() {
         <div className={styles.chart}>
           <RunsPerDayChart daily={summary.daily} />
         </div>
+        {summary.usage && summary.usage.aiTaskRuns > 0 ? (
+          <UsagePanel id="insights-usage" title="Model usage" usage={summary.usage} />
+        ) : null}
         <WorkflowTable workspace={workspace.name} rows={summary.workflows} selected={selected} selectHref={selectHref} />
         {selected && detail ? <WorkflowDetail workspace={workspace.name} detail={detail} /> : null}
         {selected && errorLoadingDetail ? (
@@ -232,7 +243,12 @@ interface SelectsProps {
 function Selects(props: SelectsProps) {
   const location = useLocation();
   const search = queryString.parse(location.search, queryStringOptions);
-  const { statuses, workflows, triggers, fromDate, toDate } = search;
+  const { statuses, workflows, triggers, labels, fromDate, toDate } = search;
+  const selectedLabels = (typeof labels === "string" ? [labels] : labels ?? []).filter(
+    (label): label is string => typeof label === "string",
+  );
+  // Typed into a field and applied on Enter or on leaving it, so each keystroke is not a reload.
+  const [labelText, setLabelText] = React.useState(selectedLabels.join(", "));
   const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
   const selectedStatuses = typeof statuses === "string" ? [statuses] : statuses;
   const selectedTriggers = typeof triggers === "string" ? [triggers] : triggers;
@@ -266,6 +282,14 @@ function Selects(props: SelectsProps) {
   function handleSelectTriggers({ selectedItems }: MultiSelectItems<SelectableTrigger>) {
     const values = selectedItems.length > 0 ? selectedItems.map((trigger) => trigger.value) : undefined;
     props.updateHistorySearch({ ...search, triggers: values });
+  }
+
+  function applyLabels() {
+    const values = parseLabels(labelText);
+    if (values.join(",") === selectedLabels.join(",")) {
+      return;
+    }
+    props.updateHistorySearch({ ...search, labels: values.length > 0 ? values : undefined });
   }
 
   function handleSelectDate(dates: any) {
@@ -334,6 +358,21 @@ function Selects(props: SelectsProps) {
         )}
         titleText="Filter by trigger"
       />
+      <div className={styles.labelFilter}>
+        <TextInput
+          id="insights-labels-input"
+          labelText="Filter by label"
+          placeholder="key=value, key=value"
+          value={labelText}
+          onChange={(event: React.ChangeEvent<HTMLInputElement>) => setLabelText(event.target.value)}
+          onBlur={applyLabels}
+          onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === "Enter") {
+              applyLabels();
+            }
+          }}
+        />
+      </div>
       <div className={styles.timeFilters}>
         <div className={styles.compare}>
           <Toggle

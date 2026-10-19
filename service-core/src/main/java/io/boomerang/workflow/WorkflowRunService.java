@@ -38,8 +38,8 @@ import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -675,6 +675,26 @@ public class WorkflowRunService {
     }
   }
 
+  /**
+   * Return the criteria for a run {@code labels} filter: each entry is a URL-encoded {@code
+   * key=value}, matched exactly, and the entries are ANDed. A dot in the key is matched in its
+   * stored form. An entry without a value is refused with {@code QUERY_INVALID_FILTERS}.
+   */
+  static List<Criteria> labelCriteria(Optional<List<String>> labels) {
+    List<Criteria> criteria = new ArrayList<>();
+    labels.ifPresent(
+        entries ->
+            entries.forEach(
+                entry -> {
+                  String[] label = URLDecoder.decode(entry, StandardCharsets.UTF_8).split("[=]+");
+                  if (label.length < 2 || label[0].isBlank()) {
+                    throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels");
+                  }
+                  criteria.add(Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]));
+                }));
+    return criteria;
+  }
+
   public Page<WorkflowRun> query(
       Optional<Date> from,
       Optional<Date> to,
@@ -705,24 +725,7 @@ public class WorkflowRunService {
       criteriaList.add(criteria);
     }
 
-    // TODO add the ability to OR labels not just AND
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
+    criteriaList.addAll(labelCriteria(queryLabels));
 
     if (queryStatus.isPresent()) {
       if (queryStatus.get().stream()
@@ -814,24 +817,7 @@ public class WorkflowRunService {
       criteriaList.add(criteria);
     }
 
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
+    criteriaList.addAll(labelCriteria(labels));
 
     if (queryWorkflows.isPresent()) {
       Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
@@ -903,24 +889,7 @@ public class WorkflowRunService {
       criteriaList.add(criteria);
     }
 
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
+    criteriaList.addAll(labelCriteria(labels));
 
     if (queryWorkflows.isPresent()) {
       Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
