@@ -102,6 +102,22 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aRateLimitRefusalIsRequeuedAndItsClaimReleasedByTheTerminationOrder() {
+    String[] claimed = claimedTask("rate-limited", 0);
+
+    taskRunService.end(claimed[0], Optional.of(failed("RateLimited", claimed[1])));
+
+    TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
+    assertEquals(RunPhase.pending, after.getPhase());
+    assertEquals(1, after.getRetry().getCount());
+    assertTrue(after.getRetry().getAfter().after(new Date()), "the backoff gates the next claim");
+    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1]), claimed[0]));
+    after = taskRunRepository.findById(claimed[0]).orElseThrow();
+    assertEquals(RunStatus.ready, after.getStatus());
+    assertEquals(null, after.getClaim().getBy());
+  }
+
+  @Test
   void aSpentBudgetFailsTheTaskWithTheReason() {
     String[] claimed = claimedTask("spent", EngineConstants.MAX_RETRIES);
 
@@ -114,6 +130,22 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
               assertEquals(RunPhase.completed, after.getPhase());
               assertEquals(RunStatus.failed, after.getStatus());
               assertEquals("ExceededQuota", after.getStatusReason());
+            });
+  }
+
+  @Test
+  void aSpentBudgetFailsARateLimitedTaskWithTheReason() {
+    String[] claimed = claimedTask("spent-rate-limited", EngineConstants.MAX_RETRIES);
+
+    taskRunService.end(claimed[0], Optional.of(failed("RateLimited", claimed[1])));
+
+    awaitEngine("the task to fail once its retry budget is spent")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
+              assertEquals(RunPhase.completed, after.getPhase());
+              assertEquals(RunStatus.failed, after.getStatus());
+              assertEquals("RateLimited", after.getStatusReason());
             });
   }
 

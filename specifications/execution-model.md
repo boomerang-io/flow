@@ -159,7 +159,7 @@ jitter (`service-core/.../util/Backoff.java:12-21`). The result is stored as `re
 | Situation | Retried? | Where |
 | --- | --- | --- |
 | Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `EngineConstants.java:18-34`, `WorkflowWatcher.java:199`, `:517` |
-| Dispatcher reports it could not start the task (`ExceededQuota`, `StartTimeout`), type is requeueable, attempts < 3 | yes, requeued with backoff on the same budget; once spent, the task fails with that reason | `TaskRunService.java:62`, `:1004` |
+| Dispatcher reports it could not start the task (`ExceededQuota`, `StartTimeout`, `RateLimited`), type is requeueable, attempts < 3 | yes, requeued with backoff on the same budget; once spent, the task fails with that reason | `TaskRunService.java:71`, `:1059` |
 | Task run reported `failed`/`invalid` by the dispatcher for any other reason | no — the run advances or fails | `TaskExecutionService.java:463-473` |
 | Gate, wait or inline system task times out | no — terminal `timedout` | `EngineConstants.java:18-31` |
 | Workflow run times out and `retries` > 0 | yes, as a NEW workflow run (`trigger=retry`, `initiatedByRef`) | `WorkflowExecutionService.java:245-264`, `WorkflowRunService.java:941-1010` |
