@@ -63,22 +63,15 @@ public class ParameterService {
         paramRepository
             .findOneByName(param.getName())
             .orElseThrow(() -> new BoomerangException(BoomerangError.PARAMS_INVALID_REFERENCE));
-    // GET never returns a secured value (it is filtered to null), so an edit to any other field
-    // arrives with the value blank - copying it through would destroy the stored secret. Preserve
-    // the stored value whenever the incoming one carries nothing new.
-    boolean preserveStoredValue =
-        FieldType.PASSWORD.value().equals(entity.getType()) && isBlank(param.getValue());
-    BeanUtils.copyProperties(
-        param, entity, preserveStoredValue ? new String[] {"id", "value"} : new String[] {"id"});
+    // GET never returns a secured value or default, so an edit to any other field sends them back
+    // blank or as the redaction marker - copying that through would destroy the stored secret.
+    // Keep the stored value and default whenever the incoming one carries nothing new.
+    DataAdapterUtil.keepParamSpecValueByFieldType(
+        List.of(param), List.of(entity), FieldType.PASSWORD.value());
+    BeanUtils.copyProperties(param, entity, "id");
     entity = paramRepository.save(entity);
     paramLayerCache.evictAll();
     return convertToAbstractParamAndFilter(entity);
-  }
-
-  // Blank covers both a null value (Jackson never emits the omitted field, so it decodes as
-  // null) and an empty string (a client that round-trips a form field literally).
-  private static boolean isBlank(Object value) {
-    return value == null || (value instanceof String s && s.isBlank());
   }
 
   public AbstractParam create(AbstractParam request) {
@@ -93,6 +86,9 @@ public class ParameterService {
       }
       LOGGER.debug("Requested GlobalParamEntity: {}", request.getName());
 
+      // Nothing is stored yet, so a redaction marker sent on create becomes blank, never the secret.
+      DataAdapterUtil.keepParamSpecValueByFieldType(
+          List.of(request), List.of(), FieldType.PASSWORD.value());
       GlobalParamEntity entity = new GlobalParamEntity();
       BeanUtils.copyProperties(request, entity, "id");
       LOGGER.debug("Creating GlobalParamEntity: {}", entity.getName());
@@ -116,13 +112,14 @@ public class ParameterService {
   }
 
   /*
-   * Converts from GlobalParamEntity to AbstractParam and filters out secure values
+   * Converts from GlobalParamEntity to AbstractParam and filters out a secured value and default
    */
   private AbstractParam convertToAbstractParamAndFilter(GlobalParamEntity entity) {
     AbstractParam param = new AbstractParam();
     BeanUtils.copyProperties(entity, param);
     LOGGER.debug("Copied GlobalParamEntity to AbstractParam: {}", param.getName());
     param = DataAdapterUtil.filterAbstractParam(param, false, FieldType.PASSWORD.value());
+    param = DataAdapterUtil.filterAbstractParam(param, true, FieldType.PASSWORD.value());
     LOGGER.debug("Converted GlobalParamEntity to AbstractParam: {}", param.getName());
     return param;
   }
