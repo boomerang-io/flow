@@ -58,9 +58,8 @@ function CreateEditParametersModal({
     const newParameter = isEdit ? { ...values, type, id: parameter.id } : { ...values, type };
     delete newParameter.secured;
 
-    // The backend looks the record up by `name` and otherwise replaces the whole stored
-    // parameter - a partial diff would both drop the lookup key and null out any field the
-    // diff omitted, so edits send the same full shape the create path does.
+    // The modal hands up the whole shape: a workspace parameter is replaced whole inside the
+    // workspace PATCH, and the global page turns an edit into a merge patch of what changed.
     handleSubmit(isEdit, newParameter, closeModal);
   };
 

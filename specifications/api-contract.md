@@ -286,6 +286,21 @@ turning `schedule` off moves the workflow's schedules to `trigger_disabled` (`:9
 trigger the stored workflow lacks with its default, manual on and the rest off, so responses, exports and
 editors always carry all five (`workflow/ConvertUtil.java:26-48`).
 
+## Partial updates
+
+Admin settings and global parameters are updated by a JSON Merge Patch (RFC 7396), sent as
+`application/merge-patch+json` or `application/json`: an absent member is unchanged, a `null` member is cleared,
+and any other value replaces it (decision 0123). A secured value sent as `*****` keeps the stored one.
+
+| Call | Body | Errors |
+| --- | --- | --- |
+| `PATCH /api/v2/parameters/{name}` | The members of the param to change, `{"description": "…", "value": "…"}`; `name`, if sent, must match the path, and `hiddenValue` is ignored (`workflow/ParameterService.java:72`) | `400 PARAMS_INVALID_REQ` (a rename, or a body that is not an object); `404 PARAMS_INVALID_REFERENCE` (no such param) |
+| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans (`core/SettingsService.java:82`) | `400 SETTINGS_INVALID_KEY` (1030) naming an unknown group or key, or a value that is not a scalar; the whole patch is refused before anything is written |
+
+Both answer with the updated resource as a read shows it. A `null` here clears, whereas on a full-replace `PUT`
+apply (workflows, catalogue tasks, schedules) a secret sent as `null` keeps the stored value, because there a
+missing member and a `null` member cannot be told apart.
+
 ## Labels and annotations
 
 `labels` are a client-owned `Map<String,String>`; `annotations` are a `Map<String,Object>` in

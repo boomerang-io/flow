@@ -63,6 +63,12 @@ tag's release notes.
   takes the same form: a bare slug now matches only a global task.
 - **A workspace quota of 0 is unlimited, and an absent quota inherits the platform default.** A workspace PATCH
   merges quotas field by field instead of replacing the stored set.
+- **Settings and global parameters are updated by `PATCH`; their `PUT` routes are gone.** Send a JSON Merge Patch
+  (`application/merge-patch+json` or `application/json`): `PATCH /api/v2/settings` with
+  `{"<group>": {"<key>": value}}`, for example `{"artifacts": {"retention.default.days": "30"}}`, and
+  `PATCH /api/v2/parameters/{name}` with only the members to change. An absent member is unchanged, `null` clears
+  it, and a secured value sent as `*****` is kept. An unknown settings group or key is now a `400
+  SETTINGS_INVALID_KEY` rather than ignored.
 
 ### Added
 

@@ -123,13 +123,19 @@ export const handlers: HttpHandler[] = [
     db.globalParams.push(created);
     return HttpResponse.json(created, { status: 201 });
   }),
-  // Global parameters are updated in bulk via PUT /parameters (no id in the path); the request
-  // body carries the full parameter (see resolver.patchGlobalParameter).
-  http.put(serviceUrl.getGlobalParameters(), async ({ request }) => {
+  // A global parameter is updated by a JSON Merge Patch addressed by name: an absent member is
+  // unchanged, null removes it, any other value replaces it.
+  http.patch(serviceUrl.getGlobalParameter({ name: ":name" }), async ({ params, request }) => {
+    const name = pathParam(params.name);
     const body = await jsonBody(request);
-    const index = db.globalParams.findIndex((param) => param.name === body.name);
+    const index = db.globalParams.findIndex((param) => param.name === name);
     if (index === -1) return HttpResponse.json({ errors: ["Parameter not found"] }, { status: 404 });
-    db.globalParams[index] = { ...db.globalParams[index], ...body };
+    const merged: Record<string, unknown> = { ...db.globalParams[index] };
+    Object.entries(body).forEach(([key, value]) => {
+      if (value === null) delete merged[key];
+      else merged[key] = value;
+    });
+    db.globalParams[index] = merged as (typeof db.globalParams)[number];
     return HttpResponse.json(db.globalParams[index]);
   }),
   http.delete(serviceUrl.getGlobalParameter({ name: ":name" }), ({ params }) => {
@@ -552,9 +558,16 @@ export const handlers: HttpHandler[] = [
    * Manage Settings
    */
   http.get(serviceUrl.resourceSettings(), () => HttpResponse.json(db.settings)),
-  http.put(serviceUrl.resourceSettings(), async ({ request }) => {
-    const body = await jsonBody(request);
-    db.settings[0] = { ...db.settings[0], ...body };
+  // A merge patch of {"<group>": {"<key>": value}}; null clears an entry to empty.
+  http.patch(serviceUrl.resourceSettings(), async ({ request }) => {
+    const body = (await jsonBody(request)) as Record<string, Record<string, unknown>>;
+    const groups = db.settings as unknown as Array<{ key: string; config?: Array<{ key: string; value?: unknown }> }>;
+    Object.entries(body).forEach(([groupKey, entries]) => {
+      const group = groups.find((settingsGroup) => settingsGroup.key === groupKey);
+      group?.config?.forEach((config) => {
+        if (config.key in entries) config.value = entries[config.key] ?? "";
+      });
+    });
     return HttpResponse.json(db.settings);
   }),
 

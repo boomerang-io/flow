@@ -60,24 +60,34 @@ describe("Settings --- error", () => {
 });
 
 describe("Settings --- action", () => {
-  const settingsGroup = { key: "controller", name: "Workers", description: "", config: [] };
+  const patch = { controller: { "worker.timeout": "30" } };
 
-  test("updates settings through the mocked API", async () => {
+  test("updates settings by a merge patch of the changed entries", async () => {
+    let sent: { method: string; contentType: string | null; body: unknown } | undefined;
+    server.use(
+      http.patch(serviceUrl.resourceSettings(), async ({ request }) => {
+        sent = { method: request.method, contentType: request.headers.get("content-type"), body: await request.json() };
+        return HttpResponse.json([]);
+      }),
+    );
     const request = new Request("http://localhost/admin/settings/controller", {
       method: "post",
-      body: new URLSearchParams({ intent: "update", settingsGroup: JSON.stringify(settingsGroup) }),
+      body: new URLSearchParams({ intent: "update", patch: JSON.stringify(patch) }),
     });
 
     const result = await action({ request });
 
     expect(result).toEqual({});
+    expect(sent?.method).toBe("PATCH");
+    expect(sent?.contentType).toContain("application/merge-patch+json");
+    expect(sent?.body).toEqual(patch);
   });
 
   test("surfaces a failed update without throwing", async () => {
-    server.use(http.put(serviceUrl.resourceSettings(), () => HttpResponse.json({}, { status: 500 })));
+    server.use(http.patch(serviceUrl.resourceSettings(), () => HttpResponse.json({}, { status: 500 })));
     const request = new Request("http://localhost/admin/settings/controller", {
       method: "post",
-      body: new URLSearchParams({ intent: "update", settingsGroup: JSON.stringify(settingsGroup) }),
+      body: new URLSearchParams({ intent: "update", patch: JSON.stringify(patch) }),
     });
 
     // Calling `action` directly (rather than through a router) surfaces the raw

@@ -220,11 +220,12 @@ prefix so that it can be routed separately from the public API (`api-contract.md
 ## Secured settings at rest
 
 A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every internal read
-(`getSettingConfig`, `core/SettingsService.java`). The settings API (`GET` and `PUT /api/v2/settings`,
-`core/SystemControllerV2.java`) follows the one secret rule (`parameters.md`, "Sensitive parameters"): a set value
-reads as `*****` and an unset one as nothing (`SettingsService.java:171`); a save that sends back `*****` or no value
-keeps the stored value, a blank clears it, and any other value replaces it (`:84`). A value that will not decrypt
-is kept as stored on the next save of its group (`:193`). The cipher is AES-256-GCM with a random initialisation
+(`getSettingConfig`, `core/SettingsService.java`). The settings API (`GET` and `PATCH /api/v2/settings`, the
+latter a merge patch of `{"<group>": {"<key>": value}}`, `core/SystemControllerV2.java:69`) follows the one secret
+rule (`parameters.md`, "Sensitive parameters"): a set value reads as `*****` and an unset one as nothing
+(`SettingsService.java:210`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
+null clears it, and any other value replaces it (`:110`). A value that will not decrypt is kept as stored on the
+next save of its group (`:232`). The cipher is AES-256-GCM with a random initialisation
 vector per call (`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme
 in its own label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value carrying the whole
 label pass through the cipher untouched, and an encryption failure throws (`core/SecretCipher.java:38-60`).

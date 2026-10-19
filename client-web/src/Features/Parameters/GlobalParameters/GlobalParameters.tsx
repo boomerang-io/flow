@@ -8,6 +8,7 @@ import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import { MERGE_PATCH_JSON, toMergePatch } from "Utils/mergePatch";
 import CreateEditParametersModal from "../CreateEditParametersModal";
 import ParametersTable from "../ParametersTable";
 import styles from "./globalParameters.module.scss";
@@ -73,11 +74,14 @@ export async function action({ request }: { request: Request }) {
   const editIntent: "update" | "create" = isEdit ? "update" : "create";
   const parameter = JSON.parse(String(formData.get("parameter")));
   try {
+    // An edit is a JSON Merge Patch of the members that changed, addressed by name; a create posts
+    // the whole parameter.
     const response = isEdit
       ? await serverFetch(request)({
-          url: serviceUrl.getGlobalParameters(),
+          url: serviceUrl.getGlobalParameter({ name: String(formData.get("name")) }),
           data: parameter,
-          method: HttpMethod.Put,
+          method: HttpMethod.Patch,
+          headers: { "Content-Type": MERGE_PATCH_JSON },
         })
       : await serverFetch(request)({
           url: serviceUrl.getGlobalParameters(),
@@ -88,7 +92,7 @@ export async function action({ request }: { request: Request }) {
   } catch (error) {
     return actionError({
       intent: editIntent,
-      label: parameter.label,
+      label: String(formData.get("label") ?? parameter.label ?? ""),
       error: formatErrorMessage({ error, defaultMessage: `${isEdit ? "Update" : "Create"} Parameter Failed` }),
     });
   }
@@ -151,7 +155,20 @@ function GlobalParameters() {
 
   const handleSubmit = async (isEdit: boolean, parameter: DataDrivenInput, closeModal: () => void) => {
     closeModalRef.current = closeModal;
-    fetcher.submit({ intent: isEdit ? "update" : "create", parameter: JSON.stringify(parameter) }, { method: "post" });
+    if (isEdit && editor.parameter) {
+      const patch = toMergePatch(editor.parameter, parameter);
+      fetcher.submit(
+        {
+          intent: "update",
+          name: editor.parameter.name,
+          label: parameter.label ?? "",
+          parameter: JSON.stringify(patch),
+        },
+        { method: "post" },
+      );
+      return;
+    }
+    fetcher.submit({ intent: "create", parameter: JSON.stringify(parameter) }, { method: "post" });
   };
 
   const handleDelete = async (parameter: DataDrivenInput) => {

@@ -70,29 +70,37 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aGlobalUpdateSendingTheMarkerOrNoValueKeepsTheStoredDefaultAndABlankClearsIt() {
+  void aGlobalPatchSendingTheMarkerOrNoValueKeepsTheStoredDefaultAndABlankOrNullClearsIt() {
     parameterService.create(param("defGlobalKeep", "glob-def-0002", "glob-val-0002"));
 
-    for (Object sentBack : new Object[] {DataAdapterUtil.REDACTED, null}) {
-      AbstractParam edit = param("defGlobalKeep", sentBack, sentBack);
-      edit.setDescription("edited " + sentBack);
-      AbstractParam updated = parameterService.update(edit);
+    String marker = DataAdapterUtil.REDACTED;
+    for (String patch :
+        new String[] {
+          "{\"default\":\"" + marker + "\",\"value\":\"" + marker + "\",\"description\":\"marker\"}",
+          "{\"description\":\"omitted\"}"
+        }) {
+      AbstractParam updated = parameterService.patch("defGlobalKeep", patchOf(patch));
 
       assertThat(json(updated)).doesNotContain("glob-def-0002").doesNotContain("glob-val-0002");
       AbstractParam stored = unfilteredGlobal("defGlobalKeep");
-      assertThat(stored.getDefaultValue()).as("sent back %s", sentBack).isEqualTo("glob-def-0002");
-      assertThat(stored.getValue()).as("sent back %s", sentBack).isEqualTo("glob-val-0002");
-      assertThat(stored.getDescription()).isEqualTo("edited " + sentBack);
+      assertThat(stored.getDefaultValue()).as("patch %s", patch).isEqualTo("glob-def-0002");
+      assertThat(stored.getValue()).as("patch %s", patch).isEqualTo("glob-val-0002");
     }
 
-    AbstractParam updated = parameterService.update(param("defGlobalKeep", "glob-def-0003", null));
+    AbstractParam updated =
+        parameterService.patch("defGlobalKeep", patchOf("{\"default\":\"glob-def-0003\"}"));
     assertThat(json(updated)).doesNotContain("glob-def-0003");
     assertThat(unfilteredGlobal("defGlobalKeep").getDefaultValue()).isEqualTo("glob-def-0003");
+    assertThat(unfilteredGlobal("defGlobalKeep").getValue()).isEqualTo("glob-val-0002");
     assertThat(rawGlobal("defGlobalKeep").getString("defaultValue")).startsWith(LABEL);
 
-    parameterService.update(param("defGlobalKeep", "", ""));
+    parameterService.patch("defGlobalKeep", patchOf("{\"default\":\"\",\"value\":null}"));
     assertThat(unfilteredGlobal("defGlobalKeep").getDefaultValue()).isEqualTo("");
-    assertThat(unfilteredGlobal("defGlobalKeep").getValue()).isEqualTo("");
+    assertThat(unfilteredGlobal("defGlobalKeep").getValue()).isNull();
+  }
+
+  private tools.jackson.databind.JsonNode patchOf(String json) {
+    return JsonMapper.builder().build().readTree(json);
   }
 
   @Test

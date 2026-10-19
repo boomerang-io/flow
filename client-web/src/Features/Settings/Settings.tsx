@@ -14,8 +14,10 @@ import EmptyState from "Components/EmptyState";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
+import { REDACTED } from "Constants";
 import { DataDrivenInput } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import { hasChanged, MERGE_PATCH_JSON } from "Utils/mergePatch";
 import SettingsSection from "./SettingsSection";
 import styles from "./settings.module.scss";
 
@@ -66,9 +68,12 @@ export async function action({ request }: { request: Request }) {
     return actionError({ error: { title: "Something's Wrong", message: "Unknown action" } });
   }
 
-  const settingsGroup = JSON.parse(String(formData.get("settingsGroup")));
+  // A merge patch of the changed entries: {"<group>": {"<key>": value}}.
+  const patch = JSON.parse(String(formData.get("patch")));
   try {
-    await serverFetch(request).put(serviceUrl.resourceSettings(), [settingsGroup]);
+    await serverFetch(request).patch(serviceUrl.resourceSettings(), patch, {
+      headers: { "Content-Type": MERGE_PATCH_JSON },
+    });
     return {};
   } catch (error) {
     return actionError({ error: { title: "Something's Wrong", message: "Request to update settings failed" } });
@@ -103,9 +108,19 @@ const Settings: React.FC = () => {
     setFieldError: (key: string, value: string) => void,
   ) => {
     setFieldErrorRef.current = setFieldError;
-    const newConfig = settingsGroup.config.map((input: any) => ({ ...input, value: values[input.key] }));
-    const requestBody = { ...settingsGroup, config: newConfig };
-    fetcher.submit({ intent: "update", settingsGroup: JSON.stringify(requestBody) }, { method: "post" });
+    // Only the entries that changed. An untouched secured entry holds the redaction marker it was
+    // read with and is left out, so the stored value is kept; Clear sends "".
+    const entries: Record<string, unknown> = {};
+    settingsGroup.config.forEach((input) => {
+      const value = values[input.key];
+      if (value !== REDACTED && hasChanged(input.value, value)) {
+        entries[input.key] = value;
+      }
+    });
+    fetcher.submit(
+      { intent: "update", patch: JSON.stringify({ [settingsGroup.key]: entries }) },
+      { method: "post" },
+    );
   };
 
   if (errorLoading) {
