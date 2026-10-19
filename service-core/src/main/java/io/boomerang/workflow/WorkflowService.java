@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -51,8 +52,6 @@ import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import java.io.ByteArrayInputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -67,7 +66,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1420,47 +1418,13 @@ public class WorkflowService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkflowStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryIds.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryIds.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .labels(queryLabels)
+                .in("status", WorkflowStatus.class, queryStatus, "status")
+                .in("id", queryIds)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
@@ -1505,49 +1469,13 @@ public class WorkflowService {
       Optional<Date> to,
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("id", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowEntity> wfEntities = mongoTemplate.find(query, WorkflowEntity.class);
 

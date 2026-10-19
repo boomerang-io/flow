@@ -135,3 +135,8 @@ tag's release notes.
   in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
   apart from artifact retention; stored logs never count toward artifact storage. Set
   `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.
+- List filters behave the same on every route. A `labels` entry without a value, such as `labels=team`, is a
+  `400 QUERY_INVALID_FILTERS` everywhere instead of a server error on most lists. A label is split once on its
+  first `=`, so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter
+  now matches. The action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are
+  read ignoring case on the run, task, workflow, user, workspace and schedule lists.

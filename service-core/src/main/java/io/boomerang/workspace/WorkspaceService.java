@@ -3,6 +3,7 @@ package io.boomerang.workspace;
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByFieldType;
 
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.core.audit.SecretChangeHolder;
@@ -45,8 +46,6 @@ import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.TaskService;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
@@ -58,7 +57,6 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -443,56 +441,25 @@ public class WorkspaceService {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
 
-    List<Criteria> criteriaList = new ArrayList<>();
+    QueryCriteria criteria = new QueryCriteria();
     if (querySearch.isPresent() && !querySearch.get().isBlank()) {
       // Anchored prefix match (not an unanchored `.*term.*` scan) so a future index on name /
       // displayName can actually serve this - no such index exists yet on the workspaces
       // collection today, so this still executes as a collection scan until one is added.
       String escapedSearch = Pattern.quote(querySearch.get().trim());
-      Criteria searchCriteria =
+      criteria.add(
           new Criteria()
               .orOperator(
                   Criteria.where("name").regex("^" + escapedSearch, "i"),
-                  Criteria.where("displayName").regex("^" + escapedSearch, "i"));
-      criteriaList.add(searchCriteria);
+                  Criteria.where("displayName").regex("^" + escapedSearch, "i")));
     }
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkspaceStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    Criteria criteria = Criteria.where("name").in(teamRefs);
-    criteriaList.add(criteria);
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            criteria
+                .labels(queryLabels)
+                .in("status", WorkspaceStatus.class, queryStatus, "status")
+                .in("name", teamRefs)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {

@@ -15,6 +15,7 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.enums.RelationshipType;
@@ -26,7 +27,6 @@ import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -127,31 +127,13 @@ public class ScheduleService {
             Optional.of(List.of(queryTeam)),
             false);
     if (!refs.isEmpty()) {
-      List<Criteria> criteriaList = new ArrayList<>();
-      Criteria criteria = Criteria.where("workflowRef").in(refs);
-      criteriaList.add(criteria);
-
-      if (queryStatus.isPresent()) {
-        if (queryStatus.get().stream()
-            .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkflowScheduleStatus.class, q))) {
-          Criteria statusCriteria = Criteria.where("status").in(queryStatus.get());
-          criteriaList.add(statusCriteria);
-        } else {
-          throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-        }
-      }
-
-      if (queryTypes.isPresent()) {
-        Criteria queryCriteria = Criteria.where("type").in(queryTypes.get());
-        criteriaList.add(queryCriteria);
-      }
-
-      Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-      Criteria allCriteria = new Criteria();
-      if (criteriaArray.length > 0) {
-        allCriteria.andOperator(criteriaArray);
-      }
-      Query query = new Query(allCriteria);
+      Query query =
+          new Query(
+              new QueryCriteria()
+                  .in("workflowRef", refs)
+                  .in("status", WorkflowScheduleStatus.class, queryStatus, "status")
+                  .in("type", queryTypes)
+                  .build());
       final Pageable pageable = PageRequest.of(page, limit, sort);
       query.with(pageable);
 

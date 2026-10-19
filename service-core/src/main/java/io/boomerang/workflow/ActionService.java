@@ -9,6 +9,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
@@ -26,7 +27,6 @@ import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -399,34 +399,12 @@ public class ActionService {
       Optional<List<String>> workflowRefs,
       Optional<List<ActionType>> type,
       Optional<List<ActionStatus>> status) {
-    List<Criteria> criterias = new ArrayList<>();
-
-    if (from.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("creationDate").gte(from.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (to.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("creationDate").lte(to.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (workflowRefs.isPresent()) {
-      Criteria workflowIdsCriteria = Criteria.where("workflowRef").in(workflowRefs.get());
-      criterias.add(workflowIdsCriteria);
-    }
-
-    if (type.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("type").in(type.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (status.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("status").in(status.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    return new Criteria().andOperator(criterias.toArray(new Criteria[criterias.size()]));
+    return new QueryCriteria()
+        .between("creationDate", from, to)
+        .in("workflowRef", workflowRefs)
+        .in("type", type)
+        .in("status", status)
+        .build();
   }
 
 }

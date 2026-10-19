@@ -118,6 +118,18 @@ list filters as comma-separated values (`statuses`, `phase`, `workflows`, `trigg
 treat these as today's contract; boomerang-io/flow#328 proposes moving to Spring Data `Pageable`
 (`sort=field,dir`), which would change the wire.
 
+Every list route reads its filters through one builder (`common/util/QueryCriteria.java`), so they mean
+the same thing everywhere:
+
+| Filter | Meaning |
+| --- | --- |
+| `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
+| `fromDate`, `toDate` | Half-open: `fromDate` is included and `toDate` is excluded, on runs, actions, tokens and audit events alike (`:25-33`) |
+| `statuses`, `phase` | On the run, task, workflow, user, workspace and schedule lists, read ignoring case; a value that names no status or phase is `400 QUERY_INVALID_FILTERS` |
+| `ids` | Matches those ids, on every list that takes it, the user list included |
+
+A list query with no filter matches everything.
+
 The task and workflow `/{name}/changelog` endpoints are not paged: they return every version in
 ascending version order, so the last entry is the latest (`workflow/TaskControllerV2.java:220`,
 `WorkspaceTaskControllerV2.java:273`, `WorkspaceWorkflowControllerV2.java:207`; the sort is in
@@ -163,9 +175,8 @@ it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java
 | `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first; `usage` over the period's runs. `workflows` takes names or ids. |
 | `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on an `ai` task's row (null otherwise), queue-wait percentiles, `retriedRuns`, up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run, and `usage` over the workflow's runs. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
 
-`labels` is the run query's own filter, read by the same code (`workflow/WorkflowRunService.java:683`
-`labelCriteria`): URL-encoded `key=value` entries, comma-separated, all of which must match; an entry without a
-value is `400 QUERY_INVALID_FILTERS`. It narrows both periods of the summary.
+`labels` is the list filter described under "Pagination and sorting", read by the same builder
+(`common/util/QueryCriteria.java`). It narrows both periods of the summary.
 
 `usage` (`service-core/…/model/WorkflowRunInsightUsage.java`) sums the results the `ai` task runs of the counted
 runs reported: `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`,

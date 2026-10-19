@@ -20,6 +20,7 @@ import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -38,9 +39,6 @@ import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -52,7 +50,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -65,7 +62,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
@@ -370,21 +366,13 @@ public class WorkflowRunService {
       Optional<Date> from,
       Optional<Date> to,
       Optional<Set<RunStatus>> statuses) {
-    List<Criteria> criteriaList = new ArrayList<>();
-    criteriaList.add(Criteria.where("workflowRef").in(workflowRefs));
-    if (from.isPresent() && !to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").gte(from.get()));
-    } else if (!from.isPresent() && to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").lt(to.get()));
-    } else if (from.isPresent() && to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").gte(from.get()).lt(to.get()));
-    }
-    if (statuses.isPresent()) {
-      criteriaList.add(Criteria.where("status").in(statuses.get()));
-    }
     Query query =
         new Query(
-            new Criteria().andOperator(criteriaList.toArray(new Criteria[criteriaList.size()])));
+            new QueryCriteria()
+                .in("workflowRef", workflowRefs)
+                .between("creationDate", from, to)
+                .in("status", statuses)
+                .build());
     LOGGER.debug("Quota count query: {}", query);
     return mongoTemplate.count(query, WorkflowRunEntity.class);
   }
@@ -679,26 +667,6 @@ public class WorkflowRunService {
     }
   }
 
-  /**
-   * Return the criteria for a run {@code labels} filter: each entry is a URL-encoded {@code
-   * key=value}, matched exactly, and the entries are ANDed. A dot in the key is matched in its
-   * stored form. An entry without a value is refused with {@code QUERY_INVALID_FILTERS}.
-   */
-  static List<Criteria> labelCriteria(Optional<List<String>> labels) {
-    List<Criteria> criteria = new ArrayList<>();
-    labels.ifPresent(
-        entries ->
-            entries.forEach(
-                entry -> {
-                  String[] label = URLDecoder.decode(entry, StandardCharsets.UTF_8).split("[=]+");
-                  if (label.length < 2 || label[0].isBlank()) {
-                    throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                  }
-                  criteria.add(Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]));
-                }));
-    return criteria;
-  }
-
   public Page<WorkflowRun> query(
       Optional<Date> from,
       Optional<Date> to,
@@ -716,63 +684,17 @@ public class WorkflowRunService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    criteriaList.addAll(labelCriteria(queryLabels));
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryPhase.isPresent()) {
-      if (queryPhase.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunPhase.class, q))) {
-        Criteria criteria = Criteria.where("phase").in(queryPhase.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "phase");
-      }
-    }
-
-    if (queryWorkflowRuns.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryWorkflowRuns.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryTriggers.isPresent()) {
-      LOGGER.debug("Triggers: {}", queryTriggers.get().toString());
-      Criteria criteria = Criteria.where("trigger").in(queryTriggers.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(queryLabels)
+                .in("status", RunStatus.class, queryStatus, "status")
+                .in("phase", RunPhase.class, queryPhase, "phase")
+                .in("id", queryWorkflowRuns)
+                .in("workflowRef", queryWorkflows)
+                .in("trigger", queryTriggers)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
@@ -808,34 +730,13 @@ public class WorkflowRunService {
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    criteriaList.addAll(labelCriteria(labels));
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    } else {
-      // TODO find all Workflows based on team, then
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("workflowRef", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowRunEntity> entities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
@@ -880,32 +781,13 @@ public class WorkflowRunService {
       Optional<Date> to,
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    criteriaList.addAll(labelCriteria(labels));
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("workflowRef", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowRunEntity> wfRunEntities = mongoTemplate.find(query, WorkflowRunEntity.class);
 

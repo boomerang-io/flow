@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.common.validation.ResourceName;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.entity.TaskEntity;
@@ -32,10 +33,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -50,7 +48,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -62,7 +59,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
@@ -954,54 +950,14 @@ public class TaskService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(TaskStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryNames.isPresent()) {
-      Criteria criteria = Criteria.where("name").in(queryNames.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryIds.isPresent()) {
-      List<ObjectId> queryOIds =
-          queryIds.get().stream().map(ObjectId::new).collect(Collectors.toList());
-      Criteria criteria = Criteria.where("_id").in(queryOIds);
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .labels(queryLabels)
+                .in("status", TaskStatus.class, queryStatus, "status")
+                .in("name", queryNames)
+                .in("_id", queryIds.map(ids -> ids.stream().map(ObjectId::new).toList()))
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
