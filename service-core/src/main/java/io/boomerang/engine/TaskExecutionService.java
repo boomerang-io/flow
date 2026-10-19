@@ -34,6 +34,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -773,10 +774,11 @@ public class TaskExecutionService {
 
   /*
    * Complete a running foreach parent once every item is terminal. It succeeds only when every item
-   * succeeded, and each declared result becomes a JSON array in item order, null for an item that
-   * did not succeed. The outcome is recorded field-scoped and the parent then ends through the
-   * ordinary completion Compare-And-Set, so of any number of concurrent last-item enders exactly
-   * one completes it and advances the graph.
+   * succeeded, and each declared result - or, for a task that declares none, each result its items
+   * produced - becomes a JSON array in item order, null for an item that did not succeed. The
+   * outcome is recorded field-scoped and the parent then ends through the ordinary completion
+   * Compare-And-Set, so of any number of concurrent last-item enders exactly one completes it and
+   * advances the graph.
    */
   void completeParentIfItemsTerminal(String parentRef) {
     TaskRunEntity parent = taskRunRepository.findById(parentRef).orElse(null);
@@ -793,7 +795,8 @@ public class TaskExecutionService {
     List<TaskRunEntity> items = taskRunService.findItemOutcomes(parentRef);
     long failed = items.stream().filter(item -> !RunStatus.succeeded.equals(item.getStatus())).count();
     List<RunResult> results = new LinkedList<>();
-    for (RunResult declared : parent.getResults()) {
+    for (RunResult declared :
+        (parent.getResults().isEmpty() ? producedResults(items) : parent.getResults())) {
       List<Object> values = new ArrayList<>(items.size());
       items.forEach(
           item ->
@@ -840,6 +843,21 @@ public class TaskExecutionService {
       }
     }
     return false;
+  }
+
+  // The results a task's items produced, one per name in first-seen item order: what a parent that
+  // declares no results (a run-workflow task, whose results are its child's) collects.
+  private static List<RunResult> producedResults(List<TaskRunEntity> items) {
+    Map<String, RunResult> produced = new LinkedHashMap<>();
+    items.forEach(
+        item ->
+            item.getResults()
+                .forEach(
+                    result ->
+                        produced.putIfAbsent(
+                            result.getName(),
+                            new RunResult(result.getName(), result.getDescription(), null))));
+    return new LinkedList<>(produced.values());
   }
 
   private static Object resultValueOf(TaskRunEntity taskRun, String name) {
@@ -1164,7 +1182,7 @@ public class TaskExecutionService {
       String workflowRef = workflowRefValue.toString();
       WorkflowSubmitRequest request = new WorkflowSubmitRequest();
       request.setTrigger(TriggerEnum.task);
-      request.setParams(wfRunEntity.getParams());
+      request.setParams(childParams(taskExecution, wfRunEntity));
       request.setAnnotations(wfRunEntity.getAnnotations());
       // The child's own Workflow declares its workspace; the parent's is not handed down.
       request.setTimeout(wfRunEntity.getTimeout());
@@ -1200,6 +1218,28 @@ public class TaskExecutionService {
     // No save here - the execute() endTask branch persists this same taskExecution, writing the
     // failure over an arm that a failed submit left behind.
     return true;
+  }
+
+  /*
+   * The params a child run is submitted with: copies of the parent run's, with the task's own
+   * written over them - which is how a for-each item hands its item and index to its child - minus
+   * the two that address the task itself. Copies, so the merge never touches the parent run.
+   */
+  private static List<RunParam> childParams(
+      TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+    List<RunParam> params =
+        wfRunEntity.getParams().stream()
+            .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
+            .collect(Collectors.toCollection(LinkedList::new));
+    return ParameterUtil.addUniqueParams(
+        params,
+        taskExecution.getParams().stream()
+            .filter(
+                p ->
+                    !"workflowRef".equalsIgnoreCase(p.getName())
+                        && !"wait".equalsIgnoreCase(p.getName()))
+            .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
+            .toList());
   }
 
   /*

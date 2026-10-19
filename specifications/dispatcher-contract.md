@@ -250,7 +250,7 @@ engine. `TaskType` (`service-core/.../enums/TaskType.java:15-32`) is dispatched 
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
 | `decision` | Evaluates the branch and ends `succeeded` |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
-| `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |
+| `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |
 | `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
 | `approval`, `manual` | Create an action and wait for a person |

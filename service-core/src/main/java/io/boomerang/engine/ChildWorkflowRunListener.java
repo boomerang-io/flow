@@ -5,6 +5,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.engine.model.WorkflowRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
@@ -83,9 +84,11 @@ public class ChildWorkflowRunListener {
 
   /*
    * End the runworkflow task parked on this run, carrying the run's own outcome: a succeeded child
-   * succeeds the task, any other terminal status fails it with the ChildRunFailed reason. Only a
+   * succeeds the task and hands it the run's results beside the workflowRunRef it already holds;
+   * any other terminal status fails it with the ChildRunFailed reason and copies nothing. Only a
    * task still parked as waiting is ended - a fire-and-forget parent (wait=false) already ended
-   * itself, and a parent that timed out first is terminal.
+   * itself, and a parent that timed out first is terminal. An item of a for-each task is a task
+   * run of its own, so it is found and ended exactly like a plain one.
    */
   private void endWaitingParentTask(WorkflowRunEntity childRun) {
     if (!TriggerEnum.task.getTrigger().equals(childRun.getTrigger())
@@ -100,6 +103,15 @@ public class ChildWorkflowRunListener {
     TaskRunEndRequest endRequest = new TaskRunEndRequest();
     if (RunStatus.succeeded == childRun.getStatus()) {
       endRequest.setStatus(RunStatus.succeeded);
+      childRun
+          .getResults()
+          .forEach(
+              result ->
+                  endRequest
+                      .getResults()
+                      .add(
+                          new RunResult(
+                              result.getName(), result.getDescription(), result.getValue())));
     } else {
       endRequest.setStatus(RunStatus.failed);
       endRequest.setStatusMessage(

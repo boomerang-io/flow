@@ -90,3 +90,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0115 | [A secret is a parameter type](0115-a-secret-is-a-parameter-type.md) | accepted | 2026-10-16 |
 | 0116 | [Secret values are encrypted at rest; spec references are filled in at claim](0116-secret-values-are-encrypted-at-rest-and-spec-references-are-filled-in-at-claim.md) | accepted | 2026-10-16 |
 | 0117 | [Finished runs are purged after a retention period, by a sweep that follows lineage](0117-finished-runs-are-purged-after-a-retention-period.md) | accepted | 2026-10-16 |
+| 0118 | [A waited child run hands its results to its run-workflow task](0118-a-waited-child-run-hands-its-results-to-its-task.md) | accepted | 2026-10-19 |
