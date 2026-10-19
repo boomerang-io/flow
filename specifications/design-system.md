@@ -390,7 +390,11 @@ rate first, is the primary object and its selected row drives two detail panels 
 `WorkflowDetail.tsx`); duration is shown as a p5 to p95 range with a p50 mark on a log scale, with the run
 timeout marked, in place of a scatter of every run (`DurationSpread.tsx`). The chart library takes literal colours,
 so the outcome colours are read off the status tokens at mount with the theme's values as fallbacks
-(`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of legends.
+(`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of legends. When the period ran an
+`ai` task, a model usage panel follows the chart, and a third panel follows the selected workflow's two, each
+giving total tokens, cost when any task reported one, and one row per model; the selected workflow's ai tasks
+add a tokens and cost column to their timing rows (`UsagePanel.tsx`). Run labels are a typed `key=value` filter
+beside the others, applied on Enter or blur so typing does not reload the page.
 
 ### Manage
 

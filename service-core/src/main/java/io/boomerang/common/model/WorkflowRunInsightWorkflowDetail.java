@@ -26,6 +26,8 @@ public class WorkflowRunInsightWorkflowDetail {
   private List<TaskRow> tasks = new LinkedList<>();
   /** Runs that did not succeed, grouped by outcome, failing task and reason; most common first. */
   private List<Failure> failures = new LinkedList<>();
+  /** Model usage over the workflow's runs in the period. */
+  private WorkflowRunInsightUsage usage = new WorkflowRunInsightUsage();
 
   @Data
   public static class TaskRow {
@@ -36,6 +38,10 @@ public class WorkflowRunInsightWorkflowDetail {
     /** Over succeeded task runs. */
     private long p50Duration;
     private long p95Duration;
+    /** Summed over the task's {@code ai} runs; null for a task that is not an {@code ai} task. */
+    private Long totalTokens;
+    /** As {@link WorkflowRunInsightUsage#getCost()}; null when none reported one. */
+    private Double cost;
   }
 
   @Data

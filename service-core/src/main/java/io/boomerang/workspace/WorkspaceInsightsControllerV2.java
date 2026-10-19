@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkspaceInsightsControllerV2 {
 
   private static final Duration DEFAULT_PERIOD = Duration.ofDays(90);
+  private static final String LABELS_DESCRIPTION =
+      "Run labels to narrow by, as the run query takes them: URL-encoded key=value, comma-separated,"
+          + " all of which must match.";
 
   private final WorkflowRunInsightService workflowRunInsightService;
 
@@ -47,9 +50,10 @@ public class WorkspaceInsightsControllerV2 {
   @Operation(
       summary = "Summarise a workspace's runs over a period",
       description =
-          "Counts, success rate, duration and queue-wait percentiles, runs per day and one row per"
-              + " workflow, with the same-length previous period for comparison. Computed from the"
-              + " runs the workspace still holds; the period defaults to the last 90 days.")
+          "Counts, success rate, duration and queue-wait percentiles, runs per day, one row per"
+              + " workflow and the model usage of its ai tasks, with the same-length previous period"
+              + " for comparison. Computed from the runs the workspace still holds; the period"
+              + " defaults to the last 90 days.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -66,11 +70,14 @@ public class WorkspaceInsightsControllerV2 {
       @RequestParam Optional<Long> fromDate,
       @RequestParam Optional<Long> toDate,
       @RequestParam Optional<List<String>> workflows,
+      @Parameter(name = "labels", description = LABELS_DESCRIPTION) @RequestParam
+          Optional<List<String>> labels,
       @RequestParam Optional<List<String>> statuses,
       @RequestParam Optional<List<String>> triggers) {
     Date to = toDate.map(Date::new).orElseGet(Date::new);
     Date from = fromDate.map(Date::new).orElse(new Date(to.getTime() - DEFAULT_PERIOD.toMillis()));
-    return workflowRunInsightService.summary(workspace, from, to, workflows, statuses, triggers);
+    return workflowRunInsightService.summary(
+        workspace, from, to, workflows, labels, statuses, triggers);
   }
 
   @GetMapping(value = "/workflow/{workflow}")
@@ -81,8 +88,8 @@ public class WorkspaceInsightsControllerV2 {
   @Operation(
       summary = "Detail one workflow's runs over a period",
       description =
-          "Where a typical run spends its time (per task) and why runs did not succeed, from the"
-              + " runs and task runs the workspace still holds.")
+          "Where a typical run spends its time (per task), why runs did not succeed and the model"
+              + " usage of its ai tasks, from the runs and task runs the workspace still holds.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -96,9 +103,11 @@ public class WorkspaceInsightsControllerV2 {
           @PathVariable
           String workflow,
       @RequestParam Optional<Long> fromDate,
-      @RequestParam Optional<Long> toDate) {
+      @RequestParam Optional<Long> toDate,
+      @Parameter(name = "labels", description = LABELS_DESCRIPTION) @RequestParam
+          Optional<List<String>> labels) {
     Date to = toDate.map(Date::new).orElseGet(Date::new);
     Date from = fromDate.map(Date::new).orElse(new Date(to.getTime() - DEFAULT_PERIOD.toMillis()));
-    return workflowRunInsightService.workflowDetail(workspace, workflow, from, to);
+    return workflowRunInsightService.workflowDetail(workspace, workflow, from, to, labels);
   }
 }

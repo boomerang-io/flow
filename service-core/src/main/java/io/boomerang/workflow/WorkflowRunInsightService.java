@@ -2,6 +2,8 @@ package io.boomerang.workflow;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -14,6 +16,8 @@ import io.boomerang.common.model.WorkflowRunInsightSummary;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Day;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Totals;
 import io.boomerang.common.model.WorkflowRunInsightSummary.WorkflowRow;
+import io.boomerang.common.model.WorkflowRunInsightUsage;
+import io.boomerang.common.model.WorkflowRunInsightUsage.ModelUsage;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail.Failure;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail.TaskRow;
@@ -23,6 +27,7 @@ import io.boomerang.workflow.repository.WorkflowRepository;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.EnumSet;
@@ -33,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -56,6 +62,15 @@ public class WorkflowRunInsightService {
   private static final Set<TaskType> STRUCTURAL = EnumSet.of(TaskType.start, TaskType.end);
   private static final int RECENT_DAYS = 7;
   private static final int FAILURE_GROUPS = 10;
+  // The results an ai task reports that sum; `model` groups them.
+  private static final List<String> USAGE_RESULTS =
+      List.of(
+          "promptTokens",
+          "completionTokens",
+          "totalTokens",
+          "reasoningTokens",
+          "cachedPromptTokens",
+          "cost");
 
   private final RelationshipService relationshipService;
   private final WorkflowRepository workflowRepository;
@@ -75,21 +90,22 @@ public class WorkflowRunInsightService {
 
   /**
    * Summarise the workspace's runs created in {@code [from, to)}, with the same-length period
-   * before it for comparison. {@code workflows} are names or ids; {@code statuses} and {@code
-   * triggers} narrow the runs counted in both periods.
+   * before it for comparison. {@code workflows} are names or ids; {@code labels}, {@code statuses}
+   * and {@code triggers} narrow the runs counted in both periods.
    */
   public WorkflowRunInsightSummary summary(
       String workspace,
       Date from,
       Date to,
       Optional<List<String>> workflows,
+      Optional<List<String>> labels,
       Optional<List<String>> statuses,
       Optional<List<String>> triggers) {
     List<String> workflowRefs = workflowRefs(workspace, workflows);
     Date previousFrom = new Date(from.getTime() - Math.max(to.getTime() - from.getTime(), 0));
     List<WorkflowRunEntity> current = new ArrayList<>();
     List<WorkflowRunEntity> previous = new ArrayList<>();
-    for (WorkflowRunEntity run : runs(workflowRefs, previousFrom, to, statuses, triggers)) {
+    for (WorkflowRunEntity run : runs(workflowRefs, previousFrom, to, labels, statuses, triggers)) {
       (run.getCreationDate().before(from) ? previous : current).add(run);
     }
     WorkflowRunInsightSummary summary = new WorkflowRunInsightSummary();
@@ -101,20 +117,26 @@ public class WorkflowRunInsightService {
     summary.setPrevious(totals(previous));
     summary.setDaily(daily(current, from, to));
     summary.setWorkflows(workflowRows(current, to));
+    summary.setUsage(aiUsage(current.stream().map(WorkflowRunEntity::getId).toList()).usage());
     return summary;
   }
 
-  /** Detail one Workflow (by name or id) over {@code [from, to)}: task timings and failures. */
+  /**
+   * Detail one Workflow (by name or id) over {@code [from, to)}: task timings, failures and model
+   * usage. {@code labels} narrows the runs counted.
+   */
   public WorkflowRunInsightWorkflowDetail workflowDetail(
-      String workspace, String workflow, Date from, Date to) {
+      String workspace, String workflow, Date from, Date to, Optional<List<String>> labels) {
     List<String> workflowRefs = workflowRefs(workspace, Optional.of(List.of(workflow)));
     if (workflowRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
     String workflowRef = workflowRefs.get(0);
     List<WorkflowRunEntity> runs =
-        runs(List.of(workflowRef), from, to, Optional.empty(), Optional.empty());
-    List<TaskRunEntity> taskRuns = taskRuns(runs.stream().map(WorkflowRunEntity::getId).toList());
+        runs(List.of(workflowRef), from, to, labels, Optional.empty(), Optional.empty());
+    List<String> runRefs = runs.stream().map(WorkflowRunEntity::getId).toList();
+    List<TaskRunEntity> taskRuns = taskRuns(runRefs);
+    AiUsage usage = aiUsage(runRefs);
 
     WorkflowRunInsightWorkflowDetail detail = new WorkflowRunInsightWorkflowDetail();
     detail.setWorkflowRef(workflowRef);
@@ -127,8 +149,18 @@ public class WorkflowRunInsightService {
     detail.setP95QueueWait(percentile(waits, 0.95));
     detail.setRetriedRuns(
         runs.stream().filter(run -> run.getRetries() != null && run.getRetries() > 0).count());
-    detail.setTasks(slugTaskRefs(taskRows(taskRuns)));
+    List<TaskRow> rows = slugTaskRefs(taskRows(taskRuns));
+    rows.forEach(
+        row -> {
+          Sums sums = usage.byTask().get(row.getName());
+          if (sums != null) {
+            row.setTotalTokens(sums.totalTokens());
+            row.setCost(sums.cost());
+          }
+        });
+    detail.setTasks(rows);
     detail.setFailures(failures(runs, taskRuns));
+    detail.setUsage(usage.usage());
     return detail;
   }
 
@@ -164,6 +196,7 @@ public class WorkflowRunInsightService {
       List<String> workflowRefs,
       Date from,
       Date to,
+      Optional<List<String>> labels,
       Optional<List<String>> statuses,
       Optional<List<String>> triggers) {
     if (workflowRefs.isEmpty()) {
@@ -172,6 +205,11 @@ public class WorkflowRunInsightService {
     Query query =
         new Query(
             Criteria.where("workflowRef").in(workflowRefs).and("creationDate").gte(from).lt(to));
+    // The run query's own label filter, ANDed as one clause so two entries on a key never collide.
+    List<Criteria> labelCriteria = WorkflowRunService.labelCriteria(labels);
+    if (!labelCriteria.isEmpty()) {
+      query.addCriteria(new Criteria().andOperator(labelCriteria));
+    }
     statuses.ifPresent(list -> query.addCriteria(Criteria.where("status").in(list)));
     triggers.ifPresent(list -> query.addCriteria(Criteria.where("trigger").in(list)));
     query
@@ -213,6 +251,168 @@ public class WorkflowRunInsightService {
             "creationDate");
     query.with(Sort.by(Sort.Direction.ASC, "creationDate"));
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  /** One group of summed usage: the six results as numbers, and how many task runs reported cost. */
+  private record Sums(
+      long aiTaskRuns,
+      long promptTokens,
+      long completionTokens,
+      long totalTokens,
+      long reasoningTokens,
+      long cachedPromptTokens,
+      Double cost) {
+
+    static Sums of(Document group) {
+      long reportedCost = number(group, "costReported");
+      return new Sums(
+          number(group, "aiTaskRuns"),
+          number(group, "promptTokens"),
+          number(group, "completionTokens"),
+          number(group, "totalTokens"),
+          number(group, "reasoningTokens"),
+          number(group, "cachedPromptTokens"),
+          (reportedCost > 0) ? ((Number) group.get("cost")).doubleValue() : null);
+    }
+
+    private static long number(Document group, String field) {
+      Object value = group.get(field);
+      return (value instanceof Number number) ? Math.round(number.doubleValue()) : 0;
+    }
+  }
+
+  /** The usage of a set of runs, overall and per top-level task name. */
+  private record AiUsage(WorkflowRunInsightUsage usage, Map<String, Sums> byTask) {}
+
+  /**
+   * Sum the usage results of the {@code ai} task runs of the given runs in one aggregation, on the
+   * {@code run_tasks} index ({@code workflowRunRef} first). Each task run's results are read as
+   * numbers, an empty or non-numeric value becoming null and adding nothing, then grouped overall,
+   * by the {@code model} result and by task name. A for-each parent carries its items' results as
+   * arrays, so it is left out and its items counted under its name.
+   */
+  private AiUsage aiUsage(List<String> workflowRunRefs) {
+    WorkflowRunInsightUsage usage = new WorkflowRunInsightUsage();
+    if (workflowRunRefs.isEmpty()) {
+      return new AiUsage(usage, Map.of());
+    }
+    Document perTaskRun = new Document("model", result("model"));
+    for (String name : USAGE_RESULTS) {
+      perTaskRun.append(
+          name,
+          new Document(
+              "$convert",
+              new Document("input", result(name))
+                  .append("to", "double")
+                  .append("onError", null)
+                  .append("onNull", null)));
+    }
+    // An item is named `<parent>[<index>]`; strip that suffix so its usage lands on the parent's row.
+    Document suffixLength =
+        new Document(
+            "$add", List.of(2, new Document("$strLenCP", new Document("$toString", "$index"))));
+    Document parentName =
+        new Document(
+            "$substrCP",
+            List.of(
+                "$name",
+                0,
+                new Document(
+                    "$subtract", List.of(new Document("$strLenCP", "$name"), suffixLength))));
+    perTaskRun.append(
+        "taskName",
+        new Document("$cond", List.of(isType("$parentRef", "string"), parentName, "$name")));
+    Document facets =
+        new Document("total", List.of(new Document("$group", sums(null))))
+            .append("byModel", List.of(new Document("$group", sums("$model"))))
+            .append("byTask", List.of(new Document("$group", sums("$taskName"))));
+    Document result =
+        mongoTemplate
+            .aggregate(
+                newAggregation(
+                    match(
+                        Criteria.where("workflowRunRef")
+                            .in(workflowRunRefs)
+                            .and("type")
+                            .is(TaskType.ai)
+                            .and("foreach")
+                            .is(null)),
+                    context -> new Document("$project", perTaskRun),
+                    context -> new Document("$facet", facets)),
+                TaskRunEntity.class,
+                Document.class)
+            .getUniqueMappedResult();
+    if (result == null) {
+      return new AiUsage(usage, Map.of());
+    }
+    for (Document group : result.getList("total", Document.class)) {
+      Sums sums = Sums.of(group);
+      usage.setAiTaskRuns(sums.aiTaskRuns());
+      usage.setPromptTokens(sums.promptTokens());
+      usage.setCompletionTokens(sums.completionTokens());
+      usage.setTotalTokens(sums.totalTokens());
+      usage.setReasoningTokens(sums.reasoningTokens());
+      usage.setCachedPromptTokens(sums.cachedPromptTokens());
+      usage.setCost(sums.cost());
+    }
+    List<ModelUsage> byModel = new ArrayList<>();
+    for (Document group : result.getList("byModel", Document.class)) {
+      Sums sums = Sums.of(group);
+      ModelUsage model = new ModelUsage();
+      model.setModel((group.get("_id") != null) ? group.get("_id").toString() : null);
+      model.setAiTaskRuns(sums.aiTaskRuns());
+      model.setPromptTokens(sums.promptTokens());
+      model.setCompletionTokens(sums.completionTokens());
+      model.setTotalTokens(sums.totalTokens());
+      model.setReasoningTokens(sums.reasoningTokens());
+      model.setCachedPromptTokens(sums.cachedPromptTokens());
+      model.setCost(sums.cost());
+      byModel.add(model);
+    }
+    byModel.sort(Comparator.comparing(ModelUsage::getTotalTokens, Comparator.reverseOrder()));
+    usage.setByModel(byModel);
+    Map<String, Sums> byTask = new HashMap<>();
+    for (Document group : result.getList("byTask", Document.class)) {
+      byTask.put(String.valueOf(group.get("_id")), Sums.of(group));
+    }
+    return new AiUsage(usage, byTask);
+  }
+
+  // The value of the task run's result with this name, or null when it reported none.
+  private static Document result(String name) {
+    return new Document(
+        "$let",
+        new Document(
+                "vars",
+                new Document(
+                    "match",
+                    new Document(
+                        "$arrayElemAt",
+                        List.of(
+                            new Document(
+                                "$filter",
+                                new Document(
+                                        "input",
+                                        new Document("$ifNull", List.of("$results", List.of())))
+                                    .append(
+                                        "cond",
+                                        new Document("$eq", List.of("$$this.name", name)))),
+                            0))))
+            .append("in", "$$match.value"));
+  }
+
+  // One $group body: a task-run count, each usage result summed, and how many reported cost.
+  private static Document sums(String key) {
+    Document group = new Document("_id", key).append("aiTaskRuns", new Document("$sum", 1));
+    USAGE_RESULTS.forEach(name -> group.append(name, new Document("$sum", "$" + name)));
+    return group.append(
+        "costReported",
+        new Document("$sum", new Document("$cond", List.of(isType("$cost", "double"), 1, 0))));
+  }
+
+  // A field is present with this BSON type; unlike `$ne: [field, null]` it is false for a missing field.
+  private static Document isType(String field, String type) {
+    return new Document("$eq", List.of(new Document("$type", field), type));
   }
 
   private Map<String, String> workflowNames(List<String> workflowRefs) {
