@@ -135,6 +135,7 @@ environment variables (`kube/KubeHelperService.java:111-149`):
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
 | `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`, set by the executor that runs it: `4096` on Jobs (the termination message cap, `KubeJobsExecutor.TERMINATION_MESSAGE_MAX_BYTES`); `tekton.results.maxBytes` on Tekton (default `4096`, raised to the cluster's `max-result-size` under sidecar-logs). A task budgets against it rather than a constant of its own |
 | `DEBUG`, `CI=true`, `FLOW_VERSION`, proxy vars | Debug flag, CI marker, the dispatcher's `flow.version`, and the `HTTP_PROXY` family when `proxy.enable=true` |
+| `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`, `dispatcher-sdk/.../model/TaskRun.java:66`), on every task |
 
 Explicitly declared task env vars win on a name collision (`KubeHelperService.java:145-147`). There is no
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
@@ -249,18 +250,28 @@ Kubernetes-only.
 
 An `ai` revision declares its image and command (`dispatcher-contract.md`, "AI tasks"), and this dispatcher runs
 them exactly as it does for `custom` or `template` (a revision with an image and no command runs the image's own
-entrypoint; one with no image is refused as `NO_TASK_IMAGE`; `executor/TaskImageResolver.java:91-98`,
+entrypoint; one with no image is refused as `NO_TASK_IMAGE`; `executor/TaskImageResolver.java:125-143`,
 `dispatcher/TaskService.java:118-130`). There is no worker-image property: every `ai` revision declares its image.
 That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
 `boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
 `ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
-property (`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone
+property (`TaskImageResolver.allowedAiImage` `:71-77`), so a dispatcher registered for `ai` stays the egress zone
 for the worker alone unless an operator adds a prefix. An `ai` task never runs a script.
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
-each only when set, ahead of the task's own environment (`TaskImageResolver.java:76-88`); the task's own `endpoint`
+each only when set, ahead of the task's own environment (`TaskImageResolver.java:91-92`); the task's own `endpoint`
 and `token` params still arrive as `PARAM_ENDPOINT` and `PARAM_TOKEN` and win inside the image.
+
+**OpenTelemetry.** With `flow.dispatcher.ai.otel.endpoint` set, every `ai` pod also gets
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` (from `.otel.headers`, visible in the pod spec like the
+token), `OTEL_EXPORTER_OTLP_PROTOCOL` (from `.otel.protocol`, default `http/protobuf`), `OTEL_SERVICE_NAME` =
+`flow-task-<taskRef>`, and `OTEL_RESOURCE_ATTRIBUTES` carrying `flow.workflow.run.id`, `flow.task.run.id` and
+`flow.task.name`, percent-encoded (`TaskImageResolver.java:93-104`, `:120`); blank sends none, and a task's own
+variable of the same name wins. task-ai exports GenAI-convention spans over `http/protobuf` or `http/json`;
+`grpc` is unsupported and logs one warning, exporting nothing. It reads `TRACEPARENT` through the W3C propagator,
+so its spans join the run's trace. Langfuse takes OTLP over HTTP only (`<host>/api/public/otel`); Tempo listens
+for it on port 4318.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
 (`DispatcherService.java:260-340`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher

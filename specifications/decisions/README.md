@@ -92,3 +92,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0117 | [Finished runs are purged after a retention period, by a sweep that follows lineage](0117-finished-runs-are-purged-after-a-retention-period.md) | accepted | 2026-10-16 |
 | 0118 | [A waited child run hands its results to its run-workflow task](0118-a-waited-child-run-hands-its-results-to-its-task.md) | accepted | 2026-10-19 |
 | 0119 | [Task references are slugs on the API and ids in storage](0119-task-references-are-slugs-on-the-api-and-ids-in-storage.md) | accepted | 2026-10-19 |
+| 0120 | [Flow hands out trace context; tasks export their own spans](0120-flow-hands-out-trace-context-and-tasks-export-their-own-spans.md) | accepted | 2026-10-19 |
