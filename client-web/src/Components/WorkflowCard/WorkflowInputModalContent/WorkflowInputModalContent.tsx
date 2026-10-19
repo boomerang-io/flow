@@ -1,7 +1,8 @@
 import React from "react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { DynamicFormik, ModalFlowForm } from "@boomerang-io/carbon-addons-boomerang-react";
-import { InputProperty, InputType, PASSWORD_CONSTANT } from "Constants";
+import { REFERENCE_HELPER } from "Components/SecretInput";
+import { InputProperty, InputType, PASSWORD_CONSTANT, REDACTED } from "Constants";
 import { DataDrivenInput } from "Types";
 import { toDynamicInputs } from "Utils/paramsHelper";
 import styles from "./workflowInputModalContent.module.scss";
@@ -25,19 +26,18 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
 }) => {
   const [isRedirectEnabled, setIsRedirectEnabled] = React.useState(false);
 
-  //edit inputs to handle secure values
+  // A secret with a stored default reads as the marker. The field starts empty rather than holding
+  // the marker, and a blank is sent as no value, so the stored default applies.
   const secureInputs = inputs.map((input: DataDrivenInput) => {
     /* @ts-ignore-next-line */
-    if (input.type === InputType.Password && input?.hiddenValue) {
-      //if the input type is secure and there is a default value we are going to manipulate the object
+    if (input.type === InputType.Password && (input?.hiddenValue || input.default === REDACTED)) {
       return {
-        //allow the user to submit null
         ...input,
         key: input.name,
         required: false,
-        helperText: "To use your secure default value, leave this input blank",
+        helperText: `Leave blank to use the stored default. ${REFERENCE_HELPER}`,
         placeholder: PASSWORD_CONSTANT,
-        defaultValue: input.default,
+        defaultValue: "",
       };
     } else return { ...input, defaultValue: input.default, key: input.name };
   });

@@ -13,9 +13,10 @@ import { Formik } from "formik";
 import { FormikProps } from "formik";
 import clonedeep from "lodash/cloneDeep";
 import * as Yup from "yup";
+import SecretInput from "Components/SecretInput";
 import TextEditorModal from "Components/TextEditorModal";
 import { validateUrlWithProperties } from "Utils/urlPropertySyntaxHelper";
-import { InputProperty, InputType, PROPERTY_KEY_REGEX } from "Constants";
+import { InputProperty, InputType, PROPERTY_KEY_REGEX, REDACTED } from "Constants";
 import { DataDrivenInput } from "Types";
 import styles from "./TemplateConfigModalContent.module.scss";
 
@@ -264,8 +265,24 @@ class TemplateConfigModalContent extends Component<TemplateConfigModalContentPro
             invalidText={errors.label}
           />
         );
+      case InputType.Password:
+        return (
+          <SecretInput
+            data-testid="text-input"
+            id={InputProperty.DefaultValue}
+            labelText="Default Value (optional)"
+            helperText="Hidden here and in logs."
+            onBlur={handleBlur}
+            onChange={(value) => setFieldValue(InputProperty.DefaultValue, value)}
+            value={values.default}
+            isSet={this.props.field?.default === REDACTED}
+            invalid={Boolean(errors.label && touched.label)}
+            invalidText={errors.label}
+            suggestReference
+          />
+        );
       default:
-        // Fallback to text input here because it covers text, password, and url
+        // Fallback to text input here because it covers text and url
         return (
           <TextInput
             data-testid="text-input"
