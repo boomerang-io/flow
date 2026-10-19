@@ -8,25 +8,25 @@
 > add-ons** component library. Do not import EY Motif or cheer.dev design tokens/components here.
 
 
-## Package stack (verified from `flow.client.web`)
+## Package stack (`client-web/package.json`)
 
 | Package | Version | Role |
 | ------- | ------- | ---- |
-| `@carbon/react` | `1.59.0` | IBM Carbon v11 — components, SCSS, tokens, grid, type. |
-| `@boomerang-io/carbon-addons-boomerang-react` | `4.1.2-beta.0` | Boomerang component library + the `boomerang` Carbon theme + add-on SCSS. |
+| `@carbon/react` | `1.75.0` | IBM Carbon v11 — components, SCSS, tokens, grid, type. |
+| `@boomerang-io/carbon-addons-boomerang-react` | `4.9.0-beta.15` | Boomerang component library + the `boomerang` Carbon theme + add-on SCSS. |
 | `@boomerang-io/styles` | `1.1.0` | Boomerang brand palette (colour ramps) and shared styles. |
 | `@boomerang-io/utils` | `1.1.0` | Shared Boomerang utilities. |
 | `@carbon/charts` + `@carbon/charts-react` | `^1.13.6` | Carbon data visualisation. |
 | `@carbon/pictograms-react` | `^11.50.0` | Carbon pictograms. |
-| React | `17.x` | UI runtime. |
+| React | `18.x` | UI runtime. |
 
 Styling is **SCSS + CSS Modules** (`*.module.scss`), not Tailwind and not CSS-in-JS.
 
 ## Theme wiring (the canonical recipe)
 
 The Boomerang theme is Carbon's **White** theme with the Boomerang theme merged over it, applied
-under the `[data-carbon-theme="boomerang"]` selector. This is the exact, working setup from
-`flow.client.web/src/Styles/_carbon-components.scss` — replicate it verbatim for any new Carbon app:
+under the `[data-carbon-theme="boomerang"]` selector. This is the theme wiring from
+`client-web/src/Styles/_carbon-components.scss:1-42` — replicate it verbatim for any new Carbon app:
 
 ```scss
 @use "sass:map";
@@ -38,7 +38,7 @@ under the `[data-carbon-theme="boomerang"]` selector. This is the exact, working
 @use "@carbon/react/scss/type";
 
 // Boomerang theme merged onto Carbon's white theme (compat layer)
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/global/themes/boomerang";
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global/themes/boomerang";
 @use "@carbon/react/scss/compat/themes" as compat;
 @use "@carbon/react/scss/compat/theme" with (
   $theme: map.merge(compat.$white, boomerang.$theme)
@@ -48,6 +48,7 @@ under the `[data-carbon-theme="boomerang"]` selector. This is the exact, working
 @use "@carbon/react/scss/fonts";
 @use "@carbon/react/scss/grid";
 @use "@carbon/react/scss/layer";
+@use "@carbon/react/scss/layout";
 @use "@carbon/react/scss/zone";
 @use "@carbon/react/scss/components/button/tokens" as button;
 @use "@carbon/react/scss/components/notification/tokens" as notification;
@@ -55,7 +56,7 @@ under the `[data-carbon-theme="boomerang"]` selector. This is the exact, working
 @use "@carbon/react/scss/components";
 
 // Boomerang add-ons SCSS, boomerang mode on
-@use "@boomerang-io/carbon-addons-boomerang-react/scss/global" with ($use-theme-boomerang: true);
+@use "@boomerang-io/carbon-addons-boomerang-react/scss/src/global" with ($use-theme-boomerang: true);
 
 // Emit the theme's CSS custom properties under the boomerang theme selector
 [data-carbon-theme="boomerang"] {
@@ -152,12 +153,14 @@ task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 ## Components — prefer the library, in this order
 
 1. **Boomerang add-ons** (`@boomerang-io/carbon-addons-boomerang-react`) — Boomerang-styled/extended
-   components. Prefer these when one exists. Verified in-use set (from `flow.client.web`, ~146
-   imports): `UIShell`, `User`, `HeaderMenuItem`, `ComposedModal`, `ConfirmModal`, `ModalForm`,
-   `ModalFlow`, `ModalFlowForm`, `DynamicFormik`, `DataDrivenInput`, `AutoSuggest`, `ComboBox`,
+   components. Prefer these when one exists. The set in use (146 files in `client-web` import the
+   library): `UIShell`, `User`, `HeaderMenuItem`, `ComposedModal`, `ConfirmModal`, `ModalForm`,
+   `ModalFlow`, `ModalFlowForm`, `DynamicFormik`, `DataDrivenInput`, `ComboBox`,
    `Creatable`, `CheckboxList`, `RadioGroup`, `TextInput`, `TextArea`, `Toggle`, `Loading`,
    `TooltipHover`, `ToastNotification`, `notify`, and the error surfaces
-   `Error / Error403 / Error404 / ErrorFullPage / ErrorMessage / ErrorPage`.
+   `Error / Error403 / Error404 / ErrorFullPage / ErrorMessage / ErrorPage`. The library dropped
+   `AutoSuggest` in 4.9; the editor's parameter inputs fall back to plain fields
+   (`client-web/src/Features/Reactflow/components/shared/inputs.tsx:16-19`).
    - The **`UIShell`** provides the Boomerang header/side-nav chrome — use it for app shell, do
      not hand-roll navigation.
 2. **Carbon** (`@carbon/react`) — for anything the add-ons don't cover (`Button`, `DataTable`,
