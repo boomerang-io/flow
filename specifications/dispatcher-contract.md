@@ -130,11 +130,16 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 | What | When | Stored |
 | --- | --- | --- |
 | The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:450`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. Admission has checked every reference, so the fill-in
 fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
-`SpecFillFailed` (`DispatcherService.java:396`). The termination order, the start and end answers and every
+`SpecFillFailed` (`DispatcherService.java:460`). Any other failure while a claimed task is prepared for hand-out
+ends it `failed` with reason `DispatchPrepareFailed`, logged with its id and the cause, and the other tasks
+claimed in the same poll are still handed out, so no claim stays with a dispatcher that never hears of it
+(`DispatcherService.prepare` `:419`). Preparing a task reads nothing from the caller: a dispatcher call carries
+no user identity, so an artifact task's storage quota is read from its run's workspace
+(`workspace/WorkspaceService.getArtifactStorageQuota` `:782`). The termination order, the start and end answers and every
 consumer read carry the stored spec. The TaskRun's params are the task's declared params merged with the values
 authored on the workflow node (`engine/DAGUtility.java:183`). A `custom` task takes its runtime from its own
 params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue entry, which

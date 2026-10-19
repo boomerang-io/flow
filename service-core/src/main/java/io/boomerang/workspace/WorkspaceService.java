@@ -774,6 +774,28 @@ public class WorkspaceService {
     return null;
   }
 
+  /**
+   * The workspace's quota limits with only its current artifact storage filled in, or null when no
+   * workspace has the ref. It reads the relationship graph without a caller identity, so the
+   * dispatcher protocol and the engine, which act for no user, can check an artifact against it.
+   */
+  public CurrentQuotas getArtifactStorageQuota(String workspaceRef) {
+    return workspaceRepository
+        .findById(workspaceRef)
+        .map(
+            workspace -> {
+              Quotas quotas = setDefaultQuotas();
+              setCustomQuotas(quotas, workspace.getQuotas());
+              CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
+              currentQuotas.setCurrentArtifactStorage(
+                  artifactService.storedBytes(
+                      relationshipService.findNodeRefs(
+                          RelationshipType.WORKSPACE, workspaceRef, RelationshipType.WORKFLOW)));
+              return currentQuotas;
+            })
+        .orElse(null);
+  }
+
   //
   // private void setWorkflowStorage(List<WorkflowSummary> workflows, WorkflowQuotas workflowQuotas)
   // {
