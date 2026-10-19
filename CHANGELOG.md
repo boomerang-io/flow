@@ -48,7 +48,8 @@ tag's release notes.
   still points at is kept until that run goes. Workflow-scoped artifacts and audit events are never touched.
   The purge is on from the first start: its first pass runs within a minute and each hourly pass removes up to
   1000 runs, so an upgraded install loses its runs older than a year within hours, before the setting can be
-  changed, and no value keeps every run. Export any history you need before upgrading.
+  changed, and no value keeps every run. This is by design: export any history you need before upgrading
+  (README, "Upgrading from v3").
 - **The seeded `ai` task is removed; the AI tasks are `ai-prompt` and `ai-agent` on `boomerangio/task-ai:2.0.0`.**
   An upgraded database keeps any `ai` definition it already holds, so its workflows still resolve, but nothing
   maintains it: move nodes to `ai-prompt`, whose param names are the same. `temperature` and `maxTokens` now have
