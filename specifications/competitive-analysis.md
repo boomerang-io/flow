@@ -316,8 +316,8 @@ and Flow now matches them. The dispatcher runs a reconcile loop (`kube.timeout.r
 the Job by label, re-opens a lost watch and adopts an existing Job for a re-claimed TaskRun instead of creating a
 second one; `TaskWatcher` no longer exits the process on a closed watch. One heartbeat per dispatcher, from the
 dispatcher SDK, sends `PUT /dispatcher/v1/{id}/heartbeat {ids}` for every task in flight every
-`flow.dispatcher.lease.beat-ms=30000`; the engine's `renewLeases` writes `claim.leaseExpiresAt` with
-`flow.dispatcher.lease-ms=90000` in one multi-document update fenced on `claim.by`, and the `reapExpiredLeases`
+`flow.dispatcher.lease.beat-ms=30000`; the claim sets `claim.leaseExpiresAt` `flow.dispatcher.lease-ms=90000`
+ahead, the engine's `renewLeases` moves it in one multi-document update fenced on `claim.by`, and the `reapExpiredLeases`
 sweep requeues or abandons with `statusReason=LeaseExpired`. A per-task heartbeat request was rejected: at 200
 in-flight tasks it is 6.7 requests per second per dispatcher; the batch is one request per 30 s regardless of count.
 

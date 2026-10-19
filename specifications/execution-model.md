@@ -43,11 +43,12 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   `claim.seq` is not on the wire, so a dispatcher that lost and re-won the same claim is not distinguished from
   its earlier self.
 - `claim.leaseExpiresAt` on `RunClaim` (`service-core/.../model/RunClaim.java:21`, indexed by
-  `service-core/.../migration/_0021__Indexes.java:59`) is the dispatcher's liveness signal: each dispatcher sends one
-  batched heartbeat every 30 s listing the task runs its executor threads are still working on, and the engine
-  sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
-  `flow.dispatcher.lease-ms`). A requeue unsets it (`TaskRunService.java:583`). A claim that was never
-  heartbeated holds no lease and is recovered by the deadline and gone-dispatcher sweeps alone.
+  `service-core/.../migration/_0021__Indexes.java:62`) is the dispatcher's liveness signal. The claim sets it 90 s
+  ahead in the same write (`TaskRunService.tryClaim` `:297`, `:323`; `flow.dispatcher.lease-ms`); each dispatcher
+  then sends one batched heartbeat every 30 s listing the task runs it still holds, and the engine moves the lease
+  90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases` `:638`, fenced on `claim.by`). A
+  requeue unsets it. A claim its dispatcher stops listing - a crash, or a crash and a restart under the same
+  dispatcher id, which keeps the dispatcher live - is reaped once its lease lapses.
 - The claim answer carries the task's spec filled in from its stored references (`ParameterManager.fillSpec`,
   called at `DispatcherService.java:338`); the stored spec keeps the references. Params are frozen at admission,
   so a requeued task is filled in with the same param values; a workspace or global reference written straight
@@ -105,7 +106,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 Timeouts are deadline-based: `timeoutAt` = start time + budget in minutes + 5 s grace (`engine/RunTimeouts.java:14-18`,
 `EngineConstants.java:9`), written by the claim and start transitions and cleared by completion. There are no per-run
 timers; the sweeps above are the only reaper. A crashed dispatcher, a dead executor thread or a pod that died while the dispatcher's watch was closed is recovered by
-the same path: the claimed task's lease lapses (90 s without a heartbeat), or its dispatcher goes stale (60 s), or
+the same path: the claimed task's lease lapses (90 s after its claim or its last heartbeat), or its dispatcher goes stale (60 s), or
 it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fenced on the
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget, in
 minutes, is the smallest of three ceilings — the platform setting stamped as the run's `boomerang.io/task-timeout`

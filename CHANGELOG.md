@@ -81,6 +81,11 @@ tag's release notes.
 - **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
   encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
   migration.
+- **A dispatcher must heartbeat every task it holds; `flow.dispatcher.lease.enabled` is gone.** A claim now carries
+  a lease from the moment it is made, 90 s ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a
+  claim its dispatcher stops reporting is requeued even when the dispatcher restarts under the same id. Flow's
+  Kubernetes dispatcher and the dispatcher SDK heartbeat every 30 s from the claim; a dispatcher written against
+  the protocol directly that sends no heartbeat has every claim requeued 90 s after it was made.
 
 ### Added
 
