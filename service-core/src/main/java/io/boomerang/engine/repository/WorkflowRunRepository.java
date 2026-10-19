@@ -15,6 +15,10 @@ public interface WorkflowRunRepository extends MongoRepository<WorkflowRunEntity
 
   List<WorkflowRunEntity> findByWorkflowRefAndPhaseIn(String workflowRef, List<RunPhase> phases);
 
+  // One page of a workflow's runs, for a purge that deletes each one it is handed. Served by the
+  // workflowRef-prefixed indexes.
+  List<WorkflowRunEntity> findByWorkflowRef(String workflowRef, Pageable pageable);
+
   // The child runs a set of TaskRuns submitted that are still in flight - the cascade cancel of a
   // parent run. Served by the {initiatedByRef, phase} index.
   List<WorkflowRunEntity> findByInitiatedByRefInAndPhaseIn(
