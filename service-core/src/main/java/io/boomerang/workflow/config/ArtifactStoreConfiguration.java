@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.urlconnection.ProxyConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -70,11 +72,16 @@ public class ArtifactStoreConfiguration {
               .build());
     }
 
+    // Checksums only where S3 requires them: the SDK's default trailing CRC on every upload is
+    // rejected intermittently by S3-compatible stores (SeaweedFS answers "The Content-Md5 you
+    // specified is not valid"); AWS S3 and MinIO accept either.
     S3ClientBuilder client =
         S3Client.builder()
             .region(Region.of(region))
             .credentialsProvider(credentials)
             .serviceConfiguration(s3)
+            .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+            .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
             .httpClientBuilder(http);
     S3Presigner.Builder presigner =
         S3Presigner.builder()
