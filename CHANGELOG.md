@@ -78,6 +78,9 @@ tag's release notes.
   and never written to a log.
 - A run-workflow task may run for each item, one child run per item, and a waited child's results become the
   task's results.
+- Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
+  run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
+  OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.
 - A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the

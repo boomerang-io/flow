@@ -78,7 +78,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(134);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(136);
     assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
@@ -95,7 +95,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(134);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(136);
     assertThat(collection(db, "workspaces").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_nodes").countDocuments()).isEqualTo(nodes);
     assertThat(collection(db, "rel_edges").countDocuments()).isEqualTo(edges);
@@ -208,7 +208,7 @@ class MigrationChainTest {
     MongoCollection<Document> tasks = collection(db, "tasks");
     MongoCollection<Document> revisions = collection(db, "task_revisions");
     assertThat(tasks.countDocuments()).isEqualTo(93);
-    assertThat(revisions.countDocuments()).isEqualTo(135);
+    assertThat(revisions.countDocuments()).isEqualTo(137);
     assertThat(collection(db, "task_templates").countDocuments()).isZero();
     assertThat(tasks.find(Filters.eq("_id", minimalTaskId)).first().getString("name")).isEqualTo("legacy-task");
     Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
@@ -266,7 +266,7 @@ class MigrationChainTest {
     migrate("v3");
     assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(93);
-    assertThat(revisions.countDocuments()).isEqualTo(135);
+    assertThat(revisions.countDocuments()).isEqualTo(137);
     assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasApproverGroup"))).isEqualTo(1);
     assertThat(collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first().getString("taskRef"))
@@ -466,7 +466,7 @@ class MigrationChainTest {
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(137);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
     assertAiTaskFamilySeeded(db);
     assertThat(collection(db, "tasks").find(Filters.eq("_id", legacyAiId)).first()).isNotNull();
@@ -475,8 +475,58 @@ class MigrationChainTest {
 
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(135);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(137);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
+  }
+
+  /**
+   * A database that holds the AI tasks at revision 1 only receives revision 2 (image input) from
+   * its own unit, leaves revision 1 as it was, adds nothing for a task the install does not hold,
+   * and inserts nothing on a second run.
+   */
+  @Test
+  void aDatabaseWithRevisionOneOfTheAiTasksReceivesRevisionTwoFromItsOwnUnit() {
+    MongoDatabase db = migrate("ai-revision-two");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    Document prompt = collection(db, "tasks").find(Filters.eq("name", "ai-prompt")).first();
+    Document agent = collection(db, "tasks").find(Filters.eq("name", "ai-agent")).first();
+    for (Document task : List.of(prompt, agent)) {
+      revisions.deleteOne(
+          Filters.and(Filters.eq("parentRef", task.get("_id").toString()), Filters.eq("version", 2)));
+    }
+    // An install that dropped ai-agent: its revision 2 has no task to attach to.
+    String agentId = agent.get("_id").toString();
+    revisions.deleteMany(Filters.eq("parentRef", agentId));
+    collection(db, "tasks").deleteOne(Filters.eq("_id", agent.get("_id")));
+    Document promptRevisionOne =
+        revisions
+            .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 1)))
+            .first();
+    assertThat(revisions.countDocuments()).isEqualTo(133);
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0024__SeedAiImageInputRevisions().execute(db, environment);
+    assertThat(revisions.countDocuments()).isEqualTo(134);
+    Document promptRevisionTwo =
+        revisions
+            .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 2)))
+            .first();
+    Document spec = promptRevisionTwo.get("spec", Document.class);
+    assertThat(spec.getString("image")).isEqualTo("boomerangio/task-ai:2.1.0");
+    assertThat(spec.getList("params", Document.class))
+        .extracting(param -> param.getString("name"))
+        .contains("images", "imageDetail", "maxImageBytes");
+    assertThat(
+            revisions
+                .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 1)))
+                .first())
+        .as("revision 1 is left as it was")
+        .isEqualTo(promptRevisionOne);
+    assertThat(revisions.countDocuments(Filters.eq("parentRef", agentId))).isZero();
+    assertThat(collection(db, "tasks").find(Filters.eq("name", "ai-agent")).first()).isNull();
+
+    new _0024__SeedAiImageInputRevisions().execute(db, environment);
+    assertThat(revisions.countDocuments()).isEqualTo(134);
   }
 
   /**
@@ -565,25 +615,28 @@ class MigrationChainTest {
 
   /**
    * The ai-prompt and ai-agent tasks, copied from the tasks repository's definition files: each
-   * revision names its own image and command, which the dispatcher runs as declared.
+   * revision names its own image and command, which the dispatcher runs as declared. Revision 2
+   * adds image input on task-ai 2.1.0; revision 1 stays on 2.0.0 for workflows pinned to it.
    */
   private static void assertAiTaskFamilySeeded(MongoDatabase db) {
-    assertAiFamilyTask(db, "ai-prompt", "prompt", 17, 9);
-    assertAiFamilyTask(db, "ai-agent", "agent", 26, 11);
+    assertAiFamilyTask(db, "ai-prompt", 1, "boomerangio/task-ai:2.0.0", "prompt", 17, 9);
+    assertAiFamilyTask(db, "ai-prompt", 2, "boomerangio/task-ai:2.1.0", "prompt", 20, 9);
+    assertAiFamilyTask(db, "ai-agent", 1, "boomerangio/task-ai:2.0.0", "agent", 26, 11);
+    assertAiFamilyTask(db, "ai-agent", 2, "boomerangio/task-ai:2.1.0", "agent", 29, 11);
   }
 
   private static void assertAiFamilyTask(
-      MongoDatabase db, String name, String command, int params, int results) {
+      MongoDatabase db, String name, int version, String image, String command, int params, int results) {
     Document task = collection(db, "tasks").find(Filters.eq("name", name)).first();
     assertThat(task).as("%s is seeded", name).isNotNull();
     assertThat(task.getString("type")).isEqualTo("ai");
     Document revision =
         collection(db, "task_revisions")
-            .find(Filters.and(Filters.eq("parentRef", task.get("_id").toString()), Filters.eq("version", 1)))
+            .find(Filters.and(Filters.eq("parentRef", task.get("_id").toString()), Filters.eq("version", version)))
             .first();
-    assertThat(revision).as("%s version 1 is seeded", name).isNotNull();
+    assertThat(revision).as("%s version %s is seeded", name, version).isNotNull();
     Document spec = revision.get("spec", Document.class);
-    assertThat(spec.getString("image")).isEqualTo("boomerangio/task-ai:2.0.0");
+    assertThat(spec.getString("image")).isEqualTo(image);
     assertThat(spec.getList("command", String.class)).containsExactly(command);
     assertThat(spec.getList("params", Document.class)).hasSize(params);
     assertThat(spec.getList("results", Document.class)).hasSize(results);
