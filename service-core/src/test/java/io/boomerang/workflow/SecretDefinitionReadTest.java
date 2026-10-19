@@ -17,6 +17,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.model.ParamSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
@@ -32,6 +33,7 @@ import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.CanvasNodePosition;
 import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.workflow.tekton.TektonTask;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.LinkedList;
@@ -141,6 +143,34 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     Task read = taskService.get(SYSTEM, name, Optional.empty());
     assertHidden(taskService.apply(name, SYSTEM, read, false), "ws-task-default-1");
     assertEquals("ws-task-default-1", storedDefault(RelationshipType.TEAMTASK, name));
+  }
+
+  @Test
+  void aTaskYamlCarriesItsDefaultsAndDescriptionsAndRoundTripsUnchanged() {
+    String name = unique("yaml-defaults");
+    Task created = secretTask(name, "yaml-default-0001");
+    declared(created, "region").setDescription("Where the cluster runs");
+    declared(created, "registryToken").setDescription("Pushes the image");
+    taskService.createGlobal(created);
+
+    TektonTask yaml = taskService.getAsTektonGlobal(name, Optional.empty());
+    ParamSpec region = specParam(yaml, "region");
+    assertEquals("eu-west-1", region.getDefaultValue(), "a plain default is carried");
+    assertEquals("Where the cluster runs", region.getDescription());
+    assertEquals("Pushes the image", specParam(yaml, "registryToken").getDescription());
+    assertEquals(DataAdapterUtil.REDACTED, specParam(yaml, "registryToken").getDefaultValue());
+    assertHidden(yaml, "yaml-default-0001");
+
+    // Applying the YAML as read changes nothing: the plain default and descriptions stay, and the
+    // hidden secret keeps the stored value.
+    Task before = taskService.getGlobal(name, Optional.empty());
+    taskService.applyAsTektonGlobal(name, yaml, false);
+    Task after = taskService.getGlobal(name, Optional.empty());
+    assertEquals("yaml-default-0001", storedDefault(name));
+    assertThat(after.getSpec().getParams())
+        .usingRecursiveFieldByFieldElementComparatorOnFields(
+            "name", "type", "label", "defaultValue", "description")
+        .containsExactlyElementsOf(before.getSpec().getParams());
   }
 
   // ── workflows ────────────────────────────────────────────────────────────────────────────────
@@ -416,6 +446,13 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
       throw new AssertionError(e);
     }
     assertThat(json).doesNotContain(secrets);
+  }
+
+  private static ParamSpec specParam(TektonTask yaml, String name) {
+    return yaml.getSpec().getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no spec param named " + name));
   }
 
   private static String unique(String prefix) {
