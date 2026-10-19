@@ -145,3 +145,8 @@ tag's release notes.
   first `=`, so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter
   now matches. The action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are
   read ignoring case on the run, task, workflow, user, workspace and schedule lists.
+- A running task's log streams as it is written, through `service-core` and the Kubernetes dispatcher, instead of
+  arriving whole when the task ends. Read before its container starts, it shows one waiting line and then the live
+  log.
+- A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
+  and is kept when the YAML is applied back unchanged.
