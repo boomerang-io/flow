@@ -114,6 +114,9 @@ tag's release notes.
 
 ### Changed
 
+- Task logs and artifacts store reliably on S3-compatible stores such as SeaweedFS: the store's client sends
+  checksums only where S3 requires them, so a log is no longer refused now and then with "The Content-Md5 you
+  specified is not valid".
 - Settings are built from the shipped seed on first start, carrying an upgraded install's own values, so an
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.
