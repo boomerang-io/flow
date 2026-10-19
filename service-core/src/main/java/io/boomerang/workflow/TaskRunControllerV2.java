@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.util.ResponseFlushingOutputStream;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -51,7 +52,10 @@ public class TaskRunControllerV2 {
       HttpServletResponse response) {
     response.setContentType("text/plain");
     response.setCharacterEncoding("UTF-8");
+    // A running task's log is followed live: each flush must reach the reader, not Spring's buffer.
     return new ResponseEntity<StreamingResponseBody>(
-        workflowRunService.streamTaskRunLog(taskRunId), HttpStatus.OK);
+        ResponseFlushingOutputStream.flushing(
+            workflowRunService.streamTaskRunLog(taskRunId), response),
+        HttpStatus.OK);
   }
 }

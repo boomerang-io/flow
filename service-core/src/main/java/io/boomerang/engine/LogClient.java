@@ -8,6 +8,7 @@ import io.boomerang.dispatcher.repository.DispatcherRepository;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -42,6 +43,10 @@ public class LogClient {
   static final String NO_SOURCE_MESSAGE =
       "No log is available for this task: no stored log was uploaded, and its dispatcher"
           + " registered no live log route.";
+
+  static final String IDLE_MESSAGE =
+      "\nThe task has written nothing for a while, so this view stopped following its log. Open the"
+          + " log again to see anything written since.\n";
 
   // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
   private final RestTemplate restTemplate;
@@ -102,6 +107,14 @@ public class LogClient {
       try {
         restTemplate.execute(source.uri(), HttpMethod.GET, requestCallback, responseExtractor);
       } catch (Exception ex) {
+        if (isIdleTimeout(ex)) {
+          // A task silent for longer than the streaming read allows: end the reader's stream with a
+          // line saying so, instead of dropping the connection mid-body.
+          LOGGER.info("TaskRun[{}] log stream went idle; ending it for the reader.", task.getId());
+          outputStream.write(IDLE_MESSAGE.getBytes(StandardCharsets.UTF_8));
+          outputStream.flush();
+          return;
+        }
         LOGGER.error(ex.toString());
         throw new BoomerangException(
             ex,
@@ -112,6 +125,16 @@ public class LogClient {
       }
       LOGGER.info("Finished TaskRun[{}] log stream.", task.getId());
     };
+  }
+
+  // The streaming template's read timed out: the dispatcher sent nothing for its idle limit.
+  static boolean isIdleTimeout(Throwable ex) {
+    for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+      if (cause instanceof SocketTimeoutException) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
