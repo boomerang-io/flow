@@ -27,8 +27,9 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
   `TaskRunner.java:89-93`, `Dispatcher.java:265`). It sends no filters; termination orders take no slot. While
   every slot is taken a `limit=0` poll keeps termination orders coming, and a slot that frees starts a work poll
   at once beside it (`Dispatcher.java:259-282`).
-- **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, so a lease is
-  renewed for as long as its handler runs and its end is pending (`Dispatcher.java:176-186`).
+- **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, from its claim
+  until its end is taken, so the lease the claim set is renewed for as long as its handler runs and its end is
+  pending (`Dispatcher.java:190`, `:291-299`). There is no switch to turn it off.
 - **Start answer.** It runs nothing when start answers `completed` or a 4xx, and goes ahead when the engine cannot
   be reached (`TaskRunner.java:157-177`). A claim for a type it did not register is skipped (`:90`).
 - **Termination.** A terminate order signals the running task and calls `TaskService.cancel`, which cancels the
