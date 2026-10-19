@@ -7,11 +7,21 @@ This repository holds the whole product — services, migrations, and the web ap
 
 | Module | Role |
 |---|---|
-| [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. Runs as `flow.mode = standalone \| engine`. Migrates and seeds its database as it starts (Flamingock change units in `io.boomerang.migration`). |
+| [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. One shape; properties express the deployment (see [Deployment shape](#deployment-shape)). Migrates and seeds its database as it starts (Flamingock change units in `io.boomerang.migration`). |
 | [`dispatcher-sdk`](./dispatcher-sdk) | The dispatcher protocol as a Java library, published to GitHub Packages as `io.boomerang:dispatcher-sdk`: write a dispatcher by implementing `TaskHandler`; the SDK registers, polls, starts, renews leases and reports ends. |
 | [`service-dispatcher`](./service-dispatcher) | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`: one implementation of the published dispatcher contract (`contracts/dispatcher-v1.yaml`, `specifications/dispatcher-contract.md`). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default) or `kube-jobs`. Any process that implements the contract is a dispatcher; it runs as its own deployable only where a boundary (credentials, network zone, trust, placement) separates it from core. |
-| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; served only in `standalone` mode. |
+| [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; renders from the `/api/v2/features` flags, so it runs against any deployment shape. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
+
+Other top-level folders:
+
+| Folder | Holds |
+|---|---|
+| [`contracts`](./contracts) | `dispatcher-v1.yaml`, the OpenAPI contract between `service-core` and any dispatcher. |
+| [`specifications`](./specifications) | Reference docs for each subsystem as it works today, and numbered decision records (`decisions/`). |
+| [`docker`](./docker) | Support files for the local stack and images: the IDPZero OIDC provider, Mongo seed scripts, SeaweedFS config, the kubeconfig for the dispatcher, and the shell-less container health probe (`health/Health.java`). |
+| [`load`](./load) | A dependency-free Node load harness that submits runs against `service-core` and reports latency and throughput. |
+| [`scripts`](./scripts) | One-off operator scripts, such as a read-only `mongosh` audit of the tokens collection. |
 
 ```mermaid
 graph LR
@@ -209,12 +219,17 @@ All API errors use `io.boomerang.common.error.RestErrorResponse`:
 Known codes are indexed in `io.boomerang.common.error.BoomerangError`, with the message text in
 `messages.properties`. A custom exception can be thrown instead, at the cost of localisation.
 
-## Feature flags
+## Deployment shape
 
-### Security
+There is one `service-core`; two properties express how it is deployed
+(`service-core/src/main/resources/application.properties`):
 
-Security is toggled by `flow.security.enabled`. Its default derives from `flow.mode` — `standalone` enables
-it, `engine` disables it — unless set explicitly. These classes load conditionally:
+| Property | Default | Effect |
+|---|---|---|
+| `flow.security.enabled` | `true` | The single switch for authentication and endpoint authorization. With it `false`, every request runs as a synthetic admin; set it only for a headless embedded engine or local development. |
+| `flow.workspace.single` | `false` | With it `true`, only the seeded `system` workspace is served and workspaces cannot be created or deleted. An embedding product sets it together with `flow.security.enabled=false`. |
+
+These security classes load on `flow.security.enabled`:
 
 | Class | Loaded when |
 |---|---|
@@ -223,10 +238,8 @@ it, `engine` disables it — unless set explicitly. These classes load condition
 | `SecurityConfiguration` | true |
 | `SecurityDisabledConfiguration` | false |
 
-### Quotas
-
-`flow.quotas.enabled` gates workspace quota enforcement, defaulting from `flow.mode` the same way — on for
-`standalone`, off for `engine`, where there is no workspace to scope a quota to.
+Runtime limits such as quotas, retention and the audit switch are admin settings (seeded from
+`service-core/src/main/resources/seed/settings.json`), not properties.
 
 ## History
 

@@ -14,4 +14,3 @@ lint-report.json
 # Local dev only. Real deployments pass environment variables.
 .env
 .env.*
-_boomerang
