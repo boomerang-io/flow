@@ -16,6 +16,7 @@ import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -218,6 +219,9 @@ public class ScheduleService {
     // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
     DataAdapterUtil.keepRunParamValueByFieldType(
         scheduleEntity.getParams(), List.of(), ParamType.secret);
+    SecretChangeHolder.compare(
+        Map.of(),
+        SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
     storeCronAsUnix(scheduleEntity);
     Boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
@@ -398,6 +402,9 @@ public class ScheduleService {
         stampSecretParams(scheduleEntity, workflow);
         DataAdapterUtil.keepRunParamValueByFieldType(
             scheduleEntity.getParams(), storedParams, ParamType.secret);
+        SecretChangeHolder.compare(
+            SecretChangeHolder.secretRunValues("", storedParams, ParamType.secret),
+            SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
 
         /*
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check

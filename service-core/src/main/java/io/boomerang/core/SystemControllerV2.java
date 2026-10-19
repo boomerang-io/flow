@@ -1,5 +1,7 @@
 package io.boomerang.core;
 
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.model.Features;
 import io.boomerang.core.model.HeaderNavigationResponse;
 import io.boomerang.core.model.Navigation;
@@ -73,6 +75,13 @@ public class SystemControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "settings",
+      resourceId = "'settings'",
+      resourceName =
+          "#patch == null || !#patch.isObject() ? null"
+              + " : T(java.lang.String).join(',', #patch.propertyNames())")
   @Operation(
       summary = "Update Boomerang Flow Settings",
       description =

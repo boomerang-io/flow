@@ -20,7 +20,7 @@ be kept. Neither resource is versioned, so nothing is gained by replacing it who
 
 B, for settings and global parameters only: `PATCH /api/v2/settings` takes `{"<group>": {"<key>": value}}`
 (`core/SettingsService.java:82`) and `PATCH /api/v2/parameters/{name}` takes the members to change
-(`workflow/ParameterService.java:72`), each read as a JSON tree so an explicit `null` can be told from an absent
+(`workflow/ParameterService.java:73`), each read as a JSON tree so an explicit `null` can be told from an absent
 member; the secret rule's marker still keeps (`:106`). The `PUT` routes are removed with no alias. Workflows,
 catalogue tasks and schedules keep their `PUT` apply, because each apply writes a whole new version. What decided
 it: a partial edit of an unversioned document is exactly what a merge patch is for, and it lets an untouched secret

@@ -63,6 +63,16 @@ The `from` default is load-bearing rather than cosmetic: it keeps both the page 
 `AuditEvent` is the entity minus the CloudEvents envelope (`type`, `source`, `subject`) and the TTL anchor
 `createdAt`; `payload` is passed through as captured and holds request discriminators only, never content.
 
+Audited at the `WRITE` level: creating, updating and applying workspaces (with their parameters), workflows
+(with compose, duplicate and submit), global parameters, admin settings, catalogue tasks (JSON and Tekton YAML,
+global and workspace routes) and schedules, and creating a token. Audited at `DESTRUCTIVE`: deleting a
+workspace, workflow, global or workspace parameter, schedule or artifact, and revoking a token; a catalogue task
+delete is not audited. A write that changes a secret adds
+`payload.detail`, `{"secretsChanged": ["<name>"], "secretsCleared": ["<name>"]}`, naming the secrets and never
+their values (`parameters.md`, "Sensitive parameters"). Run admission and completion are recorded by the engine,
+and only `workflowrun` `CREATE` events count toward the monthly run quota
+(`core/audit/AuditQueryService.java:179`).
+
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
 (`core/security/EngineWorkspaceInterceptorConfiguration.java:12-13`). `TaskRun` is the one run

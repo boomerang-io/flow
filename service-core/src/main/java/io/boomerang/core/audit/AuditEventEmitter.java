@@ -76,7 +76,7 @@ public class AuditEventEmitter {
       String workspaceId,
       AuditOutcome outcome,
       String errorSummary,
-      String detail) {
+      Map<String, Object> detail) {
     if (!captureEnabled(level)) {
       return;
     }

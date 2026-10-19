@@ -266,6 +266,12 @@ public class WorkspaceControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "parameter",
+      resourceId = "#name",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete Workspace Parameter")
   @ApiResponses(
       value = {

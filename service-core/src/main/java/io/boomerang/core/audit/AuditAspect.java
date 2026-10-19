@@ -59,14 +59,21 @@ public class AuditAspect {
     }
 
     long start = System.nanoTime();
+    boolean collecting = SecretChangeHolder.open();
+    Object result;
     try {
-      Object result = pjp.proceed();
-      emit(pjp, audited, result, null, AuditOutcome.SUCCESS, start);
-      return result;
+      result = pjp.proceed();
     } catch (Throwable e) {
-      emit(pjp, audited, null, e, outcomeOf(e), start);
+      // A failed write changed nothing, so the secret names it collected are dropped.
+      if (collecting) {
+        SecretChangeHolder.close();
+      }
+      emit(pjp, audited, null, e, outcomeOf(e), start, null);
       throw e;
     }
+    Map<String, Object> detail = collecting ? SecretChangeHolder.close() : null;
+    emit(pjp, audited, result, null, AuditOutcome.SUCCESS, start, detail);
+    return result;
   }
 
   /** A refused authentication or authorization is DENIED; any other failure is FAILED. */
@@ -88,7 +95,8 @@ public class AuditAspect {
       Object result,
       Throwable error,
       AuditOutcome outcome,
-      long startNanos) {
+      long startNanos,
+      Map<String, Object> detail) {
     try {
       Method method = ((MethodSignature) pjp.getSignature()).getMethod();
       MethodBasedEvaluationContext context =
@@ -114,7 +122,7 @@ public class AuditAspect {
               http.path(),
               durationMs,
               errorSummary(error),
-              null,
+              detail,
               null));
     } catch (RuntimeException e) {
       // Audit assembly must never break the request - the outcome (including the original

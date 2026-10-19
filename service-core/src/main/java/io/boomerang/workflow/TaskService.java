@@ -14,6 +14,7 @@ import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -810,6 +811,10 @@ public class TaskService {
     if (request.getSpec() != null) {
       DataAdapterUtil.keepParamSpecValueByFieldType(
           request.getSpec().getParams(), List.of(), FieldType.PASSWORD.value());
+      SecretChangeHolder.compare(
+          Map.of(),
+          SecretChangeHolder.secretValues(
+              "", request.getSpec().getParams(), FieldType.PASSWORD.value()));
     }
 
     // Set as initial version
@@ -867,6 +872,11 @@ public class TaskService {
           request.getSpec().getParams(),
           taskRevisionEntity.get().getSpec().getParams(),
           FieldType.PASSWORD.value());
+      SecretChangeHolder.compare(
+          SecretChangeHolder.secretValues(
+              "", taskRevisionEntity.get().getSpec().getParams(), FieldType.PASSWORD.value()),
+          SecretChangeHolder.secretValues(
+              "", request.getSpec().getParams(), FieldType.PASSWORD.value()));
     }
 
     // Update TaskTemplateEntity

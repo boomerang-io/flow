@@ -82,6 +82,8 @@ tag's release notes.
   the same choice.
 - `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
   and never written to a log.
+- The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that
+  changes or clears a secret names it in the event's `detail`, never its value.
 - A run-workflow task may run for each item, one child run per item, and a waited child's results become the
   task's results.
 - Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists

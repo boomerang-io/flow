@@ -5,6 +5,7 @@ import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByField
 
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
@@ -575,6 +576,8 @@ public class WorkspaceService {
   private List<AbstractParam> createOrUpdateParameters(
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
+      Map<String, Object> secretsBefore =
+          SecretChangeHolder.secretValues("", parameters, FieldType.PASSWORD.value());
       LOGGER.debug("Starting Parameters: {}", ParameterUtil.abstractParamNames(parameters));
       // The one secret write rule: a secured value or default sent back as the redaction marker,
       // or not at all, carries the stored secret forward through the replacement below; a blank
@@ -598,6 +601,9 @@ public class WorkspaceService {
 
       // Add all new / updated params
       parameters.addAll(request);
+      SecretChangeHolder.compare(
+          secretsBefore,
+          SecretChangeHolder.secretValues("", parameters, FieldType.PASSWORD.value()));
     }
     LOGGER.debug("Ending Parameters: {}", ParameterUtil.abstractParamNames(parameters));
     return parameters;

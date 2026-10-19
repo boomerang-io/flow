@@ -7,8 +7,10 @@ import java.util.Map;
  * SecurityContext and RequestContextHolder thread-locals must not cross into the async writer) and
  * handed to {@link AuditEventWriter#persist(AuditRecord)}.
  *
- * <p>{@code payload} carries caller-supplied discriminators (ids, short summaries — never
- * content) merged into the event's payload after the request fields; null when the site has none.
+ * <p>{@code detail} names what the call changed without its content, such as the secrets a write
+ * changed or cleared ({@link SecretChangeHolder}); null when there is nothing to say. {@code payload}
+ * carries caller-supplied discriminators (ids, short summaries — never content) merged into the
+ * event's payload after the request fields; null when the site has none.
  */
 public record AuditRecord(
     AuditActor actor,
@@ -25,5 +27,5 @@ public record AuditRecord(
     String requestPath,
     Long durationMs,
     String errorSummary,
-    String detail,
+    Map<String, Object> detail,
     Map<String, Object> payload) {}

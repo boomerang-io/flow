@@ -90,7 +90,7 @@ task, field, reference and why: `Task 'deploy': script references $(params.regis
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
 to `PARAM_NAMES` (`service-core/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
 the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
-with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1782-1819`). Matching is case-insensitive everywhere:
+with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1839-1876`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:764`), and the node-value
 merge keeps the declared casing (`ParameterUtil.java:57-66`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
 substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
@@ -110,7 +110,7 @@ on the way up only; the engine, the claim and the container see the real value.
 | --- | --- |
 | Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`ParameterUtil.java:53`), used when the run and each TaskRun are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`:90`) |
-| A workflow node or schedule value whose declared param is `password` - the task template's, or the workflow's latest revision when the schedule is saved - is stamped at save | `ParameterUtil.stampSecretParams` (`:65`), from `WorkflowService` and `schedule/ScheduleService.java:242` |
+| A workflow node or schedule value whose declared param is `password` - the task template's, or the workflow's latest revision when the schedule is saved - is stamped at save | `ParameterUtil.stampSecretParams` (`:65`), from `WorkflowService` and `schedule/ScheduleService.java:249` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParam` (`engine/ParameterManager.java:193`) |
 
 Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`, `:291`): a
@@ -136,18 +136,25 @@ built with `BeanUtils.copyProperties` shares its lists with the entity. On the w
 
 | A client sends | Means | Where it is decided |
 | --- | --- | --- |
-| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:110`) and `ParameterService.patch` (`workflow/ParameterService.java:72`) |
+| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:111`) and `ParameterService.patch` (`workflow/ParameterService.java:73`) |
 | `""` | Clear it | the same |
 | `null` on a JSON Merge Patch (settings, global parameters) | Clear it: on a merge patch a null member removes the value, so only `*****` or leaving the member out keeps it | `SettingsService.patchGroup`, `ParameterService.patch` (decision 0123) |
 | Any other value | Replace it | the same |
 
+A write that changes a secret names it in the audit trail and never records its value, a hash of it or its
+length: the event's `payload.detail` lists the secrets the write set or replaced under `secretsChanged` and the
+ones it cleared under `secretsCleared`, by name - a parameter's or task default's own name, `params.<name>` and
+`tasks.<node>.<param>` on a workflow, `<group>.<key>` on settings. A kept secret is not listed, and a failed
+write lists none (`core/audit/SecretChangeHolder.java:63`, collected around each audited call by
+`AuditAspect.java:62-74`).
+
 A stored value is matched by param name in any case, a node's by node name and then param name, and a
 setting's by key; a workspace PATCH replaces a case variant rather than adding a second entry. A node secret
 left with no value is dropped from the node so the task's default applies
-(`workflow/WorkflowService.java:1704`). A run request - submit, start, retry - follows the same rule against the
+(`workflow/WorkflowService.java:1759`). A run request - submit, start, retry - follows the same rule against the
 declared defaults or the stored run: a param sent with no value, or as `*****` for a secret, leaves the value in
 place and `""` sets it empty (`ParameterUtil.suppliedParams`, `ParameterUtil.java:235`, called at
-`WorkflowService.java:2049` and `WorkflowRunService.java:967,1140`); the engine's own merge of node values over
+`WorkflowService.java:2079` and `WorkflowRunService.java:967,1140`); the engine's own merge of node values over
 task specs is separate and unchanged.
 
 | Read | Filter |
