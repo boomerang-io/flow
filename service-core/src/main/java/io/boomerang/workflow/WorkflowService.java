@@ -310,7 +310,8 @@ public class WorkflowService {
    * apply and duplicate responses - hides its secrets: a password-typed workflow param's default
    * is blanked, the convention the run form relies on (a blank leaves the stored default in place
    * on a run), and a task node's value for a param its task declares as password reads as the
-   * redaction marker. The node's type is stamped from the task's spec here as well as at save, so
+   * redaction marker. A default or node value that is exactly one Flow reference holds no secret
+   * and reads as written. The node's type is stamped from the task's spec here as well as at save, so
    * a revision saved before stamping existed is hidden too; the specs are resolved in one batch for
    * the whole page. The canvas reads (composeGet, composeApply) are deliberately not filtered.
    * Must run while the task refs are still refs, before convertTaskRefsToSlugs.
@@ -336,7 +337,7 @@ public class WorkflowService {
           ParameterUtil.stampSecretParams(task.getParams(), spec.getParams());
         }
         task.setParams(
-            DataAdapterUtil.filterRunParamValueByFieldType(task.getParams(), ParamType.secret));
+            DataAdapterUtil.filterDefinitionValueByFieldType(task.getParams(), ParamType.secret));
       }
     }
   }

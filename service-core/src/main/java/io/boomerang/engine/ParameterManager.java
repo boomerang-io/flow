@@ -63,19 +63,12 @@ import org.springframework.stereotype.Service;
 public class ParameterManager {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  // One compiled form of the reference pattern, shared by the discovery loop and the
-  // single-reference test, so the two cannot drift apart.
-  private static final Pattern DOT_NOTATION_PATTERN = Pattern.compile("(?<=\\$\\().+?(?=\\))");
+  // One compiled form of the reference pattern, shared by the discovery loop, the
+  // single-reference test and the definition reads, so they cannot drift apart.
+  private static final Pattern DOT_NOTATION_PATTERN = ParameterUtil.REFERENCE_PATTERN;
   // Ceiling on the structural walk in replaceStringInObject: only string leaves are substituted,
   // so a pathological nesting cannot exhaust the stack.
   private static final int MAX_SUBSTITUTION_DEPTH = 32;
-  private final String[] reservedScope = {
-    "global",
-    ParamLayers.WORKSPACE_SCOPE,
-    ParamLayers.DEPRECATED_WORKSPACE_SCOPE,
-    "workflow",
-    "context"
-  };
   // Each deprecated team.params reference is logged once per instance, so a busy schedule doesn't
   // repeat the warning on every run.
   private static final Set<String> warnedDeprecatedReferences = ConcurrentHashMap.newKeySet();
@@ -908,15 +901,7 @@ public class ParameterManager {
    * to prevent.
    */
   private static boolean isSingleReference(Object value) {
-    if (!(value instanceof String string)) {
-      return false;
-    }
-    String trimmed = string.trim();
-    Matcher matcher = DOT_NOTATION_PATTERN.matcher(trimmed);
-    return matcher.find()
-        && matcher.start() == 2
-        && matcher.end() == trimmed.length() - 1
-        && !matcher.find();
+    return ParameterUtil.isSingleReference(value);
   }
 
   private void warnIfDeprecatedScope(String scope, String reference) {
@@ -930,8 +915,8 @@ public class ParameterManager {
   }
 
   private boolean isReservedScope(String scope) {
-    // Case-insensitive like the rest of reference matching (ruled 2026-08-26).
-    return List.of(reservedScope).stream().anyMatch(s -> s.equalsIgnoreCase(scope));
+    // Case-insensitive like the rest of reference matching.
+    return ParameterUtil.isReferenceScope(scope);
   }
 
   /*

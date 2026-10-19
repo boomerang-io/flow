@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.enums.ParamType;
@@ -8,6 +9,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.util.ParameterUtil;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -96,5 +98,37 @@ class ParameterUtilTest {
     assertEquals(ParamType.secret, declared.get(0).getType());
     assertEquals(ParamType.secret, declared.get(1).getType());
     assertEquals("untyped", declared.get(1).getValue());
+  }
+
+  @Test
+  void aSingleFlowReferenceIsOneFlowReferenceAndNothingElse() {
+    for (String reference :
+        List.of(
+            "$(params.token)",
+            "  $(workflow.params.aiToken) ",
+            "$(workspace.params.dbPass)",
+            "$(team.params.dbPass)",
+            "$(GLOBAL.params.registryToken)",
+            "$(context.params.workflowrun-trigger)",
+            "$(params.config.db.host)",
+            "$(tasks.build.results.digest)")) {
+      assertTrue(ParameterUtil.isSingleFlowReference(reference), reference);
+    }
+    for (Object other :
+        Arrays.asList(
+            "$(date)",
+            "$(other.params.x)",
+            "$(tasks.build.digest)",
+            "Bearer $(params.token)",
+            "$(params.a)$(params.b)",
+            "$(params.a) $(params.b)",
+            "s3cr3t",
+            "",
+            null,
+            42)) {
+      assertFalse(
+          ParameterUtil.isSingleFlowReference(other), String.valueOf(other));
+    }
+    assertTrue(ParameterUtil.isSingleReference("$(date)"), "the shape test alone accepts shell");
   }
 }
