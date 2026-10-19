@@ -57,6 +57,14 @@ public final class TaskContext {
     return task;
   }
 
+  /**
+   * Return the W3C {@code traceparent} a handler parents its spans on, so every task of one run
+   * lands in one trace ({@link TaskRun#traceparent()}).
+   */
+  public String traceparent() {
+    return task.traceparent();
+  }
+
   /** The id this dispatcher registered under. */
   public String dispatcherId() {
     return dispatcherId;

@@ -222,6 +222,24 @@ and MAY both serve live and upload. A dispatcher with no HTTP surface registers 
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
 dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
 
+## Trace context
+
+Flow stores no traces; a task and a dispatcher export their own OpenTelemetry spans to the operator's backend
+(decision 0120). So that every task of one run lands in one trace, a dispatcher SHOULD derive a W3C
+`traceparent` for each task run from two ids it already holds and hand it to the task as `TRACEPARENT`; an
+in-process handler uses it as the parent context of its spans.
+
+| Part | Value |
+| --- | --- |
+| version, flags | `00`, `01` (sampled) |
+| trace-id | `00000000` followed by the run's `workflowRunRef`, 32 lowercase hex |
+| parent-id | the last 16 hex of the task run's `id` |
+
+A task run `6ad1bfa6cfefa66e88d5e2e0` of run `6ad1bfa3cfefa66e88d5e24a` gets
+`00-000000006ad1bfa3cfefa66e88d5e24a-cfefa66e88d5e2e0-01`. The SDK derives it (`TaskRun.traceparent()`,
+`TaskContext.traceparent()`); it is computed, not carried, so the protocol and `contracts/dispatcher-v1.yaml` do
+not change. A retry is a new run, so it is its own trace, linked to its origin through `initiatedByRef`.
+
 ## Storage
 
 `GET /{id}/workflows` hands out workflow runs that declare a workspace, claimed for provisioning; the dispatcher
@@ -358,3 +376,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `type` on each `RunParam`, with `secret` | Additive (decision 0115) |
 | `RateLimited` end reason, requeued like `ExceededQuota` | Additive |
 | `taskRef` on a task run is the task's slug form; the `task` filter takes the same form | Before the first release (decision 0119) |
+| Trace context derived from the run and task run ids | Additive, no wire change (decision 0120) |

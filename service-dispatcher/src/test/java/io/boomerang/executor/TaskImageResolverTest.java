@@ -185,4 +185,85 @@ class TaskImageResolverTest {
     assertEquals(
         List.of("file", "createFile"), resolver.arguments(task(TaskType.template, spec)));
   }
+
+  private static final String RUN_ID = "6ad1bfa3cfefa66e88d5e24a";
+  private static final String TASK_RUN_ID = "6ad1bfa6cfefa66e88d5e2e0";
+  private static final String TRACEPARENT = "00-000000006ad1bfa3cfefa66e88d5e24a-cfefa66e88d5e2e0-01";
+
+  private static TaskRun tracedTask(TaskType type, List<TaskEnvVar> envs) {
+    TaskRunSpec spec = spec("boomerangio/task-ai:2.0.0", List.of("prompt"), null);
+    spec.setEnvs(envs);
+    TaskRun task = task(type, spec);
+    task.setId(TASK_RUN_ID);
+    task.setWorkflowRunRef(RUN_ID);
+    task.setTaskRef("ai-prompt");
+    task.setName("summarise, then=rank");
+    return task;
+  }
+
+  private static TaskImageResolver exporting() {
+    TaskImageResolver exporting = resolver();
+    ReflectionTestUtils.setField(exporting, "aiOtelEndpoint", "https://cloud.langfuse.com/api/public/otel");
+    ReflectionTestUtils.setField(exporting, "aiOtelHeaders", "Authorization=Basic abc");
+    ReflectionTestUtils.setField(exporting, "aiOtelProtocol", "http/protobuf");
+    return exporting;
+  }
+
+  private static String value(List<TaskEnvVar> environment, String name) {
+    return environment.stream()
+        .filter(var -> name.equals(var.getName()))
+        .map(TaskEnvVar::getValue)
+        .reduce((first, last) -> last)
+        .orElse(null);
+  }
+
+  @Test
+  void everyTaskGetsATraceparentDerivedFromItsRunAndTaskRun() {
+    assertEquals(TRACEPARENT, value(resolver.environment(tracedTask(TaskType.ai, null)), "TRACEPARENT"));
+    assertEquals(
+        TRACEPARENT, value(resolver.environment(tracedTask(TaskType.custom, null)), "TRACEPARENT"));
+  }
+
+  @Test
+  void anAiPodGetsTheExporterSettingsWhenAnEndpointIsConfigured() {
+    List<TaskEnvVar> environment = exporting().environment(tracedTask(TaskType.ai, null));
+
+    assertEquals("https://cloud.langfuse.com/api/public/otel", value(environment, "OTEL_EXPORTER_OTLP_ENDPOINT"));
+    assertEquals("Authorization=Basic abc", value(environment, "OTEL_EXPORTER_OTLP_HEADERS"));
+    assertEquals("http/protobuf", value(environment, "OTEL_EXPORTER_OTLP_PROTOCOL"));
+    assertEquals("flow-task-ai-prompt", value(environment, "OTEL_SERVICE_NAME"));
+    assertEquals(
+        "flow.workflow.run.id=" + RUN_ID
+            + ",flow.task.run.id=" + TASK_RUN_ID
+            + ",flow.task.name=summarise%2C%20then%3Drank",
+        value(environment, "OTEL_RESOURCE_ATTRIBUTES"));
+  }
+
+  @Test
+  void noExporterSettingsWithoutAnEndpointOrOnANonAiPod() {
+    List<TaskEnvVar> blank = resolver.environment(tracedTask(TaskType.ai, null));
+    List<TaskEnvVar> custom = exporting().environment(tracedTask(TaskType.custom, null));
+
+    for (String name :
+        List.of(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "OTEL_EXPORTER_OTLP_HEADERS",
+            "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "OTEL_SERVICE_NAME",
+            "OTEL_RESOURCE_ATTRIBUTES")) {
+      assertNull(value(blank, name), name);
+      assertNull(value(custom, name), name);
+    }
+  }
+
+  @Test
+  void aTasksOwnOtelVariableWinsOverTheDefault() {
+    List<TaskEnvVar> environment =
+        exporting()
+            .environment(
+                tracedTask(TaskType.ai, List.of(new TaskEnvVar("OTEL_SERVICE_NAME", "my-agent"))));
+
+    // Later entries win when the executor builds the container's environment by name.
+    assertEquals("my-agent", value(environment, "OTEL_SERVICE_NAME"));
+  }
 }
