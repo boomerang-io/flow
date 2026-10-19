@@ -1,7 +1,5 @@
 package io.boomerang.common.model;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -60,7 +58,6 @@ public class Workflow {
   private WorkflowWorkspace workspace;
   // Read-only: true on a revision the v3 upgrade flagged (see WorkflowRevisionEntity).
   private Boolean legacyWorkflowStorage;
-  private Map<String, Object> unknownFields = new HashMap<>();
 
   @Override
   public String toString() {
@@ -102,19 +99,6 @@ public class Workflow {
         + params
         + ", workspace="
         + workspace
-        + ", unknownFields="
-        + unknownFields
         + "]";
-  }
-
-  @JsonAnyGetter
-  @JsonPropertyOrder(alphabetic = true)
-  public Map<String, Object> otherFields() {
-    return unknownFields;
-  }
-
-  @JsonAnySetter
-  public void setOtherField(String name, Object value) {
-    unknownFields.put(name, value);
   }
 }

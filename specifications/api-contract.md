@@ -275,6 +275,11 @@ workflows in step with their own definitions MUST update in place and MUST NOT d
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD
 skip the call when nothing changed (for example by storing a hash of the definition in its own annotation).
 
+A top-level field the workflow model does not carry, such as the retired `workspaces` list, is ignored: it is
+not saved and not returned, so the create and update responses show exactly what was stored
+(`common/model/Workflow.java`, which keeps `@JsonIgnoreProperties(ignoreUnknown = true)` and no catch-all). A
+client that compares the response with what it sent sees a dropped field.
+
 Triggers follow the same rule as labels: a trigger the update leaves out, or a missing `triggers` block,
 keeps its stored value (`workflow/WorkflowService.java:559-564`). Only a trigger the request sends changes, and
 turning `schedule` off moves the workflow's schedules to `trigger_disabled` (`:933-948`). Every read fills a
