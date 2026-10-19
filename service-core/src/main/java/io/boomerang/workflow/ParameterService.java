@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import io.boomerang.core.ParamLayerCache;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.DataAdapterUtil;
@@ -94,6 +95,9 @@ public class ParameterService {
       patched.setValue(keepMarker(patched.getValue(), stored.getValue()));
       patched.setDefaultValue(keepMarker(patched.getDefaultValue(), stored.getDefaultValue()));
     }
+    SecretChangeHolder.compare(
+        SecretChangeHolder.secretValues("", List.of(stored), FieldType.PASSWORD.value()),
+        SecretChangeHolder.secretValues("", List.of(patched), FieldType.PASSWORD.value()));
 
     BeanUtils.copyProperties(patched, entity, "id");
     entity = paramRepository.save(entity);
@@ -143,6 +147,9 @@ public class ParameterService {
       // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
       DataAdapterUtil.keepParamSpecValueByFieldType(
           List.of(request), List.of(), FieldType.PASSWORD.value());
+      SecretChangeHolder.compare(
+          Map.of(),
+          SecretChangeHolder.secretValues("", List.of(request), FieldType.PASSWORD.value()));
       GlobalParamEntity entity = new GlobalParamEntity();
       BeanUtils.copyProperties(request, entity, "id");
       LOGGER.debug("Creating GlobalParamEntity: {}", entity.getName());

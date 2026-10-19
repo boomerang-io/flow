@@ -4,6 +4,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DateUtil;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.ConfigurationType;
 import io.boomerang.core.model.Setting;
@@ -125,11 +126,15 @@ public class SettingsService {
                 + " boolean.");
       }
       String incoming = value.isNull() ? "" : value.asString();
+      boolean secured = SECURED_TYPE.equalsIgnoreCase(stored.getType());
       String newValue =
-          (SECURED_TYPE.equalsIgnoreCase(stored.getType())
-                  && DataAdapterUtil.REDACTED.equals(incoming))
+          (secured && DataAdapterUtil.REDACTED.equals(incoming))
               ? (String) DataAdapterUtil.keepSecretValue(incoming, stored.getValue())
               : incoming;
+      if (secured) {
+        SecretChangeHolder.compare(
+            entity.getKey() + "." + entry.getKey(), stored.getValue(), newValue);
+      }
       changed |= !Objects.equals(stored.getValue(), newValue);
       stored.setValue(newValue);
     }

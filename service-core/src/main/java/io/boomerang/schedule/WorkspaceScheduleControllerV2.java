@@ -2,6 +2,9 @@ package io.boomerang.schedule;
 
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -150,6 +153,12 @@ public class WorkspaceScheduleControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "schedule",
+      resourceId = "#result?.getId()",
+      resourceName = "#schedule?.getName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Create a Schedule.")
   public WorkflowSchedule createSchedule(
       @Parameter(
@@ -168,6 +177,12 @@ public class WorkspaceScheduleControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "schedule",
+      resourceId = "#schedule?.getId()",
+      resourceName = "#schedule?.getName()",
+      workspaceId = "#workspace")
   @Operation(summary = "Apply a Schedule.")
   public WorkflowSchedule updateSchedule(
       @RequestBody WorkflowSchedule schedule,
@@ -186,6 +201,12 @@ public class WorkspaceScheduleControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "schedule",
+      resourceId = "#scheduleId",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete a Schedule.")
   public void deleteSchedule(
       @Parameter(

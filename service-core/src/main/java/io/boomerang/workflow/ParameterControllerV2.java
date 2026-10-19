@@ -1,6 +1,9 @@
 package io.boomerang.workflow;
 
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -55,6 +58,7 @@ public class ParameterControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
+  @Audited(action = AuditAction.CREATE, resourceType = "parameter", resourceId = "#request?.getName()")
   @Operation(summary = "Create a global Param")
   @ApiResponses(
       value = {
@@ -72,6 +76,7 @@ public class ParameterControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
+  @Audited(action = AuditAction.UPDATE, resourceType = "parameter", resourceId = "#name")
   @Operation(
       summary = "Update a global Param",
       description =
@@ -92,6 +97,11 @@ public class ParameterControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "parameter",
+      resourceId = "#name",
+      level = AuditLevel.DESTRUCTIVE)
   @Operation(summary = "Delete a global Param")
   @ApiResponses(
       value = {

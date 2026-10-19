@@ -31,6 +31,7 @@ import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskExecutionService;
@@ -57,6 +58,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -1699,7 +1701,8 @@ public class WorkflowService {
    * the workflow param of the same name, and the node param of the same name on the node of the
    * same name in the latest revision - a blank clears it, and anything else replaces it. A node
    * secret left with no value is dropped from the node, so the task's own default applies on a
-   * run. Runs after createWorkflowRevisionEntity has stamped the node params secret.
+   * run. Runs after createWorkflowRevisionEntity has stamped the node params secret. The names of
+   * the secrets the write changed or cleared go to the audit trail.
    */
   private static void keepSecretValues(
       WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
@@ -1707,9 +1710,36 @@ public class WorkflowService {
         incoming.getParams(),
         stored != null ? stored.getParams() : List.of(),
         FieldType.PASSWORD.value());
-    if (incoming.getTasks() == null) {
-      return;
+    if (incoming.getTasks() != null) {
+      keepNodeSecretValues(incoming, stored);
     }
+    SecretChangeHolder.compare(secretValues(stored), secretValues(incoming));
+  }
+
+  // A revision's secret values by name: its own params as params.<name>, each node's as
+  // tasks.<node>.<param>.
+  private static Map<String, Object> secretValues(WorkflowRevisionEntity revision) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    if (revision == null) {
+      return values;
+    }
+    values.putAll(
+        SecretChangeHolder.secretValues(
+            "params.", revision.getParams(), FieldType.PASSWORD.value()));
+    if (revision.getTasks() != null) {
+      revision.getTasks().stream()
+          .filter(task -> task.getName() != null)
+          .forEach(
+              task ->
+                  values.putAll(
+                      SecretChangeHolder.secretRunValues(
+                          "tasks." + task.getName() + ".", task.getParams(), ParamType.secret)));
+    }
+    return values;
+  }
+
+  private static void keepNodeSecretValues(
+      WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
     for (WorkflowTask task : incoming.getTasks()) {
       if (task.getParams() == null) {
         continue;
