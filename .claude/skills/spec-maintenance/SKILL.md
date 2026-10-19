@@ -15,7 +15,7 @@ description: Keep specifications/ true after a change. ALWAYS use after changing
 ## After a change, in this order
 
 1. **Find the owning reference doc** — `architecture`, `execution-model`, `data-model`, `authorization`,
-   `task-runtime`, `api-contract`, `performance`, `design-system`. If none fits, the change is probably not
+   `dispatcher-contract`, `dispatcher-kubernetes`, `parameters`, `api-contract`, `performance`, `design-system`. If none fits, the change is probably not
    spec-worthy; do not create a new file without the maintainer's agreement.
 2. **Rewrite, don't annotate.** Replace the now-false sentence with the true one and re-cite `path:line`.
    Delete anything the change made moot. Diff the doc: every remaining claim must still hold.

@@ -5,8 +5,10 @@ Flow's own Kubernetes dispatcher (`service-dispatcher`), an in-process dispatche
 future serverless one. They all speak one protocol under `/dispatcher/v1`. Its routes and wire models are
 generated from the engine as an OpenAPI document — served at `/api/docs/spec/dispatcher-v1` and checked in at
 `contracts/dispatcher-v1.yaml` (`dispatcher/DispatcherContractConfiguration.java`); `DispatcherContractTest`
-fails when the two differ. This document gives the semantics the document cannot. Paths below are under
-`service-core/src/main/java/io/boomerang/` unless they start with a module name.
+fails when the two differ. This document gives the semantics the document cannot, and what a task is to any
+dispatcher: which types reach one, the spec and params it receives, the caps on what it may return, the catalogue
+the tasks come from. Paths below are under `service-core/src/main/java/io/boomerang/` unless they start with a
+module name.
 
 ## Topologies
 
@@ -30,8 +32,8 @@ and nothing Kubernetes-specific.
 The contract covers registration, the two queues, start, heartbeat, end, termination orders, storage release
 and the two optional log pieces ("Logs"), and nothing else. How a task is run — image, command, volumes,
 resources, placement — is the dispatcher's own, described for Flow's Kubernetes dispatcher in
-`task-runtime.md`; so is what sits behind a dispatcher's live log route. One thing a complete dispatcher needs
-sits outside it today: **dispatcher identity** is a long-lived record upserted on name and host
+`dispatcher-kubernetes.md`; so is what sits behind a dispatcher's live log route. One thing a complete dispatcher
+needs sits outside it today: **dispatcher identity** is a long-lived record upserted on name and host
 (`dispatcher/DispatcherService.java:98-130`) with no expiry or deregistration route.
 
 ## Versioning and compatibility
@@ -116,9 +118,33 @@ A run order carries the task's spec with its references filled in by the engine 
 resolved as before (`dispatcher/DispatcherService.java:338`); the engine stores the spec with its references and
 fills in a copy for each claim. It carries the task's params already resolved, each with its `type`: absent means `string`, and
 `secret` marks a string whose value Flow never shows a consumer. The value is in plain text on the claim; a
-dispatcher MUST keep it out of its own logs and MAY deliver it exactly as a string (`task-runtime.md`,
+dispatcher MUST keep it out of its own logs and MAY deliver it exactly as a string (`parameters.md`,
 "Sensitive parameters"). The SDK reads an unknown type as `unknown`
 (`dispatcher-sdk/.../dispatcher/sdk/model/ParamType.java`).
+
+The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other references in two places, at two times
+(`parameters.md`):
+
+| What | When | Stored |
+| --- | --- | --- |
+| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+
+So no secret value is ever written into a stored spec. Admission has checked every reference, so the fill-in
+fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
+`SpecFillFailed` (`DispatcherService.java:396`). The termination order, the start and end answers and every
+consumer read carry the stored spec. The TaskRun's params are the task's declared params merged with the values
+authored on the workflow node (`engine/DAGUtility.java:183`). A `custom` task takes its runtime from its own
+params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue entry, which
+declares no image (`DAGUtility.java:338`). A secret-typed one is copied as its reference `$(params.<name>)`, filled
+in at claim, so a secret `command` or `arguments` arrives as one element (`:370`).
+
+An item of a for-each task is an ordinary TaskRun to the dispatcher: it is claimed by `id` and run like any
+other of its type. It carries the parent's params plus `item` (the element; an object or array arrives
+JSON-encoded) and `index` (its position from 0, as text), so `$(params.item)` resolves in the spec. Its params
+resolve when the item is admitted and its spec when it is claimed, not when the parent fans out
+(`engine/TaskExecutionService.java:663-701`). Every item mounts the same workspace as the parent, so all items of a
+run share the run's workspace.
 
 A terminate order also arrives for a task the engine has requeued while a dispatcher may still hold its work
 (`engine/TaskRunService.java:245-269`); it releases the claim, so the next attempt can be claimed. A dispatcher
@@ -140,7 +166,7 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 - `status` is `succeeded`, `failed` or `invalid`; anything else is `400 TASKRUN_INVALID_END_STATUS` (`:967`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes
   nothing (`:1054-1066`).
-- Results over `flow.engine.task.results.max-bytes` (1 MiB) fail the task as `ResultsTooLarge` (`:53`).
+- `results` carries only the result names the task's definition declares; the caps below bound its size.
 - `statusReason` is a closed set (`service-core/.../model/TaskRunEndRequest.java`). Two of them mean the task
   never started, and the engine requeues it instead of failing it — with backoff, on the same budget of three
   more attempts as a timed-out claimant — and fails it with that reason only once the budget is spent
@@ -150,6 +176,23 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 | --- | --- |
 | `ExceededQuota` | The runtime refused to create the task's work for lack of capacity |
 | `StartTimeout` | The task's work was created but never began within the dispatcher's start deadline |
+
+**Caps.** The params cap is the engine's, identical on every dispatcher. The results limit belongs to the
+dispatcher that runs the task (on Kubernetes it is the 4096-byte container termination message,
+`dispatcher-kubernetes.md`, "Results on Kubernetes"). The engine's results setting is only a storage guard, so a
+faulty dispatcher cannot grow a task run toward MongoDB's 16 MB document limit.
+
+| Cap | Property (`service-core/.../application.properties:176-177`) | Where checked | Effect |
+| --- | --- | --- | --- |
+| Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:205-219`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
+| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:909-919`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
+
+A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
+the parent's results are the per-item values collected into arrays by the engine
+(`TaskExecutionService.completeParentIfItemsTerminal` `:716`), with no cap of their own. When MongoDB refuses the
+combined arrays as over its 16 MB document limit, the parent fails with `statusReason = ResultsTooLarge` and no
+results, and the run moves on (`TaskExecutionService.java:750-778`). A task that consumes the array still meets
+the params cap at its own admission.
 
 ## Leases and heartbeat
 
@@ -174,7 +217,7 @@ these (`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolv
 A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished,
 and MAY both serve live and upload. A dispatcher with no HTTP surface registers no `logsUrl` and uploads; one
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
-dispatcher does both (`task-runtime.md`, "Flow's dispatcher").
+dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
 
 ## Storage
 
@@ -184,6 +227,96 @@ starting: the engine releases the claim after a grace and fails the run after th
 `POST /workspaces/releasable` takes the run ids the dispatcher holds volumes for (500 at most, else 400) and
 answers with those whose run is finished (`DispatcherService.java:52`, `:365`). A dispatcher that runs nothing on
 shared storage MAY skip both.
+
+Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
+`className`, `accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run
+copies it at submit, the request's own `workspace` winning when it carries one
+(`workflow/WorkflowService.java:1966`). Which tasks mount it is decided once, when `DAGUtility` materialises the
+TaskRun: every task mounts the run's workspace unless its node says `workspace: false`
+(`engine/DAGUtility.java:229-240`); the canvas offers no way to set that, so the ordinary case is that every task
+mounts it. The TaskRun carries its own copy with `mountPath` settled to the declared path or `/workspace`, so
+nothing later in the run changes it.
+
+## Task types
+
+Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
+(`engine/TaskExecutionService.java:208-212,340`), plus the two artifact types; every other type runs inside the
+engine. `TaskType` (`service-core/.../enums/TaskType.java:15-32`) is dispatched in `TaskExecutionService.java:320-373`.
+
+| Type | Behaviour |
+| --- | --- |
+| `start`, `end` | Structural nodes of the graph; never executed |
+| `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
+| `decision` | Evaluates the branch and ends `succeeded` |
+| `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
+| `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status (see `execution-model.md`) |
+| `runscheduledworkflow` | Schedule another workflow to run later, then end |
+| `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
+| `approval`, `manual` | Create an action and wait for a person |
+| `eventwait` | Wait for a matching inbound event unless pre-approved |
+| `sleep` | Park as waiting; the watcher completes it after the duration |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
+
+## Catalogue
+
+Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
+migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json` into `tasks` and
+`task_revisions`, matched by name and inserting only what is absent
+(`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
+follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
+after a release needs a change unit of its own to reach an existing database, which is what
+`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
+an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
+The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
+(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
+install, `_0019__V3UpgradeCatalogueRevisions` adds whichever of them the seeded revision declares and the install's
+revision lacks, and moves any revision off the retired `worker-flow` image (`:44-46,72`).
+
+A workflow node's `taskVersion` is pinned when the workflow is saved, not when it runs:
+`WorkflowService.createWorkflowRevisionEntity` resolves each non-start/end node through
+`TaskService.retrieveAndValidateTask` and stamps the resolved version onto the node — the version the node asked
+for, or the catalogue's latest when it asked for none. At run time `DAGUtility.createTaskList` resolves the same
+way and records the result on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version
+still resolves latest. Publishing a new Task version therefore changes nothing for workflows already saved
+against an older one, which is the point: a run is reproducible from its revision. To move a workflow forward,
+save it again with the node's `taskVersion` set to the target version (or omitted, to take latest); the editor
+surfaces this per node as a "New version available" prompt, driven by the `upgradesAvailable` flag
+`WorkflowService.areTaskUpgradesAvailable` sets
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
+
+## AI tasks
+
+An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references one of
+two seeded catalogue tasks of type `ai`, the engine treats it as any other dispatched type, and a dispatcher runs
+the image and command the revision declares, `boomerangio/task-ai:2.0.0` with `prompt` or `agent` (how Flow's
+Kubernetes dispatcher does, and which images it admits, is in `dispatcher-kubernetes.md`, "AI tasks"; an
+in-process dispatcher runs the same contract in its own handler and ignores the image). Everything the model call
+needs is a declared param:
+
+| Task | Params | Results |
+| --- | --- | --- |
+| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace) | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
+| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all | The 9 plus `turns` and `toolCalls` |
+
+The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) are copies of the definition files in the
+`boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which are the source of the
+contract: a change there is one PR in that repository and a seed sync here, and a param or result added on one side
+has to land on the other. The worker is a task image, not a product image: it is released from the same repository
+on its own `task-ai@<version>` tags, each revision pins the exact `boomerangio/task-ai:<version>` it was written
+against, and a deployment moves to a newer worker by seeding a new revision. `slider` is the only param type with a
+numeric range, so `AbstractParam` carries nullable `min`, `max` and `step` beside `options`
+(`service-core/.../model/AbstractParam.java`). JSON-valued params are `json` text the image parses up front, failing
+`INVALID_PARAM` with the param's name. Params reach the image as `PARAM_<NAME>` environment variables and results
+come back through `RESULTS_PATH`, as flat typed results under the same caps as every other task (decision 0041: the
+1 MB engine guard, and 4 KB on the Kubernetes dispatcher), so a long `output` fails the task with
+`RESULTS_TOO_LARGE` rather than truncating; `outputFile` and the task log carry what does not fit. There is no usage
+field and no meter: a platform sums `totalTokens` across task runs through the existing query API.
+
+**Token delivery.** `token` is password-typed, so it is a `secret` param: a literal typed into the node or a
+reference to a workflow param reads as `*****` on the run reads and is scrubbed from the log stream
+(`parameters.md`, "Sensitive parameters"). Downward it is a plain `PARAM_TOKEN` environment variable on the pod,
+like every other param — there are no per-task secrets yet, so anyone who can read the pod spec or exec into the
+pod can read the token.
 
 ## Errors
 

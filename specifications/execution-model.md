@@ -51,7 +51,7 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
 - The claim answer carries the task's spec filled in from its stored references (`ParameterManager.fillSpec`,
   called at `DispatcherService.java:338`); the stored spec keeps the references. Params are frozen at admission,
   so a requeued task is filled in with the same param values; a workspace or global reference written straight
-  into the spec is read at claim (decision 0116, `task-runtime.md`).
+  into the spec is read at claim (decision 0116, `parameters.md`).
 - A global kill switch exists: `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`DispatcherService.java:57-58`, `:166`, `:262`).
 
 ## Compare-and-set transitions instead of locks
@@ -338,4 +338,4 @@ means "held" (`TaskExecutionService.java:711-740`). A task that cannot acquire p
 ## Also worth knowing
 
 - `flow.watcher.enabled` gates the outbox drain as well as the sweeps; schedules fire in both modes.
-- Results are limited by the dispatcher (4096 bytes on Kubernetes) behind a 1 MB engine storage guard at task end, and parameters are capped at 16384 bytes at admission (see `task-runtime.md`).
+- Results are limited by the dispatcher (4096 bytes on Kubernetes) behind a 1 MB engine storage guard at task end, and parameters are capped at 16384 bytes at admission (see `dispatcher-contract.md`, "Ending").

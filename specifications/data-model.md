@@ -94,7 +94,7 @@ labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kub
 ## Secret values at rest
 
 Secret parameter values are stored encrypted, as `crypt_v1{AESGCM|<ciphertext>}`, and read back as plaintext
-(`core/config/SecretValueMongoListener.java:92`; `task-runtime.md`, "Sensitive parameters"). No field is added;
+(`core/config/SecretValueMongoListener.java:92`; `parameters.md`, "Sensitive parameters"). No field is added;
 the stored value changes shape. A secret is recognised by the type stored beside its value:
 
 | Collection | Field | Secret when |

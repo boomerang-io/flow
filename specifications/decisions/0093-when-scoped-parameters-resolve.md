@@ -5,7 +5,7 @@
 ## Context
 
 Global, workspace and workflow-context values are copied into three run annotations at submit and read back
-at run start and at every task admission (`task-runtime.md`, "What the container receives"). The copy dates
+at run start and at every task admission (`parameters.md`, "Layers and references"). The copy dates
 from flow and the engine being separate services; it puts every secured value on every run document and
 reads engine input from `boomerang.io/*` annotations. Substitution also expands references inside inserted
 values, including task results and trigger payloads, and secured global and workspace values are not

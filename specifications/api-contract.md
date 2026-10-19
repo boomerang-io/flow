@@ -290,7 +290,7 @@ unknown value is `400 PARAM_INVALID_TYPE` (1216), and a `secret` whose value is 
 `400 PARAM_SECRET_NOT_STRING` (1217). A `secret` param's value is returned as `*****` on every run read,
 submit and lifecycle response and `full` status event; the dispatcher claim carries the real value. Task and
 workflow definition reads hide secrets too, except the workflow canvas, and a hidden value sent back on an
-apply keeps the stored one (`task-runtime.md`, "Sensitive parameters").
+apply keeps the stored one (`parameters.md`, "Sensitive parameters").
 
 | Object | Field | Element type |
 | --- | --- | --- |
