@@ -963,7 +963,9 @@ public class WorkflowRunService {
         wfRunEntity.getAnnotations().putAll(optRunRequest.get().getAnnotations());
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
-                wfRunEntity.getParams(), optRunRequest.get().getParams()));
+                wfRunEntity.getParams(),
+                ParameterUtil.suppliedParams(
+                    wfRunEntity.getParams(), optRunRequest.get().getParams())));
         // The rule submit holds a merged request to: a secret is a string only.
         WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
         // A request carrying a workspace overrides the run's; the dispatcher's start sends none.
@@ -1133,7 +1135,9 @@ public class WorkflowRunService {
       wfRunEntity.setRetryFrom((plan != null) ? plan.retryFrom() : null);
       // Overrides merge over the origin's own: a param replaces the one of that name, a label is
       // put over the one of that key.
-      ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams());
+      ParameterUtil.addUniqueParams(
+          wfRunEntity.getParams(),
+          ParameterUtil.suppliedParams(wfRunEntity.getParams(), request.getParams()));
       WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
       wfRunEntity.getLabels().putAll(request.getLabels());
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across

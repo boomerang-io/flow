@@ -92,7 +92,7 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
   // ── each stored secret is ciphertext on disk and plaintext in memory ─────────────────────────
 
   @Test
-  void aPasswordGlobalParameterIsCiphertextAtRestAndBlankOnTheConsumerRead() {
+  void aPasswordGlobalParameterIsCiphertextAtRestAndMaskedOnTheConsumerRead() {
     parameterService.create(declared("restGlobalToken", "password", null, "glob-secret-0001"));
     parameterService.create(declared("restGlobalRegion", "text", null, "ap-southeast-2"));
 
@@ -105,8 +105,9 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
     assertEquals(
         "glob-secret-0001",
         globalParamRepository.findOneByName("restGlobalToken").orElseThrow().getValue());
-    // The existing consumer filter: a password-typed definition's value is never returned.
-    assertNull(
+    // The consumer read: a password-typed definition's value reads as the marker, never itself.
+    assertEquals(
+        io.boomerang.common.util.DataAdapterUtil.REDACTED,
         parameterService.getAll().stream()
             .filter(p -> "restGlobalToken".equals(p.getName()))
             .findFirst()

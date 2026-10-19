@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Redaction must key off the param's own type. The single caller
  * (ParameterService.convertToAbstractParamAndFilter) passes "password", so redacting regardless of
- * type blanks the value of every global parameter the API returns, not just the secrets.
+ * type masks the value of every global parameter the API returns, not just the secrets.
  */
 class ParamRedactionTest {
 
@@ -33,8 +33,11 @@ class ParamRedactionTest {
   void aPasswordParamIsRedacted() {
     AbstractParam result = DataAdapterUtil.filterAbstractParam(param("password", "s3cret"), false, "password");
 
-    assertNull(result.getValue());
+    assertEquals(DataAdapterUtil.REDACTED, result.getValue());
     assertTrue(result.getHiddenValue());
+    assertNull(
+        DataAdapterUtil.filterAbstractParam(param("password", null), false, "password").getValue(),
+        "an unset secured value reads as nothing");
   }
 
   @Test
@@ -49,8 +52,8 @@ class ParamRedactionTest {
   void theDefaultValueVariantRedactsOnlyTheDefault() {
     AbstractParam result = DataAdapterUtil.filterAbstractParam(param("password", "s3cret"), true, "password");
 
-    assertNull(result.getDefaultValue());
-    assertEquals("s3cret", result.getValue(), "only the default value is cleared in this mode");
+    assertEquals(DataAdapterUtil.REDACTED, result.getDefaultValue());
+    assertEquals("s3cret", result.getValue(), "only the default value is masked in this mode");
   }
 
   @Test
@@ -97,7 +100,10 @@ class ParamRedactionTest {
 
     DataAdapterUtil.filterWorkflowRunValueByFieldType(run, specs, "password");
 
-    assertEquals("", run.getParams().get(0).getValue(), "name-join blanks like the existing filter family");
+    assertEquals(
+        DataAdapterUtil.REDACTED,
+        run.getParams().get(0).getValue(),
+        "the name join masks a set secret as the type filter does");
     assertEquals("hello", run.getParams().get(1).getValue(), "non-password params stay");
     assertEquals("value is " + DataAdapterUtil.REDACTED + " here", run.getResults().get(0).getValue());
     assertEquals(DataAdapterUtil.REDACTED, task.getParams().get(0).getValue());
@@ -117,7 +123,10 @@ class ParamRedactionTest {
 
     DataAdapterUtil.filterWorkflowRunValueByFieldType(run, specs, "password");
 
-    assertEquals("", run.getParams().get(0).getValue(), "name-join blanks like the existing filter family");
+    assertEquals(
+        DataAdapterUtil.REDACTED,
+        run.getParams().get(0).getValue(),
+        "the name join masks a set secret as the type filter does");
     assertEquals(
         "abcdef abc",
         task.getSpec().getScript(),

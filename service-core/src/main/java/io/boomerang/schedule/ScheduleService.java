@@ -215,6 +215,9 @@ public class ScheduleService {
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
     BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
     stampSecretParams(scheduleEntity, workflow);
+    // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
+    DataAdapterUtil.keepRunParamValueByFieldType(
+        scheduleEntity.getParams(), List.of(), ParamType.secret);
     storeCronAsUnix(scheduleEntity);
     Boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
@@ -390,7 +393,8 @@ public class ScheduleService {
         storeCronAsUnix(scheduleEntity);
         Workflow workflow =
             workflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
-        // A secret read back masked, or blank, keeps its stored value.
+        // The one secret write rule: the marker, or no value, keeps the stored value; a blank
+        // clears it.
         stampSecretParams(scheduleEntity, workflow);
         DataAdapterUtil.keepRunParamValueByFieldType(
             scheduleEntity.getParams(), storedParams, ParamType.secret);

@@ -89,13 +89,13 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
         "task-default-0001");
     assertHidden(taskService.getAsTektonGlobal(name, Optional.empty()), "task-default-0001");
 
-    // Applying the hidden read back - the marker, then a blank - keeps the stored default.
+    // Applying the hidden read back - the marker, then no value - keeps the stored default.
     read.setDescription("edited");
     assertHidden(taskService.applyGlobal(name, read, false), "task-default-0001");
     assertEquals("task-default-0001", storedDefault(name));
-    Task blank = taskService.getGlobal(name, Optional.empty());
-    declared(blank, "registryToken").setDefaultValue("");
-    taskService.applyGlobal(name, blank, false);
+    Task omitted = taskService.getGlobal(name, Optional.empty());
+    declared(omitted, "registryToken").setDefaultValue(null);
+    taskService.applyGlobal(name, omitted, false);
     assertEquals("task-default-0001", storedDefault(name));
     // The Tekton YAML round trip keeps it too.
     taskService.applyAsTektonGlobal(name, taskService.getAsTektonGlobal(name, Optional.empty()), false);
@@ -112,6 +112,14 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     workflowService.create(SYSTEM, linearWorkflow(workflow, name, null));
     String wfRunId = submitAndAdmit(workflow);
     assertEquals("task-default-0002", taskParam(wfRunId, "registryToken"));
+
+    // A blank clears it, and a cleared default reads as nothing.
+    Task cleared = taskService.getGlobal(name, Optional.empty());
+    declared(cleared, "registryToken").setDefaultValue("");
+    taskService.applyGlobal(name, cleared, false);
+    assertEquals("", storedDefault(name));
+    assertEquals(
+        null, declared(taskService.getGlobal(name, Optional.empty()), "registryToken").getDefaultValue());
   }
 
   @Test
@@ -145,7 +153,7 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
 
     Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
     assertHidden(read, "wf-default-0001", "node-token-0001");
-    assertEquals("", read.getParams().get(0).getDefaultValue(), "the run form's blank convention");
+    assertEquals(DataAdapterUtil.REDACTED, read.getParams().get(0).getDefaultValue());
     assertEquals(DataAdapterUtil.REDACTED, nodeParam(read, "registryToken").getValue());
     assertHidden(
         workflowService.query(
@@ -183,10 +191,19 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     WorkflowRevisionEntity copied = latestRevision(duplicate.getName());
     assertEquals("wf-default-0001", copied.getParams().get(0).getDefaultValue());
     assertEquals("node-token-0001", nodeValue(copied, "registryToken"));
+
+    // A blank clears both: the default is stored empty and the node keeps an explicit empty value.
+    Workflow clearing = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    clearing.getParams().get(0).setDefaultValue("");
+    nodeParam(clearing, "registryToken").setValue("");
+    workflowService.apply(SYSTEM, clearing, false);
+    WorkflowRevisionEntity cleared = latestRevision(name);
+    assertEquals("", cleared.getParams().get(0).getDefaultValue());
+    assertEquals("", nodeValue(cleared, "registryToken"));
   }
 
   // An import of an exported Workflow into a new one has nothing stored to keep: the hidden
-  // workflow default is saved blank and the marked node value is dropped, so the task's own
+  // workflow default is saved with no value and the marked node value is dropped, so the task's own
   // default applies on a run rather than the marker.
   @Test
   void aHiddenValueWithNothingStoredIsNeverSavedAsTheSecret() {
@@ -198,10 +215,36 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     workflowService.create(SYSTEM, imported);
 
     WorkflowRevisionEntity stored = latestRevision(name);
-    assertEquals("", stored.getParams().get(0).getDefaultValue());
+    assertEquals(null, stored.getParams().get(0).getDefaultValue());
     assertThat(node(stored).getParams()).noneMatch(p -> "registryToken".equals(p.getName()));
     String wfRunId = submitAndAdmit(name);
     assertEquals("import-default-01", taskParam(wfRunId, "registryToken"));
+  }
+
+  // A run form left blank sends no value; a client that echoes a read sends the marker. Either
+  // leaves the declared secret default in place, and a blank runs with an empty value.
+  @Test
+  void aRunRequestSendingNoValueOrTheMarkerForASecretUsesItsDefaultAndABlankSetsItEmpty() {
+    String task = unique("run-request-task");
+    taskService.createGlobal(secretTask(task, "run-default-01"));
+    String name = unique("run-request-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, null));
+
+    assertEquals("wf-default-0001", submittedParam(name, null));
+    assertEquals("wf-default-0001", submittedParam(name, DataAdapterUtil.REDACTED));
+    assertEquals("", submittedParam(name, ""));
+    assertEquals("run-value-01", submittedParam(name, "run-value-01"));
+  }
+
+  private Object submittedParam(String workflowName, Object sent) {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setParams(new LinkedList<>(List.of(new RunParam("dbPassword", sent))));
+    String wfRunId = workflowService.submit(SYSTEM, workflowName, request, false).getId();
+    return workflowRunRepository.findById(wfRunId).orElseThrow().getParams().stream()
+        .filter(p -> "dbPassword".equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
   }
 
   // ── values that are only a reference ─────────────────────────────────────────────────────────

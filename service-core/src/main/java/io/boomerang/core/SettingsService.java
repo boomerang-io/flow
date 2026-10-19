@@ -10,12 +10,17 @@ import io.boomerang.core.repository.SettingsRepository;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SettingsService {
+
+  private static final Logger LOGGER = LogManager.getLogger();
 
   private static final String SECURED_TYPE = "secured";
 
@@ -43,8 +48,8 @@ public class SettingsService {
 
   /**
    * The settings as the API shows them: a secured entry that holds a value reads as {@link
-   * DataAdapterUtil#REDACTED}, and one with nothing set stays blank. Internal callers read a value
-   * through {@link #getSettingConfig}, which returns plaintext.
+   * DataAdapterUtil#REDACTED}, and one with nothing set reads as nothing. Internal callers read a
+   * value through {@link #getSettingConfig}, which returns plaintext.
    */
   public List<Setting> getAllSettings() {
     final List<Setting> settingList = new LinkedList<>();
@@ -63,10 +68,9 @@ public class SettingsService {
   public List<Setting> updateSettings(List<Setting> settings) {
     for (final Setting setting : settings) {
       final SettingEntity entity = this.getSettingById(setting.getId());
-      if (entity.getType() == ConfigurationType.ValuesList) {
-        setConfigsValue(setting, entity);
+      if (entity.getType() == ConfigurationType.ValuesList && setConfigsValue(setting, entity)) {
+        entity.setLastModiifed(DateUtil.asDate(LocalDateTime.now()));
       }
-      entity.setLastModiifed(DateUtil.asDate(LocalDateTime.now()));
 
       this.updateSetting(entity);
     }
@@ -74,26 +78,27 @@ public class SettingsService {
     return this.getAllSettings();
   }
 
-  private void setConfigsValue(final Setting setting, final SettingEntity entity) {
+  // Whether any value changed. A secured entry follows the one secret write rule
+  // (DataAdapterUtil.keepSecretValue): the marker, or no value, keeps the stored value; a blank
+  // clears it; anything else replaces it and is encrypted on save.
+  private boolean setConfigsValue(final Setting setting, final SettingEntity entity) {
+    boolean changed = false;
     for (final SettingConfig config : setting.getConfig()) {
-      final String newValue = config.getValue();
       final Optional<SettingConfig> result =
           entity.getConfig().stream()
-              .parallel()
               .filter(x -> config.getKey().equals(x.getKey()))
               .findFirst();
-      if (result.isPresent() && !keepsStoredValue(result.get(), newValue)) {
-        result.get().setValue(newValue);
+      if (result.isPresent()) {
+        SettingConfig stored = result.get();
+        String newValue =
+            SECURED_TYPE.equalsIgnoreCase(stored.getType())
+                ? (String) DataAdapterUtil.keepSecretValue(config.getValue(), stored.getValue())
+                : config.getValue();
+        changed |= !Objects.equals(stored.getValue(), newValue);
+        stored.setValue(newValue);
       }
     }
-  }
-
-  // A secured entry is read masked, so a client sends back the marker, a blank, or - from an older
-  // client that read the stored form - the ciphertext. None of those is a new value: the stored
-  // one is kept. Any other value replaces it and is encrypted on save.
-  private static boolean keepsStoredValue(SettingConfig stored, String newValue) {
-    return SECURED_TYPE.equalsIgnoreCase(stored.getType())
-        && (DataAdapterUtil.isMasked(newValue) || SecretCipher.isEncrypted(newValue));
+    return changed;
   }
 
   public String getWebhookURL() {
@@ -158,17 +163,18 @@ public class SettingsService {
   private void showDecryptedValues(SettingEntity configuration) {
     configuration.getConfig().stream()
         .filter(config -> SECURED_TYPE.equalsIgnoreCase(config.getType()))
-        .forEach(c -> c.setValue(decrypt(c.getValue())));
+        .forEach(c -> c.setValue(decryptOrKeep(c.getValue())));
   }
 
+  // The one read shape for a secret (DataAdapterUtil.maskSecretValue): a set secured entry reads as
+  // the marker, an unset one as nothing.
   private static void showMaskedValues(SettingEntity configuration) {
     if (configuration.getConfig() == null) {
       return;
     }
     configuration.getConfig().stream()
         .filter(config -> SECURED_TYPE.equalsIgnoreCase(config.getType()))
-        .filter(config -> config.getValue() != null && !config.getValue().isBlank())
-        .forEach(c -> c.setValue(DataAdapterUtil.REDACTED));
+        .forEach(c -> c.setValue((String) DataAdapterUtil.maskSecretValue(c.getValue())));
   }
 
   // Blank values and values already carrying the label pass through; everything else is encrypted.
@@ -180,5 +186,16 @@ public class SettingsService {
   // it is encrypted on its next save.
   private String decrypt(String value) {
     return secretCipher.decrypt(value);
+  }
+
+  // A value that will not decrypt - a different key, or a tampered value - is kept as stored, so
+  // the next save of its group writes it back unchanged instead of nothing.
+  private String decryptOrKeep(String value) {
+    String plaintext = secretCipher.decrypt(value);
+    if (plaintext == null && value != null) {
+      LOGGER.error("A stored secured setting could not be decrypted; it is left as stored.");
+      return value;
+    }
+    return plaintext;
   }
 }

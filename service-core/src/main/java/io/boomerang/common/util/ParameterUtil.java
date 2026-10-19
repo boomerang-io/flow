@@ -227,6 +227,30 @@ public class ParameterUtil {
    *
    * @return the parameter list
    */
+  /**
+   * The params of a run request - a submit, a start, a retry - that set a value: one sent with no
+   * value, or as the redaction marker for a secret (by its own type or the one it overrides),
+   * leaves the declared value, or the stored one, in place. A blank sets the value empty.
+   */
+  public static List<RunParam> suppliedParams(List<RunParam> current, List<RunParam> request) {
+    if (request == null) {
+      return new LinkedList<>();
+    }
+    return request.stream()
+        .filter(p -> p.getName() != null && p.getValue() != null)
+        .filter(
+            p ->
+                !DataAdapterUtil.REDACTED.equals(p.getValue())
+                    || !(ParamType.secret.equals(p.getType())
+                        || (current != null
+                            && current.stream()
+                                .anyMatch(
+                                    c ->
+                                        p.getName().equalsIgnoreCase(c.getName())
+                                            && ParamType.secret.equals(c.getType())))))
+        .collect(Collectors.toCollection(LinkedList::new));
+  }
+
   public static List<RunParam> addUniqueParams(
       List<RunParam> origParameterList, List<RunParam> newParameterList) {
     newParameterList.stream()

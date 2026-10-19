@@ -576,9 +576,9 @@ public class WorkspaceService {
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
       LOGGER.debug("Starting Parameters: {}", ParameterUtil.abstractParamNames(parameters));
-      // A secured parameter's value and default are never returned to the caller, so a request
-      // that only edits another field sends them back blank or as the redaction marker - carry
-      // the stored secret forward instead of letting the wholesale replacement below wipe it out.
+      // The one secret write rule: a secured value or default sent back as the redaction marker,
+      // or not at all, carries the stored secret forward through the replacement below; a blank
+      // clears it.
       keepParamSpecValueByFieldType(request, parameters, FieldType.PASSWORD.value());
 
       List<String> names = request.stream().map(AbstractParam::getName).toList();
@@ -589,10 +589,11 @@ public class WorkspaceService {
               name -> {
                 throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
               });
-      // Check if parameter exists and remove
+      // A request param replaces the stored one of the same name in any case, as the keep step
+      // above matches it.
       parameters =
           parameters.stream()
-              .filter(p -> !names.contains(p.getName()))
+              .filter(p -> names.stream().noneMatch(name -> name.equalsIgnoreCase(p.getName())))
               .collect(Collectors.toList());
 
       // Add all new / updated params

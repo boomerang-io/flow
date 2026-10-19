@@ -156,6 +156,22 @@ class ScheduleSecretParamTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void theMarkerOnCreateIsNoValueABlankClearsAndAnUnsetSecretReadsAsNothing() {
+    String id = scheduleService.create(workspace, schedule(DataAdapterUtil.REDACTED)).getId();
+    WorkflowScheduleEntity stored = scheduleRepository.findById(id).orElseThrow();
+    assertEquals(null, value(stored.getParams(), "dbPass"), "the marker is never saved as the secret");
+    assertEquals(null, value(scheduleService.get(workspace, id).getParams(), "dbPass"));
+
+    String set = scheduleService.create(workspace, schedule("sched-secret-0003")).getId();
+    WorkflowSchedule edit = scheduleService.get(workspace, set);
+    edit.setParams(
+        new LinkedList<>(List.of(new RunParam("dbPass", ""), new RunParam("region", "eu-west-1"))));
+    scheduleService.apply(workspace, edit);
+    assertEquals("", value(scheduleRepository.findById(set).orElseThrow().getParams(), "dbPass"));
+    assertEquals(null, value(scheduleService.get(workspace, set).getParams(), "dbPass"));
+  }
+
+  @Test
   void aSecretThatIsOnlyAReferenceReadsAsWrittenAndAnythingAroundOneStaysMasked() {
     String id =
         scheduleService.create(workspace, schedule("$(workspace.params.dbPass)")).getId();

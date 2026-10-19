@@ -101,6 +101,26 @@ class ParameterUtilTest {
   }
 
   @Test
+  void aRunRequestParamWithNoValueOrTheMarkerForASecretSuppliesNothing() {
+    List<RunParam> declared =
+        List.of(
+            new RunParam("dbPassword", "default", ParamType.secret),
+            new RunParam("region", "eu-west-1"));
+    List<RunParam> request =
+        List.of(
+            new RunParam("DBPASSWORD", io.boomerang.common.util.DataAdapterUtil.REDACTED),
+            new RunParam("region", null),
+            new RunParam("note", io.boomerang.common.util.DataAdapterUtil.REDACTED),
+            new RunParam("token", io.boomerang.common.util.DataAdapterUtil.REDACTED, ParamType.secret),
+            new RunParam("blank", ""));
+
+    List<String> supplied =
+        ParameterUtil.suppliedParams(declared, request).stream().map(RunParam::getName).toList();
+
+    assertEquals(List.of("note", "blank"), supplied);
+  }
+
+  @Test
   void aSingleFlowReferenceIsOneFlowReferenceAndNothingElse() {
     for (String reference :
         List.of(

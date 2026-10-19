@@ -307,14 +307,13 @@ public class WorkflowService {
 
   /*
    * Every read of a Workflow through the /api/v2 surface - get, query, export, and the create,
-   * apply and duplicate responses - hides its secrets: a password-typed workflow param's default
-   * is blanked, the convention the run form relies on (a blank leaves the stored default in place
-   * on a run), and a task node's value for a param its task declares as password reads as the
-   * redaction marker. A default or node value that is exactly one Flow reference holds no secret
-   * and reads as written. The node's type is stamped from the task's spec here as well as at save, so
-   * a revision saved before stamping existed is hidden too; the specs are resolved in one batch for
-   * the whole page. The canvas reads (composeGet, composeApply) are deliberately not filtered.
-   * Must run while the task refs are still refs, before convertTaskRefsToSlugs.
+   * apply and duplicate responses - hides its secrets with the one read shape
+   * (DataAdapterUtil.maskSecretValue): a password-typed workflow param's default, and a task
+   * node's value for a param its task declares as password, read as the redaction marker when set
+   * and as nothing when unset; one that is exactly one Flow reference reads as written. The node's
+   * type is stamped from the task's spec here as well as at save, so a revision saved before
+   * stamping existed is hidden too; the specs are resolved in one batch for the whole page. Must
+   * run while the task refs are still refs, before convertTaskRefsToSlugs.
    */
   private void filterSensitiveValues(List<Workflow> workflows) {
     Set<TaskService.TaskRef> refs =
@@ -1718,14 +1717,12 @@ public class WorkflowService {
   }
 
   /*
-   * The save-side partner of filterSensitiveValues: a client that read a Workflow and sends it
-   * back sends a blank for each password-typed workflow default and the redaction marker for each
-   * secret task-node value. Either keeps the stored value - the workflow param of the same name,
-   * and the node param of the same name on the node of the same name in the latest revision - so
-   * a read-edit-apply never wipes a secret. With nothing stored to keep (a new Workflow, or an
-   * import of an export into another one), a workflow default is saved blank and a marked node
-   * value is dropped from the node, so the task's own default applies on a run rather than the
-   * marker. Runs after createWorkflowRevisionEntity has stamped the node params secret.
+   * The save-side partner of filterSensitiveValues, with the one secret write rule
+   * (DataAdapterUtil.keepSecretValue): the redaction marker, or no value, keeps the stored value -
+   * the workflow param of the same name, and the node param of the same name on the node of the
+   * same name in the latest revision - a blank clears it, and anything else replaces it. A node
+   * secret left with no value is dropped from the node, so the task's own default applies on a
+   * run. Runs after createWorkflowRevisionEntity has stamped the node params secret.
    */
   private static void keepSecretValues(
       WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
@@ -1740,21 +1737,19 @@ public class WorkflowService {
       if (task.getParams() == null) {
         continue;
       }
-      if (stored != null && stored.getTasks() != null) {
-        stored.getTasks().stream()
-            .filter(s -> s.getName() != null && s.getName().equals(task.getName()))
-            .findFirst()
-            .ifPresent(
-                s ->
-                    DataAdapterUtil.keepRunParamValueByFieldType(
-                        task.getParams(), s.getParams(), ParamType.secret));
-      }
+      List<RunParam> storedParams =
+          (stored == null || stored.getTasks() == null)
+              ? List.of()
+              : stored.getTasks().stream()
+                  .filter(s -> s.getName() != null && s.getName().equals(task.getName()))
+                  .findFirst()
+                  .map(WorkflowTask::getParams)
+                  .orElse(List.of());
+      DataAdapterUtil.keepRunParamValueByFieldType(
+          task.getParams(), storedParams, ParamType.secret);
       task.setParams(
           task.getParams().stream()
-              .filter(
-                  p ->
-                      !(ParamType.secret.equals(p.getType())
-                          && DataAdapterUtil.REDACTED.equals(p.getValue())))
+              .filter(p -> !(ParamType.secret.equals(p.getType()) && p.getValue() == null))
               .collect(Collectors.toCollection(LinkedList::new)));
     }
   }
@@ -1770,9 +1765,8 @@ public class WorkflowService {
    * Template spec leaves undeclared, so a Template with an empty declared set is left unchecked
    * rather than treated as "no params allowed".
    *
-   * <p>A null-valued param is rejected regardless of that carve-out: a name-only placeholder
-   * (the caller never supplied a value) is never a legitimate save - it silently starves a
-   * required input (e.g. runworkflow's "workflowRef") until the run itself fails.
+   * <p>A param with no value is accepted: a secret one keeps its stored value (keepSecretValues),
+   * and a task that requires a value fails its own run with a message naming the parameter.
    */
   private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
     if (wfTask.getParams() != null) {
@@ -2073,7 +2067,9 @@ public class WorkflowService {
     }
     if (request.getParams() != null && !request.getParams().isEmpty()) {
       wfRunEntity.setParams(
-          ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams()));
+          ParameterUtil.addUniqueParams(
+              wfRunEntity.getParams(),
+              ParameterUtil.suppliedParams(wfRunEntity.getParams(), request.getParams())));
     }
     rejectNonStringSecrets(wfRunEntity.getParams());
     if (!Objects.isNull(request.getRetries()) && request.getRetries() != 0) {
