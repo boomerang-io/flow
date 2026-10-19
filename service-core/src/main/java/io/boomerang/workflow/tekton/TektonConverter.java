@@ -30,16 +30,17 @@ public class TektonConverter {
     metadata.setName(task.getName());
     metadata.setLabels(new HashMap<String, String>());
 
+    // The annotation carries each param's UI fields only; its default and description live on
+    // spec.params. Copies are slimmed so the task's own params keep both.
     List<AbstractParam> paramAnnotation = new LinkedList<>();
-    if (task.getSpec().getParams() != null && !task.getSpec().getParams().isEmpty()) {
-      task.getSpec()
-          .getParams()
-          .forEach(
-              ap -> {
-                ap.setDescription(null);
-                ap.setDefaultValue(null);
-                paramAnnotation.add(ap);
-              });
+    if (task.getSpec().getParams() != null) {
+      for (AbstractParam param : task.getSpec().getParams()) {
+        AbstractParam annotationParam = new AbstractParam();
+        BeanUtils.copyProperties(param, annotationParam);
+        annotationParam.setDescription(null);
+        annotationParam.setDefaultValue(null);
+        paramAnnotation.add(annotationParam);
+      }
     }
 
     Map<String, Object> annotations = metadata.getAnnotations();

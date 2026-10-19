@@ -177,7 +177,10 @@ and `Content-Type` headers on the same paths as JSON (`workflow/TaskControllerV2
 `workflow/WorkspaceTaskControllerV2.java:71,184,241,301-302`). The converter is a Jackson
 `YAMLMapper` with `LITERAL_BLOCK_STYLE` enabled, so multi-line strings such as `spec.script` are
 emitted as `|` blocks (`workflow/config/YamlJacksonHttpMessageConverter.java:11-15`). With no
-`Accept` header the JSON handler wins (`workflow/config/YamlConfiguration.java:16-23`).
+`Accept` header the JSON handler wins (`workflow/config/YamlConfiguration.java:16-23`). The YAML is a
+Tekton task: each param's default and description ride on `spec.params`, and the
+`boomerang.io/params` annotation carries the rest of its fields, so a YAML read applied back unchanged
+leaves the task as it was (`workflow/tekton/TektonConverter.java:33-44`).
 
 ## Webhook and event endpoints
 
