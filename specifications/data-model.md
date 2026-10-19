@@ -115,10 +115,14 @@ the stored value changes shape. A secret is recognised by the type stored beside
 
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled in
 on the claim payload only. Values stored before encryption load as they are and are encrypted on their next save;
-there is no migration. Not encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task
-`results`, and the `global-params`/`workspace-params` annotations that runs created before the layers were read
-from their stores still carry. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java`
-with the same cipher; the settings API reads it as `*****` (`:49`) and engine and integration reads get plaintext.
+there is no migration. A Slack integration stored before its tokens were encrypted keeps its plaintext tokens until
+it is next saved, which re-linking Slack does; that is by decision, with no migration to encrypt them sooner. Not
+encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task `results`, and the
+`global-params`/`workspace-params` annotations that runs created before the layers were read from their stores still
+carry. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java` with the same cipher;
+the settings API reads it by the one secret rule - `*****` when set, nothing when unset (`:171`) - and engine and
+integration reads get plaintext. A stored value that will not decrypt is kept as stored, on load and on the next save
+of its group, never written back as nothing (`:193`).
 
 ## Relationship graph schema
 `rel_nodes` and `rel_edges` are plain documents; the authorization reference describes the walk over them.
