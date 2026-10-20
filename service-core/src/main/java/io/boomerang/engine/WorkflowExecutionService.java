@@ -234,28 +234,36 @@ public class WorkflowExecutionService {
     // off the caller's thread - a watcher sweep or a task's own end.
     asyncWorkflowExecutor.execute(
         () -> {
-          cancelPendingAndRunningTasks(wfRunEntity);
-          if (!Objects.isNull(wfRunEntity.getRetries())
-              && wfRunEntity.getRetries() != -1
-              && wfRunEntity.getRetries() != 0) {
-            long retryCount =
-                wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
-            if (retryCount < wfRunEntity.getRetries()) {
-              try {
-                // An automatic retry always starts - a queued-but-unstarted retry would stall.
-                workflowRunService.retry(wfRunId, true, retryCount + 1);
-              } catch (BoomerangException e) {
-                // The retry is a new run and the workspace's quotas may have no room for it. The
-                // source run is already terminal, so refusing the retry is the whole outcome.
-                LOGGER.warn(
-                    "[{}] Retry refused: {} {}",
-                    wfRunId,
-                    e.getReason(),
-                    Arrays.toString(e.getArgs()));
-              }
-            }
+          try {
+            windDownTimedOut(wfRunEntity);
+          } catch (RuntimeException e) {
+            // Logged like any failed async step; the run is already timed out either way.
+            LOGGER.error("[{}] Timeout wind-down failed: {}", wfRunId, e.getMessage(), e);
           }
         });
+  }
+
+  // The timeout winner's follow-up: end the run's tasks, then the automatic retry when it has
+  // budget left.
+  private void windDownTimedOut(WorkflowRunEntity wfRunEntity) {
+    String wfRunId = wfRunEntity.getId();
+    cancelPendingAndRunningTasks(wfRunEntity);
+    if (!Objects.isNull(wfRunEntity.getRetries())
+        && wfRunEntity.getRetries() != -1
+        && wfRunEntity.getRetries() != 0) {
+      long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
+      if (retryCount < wfRunEntity.getRetries()) {
+        try {
+          // An automatic retry always starts - a queued-but-unstarted retry would stall.
+          workflowRunService.retry(wfRunId, true, retryCount + 1);
+        } catch (BoomerangException e) {
+          // The retry is a new run and the workspace's quotas may have no room for it. The source
+          // run is already terminal, so refusing the retry is the whole outcome.
+          LOGGER.warn(
+              "[{}] Retry refused: {} {}", wfRunId, e.getReason(), Arrays.toString(e.getArgs()));
+        }
+      }
+    }
   }
 
   // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
