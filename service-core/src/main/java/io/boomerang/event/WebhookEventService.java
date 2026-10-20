@@ -165,7 +165,7 @@ public class WebhookEventService {
         // Events that come in will have installation.id and if related to a repo, a repository.name
         LOGGER.debug("Installation ID: " + payload.get("installation").get("id"));
         String teamRef =
-            integrationService.getTeamByRef(payload.get("installation").get("id").asText());
+            integrationService.getWorkspaceByRef(payload.get("installation").get("id").asText());
         if (!Objects.isNull(teamRef) && !teamRef.isBlank()) {
           WorkflowSubmitRequest request = new WorkflowSubmitRequest();
           request.setTrigger(TriggerEnum.github);
@@ -175,7 +175,7 @@ public class WebhookEventService {
           // As the default handler will pick up the queued Workflow and start the Workflow when
           // ready.
           // However if using the non-default Handler then this may be needed to be set to true.
-          workflowService.internalSubmitForTeam(teamRef, request, autoStart);
+          workflowService.internalSubmitForWorkspace(teamRef, request, autoStart);
         }
         return ResponseEntity.ok().build();
       }

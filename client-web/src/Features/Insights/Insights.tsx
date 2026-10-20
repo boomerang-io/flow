@@ -28,6 +28,7 @@ import UsagePanel from "./UsagePanel";
 import WorkflowDetail from "./WorkflowDetail";
 import WorkflowTable from "./WorkflowTable";
 import styles from "./Insights.module.scss";
+import { DATE_PICKER_FORMAT } from "Utils/dateHelper";
 
 // Route module: this file's `loader` is attached to the route in app/routes/insights.tsx
 // (path "/:workspace/insights"). `params.workspace` (the URL slug) drives every server fetch
@@ -45,7 +46,7 @@ import styles from "./Insights.module.scss";
  * process boot and every later request reuses it. Features/WorkflowEditor/editorRoute.ts
  * documents the same hazard.
  */
-const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultMaxDate = () => moment().format(DATE_PICKER_FORMAT);
 const defaultFromDate = () => moment().subtract(3, "months").valueOf();
 const defaultToDate = () => moment().endOf("day").valueOf();
 
@@ -265,8 +266,8 @@ function Selects(props: SelectsProps) {
   // The range lives on DatePicker, which hands it to flatpickr and re-applies it whenever the
   // array's identity changes - memoised on the day strings (the defaults move every millisecond)
   // so a re-render mid-selection does not reset the range.
-  const startDate = moment(selectedFromDate).format("MM/DD/YYYY");
-  const endDate = moment(selectedToDate).format("MM/DD/YYYY");
+  const startDate = moment(selectedFromDate).format(DATE_PICKER_FORMAT);
+  const endDate = moment(selectedToDate).format(DATE_PICKER_FORMAT);
   const selectedDateRange = React.useMemo(() => [startDate, endDate], [startDate, endDate]);
 
   function handleSelectWorkflows({ selectedItems }: MultiSelectItems<SelectableWorkflow>) {

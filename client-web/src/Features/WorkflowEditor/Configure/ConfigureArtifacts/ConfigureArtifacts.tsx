@@ -11,6 +11,7 @@ import type { Artifact } from "Types";
 import { useEditorRouteData } from "../../editorRouteData";
 import type { EditorActionResult } from "../../editorRoute";
 import styles from "./ConfigureArtifacts.module.scss";
+import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 /*
  * The Configure > Artifacts panel: the artifacts this workflow keeps between runs (scope
@@ -118,7 +119,7 @@ function ConfigureArtifacts({ workspace }: Props) {
                         View run
                       </Link>
                       <p className={styles.tableSecondary}>
-                        {artifact.creationDate ? moment(artifact.creationDate).format("YYYY-MM-DD hh:mm A") : "---"}
+                        {artifact.creationDate ? moment(artifact.creationDate).format(DATETIME_DISPLAY_FORMAT) : "---"}
                       </p>
                     </TableCell>
                     <TableCell>

@@ -3,16 +3,16 @@ package io.boomerang.dispatcher.sdk.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A task run as the engine hands it out. With {@code phase} {@code queued} and {@code status}
- * {@code ready} it is an order to run; with {@code phase} {@code completed} and {@code status}
- * {@code cancelled} or {@code timedout} it is an order to terminate.
+ * A task run as the engine hands it out, the contract's {@code DispatchTaskRun}: on a task poll and
+ * as the start and end answers. With {@code phase} {@code queued} and {@code status} {@code ready}
+ * it is an order to run; with {@code phase} {@code completed} and {@code status} {@code cancelled}
+ * or {@code timedout} it is an order to terminate.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,10 +22,6 @@ public class TaskRun {
   private TaskType type;
   private String name;
   private Map<String, String> labels = new HashMap<>();
-  private Map<String, Object> annotations = new HashMap<>();
-  private Instant creationDate;
-  private Instant startTime;
-  private Long duration;
   private Long timeout;
   private List<RunParam> params = new ArrayList<>();
   private List<RunResult> results = new ArrayList<>();
@@ -33,17 +29,10 @@ public class TaskRun {
   private TaskRunSpec spec = new TaskRunSpec();
   private RunStatus status;
   private RunPhase phase;
-  private String statusMessage;
-  private String statusReason;
   private String taskRef;
-  private Integer taskVersion;
   private String workflowRef;
-  private String workflowRevisionRef;
   private String workflowRunRef;
-  private String workflowName;
-  private String parentRef;
   private Integer index;
-  private String reusedFromRef;
 
   /** Whether this is an order to run the task. */
   @JsonIgnore
@@ -116,38 +105,6 @@ public class TaskRun {
     this.labels = labels;
   }
 
-  public Map<String, Object> getAnnotations() {
-    return annotations;
-  }
-
-  public void setAnnotations(Map<String, Object> annotations) {
-    this.annotations = annotations;
-  }
-
-  public Instant getCreationDate() {
-    return creationDate;
-  }
-
-  public void setCreationDate(Instant creationDate) {
-    this.creationDate = creationDate;
-  }
-
-  public Instant getStartTime() {
-    return startTime;
-  }
-
-  public void setStartTime(Instant startTime) {
-    this.startTime = startTime;
-  }
-
-  public Long getDuration() {
-    return duration;
-  }
-
-  public void setDuration(Long duration) {
-    this.duration = duration;
-  }
-
   /** The timeout in minutes the engine settled for this task; null or 0 is unguarded. */
   public Long getTimeout() {
     return timeout;
@@ -206,36 +163,12 @@ public class TaskRun {
     this.phase = phase;
   }
 
-  public String getStatusMessage() {
-    return statusMessage;
-  }
-
-  public void setStatusMessage(String statusMessage) {
-    this.statusMessage = statusMessage;
-  }
-
-  public String getStatusReason() {
-    return statusReason;
-  }
-
-  public void setStatusReason(String statusReason) {
-    this.statusReason = statusReason;
-  }
-
   public String getTaskRef() {
     return taskRef;
   }
 
   public void setTaskRef(String taskRef) {
     this.taskRef = taskRef;
-  }
-
-  public Integer getTaskVersion() {
-    return taskVersion;
-  }
-
-  public void setTaskVersion(Integer taskVersion) {
-    this.taskVersion = taskVersion;
   }
 
   public String getWorkflowRef() {
@@ -246,37 +179,12 @@ public class TaskRun {
     this.workflowRef = workflowRef;
   }
 
-  public String getWorkflowRevisionRef() {
-    return workflowRevisionRef;
-  }
-
-  public void setWorkflowRevisionRef(String workflowRevisionRef) {
-    this.workflowRevisionRef = workflowRevisionRef;
-  }
-
   public String getWorkflowRunRef() {
     return workflowRunRef;
   }
 
   public void setWorkflowRunRef(String workflowRunRef) {
     this.workflowRunRef = workflowRunRef;
-  }
-
-  public String getWorkflowName() {
-    return workflowName;
-  }
-
-  public void setWorkflowName(String workflowName) {
-    this.workflowName = workflowName;
-  }
-
-  /** On an item of a for-each task, the parent task run's id. */
-  public String getParentRef() {
-    return parentRef;
-  }
-
-  public void setParentRef(String parentRef) {
-    this.parentRef = parentRef;
   }
 
   /** On an item of a for-each task, its position from 0. */
@@ -286,18 +194,6 @@ public class TaskRun {
 
   public void setIndex(Integer index) {
     this.index = index;
-  }
-
-  /**
-   * On a task run a scoped retry carried over instead of executing, the origin task run it stands
-   * for. Such a task run is never handed out to a dispatcher.
-   */
-  public String getReusedFromRef() {
-    return reusedFromRef;
-  }
-
-  public void setReusedFromRef(String reusedFromRef) {
-    this.reusedFromRef = reusedFromRef;
   }
 
   // Params are left out: a param may carry a password.

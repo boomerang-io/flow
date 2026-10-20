@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .container {
@@ -32,13 +34,13 @@
 
   &.success {
     path {
-      fill: #0da29f;
+      fill: colors.$teal-50;
     }
   }
 
   &.failure {
     path {
-      fill: #a2191f;
+      fill: colors.$red-70;
     }
   }
 

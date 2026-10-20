@@ -1,13 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Tag } from "@carbon/react";
-import { getHumanizedDuration } from "@boomerang-io/utils";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
 import { ExecutionStatusCopy } from "Constants";
 import { RunStatus } from "Types";
 import { HomeRun } from "./homeLoader";
 import styles from "./recentActivity.module.scss";
+import { formatDuration } from "Utils/dateHelper";
 
 type TagType = "red" | "blue" | "purple" | "green" | "gray";
 
@@ -25,11 +25,8 @@ const statusTag: Record<RunStatus, TagType> = {
   [RunStatus.Skipped]: "gray",
 };
 
-function formatDuration(duration: number): string {
-  if (!duration) {
-    return "---";
-  }
-  return duration < 1000 ? "< 1 second" : getHumanizedDuration(Math.round(duration / 1000));
+function runDuration(duration: number): string {
+  return duration ? formatDuration(duration) : "---";
 }
 
 /**
@@ -76,7 +73,7 @@ export default function RecentActivity({ runs, unavailable = false }: { runs: Ar
               </TableCell>
               <TableCell className={`${styles.muted} ${styles.wide}`}>{run.workspaceDisplayName}</TableCell>
               <TableCell className={`${styles.muted} ${styles.wide} ${styles.trigger}`}>{run.trigger || "---"}</TableCell>
-              <TableCell className={`${styles.muted} ${styles.wide}`}>{formatDuration(run.duration)}</TableCell>
+              <TableCell className={`${styles.muted} ${styles.wide}`}>{runDuration(run.duration)}</TableCell>
               <TableCell className={`${styles.muted} ${styles.started}`}>
                 <time dateTime={run.creationDate}>{moment(run.creationDate).fromNow()}</time>
               </TableCell>

@@ -30,6 +30,7 @@ import { TokenType } from "Constants";
 import type { Token } from "Types";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./tokens.module.scss";
+import { DATE_LONG_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [DEFAULT_PAGE_SIZE, 20, 50, 100];
@@ -131,11 +132,11 @@ function Tokens() {
       case "expirationDate":
         return (
           <p className={styles.tableTextarea}>
-            {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
+            {value ? moment(value).utc().startOf("day").format(DATE_LONG_DISPLAY_FORMAT) : "---"}
           </p>
         );
       case "lastUsedAt":
-        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format(DATE_LONG_DISPLAY_FORMAT) : "Never"}</p>;
       case "delete":
         return tokenDetails && tokenDetails.id ? (
           <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />

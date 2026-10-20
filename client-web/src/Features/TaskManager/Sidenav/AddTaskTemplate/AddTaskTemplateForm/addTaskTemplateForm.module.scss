@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 .container {
   :global .cds--file-browse-btn {
@@ -62,13 +64,13 @@
   }
 
   &.active {
-    background: #3ddbd9;
+    background: colors.$teal-30;
     svg {
       fill: var(--cds-ui-05);
     }
 
     &:hover {
-      background: #08bdba;
+      background: colors.$teal-40;
       svg {
         fill: var(--cds-ui-05);
       }
@@ -86,7 +88,7 @@
   }
 
   &:hover {
-    background: #08bdba;
+    background: colors.$teal-40;
   }
 
   &:first-child {

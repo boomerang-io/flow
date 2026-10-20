@@ -9,6 +9,7 @@ import { resourceRoute } from "Config/resourceRoutes";
 import { isActionError } from "Utils/actionResult";
 import { Artifact, ArtifactScope, ArtifactStatus, TaskRun, WorkflowRun } from "Types";
 import styles from "./artifactsPanel.module.scss";
+import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 type Props = {
   artifacts: Array<Artifact>;
@@ -79,7 +80,7 @@ function expiryLabel(artifact: Artifact): { title: string; value: string } {
   }
   return {
     title: artifact.status === ArtifactStatus.Expired ? "Expired" : "Expires",
-    value: artifact.expirationDate ? moment(artifact.expirationDate).format("YYYY-MM-DD hh:mm A") : "---",
+    value: artifact.expirationDate ? moment(artifact.expirationDate).format(DATETIME_DISPLAY_FORMAT) : "---",
   };
 }
 
@@ -170,7 +171,7 @@ function ArtifactDetail({ artifact, uploadedBy }: { artifact: Artifact; uploaded
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Uploaded</span>
         <p className={styles.sectionDetail}>
-          {artifact.creationDate ? moment(artifact.creationDate).format("YYYY-MM-DD hh:mm A") : "---"}
+          {artifact.creationDate ? moment(artifact.creationDate).format(DATETIME_DISPLAY_FORMAT) : "---"}
         </p>
       </section>
       <section className={styles.detailedSection}>

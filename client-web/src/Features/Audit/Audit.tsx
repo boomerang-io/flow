@@ -30,6 +30,7 @@ import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import { AuditEvent, AuditOutcome, AuditStats, PaginatedAuditResponse } from "Types";
 import styles from "./Audit.module.scss";
+import { DATE_PICKER_FORMAT, DATE_SHORT_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module: this file's `loader` is re-exported from app/routes/audit.tsx (the Audit tab of
 // the Manage area). The URL is the whole state - filters and page live in the search params - so
@@ -55,7 +56,7 @@ const FILTER_KEYS = ["actor", "action", "outcome", "level", "resourceType", "wor
  * at process boot and every later request would reuse it. Features/Activity/Activity.tsx
  * documents the same hazard.
  */
-const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultMaxDate = () => moment().format(DATE_PICKER_FORMAT);
 const defaultFromDate = () => moment().subtract(DEFAULT_WINDOW_DAYS, "days").startOf("day").valueOf();
 
 type LoaderData = {
@@ -240,8 +241,8 @@ export default function Audit() {
 }
 
 function StatTiles({ stats }: { stats: AuditStats }) {
-  const since = moment(stats.from).format("MMM D, YYYY");
-  const until = stats.to ? moment(stats.to).format("MMM D, YYYY") : "now";
+  const since = moment(stats.from).format(DATE_SHORT_DISPLAY_FORMAT);
+  const until = stats.to ? moment(stats.to).format(DATE_SHORT_DISPLAY_FORMAT) : "now";
   return (
     <>
       <div className={styles.stats} data-testid="audit-stats">

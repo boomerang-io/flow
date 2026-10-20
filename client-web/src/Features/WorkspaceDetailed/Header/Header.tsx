@@ -16,6 +16,7 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import styles from "./Header.module.scss";
 
 import { FlowWorkspace } from "Types";
+import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 interface WorkspaceDetailedHeaderProps {
   workspace: FlowWorkspace;
@@ -79,7 +80,7 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Created</dt>
-                  <dd className={styles.dataValue}>{moment(workspace.creationDate).format("YYYY-MM-DD")}</dd>
+                  <dd className={styles.dataValue}>{moment(workspace.creationDate).format(DATE_DISPLAY_FORMAT)}</dd>
                 </dl>
               </section>
             </div>

@@ -20,8 +20,8 @@ relays the result.
 ## Decision
 
 Option C. The module is `service-dispatcher` (`service-dispatcher/pom.xml:6`), the image
-`boomerangio/flow-service-dispatcher` (`.github/workflows/ci-release.yml:95`), the wire is `/dispatcher/v1/**`
-(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:47`) guarded by
+`boomerangio/flow-service-dispatcher` (`.github/workflows/ci-release.yml:38`), the wire is `/dispatcher/v1/**`
+(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:52`) guarded by
 `DispatcherAuthFilter` (`dispatcher/DispatcherSecurityConfiguration.java:19`), the registry collection is
 `dispatchers` (indexed by `migration/_0021__Indexes.java:138`), and the claim owner is written as `claim.by`.
 The old `/api/v1/agent` path was dropped outright rather than dual-served, because nothing on the v4 line had
@@ -32,6 +32,6 @@ rather than as separate `dispatcher-tekton`/`dispatcher-docker` builds.
 ## Consequences
 
 - One unambiguous word for the worker tier in code, API, properties, images and the release job
-  (`deploy-dispatcher`, `ci-release.yml:72`).
+  (`deploy-dispatcher`, `ci-release.yml:37`).
 - Core holds no property naming a dispatcher at all: the log route a dispatcher serves is registered by the
   dispatcher itself (decision 0112).

@@ -15,6 +15,7 @@ import { useFetcher } from "react-router-dom";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./approverGroups.module.scss";
+import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module for the Approver Groups tab (app/routes/manageWorkspaceApproverGroups.tsx). Both
 // writes on this tab - the delete below and the create/update in CreateEditGroupModalContent -
@@ -172,7 +173,7 @@ function ApproverGroups() {
       case "name":
         return <p className={styles.text}>{value}</p>;
       case "creationDate":
-        return <time>{moment(value).format("YYYY-MM-DD")}</time>;
+        return <time>{moment(value).format(DATE_DISPLAY_FORMAT)}</time>;
       case "approvers":
         return <p className={styles.text}>{value?.length ?? "0"}</p>;
       case "actions":

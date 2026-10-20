@@ -35,12 +35,12 @@ public class RelationshipEventListener {
 
   @EventListener
   public void onChildWorkflowRunCreated(ChildWorkflowRunCreated event) {
-    String team =
+    String workspace =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, event.workflowRef());
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
-        team,
+        workspace,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
         event.workflowRunRef(),
@@ -48,6 +48,8 @@ public class RelationshipEventListener {
         Optional.empty(),
         Optional.empty());
     LOGGER.info(
-        "Created relationship for team({}) and workflowrun({})", team, event.workflowRunRef());
+        "Created relationship for workspace({}) and workflowrun({})",
+        workspace,
+        event.workflowRunRef());
   }
 }

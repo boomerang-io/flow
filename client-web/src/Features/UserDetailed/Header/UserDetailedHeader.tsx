@@ -17,6 +17,7 @@ import styles from "./UserDetailedHeader.module.scss";
 import { appLink } from "Config/appConfig";
 import { UserRole, UserRoleCopy } from "Constants";
 import { FlowUser, UserRoleType } from "Types";
+import { DATETIME_READABLE_FORMAT } from "Utils/dateHelper";
 
 interface UserDetailedHeaderProps {
   isError?: boolean;
@@ -93,7 +94,7 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled, w
               </div>
               <div>
                 <dt>Last sign-in</dt>
-                <dd>{user.lastLoginDate ? moment(user.lastLoginDate).format("D MMM YYYY, h:mm A") : "---"}</dd>
+                <dd>{user.lastLoginDate ? moment(user.lastLoginDate).format(DATETIME_READABLE_FORMAT) : "---"}</dd>
               </div>
             </dl>
             <ComposedModal

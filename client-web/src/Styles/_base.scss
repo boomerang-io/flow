@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 html, body, #app {
@@ -140,8 +142,8 @@ textarea {
 }
 
 li.CodeMirror-hint-active {
-  background-color: #e5e5e5;
-  color: #242a2e;
+  background-color: colors.$gray-20;
+  color: colors.$cool-gray-90;
   border-color: transparent;
 }
 
@@ -151,7 +153,7 @@ li.CodeMirror-hint-active {
   line-height: 1.125rem;
   letter-spacing: 0.01rem;
   height: 2.5rem;
-  color: #565656;
+  color: colors.$gray-70;
   cursor: pointer;
   user-select: none;
   position: relative;
@@ -163,7 +165,7 @@ li.CodeMirror-hint-active {
   border-top: 0.0625rem solid transparent;
   border-top-color: transparent;
   border-bottom: 0.0625rem solid transparent;
-  border-top-color: #dcdcdc;
+  border-top-color: colors.$gray-20;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;

@@ -52,6 +52,6 @@ public class UserWorkspaceControllerV2 {
         .getUserByID(userId)
         .orElseThrow(() -> new BoomerangException(BoomerangError.USER_NOT_FOUND));
     return workspaceService.getWorkspaceMembershipSummary(
-        userService.getTeamRefsAndRolesForUser(userId));
+        userService.getWorkspaceRefsAndRolesForUser(userId));
   }
 }

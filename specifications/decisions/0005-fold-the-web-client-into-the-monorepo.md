@@ -22,7 +22,7 @@ be re-baselined anyway.
 Option C. `client-web/` is a module of this repository with its history imported from the v4 line
 (`client-web/package.json`). It builds with pnpm, is tested and built by its own path-filtered workflow
 (`.github/workflows/ci-web.yml`), and ships as `boomerangio/flow-client-web` from the same product tag
-as the backend (`.github/workflows/ci-release.yml:156-193`). It runs as its own Node server with server
+as the backend (`.github/workflows/ci-release.yml:41-44`). It runs as its own Node server with server
 rendering on (`client-web/react-router.config.ts:12`, `client-web/Dockerfile`); the browser talks only
 to that server, which calls `service-core` through `CORE_SERVICE_INTERNAL_ORIGIN`
 (`client-web/src/Config/serverFetch.ts:35`). It renders from the `/api/v2/features` flags, so it runs

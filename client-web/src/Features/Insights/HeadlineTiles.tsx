@@ -3,7 +3,8 @@ import { Tile } from "@carbon/react";
 import { ArrowDown, ArrowUp } from "@carbon/react/icons";
 import cx from "classnames";
 import { InsightsSummary } from "Types";
-import { Delta, formatDuration, formatPercent, pointsDelta, relativeDelta, triggerMix } from "./format";
+import { Delta, formatPercent, pointsDelta, relativeDelta, triggerMix } from "./format";
+import { formatDuration } from "Utils/dateHelper";
 import styles from "./Insights.module.scss";
 
 interface HeadlineTilesProps {

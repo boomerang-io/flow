@@ -22,7 +22,6 @@ import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseQuery;
 import io.boomerang.dispatcher.sdk.model.WorkspaceReleaseResponse;
-import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -122,7 +121,7 @@ class DispatcherClientTest {
         .andRespond(
             withSuccess(
                 "[{\"id\":\"t-1\",\"type\":\"template\",\"phase\":\"queued\",\"status\":\"ready\","
-                    + "\"creationDate\":\"2026-10-08T09:00:00.000+00:00\",\"timeout\":30,"
+                    + "\"timeout\":30,"
                     + "\"params\":[{\"name\":\"greeting\",\"value\":\"hello\"}],"
                     + "\"spec\":{\"image\":\"alpine\",\"deletion\":\"OnSuccess\"}}]",
                 MediaType.APPLICATION_JSON));
@@ -131,7 +130,7 @@ class DispatcherClientTest {
 
     assertThat(run.isRunOrder()).isTrue();
     assertThat(run.getType()).isEqualTo(TaskType.template);
-    assertThat(run.getCreationDate()).isEqualTo(Instant.parse("2026-10-08T09:00:00Z"));
+    assertThat(run.getTimeout()).isEqualTo(30L);
     assertThat(run.param("greeting")).isEqualTo("hello");
     assertThat(run.getSpec().getDeletion()).isEqualTo(TaskDeletion.OnSuccess);
   }

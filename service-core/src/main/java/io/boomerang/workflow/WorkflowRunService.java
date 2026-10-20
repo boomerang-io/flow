@@ -154,8 +154,8 @@ public class WorkflowRunService {
    *
    * No need to validate params as they are either defaulted or optional
    */
-  public ResponseEntity<WorkflowRun> get(String team, String workflowRunId, boolean withTasks) {
-    requireWorkspaceRelationship(team, workflowRunId);
+  public ResponseEntity<WorkflowRun> get(String workspace, String workflowRunId, boolean withTasks) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
     WorkflowRun wfRun = get(workflowRunId, withTasks);
     filterSensitiveValues(wfRun, new HashMap<>());
     // Last, after the filters above joined the catalogue by id: a consumer reads the slug form.
@@ -347,16 +347,16 @@ public class WorkflowRunService {
    * TODO: do we expose this one?
    */
   public ResponseEntity<WorkflowRun> start(
-      String team, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
-    requireWorkspaceRelationship(team, workflowRunId);
+      String workspace, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
     return ResponseEntity.ok(redactSecrets(start(workflowRunId, optRunRequest)));
   }
 
   /*
    * Cancel WorkflowRun
    */
-  public ResponseEntity<WorkflowRun> cancel(String team, String workflowRunId) {
-    requireWorkspaceRelationship(team, workflowRunId);
+  public ResponseEntity<WorkflowRun> cancel(String workspace, String workflowRunId) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
     WorkflowRun wfRun = cancel(workflowRunId);
     // Close any Action (approval / manual task) the cancelled run left open. Inlined from the
     // deleted WorkspaceActionService.cancelAllByWorkflowRun, which was a one-line delegation to
@@ -368,32 +368,32 @@ public class WorkflowRunService {
   /*
    * Pause WorkflowRun
    */
-  public ResponseEntity<WorkflowRun> pause(String team, String workflowRunId) {
-    requireWorkspaceRelationship(team, workflowRunId);
+  public ResponseEntity<WorkflowRun> pause(String workspace, String workflowRunId) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
     return ResponseEntity.ok(redactSecrets(pause(workflowRunId)));
   }
 
   /*
    * Resume WorkflowRun
    */
-  public ResponseEntity<WorkflowRun> resume(String team, String workflowRunId) {
-    requireWorkspaceRelationship(team, workflowRunId);
+  public ResponseEntity<WorkflowRun> resume(String workspace, String workflowRunId) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
     return ResponseEntity.ok(redactSecrets(resume(workflowRunId)));
   }
 
   /*
    * Retry WorkflowRun
    */
-  public ResponseEntity<WorkflowRun> retry(String team, String workflowRunId) {
-    return retry(team, workflowRunId, Optional.empty());
+  public ResponseEntity<WorkflowRun> retry(String workspace, String workflowRunId) {
+    return retry(workspace, workflowRunId, Optional.empty());
   }
 
   /*
    * Retry WorkflowRun with a scope: an absent body is a fresh run of the whole graph.
    */
   public ResponseEntity<WorkflowRun> retry(
-      String team, String workflowRunId, Optional<WorkflowRunRetryRequest> retryRequest) {
-    requireWorkspaceRelationship(team, workflowRunId);
+      String workspace, String workflowRunId, Optional<WorkflowRunRetryRequest> retryRequest) {
+    requireWorkspaceRelationship(workspace, workflowRunId);
 
     // Refuse-first: an unresolvable owner fails the request BEFORE the clone is created, keeping
     // this operation all-or-nothing for a caller. The unscoped retry below records the ownership
@@ -513,7 +513,7 @@ public class WorkflowRunService {
    * The workspace that owns a WorkflowRun: its own recorded owner, or - for a run created without
    * an ownership edge, which is what the engine's auto-retry produces - the owner of the Workflow
    * it ran. The fallback is the same resolution {@code RelationshipEventListener
-   * .onChildWorkflowRunCreated} and {@code ScheduleWatcher.resolveTeam} already use, and it keeps
+   * .onChildWorkflowRunCreated} and {@code ScheduleWatcher.resolveWorkspace} already use, and it keeps
    * a chained retry from failing on a missing parent.
    *
    * <p>When neither is recorded there is no third option: the {@code team} path segment is not an
@@ -583,14 +583,14 @@ public class WorkflowRunService {
    * WorkflowRun through the workspace named in the path. A blank id fails the same way an
    * unreachable one does, exactly as the pass-through did.
    */
-  private void requireWorkspaceRelationship(String team, String workflowRunId) {
+  private void requireWorkspaceRelationship(String workspace, String workflowRunId) {
     if (workflowRunId == null
         || workflowRunId.isBlank()
         || !relationshipService.check(
             RelationshipType.WORKFLOWRUN,
             workflowRunId,
             Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)))) {
+            Optional.of(List.of(workspace)))) {
       // TODO: do we want to return invalid ref or unauthorized
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }

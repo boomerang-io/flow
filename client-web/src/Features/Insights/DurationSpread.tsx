@@ -1,7 +1,7 @@
 import React from "react";
 import cx from "classnames";
 import { InsightsWorkflow } from "Types";
-import { formatDuration } from "./format";
+import { formatDuration } from "Utils/dateHelper";
 import styles from "./Insights.module.scss";
 
 const SECOND = 1000;

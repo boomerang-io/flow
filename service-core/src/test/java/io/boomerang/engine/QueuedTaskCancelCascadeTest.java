@@ -53,11 +53,11 @@ class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
     String taskRunId =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("echo", wfRunId).orElseThrow().getId();
 
-    String agentId =
+    String dispatcherId =
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "cancel-cascade-agent", "cancel-cascade-agent.local", List.of("template")));
-    List<TaskRun> claimed = dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody();
+    List<TaskRun> claimed = dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody();
     assertTrue(
         claimed != null && claimed.stream().anyMatch(t -> taskRunId.equals(t.getId())),
         "the agent must have claimed the task ahead of the cancel");
@@ -77,7 +77,7 @@ class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
 
     // The dispatcher's eventual start arrives after the cascade - rejected outright since the
     // TaskRun is already completed, with no need for claim.seq bookkeeping to catch it.
-    taskExecutionService.start(taskRunId, Optional.of(agentId), Optional.of(claimSeq));
+    taskExecutionService.start(taskRunId, Optional.of(dispatcherId), Optional.of(claimSeq));
     TaskRunEntity stillCancelled = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunPhase.completed, stillCancelled.getPhase());
     assertEquals(RunStatus.cancelled, stillCancelled.getStatus());

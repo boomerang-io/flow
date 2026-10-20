@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .closeButton {
@@ -83,14 +85,14 @@
 
   &.locked {
     .port.right {
-      background-color: #50565b;
-      border: 0.0625rem solid #50565b;
+      background-color: colors.$cool-gray-70;
+      border: 0.0625rem solid colors.$cool-gray-70;
       right: -2.1875rem;
     }
 
     .port.left {
-      background-color: #d5d9e0;
-      border: 0.0625rem solid #50565b;
+      background-color: colors.$cool-gray-20;
+      border: 0.0625rem solid colors.$cool-gray-70;
       border-right: none;
       left: -2.1875rem;
     }
@@ -252,7 +254,7 @@
     }
   }
   &.left {
-    background-color: #b3e6ff;
+    background-color: colors.$cyan-20;
     border: 0.0625rem solid var(--cds-interactive-01);
     border-right: none;
     border-bottom-right-radius: 0;

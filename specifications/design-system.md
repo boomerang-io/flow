@@ -54,6 +54,10 @@ $cool-gray-50: #6f7878   $blue-50: #2d74da   $gray-1: #eaeaea
 **Boomerang's signature brand colour is purple** (`#6e32c9`, see Flow accents below). Use the palette variables by
 name; do not paste raw hex into component styles.
 
+Carbon's palette is used the same way (`@use "@carbon/react/scss/colors";`, then `colors.$cool-gray-20`).
+`pnpm run lint:style` (stylelint's `color-no-hex`) fails ci-web's `typecheck` job on any hex outside
+`_variables.scss`; `src/Styles/markdown.css`, GitHub's markdown stylesheet, opts out in its first line.
+
 ### 3. Flow accent tokens (app-specific, `src/Styles/_variables.scss`)
 
 Flow defines a small set of product accents on `:root` for workflow-execution semantics. These are the ONLY
@@ -279,7 +283,7 @@ building charts, also honour the `dataviz` skill's colour rules on top of Carbon
 ## Do / Don't
 
 **Do**
-- Consume `--cds-*` compat tokens and Boomerang palette variables; theme via `data-carbon-theme="boomerang"`.
+- Consume `--cds-*` compat tokens, then Carbon or Boomerang palette variables; theme via `data-carbon-theme="boomerang"`.
 - Use the Boomerang add-ons component first, Carbon second, custom last.
 - Use Carbon type tokens, the 2x grid, and the `$spacing-*` scale.
 - Keep IBM Plex Sans; map run-status UI to the Flow accent tokens.
@@ -287,7 +291,7 @@ building charts, also honour the `dataviz` skill's colour rules on top of Carbon
 - Draw a task that repeats per item as a stack of cards with a badge, and group its item runs under it.
 
 **Don't**
-- Paste raw hex into component styles (the Flow accent `:root` tokens are the only sanctioned raw values).
+- Paste raw hex into component styles (only the Flow accent `:root` tokens are raw; `lint:style` enforces it).
 - Introduce Tailwind, CSS-in-JS, EY Motif, or cheer.dev design assets.
 - Hand-roll navigation/modals/forms that the add-ons already provide.
 - Add a second UI or charting framework.

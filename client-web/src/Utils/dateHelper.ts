@@ -1,34 +1,6 @@
 import moment from "moment-timezone";
 
 export default class DateHelper {
-  // Slightly modified from http://stackoverflow.com/a/23259289: milliseconds to "1 hr 2 mins 3 secs".
-  static timeMillisecondsToTimeUnit(ms: number): string {
-    const duration = moment.duration(ms);
-
-    const hoursCount = Math.floor(duration.asHours());
-    const singularHour = hoursCount === 1 ? `1 hr` : "";
-
-    const minutesCount = Math.floor(duration.asMinutes()) % 60;
-    const singularMinute = minutesCount === 1 ? `1 min` : "";
-
-    const secondsCount = Math.floor(duration.asSeconds()) % 60;
-    const singularSecond = secondsCount === 1 ? `1 sec` : "";
-
-    const milliSecondsCount = duration.milliseconds();
-    const singularMilisecond = milliSecondsCount === 1 ? `1 ms` : "";
-
-    const hoursText = hoursCount > 1 ? `${hoursCount} hrs` : singularHour;
-    const minutesText = minutesCount > 1 ? `${minutesCount} mins` : singularMinute;
-    const secondsText = secondsCount > 1 ? `${secondsCount} secs` : singularSecond;
-    const millisecondsText = milliSecondsCount > 1 ? `${milliSecondsCount} ms` : singularMilisecond;
-
-    if (!hoursCount && !minutesCount && !secondsCount && millisecondsText) {
-      return millisecondsText;
-    }
-    const message = `${hoursText} ${minutesText} ${secondsText}`;
-    return message.trim();
-  }
-
   static humanizedSimpleTimeAgo(datetimestamp: moment.MomentInput): string {
     const duration = moment.duration(moment().diff(moment(datetimestamp)));
     let time = 0;
@@ -65,8 +37,7 @@ export default class DateHelper {
    * @returns {String}
    */
   static durationFromThenToNow(datetimestamp: moment.MomentInput): string {
-    const diffMilli = moment().diff(moment(datetimestamp));
-    return this.timeMillisecondsToTimeUnit(diffMilli);
+    return formatDuration(moment().diff(moment(datetimestamp)));
   }
 
 }
@@ -87,19 +58,45 @@ export const defaultTimeZone = moment.tz.guess();
 export const DATETIME_LOCAL_DISPLAY_FORMAT = "MMMM DD, YYYY h:mma";
 export const DATETIME_LOCAL_INPUT_FORMAT = "YYYY-MM-DDTHH:mm";
 
-// Formerly Utils/timeHelper.ts - collapsed in here.
-export const getSimplifiedDuration = (seconds: number): string => {
-  const duration = moment.duration(seconds, "seconds");
-  const hour = 3600;
-  const minute = 60;
+// Date and time formats used in more than one place, named by what they show.
+// The value a date range filter's date picker holds.
+export const DATE_PICKER_FORMAT = "MM/DD/YYYY";
+// A timestamp in a table or a detail row.
+export const DATETIME_DISPLAY_FORMAT = "YYYY-MM-DD hh:mm A";
+// A date in a table or a detail row.
+export const DATE_DISPLAY_FORMAT = "YYYY-MM-DD";
+// A token's expiry or a quota's reset date.
+export const DATE_LONG_DISPLAY_FORMAT = "MMMM DD, YYYY";
+// A date in running text.
+export const DATE_SHORT_DISPLAY_FORMAT = "MMM D, YYYY";
+// A one-off schedule's moment, or a last sign-in.
+export const DATETIME_READABLE_FORMAT = "D MMM YYYY, h:mm A";
+// A schedule's next run.
+export const NEXT_RUN_FORMAT = "ddd D MMM, h:mm A";
+// A time of day.
+export const TIME_DISPLAY_FORMAT = "h:mm A";
 
-  let result = `${Math.floor(seconds)}s`;
-
-  if (seconds >= hour) {
-    result = `${Math.floor(duration.asHours())}h`;
-  } else if (seconds >= minute) {
-    result = `${Math.floor(duration.asMinutes())}min`;
+/**
+ * The one way a run or task duration is shown, from milliseconds: "1 min 48 s", "22 min",
+ * "1 h 10 min"; sub-second durations read "< 1 s".
+ */
+export function formatDuration(ms: number): string {
+  if (!ms || ms <= 0) {
+    return "0 s";
   }
-
-  return result;
-};
+  if (ms < 1000) {
+    return "< 1 s";
+  }
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds} s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds % 60;
+  if (minutes < 60) {
+    return restSeconds ? `${minutes} min ${restSeconds} s` : `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`;
+}

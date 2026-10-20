@@ -69,7 +69,7 @@ class DispatcherQueueArtifactLinkTest {
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.downloadartifact));
     when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByAgentId(AGENT)).thenReturn(dispatcher);
+    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(download("missing")), List.of(download("present")));
     when(taskRunService.tryClaim("missing", AGENT)).thenReturn(download("missing"));

@@ -103,7 +103,7 @@ public class ActionService {
    * TODO: at this point in time, only users can process Actions even though we have an API that
    * allows it. Once fixed will need to adjust the token scope on the Controller
    */
-  public void action(String team, List<ActionRequest> requests) {
+  public void action(String workspace, List<ActionRequest> requests) {
     for (ActionRequest request : requests) {
       Optional<ActionEntity> optActionEntity = this.actionRepository.findById(request.getId());
       if (!optActionEntity.isPresent()) {
@@ -136,7 +136,7 @@ public class ActionService {
                   RelationshipType.APPROVERGROUP,
                   Optional.of(List.of(actionEntity.getApproverGroupRef())),
                   Optional.of(RelationshipType.WORKSPACE),
-                  Optional.of(List.of(team)));
+                  Optional.of(List.of(workspace)));
           if (approverGroupRefs.isEmpty()) {
             throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
           }
@@ -341,7 +341,7 @@ public class ActionService {
     return DataAdapterUtil.scrubString(instructions, secrets);
   }
 
-  public Action get(String team, String id) {
+  public Action get(String workspace, String id) {
     Optional<ActionEntity> actionEntity = this.actionRepository.findById(id);
     if (actionEntity.isEmpty()) {
       throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
@@ -361,7 +361,7 @@ public class ActionService {
   }
 
   public Page<Action> query(
-      String team,
+      String workspace,
       Optional<Date> from,
       Optional<Date> to,
       Pageable pageable,
@@ -371,7 +371,7 @@ public class ActionService {
 
     // Get Refs that request has access to
     List<String> workflowRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return Page.empty();
     }
@@ -403,14 +403,14 @@ public class ActionService {
    * or those in {@code statuses}; and the approval rate: approved as a share of decided approvals.
    */
   public ActionSummary summary(
-      String team,
+      String workspace,
       Optional<Date> fromDate,
       Optional<Date> toDate,
       Optional<List<String>> queryWorkflows,
       Optional<List<ActionStatus>> statuses) {
     ActionSummary summary = new ActionSummary();
     List<String> workflowRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return summary;
     }

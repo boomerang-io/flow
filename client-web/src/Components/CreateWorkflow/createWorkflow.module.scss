@@ -1,8 +1,10 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .disabledCreate {
   align-items: center;
-  border: 0.0625rem solid #a2a9b0;
+  border: 0.0625rem solid colors.$cool-gray-40;
   box-sizing: border-box;
   @include border-radius();
   display: flex;
@@ -16,16 +18,16 @@
   z-index: 1;
 
   svg {
-    fill: #a2a9b0;
+    fill: colors.$cool-gray-40;
   }
   p {
-    color: #a2a9b0;
+    color: colors.$cool-gray-40;
   }
 }
 
 .container {
   align-items: center;
-  border: 0.0625rem solid #373d42;
+  border: 0.0625rem solid colors.$cool-gray-80;
   box-sizing: border-box;
   @include border-radius();
   cursor: pointer;

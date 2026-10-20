@@ -26,6 +26,7 @@ import { Action, ApprovalStatus, PaginatedWorkflowResponse } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
 import styles from "./Actions.module.scss";
 import ActionsTable from "./ActionsTable";
+import { DATE_PICKER_FORMAT } from "Utils/dateHelper";
 
 // Route module: this file's `loader`/`action` are re-exported from app/routes/actions.tsx
 // (path="/:workspace/actions/*") - see GlobalParameters.tsx for the serverFetch/errorLoading/
@@ -293,7 +294,7 @@ function Actions() {
     const { workflows = "" } = queryString.parse(location.search, queryStringOptions);
     const selectedWorkflowRefs = typeof workflows === "string" ? [workflows] : workflows;
     const selectedStatuses = resolveStatuses(queryString.parse(location.search, queryStringOptions).statuses) ?? [];
-    const maxDate = moment().format("MM/DD/YYYY");
+    const maxDate = moment().format(DATE_PICKER_FORMAT);
 
     const NavigationComponent = () => {
       return (
@@ -433,14 +434,14 @@ function Actions() {
                   id="actions-date-picker-start"
                   labelText="Start date"
                   placeholder="mm/dd/yyyy"
-                  value={fromDate && moment.unix(fromDate).format("MM/DD/YYYY")}
+                  value={fromDate && moment.unix(fromDate).format(DATE_PICKER_FORMAT)}
                 />
                 <DatePickerInput
                   autoComplete="off"
                   id="actions-date-picker-end"
                   labelText="End date"
                   placeholder="mm/dd/yyyy"
-                  value={toDate && moment.unix(toDate).format("MM/DD/YYYY")}
+                  value={toDate && moment.unix(toDate).format(DATE_PICKER_FORMAT)}
                 />
               </DatePicker>
             </div>

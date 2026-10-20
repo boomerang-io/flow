@@ -76,13 +76,13 @@ class TaskWorkspaceInheritanceTest extends AbstractEngineIntegrationTest {
         "/workspace/shared",
         "the materialised TaskRun should hold the run's workspace");
 
-    String agentId =
+    String dispatcherId =
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "workspace-inheritance-zone",
                 "workspace-inheritance-zone.local",
                 List.of("template")));
-    List<TaskRun> queue = dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody();
+    List<TaskRun> queue = dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody();
     assertNotNull(queue, "the dispatcher's queue should carry the claimed TaskRun");
     TaskRun claimed =
         queue.stream().filter(t -> taskRunId.equals(t.getId())).findFirst().orElse(null);

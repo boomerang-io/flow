@@ -18,7 +18,7 @@ everything else is global.
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:35`, `event/OutboxControllerV2.java`, `core/audit/AuditControllerV2.java:46` |
-| Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:42` |
+| Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:52` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:41` |
 
 The prefix says who the caller is, so that whatever fronts `service-core` can route by it. A front door, ingress or
@@ -133,18 +133,19 @@ order, so the last entry is the latest (`workflow/TaskControllerV2.java:220`, `W
 ## Public run models
 
 `WorkflowRun` and `TaskRun` (`service-core/src/main/java/io/boomerang/common/model/`) are the public shapes; the
-entities are separate classes and MUST NOT be returned from a controller.
+entities are separate classes and MUST NOT be returned from a controller. The dispatcher wire returns its own models,
+`DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out").
 
 | Rule | Where |
 | --- | --- |
-| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:48-81` |
+| No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:55-95` |
 | Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApproved`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
 | Lineage is public: `trigger`, `initiatedByRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run, whose `GET /taskrun/{id}/log` streams the origin task run's log | `WorkflowRun.java:64-72`; `TaskRun.java:55-59`; `WorkflowRunService.java` `streamTaskRunLog` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `WorkflowRunRetryRequest.java`; `WorkspaceWorkflowRunControllerV2.java` `retry` |
 | A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,659`; `WorkflowRunService.java:173`; `WorkflowService.java:1163,1195`; `WorkflowRunInsightService.java:130` |
 | Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `service-core/.../enums/RunStatus.java` |
-| **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models because a dispatcher branches on it: the SDK reads it to tell an order to run from an order to terminate. `queued` is now the only position `status` cannot express, so it is the whole remaining reason the field is exposed | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:77,97,126`; `dispatcher-sdk/.../model/TaskRun.java:47-59`; tripwire `PublicRunModelSerialisationTest.java:117-129`, phase set pinned at `:137-141` |
+| **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models: the webapp reads `TaskRun.phase` and the list routes filter on it. A dispatcher no longer reads it here, as the dispatcher wire's models carry their own. `queued` is the only position `status` cannot express | `TaskRun.java:19-23`; tripwire `PublicRunModelSerialisationTest.java:150-163`, phase set pinned at `:170-175` |
 
 `TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
 (`PublicRunModelSerialisationTest.java:97-99`).
@@ -391,7 +392,7 @@ Browser routes are keyed by workspace — `/:workspace/...` (`client-web/src/Con
 - Label update semantics differ by resource: `PATCH /workspace/{workspace}` replaces the map
   (`WorkspaceService.java:262-263`); `PUT /workflow` merges unless `replace=true`
   (`WorkflowService.java:1520-1525`). One rule is still to be chosen.
-- Whether to strip `phase` from the public models (a dispatcher-only wire model or a `@JsonView`), and whether the
+- Whether to strip `phase` from the public models, now that the dispatcher wire has its own, and whether the
   invariant narrows to `WorkflowRun` only — the webapp reads `TaskRun.phase`.
 - boomerang-io/flow#328: move list endpoints to Spring Data `Pageable` (`order` → `sort=field,dir`).
 - boomerang-io/flow#377: whether editor `config` and engine `params` stay two shapes.

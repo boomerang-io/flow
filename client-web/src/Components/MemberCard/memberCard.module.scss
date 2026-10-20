@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .container {
@@ -152,7 +154,7 @@
 }
 
 .workspaceQuotaText {
-  color: #4d5358;
+  color: colors.$cool-gray-70;
   font-size: 12px;
   letter-spacing: 0;
   line-height: 15px;

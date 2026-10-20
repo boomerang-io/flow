@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/animation";
 @import "Styles/mixins";
 
@@ -117,7 +119,7 @@
   border-top: none !important;
   border-left: none !important;
   border-right: none !important;
-  border-bottom: 0.125rem solid #b9bfc7 !important;
+  border-bottom: 0.125rem solid colors.$cool-gray-30 !important;
   color: var(--cds-text-02);
   font-weight: 300;
   font-size: 0.875rem;

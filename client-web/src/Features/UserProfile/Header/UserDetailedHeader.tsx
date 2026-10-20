@@ -9,6 +9,7 @@ import { UserRole, UserRoleCopy } from "Constants";
 import { FlowUser, UserRoleType } from "Types";
 import { Checkmark, Close } from "@carbon/react/icons";
 import styles from "./UserDetailedHeader.module.scss";
+import { DATETIME_DISPLAY_FORMAT, DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 interface UserDetailedHeaderProps {
   user: FlowUser;
@@ -61,11 +62,11 @@ function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderP
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Joined</dt>
-                  <dd className={styles.dataValue}>{moment(user.creationDate).format("YYYY-MM-DD")}</dd>
+                  <dd className={styles.dataValue}>{moment(user.creationDate).format(DATE_DISPLAY_FORMAT)}</dd>
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Last Login</dt>
-                  <dd className={styles.dataValue}>{moment(user.lastLoginDate).format("YYYY-MM-DD h:mma")}</dd>
+                  <dd className={styles.dataValue}>{moment(user.lastLoginDate).format(DATETIME_DISPLAY_FORMAT)}</dd>
                 </dl>
               </section>
               <section className={styles.actionButtonsContainer}></section>

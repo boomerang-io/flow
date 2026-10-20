@@ -557,8 +557,8 @@ public class RelationshipService {
   /*
    * Retrieve the Members and Roles for a Workspace (the incoming user MEMBER_OF edges)
    */
-  public Map<String, String> membersAndRoles(String team) {
-    RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, team);
+  public Map<String, String> membersAndRoles(String workspace) {
+    RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, workspace);
     return edgeRepository
         .findByToAndLabel(teamNode.getId(), RelationshipLabel.MEMBER_OF.getLabel())
         .stream()

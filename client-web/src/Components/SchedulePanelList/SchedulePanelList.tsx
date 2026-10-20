@@ -23,6 +23,7 @@ import { describeCron } from "Utils/cronHelper";
 import { scheduleStatusOptions, scheduleStatusLabelMap } from "Constants";
 import { ScheduleStatus, ScheduleUnion, PaginatedSchedulesResponse } from "Types";
 import styles from "./SchedulePanelList.module.scss";
+import { DATETIME_READABLE_FORMAT, NEXT_RUN_FORMAT } from "Utils/dateHelper";
 
 interface SchedulePanelListProps {
   includeStatusFilter: boolean;
@@ -52,7 +53,7 @@ const statusTagType: Record<ScheduleStatus, "green" | "gray" | "cool-gray" | "re
 export function describeSchedule(schedule: ScheduleUnion): string {
   if (schedule.type === "runOnce") {
     const at = moment.tz(schedule.dateSchedule, schedule.timezone);
-    return at.isValid() ? `Once on ${at.format("D MMM YYYY, h:mm A")}` : "Once";
+    return at.isValid() ? `Once on ${at.format(DATETIME_READABLE_FORMAT)}` : "Once";
   }
   return describeCron(schedule.cronSchedule, schedule.type === "cron");
 }
@@ -62,7 +63,7 @@ function nextRun(schedule: ScheduleUnion): string {
   if (schedule.status !== "active" || !schedule.nextScheduleDate) {
     return "---";
   }
-  return moment(moment.tz(schedule.nextScheduleDate, schedule.timezone).toISOString()).format("ddd D MMM, h:mm A");
+  return moment(moment.tz(schedule.nextScheduleDate, schedule.timezone).toISOString()).format(NEXT_RUN_FORMAT);
 }
 
 export default function SchedulePanelList(props: SchedulePanelListProps) {

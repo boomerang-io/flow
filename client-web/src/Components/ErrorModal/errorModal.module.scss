@@ -1,9 +1,11 @@
+@use "@carbon/react/scss/colors";
+
 .detailedSection {
   margin-bottom: 1.5rem;
 }
 
 .sectionHeader {
-  color: #4d5358;
+  color: colors.$cool-gray-70;
   font-size: 0.75rem;
   letter-spacing: 0.00875rem;
   line-height: 0.9375rem;

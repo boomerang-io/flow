@@ -67,8 +67,8 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - `RunStatus` is a closed enum shared with the frontend — never add `PAUSED` or `SUPERSEDED`; pause is the
   `pauseRequestedAt` flag, enforced at the single admission gate in `TaskExecutionService.queue`.
 - No execution-state field (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`) appears in a public
-  model; pinned by `PublicRunModelSerialisationTest`. `phase` is exposed beside `status` for now because the
-  dispatcher dispatches on it — do not remove it without a dispatcher-side replacement.
+  model; pinned by `PublicRunModelSerialisationTest`. `phase` stays beside `status` on the public models because
+  the webapp reads it; the dispatcher wire has its own models (`dispatcher/model/`), which carry it.
 - The engine never calls the **platform** side (`core`, `workspace`, `schedule`, `integrations`) synchronously;
   it publishes `ApplicationEvent`s those packages listen to. `engine` ↔ `workflow` are the two halves of one
   bounded context (runs and definitions) and do call each other directly.

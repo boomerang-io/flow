@@ -19,7 +19,7 @@ word mean two things.
 ## Decision
 
 Option C. The module is `service-core` (`pom.xml:11`), the jar `service-core/target/service-core.jar`,
-the image `boomerangio/flow-service-core` (`.github/workflows/ci-release.yml:47`), and the application
+the image `boomerangio/flow-service-core` (`.github/workflows/ci-release.yml:34`), and the application
 class `service-core/src/main/java/io/boomerang/Application.java`. The old `service-engine` module was
 merged in and deleted; "engine" survives only as the execution package
 `service-core/src/main/java/io/boomerang/engine/`. The rename was done as a pure-rename commit so history

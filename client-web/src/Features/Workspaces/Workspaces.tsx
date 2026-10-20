@@ -20,6 +20,7 @@ import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, MemberRole, ModalTriggerProps, PaginatedWorkspaceResponse } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module: this file's `loader`/`action` are re-exported from app/routes/workspaceList.tsx,
 // the same split GlobalParameters.tsx and UserDetailed.tsx use (see those files for the fuller
@@ -375,7 +376,7 @@ function WorkspaceListTable(props: WorkspaceListTableProps) {
                       } else if (cell.info.header === "creationDate") {
                         return (
                           <TableCell key={cell.id}>
-                            <time>{moment(cell.value).format("YYYY-MM-DD hh:mm A")}</time>
+                            <time>{moment(cell.value).format(DATETIME_DISPLAY_FORMAT)}</time>
                           </TableCell>
                         );
                       } else if (cell.info.header === "quotas") {

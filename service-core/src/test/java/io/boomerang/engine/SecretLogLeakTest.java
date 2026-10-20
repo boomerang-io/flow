@@ -135,12 +135,12 @@ class SecretLogLeakTest extends AbstractEngineIntegrationTest {
       String taskRunId =
           taskRunRepository.findFirstByNameAndWorkflowRunRef("work", wfRunId).orElseThrow().getId();
 
-      String agentId =
+      String dispatcherId =
           dispatcherService.register(
               new DispatcherRegistrationRequest(
                   "secret-log-zone", "secret-log-zone.local", List.of("generic")));
       TaskRun claimed =
-          dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody().stream()
+          dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody().stream()
               .filter(t -> taskRunId.equals(t.getId()))
               .findFirst()
               .orElseThrow(() -> new AssertionError("the generic dispatcher should claim the task"));
