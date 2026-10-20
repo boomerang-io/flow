@@ -172,7 +172,13 @@ public class ScheduleService {
                       Query.of(query).skip(-1).limit(-1), WorkflowScheduleEntity.class));
       return pages;
     }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    // No reachable Workflow: an unreachable workspace is a 404; a reachable one with nothing to
+    // list (new, emptied, or a workflows= filter matching none) is an empty page.
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+    }
+    return Page.empty(PageRequest.of(page, limit, sort));
   }
 
   /*
