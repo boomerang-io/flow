@@ -42,6 +42,7 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class UserService {
@@ -59,18 +60,21 @@ public class UserService {
   private final ExternalUserService extUserService;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
+  private final ObjectMapper objectMapper;
 
   UserService(
       MongoTemplate mongoTemplate,
       IdentityService identityService,
       ExternalUserService extUserService,
       RelationshipService relationshipService,
-      UserRepository userRepository) {
+      UserRepository userRepository,
+      ObjectMapper objectMapper) {
     this.userRepository = userRepository;
     this.identityService = identityService;
     this.extUserService = extUserService;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
+    this.objectMapper = objectMapper;
   }
 
   /**
@@ -495,6 +499,12 @@ public class UserService {
         }
         if (request.getLabels() != null) {
           user.setLabels(request.getLabels());
+        }
+        if (request.getSettings() != null) {
+          if (user.getSettings() == null) {
+            user.setSettings(new UserSettings());
+          }
+          objectMapper.updateValue(user.getSettings(), request.getSettings());
         }
         return new User(this.userRepository.save(user));
       }

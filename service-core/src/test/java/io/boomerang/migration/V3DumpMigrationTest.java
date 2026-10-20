@@ -480,10 +480,11 @@ class V3DumpMigrationTest {
     // _0011__V3ExtractWorkflowTemplates has, by this point in the same migration run, already
     // extracted the real v3 scope=template workflows into workflow_templates (asserted in detail
     // in assertTemplatesExtracted() below) under the SAME two _id values _0020__SeedTemplates
-    // carries, so the seed's guard makes its two workflow templates a no-op - the count is 2, the
-    // migrated content, not the seed. integration_templates has no v3 counterpart, so the seed
-    // gives the upgraded install the two out-of-the-box integration templates.
-    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
+    // carries, so the seed's guard makes its two workflow templates a no-op - those two are the
+    // migrated content, not the seed. The third is the AI example, which v3 never had, so the seed
+    // inserts it. integration_templates has no v3 counterpart, so the seed gives the upgraded
+    // install the two out-of-the-box integration templates.
+    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(3);
     assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
 
     // _0003__SeedRelationshipRoot, _0004__SeedSystemWorkspace and _0015__SeedRoles are NOT
@@ -1198,7 +1199,8 @@ class V3DumpMigrationTest {
 
   @SuppressWarnings("unchecked")
   private void assertTemplatesExtracted() {
-    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(2);
+    // The two extracted v3 templates plus the seeded AI example.
+    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(3);
 
     // The two source workflows/revisions - the collision-guard ids
     // _0011__V3ExtractWorkflowTemplates and _0020__SeedTemplates both name - are gone from their

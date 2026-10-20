@@ -955,6 +955,173 @@
         "boomerang#io/generation": "3",
         "boomerang#io/kind": "WorkflowTemplate"
       }
+    },
+    {
+      "version": 1,
+      "changelog": {
+        "reason": "",
+        "date": {
+          "$date": "2026-10-19T00:00:00Z"
+        }
+      },
+      "tasks": [
+        {
+          "name": "start",
+          "type": "start",
+          "dependencies": [],
+          "labels": {},
+          "annotations": {
+            "boomerang#io/position": {
+              "x": 0,
+              "y": 300
+            }
+          }
+        },
+        {
+          "name": "end",
+          "type": "end",
+          "dependencies": [
+            {
+              "executionCondition": "always",
+              "decisionCondition": "",
+              "taskRef": "Summarise the page"
+            }
+          ],
+          "labels": {},
+          "annotations": {
+            "boomerang#io/position": {
+              "x": 1000,
+              "y": 300
+            }
+          }
+        },
+        {
+          "name": "Fetch the page",
+          "results": [],
+          "params": [
+            {
+              "name": "method",
+              "value": "GET"
+            },
+            {
+              "name": "url",
+              "value": "$(params.url)"
+            },
+            {
+              "name": "header",
+              "value": "Accept: text/html"
+            },
+            {
+              "name": "contentType",
+              "value": ""
+            },
+            {
+              "name": "body",
+              "value": ""
+            },
+            {
+              "name": "allowUntrustedCerts",
+              "value": "false"
+            },
+            {
+              "name": "outputFilePath",
+              "value": "/workspace/page.html"
+            }
+          ],
+          "type": "template",
+          "dependencies": [
+            {
+              "executionCondition": "always",
+              "decisionCondition": "",
+              "taskRef": "start"
+            }
+          ],
+          "labels": {},
+          "annotations": {
+            "boomerang#io/position": {
+              "x": 250,
+              "y": 260
+            }
+          },
+          "taskRef": "execute-basic-http-call"
+        },
+        {
+          "name": "Summarise the page",
+          "results": [],
+          "params": [
+            {
+              "name": "model",
+              "value": "$(params.model)"
+            },
+            {
+              "name": "systemPrompt",
+              "value": "You summarise web pages for a busy reader. Plain language, no marketing tone."
+            },
+            {
+              "name": "prompt",
+              "value": "The file in context is the HTML of $(params.url). Summarise it in three short bullet points: what the page is, who it is for, and what it asks the reader to do."
+            },
+            {
+              "name": "files",
+              "value": "/workspace/page.html"
+            }
+          ],
+          "type": "ai",
+          "dependencies": [
+            {
+              "executionCondition": "always",
+              "decisionCondition": "",
+              "taskRef": "Fetch the page"
+            }
+          ],
+          "labels": {},
+          "annotations": {
+            "boomerang#io/position": {
+              "x": 620,
+              "y": 260
+            }
+          },
+          "taskRef": "ai-prompt"
+        }
+      ],
+      "workspace": {
+        "size": "1Gi",
+        "mountPath": "/workspace"
+      },
+      "params": [
+        {
+          "jsonPath": "",
+          "description": "",
+          "label": "Page URL",
+          "type": "text",
+          "required": true,
+          "defaultValue": "https://useboomerang.io",
+          "readOnly": false,
+          "name": "url"
+        },
+        {
+          "jsonPath": "",
+          "description": "",
+          "label": "Model",
+          "type": "text",
+          "required": true,
+          "defaultValue": "openai/gpt-4o-mini",
+          "readOnly": false,
+          "name": "model"
+        }
+      ],
+      "name": "summarise-a-web-page-with-ai",
+      "displayName": "Summarise a web page with AI",
+      "creationDate": {
+        "$date": "2026-10-19T00:00:00Z"
+      },
+      "icon": "bot",
+      "description": "Fetches a web page with an HTTP call, then an AI Prompt task reads it and summarises it in three bullet points. Uses the dispatcher's AI endpoint unless you give one on the task.",
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "WorkflowTemplate"
+      }
     }
   ]
 }
