@@ -138,41 +138,45 @@ public class TaskService {
 
   // ── Workspace- and global-scoped operations (the /api/v2 surface) ──────────
   //
-  // Every method here performs the SAME relationship call the deleted
-  // api.WorkspaceTaskService performed, then does the work inline.
+  // A catalogue task is either a workspace's own (a TEAMTASK node under the workspace) or global (a
+  // TASK node under root). Each public pair below resolves the name in its scope and shares one body.
+
+  // The scope a name resolves in: a workspace, or global when the workspace is null.
+  private record Scope(String workspace) {
+    static final Scope GLOBAL = new Scope(null);
+
+    RelationshipType nodeType() {
+      return (workspace != null) ? RelationshipType.TEAMTASK : RelationshipType.TASK;
+    }
+  }
+
+  // The refs of the scope's tasks with the given names, or of all of them.
+  private List<String> refsIn(Scope scope, Optional<List<String>> names) {
+    return (scope.workspace() != null)
+        ? relationshipService.refsInWorkspace(RelationshipType.TEAMTASK, scope.workspace(), names)
+        : relationshipService.filter(
+            RelationshipType.TASK, names, Optional.empty(), Optional.empty(), false);
+  }
 
   /*
    * Retrieve a TEAMTASK by team, name and optional version. If no version specified, will retrieve the latest.
    */
   public Task get(String team, String name, Optional<Integer> version) {
-    // Checks principal and provided Task has relationship to Workspace.
-    if (!Objects.isNull(name) && !name.isBlank()) {
-      List<String> taskRefs =
-          relationshipService.refsInWorkspace(
-              RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
-      if (!taskRefs.isEmpty()) {
-        // Assumes there is only one task of that slug in a team
-        return internalGet(taskRefs.get(0), version);
-      }
-    }
-    throw new BoomerangException(
-        BoomerangError.TASK_INVALID_REF, name, version.isPresent() ? version.get() : "latest");
+    return getIn(new Scope(team), name, version);
   }
 
   /*
    * Retrieve a TASK by name and optional version. If no version specified, will retrieve the latest.
    */
   public Task getGlobal(String name, Optional<Integer> version) {
+    return getIn(Scope.GLOBAL, name, version);
+  }
+
+  private Task getIn(Scope scope, String name, Optional<Integer> version) {
     if (!Objects.isNull(name) && !name.isBlank()) {
-      List<String> taskRefs =
-          relationshipService.filter(
-              RelationshipType.TASK,
-              Optional.of(List.of(name)),
-              Optional.empty(),
-              Optional.empty(),
-              false);
+      List<String> taskRefs = refsIn(scope, Optional.of(List.of(name)));
       if (!taskRefs.isEmpty()) {
-        // Assumes there is only one task of that slug in a team
+        // Assumes there is only one task of that slug in the scope
         return internalGet(taskRefs.get(0), version);
       }
     }
@@ -222,15 +226,8 @@ public class TaskService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryNames) {
-
-    // Check for relationship
-    List<String> refs =
-        relationshipService.refsInWorkspace(RelationshipType.TEAMTASK, queryTeam, queryNames);
-    LOGGER.debug("Task Refs: {}", refs.toString());
-    if (refs.isEmpty()) {
-      return new TaskResponsePage();
-    }
-    return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
+    return queryIn(
+        new Scope(queryTeam), queryLimit, queryPage, querySort, queryLabels, queryStatus, queryNames);
   }
 
   /*
@@ -243,11 +240,20 @@ public class TaskService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryNames) {
+    return queryIn(
+        Scope.GLOBAL, queryLimit, queryPage, querySort, queryLabels, queryStatus, queryNames);
+  }
 
-    List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TASK, queryNames, Optional.empty(), Optional.empty(), false);
-    LOGGER.debug("Global Task Refs: {}", refs.toString());
+  private TaskResponsePage queryIn(
+      Scope scope,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryNames) {
+    List<String> refs = refsIn(scope, queryNames);
+    LOGGER.debug("Task Refs: {}", refs.toString());
     if (refs.isEmpty()) {
       return new TaskResponsePage();
     }
@@ -299,66 +305,33 @@ public class TaskService {
         RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
-
-    // Check name matches the requirements
-    if (request.getName().isBlank() || !request.getName().matches(NAME_REGEX)) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
-    }
-
-    // Check Slugs for Tasks in team
-    List<String> existingTeamTaskRefs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.TEAMTASK, team, Optional.of(List.of(request.getName())));
-    if (!existingTeamTaskRefs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
-    }
-
-    // Create Task
-    Task task = internalCreate(request);
-
-    // Create Relationship
-    relationshipService.createNodeAndEdge(
-        RelationshipType.WORKSPACE,
-        team,
-        RelationshipLabel.HAS_TASK,
-        RelationshipType.TEAMTASK,
-        task.getId(),
-        task.getName(),
-        Optional.empty(),
-        Optional.empty());
-
-    // Remove ID
-    task.setId(null);
-    return task;
+    return createIn(new Scope(team), request);
   }
 
   public Task createGlobal(Task request) {
+    return createIn(Scope.GLOBAL, request);
+  }
+
+  private Task createIn(Scope scope, Task request) {
     // Check name matches the requirements
     if (request.getName().isBlank() || !request.getName().matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
     }
 
-    // Check Slugs for GlobalTasks
-    List<String> existingTaskRefs =
-        relationshipService.filter(
-            RelationshipType.TASK,
-            Optional.of(List.of(request.getName())),
-            Optional.empty(),
-            Optional.empty(),
-            false);
-    if (!existingTaskRefs.isEmpty()) {
+    // Check the slug is free in the scope
+    if (!refsIn(scope, Optional.of(List.of(request.getName()))).isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
 
     // Create Task
     Task task = internalCreate(request);
 
-    // Create Relationship
+    // Create Relationship: under the workspace, or under root for a global task
     relationshipService.createNodeAndEdge(
-        RelationshipType.ROOT,
-        "root",
+        (scope.workspace() != null) ? RelationshipType.WORKSPACE : RelationshipType.ROOT,
+        (scope.workspace() != null) ? scope.workspace() : "root",
         RelationshipLabel.HAS_TASK,
-        RelationshipType.TASK,
+        scope.nodeType(),
         task.getId(),
         task.getName(),
         Optional.empty(),
@@ -422,13 +395,19 @@ public class TaskService {
    *
    */
   public Task apply(String name, String team, Task request, boolean replace) {
+    return applyIn(new Scope(team), name, request, replace);
+  }
+
+  public Task applyGlobal(String name, Task request, boolean replace) {
+    LOGGER.debug("Applying Task: {}", name);
+    return applyIn(Scope.GLOBAL, name, request, replace);
+  }
+
+  private Task applyIn(Scope scope, String name, Task request, boolean replace) {
     if (name.isBlank() || !name.matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
     }
-
-    List<String> refs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
+    List<String> refs = refsIn(scope, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       request.setId(refs.get(0));
       // Name is immutable
@@ -438,34 +417,10 @@ public class TaskService {
       // Remove ID
       task.setId(null);
       return task;
-    } else {
-      return this.create(team, request);
     }
-  }
-
-  public Task applyGlobal(String name, Task request, boolean replace) {
-    LOGGER.debug("Applying Task: {}", name);
-    if (name.isBlank() || !name.matches(NAME_REGEX)) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, request.getName());
-    }
-    List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TASK,
-            Optional.of(List.of(name)),
-            Optional.empty(),
-            Optional.empty(),
-            false);
-    if (!refs.isEmpty()) {
-      request.setId(refs.get(0));
-      request.setName(name); // name is immutable
-      Task task = this.internalApply(request, replace);
-
-      // Remove ID
-      task.setId(null);
-      return task;
-    } else {
-      return this.createGlobal(request);
-    }
+    return (scope.workspace() != null)
+        ? this.create(scope.workspace(), request)
+        : this.createGlobal(request);
   }
 
   private Task internalApply(Task request, boolean replace) {
@@ -567,23 +522,15 @@ public class TaskService {
     if (name.isBlank() || !name.matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
     }
-    List<String> refs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
-    if (!refs.isEmpty()) {
-      return internalChangelog(refs.get(0));
-    }
-    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
+    return changelogIn(new Scope(team), name);
   }
 
   public List<ChangeLogVersion> changelogGlobal(String name) {
-    List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TASK,
-            Optional.of(List.of(name)),
-            Optional.empty(),
-            Optional.empty(),
-            false);
+    return changelogIn(Scope.GLOBAL, name);
+  }
+
+  private List<ChangeLogVersion> changelogIn(Scope scope, String name) {
+    List<String> refs = refsIn(scope, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
@@ -601,20 +548,7 @@ public class TaskService {
    * inactive)
    */
   public void delete(String team, String name) {
-    if (Objects.isNull(name) || name.isBlank()) {
-      throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
-    }
-    List<String> refs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
-    if (!refs.isEmpty()) {
-      delete(refs.get(0));
-      // Mirrors the TEAMTASK node create() writes - the Task is gone, so its node and the
-      // workspace's edge to it go with it rather than dangling in the relationship graph.
-      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, refs.get(0));
-      return;
-    }
-    throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
+    deleteIn(new Scope(team), name);
   }
 
   /*
@@ -624,20 +558,19 @@ public class TaskService {
    * making a Task inactive.
    */
   public void deleteGlobal(String name) {
+    deleteIn(Scope.GLOBAL, name);
+  }
+
+  private void deleteIn(Scope scope, String name) {
     if (Objects.isNull(name) || name.isBlank()) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
-    List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TASK,
-            Optional.of(List.of(name)),
-            Optional.empty(),
-            Optional.empty(),
-            false);
+    List<String> refs = refsIn(scope, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       delete(refs.get(0));
-      // Mirrors the TASK node createGlobal() writes, under the root node.
-      relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, refs.get(0));
+      // Mirrors the node create writes - the Task is gone, so its node and the edge to it go with
+      // it rather than dangling in the relationship graph.
+      relationshipService.removeNodeAndEdgeByRef(scope.nodeType(), refs.get(0));
       return;
     }
     throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
