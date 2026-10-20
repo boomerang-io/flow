@@ -829,7 +829,7 @@ public class WorkflowRunService {
                       "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
                       run.getTimeout())
                   .getMessage();
-      workflowExecutionService.timeout(workflowRunId, statusMessage);
+      workflowExecutionService.timeoutWorkflow(workflowRunId, statusMessage);
     } else {
       LOGGER.info("[{}] WorkflowRun not running. Nothing to timeout.", workflowRunId);
     }

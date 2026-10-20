@@ -458,6 +458,23 @@ public class TaskExecutionService {
   }
 
   /*
+   * End a task with an outcome whose results may not fit MongoDB's 16 MB document limit - a
+   * for-each parent's combined results - ending it with the fallback outcome when they do not.
+   */
+  @Async("asyncTaskExecutor")
+  public void end(String taskRunId, TaskOutcome outcome, TaskOutcome ifTooLarge) {
+    try {
+      end(taskRunId, outcome, Optional.empty(), Optional.empty());
+    } catch (RuntimeException ex) {
+      if (!isDocumentTooLarge(ex)) {
+        throw ex;
+      }
+      LOGGER.error("[{}] {}", taskRunId, ifTooLarge.statusMessage());
+      end(taskRunId, ifTooLarge, Optional.empty(), Optional.empty());
+    }
+  }
+
+  /*
    * End with claimant identity, for the status a dispatcher or an action already recorded.
    */
   public void end(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
@@ -776,35 +793,25 @@ public class TaskExecutionService {
                       : null)));
       results.add(new RunResult(declared.getName(), declared.getDescription(), values));
     }
-    try {
-      end(
-          parentRef,
-          TaskOutcome.ofItems(
-              (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
-              (failed == 0 ? null : StatusReason.ITEM_FAILED),
-              (failed == 0
-                  ? "All " + items.size() + " items succeeded."
-                  : failed + " of " + items.size() + " items did not succeed."),
-              results),
-          Optional.empty(),
-          Optional.empty());
-    } catch (RuntimeException ex) {
-      if (!isDocumentTooLarge(ex)) {
-        throw ex;
-      }
-      // The combined results cannot be stored, so the task fails without them rather than hang.
-      String message =
-          "The combined results of "
-              + items.size()
-              + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
-              + " (workspace path or URI).";
-      LOGGER.error("[{}] {}", parentRef, message);
-      end(
-          parentRef,
-          TaskOutcome.ofItems(RunStatus.failed, StatusReason.RESULTS_TOO_LARGE, message, null),
-          Optional.empty(),
-          Optional.empty());
-    }
+    TaskOutcome outcome =
+        TaskOutcome.ofItems(
+            (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
+            (failed == 0 ? null : StatusReason.ITEM_FAILED),
+            (failed == 0
+                ? "All " + items.size() + " items succeeded."
+                : failed + " of " + items.size() + " items did not succeed."),
+            results);
+    // The combined results cannot be stored, so the task fails without them rather than hang.
+    TaskOutcome withoutResults =
+        TaskOutcome.ofItems(
+            RunStatus.failed,
+            StatusReason.RESULTS_TOO_LARGE,
+            "The combined results of "
+                + items.size()
+                + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
+                + " (workspace path or URI).",
+            null);
+    self.end(parentRef, outcome, withoutResults);
   }
 
   // Whether a write failed because the document, or the command carrying it, is over MongoDB's
@@ -1387,13 +1394,9 @@ public class TaskExecutionService {
       }
     }
     actionEntity = actionRepository.save(actionEntity);
-    // Field-scoped, fenced on the running phase, so a timeout that landed meanwhile stands.
-    ResultUtil.upsertResultByName(
-        mongoTemplate,
-        taskExecution.getId(),
-        TaskRunEntity.class,
-        new RunResult("actionRef", actionEntity.getId()));
-    taskRunService.tryArmWait(taskExecution.getId());
+    taskExecution.getResults().add(new RunResult("actionRef", actionEntity.getId()));
+    taskExecution.setStatus(RunStatus.waiting);
+    taskExecution = taskRunRepository.save(taskExecution);
     // Atomic single-field set - no lock, no full-document rewrite.
     workflowRunStateHelper.setAwaitingApproval(wfRunEntity.getId(), true);
   }

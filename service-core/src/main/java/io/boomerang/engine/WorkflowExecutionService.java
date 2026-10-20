@@ -30,7 +30,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -155,12 +154,6 @@ public class WorkflowExecutionService {
     cancelPendingAndRunningTasks(workflowExecution);
   }
 
-  // The timeout off the caller's thread: timeoutWorkflow's one Compare-And-Set decides it.
-  @Async("asyncWorkflowExecutor")
-  public void timeout(String wfRunId, String statusMessage) {
-    timeoutWorkflow(wfRunId, statusMessage);
-  }
-
   private Supplier<Boolean> executeWorkflowAsync(
       String wfRunId,
       final Long timeout,
@@ -219,12 +212,12 @@ public class WorkflowExecutionService {
    * task-timeout path - idempotent against each other via the completion Compare-And-Set.
    */
   public void timeoutWorkflow(String wfRunId, String statusMessage) {
-    LOGGER.debug("[{}] Commencing Timeout Workflow Async...", wfRunId);
+    LOGGER.debug("[{}] Timing out WorkflowRun...", wfRunId);
     WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);
     if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
       return;
     }
-    LOGGER.info("[{}] Timeout Workflow Async...", wfRunId);
+    LOGGER.info("[{}] Timing out WorkflowRun.", wfRunId);
     long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
 
     // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
@@ -237,31 +230,32 @@ public class WorkflowExecutionService {
       return;
     }
 
-    // Cancel Running & Pending Tasks
-    cancelPendingAndRunningTasks(wfRunEntity);
-
-    // Winner-only auto-retry
-    if (!Objects.isNull(wfRunEntity.getRetries())
-        && wfRunEntity.getRetries() != -1
-        && wfRunEntity.getRetries() != 0) {
-      long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
-      if (retryCount < wfRunEntity.getRetries()) {
-        retryCount++;
-        try {
-          // An automatic retry always starts - a queued-but-unstarted retry would stall.
-          workflowRunService.retry(wfRunId, true, retryCount);
-        } catch (BoomerangException e) {
-          // The retry is a new run and the workspace's quotas may have no room for it. The source
-          // run is already terminal at this point, so refusing the retry is the whole outcome -
-          // throwing here would only fail the timeout path that got us here.
-          LOGGER.warn(
-              "[{}] Retry refused: {} {}",
-              wfRunId,
-              e.getReason(),
-              Arrays.toString(e.getArgs()));
-        }
-      }
-    }
+    // The run reads timed out from here on. Ending its tasks and the winner-only auto-retry follow
+    // off the caller's thread - a watcher sweep or a task's own end.
+    asyncWorkflowExecutor.execute(
+        () -> {
+          cancelPendingAndRunningTasks(wfRunEntity);
+          if (!Objects.isNull(wfRunEntity.getRetries())
+              && wfRunEntity.getRetries() != -1
+              && wfRunEntity.getRetries() != 0) {
+            long retryCount =
+                wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
+            if (retryCount < wfRunEntity.getRetries()) {
+              try {
+                // An automatic retry always starts - a queued-but-unstarted retry would stall.
+                workflowRunService.retry(wfRunId, true, retryCount + 1);
+              } catch (BoomerangException e) {
+                // The retry is a new run and the workspace's quotas may have no room for it. The
+                // source run is already terminal, so refusing the retry is the whole outcome.
+                LOGGER.warn(
+                    "[{}] Retry refused: {} {}",
+                    wfRunId,
+                    e.getReason(),
+                    Arrays.toString(e.getArgs()));
+              }
+            }
+          }
+        });
   }
 
   // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:

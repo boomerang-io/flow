@@ -197,9 +197,9 @@ task run toward MongoDB's 16 MB document limit.
 
 A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
 the parent's results are the per-item values collected into arrays by the engine
-(`TaskExecutionService.completeParentIfItemsTerminal` `:716`), with no cap of their own. When MongoDB refuses the
+(`TaskExecutionService.completeParentIfItemsTerminal` `:770`), with no cap of their own. When MongoDB refuses the
 combined arrays as over its 16 MB document limit, the parent fails with `statusReason = ResultsTooLarge` and no
-results, and the run moves on (`TaskExecutionService.java:733-761`). A task that consumes the array still meets the
+results, and the run moves on (`TaskExecutionService.end` `:465-477`). A task that consumes the array still meets the
 params cap at its own admission.
 
 ## Leases and heartbeat
