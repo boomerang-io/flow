@@ -7,7 +7,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunEndRequest;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.StatusReason;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.WorkflowRunService;
@@ -37,7 +38,6 @@ public class ChildWorkflowRunListener {
   private static final Logger LOGGER = LogManager.getLogger();
 
   // The typed cause written on a parent task whose child run did not succeed.
-  static final String CHILD_RUN_FAILED = "ChildRunFailed";
 
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
@@ -116,7 +116,7 @@ public class ChildWorkflowRunListener {
       endRequest.setStatus(RunStatus.failed);
       endRequest.setStatusMessage(
           "Child run " + childRun.getId() + " ended " + childRun.getStatus().getStatus());
-      endRequest.setStatusReason(CHILD_RUN_FAILED);
+      endRequest.setStatusReason(StatusReason.CHILD_RUN_FAILED);
     }
     LOGGER.info(
         "[{}] Child run {} ended {}. Ending the waiting parent task.",

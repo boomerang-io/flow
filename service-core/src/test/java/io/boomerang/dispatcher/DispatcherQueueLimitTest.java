@@ -75,21 +75,21 @@ class DispatcherQueueLimitTest {
 
   @Test
   void aLimitSizesTheExecutionPage() {
-    dispatcherService.getTaskQueue(AGENT, 3);
+    dispatcherService.getTaskQueue(AGENT, 3, null, null, null);
 
     verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(3));
   }
 
   @Test
   void noLimitClaimsAFullPage() {
-    dispatcherService.getTaskQueue(AGENT);
+    dispatcherService.getTaskQueue(AGENT, null, null, null, null);
 
     verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(20));
   }
 
   @Test
   void aLimitAboveAPageIsHeldToAPage() {
-    dispatcherService.getTaskQueue(AGENT, 50);
+    dispatcherService.getTaskQueue(AGENT, 50, null, null, null);
 
     verify(taskRunService).findClaimable(eq(ClaimFilter.of(TYPES)), eq(20));
   }
@@ -103,7 +103,7 @@ class DispatcherQueueLimitTest {
         .thenReturn(List.of(cancelled));
     when(taskRunService.tryClaimForTermination("cancelled", AGENT)).thenReturn(cancelled);
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, 0);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, 0, null, null, null);
 
     verify(taskRunService, never()).findClaimable(any(ClaimFilter.class), anyInt());
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

@@ -8,10 +8,10 @@ The Settings tab lists the seeded settings documents by name. Four carried "Conf
 "Configure", two were called "Workspace Configuration - … Storage", and the quota defaults were keyed
 `workspaces`. The two storage documents held eight v3-era fields (`storage.size`, `storage.class`,
 `storage.accessMode`, `max.storage.size`, twice) that no code reads: a volume's size comes from the
-workflow's own workspace spec, capped by the workspace quota (`workflow/WorkflowService.java:470-485`) and
-defaulted by the dispatcher that creates the claim (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkspaceService.java:26-30`,
+workflow's own workspace spec, capped by the workspace quota (`workflow/WorkflowService.java:443-458`) and
+defaulted by the dispatcher that creates the claim (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkspaceService.java:25-29`,
 `kube.workspace.storage.*`). One of the "storage" documents also held the two engine ceilings
-`max.nesting.depth` and `max.foreach.items` (`engine/TaskExecutionService.java:83-90`).
+`max.nesting.depth` and `max.foreach.items` (`engine/TaskExecutionService.java:84-91`).
 
 ## Options
 
@@ -33,8 +33,8 @@ the customization fields are strings `ContextService` reads into the platform co
 
 ## Consequences
 
-- The Settings list is nine plain nouns; the code reads `quotas` through one constant (`workspace/WorkspaceService.java:84`).
+- The Settings list is nine plain nouns; the code reads `quotas` through one constant (`workflow/QuotaService.java:53`).
 - Changing the platform default volume size means changing a dispatcher property; option C is the
   route back if that becomes a product need.
 - The dead Slack signature check in the authentication filter, which read a group the v3 migration had
-  renamed, is removed rather than repointed; `SlackService` keeps its own, which reads `integration` (`integrations/SlackService.java:514-518`).
+  renamed, is removed rather than repointed; `SlackService` keeps its own, which reads `integration` (`integrations/SlackService.java:503-507`).

@@ -62,17 +62,17 @@ class ClaimSeqFencedReapTest extends AbstractEngineIntegrationTest {
   void aTimeoutThatObservedAnOlderClaimChangesNothing() {
     String id = claimedTask("fence-timeout");
 
-    assertNull(taskRunService.tryTimeout(id, STALE_SEQ, "timed out"));
+    assertNull(taskRunService.tryAbandon(id, STALE_SEQ, "timed out", "DeadlineExceeded", true));
     assertUntouched(id);
-    assertNotNull(taskRunService.tryTimeout(id, CURRENT_SEQ, "timed out"));
+    assertNotNull(taskRunService.tryAbandon(id, CURRENT_SEQ, "timed out", "DeadlineExceeded", true));
   }
 
   @Test
   void anAbandonThatObservedAnOlderClaimChangesNothing() {
     String id = claimedTask("fence-abandon");
 
-    assertNull(taskRunService.tryAbandon(id, STALE_SEQ, "gone", "DispatcherGone"));
+    assertNull(taskRunService.tryAbandon(id, STALE_SEQ, "gone", "DispatcherGone", false));
     assertUntouched(id);
-    assertNotNull(taskRunService.tryAbandon(id, CURRENT_SEQ, "gone", "DispatcherGone"));
+    assertNotNull(taskRunService.tryAbandon(id, CURRENT_SEQ, "gone", "DispatcherGone", false));
   }
 }

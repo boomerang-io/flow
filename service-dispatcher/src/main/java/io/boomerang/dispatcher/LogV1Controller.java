@@ -29,14 +29,4 @@ public class LogV1Controller {
             response),
         HttpStatus.OK);
   }
-
-  @GetMapping(value = "")
-  public ResponseEntity<String> getLogForTask(
-      @RequestParam(value = "workflowRef", required = true) String workflowRef,
-      @RequestParam(value = "workflowActivityId", required = true) String workflowActivityId,
-      @RequestParam(value = "workflowRunRef", required = false) String workflowRunRef,
-      @RequestParam(value = "taskRunRef", required = true) String taskRunRef) {
-    return new ResponseEntity<>(
-        logService.getLogForTask(workflowRef, workflowRunRef, taskRunRef), HttpStatus.OK);
-  }
 }

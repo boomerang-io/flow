@@ -243,7 +243,6 @@ public class SlackService {
                             ":slightly_frowning_face: It looks like no Workflow ID was provided. Pass `help` into the Slack command for guidance.")
                         .build())
                 .build());
-
       } else {
         blocks.add(
             SectionBlock.builder()
@@ -380,10 +379,6 @@ public class SlackService {
             WorkflowRun workflowRun = workflowService.submit(teamId, workflowId, request, true);
             LOGGER.debug(workflowRun.toString());
 
-            // ChatPostMessageResponse messageResponse = slack.methods(authToken)
-            // .chatPostMessage(req -> req.channel(userId)
-            // .blocks(activityBlocks(workflowId, workflow.getName(),
-            // workflowRun.getShortDescription(), workflowRun.getId())));
             // TODO figure out how to get the WorkflowName and Description into Slack
 
             ChatPostMessageResponse messageResponse =
@@ -427,14 +422,8 @@ public class SlackService {
     };
   }
 
+  // No permission check exists for a run started from Slack yet, so none is allowed.
   private Boolean canExecuteWorkflow(String workflowId, String email) {
-    //   relationshipService.
-    //   if (filterService.getFilteredWorkflowIdsForUserEmail(Optional.empty(), Optional.empty(),
-    //       Optional.empty(), email).contains(workflowId)) {
-    //     LOGGER.debug("Can execute Workflow");
-    //     return true;
-    //   }
-    //   LOGGER.debug("No matching workflow found for User");
     return false;
   }
 
@@ -559,9 +548,6 @@ public class SlackService {
     Map<String, Object> payload =
         objectMapper.convertValue(authResponse, new TypeReference<Map<String, Object>>() {});
 
-    // Optional<IntegrationEntity> origAuthExtension =
-    // extensionsRepository.findByType(EXTENSION_TYPE).stream()
-    // .filter(e -> e.getLabels().indexOf(teamIdLabel) != -1).findFirst();
     List<IntegrationsEntity> authsList = checkExistingAuthExtension(authResponse.getTeam().getId());
     if (!authsList.isEmpty()) {
       LOGGER.debug("Overriding existing Slack Team Auth");
@@ -643,10 +629,6 @@ public class SlackService {
             });
     if (!authExtensions.isEmpty()) {
       IntegrationsEntity authEntity = authExtensions.get(0);
-      //            if (authEntity.getUsers().contains(userId)) {
-      //                LOGGER.debug("Found matching UserId on Team Auth Extension");
-      //                return true;
-      //            }
     }
     return false;
   }
@@ -679,27 +661,6 @@ public class SlackService {
    *
    * @return Supplier To be used by the CompletableFuture
    */
-  // public Supplier<Boolean> executeRunModal(JsonNode jsonPayload) {
-  // return () -> {
-  // public SlackResponseActionModel executeRunModal(JsonNode jsonPayload) {
-
-  //
-  // View updatedView = View.builder().type("modal")
-  // .title(ViewTitle.builder().type("plain_text").text("Run Workflow").emoji(true).build())
-  // .callbackId("workflow-run-modal").privateMetadata(workflowId).blocks(executeBlocks(workflowId,
-  // flowActivity.getWorkflowName(), flowActivity.getShortDescription(), flowActivity.getId()))
-  // .close(ViewClose.builder().type("plain_text").text("Close").build()).build();
-  // try {
-  // ViewsUpdateResponse viewResponse = slack.methods(authToken)
-  // .viewsUpdate(req -> req.viewId(rootViewId).view(updatedView));
-  // LOGGER.info(viewResponse.toString());
-  // } catch (IOException | SlackApiException e) {
-  // LOGGER.error(e.toString());
-  // return false;
-  // }
-  // return true;
-  // };
-  // }
 
   /*
    * Processes the Submitted Run Modal from Slack, executes the Workflow, and responds with a

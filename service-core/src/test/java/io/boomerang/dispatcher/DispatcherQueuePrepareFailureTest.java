@@ -88,7 +88,7 @@ class DispatcherQueuePrepareFailureTest {
 
   @Test
   void aTaskThatCannotBePreparedEndsFailedAndTheRestOfTheCycleIsHandedOut() {
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, null, null, null, null);
 
     ArgumentCaptor<Optional<TaskRunEndRequest>> ended = ArgumentCaptor.captor();
     verify(taskRunService).end(eq("broken"), ended.capture());

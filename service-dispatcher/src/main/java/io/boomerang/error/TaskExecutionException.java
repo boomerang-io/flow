@@ -1,6 +1,7 @@
 package io.boomerang.error;
 
 import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.StatusReason;
 import java.util.List;
 
 /**
@@ -33,7 +34,7 @@ public class TaskExecutionException extends BoomerangException {
 
   /** Results-only form: a generic Job failure whose cause is not typed further. */
   public TaskExecutionException(List<RunResult> results, String message) {
-    this("JobFailed", results, message);
+    this(StatusReason.JOB_FAILED, results, message);
   }
 
   public String getStatusReason() {

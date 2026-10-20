@@ -96,6 +96,29 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aTimedOutRunWithRetriesLeftStartsItsAutomaticRetry() {
+    String workspace = createWorkspace("retry-auto-room", quotasWithConcurrentRuns(5));
+    workflowService.create(workspace, workflow("retry-auto-room-workflow"));
+    WorkflowSubmitRequest request = request();
+    request.setRetries(1L);
+    WorkflowRun source = workflowService.submit(workspace, "retry-auto-room-workflow", request, false);
+    WorkflowRunEntity running = workflowRunRepository.findById(source.getId()).get();
+    running.setStatus(RunStatus.running);
+    running.setPhase(RunPhase.running);
+    workflowRunRepository.save(running);
+
+    workflowExecutionService.timeoutWorkflow(source.getId(), "Timed out for the test");
+
+    assertEquals(
+        RunStatus.timedout, workflowRunRepository.findById(source.getId()).get().getStatus());
+    List<WorkflowRunEntity> runs = runsOf(source.getWorkflowRef());
+    assertEquals(2, runs.size(), "the timed-out run and its automatic retry");
+    WorkflowRunEntity retry =
+        runs.stream().filter(r -> !r.getId().equals(source.getId())).findFirst().orElseThrow();
+    assertEquals(1L, retry.getRetryCount());
+  }
+
+  @Test
   void anAutoRetryRefusedByQuotaLeavesTheRunTimedOutAndDoesNotThrow() {
     String workspace = createWorkspace("retry-quota-auto", quotasWithConcurrentRuns(1));
     workflowService.create(workspace, workflow("retry-quota-auto-workflow"));

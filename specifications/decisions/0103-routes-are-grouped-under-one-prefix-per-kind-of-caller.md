@@ -23,7 +23,7 @@ mode it mints a session from forwarded identity headers.
 B. The sign-in routes are `/internal/v1/auth/{config,exchange,logout}`
 (`service-core/src/main/java/io/boomerang/core/InternalAuthControllerV1.java:41`), called only from the webapp's
 loaders and actions (`client-web/src/Config/servicesConfig.ts:27,63-65`) and left out of the published OpenAPI
-document (`service-core/src/main/resources/application.properties:166`). The dispatcher wire moves to
+document (`service-core/src/main/resources/application.properties:162`). The dispatcher wire moves to
 `/dispatcher/v1` in its own change, because its path is part of the dispatcher contract. Everything else stays on
 `/api/v2`. Each prefix carries its own version.
 

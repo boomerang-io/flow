@@ -180,16 +180,6 @@ public class TektonConverter {
           // TODO: does it get stored as default or defaultValue in the annotation
           BeanUtils.copyProperties(
               optionalAbstractParam.get(), param, "defaultValue", "description", "name");
-          // Legacy - might not be needed with model deserialisation of TextArea and CodeEditor
-          // if (defaultStr instanceof ArrayList<?>){
-          // ArrayList<String> values = (ArrayList<String>) defaultStr;
-          // StringBuilder sb = new StringBuilder();
-          // for (String line : values) {
-          // sb.append(line);
-          // sb.append('\n');
-          // newConfig.setDefaultValue(sb.toString());
-          // }
-          // }
         } else {
           param.setLabel(tektonParam.getName());
           param.setReadOnly(false);

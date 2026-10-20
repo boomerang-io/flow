@@ -32,7 +32,6 @@ public class MongoConfiguration {
     return this.workflowCollectionPrefix;
   }
 
-  // Merged from service-engine (E8.2a)
   @Autowired
   public void setMapKeyDotReplacement(MappingMongoConverter mongoConverter) {
     mongoConverter.setMapKeyDotReplacement("#");

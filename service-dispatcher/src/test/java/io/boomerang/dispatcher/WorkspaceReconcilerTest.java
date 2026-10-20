@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.dispatcher.sdk.DispatcherClient;
@@ -122,7 +123,7 @@ class WorkspaceReconcilerTest {
   void oneClaimThatWillNotDeleteDoesNotAbortTheTick() {
     when(kubeService.listWorkspacePVCs()).thenReturn(List.of(claim("run-1"), claim("run-2")));
     when(dispatcherClient.releasable(any())).thenReturn(response(List.of("run-1", "run-2")));
-    when(workspaceService.delete("run-1")).thenThrow(new RuntimeException("api server said no"));
+    doThrow(new RuntimeException("api server said no")).when(workspaceService).delete("run-1");
 
     assertDoesNotThrow(reconciler::reconcile);
 

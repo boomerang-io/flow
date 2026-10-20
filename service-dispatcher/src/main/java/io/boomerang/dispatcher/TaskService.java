@@ -8,6 +8,7 @@ import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskDeletion;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.StatusReason;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.TaskExecutor;
@@ -92,7 +93,7 @@ public class TaskService implements TaskHandler {
     } catch (TaskExecutionException e) {
       throw new TaskFailure(e.getStatusReason(), e.getMessage(), e.getResults());
     } catch (BoomerangException e) {
-      throw new TaskFailure(TaskFailure.DISPATCH_ERROR, e.getMessage(), e);
+      throw new TaskFailure(StatusReason.DISPATCH_ERROR, e.getMessage(), e);
     }
   }
 
@@ -120,14 +121,14 @@ public class TaskService implements TaskHandler {
     String image = imageResolver.image(task);
     if (image == null || image.isBlank()) {
       throw new TaskExecutionException(
-          "DispatchError",
+          StatusReason.DISPATCH_ERROR,
           "NO_TASK_IMAGE - task " + task.getName() + " (" + task.getId() + ") declares no image");
     }
     // An `ai` revision may only declare an image under an allowed prefix; anything else is
     // refused here, before anything is created, so the refusal is visible on the task.
     if (TaskType.ai.equals(task.getType()) && !imageResolver.allowedAiImage(image)) {
       throw new TaskExecutionException(
-          "ImageNotAllowed",
+          StatusReason.IMAGE_NOT_ALLOWED,
           "IMAGE_NOT_ALLOWED - image '" + image + "' is not under flow.dispatcher.ai.image-prefixes");
     }
     Long timeout = getTaskTimeout(task.getTimeout());
@@ -141,23 +142,23 @@ public class TaskService implements TaskHandler {
       // wrong: reported as ExceededQuota, which the engine requeues for another attempt.
       if (e.getCode() == 403 && e.getMessage() != null && e.getMessage().contains("exceeded quota")) {
         LOGGER.info(e.toString());
-        throw new TaskExecutionException("ExceededQuota", "EXCEEDED_QUOTA - " + e.getMessage());
+        throw new TaskExecutionException(StatusReason.EXCEEDED_QUOTA, "EXCEEDED_QUOTA - " + e.getMessage());
       }
       // KubernetesClientException handles the case where an internal admission
       // controller rejects the creation
       if (e.getMessage() != null && e.getMessage().contains("admission webhook")) {
         LOGGER.info(e.toString());
-        throw new TaskExecutionException("AdmissionDenied", "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
+        throw new TaskExecutionException(StatusReason.ADMISSION_DENIED, "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
       } else {
-        throw new TaskExecutionException("DispatchError", e.toString());
+        throw new TaskExecutionException(StatusReason.DISPATCH_ERROR, e.toString());
       }
     } catch (KubeRuntimeException e) {
       LOGGER.info("DEBUG::Task Is Being Set as Failed");
-      throw new TaskExecutionException("DispatchError", e.toString());
+      throw new TaskExecutionException(StatusReason.DISPATCH_ERROR, e.toString());
     } catch (InterruptedException e) {
-      throw new TaskExecutionException("DispatchError", "TASK_CREATION_ERROR - " + e.getMessage());
+      throw new TaskExecutionException(StatusReason.DISPATCH_ERROR, "TASK_CREATION_ERROR - " + e.getMessage());
     } catch (ParseException e) {
-      throw new TaskExecutionException("DeadlineExceeded", "TASK_CREATION_TIMEOUT_ERROR - " + e.getMessage());
+      throw new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, "TASK_CREATION_TIMEOUT_ERROR - " + e.getMessage());
     } finally {
       // The pod holds the log, so it is read before the runtime object is deleted.
       storeLog(task, context);

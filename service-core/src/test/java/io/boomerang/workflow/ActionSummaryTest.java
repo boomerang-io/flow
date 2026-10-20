@@ -2,6 +2,7 @@ package io.boomerang.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -54,8 +55,7 @@ class ActionSummaryTest {
             mock(UserService.class),
             mock(IdentityService.class),
             mongoTemplate);
-    when(relationshipService.filter(
-            eq(RelationshipType.WORKFLOW), any(), any(), any(), any(Boolean.class)))
+    when(relationshipService.refsInWorkspace(eq(RelationshipType.WORKFLOW), anyString(), any()))
         .thenReturn(List.of("w1"));
     when(mongoTemplate.count(any(Query.class), eq(ActionEntity.class)))
         .thenAnswer(

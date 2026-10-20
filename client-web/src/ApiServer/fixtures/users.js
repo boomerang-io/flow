@@ -2,7 +2,7 @@ const users = {
   content: [
     {
       id: "5f170b3df6ab327e302cb0a5",
-      email: "trbula@us.ibm.com",
+      email: "trbula@example.com",
       name: "Tim Bula",
       isFirstVisit: true,
       type: "admin",
@@ -67,7 +67,7 @@ const users = {
     },
     {
       id: "kg3p380ad09662744c240e47",
-      email: "mdroy@us.ibm.com",
+      email: "mdroy@example.com",
       name: "Marcus Roy",
       isFirstVisit: true,
       type: "admin",
@@ -102,7 +102,7 @@ const users = {
     },
     {
       id: "kg3p380ad09662744c240e12347",
-      email: "test@ibm.com",
+      email: "test@example.com",
       name: "Test User",
       isFirstVisit: true,
       type: "admin",

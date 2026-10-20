@@ -13,7 +13,7 @@ zone, trust, placement); otherwise its poll loop is embedded through `dispatcher
 | --- | --- | --- |
 | `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, GitHub/Slack integrations, and the database migrations it runs as it starts (`io.boomerang.migration`; see `data-model.md`). One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:36-39`. | — |
 | `dispatcher-sdk` | The dispatcher protocol as a library: the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is the only module published, to GitHub Packages. | `spring-web` and Jackson only (`dispatcher-sdk/pom.xml:46-53`) |
-| `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk` (`config/DispatcherConfig.java:34-52`): its task handler executes each task in Kubernetes through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-31`) and its workflow handler provisions workspace volumes. `dispatcher.executor` selects `tekton` (default, `TektonServiceImpl.java:59`) or `kube-jobs` (`KubeJobsExecutor.java:72`). One `dispatcher.tasks.runtimeClassName` per deployment (`service-dispatcher/README.md:15-17`). | `dispatcher-sdk` (`service-dispatcher/pom.xml:30-34`) |
+| `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk` (`config/DispatcherConfig.java:34-52`): its task handler executes each task in Kubernetes through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-31`) and its workflow handler provisions workspace volumes. `dispatcher.executor` selects `tekton` (default, `TektonServiceImpl.java:60`) or `kube-jobs` (`KubeJobsExecutor.java:73`). One `dispatcher.tasks.runtimeClassName` per deployment (`service-dispatcher/README.md:15-17`). | `dispatcher-sdk` (`service-dispatcher/pom.xml:30-34`) |
 | `io.boomerang.common` (package in `service-core`, the former `lib-common` module) | `service-core`'s wire and storage model (the dispatcher uses `dispatcher-sdk`'s own): 9 entities (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError`/`RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`) under `service-core/src/main/java/io/boomerang/common/`. No beans, no repositories. | — |
 | `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by React Router's own server, `react-router-serve` (`client-web/package.json`, `start`; `client-web/Dockerfile`), with server rendering on (`client-web/react-router.config.ts:12`, base path `/apps/flow`). The browser talks only to this server; it calls `service-core` server-side through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:26-27`). The root loader writes the deployment's runtime values into the document as `window._SERVER_DATA` (`client-web/app/serverData.server.ts`, `client-web/app/root.tsx`); the probe is `GET /apps/flow/health` (`client-web/app/routes/health.tsx`). | `service-core` over HTTP |
 
@@ -28,7 +28,7 @@ a deployment is used. There is no separate engine image (`.github/workflows/ci-r
 | Property (`application.properties`) | Default | `true` | `false` |
 | --- | --- | --- | --- |
 | `flow.security.enabled` (`:14`) | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
-| `flow.workspace.single` (`:18`) | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `TEAM_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-44`, registered on `/api/v2/workspace/{workspace}` and `/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `TEAM_INVALID_REQ` (`workspace/WorkspaceService.java:189,355`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.workspace.single` (`:18`) | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `TEAM_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-44`, registered on `/api/v2/workspace/{workspace}` and `/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `TEAM_INVALID_REQ` (`workspace/WorkspaceService.java:163,331`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
 | `flow.dispatcher.auth.enabled` (`:38`) | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind (`DispatcherAuthFilter`), independent of `flow.security.enabled`. | No dispatcher authentication; local development only. |
 | `flow.queue.enabled` (`:60`) | `true` | Dispatchers claim task runs. | Claiming stops; sweeps keep running (`execution-model.md`). |
 
@@ -40,9 +40,9 @@ Two shapes are the worked examples:
 | An embedded engine | `flow.security.enabled=false`, `flow.workspace.single=true` | Headless execution inside another product that owns identity and tenancy. The webapp runs unchanged against it; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 
 Quotas are not a deployment property: the stored `features.workspaceQuotas` setting is the only switch
-(`workflow/WorkflowService.java:214-218`). The `system` workspace is seeded with its four limits at `0`, which is
+(`workflow/QuotaService.java:91-96`). The `system` workspace is seeded with its four limits at `0`, which is
 unlimited, and no run duration of its own, so its runs inherit the platform default ceiling from the `quotas` settings
-(`service-core/src/main/resources/seed/workspace.json`, `workspace/WorkspaceService.java` `getWorkflowMaxDurationForTeam`;
+(`service-core/src/main/resources/seed/workspace.json`, `workflow/QuotaService.java` `maxRunDuration` `:175-186`;
 decision 0111). Deployment shape is `flow.<subsystem>.<switch>`
 properties; runtime product toggles are `features.<name>` stored settings; a switch lives in exactly one tier
 (decision 0109).
@@ -64,45 +64,48 @@ webapp's startup loader never requests `GET /internal/v1/auth/config` (`client-w
 
 ## Feature packages inside `service-core`
 
-`service-core` is one Maven module with eight flat feature packages under `io.boomerang` plus `config`
-(the OpenAPI configuration) and `common.model` (four paging response types). Boundaries are a convention: there is
-no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews enforce the direction below.
+`service-core` is one Maven module with eight flat feature packages under `io.boomerang`, plus `common` (the domain
+model: entities, public models, enums, errors and utilities, no beans) and `migration` (the change units). Boundaries
+are a convention: there is no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews enforce the
+direction below.
 
-| Package | Owns | Imports from (verified by grep over `^import io.boomerang.*`) |
+| Package | Owns | Imports from, besides `common` (verified by grep over `^import io.boomerang.*`) |
 | --- | --- | --- |
-| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `AuthCriteriaAuthorizationManager`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`. | nothing above it — zero upward imports |
-| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), the audit-trail insights roll-up the quotas read (`InsightsService`), the Insights controller, profile. | `core`, `workflow` |
-| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), the run statistics the Insights page shows (`WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
-| `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:14-15`) |
+| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `AuthCriteriaAuthorizationManager`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`, the OpenAPI configuration, the one `@EnableScheduling` (`core/config/SchedulingConfiguration.java`). | three entity imports in one class (below) |
+| `workspace` | Workspaces, members, approver groups, the workspace and profile routes; its quota routes read through `workflow/QuotaService`. | `core`, `workflow` |
+| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), artifacts, quotas (`QuotaService`), run retention and the deleted-workflow prune (`WorkflowRetentionService`), the Insights page and its statistics (`WorkspaceInsightsControllerV2`, `WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` (entities, models and repositories only) |
+| `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `core`, `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:17-18`) |
 | `dispatcher` | The worker registry and the v1 wire: `DispatcherControllerV1`, `DispatcherService`, `DispatcherAuthFilter`, `DispatcherSecurityConfiguration`. | `core`, `engine`, `workflow` |
-| `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `workflow` |
+| `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `engine` (`EngineConstants`), `workflow` |
 | `event` | Webhook and CloudEvent ingress (`WebhookEventControllerV2`), the transactional outbox (`CloudEventsBridge`, `OutboxDispatcher`), the event sink. | `core`, `engine`, `integrations`, `workflow` |
 | `integrations` | GitHub App and Slack. | `core`, `workflow` |
 
-Rules that follow from the table: `core` MUST NOT import any feature package (`core/audit/AuditInterceptor.java:98`
-records the one place this bit); the engine MUST NOT call the platform side synchronously — it publishes
-Spring `ApplicationEvent`s that other packages listen to (`ScheduleRequested` handled by
-`schedule/ScheduleEventListener.java:26-27`; `ChildWorkflowRunCreated` handled by
-`core/RelationshipEventListener.java:36-37`). Controllers live in the package of the service they inject.
+Rules that follow from the table: `core` MUST NOT import any feature package; the one exception is the save hook that
+seals secret values, which names the three entities it seals (`core/config/SecretValueMongoListener.java:11-13`;
+decision 0002). The engine MUST NOT call the platform side synchronously — it publishes Spring `ApplicationEvent`s
+that other packages listen to (`ScheduleRequested` handled by `schedule/ScheduleEventListener.java:26-27`;
+`ChildWorkflowRunCreated` handled by `core/RelationshipEventListener.java:36-37`); the transition records those
+listeners and the audit and outbox bridges read live in `common/model`. Controllers live in the package of the
+service they inject.
 
 ## How a workflow run moves through the system
 
 Each arrow is a direct in-process call unless marked. Every state change is a compare-and-set (CAS)
-`findAndModify` on the run document; a losing caller does nothing (`engine/TaskRunService.java:667-672`).
+`findAndModify` on the run document; a losing caller does nothing (`engine/TaskRunService.java:643-648`).
 
 | Step | Class → class | Where |
 | --- | --- | --- |
-| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submit` → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:252-264`, `workflow/WorkflowService.java:1709,1792`, `workflow/WorkflowRunService.java:749-751` |
-| 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`) or a webhook/CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:139`, `schedule/ScheduleJob.java:77`, `event/WebhookEventControllerV2.java:72,210`, `event/WebhookEventService.java:108` |
-| 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which builds the task list from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:61-82`, `engine/WorkflowRunStateHelper.java:96` |
-| 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending`/`queued`, builds the graph, and executes the DAG on `asyncWorkflowExecutor` | `engine/WorkflowExecutionService.java:101-125` |
-| 4. Admit each task | The DAG walk calls `TaskExecutionService.queue(taskRunId)`. This is the single pause gate — a run with `pauseRequestedAt` set admits nothing — then `TaskRunService.tryAdmit` moves the task to `ready`. Only `template`, `script`, `custom` and `generic` tasks wait for a dispatcher; the engine runs every other type itself. | `engine/TaskExecutionService.java:96,141-143,181,189-192`, `engine/TaskRunService.java:278` |
-| 5. Dispatcher claims | `service-dispatcher`, through the dispatcher SDK, long-polls `GET /dispatcher/v1/{id}/tasks` (HTTP): the engine holds the request up to 30 s, re-checking every 1 s, and the dispatcher reconnects as soon as it returns, asking for no more than its free slots (`?limit=`). `DispatcherService.getTaskQueue` pages `TaskRunService.findClaimable` for the dispatcher's task types and claims each candidate with `TaskRunService.tryClaim`; only claimed documents are returned. `flow.queue.enabled=false` stops claiming. | `dispatcher-sdk/.../sdk/Dispatcher.java:259-282`, `QueuePoller.java:104-123`, `dispatcher/DispatcherControllerV1.java:89-101`, `dispatcher/DispatcherService.java:260-340`, `engine/TaskRunService.java:97,275` |
+| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submit` → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:252-264`, `workflow/WorkflowService.java:1593,1623`, `workflow/WorkflowRunService.java:723-725` |
+| 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`) or a webhook/CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:143`, `schedule/ScheduleJob.java:77`, `event/WebhookEventControllerV2.java:72,210`, `event/WebhookEventService.java:108` |
+| 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which builds the task list from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:61-81`, `engine/WorkflowRunStateHelper.java:96` |
+| 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending`/`queued`, builds the graph, and executes the DAG on `asyncWorkflowExecutor` | `engine/WorkflowExecutionService.java:100-124` |
+| 4. Admit each task | The DAG walk calls `TaskExecutionService.queue(taskRunId)`. This is the single pause gate — a run with `pauseRequestedAt` set admits nothing — then `TaskRunService.tryAdmit` moves the task to `ready`. Only `template`, `script`, `custom` and `generic` tasks wait for a dispatcher; the engine runs every other type itself. | `engine/TaskExecutionService.java:96,141-143,181,189-192`, `engine/TaskRunService.java:271` |
+| 5. Dispatcher claims | `service-dispatcher`, through the dispatcher SDK, long-polls `GET /dispatcher/v1/{id}/tasks` (HTTP): the engine holds the request up to 30 s, re-checking every 1 s, and the dispatcher reconnects as soon as it returns, asking for no more than its free slots (`?limit=`). `DispatcherService.getTaskQueue` pages `TaskRunService.findClaimable` for the dispatcher's task types and claims each candidate with `TaskRunService.tryClaim`; only claimed documents are returned. `flow.queue.enabled=false` stops claiming. | `dispatcher-sdk/.../sdk/Dispatcher.java:259-282`, `QueuePoller.java:104-123`, `dispatcher/DispatcherControllerV1.java:83-95`, `dispatcher/DispatcherService.java:261-331`, `engine/TaskRunService.java:90,275` |
 | 6. Execute | The SDK's `TaskRunner` calls `PUT /dispatcher/v1/taskrun/{id}/start`, then the dispatcher's `TaskService.run` → `TaskExecutor.create`/`watch` (Tekton `TaskRun` or `batch/v1` `Job`), then `PUT .../taskrun/{id}/end` with the results (HTTP), retried until the engine takes it. | `dispatcher-sdk/.../sdk/TaskRunner.java:116-206`, `service-dispatcher/.../dispatcher/TaskService.java:69-79` |
-| 7. Results back | `DispatcherControllerV1.startTaskRun`/`endTaskRun` → `TaskRunService.start`/`end` → `TaskExecutionService.start`/`end`, which check the claim (`claimedBy`, `claimSeq`) before writing. | `dispatcher/DispatcherControllerV1.java:151-180`, `engine/TaskRunService.java:697,730`, `engine/TaskExecutionService.java:229,399` |
-| 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. `completed` is terminal; a run's workspace storage is released separately by the dispatcher asking `POST /dispatcher/v1/workspaces/releasable` which of the runs it still holds volumes for are finished. | `engine/TaskExecutionService.java:1022-1077`, `engine/WorkflowRunStateHelper.java:148`, `dispatcher/DispatcherService.java:367` |
-| 9. Events out | Each CAS publishes a `TaskRunTransition`/`WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into the `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (sink off by default, `application.properties:50`). | `engine/TaskRunService.java:675-684`, `event/CloudEventsBridge.java:32-48`, `event/OutboxDispatcher.java:59-62` |
-| 10. Recovery | `WorkflowWatcher.sweep` runs ten isolated sweeps (timeouts, stalled runs, claims from gone dispatchers, deleted workflows, …); any core instance may reap any run. | `engine/WorkflowWatcher.java:129-147` |
+| 7. Results back | `DispatcherControllerV1.startTaskRun`/`endTaskRun` → `TaskRunService.start`/`end` → `TaskExecutionService.start`/`end`, which check the claim (`claimedBy`, `claimSeq`) before writing. | `dispatcher/DispatcherControllerV1.java:145-174`, `engine/TaskRunService.java:673,730`, `engine/TaskExecutionService.java:224,399` |
+| 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. `completed` is terminal; a run's workspace storage is released separately by the dispatcher asking `POST /dispatcher/v1/workspaces/releasable` which of the runs it still holds volumes for are finished. | `engine/TaskExecutionService.java:970-1025`, `engine/WorkflowRunStateHelper.java:148`, `dispatcher/DispatcherService.java:358` |
+| 9. Events out | Each CAS publishes a `TaskRunTransition`/`WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into the `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (sink off by default, `application.properties:51`). | `engine/TaskRunService.java:651-660`, `event/CloudEventsBridge.java:32-48`, `event/OutboxDispatcher.java:58-61` |
+| 10. Recovery | `WorkflowWatcher.sweep` runs ten isolated sweeps (timeouts, stalled runs, claims from gone dispatchers, deleted workflows, …); any core instance may reap any run. | `engine/WorkflowWatcher.java:111-124` |
 
 Core calls a dispatcher for one thing: a task's live log, read from the dispatcher holding the claim at the
 URL and with the bearer it registered (`engine/LogClient.java`). A finished log the dispatcher uploaded is
@@ -141,7 +144,7 @@ version from the same tag and deploys it to this repository's GitHub Packages Ma
 
 The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
 authenticates with `flow.engine.dispatcher.token`
-(`service-dispatcher/src/main/resources/application.properties:92-95,133-135`); core runs the dispatcher's `/dispatcher/**`
+(`service-dispatcher/src/main/resources/application.properties:86-89,127-129`); core runs the dispatcher's `/dispatcher/**`
 chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`) and the product chain second
 (`core/security/SecurityConfiguration.java:66`).
 

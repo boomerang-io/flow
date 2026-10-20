@@ -190,7 +190,11 @@ public class ActionService {
                     Criteria.where("_id")
                         .is(actionEntity.getId())
                         .and("status")
-                        .is(ActionStatus.submitted)),
+                        .is(ActionStatus.submitted)
+                        // At most the required number land, so approvers acting together can
+                        // never push the count past it and read as a rejection.
+                        .and("actioners." + (Math.max(actionEntity.getNumberOfApprovers(), 1) - 1))
+                        .exists(false)),
                 new Update().push("actioners", actioner),
                 FindAndModifyOptions.options().returnNew(true),
                 ActionEntity.class);
@@ -367,12 +371,7 @@ public class ActionService {
 
     // Get Refs that request has access to
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return Page.empty();
     }
@@ -411,12 +410,7 @@ public class ActionService {
       Optional<List<ActionStatus>> statuses) {
     ActionSummary summary = new ActionSummary();
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return summary;
     }

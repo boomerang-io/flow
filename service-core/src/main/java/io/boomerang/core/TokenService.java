@@ -1,5 +1,6 @@
 package io.boomerang.core;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.TokenEntity;
@@ -37,14 +38,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -61,7 +60,7 @@ public class TokenService {
   private Integer MAX_SESSION_TOKEN_DURATION;
 
   // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
-  // write per request (T6-1, ARCHIE pattern).
+  // write per request (the ARCHIE pattern).
   private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
   // Reuse window for filter-minted session tokens (see createSessionToken): bounds the
@@ -124,11 +123,11 @@ public class TokenService {
     }
 
     // createdBy is ALWAYS the server-resolved authenticated principal - NEVER taken from the
-    // request body (T6-1/T6-3 invariant #3). Resolved once, up front, so both the createdBy
+    // request body (the third token invariant). Resolved once, up front, so both the createdBy
     // stamp and the admin-authority check below use the same identity snapshot.
     Token currentIdentity = identityService.getCurrentIdentity();
 
-    // T6-3 invariant #2: minting a `global` token requires the caller to already hold a
+    // The second token invariant: minting a `global` token requires the caller to already hold a
     // `global`-scoped grant (admin authority) - enforced here, not just documented. Internal
     // bootstrap minting (TokenService#createSessionToken) never calls this method, so the
     // very first admin session token is unaffected.
@@ -164,7 +163,7 @@ public class TokenService {
     if (!AuthScope.global.equals(request.getType())) {
       tokenEntity.setPrincipal(request.getPrincipal());
     }
-    // T6-1: actorKind is caller-declared (like type/permissions above).
+    // actorKind is caller-declared (like type/permissions above).
     tokenEntity.setActorKind(request.getActorKind());
     if (currentIdentity != null) {
       tokenEntity.setCreatedBy(currentIdentity.getPrincipal());
@@ -172,7 +171,7 @@ public class TokenService {
 
     // Set Permissions. Grant scope (PermissionScope) is ALWAYS derived server-side from the
     // token's own class - the request body has no way to set it directly, which is itself part
-    // of how T6-3 invariant #1 (a `key` token can never hold a `global` grant) holds by
+    // of how the first token invariant (a `key` token can never hold a `global` grant) holds by
     // construction: `key` tokens only ever get `workspace`-scoped grants below.
     if (AuthScope.user.equals(request.getType())) {
       // TODO do i need to check if user is Admin or Operator
@@ -202,7 +201,7 @@ public class TokenService {
     }
     LOGGER.debug(tokenEntity.getPermissions().toString());
 
-    // T6-3 invariant #1, enforced (not just constructed-to-avoid): defence in depth against any
+    // The first token invariant, enforced (not just constructed-to-avoid): defence in depth against any
     // future path that builds a key token's permissions differently.
     assertKeyTokenCeiling(tokenEntity);
 
@@ -213,11 +212,6 @@ public class TokenService {
     tokenEntity.setToken(hashToken);
     tokenEntity = tokenRepository.save(tokenEntity);
     LOGGER.debug("Created {} token {}", request.getType(), tokenEntity.getId());
-
-    // Create an Audit relationship
-    // relationshipService.addRelationshipRef(RelationshipRef.USER,
-    // identityService.getCurrentUser().getId(),
-    // RelationshipType.CREATED, RelationshipRef.TOKEN, Optional.of(tokenEntity.getId()));
 
     TokenCreateResponse tokenResponse = new TokenCreateResponse();
     tokenResponse.setToken(uniqueToken);
@@ -355,7 +349,7 @@ public class TokenService {
   }
 
   /**
-   * T6-3 invariant #2's predicate: does {@code identity} already hold a {@code global}-scoped
+   * The second token invariant's predicate: does {@code identity} already hold a {@code global}-scoped
    * grant (the closest existing concept to "admin authority" - it's exactly what {@code
    * createSessionToken} gives an {@code admin}/{@code operator} user, and what an existing {@code
    * global} token's own permissions always carry).
@@ -368,7 +362,7 @@ public class TokenService {
   }
 
   /**
-   * T6-3 invariant #1: a {@code key} token may never carry a {@code global}-scoped grant - its
+   * The first token invariant: a {@code key} token may never carry a {@code global}-scoped grant - its
    * ceiling is only the workspaces it was explicitly granted (Stripe {@code sk_}/{@code rk_}
    * privilege-ceiling pattern). Package-private (not {@code private}) specifically so it is
    * directly unit-testable against a constructed {@link TokenEntity} - the public {@link #create}
@@ -422,7 +416,7 @@ public class TokenService {
   }
 
   /**
-   * Full validation for a machine-actor bearer token (T6-1) — used by internal callers such as
+   * Full validation for a machine-actor bearer token — used by internal callers such as
    * {@code DispatcherAuthFilter} that need more than the public {@link Token}/{@code validate}
    * pair expose: hash -> lookup -> not expired -> {@code actorKind} is a machine kind -> {@code
    * global} scope. Empty on any failure; never throws. Callers are expected to have already
@@ -439,7 +433,7 @@ public class TokenService {
   /**
    * Best-effort "last used" stamp, throttled to at most one write per {@link
    * #LAST_USED_THROTTLE_MS} so a busy dispatcher/integration doesn't hammer Mongo on every
-   * request (T6-1, ARCHIE pattern).
+   * request (the ARCHIE pattern).
    */
   public void touchLastUsed(TokenEntity token) {
     if (token == null) {
@@ -479,12 +473,8 @@ public class TokenService {
       Optional<String> querySort,
       Optional<List<AuthScope>> queryTypes,
       Optional<List<String>> queryPrincipals) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("creationDate")));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -492,11 +482,7 @@ public class TokenService {
                 .in("type", queryTypes)
                 .in("principal", queryPrincipals)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<TokenEntity> entities = mongoTemplate.find(query, TokenEntity.class);
 
@@ -509,10 +495,7 @@ public class TokenService {
         });
 
     Page<Token> pages =
-        PageableExecutionUtils.getPage(
-            response,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), TokenEntity.class));
+        PagingUtil.page(response, pageable, mongoTemplate, query, TokenEntity.class);
 
     return pages;
   }
@@ -737,7 +720,7 @@ public class TokenService {
   /*
    * Creates a Workflow / System token for use by the scheduled task
    *
-   * T6-3: the retired `workflow` token class (bfw) is replaced 1:1 by a `key` token
+   * the retired `workflow` token class (bfw) is replaced 1:1 by a `key` token
    * (AuthScope.key, prefix bfk) carrying actorKind=WORKFLOW - principal still holds the workflow
    * id, and its grant is workspace-scoped (never global) exactly like every other key token.
    */

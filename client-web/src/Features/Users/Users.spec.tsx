@@ -48,7 +48,7 @@ describe("Users --- RTL", () => {
     renderUsers(appLink.userList());
     const row = await screen.findByRole("row", { name: /Tim Bula/ });
     expect(within(row).getByText("Admin")).toBeInTheDocument();
-    expect(within(row).getByText("trbula@us.ibm.com")).toBeInTheDocument();
+    expect(within(row).getByText("trbula@example.com")).toBeInTheDocument();
   });
 
   test("View user details", async () => {

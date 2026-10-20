@@ -4,8 +4,8 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.event.entity.EventOutboxEntity;
-import io.boomerang.engine.model.TaskRunTransition;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.TaskRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.event.repository.EventOutboxRepository;
 import java.util.Date;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,7 +34,6 @@ public class CloudEventsBridge {
   @EventListener
   public void onTaskRunTransition(TaskRunTransition transition) {
     if (!TaskType.end.equals(transition.type())
-        && !endsBeforeCompleting(transition)
         && emits(
         transition.fromStatus(),
         transition.fromPhase(),
@@ -72,16 +71,6 @@ public class CloudEventsBridge {
   // A transition emits when the externally-visible status changes, or when the run reaches the
   // terminal phase carrying a caller-persisted status (whose change was never emitted). Claim
   // transitions (phase-only, non-terminal) stay silent.
-  // A skip or an admission rejection is two writes: the final status while still pending
-  // (TaskRunService.trySkip, tryReject), then end()'s completion. Only the completion is an event,
-  // so one change of state sends one.
-  private static boolean endsBeforeCompleting(TaskRunTransition transition) {
-    return RunPhase.pending == transition.toPhase()
-        && (RunStatus.skipped == transition.toStatus()
-            || RunStatus.failed == transition.toStatus()
-            || RunStatus.invalid == transition.toStatus());
-  }
-
   private static boolean emits(
       RunStatus fromStatus, RunPhase fromPhase, RunStatus toStatus, RunPhase toPhase) {
     return fromStatus != toStatus || (fromPhase != toPhase && RunPhase.completed == toPhase);

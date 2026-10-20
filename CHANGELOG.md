@@ -127,8 +127,16 @@ tag's release notes.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
   next major version.
+- `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
+  constants are the same values.
 
 ### Changed
+
+- Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
+  is still published to GitHub Packages.
+- `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
+- `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
+  running whenever the engine watcher was on.
 
 - A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
   the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
@@ -136,6 +144,12 @@ tag's release notes.
 - A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
   `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
 - The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
+- The engine ends a task it decided the end of - a skip, an admission refusal, an engine-run task's result, a for-each
+  parent's outcome - in one write that carries the outcome, so a timeout that lands meanwhile is never rolled back
+  and each such end publishes one transition.
+- A workspace's monthly run-duration figures (`currentRunTotalDuration`, `currentRunAverageDuration`) cover the
+  whole UTC calendar month. They used to stop at midnight before the month's last day, so that day's runs were
+  never counted.
 - A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
   other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
   Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
@@ -154,7 +168,7 @@ tag's release notes.
   carry the run's later status, so one change could arrive as two or three copies of a later state. Its
   CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
   the transition occurred rather than when it was sent. The graph's end node no longer sends a task event; the
-  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two.
+  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two. A workflow timeout sends one where it sent two.
 - A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
   code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
   actor, where it named `system`.
@@ -179,12 +193,13 @@ tag's release notes.
   dispatcher that runs outside its network.
 - **Task logs are stored by `service-core` when it has an artifact store.** The dispatcher uploads a finished
   task's log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core
-  serves that copy first, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
+  serves that copy once the task has ended, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
   log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
   `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`). Core's
   `flow.agent.service.host` and `flow.agent.logstream.url` are gone: nothing on core names a dispatcher, and a
-  dispatcher that registers no URL has no live log to follow. The dispatcher's `/api/v1/logs` route
-  now accepts only the bearer it generates at start and registers; nothing but core can read it. Two new keys
+  dispatcher that registers no URL has no live log to follow. The dispatcher's live log route,
+  `/api/v1/logs/stream`, accepts only the bearer it generates at start and registers; nothing but core can read
+  it. Its v3 `GET /api/v1/logs` read is gone, and it serves no OpenAPI page. Two new keys
   in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
   apart from artifact retention; stored logs never count toward artifact storage. Set
   `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.

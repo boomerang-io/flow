@@ -13,7 +13,6 @@ public class HeaderPlatform {
   private String platformName;
   private Boolean displayLogo;
   private String logoURL;
-  private Boolean privateTeams;
   private Boolean sendMail;
   private String baseServicesUrl;
   private String baseEnvUrl;

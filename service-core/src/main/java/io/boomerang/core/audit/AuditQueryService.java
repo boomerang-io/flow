@@ -1,7 +1,6 @@
 package io.boomerang.core.audit;
 
 import io.boomerang.common.util.QueryCriteria;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
 import java.util.List;
@@ -21,7 +20,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * The read/query surface over the audit trail, behind {@link AuditControllerV2} and the workspace
- * insights rollup. Filters mirror the query indexes: workspace, actor, action, capture level,
+ * quota's run figures. Filters mirror the query indexes: workspace, actor, action, capture level,
  * resource type and id, outcome, and a time range; newest first.
  *
  * <p>Every listing is bounded by the time range the caller supplies - the controller defaults it
@@ -142,33 +141,42 @@ public class AuditQueryService {
     }
   }
 
+  /** How many runs a workspace's run events cover in a window, and their total duration. */
+  public record RunTotals(long runs, long duration) {}
+
   /**
-   * Events for one workspace, resource type and time window, optionally narrowed by a payload
-   * field membership check (e.g. {@code payload.workflowRef} in a set of refs) — the shape the
-   * workspace insights rollup reads.
+   * Total a workspace's runs and their durations over a time window from the run events, so runs
+   * of since-deleted Workflows still count - the run-duration figures in {@code
+   * QuotaService.current}. Each run counts once, with the duration its latest event in
+   * the window carries. One aggregation over the {@code workspace_time} index.
    */
-  public List<AuditEventEntity> findByWorkspaceAndResourceType(
-      String workspaceId,
-      String resourceType,
-      Date from,
-      Date to,
-      Optional<String> payloadField,
-      Optional<List<String>> payloadValues) {
-    List<Criteria> criteria = new ArrayList<>();
-    criteria.add(Criteria.where("workspaceId").is(workspaceId));
-    criteria.add(Criteria.where("resourceType").is(resourceType));
-    criteria.add(Criteria.where("time").gte(from).lt(to));
-    if (payloadField.isPresent() && payloadValues.isPresent()) {
-      criteria.add(Criteria.where("payload." + payloadField.get()).in(payloadValues.get()));
+  public RunTotals runTotals(String workspaceId, Date from, Date to) {
+    Aggregation aggregation =
+        Aggregation.newAggregation(
+            Aggregation.match(
+                new Criteria()
+                    .andOperator(
+                        Criteria.where("workspaceId").is(workspaceId),
+                        Criteria.where("resourceType").is("workflowrun"),
+                        Criteria.where("time").gte(from).lt(to))),
+            Aggregation.sort(Sort.Direction.ASC, "time"),
+            Aggregation.group("resourceId").last("payload.duration").as("duration"),
+            Aggregation.group().count().as("runs").sum("duration").as("duration"));
+    Document totals =
+        mongoTemplate
+            .aggregate(aggregation, AuditEventEntity.class, Document.class)
+            .getUniqueMappedResult();
+    if (totals == null) {
+      return new RunTotals(0L, 0L);
     }
-    Query query = new Query(new Criteria().andOperator(criteria.toArray(new Criteria[0])));
-    query.with(Sort.by(Sort.Direction.ASC, "time"));
-    return mongoTemplate.find(query, AuditEventEntity.class);
+    return new RunTotals(
+        ((Number) totals.get("runs")).longValue(),
+        (totals.get("duration") instanceof Number duration) ? duration.longValue() : 0L);
   }
 
   /**
    * Count run-creation events for one workspace in a time window — the monthly quota counter in
-   * {@code WorkspaceService.setCurrentQuotas}. Served by the {@code workspace_time} index.
+   * {@code QuotaService.current}. Served by the {@code workspace_time} index.
    */
   public long countRunsCreated(String workspaceId, Date from, Date to) {
     Query query =

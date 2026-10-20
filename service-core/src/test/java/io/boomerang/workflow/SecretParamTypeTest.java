@@ -109,7 +109,7 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
         dispatcherService.register(
             new DispatcherRegistrationRequest("secret-zone", "secret-zone.local", List.of("generic")));
     TaskRun claimed =
-        dispatcherService.getTaskQueue(agentId).getBody().stream()
+        dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody().stream()
             .filter(t -> taskRunId.equals(t.getId()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("the generic dispatcher should claim the task"));

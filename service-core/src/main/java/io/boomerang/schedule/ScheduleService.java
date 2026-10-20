@@ -120,12 +120,7 @@ public class ScheduleService {
       Optional<List<String>> queryTypes,
       Optional<List<String>> queryWorkflows) {
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     if (!refs.isEmpty()) {
       Query query =
           new Query(
@@ -172,12 +167,8 @@ public class ScheduleService {
   public WorkflowSchedule create(String team, final WorkflowSchedule schedule) {
     if (schedule != null && schedule.getWorkflowRef() != null) {
       List<String> refs =
-          relationshipService.filter(
-              RelationshipType.WORKFLOW,
-              Optional.of(List.of(schedule.getWorkflowRef())),
-              Optional.of(RelationshipType.WORKSPACE),
-              Optional.of(List.of(team)),
-              false);
+          relationshipService.refsInWorkspace(
+              RelationshipType.WORKFLOW, team, Optional.of(List.of(schedule.getWorkflowRef())));
       if (!refs.isEmpty()) {
         schedule.setWorkflowRef(refs.get(0));
         WorkflowScheduleEntity scheduleEntity = internalCreate(team, schedule);
@@ -296,40 +287,6 @@ public class ScheduleService {
               });
     }
     return scheduleCalendars;
-  }
-
-  /*
-   * Retrieves the calendar dates between a start and end date period for a specific workflow
-   *
-   * @return list of Schedule Calendars
-   */
-  public List<WorkflowScheduleCalendar> getCalendarsForWorkflow(
-      String team, final String workflowId, Date fromDate, Date toDate) {
-    if (relationshipService.hasNodes(
-        RelationshipType.WORKSPACE,
-        team,
-        RelationshipType.WORKFLOW,
-        Optional.of(List.of(workflowId)),
-        Optional.empty(),
-        Optional.empty())) {
-      List<WorkflowScheduleCalendar> scheduleCalendars = new LinkedList<>();
-      final Optional<List<WorkflowScheduleEntity>> scheduleEntities =
-          scheduleRepository.findByWorkflowRefInAndStatusIn(
-              List.of(workflowId), getStatusesNotCompletedOrDeleted());
-      if (scheduleEntities.isPresent()) {
-        scheduleEntities
-            .get()
-            .forEach(
-                e -> {
-                  WorkflowScheduleCalendar scheduleCalendar = new WorkflowScheduleCalendar();
-                  scheduleCalendar.setScheduleId(e.getId());
-                  scheduleCalendar.setDates(getCalendarForDates(e.getId(), fromDate, toDate));
-                  scheduleCalendars.add(scheduleCalendar);
-                });
-      }
-      return scheduleCalendars;
-    }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
   }
 
   /*

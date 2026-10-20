@@ -14,7 +14,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;

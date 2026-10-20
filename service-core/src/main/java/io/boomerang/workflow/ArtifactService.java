@@ -1,8 +1,5 @@
 package io.boomerang.workflow;
 
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 import io.boomerang.common.entity.ArtifactEntity;
@@ -20,7 +17,6 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workflow.model.Artifact;
 import io.boomerang.workflow.repository.ArtifactRepository;
-import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -111,15 +106,12 @@ public class ArtifactService {
   private static final Pattern NAME = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
   private static final long MIB = 1024L * 1024L;
   private static final long GIB = 1024L * MIB;
-  private static final List<ArtifactStatus> HOLDING_STORAGE =
-      List.of(ArtifactStatus.uploading, ArtifactStatus.available);
 
   private final ArtifactRepository artifactRepository;
   private final ObjectProvider<ArtifactStore> artifactStore;
   private final SettingsService settingsService;
   private final RelationshipService relationshipService;
-  private final WorkflowService workflowService;
-  private final ObjectProvider<WorkspaceService> workspaceService;
+  private final QuotaService quotaService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
   private final MessageSource messageSource;
@@ -130,8 +122,7 @@ public class ArtifactService {
       ObjectProvider<ArtifactStore> artifactStore,
       SettingsService settingsService,
       RelationshipService relationshipService,
-      WorkflowService workflowService,
-      ObjectProvider<WorkspaceService> workspaceService,
+      QuotaService quotaService,
       MongoTemplate mongoTemplate,
       ObjectMapper objectMapper,
       MessageSource messageSource,
@@ -140,8 +131,7 @@ public class ArtifactService {
     this.artifactStore = artifactStore;
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
-    this.workflowService = workflowService;
-    this.workspaceService = workspaceService;
+    this.quotaService = quotaService;
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
     this.messageSource = messageSource;
@@ -149,11 +139,6 @@ public class ArtifactService {
   }
 
   // ── Limits ────────────────────────────────────────────────────────────────
-
-  /** The retention a workspace gets unless its quota says otherwise, never above the maximum. */
-  public int defaultRetentionDays() {
-    return Math.min(setting(RETENTION_DEFAULT_DAYS), setting(RETENTION_MAX_DAYS));
-  }
 
   private long maxArtifactBytes() {
     return setting(MAX_ARTIFACT_SIZE) * MIB;
@@ -198,32 +183,9 @@ public class ArtifactService {
     int workspace =
         (quotas != null && quotas.getArtifactRetentionDays() != null)
             ? quotas.getArtifactRetentionDays()
-            : defaultRetentionDays();
+            : quotaService.defaultArtifactRetentionDays();
     int days = (requested != null && requested > 0) ? Math.min(requested, workspace) : workspace;
     return Math.max(1, Math.min(days, setting(RETENTION_MAX_DAYS)));
-  }
-
-  /** Bytes held by the given workflows' available and uploading artifacts; task logs not counted. */
-  public long storedBytes(List<String> workflowRefs) {
-    if (workflowRefs.isEmpty()) {
-      return 0;
-    }
-    Document total =
-        mongoTemplate
-            .aggregate(
-                newAggregation(
-                    match(
-                        where("workflowRef")
-                            .in(workflowRefs)
-                            .and("status")
-                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())
-                            .and("scope")
-                            .ne(ArtifactScope.log.name())),
-                    group().sum("size").as("total")),
-                ArtifactEntity.class,
-                Document.class)
-            .getUniqueMappedResult();
-    return total == null ? 0 : ((Number) total.get("total")).longValue();
   }
 
   // ── The upload and download tasks ─────────────────────────────────────────
@@ -524,7 +486,9 @@ public class ArtifactService {
     Query query =
         Query.query(
             where("workflowRef")
-                .in(workspaceWorkflowRefs(workspace, workflow.map(List::of)))
+                .in(
+                    relationshipService.refsInWorkspace(
+                        RelationshipType.WORKFLOW, workspace, workflow.map(List::of)))
                 .and("status")
                 .in(
                     statuses
@@ -554,7 +518,8 @@ public class ArtifactService {
             .findById(artifactId)
             .filter(
                 found ->
-                    workspaceWorkflowRefs(workspace, Optional.empty())
+                    relationshipService.refsInWorkspace(
+                        RelationshipType.WORKFLOW, workspace, Optional.empty())
                         .contains(found.getWorkflowRef()))
             .orElseThrow(
                 () -> new BoomerangException(BoomerangError.ARTIFACT_INVALID_REF, artifactId));
@@ -684,22 +649,12 @@ public class ArtifactService {
     }
   }
 
-  /** The workspace's workflow refs the caller may see, narrowed to the named ones when given. */
-  private List<String> workspaceWorkflowRefs(String workspace, Optional<List<String>> names) {
-    return relationshipService.filter(
-        RelationshipType.WORKFLOW,
-        names,
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(workspace)),
-        false);
-  }
-
   /**
    * The run's workspace artifact quota, or null when quotas are not enforced or no workspace owns
    * it. Read without a caller identity: the dispatcher's poll and end calls act for no user.
    */
   private CurrentQuotas quotasFor(String workflowRunId) {
-    if (!workflowService.quotasEnforced()) {
+    if (!quotaService.enforced()) {
       return null;
     }
     String workspaceRef =
@@ -708,7 +663,7 @@ public class ArtifactService {
     if (workspaceRef == null || workspaceRef.isBlank()) {
       return null;
     }
-    return workspaceService.getObject().getArtifactStorageQuota(workspaceRef);
+    return quotaService.artifactStorage(workspaceRef);
   }
 
   private static String requiredName(List<RunParam> params) {

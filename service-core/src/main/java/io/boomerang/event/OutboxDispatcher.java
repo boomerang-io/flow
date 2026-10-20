@@ -27,9 +27,8 @@ import org.springframework.stereotype.Service;
  * given the row's own status and phase - then marks the row sent via a Compare-And-Set. Runs on every instance; at-least-once - a racing
  * double delivery is possible but only one dispatcher marks the row sent. Rows that exhaust
  * their retries go dead (kept, logged, never silently dropped), with the failure and the time
- * they gave up recorded on the row for the operator route to show. Scheduling rides the same
- * {@code flow.watcher.enabled} test hook as the watcher; the bean itself only exists when the
- * sink is enabled.
+ * they gave up recorded on the row for the operator route to show. The drain is scheduled
+ * whenever the bean exists, which is only when the sink is enabled.
  */
 @Service
 @ConditionalOnProperty(

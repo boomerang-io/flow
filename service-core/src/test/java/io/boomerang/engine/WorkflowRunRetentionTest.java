@@ -23,6 +23,7 @@ import io.boomerang.workflow.ArtifactServiceTest;
 import io.boomerang.workflow.ArtifactStore;
 import io.boomerang.workflow.repository.ArtifactRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.workflow.WorkflowRetentionService;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
@@ -45,6 +46,7 @@ class WorkflowRunRetentionTest extends AbstractEngineIntegrationTest {
   private static final long DAY_MILLIS = TimeUnit.DAYS.toMillis(1);
 
   @Autowired private WorkflowWatcher watcher;
+  @Autowired private WorkflowRetentionService workflowRetentionService;
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private ActionRepository actionRepository;
   @Autowired private ArtifactRepository artifactRepository;
@@ -153,16 +155,16 @@ class WorkflowRunRetentionTest extends AbstractEngineIntegrationTest {
   @Test
   void theRetentionSettingIsFlooredAtSixtyDaysAndDefaultsWhenNotANumber() {
     setRunRetention("10");
-    assertThat(watcher.runRetentionDays()).isEqualTo(60);
+    assertThat(workflowRetentionService.runRetentionDays()).isEqualTo(60);
 
     setRunRetention("90");
-    assertThat(watcher.runRetentionDays()).isEqualTo(90);
+    assertThat(workflowRetentionService.runRetentionDays()).isEqualTo(90);
 
     setRunRetention("forever");
-    assertThat(watcher.runRetentionDays()).isEqualTo(365);
+    assertThat(workflowRetentionService.runRetentionDays()).isEqualTo(365);
 
     setRunRetention(null);
-    assertThat(watcher.runRetentionDays()).isEqualTo(365);
+    assertThat(workflowRetentionService.runRetentionDays()).isEqualTo(365);
   }
 
   @Test

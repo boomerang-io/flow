@@ -66,18 +66,6 @@ public class WorkspaceActionControllerV2 {
     return actionService.get(workspace, actionId);
   }
 
-  //  @GetMapping(value = "")
-  //  @AuthScope(action = PermissionAction.READ, scope = PermissionScope.ACTION, types =
-  // {AuthType.session, AuthType.user, AuthType.workspace, AuthType.global})
-  //  @Operation(summary = "Retrieve a specifc Action by TaskRun")
-  //  @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK"),
-  //      @ApiResponse(responseCode = "400", description = "Bad Request")})
-  //  public Action getByTaskRun(
-  //      @Parameter(name = "taskRunId", description = "Retrieve Action by TaskRun",
-  //      required = true) @RequestParam(required = true) String taskRunId) {
-  //      return actionService.getByTaskRun(taskRunId);
-  //  }
-
   @PutMapping(value = "")
   @AuthCriteria(
       action = PermissionAction.ACTION,

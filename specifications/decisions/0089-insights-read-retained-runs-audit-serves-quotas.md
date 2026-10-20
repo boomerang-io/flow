@@ -5,7 +5,7 @@
 ## Context
 
 Insights replayed the audit trail's workflow-run events, whose payload carries only status, phase, duration and
-workflow (`service-core/src/main/java/io/boomerang/core/audit/WorkflowRunAuditBridge.java:112-124`), and handed the
+workflow (`service-core/src/main/java/io/boomerang/core/audit/WorkflowRunAuditBridge.java:113-125`), and handed the
 browser one summary per run to aggregate. That kept counting a deleted workflow's runs, but could not say why a run
 failed, which task took the time, how it was triggered or how long it waited, and it shipped every run over the wire.
 The monthly run quota reads the same audit events and must keep counting deleted runs
@@ -23,7 +23,8 @@ The monthly run quota reads the same audit events and must keep counting deleted
 
 B. `WorkflowRunInsightService` (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunInsightService.java`)
 computes the page's statistics from projected run and task-run records, and the page subtitle states that deleted
-workflows are not included. `InsightsService` keeps its audit roll-up untouched for `WorkspaceService.setCurrentQuotas`.
+workflows are not included. The quotas total runs from the audit trail (`AuditQueryService.runTotals`) for
+`workflow/QuotaService.current`.
 Comparable products (GitHub Actions, GitLab CI, AWS Step Functions) draw the same line: analytics over retained
 executions, metering counters written at event time.
 

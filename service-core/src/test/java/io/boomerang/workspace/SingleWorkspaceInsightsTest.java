@@ -2,6 +2,7 @@ package io.boomerang.workspace;
 
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -29,7 +30,7 @@ class SingleWorkspaceInsightsTest extends AbstractEngineIntegrationTest {
   private static final String TASK_SLUG = "engine-insights-test-task";
 
   @Autowired private WorkflowService workflowService;
-  @Autowired private InsightsService insightsService;
+  @Autowired private AuditQueryService auditQueryService;
 
   @BeforeEach
   void seedFixtures() {
@@ -77,14 +78,10 @@ class SingleWorkspaceInsightsTest extends AbstractEngineIntegrationTest {
     awaitEngine("the run's audit event reaches the insights roll-up")
         .until(
             () ->
-                insightsService
-                        .get(
-                            SYSTEM_WORKSPACE,
-                            from,
-                            new Date(System.currentTimeMillis() + 60_000),
-                            Optional.empty(),
-                            Optional.empty())
-                        .getTotalRuns()
+                auditQueryService
+                        .runTotals(
+                            SYSTEM_WORKSPACE, from, new Date(System.currentTimeMillis() + 60_000))
+                        .runs()
                     >= 1);
   }
 

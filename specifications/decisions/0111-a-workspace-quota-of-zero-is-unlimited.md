@@ -21,10 +21,10 @@ webapp displayed the sentinel as a number.
 ## Decision
 
 Option B. Every one of the five quotas has three stored states: absent inherits the platform default at read
-(`workspace/WorkspaceService.java` `setCustomQuotas`, which keeps a stored `0` as `0`), `0` is unlimited, a positive
+(`workflow/QuotaService.java` `overlay`, which keeps a stored `0` as `0`), `0` is unlimited, a positive
 number is the limit. One resolver, `Quotas.limited` (`workspace/model/Quotas.java`), is called by every check in
-`workflow/WorkflowService.java` (`canCreateWithQuotas`, `assertRunQuotas`, `checkWorkspaceStorageQuota`,
-`guardQuotasAfterAdmission`); `getWorkflowMaxDurationForTeam` returns a stored `0` as no ceiling, and a run that
+`workflow/QuotaService.java` (`assertCanCreateWorkflow`, `assertRunQuotas`, `assertAdmittedRunWithinQuotas`,
+`assertWorkspaceStorage`); `maxRunDuration` returns a stored `0` as no ceiling, and a run that
 declares no timeout still takes the platform default (`RunTimeoutPolicy.defaultTimeout`). The deciding reason is
 that Tekton's `timeout: 0` and Temporal's unset timeout already mean "no limit" to the people who set these values.
 

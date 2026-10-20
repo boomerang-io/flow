@@ -23,8 +23,8 @@ reach it.
 B. `type=password` (`service-core/src/main/java/io/boomerang/common/util/DataAdapterUtil.java:22`) is the
 only marker. The workspace-scoped run `get` and `query` blank password-typed params by name and scrub the
 resolved values from task params, spec fields and results
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:145-149,160-170,209`); the task
-log stream is wrapped in `FilterValuesOutputStream` (`:339-346`). Engine and dispatcher reads stay
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:157-164,197-221,325`); the task
+log stream is wrapped in `FilterValuesOutputStream` (`:459-463`). Engine and dispatcher reads stay
 unfiltered because the runtime must see the real values. Extending the existing `filter*` helpers instead
 of adding a field kept one source of truth.
 

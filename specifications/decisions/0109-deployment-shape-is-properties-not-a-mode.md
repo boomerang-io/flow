@@ -26,8 +26,8 @@ That one property switches the authentication filter chain and endpoint authoriz
 the authorization half on, every annotated route answers 401 against no identity, so the two halves were
 never separate properties. The new `flow.workspace.single` (default `false`, `core/security/FlowWorkspaceProperties.java:19-20`)
 keeps the system-workspace guard (`SingleWorkspaceInterceptorConfiguration.java:22-26`) and refuses workspace
-create and delete (`workspace/WorkspaceService.java:189,355`). The quota subsystem switch is gone too: the
-stored `features.workspaceQuotas` setting decides (`workflow/WorkflowService.java:214-218`). The deciding
+create and delete (`workspace/WorkspaceService.java:163,331`). The quota subsystem switch is gone too: the
+stored `features.workspaceQuotas` setting decides (`workflow/QuotaService.java:91-96`). The deciding
 reason is that one surface served everywhere costs less than two kept in step.
 
 ## Consequences

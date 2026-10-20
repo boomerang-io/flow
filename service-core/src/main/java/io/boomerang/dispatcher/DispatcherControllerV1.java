@@ -34,14 +34,8 @@ import org.springframework.web.bind.annotation.*;
  * prefix is its own, apart from the public {@code /api/v2}, so that whatever fronts the engine can
  * route the dispatcher wire separately: a dispatcher may run outside the engine's network.
  *
- * <p>The callbacks previously lived on {@code /api/v1/workflowrun} and {@code /api/v1/taskrun} in
- * separate {@code WorkflowRunControllerV1}/{@code TaskRunControllerV1} classes — v4 residue from
- * when the engine was a separate deployable with its own platform-facing v1 surface. That surface
- * was removed at the merge (ruling J1: "the engine's noauth V1 controllers are scrapped at the
- * merge; the agent wire protocol is the only additional surface"), leaving three path roots for one
- * protocol with exactly one consumer, {@code service-dispatcher}. Consolidating them here is a
- * maintainer-approved wire change; {@code service-dispatcher}'s {@code flow.engine.*.url} properties move
- * with it. Embedders/hosts use the v2 surface ({@link
+ * <p>Every dispatcher route lives here, under one root, and runs as the dispatcher's token
+ * ({@link DispatcherAuthFilter}). Embedders and hosts use the v2 surface ({@link
  * io.boomerang.workflow.WorkspaceWorkflowRunControllerV2}, {@link io.boomerang.workflow.TaskRunControllerV2}).
  *
  * <p>{@code /{id}/workflows} and {@code /workflowrun/{id}/start} overlap in shape; Spring's

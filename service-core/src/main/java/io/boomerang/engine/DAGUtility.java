@@ -154,11 +154,8 @@ public class DAGUtility {
           taskRunEntity.getLabels().putAll(wfRevisionTask.getLabels());
           taskRunEntity.getLabels().putAll(wfRunEntity.getLabels());
 
-          // Add System Generated Annotations
+          // The run's workspace name is carried onto the task run.
           Map<String, Object> annotations = new HashMap<>();
-          annotations.put("boomerang.io/generation", "4");
-          annotations.put("boomerang.io/kind", "TaskRun");
-          // Add Request Annotations from Workflow Service
           if (wfRunEntity.getAnnotations() != null
               && !wfRunEntity.getAnnotations().isEmpty()
               && wfRunEntity.getAnnotations().containsKey("boomerang.io/workspace-name")) {
@@ -206,7 +203,7 @@ public class DAGUtility {
           //   2. the task's own declared timeout, when set and not greater,
           //   3. the run's own timeout, when set and not greater.
           // 0 at any step means "unguarded" and imposes no ceiling; a task ends up at 0 only when
-          // all three are 0. The run is a ceiling because of decision 0063: a guard must cover the
+          // all three are 0. The run is a ceiling because a guard must cover the
           // work beneath it, so a task must never outlive the run guard around it. Without this the
           // run watcher reaps a healthy task at the run deadline while that task still believes it
           // has budget left — and on a fresh install it would, because the seeded per-task ceiling

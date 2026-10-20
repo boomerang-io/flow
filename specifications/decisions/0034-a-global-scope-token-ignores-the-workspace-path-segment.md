@@ -20,12 +20,12 @@ segment is never compared. This was raised as a possible privilege escalation.
 
 Option B. `check()` is `case global: return true;`
 (`service-core/src/main/java/io/boomerang/core/RelationshipService.java:417-419`), while `filter()` still
-anchors a global caller at `root` and walks so list endpoints return real data (`:509-513`). The deciding
+anchors a global caller at `root` and walks so list endpoints return real data (`:501-505`). The deciding
 reason is that a global token is already permitted to reach the same object through its true workspace URL,
 so ignoring the segment grants nothing the caller does not already hold.
 
 ## Consequences
 
 - Admin tooling MAY address any object under any workspace path; the response is the same object.
-- Ownership writes MUST NOT trust the path segment for a global caller: run creation confirms the workspace contains the workflow first, and retries resolve the owner from the original run's edge (`workflow/WorkflowService.java:561-572`, `workflow/WorkflowRunService.java:394-400`).
+- Ownership writes MUST NOT trust the path segment for a global caller: run creation confirms the workspace contains the workflow first, and retries resolve the owner from the original run's edge (`workflow/WorkflowService.java:530-541`, `workflow/WorkflowRunService.java:369-375`).
 - `key` tokens are unaffected: they anchor at their own workspace node and the walk enforces containment.

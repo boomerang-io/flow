@@ -19,11 +19,11 @@ operator picks it once for the deployment.
 ## Decision
 
 B. `dispatcher.tasks.runtimeClassName` is applied to every task the deployment runs — on the pod spec by
-the Jobs executor (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:172-173`)
-and on the TaskRun `podTemplate` by the Tekton executor (`kube/TektonServiceImpl.java:467-470`). A
+the Jobs executor (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:173-174`)
+and on the TaskRun `podTemplate` by the Tekton executor (`kube/TektonServiceImpl.java:454-457`). A
 deployment that needs a different tier registers as a separate dispatcher with its own name and task types,
 and the engine already routes claims by registered task type
-(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:207`). Not adding a field or a
+(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherService.java:208`). Not adding a field or a
 routing rule ahead of a real mixed-tier deployment decided it.
 
 ## Consequences

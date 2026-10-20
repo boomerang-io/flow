@@ -137,7 +137,7 @@ final class TaskRunner {
         LOGGER.error("TaskRun (" + id + ") handler failed.", e);
         end =
             failed(
-                TaskFailure.DISPATCH_ERROR,
+                StatusReason.DISPATCH_ERROR,
                 (e.getMessage() != null) ? e.getMessage() : e.toString(),
                 List.of());
       } finally {

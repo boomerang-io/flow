@@ -6,12 +6,12 @@ const approverGroups = [
     approvers: [
      {
        id: "5b69f3adf170ce00018106b6",
-       email: "isabela.kawabata@ibm.com",
+       email: "isabela.kawabata@example.com",
        name: "Isabela Mayumi Kawabata Borges",
      },
      {
        id: "5b6306564bd080000168f0f0",
-       email: "lucas.grimauth@ibm.com",
+       email: "lucas.grimauth@example.com",
        name: "Lucas Grimauth Evangelista",
      }
     ]
@@ -23,42 +23,42 @@ const approverGroups = [
    approvers: [
     {
       id: "5b69f3adf170ce00018106b6",
-      email: "isabela.kawabata@ibm.com",
+      email: "isabela.kawabata@example.com",
       name: "Isabela Mayumi Kawabata Borges",
     },
     {
       id: "5b6306564bd080000168f0f0",
-      email: "lucas.grimauth@ibm.com",
+      email: "lucas.grimauth@example.com",
       name: "Lucas Grimauth Evangelista",
     },
     {
      id: "5b85516579ab9f0001097480",
-     email: "amhudson@us.ibm.com",
+     email: "amhudson@example.com",
      name: "Adrienne Hudson",
     },
     {
      id: "1b6378a84bd080000168f0f1",
-     email: "mwinsby@us.ibm.com",
+     email: "mwinsby@example.com",
      name: "Megan Winsby",
     },
     {
      id: "5b5f97a105d83a00018bdbed",
-     email: "mdroy@us.ibm.com",
+     email: "mdroy@example.com",
      name: "Marcus Roy",
     },
     {
      id: "5b5f802f05d83a00018bdbeb",
-     email: "benjamin.ruby@ibm.com",
+     email: "benjamin.ruby@example.com",
      name: "Benjamin Ruby",
     },
     {
      id: "5b59176f621bbc00015656a0",
-     email: "twlawrie@us.ibm.com",
+     email: "twlawrie@example.com",
      name: "Tyson Lawrie",
     },
     {
      id: "5b590e92621bbc000156569c",
-     email: "gchickma@us.ibm.com",
+     email: "gchickma@example.com",
      name: "Glen Hickman",
     }
    ]
@@ -80,14 +80,14 @@ const approverGroups = [
              "type": "individual",
              "id": "59aebd0b7424530fce952fdd",
              "name": "Tyson Lawrie",
-             "email": "boomerang@us.ibm.com",
+             "email": "boomerang@example.com",
              "required": false
          },
          {
              "type": "individual",
              "id": "59aebd0b7424530fce952fdc",
              "name": "Glen Hickman",
-             "email": "gchickma@us.ibm.com",
+             "email": "gchickma@example.com",
              "required": false
          }
      ]

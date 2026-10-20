@@ -108,7 +108,7 @@ const workspaces = {
               },
               {
                   "id": "61d5db083aa9034ded32cae7",
-                  "email": "boomrng@us.ibm.com",
+                  "email": "boomrng@example.com",
                   "name": "Boomerang Joe",
                   "role": "reader"
               },
@@ -172,7 +172,7 @@ const workspaces = {
           "members": [
               {
                   "id": "61d5db083aa9034ded32cae7",
-                  "email": "boomrng@us.ibm.com",
+                  "email": "boomrng@example.com",
                   "name": "Boomerang Joe",
                   "role": "reader"
               }

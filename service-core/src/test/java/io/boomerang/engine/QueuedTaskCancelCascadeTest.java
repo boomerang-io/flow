@@ -57,7 +57,7 @@ class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "cancel-cascade-agent", "cancel-cascade-agent.local", List.of("template")));
-    List<TaskRun> claimed = dispatcherService.getTaskQueue(agentId).getBody();
+    List<TaskRun> claimed = dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody();
     assertTrue(
         claimed != null && claimed.stream().anyMatch(t -> taskRunId.equals(t.getId())),
         "the agent must have claimed the task ahead of the cancel");

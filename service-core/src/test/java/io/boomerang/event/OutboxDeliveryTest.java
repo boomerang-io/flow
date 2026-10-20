@@ -16,8 +16,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.core.config.RestConfig;
-import io.boomerang.engine.model.TaskRunTransition;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.TaskRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.EventPayload;
@@ -371,48 +371,6 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
 
     assertTrue(rowsFor(end.getId()).isEmpty(), "the end node writes no outbox row");
     assertEquals(1, rowsFor(wfRun.getId()).size(), "the run's completion writes one row");
-  }
-
-  /*
-   * A skip is two writes - skipped while still pending, then end()'s completion - and a consumer
-   * sees one event for it, from the completion. An admission rejection takes the same two steps.
-   */
-  @Test
-  void aSkippedTaskWritesOneRowFromItsCompletion() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
-    WorkflowRunEntity wfRun =
-        savedWorkflowRun("outbox-skip-wf", RunStatus.running, RunPhase.running);
-    TaskRunEntity skipped =
-        savedTaskRun(
-            "skipped",
-            TaskType.template,
-            RunStatus.notstarted,
-            RunPhase.pending,
-            wfRun.getWorkflowRef(),
-            wfRun.getId());
-
-    bridge.onTaskRunTransition(
-        new TaskRunTransition(
-            skipped.getId(),
-            wfRun.getId(),
-            TaskType.template,
-            RunStatus.notstarted,
-            RunPhase.pending,
-            RunStatus.skipped,
-            RunPhase.pending));
-    bridge.onTaskRunTransition(
-        new TaskRunTransition(
-            skipped.getId(),
-            wfRun.getId(),
-            TaskType.template,
-            RunStatus.skipped,
-            RunPhase.pending,
-            RunStatus.skipped,
-            RunPhase.completed));
-
-    List<EventOutboxEntity> rows = rowsFor(skipped.getId());
-    assertEquals(1, rows.size(), "one row for the skip");
-    assertEquals(RunPhase.completed, rows.get(0).getTo().phase());
   }
 
   // A sink that records every structured CloudEvent it receives, answering the first delivery of

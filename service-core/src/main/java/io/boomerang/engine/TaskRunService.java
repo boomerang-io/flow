@@ -10,11 +10,13 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.config.SecretValueMongoListener;
 import io.boomerang.engine.model.ClaimFilter;
-import io.boomerang.engine.model.TaskRunTransition;
+import io.boomerang.engine.model.TaskOutcome;
+import io.boomerang.common.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.common.error.BoomerangError;
@@ -32,7 +34,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
@@ -70,21 +71,14 @@ public class TaskRunService {
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
 
-  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota,
-  // its pod never left Pending, or the runtime or a gateway behind it refused it for rate. Nothing
-  // ran, so the task is handed back for another attempt on any dispatcher, on the same budget as a
-  // timed-out claimant, and fails only once that is spent.
-  private static final Set<String> RETRYABLE_END_REASONS =
-      Set.of("ExceededQuota", "StartTimeout", "RateLimited");
-
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
   private final TaskRunRepository taskRunRepository;
   private final MongoTemplate mongoTemplate;
   private final ApplicationEventPublisher eventPublisher;
   private final ObjectMapper objectMapper;
-  // The upload task's completion lives with the artifacts; resolved late, as the two call each other.
-  private final ObjectProvider<ArtifactService> artifactService;
+  // The upload task's completion and the stored logs live with the artifacts.
+  private final ArtifactService artifactService;
   // An Update never reaches the save hook, so the admission write seals secret values itself.
   private final SecretValueMongoListener secretValues;
 
@@ -95,7 +89,7 @@ public class TaskRunService {
       MongoTemplate mongoTemplate,
       ApplicationEventPublisher eventPublisher,
       ObjectMapper objectMapper,
-      ObjectProvider<ArtifactService> artifactService,
+      ArtifactService artifactService,
       SecretValueMongoListener secretValues) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
@@ -248,11 +242,7 @@ public class TaskRunService {
                 .and("claim.by")
                 .exists(true));
     Update update = new Update().unset("claim.by").unset("claim.at").unset("claim.leaseExpiresAt");
-    TaskRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), preImage.getPhase());
-    }
-    return preImage;
+    return cas(query, update, null, null);
   }
 
   // Shape 2, the node parked mid-retry: releasing the claim and re-arming the node are the SAME
@@ -279,9 +269,8 @@ public class TaskRunService {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");
-    TaskRunEntity preImage = findAndModifyPreImage(query, update);
+    TaskRunEntity preImage = cas(query, update, RunStatus.ready, RunPhase.pending);
     if (preImage != null) {
-      publish(preImage, RunStatus.ready, RunPhase.pending);
       preImage.setStatus(RunStatus.timedout);
       preImage.setPhase(RunPhase.completed);
     }
@@ -327,10 +316,8 @@ public class TaskRunService {
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
-    TaskRunEntity preImage =
-        findAndModifyPreImage(query, update);
+    TaskRunEntity preImage = cas(query, update, null, RunPhase.queued);
     if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.queued);
       // Return the pre-image with the claim transition applied - the caller ships this to the
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
@@ -358,73 +345,7 @@ public class TaskRunService {
         new Update()
             .set("status", RunStatus.ready)
             .set("params", secretValues.sealRunParams(resolvedParams));
-    TaskRunEntity preImage =
-        findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.ready, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  // Invalidation Compare-And-Set: a notstarted/pending TaskRun becomes invalid with the given
-  // message, so end() can complete it and the run fails with guidance. Mirrors trySkip; used when
-  // admission-time validation (the resolved-params payload cap) rejects the task BEFORE tryAdmit
-  // would make it claimable. Returns the pre-image, or null when another caller already
-  // admitted/started the TaskRun - the loser performs no side effects.
-  public TaskRunEntity tryInvalidate(String id, String statusMessage) {
-    return tryReject(id, RunStatus.invalid, null, statusMessage);
-  }
-
-  // Rejection Compare-And-Set, the general form of tryInvalidate: a notstarted/pending TaskRun
-  // takes the given terminal status, typed reason (when given) and message, so end() can complete
-  // it. Admission uses it with failed/ParamUnresolved when a reference does not resolve. Returns
-  // the pre-image, or null when another caller already admitted/started the TaskRun.
-  public TaskRunEntity tryReject(
-      String id, RunStatus status, String statusReason, String statusMessage) {
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("status")
-                .is(RunStatus.notstarted)
-                .and("phase")
-                .is(RunPhase.pending));
-    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
-    if (statusReason != null) {
-      update.set("statusReason", statusReason);
-    }
-    TaskRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, status, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  // Skip Compare-And-Set: a still-pending TaskRun becomes skipped, so end() can complete it.
-  // Returns the pre-image, or null when another caller already admitted/started the TaskRun -
-  // the loser must then perform no side effects, end() included.
-  //
-  // Why `skipped` is accepted alongside `notstarted`: the skip is two writes (this CAS, then
-  // end()). A caller that dies in between leaves the TaskRun at status=skipped/phase=pending,
-  // and the graph advance re-drives it through queue() (TaskExecutionService:1042,
-  // WorkflowWatcher:305). Matching only `notstarted` would fail that re-drive's CAS, so end()
-  // would never be called and the run would stall. `ready`/`running` are still excluded, which
-  // is the whole point of the guard.
-  public TaskRunEntity trySkip(String id) {
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("phase")
-                .is(RunPhase.pending)
-                .and("status")
-                .in(RunStatus.notstarted, RunStatus.skipped));
-    Update update = new Update().set("status", RunStatus.skipped);
-    TaskRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.skipped, preImage.getPhase());
-    }
-    return preImage;
+    return cas(query, update, RunStatus.ready, null);
   }
 
   // Field-scoped event delivery: records the delivered status annotation, marks the TaskRun
@@ -475,12 +396,10 @@ public class TaskRunService {
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
-    TaskRunEntity preImage =
-        findAndModifyPreImage(query, update);
+    TaskRunEntity preImage = cas(query, update, RunStatus.running, RunPhase.running);
     if (preImage == null) {
       return null;
     }
-    publish(preImage, RunStatus.running, RunPhase.running);
     // Return the pre-image with the transition applied - the caller executes on the new state.
     preImage.setStatus(RunStatus.running);
     preImage.setPhase(RunPhase.running);
@@ -509,29 +428,7 @@ public class TaskRunService {
             .set("phase", RunPhase.running)
             .set("startTime", startTime)
             .set("foreach.items", items);
-    TaskRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.running, RunPhase.running);
-    }
-    return preImage;
-  }
-
-  // Record a foreach parent's outcome - its status, message, typed reason and, when given, the
-  // per-item result arrays - field-scoped and fenced on the running phase, for end() to complete it
-  // through the ordinary completion Compare-And-Set. Concurrent last-item enders compute the same
-  // outcome from the same terminal items, so a repeated write is harmless, and a completed parent
-  // is never touched.
-  public void tryRecordForeachOutcome(
-      String id, RunStatus status, String statusMessage, String statusReason, List<RunResult> results) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
-    Update update = new Update().set("status", status).set("statusMessage", statusMessage);
-    if (statusReason != null) {
-      update.set("statusReason", statusReason);
-    }
-    if (results != null) {
-      update.set("results", results);
-    }
-    mongoTemplate.updateFirst(query, update, TaskRunEntity.class);
+    return cas(query, update, RunStatus.running, RunPhase.running);
   }
 
   // Return the page of foreach parents in the running phase since before the given time - the
@@ -623,20 +520,47 @@ public class TaskRunService {
             .in(RunPhase.pending, RunPhase.queued, RunPhase.running);
     claimedBy.ifPresent(by -> criteria.and("claim.by").is(by));
     claimSeq.ifPresent(seq -> criteria.and("claim.seq").is(seq));
-    Update update =
-        new Update()
-            .set("phase", RunPhase.completed)
-            .set("duration", duration)
-            .unset("timeoutAt")
-            .unset("claim.leaseExpiresAt");
+    Update update = completion(duration);
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
-    TaskRunEntity preImage =
-        findAndModifyPreImage(Query.query(criteria), update);
-    if (preImage != null) {
-      publish(preImage, status.orElse(preImage.getStatus()), RunPhase.completed);
+    return cas(Query.query(criteria), update, status.orElse(null), RunPhase.completed);
+  }
+
+  // Completion Compare-And-Set carrying the outcome the engine decided, so the TaskRun ends in this
+  // one write: from one of the outcome's expected statuses it completes with the outcome's status
+  // and, where set, its reason, message, results and decision value. Returns the pre-image, or null
+  // when the TaskRun has moved on - completed, timed out, requeued - and the caller does nothing.
+  public TaskRunEntity tryComplete(String id, TaskOutcome outcome, long duration) {
+    Criteria criteria =
+        Criteria.where("_id")
+            .is(id)
+            .and("phase")
+            .in(RunPhase.pending, RunPhase.queued, RunPhase.running)
+            .and("status")
+            .in(outcome.from());
+    Update update = completion(duration).set("status", outcome.status());
+    if (outcome.statusReason() != null) {
+      update.set("statusReason", outcome.statusReason());
     }
-    return preImage;
+    if (outcome.statusMessage() != null) {
+      update.set("statusMessage", outcome.statusMessage());
+    }
+    if (outcome.results() != null) {
+      update.set("results", outcome.results());
+    }
+    if (outcome.decisionValue() != null) {
+      update.set("decisionValue", outcome.decisionValue());
+    }
+    return cas(Query.query(criteria), update, outcome.status(), RunPhase.completed);
+  }
+
+  // What every completion writes: the phase and duration, and the end of the deadline and lease.
+  private static Update completion(long duration) {
+    return new Update()
+        .set("phase", RunPhase.completed)
+        .set("duration", duration)
+        .unset("timeoutAt")
+        .unset("claim.leaseExpiresAt");
   }
 
   // Return the page of TaskRuns whose deadline has passed: timeoutAt due, phase queued/running.
@@ -700,65 +624,31 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
-  // A WorkflowRun's still-open TaskRuns fetched directly by ref, bypassing the DAG revision walk
-  // - used only when the revision itself cannot be resolved.
-  public List<TaskRunEntity> findNonTerminalByWorkflowRunRef(String workflowRunRef) {
-    Query query =
-        Query.query(
-                Criteria.where("workflowRunRef").is(workflowRunRef).and("phase").ne(RunPhase.completed))
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, TaskRunEntity.class);
-  }
-
-  // Timeout Compare-And-Set: a queued/running TaskRun past its deadline gets status timedout and
-  // the message in the same atomic write, fenced on the observed claim seq. Returns the
-  // pre-image, or null when fenced out or already transitioned.
-  public TaskRunEntity tryTimeout(String id, Long observedClaimSeq, String statusMessage) {
-    Criteria criteria =
-        Criteria.where("_id")
-            .is(id)
-            .and("phase")
-            .in(RunPhase.queued, RunPhase.running)
-            .and("timeoutAt")
-            .lte(new Date());
-    criteria = fence(criteria, observedClaimSeq);
-    Update update =
-        new Update()
-            .set("status", RunStatus.timedout)
-            .set("statusMessage", statusMessage)
-            .set("statusReason", "DeadlineExceeded")
-            .unset("timeoutAt")
-            .unset("claim.leaseExpiresAt");
-    TaskRunEntity preImage =
-        findAndModifyPreImage(Query.query(criteria), update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
-  }
-
-  // Abandon Compare-And-Set: a queued/running TaskRun gets the same terminal treatment as a
-  // deadline reap (status timedout, deadline cleared) without requiring timeoutAt to have
-  // elapsed - for a claimant confirmed gone ahead of (or absent) its own deadline. Fenced on the
-  // observed claim seq. Returns the pre-image, or null when fenced out or already transitioned.
+  // Abandon Compare-And-Set: a queued/running TaskRun becomes timed out with the message and typed
+  // reason in one write, deadline and lease cleared, fenced on the observed claim seq - for a
+  // deadline reap (pastDeadline: only once timeoutAt has elapsed) and for a claimant confirmed gone
+  // ahead of, or without, its own deadline. Returns the pre-image, or null when fenced out or
+  // already transitioned.
   public TaskRunEntity tryAbandon(
-      String id, Long observedClaimSeq, String statusMessage, String statusReason) {
+      String id,
+      Long observedClaimSeq,
+      String statusMessage,
+      String statusReason,
+      boolean pastDeadline) {
     Criteria criteria =
         Criteria.where("_id").is(id).and("phase").in(RunPhase.queued, RunPhase.running);
+    if (pastDeadline) {
+      criteria = criteria.and("timeoutAt").lte(new Date());
+    }
     criteria = fence(criteria, observedClaimSeq);
     Update update =
         new Update()
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", statusReason)
-            .unset("timeoutAt")
-            .unset("claim.leaseExpiresAt");
-    TaskRunEntity preImage =
-        findAndModifyPreImage(Query.query(criteria), update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
+            .unset("timeoutAt");
+    // The lease stays until the completion lands, so a lost end is reaped and ended again.
+    return cas(Query.query(criteria), update, RunStatus.timedout, null);
   }
 
   // Requeue Compare-And-Set: writes the retry block, drops the baked deadline and parks the SAME
@@ -825,11 +715,7 @@ public class TaskRunService {
     } else {
       update.unset("claim.by").unset("claim.at");
     }
-    TaskRunEntity preImage = findAndModifyPreImage(Query.query(criteria), update);
-    if (preImage != null) {
-      publish(preImage, toStatus, RunPhase.pending);
-    }
-    return preImage;
+    return cas(Query.query(criteria), update, toStatus, RunPhase.pending);
   }
 
   // Whether the run has any in-flight TaskRun: claimed/executing (phase queued/running) or
@@ -895,7 +781,8 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Arm a wait with no wake time - an eventwait, or a runworkflow task waiting on its child.
+  // Arm a wait with no wake time - an eventwait, an approval or manual task, or a runworkflow task
+  // waiting on its child.
   // status -> waiting as a field-scoped Compare-And-Set fenced on the running phase, leaving
   // waitUntil absent so the watcher's time-based resume never picks the row up: only the arriving
   // event, the child's completion, or the timeout reap ends it. An event delivered between
@@ -942,12 +829,20 @@ public class TaskRunService {
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
-  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
-  private TaskRunEntity findAndModifyPreImage(Query query, Update update) {
-    return mongoTemplate.findAndModify(
-        query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+  // matches and publish the transition. Returns the pre-image, or null when another caller won, so
+  // the caller does nothing. A null target status or phase is the pre-image's, unchanged.
+  private TaskRunEntity cas(Query query, Update update, RunStatus toStatus, RunPhase toPhase) {
+    TaskRunEntity preImage =
+        mongoTemplate.findAndModify(
+            query, update, FindAndModifyOptions.options().returnNew(false), TaskRunEntity.class);
+    if (preImage != null) {
+      publish(
+          preImage,
+          (toStatus != null) ? toStatus : preImage.getStatus(),
+          (toPhase != null) ? toPhase : preImage.getPhase());
+    }
+    return preImage;
   }
-
 
   private void publish(TaskRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {
     eventPublisher.publishEvent(
@@ -1065,7 +960,7 @@ public class TaskRunService {
                     + " bytes, exceeding the "
                     + resultsMaxBytes
                     + " byte cap. Pass large outputs by reference (workspace path or URI).");
-            taskRunEntity.setStatusReason("ResultsTooLarge");
+            taskRunEntity.setStatusReason(StatusReason.RESULTS_TOO_LARGE);
           }
           completeArtifactUpload(taskRunEntity);
           reportArtifactFound(taskRunEntity);
@@ -1085,13 +980,15 @@ public class TaskRunService {
 
   /**
    * Requeue a task its dispatcher could not start, while its retry budget lasts, through the same
-   * fenced transition a timed-out claimant takes. Return false when the end must go ahead instead:
-   * any other reason, a type the engine does not requeue, a spent budget, or a lost race.
+   * fenced transition a timed-out claimant takes: the cluster refused it on quota, its pod never
+   * left Pending, or the runtime or a gateway behind it refused it for rate. Nothing ran, so it is
+   * handed back for another attempt on any dispatcher. Return false when the end must go ahead
+   * instead: any other reason, a type the engine does not requeue, a spent budget, or a lost race.
    */
   private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
     if (!RunStatus.failed.equals(request.getStatus())
         || request.getStatusReason() == null
-        || !RETRYABLE_END_REASONS.contains(request.getStatusReason())) {
+        || !StatusReason.REQUEUEABLE.contains(request.getStatusReason())) {
       return false;
     }
     int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
@@ -1122,13 +1019,12 @@ public class TaskRunService {
         || !RunStatus.succeeded.equals(taskRunEntity.getStatus())) {
       return;
     }
-    ArtifactService artifacts = artifactService.getObject();
     try {
-      artifacts.completeUpload(taskRunEntity);
+      artifactService.completeUpload(taskRunEntity);
     } catch (BoomerangException e) {
       taskRunEntity.setStatus(RunStatus.failed);
-      taskRunEntity.setStatusReason("ArtifactRefused");
-      taskRunEntity.setStatusMessage(artifacts.refusalMessage(e));
+      taskRunEntity.setStatusReason(StatusReason.ARTIFACT_REFUSED);
+      taskRunEntity.setStatusMessage(artifactService.refusalMessage(e));
     }
   }
 
@@ -1190,18 +1086,17 @@ public class TaskRunService {
         taskRunRepository
             .findById(taskRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
-    ArtifactService artifacts = artifactService.getObject();
-    Optional<ArtifactEntity> stored = artifacts.taskLog(taskRun);
+    Optional<ArtifactEntity> stored = artifactService.taskLog(taskRun);
     if (!RunPhase.completed.equals(taskRun.getPhase())) {
       StreamingResponseBody thisAttempt =
           stored
               .filter(log -> storedThisAttempt(log, taskRun))
-              .map(log -> storedLog(artifacts, log))
+              .map(this::storedLog)
               .orElse(null);
       return logClient.streamLog(taskRun, thisAttempt);
     }
     return stored
-        .map(log -> storedLog(artifacts, log))
+        .map(this::storedLog)
         .orElseGet(() -> logClient.streamLog(taskRun));
   }
 
@@ -1214,9 +1109,9 @@ public class TaskRunService {
         && !log.getCreationDate().before(claimedAt);
   }
 
-  private static StreamingResponseBody storedLog(ArtifactService artifacts, ArtifactEntity log) {
+  private StreamingResponseBody storedLog(ArtifactEntity log) {
     return outputStream -> {
-      try (InputStream in = artifacts.openLog(log)) {
+      try (InputStream in = artifactService.openLog(log)) {
         in.transferTo(outputStream);
         outputStream.flush();
       }
@@ -1243,7 +1138,7 @@ public class TaskRunService {
     if (content.length > logMaxBytes) {
       throw new BoomerangException(BoomerangError.TASKRUN_LOG_TOO_LARGE, logMaxBytes);
     }
-    artifactService.getObject().storeTaskLog(taskRun, content);
+    artifactService.storeTaskLog(taskRun, content);
     LOGGER.info("[{}] Stored the task log ({} bytes).", taskRunId, content.length);
   }
 }

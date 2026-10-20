@@ -62,7 +62,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
     String agentB = registerAgent("fencing-agent-b");
 
     // First claim: agent A owns seq 1.
-    assertTrue(containsId(dispatcherService.getTaskQueue(agentA), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentA, null, null, null, null), taskRunId));
     assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
     // A requeue clears claim.by/claim.at/claim.leaseExpiresAt but never claim.seq; agent B's
@@ -76,7 +76,7 @@ class TaskClaimFencingTest extends AbstractEngineIntegrationTest {
             .set("status", RunStatus.ready)
             .set("phase", RunPhase.pending),
         TaskRunEntity.class);
-    assertTrue(containsId(dispatcherService.getTaskQueue(agentB), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(agentB, null, null, null, null), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(agentB, reclaimed.getClaim().getBy());
     assertEquals(2L, reclaimed.getClaim().getSeq());

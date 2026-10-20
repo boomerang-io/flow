@@ -164,6 +164,26 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void anAbandonKeepsItsLeaseSoALostEndIsReapedAgain() {
+    TaskRunEntity taskRun =
+        claimedTaskRun(
+            "lease-abandon-lost-end", "dispatcher-g", new Date(System.currentTimeMillis() - 1000));
+
+    // The abandon lands but its end never does.
+    taskRunService.tryAbandon(taskRun.getId(), 1L, "lease lapsed", "LeaseExpired", false);
+
+    TaskRunEntity abandoned = taskRunRepository.findById(taskRun.getId()).orElseThrow();
+    assertEquals(RunStatus.timedout, abandoned.getStatus());
+    assertNotNull(abandoned.getClaim().getLeaseExpiresAt(), "the lease stays until the end lands");
+    assertEquals(
+        1,
+        taskRunService.findLeaseExpired(100).stream()
+            .filter(t -> t.getId().equals(taskRun.getId()))
+            .count(),
+        "the next lease sweep finds it again");
+  }
+
+  @Test
   void anExpiredLeaseWithRetriesExhaustedIsAbandoned() {
     TaskRunEntity taskRun =
         claimedTaskRun(

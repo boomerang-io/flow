@@ -49,7 +49,6 @@ public class Application {
     return Clock.systemDefaultZone();
   }
 
-  // Merged from service-engine (E8.2a)
   @Bean
   public OpenAPI api() {
     return new OpenAPI();

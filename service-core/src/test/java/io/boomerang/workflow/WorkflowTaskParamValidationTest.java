@@ -301,9 +301,7 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
   /** Creates (idempotently) a run-workflow catalogue task declaring workflowRef and wait. */
   private String runWorkflowTask() {
     String name = "param-validation-run-workflow";
-    if (!relationshipService
-        .filter(RelationshipType.TASK, java.util.Optional.of(List.of(name)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
       return name;
     }
     Task task = new Task();
@@ -350,9 +348,7 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
 
   /** Creates a global Task Template (idempotently) declaring exactly one param: {@code paramName}. */
   private String declaredParamTask(String name, String paramName) {
-    if (!relationshipService
-        .filter(RelationshipType.TASK, java.util.Optional.of(List.of(name)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
       return name;
     }
     Task task = new Task();
@@ -370,9 +366,7 @@ class WorkflowTaskParamValidationTest extends AbstractEngineIntegrationTest {
 
   /** Creates a global Task Template (idempotently) declaring no params at all. */
   private String noParamTask(String name) {
-    if (!relationshipService
-        .filter(RelationshipType.TASK, java.util.Optional.of(List.of(name)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
       return name;
     }
     Task task = new Task();

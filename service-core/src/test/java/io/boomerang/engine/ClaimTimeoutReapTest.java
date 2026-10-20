@@ -254,7 +254,7 @@ class ClaimTimeoutReapTest extends AbstractEngineIntegrationTest {
 
     // The agent is told to terminate it, in the shape its terminate handler keys off.
     TaskRun dispatched =
-        dispatcherService.getTaskQueue(agent).getBody().stream()
+        dispatcherService.getTaskQueue(agent, null, null, null, null).getBody().stream()
             .filter(t -> taskRun.getId().equals(t.getId()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("the parked retry must be dispatched to termina"

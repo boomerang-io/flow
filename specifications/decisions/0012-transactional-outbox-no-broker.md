@@ -24,7 +24,7 @@ Option B, with the creation-loss window accepted. `CloudEventsBridge` inserts on
 visible status change from the in-process transition event, after the compare-and-set that won
 (`service-core/src/main/java/io/boomerang/event/CloudEventsBridge.java:32-64`); `OutboxDispatcher` on every instance
 drains pending rows, marks them `sent` by CAS, retries with backoff and marks them `dead` after three attempts
-(`event/OutboxDispatcher.java:63-93`). Internal reactions stay in-process Spring events, which are hints only: the
+(`event/OutboxDispatcher.java:62-92`). Internal reactions stay in-process Spring events, which are hints only: the
 durable fact is the CAS commit, and the watcher sweeps re-derive any lost hint from persisted state. The window
 affects creation only: the engine never reads the outbox to decide anything, so a lost row cannot stall or corrupt a
 run, and the sink is off by default (`application.properties:51`); the row's own documentation records the limitation

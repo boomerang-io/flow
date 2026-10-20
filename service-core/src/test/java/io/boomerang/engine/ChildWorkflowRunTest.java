@@ -25,7 +25,7 @@ import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
@@ -63,9 +63,7 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
   @BeforeEach
   void seedCatalogueAndWorkspace() {
     seededNestingCap = setNestingCap(NESTING_CAP);
-    if (relationshipService
-        .filter(RelationshipType.WORKSPACE, Optional.of(List.of(WORKSPACE)))
-        .isEmpty()) {
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, WORKSPACE)) {
       relationshipService.createNode(
           RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, Optional.empty());
     }

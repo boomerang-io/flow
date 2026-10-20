@@ -1,6 +1,7 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionStatus;
@@ -21,6 +22,9 @@ import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.model.ActionRequest;
 import java.util.LinkedList;
 import java.util.List;
+import org.springframework.data.mongodb.core.query.Update;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.Actioner;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -133,6 +137,53 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
             RunStatus.succeeded::equals);
     assertEquals(
         ActionStatus.approved, mongoTemplate.findById(action.getId(), ActionEntity.class).getStatus());
+  }
+
+  @Test
+  void anApprovalPastTheRequiredCountIsRefused() {
+    String runId =
+        workflowService
+            .submit(
+                approvalWorkflow(new RunParam("numberOfApprovals", "2")),
+                new WorkflowSubmitRequest(),
+                true)
+            .getId();
+    String approveId =
+        awaitEngine("the approval task run exists")
+            .until(
+                () ->
+                    taskRunRepository
+                        .findFirstByNameAndWorkflowRunRef("approve", runId)
+                        .map(TaskRunEntity::getId)
+                        .orElse(null),
+                Objects::nonNull);
+    Query byApprove = new Query(Criteria.where("taskRunRef").is(approveId));
+    ActionEntity action =
+        awaitEngine("the approval action is created")
+            .until(() -> mongoTemplate.findOne(byApprove, ActionEntity.class), a -> a != null);
+    // Two approvals have landed and the deciding write has not yet: the window approvers acting
+    // together fall into.
+    Actioner first = new Actioner();
+    first.setApproverId("first");
+    first.setApproved(true);
+    Actioner second = new Actioner();
+    second.setApproverId("second");
+    second.setApproved(true);
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(action.getId())),
+        new Update().set("actioners", List.of(first, second)),
+        ActionEntity.class);
+
+    BoomerangException refused =
+        assertThrows(
+            BoomerangException.class,
+            () ->
+                actionService.action(
+                    "approval-results-ws", List.of(approval(action.getId(), "third"))));
+
+    assertEquals("ACTION_UNABLE_TO_ACTION", refused.getReason());
+    assertEquals(
+        2, mongoTemplate.findById(action.getId(), ActionEntity.class).getActioners().size());
   }
 
   private static ActionRequest approval(String actionId, String comments) {

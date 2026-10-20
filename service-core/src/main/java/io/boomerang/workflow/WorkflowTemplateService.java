@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowTemplateEntity;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowTemplate;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.workflow.repository.WorkflowTemplateRepository;
 import java.util.LinkedList;
@@ -12,14 +13,12 @@ import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 /**
@@ -71,32 +70,19 @@ public class WorkflowTemplateService {
       Optional<Direction> querySort,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryNames) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(new QueryCriteria().labels(queryLabels).in("name", queryNames).build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<WorkflowTemplateEntity> wfTemplateEntities =
-        mongoTemplate.find(query.with(pageable), WorkflowTemplateEntity.class);
+        mongoTemplate.find(query, WorkflowTemplateEntity.class);
 
     List<WorkflowTemplate> wfTemplates = new LinkedList<>();
     wfTemplateEntities.forEach(e -> wfTemplates.add(new WorkflowTemplate(e)));
 
     Page<WorkflowTemplate> pages =
-        PageableExecutionUtils.getPage(
-            wfTemplates,
-            pageable,
-            () ->
-                mongoTemplate.count(
-                    Query.of(query).skip(-1).limit(-1), WorkflowTemplateEntity.class));
+        PagingUtil.page(wfTemplates, pageable, mongoTemplate, query, WorkflowTemplateEntity.class);
 
     return pages;
   }

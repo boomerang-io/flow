@@ -193,7 +193,7 @@ public class WorkspaceControllerV2 {
   }
 
   @DeleteMapping(value = "/{workspace}")
-  // E1/E2 audit: this was the only mapping in this controller with no @AuthCriteria, so
+  // This was the only mapping in this controller with no @AuthCriteria, so
   // SecurityInterceptor treated the most destructive route in the API as public and skipped
   // authorization entirely (it did not even emit flow.security.would.deny, hiding the route
   // from the pre-flip shadow telemetry). WorkspaceService.delete()'s relationshipService.check()

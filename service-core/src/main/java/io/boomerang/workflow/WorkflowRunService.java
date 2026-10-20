@@ -20,6 +20,7 @@ import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -63,7 +64,6 @@ import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -85,7 +85,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  *
  * <p>F3 collapsed the former {@code api.WorkspaceWorkflowRunService} pass-through into this class:
  * the workspace check and the operation now live together instead of being split across a service
- * boundary that only existed because the engine used to be a separate deployable (DD-02).
+ * boundary that only existed because the engine used to be a separate deployable.
  */
 @Service
 public class WorkflowRunService {
@@ -106,9 +106,7 @@ public class WorkflowRunService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
-  // @Lazy for the same reason as TaskExecutionService above: WorkflowService holds this service,
-  // so an eager injection closes the cycle at construction time.
-  private final WorkflowService workflowService;
+  private final QuotaService quotaService;
   private final ParamLayerService paramLayerService;
 
   public WorkflowRunService(
@@ -126,7 +124,7 @@ public class WorkflowRunService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       ObjectMapper objectMapper,
-      @Lazy WorkflowService workflowService,
+      QuotaService quotaService,
       ParamLayerService paramLayerService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -142,7 +140,7 @@ public class WorkflowRunService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
-    this.workflowService = workflowService;
+    this.quotaService = quotaService;
     this.paramLayerService = paramLayerService;
   }
 
@@ -290,7 +288,8 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
 
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    List<String> wfRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
       // No reachable Workflow. A workspace the caller cannot reach (or that does not exist) is a
       // 404 like every other unresolvable workspace reference; a reachable workspace with nothing
@@ -329,20 +328,6 @@ public class WorkflowRunService {
   }
 
   /*
-   * Retrieve the insights / statistics for a specific period of time and filters
-   */
-  public WorkflowRunInsight insight(
-      String queryTeam,
-      Optional<Long> from,
-      Optional<Long> to,
-      Optional<List<String>> queryLabels,
-      Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
-    return insights(
-        from.map(Date::new), to.map(Date::new), queryLabels, Optional.empty(), Optional.of(wfRefs));
-  }
-
-  /*
    * Retrieve the counts by status for a specific period of time and filters
    */
   public WorkflowRunCount count(
@@ -351,31 +336,9 @@ public class WorkflowRunService {
       Optional<Long> to,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    List<String> wfRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     return count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
-  }
-
-  /**
-   * Count runs matching the given Workflows with a single server-side count - no documents are
-   * fetched and nothing is grouped in memory. Serves the quota counters in {@code
-   * WorkspaceService.setCurrentQuotas}: the monthly counter passes the calendar-month {@code
-   * creationDate} window with no statuses, the concurrent counter passes the non-terminal statuses
-   * with no window.
-   */
-  public long countForQuota(
-      List<String> workflowRefs,
-      Optional<Date> from,
-      Optional<Date> to,
-      Optional<Set<RunStatus>> statuses) {
-    Query query =
-        new Query(
-            new QueryCriteria()
-                .in("workflowRef", workflowRefs)
-                .between("creationDate", from, to)
-                .in("status", statuses)
-                .build());
-    LOGGER.debug("Quota count query: {}", query);
-    return mongoTemplate.count(query, WorkflowRunEntity.class);
   }
 
   /*
@@ -633,22 +596,7 @@ public class WorkflowRunService {
     }
   }
 
-  /** The Workflows of the given workspace that the caller may see, narrowed by the query filter. */
-  private List<String> workspaceWorkflowRefs(
-      String queryTeam, Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
-    LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
-    return wfRefs;
-  }
-
   // ── Unscoped operations (engine, webhook and v1 dispatcher callers) ────────
-
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
     if (wfRunId == null || wfRunId.isBlank()) {
@@ -680,11 +628,7 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -696,11 +640,7 @@ public class WorkflowRunService {
                 .in("workflowRef", queryWorkflows)
                 .in("trigger", queryTriggers)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<WorkflowRunEntity> wfRunEntities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
@@ -714,57 +654,9 @@ public class WorkflowRunService {
         });
 
     Page<WorkflowRun> pages =
-        PageableExecutionUtils.getPage(
-            wfRuns,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
+        PagingUtil.page(wfRuns, pageable, mongoTemplate, query, WorkflowRunEntity.class);
 
     return pages;
-  }
-
-  /*
-   * Generates stats / insights for a given set of filters
-   */
-  public WorkflowRunInsight insights(
-      Optional<Date> from,
-      Optional<Date> to,
-      Optional<List<String>> labels,
-      Optional<List<String>> queryWorkflowRuns,
-      Optional<List<String>> queryWorkflows) {
-    Query query =
-        new Query(
-            new QueryCriteria()
-                .between("creationDate", from, to)
-                .labels(labels)
-                .in("workflowRef", queryWorkflows)
-                .build());
-    LOGGER.debug("Query: " + query.toString());
-    List<WorkflowRunEntity> entities = mongoTemplate.find(query, WorkflowRunEntity.class);
-
-    // Collect the Stats
-    long totalDuration = 0;
-    for (WorkflowRunEntity entity : entities) {
-      totalDuration += entity.getDuration();
-    }
-
-    WorkflowRunInsight wfRunInsight = new WorkflowRunInsight();
-    wfRunInsight.setTotalRuns(Long.valueOf(entities.size()));
-    wfRunInsight.setConcurrentRuns(
-        entities.stream().filter(run -> RunPhase.running.equals(run.getPhase())).count());
-    wfRunInsight.setTotalDuration(totalDuration);
-    List<WorkflowRunSummary> runs = new LinkedList<>();
-    entities.forEach(
-        e -> {
-          WorkflowRunSummary summary = ConvertUtil.entityToModel(e, WorkflowRunSummary.class);
-          final Optional<WorkflowEntity> optWorkflow =
-              workflowRepository.findById(e.getWorkflowRef());
-          if (optWorkflow.isPresent()) {
-            summary.setWorkflowName(optWorkflow.get().getName());
-          }
-          runs.add(summary);
-        });
-    wfRunInsight.setRuns(runs);
-    return wfRunInsight;
   }
 
   /*
@@ -922,8 +814,8 @@ public class WorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
-    // Compare-And-Set precondition: only a running run can be marked timed out - a late timeout
-    // can never overwrite a terminal status. Only the winner drives the timeout to completion.
+    // The run reads timed out at once; timeoutWorkflow, off this thread, completes it, ends its
+    // tasks and starts any automatic retry. Only the winner of the first Compare-And-Set goes on.
     WorkflowRunEntity preImage = workflowRunStateHelper.tryMarkTimedOut(workflowRunId);
     if (preImage != null) {
       // The cause is known here; the completion path just writes the message it is given.
@@ -986,9 +878,8 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
-        workflowService.assertRunQuotas(
-            ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
-        long ceiling = workflowService.maxWorkflowDuration(ownerName);
+        quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
+        long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
             && (wfRunEntity.getTimeout() == null
                 || wfRunEntity.getTimeout() == 0
@@ -1391,39 +1282,6 @@ public class WorkflowRunService {
   private List<TaskRun> getTaskRuns(String workflowRunId) {
     List<TaskRunEntity> taskRunEntities = taskRunRepository.findByWorkflowRunRef(workflowRunId);
     return taskRunEntities.stream().map(t -> new TaskRun(t)).collect(Collectors.toList());
-
-    //
-    // TODO: Update the following or make sure they are set on the run at execution end task time.
-    // if (TaskType.approval.equals(run.getTaskType())
-    // || TaskType.manual.equals(run.getTaskType())) {
-    // Action approval = approvalService.getApprovalByTaskActivits(task.getId());
-    // response.setApproval(approval);
-    // } else if (TaskType.runworkflow == task.getTaskType()
-    // && task.getRunWorkflowActivityId() != null) {
-    //
-    // String runWorkflowActivityId = task.getRunWorkflowActivityId();
-    // ActivityEntity activity =
-    // this.flowActivityService.findWorkflowActivtyById(runWorkflowActivityId);
-    // if (activity != null) {
-    // response.setRunWorkflowActivityStatus(activity.getStatus());
-    // }
-    // } else if (TaskType.eventwait == task.getTaskType()) {
-    // List<TaskOutputResult> results = new LinkedList<>();
-    // TaskOutputResult result = new TaskOutputResult();
-    // result.setName("eventPayload");
-    // result.setDescription("Payload that was received with the Wait For Event");
-    // if (task.getOutputs() != null) {
-    // String json = task.getOutputs().get("eventPayload");
-    // result.setValue(json);
-    // }
-    // results.add(result);
-    // response.setResults(results);
-    // } else if (TaskType.template == task.getTaskType()
-    // || TaskType.customtask == task.getTaskType() || TaskType.script == task.getTaskType()) {
-    // List<TaskOutputResult> results = new LinkedList<>();
-    // setupTaskOutputResults(task, response, results);
-    //
-    // }
   }
 
   private void logPayload(WorkflowRunRequest request) {

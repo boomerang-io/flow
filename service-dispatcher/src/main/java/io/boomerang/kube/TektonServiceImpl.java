@@ -5,6 +5,7 @@ import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
+import io.boomerang.dispatcher.sdk.StatusReason;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -54,7 +55,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnProperty(name = "dispatcher.executor", havingValue = "tekton", matchIfMissing = true)
-public class TektonServiceImpl implements TektonService, TaskExecutor {
+public class TektonServiceImpl implements TaskExecutor {
 
   private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
 
@@ -68,9 +69,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
   @Autowired protected TaskImageResolver imageResolver;
 
   @Autowired protected TaskResourceResolver resourceResolver;
-
-  @Value("${kube.timeout.waitUntil}")
-  protected long waitUntilTimeout;
 
   @Value("${kube.timeout.watchGraceMinutes}")
   protected long watchGraceMinutes;
@@ -91,7 +89,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getWorkflowRef(),
         task.getWorkflowRunRef(),
         task.getId(),
-        task.getName(),
         task.getLabels(),
         imageResolver.image(task),
         imageResolver.command(task),
@@ -102,7 +99,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         task.getResults(),
         task.getSpec().getWorkingDir(),
         task.getWorkspace(),
-        waitUntilTimeout,
         timeoutMinutes,
         task.getSpec().getDebug());
   }
@@ -172,12 +168,10 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     this.client = client;
   }
 
-  @Override
   public TaskRun createTaskRun(
       String workflowId,
       String workflowActivityId,
       String taskActivityId,
-      String taskName,
       Map<String, String> customLabels,
       String image,
       List<String> command,
@@ -188,7 +182,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       List<RunResult> results,
       String workingDir,
       WorkflowWorkspace workspace,
-      long waitSeconds,
       Long timeout,
       Boolean debug)
       throws InterruptedException, ParseException {
@@ -407,8 +400,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
                 helperKubeService.getTaskLabels(
                     workflowId, workflowActivityId, taskActivityId, customLabels))
             .withAnnotations(
-                helperKubeService.getAnnotations(
-                    "task", workflowId, workflowActivityId, taskActivityId))
+                helperKubeService.getAnnotations(workflowId))
             .endMetadata()
             .withNewSpec()
             //      .withPodTemplate(taskPodTemplate)
@@ -447,14 +439,9 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
         result.getMetadata().getNamespace(),
         image);
 
-    //    client.v1().taskRuns().withLabels(helperKubeService.getTaskLabels(workflowId,
-    // workflowActivityId, taskId, taskActivityId, customLabels)).waitUntilReady(waitSeconds,
-    // TimeUnit.SECONDS);
-
     return result;
   }
 
-  @Override
   public List<RunResult> watchTaskRun(
       String workflowId,
       String workflowActivityId,
@@ -486,7 +473,7 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
       while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
         if (Instant.now().isAfter(deadline)) {
           throw new TaskExecutionException(
-              "DeadlineExceeded", "TaskRunTimeout - Task timed out while waiting for completion.");
+              StatusReason.DEADLINE_EXCEEDED, "TaskRunTimeout - Task timed out while waiting for completion.");
         }
         // The watch is the fast path; this poll is the reconcile that catches whatever the watch
         // missed - a dropped connection, or a state transition that happened before the watch was
@@ -559,25 +546,24 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
     String detail = helperKubeService.failureDetail(kubernetesClient, taskLabels);
     String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", results, text);
+      return new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, results, text);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", results, text);
+      return new TaskExecutionException(StatusReason.JOB_DELETED, results, text);
     }
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-      return new TaskExecutionException("ResultsTooLarge", results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
+      return new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
     }
     String podReason = helperKubeService.getPodFailureReason(kubernetesClient, taskLabels);
-    if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", results, text);
+    if (StatusReason.OOM_KILLED.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.OOM_KILLED, results, text);
     }
-    if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", results, text);
+    if (StatusReason.IMAGE_PULL.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.IMAGE_PULL, results, text);
     }
-    return new TaskExecutionException("JobFailed", results, text);
+    return new TaskExecutionException(StatusReason.JOB_FAILED, results, text);
   }
 
-  @Override
   public void deleteTaskRun(
       String workflowId,
       String workflowActivityId,
@@ -605,7 +591,6 @@ public class TektonServiceImpl implements TektonService, TaskExecutor {
    * Reference(s):
    * - https://github.com/abayer/tektoncd-pipeline/blob/0.8.0-jx-support-backwards-incompats/pkg/reconciler/taskrun/cancel.go
    */
-  @Override
   public void cancelTaskRun(
       String workflowId,
       String workflowActivityId,

@@ -24,29 +24,6 @@ public class EventFactory {
 
   private EventFactory() {}
 
-  //  public static Event buildFromCloudEvent(CloudEvent cloudEvent)
-  //      throws InvalidPropertiesFormatException {
-  //    EventType eventType = EventType.valueOfCloudEventType(cloudEvent.getType());
-  //    InvalidPropertiesFormatException invalidCloudEventType = new
-  // InvalidPropertiesFormatException(
-  //        MessageFormat.format("Invalid cloud event type : \"{0}\"!", cloudEvent.getType()));
-  //
-  //    if (eventType == null) {
-  //      throw invalidCloudEventType;
-  //    }
-  //
-  //    switch (eventType) {
-  //      case TRIGGER:
-  //        return EventTrigger.fromCloudEvent(cloudEvent);
-  //      case WFE:
-  //        return EventWFE.fromCloudEvent(cloudEvent);
-  //      case CANCEL:
-  //        return EventCancel.fromCloudEvent(cloudEvent);
-  //      default:
-  //        throw invalidCloudEventType;
-  //    }
-  //  }
-
   /*
    * The status event for one outbox row: its id is the row's, so a retried delivery keeps it, and
    * its time is when the transition occurred.
@@ -120,26 +97,4 @@ public class EventFactory {
 
     return statusUpdateEvent;
   }
-
-  // TODO
-  //  public static GenericStatusEvent buildStatusUpdateEvent(Map<String, String> additionalData) {
-  //
-  //    // Event subject
-  //    // @formatter:off
-  //    String eventSubject = MessageFormat.format("/taskrun/{0}/status/{1}",
-  //        taskRunEntity.getId(),
-  //        taskRunEntity.getStatus().toString().toLowerCase());
-  //    // @formatter:on
-  //
-  //    // Create task status update event
-  //    TaskRunStatusEvent statusUpdateEvent = new TaskRunStatusEvent();
-  //    statusUpdateEvent.setId(UUID.randomUUID().toString());
-  //    statusUpdateEvent.setSource(URI.create(EVENT_SOURCE_URI));
-  //    statusUpdateEvent.setSubject(eventSubject);
-  //    statusUpdateEvent.setDate(new Date());
-  //    statusUpdateEvent.setType(EventType.TASKRUN_STATUS_UPDATE);
-  //    statusUpdateEvent.setAdditionalData(additionalData);
-  //
-  //    return statusUpdateEvent;
-  //  }
 }

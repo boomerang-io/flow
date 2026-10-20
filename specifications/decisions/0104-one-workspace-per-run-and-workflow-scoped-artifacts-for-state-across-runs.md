@@ -22,10 +22,10 @@ need a home.
 
 B, with cross-run state moved to artifacts uploaded with `scope: workflow`. Presence of `workspace` is the switch
 (`service-core/.../model/WorkflowWorkspace.java`); a task mounts it unless its node says `workspace: false`
-(`engine/DAGUtility.java:229`); the dispatcher provisions one claim keyed by the run id and the releasable query names
-runs only (`dispatcher/DispatcherService.java:389-408`). A workflow-scoped artifact is downloadable by any later run of
+(`engine/DAGUtility.java:226`); the dispatcher provisions one claim keyed by the run id and the releasable query names
+runs only (`dispatcher/DispatcherService.java:380-399`). A workflow-scoped artifact is downloadable by any later run of
 its workflow by name, never expires, and is replaced by the next verified upload of that name, which expires the
-previous record (`workflow/ArtifactService.java:69-72,312`). The comparable systems all key cross-run state by name, not by
+previous record (`workflow/ArtifactService.java:64-67,274`). The comparable systems all key cross-run state by name, not by
 volume, and a keyed artifact works on every executor. v3 workflows that declared Workflow storage are marked on
 upgrade and refused at submit until saved again, so the loss is loud rather than silent.
 

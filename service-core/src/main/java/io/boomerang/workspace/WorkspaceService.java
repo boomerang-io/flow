@@ -3,17 +3,12 @@ package io.boomerang.workspace;
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByFieldType;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
-import io.boomerang.core.audit.AuditQueryService;
 import io.boomerang.core.audit.SecretChangeHolder;
-import io.boomerang.workflow.ArtifactService;
-import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
-import io.boomerang.common.model.WorkflowCount;
-import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
@@ -34,7 +29,6 @@ import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.ApproverGroup;
 import io.boomerang.workspace.model.ApproverGroupRequest;
-import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceMember;
@@ -45,23 +39,20 @@ import io.boomerang.workspace.model.WorkspaceSummary;
 import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.WorkspaceRepository;
+import io.boomerang.workflow.QuotaService;
 import io.boomerang.workflow.TaskService;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.TimeZone;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
@@ -70,7 +61,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.core.env.Environment;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -81,14 +71,6 @@ public class WorkspaceService {
 
   public static final List<String> RESERVED_WORKSPACE_NAMES =
       List.of("home", "admin", "system", "profile", "connect");
-  public static final String QUOTAS_SETTINGS_KEY = "quotas";
-  public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
-  public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
-  public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
-  public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
-  public static final String QUOTA_MAX_WORKSPACE_STORAGE = "max.workspace.storage";
-  public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
-
   private final WorkspaceRepository workspaceRepository;
   private final IdentityService identityService;
   private final UserService userService;
@@ -97,13 +79,10 @@ public class WorkspaceService {
   private final SettingsService settingsService;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
-  private final InsightsService insightsService;
   private final WorkflowService workflowService;
-  private final WorkflowRunService workflowRunService;
-  private final AuditQueryService auditQueryService;
   private final TokenService tokenService;
   private final TaskService taskService;
-  private final ArtifactService artifactService;
+  private final QuotaService quotaService;
   private final ParamLayerCache paramLayerCache;
   // flow.workspace.single: the seeded system workspace is the only one, so none is created or deleted.
   private final boolean single;
@@ -117,13 +96,10 @@ public class WorkspaceService {
       SettingsService settingsService,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
-      InsightsService insightsService,
       WorkflowService workflowService,
-      WorkflowRunService workflowRunService,
-      AuditQueryService auditQueryService,
       TokenService tokenService,
       TaskService taskService,
-      ArtifactService artifactService,
+      QuotaService quotaService,
       ParamLayerCache paramLayerCache,
       Environment environment) {
     this.workspaceRepository = workspaceRepository;
@@ -134,13 +110,10 @@ public class WorkspaceService {
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
-    this.insightsService = insightsService;
     this.workflowService = workflowService;
-    this.workflowRunService = workflowRunService;
-    this.auditQueryService = auditQueryService;
     this.tokenService = tokenService;
     this.taskService = taskService;
-    this.artifactService = artifactService;
+    this.quotaService = quotaService;
     this.paramLayerCache = paramLayerCache;
     this.single = FlowWorkspaceProperties.isSingle(environment);
   }
@@ -221,7 +194,7 @@ public class WorkspaceService {
       // Don't set default quotas as they can change over time and should be dynamic
       Quotas quotas = new Quotas();
       // Override quotas based on creation request
-      setCustomQuotas(quotas, request.getQuotas());
+      QuotaService.overlay(quotas, request.getQuotas());
       workspaceEntity.setQuotas(quotas);
 
       // Create / Update Parameters
@@ -318,7 +291,7 @@ public class WorkspaceService {
       // resets the others. Clearing one back to "inherit" is the quotas DELETE route.
       Quotas quotas =
           (workspaceEntity.getQuotas() != null) ? workspaceEntity.getQuotas() : new Quotas();
-      setCustomQuotas(quotas, request.getQuotas());
+      QuotaService.overlay(quotas, request.getQuotas());
       workspaceEntity.setQuotas(quotas);
 
       // Create / Update Parameters
@@ -434,12 +407,8 @@ public class WorkspaceService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       List<String> teamRefs) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
 
     QueryCriteria criteria = new QueryCriteria();
     if (querySearch.isPresent() && !querySearch.get().isBlank()) {
@@ -460,11 +429,7 @@ public class WorkspaceService {
                 .in("status", WorkspaceStatus.class, queryStatus, "status")
                 .in("name", teamRefs)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<WorkspaceEntity> workspaceEntities = mongoTemplate.find(query, WorkspaceEntity.class);
 
@@ -475,10 +440,7 @@ public class WorkspaceService {
     }
 
     Page<Workspace> pages =
-        PageableExecutionUtils.getPage(
-            teams,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkspaceEntity.class));
+        PagingUtil.page(teams, pageable, mongoTemplate, query, WorkspaceEntity.class);
 
     return pages;
   }
@@ -691,12 +653,8 @@ public class WorkspaceService {
   // repository lookup below is by id.
   private List<ApproverGroupEntity> getApproverGroupsForTeam(String team) {
     List<String> approverGroupRefs =
-        relationshipService.filter(
-            RelationshipType.APPROVERGROUP,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, team, Optional.empty());
     List<ApproverGroupEntity> approverGroupEntities =
         approverGroupRepository.findByIdIn(approverGroupRefs);
     return approverGroupEntities;
@@ -753,70 +711,11 @@ public class WorkspaceService {
   }
 
   /*
-   * Reset quotas to default (i.e. delete custom quotas on the team)
+   * The platform's default quotas, which a workspace without its own values inherits.
    */
   public ResponseEntity<Quotas> getDefaultQuotas() {
-    return ResponseEntity.ok(setDefaultQuotas());
+    return ResponseEntity.ok(quotaService.defaults());
   }
-
-  /*
-   * Used by WorkflowRun Service to ensure Workflow can run
-   */
-  public CurrentQuotas getCurrentQuotas(String team) {
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
-    if (optWorkspaceEntity.isPresent()) {
-      Quotas quotas = setDefaultQuotas();
-      setCustomQuotas(quotas, optWorkspaceEntity.get().getQuotas());
-      CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
-      setCurrentQuotas(currentQuotas, team);
-      return currentQuotas;
-    }
-    return null;
-  }
-
-  /**
-   * The workspace's quota limits with only its current artifact storage filled in, or null when no
-   * workspace has the ref. It reads the relationship graph without a caller identity, so the
-   * dispatcher protocol and the engine, which act for no user, can check an artifact against it.
-   */
-  public CurrentQuotas getArtifactStorageQuota(String workspaceRef) {
-    return workspaceRepository
-        .findById(workspaceRef)
-        .map(
-            workspace -> {
-              Quotas quotas = setDefaultQuotas();
-              setCustomQuotas(quotas, workspace.getQuotas());
-              CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
-              currentQuotas.setCurrentArtifactStorage(
-                  artifactService.storedBytes(
-                      relationshipService.findNodeRefs(
-                          RelationshipType.WORKSPACE, workspaceRef, RelationshipType.WORKFLOW)));
-              return currentQuotas;
-            })
-        .orElse(null);
-  }
-
-  //
-  // private void setWorkflowStorage(List<WorkflowSummary> workflows, WorkflowQuotas workflowQuotas)
-  // {
-  // Integer currentWorkflowsPersistentStorage = 0;
-  // if(workflows != null) {
-  // for (WorkflowSummary workflow : workflows) {
-  // if (workflow.getStorage() == null) {
-  // workflow.setStorage(new Storage());
-  // }
-  // if (workflow.getStorage().getActivity() == null) {
-  // workflow.getStorage().setActivity(new ActivityStorage());
-  // }
-  //
-  // if (workflow.getStorage().getActivity().getEnabled()) {
-  // currentWorkflowsPersistentStorage += 1;
-  // }
-  // }
-  // }
-  // workflowQuotas.setCurrentWorkflowsPersistentStorage(currentWorkflowsPersistentStorage);
-  // }
-  //
 
   /*
    * Builds the WorkspaceSummary (with Insights) list for the given team-ref -> role map,
@@ -873,30 +772,11 @@ public class WorkspaceService {
   private Workspace convertWorkspaceEntityToWorkspace(WorkspaceEntity workspaceEntity) {
     Workspace team = new Workspace(workspaceEntity);
 
-    //    List<WorkflowSummary> summary = new LinkedList<>();
-    //    try {
-    //      WorkflowResponsePage response = workflowService.query(Optional.empty(),
-    // Optional.empty(), Optional.of(Direction.ASC), Optional.empty(), Optional.empty(),
-    // Optional.of(List.of(workspaceEntity.getId())), Optional.empty());
-    //      if (response.getContent() != null && !response.getContent().isEmpty()) {
-    //        List<Workflow> workflows = response.getContent();
-    //        workflows.forEach(w -> summary.add(new WorkflowSummary(w)));
-    //      }
-    //    } catch (BoomerangException e) {
-    //      LOGGER.error("convertWorkspaceEntityToWorkspace() - issue in retrieving Workflows for this team.
-    // Most likely cause is page size is being returned as 0");
-    //    }
-    //    team.setWorkflows(summary);
-
     // Get Members
     team.setMembers(getUsersForTeam(workspaceEntity.getName()));
 
-    // Get default & custom stored Quotas
-    Quotas quotas = setDefaultQuotas();
-    setCustomQuotas(quotas, workspaceEntity.getQuotas());
-    CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
-    setCurrentQuotas(currentQuotas, workspaceEntity.getName());
-    team.setQuotas(currentQuotas);
+    // The workspace's limits and current usage
+    team.setQuotas(quotaService.current(workspaceEntity));
 
     // Get Approver Groups
     List<ApproverGroupEntity> approverGroupEntities =
@@ -915,193 +795,6 @@ public class WorkspaceService {
     }
 
     return team;
-  }
-
-  /*
-   * Set default quotas
-   *
-   * - Don't save the defaults against a team. Only retrieve dynamically.
-   */
-  private Quotas setDefaultQuotas() {
-    Quotas quotas = new Quotas();
-    quotas.setMaxWorkflowCount(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOW_COUNT)
-                .getValue()));
-    quotas.setMaxWorkflowRunMonthly(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_MONTHLY)
-                .getValue()));
-    quotas.setMaxWorkspaceStorage(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKSPACE_STORAGE)
-                .getValue()
-                .replace("Gi", "")));
-    quotas.setMaxWorkflowRunDuration(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
-                .getValue()));
-    quotas.setMaxConcurrentRuns(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_CONCURRENT)
-                .getValue()));
-    quotas.setMaxArtifactStorage(
-        Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_ARTIFACT_STORAGE)
-                .getValue()
-                .replace("Gi", "")));
-    quotas.setArtifactRetentionDays(artifactService.defaultRetentionDays());
-    return quotas;
-  }
-
-  /*
-   * Sets the custom quotas only for what is provided: an absent value keeps the platform default,
-   * a stored value replaces it - a stored 0 included, since 0 is unlimited (Quotas.limited).
-   *
-   * - Only store the set quotas on a team, so as not to override the defaults (which are retrieved
-   * dynamically)
-   */
-  private void setCustomQuotas(Quotas quotas, Quotas customQuotas) {
-    if (customQuotas != null) {
-      if (customQuotas.getMaxWorkflowCount() != null) {
-        quotas.setMaxWorkflowCount(customQuotas.getMaxWorkflowCount());
-      }
-      if (customQuotas.getMaxWorkflowRunMonthly() != null) {
-        quotas.setMaxWorkflowRunMonthly(customQuotas.getMaxWorkflowRunMonthly());
-      }
-      if (customQuotas.getMaxWorkspaceStorage() != null) {
-        quotas.setMaxWorkspaceStorage(customQuotas.getMaxWorkspaceStorage());
-      }
-      if (customQuotas.getMaxWorkflowRunDuration() != null) {
-        quotas.setMaxWorkflowRunDuration(customQuotas.getMaxWorkflowRunDuration());
-      }
-      if (customQuotas.getMaxConcurrentRuns() != null) {
-        quotas.setMaxConcurrentRuns(customQuotas.getMaxConcurrentRuns());
-      }
-      if (customQuotas.getMaxArtifactStorage() != null) {
-        quotas.setMaxArtifactStorage(customQuotas.getMaxArtifactStorage());
-      }
-      if (customQuotas.getArtifactRetentionDays() != null) {
-        quotas.setArtifactRetentionDays(customQuotas.getArtifactRetentionDays());
-      }
-    }
-  }
-
-  /*
-   * The workspace's run-duration ceiling in minutes: its own stored quota when it has one - a
-   * stored 0 is no ceiling - else the platform default from the quotas settings.
-   */
-  public Integer getWorkflowMaxDurationForTeam(String team) {
-    Integer stored =
-        workspaceRepository
-            .findByNameIgnoreCase(team)
-            .map(WorkspaceEntity::getQuotas)
-            .map(Quotas::getMaxWorkflowRunDuration)
-            .orElse(null);
-    return (stored != null)
-        ? stored
-        : Integer.valueOf(
-            settingsService
-                .getSettingConfig(QUOTAS_SETTINGS_KEY, QUOTA_MAX_WORKFLOWRUN_DURATION)
-                .getValue());
-  }
-
-  private CurrentQuotas setCurrentQuotas(CurrentQuotas currentQuotas, String team) {
-    // Set Quota Reset Date
-    Calendar nextMonth = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-    nextMonth.add(Calendar.MONTH, 1);
-    nextMonth.set(Calendar.DAY_OF_MONTH, 1);
-    nextMonth.set(Calendar.HOUR_OF_DAY, 0);
-    nextMonth.set(Calendar.MINUTE, 0);
-    nextMonth.set(Calendar.SECOND, 0);
-    nextMonth.set(Calendar.MILLISECOND, 0);
-    currentQuotas.setMonthlyResetDate(nextMonth.getTime());
-
-    Calendar currentMonthStart = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-    currentMonthStart.set(Calendar.DAY_OF_MONTH, 1);
-    currentMonthStart.set(Calendar.HOUR_OF_DAY, 0);
-    currentMonthStart.set(Calendar.MINUTE, 0);
-    currentMonthStart.set(Calendar.SECOND, 0);
-    currentMonthStart.set(Calendar.MILLISECOND, 0);
-
-    Calendar currentMonthEnd = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-    currentMonthEnd.set(Calendar.DAY_OF_MONTH, 1);
-    currentMonthEnd.set(Calendar.HOUR_OF_DAY, 0);
-    currentMonthEnd.set(Calendar.MINUTE, 0);
-    currentMonthEnd.set(Calendar.SECOND, 0);
-    currentMonthEnd.set(Calendar.MILLISECOND, 0);
-    currentMonthEnd.add(Calendar.MONTH, 1);
-    currentMonthEnd.add(Calendar.DAY_OF_MONTH, -1);
-
-    WorkflowRunInsight insight =
-        insightsService.get(
-            team,
-            currentMonthStart.getTime(),
-            currentMonthEnd.getTime(),
-            Optional.empty(),
-            Optional.empty());
-    LOGGER.debug("Insights: {}", insight.toString());
-    // Milliseconds, like every run duration: this month's total and the mean per run.
-    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration());
-    currentQuotas.setCurrentRunAverageDuration(
-        (insight.getTotalRuns() > 0) ? insight.getTotalDuration() / insight.getTotalRuns() : 0L);
-
-    // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
-    // work counts against the limit - it measures what is running now, which deletion
-    // legitimately reduces.
-    List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
-    // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
-    // so a just-admitted run may not be audited yet (the live count covers that race), while a
-    // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
-    // events outlive both the run documents and the Workflow).
-    long liveMonthly =
-        workflowRunService.countForQuota(
-            workflowRefs,
-            Optional.of(currentMonthStart.getTime()),
-            Optional.of(nextMonth.getTime()),
-            Optional.empty());
-    long auditMonthly =
-        auditQueryService.countRunsCreated(
-            team, currentMonthStart.getTime(), nextMonth.getTime());
-    currentQuotas.setCurrentRuns((int) Math.max(auditMonthly, liveMonthly));
-    currentQuotas.setCurrentConcurrentRuns(
-        (int)
-            workflowRunService.countForQuota(
-                workflowRefs,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.of(
-                    Set.of(
-                        RunStatus.notstarted,
-                        RunStatus.ready,
-                        RunStatus.running,
-                        RunStatus.waiting))));
-
-    currentQuotas.setCurrentArtifactStorage(artifactService.storedBytes(workflowRefs));
-
-    WorkflowCount count =
-        workflowService.count(
-            team, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-    if (count.getStatus() != null) {
-      Long active = count.getStatus().get("active");
-      Long inactive = count.getStatus().get("inactive");
-      currentQuotas.setCurrentWorkflowCount((int) (active + inactive));
-    } else {
-      currentQuotas.setCurrentWorkflowCount(0);
-    }
-    return currentQuotas;
   }
 
   /*

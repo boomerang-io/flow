@@ -21,12 +21,12 @@ relays the result.
 
 Option C. The module is `service-dispatcher` (`service-dispatcher/pom.xml:6`), the image
 `boomerangio/flow-service-dispatcher` (`.github/workflows/ci-release.yml:95`), the wire is `/dispatcher/v1/**`
-(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:53`) guarded by
+(`service-core/src/main/java/io/boomerang/dispatcher/DispatcherControllerV1.java:47`) guarded by
 `DispatcherAuthFilter` (`dispatcher/DispatcherSecurityConfiguration.java:19`), the registry collection is
 `dispatchers` (indexed by `migration/_0021__Indexes.java:138`), and the claim owner is written as `claim.by`.
 The old `/api/v1/agent` path was dropped outright rather than dual-served, because nothing on the v4 line had
 adopted it. "Agent" is reserved for the AI task types. Per-runtime selection lives inside the one module as
-`dispatcher.executor` (`tekton` or `kube-jobs`, `service-dispatcher/src/main/resources/application.properties:65`)
+`dispatcher.executor` (`tekton` or `kube-jobs`, `service-dispatcher/src/main/resources/application.properties:59`)
 rather than as separate `dispatcher-tekton`/`dispatcher-docker` builds.
 
 ## Consequences

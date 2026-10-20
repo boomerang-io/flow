@@ -30,8 +30,7 @@ import org.springframework.core.env.Environment;
  *       replaced {@code maxWorkflowStorage} with {@code maxWorkspaceStorage}. The four limits are
  *       {@code 0} — unlimited, where the legacy document carried {@code Integer.MAX_VALUE} — while
  *       {@code maxWorkflowRunDuration} is absent, so a run's duration ceiling inherits the platform
- *       default from the {@code quotas} settings ({@code
- *       WorkspaceService.getWorkflowMaxDurationForTeam}).
+ *       default from the {@code quotas} settings ({@code QuotaService.maxRunDuration}).
  *   <li>{@code type} is set to {@code system}; the legacy document had no type at all, v5's
  *       {@code WorkspaceEntity} carries a {@code WorkspaceType}.
  *   <li>{@code labels}/{@code annotations} are empty maps rather than absent, matching the

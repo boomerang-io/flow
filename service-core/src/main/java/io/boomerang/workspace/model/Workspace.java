@@ -108,14 +108,6 @@ public class Workspace {
     this.parameters = parameters;
   }
 
-  //  public WorkspaceSettings getSettings() {
-  //    return settings;
-  //  }
-  //
-  //  public void setSettings(WorkspaceSettings settings) {
-  //    this.settings = settings;
-  //  }
-
   public CurrentQuotas getQuotas() {
     return quotas;
   }

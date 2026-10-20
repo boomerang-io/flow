@@ -125,7 +125,6 @@ public class ContextService {
     platform.setPlatformName(platformName);
     platform.setDisplayLogo(Boolean.valueOf(displayLogo));
     platform.setLogoURL(logoURL);
-    platform.setPrivateTeams(false);
     platform.setSendMail(false);
     navigationResponse.setPlatform(platform);
 

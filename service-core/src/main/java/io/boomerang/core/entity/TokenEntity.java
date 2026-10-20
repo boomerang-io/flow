@@ -20,7 +20,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 public class TokenEntity {
 
   @Id private String id;
-  // T6-3: the token's CLASS (actor/ceiling-typed: session/user/key/global) - never a resource
+  // the token's CLASS (actor/ceiling-typed: session/user/key/global) - never a resource
   // scope. Each grant's own scope lives on ResolvedPermissions.scope (PermissionScope) instead.
   private AuthScope type;
   private String name;
@@ -31,7 +31,7 @@ public class TokenEntity {
   private List<ResolvedPermissions> permissions = new LinkedList<>();
   private String token;
 
-  // T6-1: orthogonal machine-actor discriminator (null on every pre-existing/human token).
+  // orthogonal machine-actor discriminator (null on every pre-existing/human token).
   private TokenActorKind actorKind;
   // Server-injected from the authenticated principal at creation time - NEVER read from the
   // request body. Null on tokens created before this field existed / by unauthenticated flows

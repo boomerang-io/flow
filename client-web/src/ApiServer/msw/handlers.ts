@@ -1,16 +1,9 @@
-// MSW handler layer, authored alongside the existing Mirage server (src/ApiServer/index.js)
-// rather than replacing it - see the migration note in the PR/commit description for what the
-// eventual switchover involves. Covers the same route surface Mirage serves, reusing the same
-// fixtures (src/ApiServer/fixtures), but is not wired into any spec yet.
+// The MSW handlers the specs run against, serving the fixtures in src/ApiServer/fixtures.
 //
 // Route patterns are built with the app's own `serviceUrl` builders (Config/servicesConfig) -
-// called here with the *correct* argument names and `:param` tokens - instead of hand-written
-// path strings. That's a deliberate difference from src/ApiServer/index.js: several of its routes
-// were registered by calling a serviceUrl builder with the wrong key (e.g. `name` where the
-// builder expects `workflow`), which silently produces the literal path segment "undefined" and
-// a route that can never match a real request. Driving the pattern off the same builder the real
-// app code calls removes that whole bug class - if the real call site and the mock registration
-// ever drift, they drift through the same function.
+// called here with the argument names and `:param` tokens the real call sites use - instead of
+// hand-written path strings, so a mock registration and the call it answers can only drift
+// through the same function.
 //
 // MSW matches routes on pathname only; any `?query=` a serviceUrl builder appends for an
 // optional/list argument is irrelevant to matching; and the query is used directly in the
@@ -265,7 +258,7 @@ export const handlers: HttpHandler[] = [
   ),
   http.post(
     serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace: ":workspace", workflow: ":workflow" }),
-    () => HttpResponse.json(fixtures.workflowExecution),
+    () => HttpResponse.json(fixtures.workflowRuns.content[0]),
   ),
   /**
    * Workflow Runs

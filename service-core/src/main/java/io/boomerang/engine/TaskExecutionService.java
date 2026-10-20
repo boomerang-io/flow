@@ -15,6 +15,8 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.common.model.ChildWorkflowRunCreated;
 import io.boomerang.common.model.ScheduleRequested;
+import io.boomerang.common.model.StatusReason;
+import io.boomerang.engine.model.TaskOutcome;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -87,19 +89,13 @@ public class TaskExecutionService {
   public static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
   static final String MAX_NESTING_DEPTH = "max.nesting.depth";
   static final int DEFAULT_MAX_NESTING_DEPTH = 5;
-  static final String NESTING_DEPTH_EXCEEDED = "NestingDepthExceeded";
 
   // The foreach item cap, read from the same settings document, and the typed causes a foreach
   // task fails with. The cap is public because saving a workflow checks a literal item array
   // against it too.
   public static final String MAX_FOREACH_ITEMS = "max.foreach.items";
   public static final int DEFAULT_MAX_FOREACH_ITEMS = 256;
-  static final String FOREACH_ITEMS_INVALID = "ForeachItemsInvalid";
-  static final String FOREACH_TOO_MANY_ITEMS = "ForeachTooManyItems";
-  static final String ITEM_FAILED = "ItemFailed";
-  static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
   // The typed cause a task fails with at admission when a Flow reference does not resolve.
-  static final String PARAM_UNRESOLVED = "ParamUnresolved";
   // MongoDB's codes for a document that grows past its 16 MB limit: BSONObjectTooLarge, and an
   // update whose resulting document is too large.
   private static final Set<Integer> DOCUMENT_TOO_LARGE_CODES = Set.of(10334, 17419);
@@ -151,7 +147,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved queue task request: {}", taskExecutionId, taskExecution.getName());
+    LOGGER.info("[{}] Received queue task request: {}", taskExecutionId, taskExecution.getName());
 
     // Check if TaskRun Phase is valid
     if (!RunPhase.pending.equals(taskExecution.getPhase())) {
@@ -199,19 +195,16 @@ public class TaskExecutionService {
       }
 
       // Resolve Parameter Substitutions. A Flow reference in the params or the spec that does not
-      // resolve fails the task here, before it is claimable, through the same rejection
-      // Compare-And-Set as the params cap below.
+      // resolve fails the task here, before it is claimable: end() completes it from notstarted in
+      // one write, and a caller that lost the race to admission changes nothing.
       Map<String, Set<String>> unresolved =
           paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
       if (!unresolved.isEmpty()) {
         String message = ParameterManager.unresolvedMessage(taskExecution.getName(), unresolved);
-        if (taskRunService.tryReject(taskExecutionId, RunStatus.failed, PARAM_UNRESOLVED, message)
-            == null) {
-          LOGGER.info("[{}] TaskRun already admitted or started. Not failing.", taskExecutionId);
-          return;
-        }
         LOGGER.error("[{}] {}", taskExecutionId, message);
-        self.end(taskExecutionId);
+        self.end(
+            taskExecutionId,
+            TaskOutcome.refused(RunStatus.failed, StatusReason.PARAM_UNRESOLVED, message));
         return;
       }
 
@@ -227,12 +220,8 @@ public class TaskExecutionService {
                 + " bytes, exceeding the "
                 + paramsMaxBytes
                 + " byte cap. Pass large values by reference (workspace path or URI).";
-        if (taskRunService.tryInvalidate(taskExecutionId, message) == null) {
-          LOGGER.info("[{}] TaskRun already admitted or started. Not invalidating.", taskExecutionId);
-          return;
-        }
         LOGGER.error("[{}] {}", taskExecutionId, message);
-        self.end(taskExecutionId);
+        self.end(taskExecutionId, TaskOutcome.refused(RunStatus.invalid, null, message));
         return;
       }
 
@@ -258,31 +247,10 @@ public class TaskExecutionService {
       }
     } else {
       LOGGER.debug("[{}] Skipping task: {}", taskExecutionId, taskExecution.getName());
-      // Skip Compare-And-Set: persist the skipped status for end() to re-read. A full-document
-      // save of the entry snapshot would roll back everything a concurrent caller wrote - a join
-      // queued by both parents, where the other parent already admitted, started and had the
-      // TaskRun claimed, would be reverted to ready/pending with no claim, i.e. straight back
-      // into findClaimable and a second dispatcher.
-      if (taskRunService.trySkip(taskExecutionId) == null) {
-        // Another caller admitted or started this TaskRun. Do not call end(): it only returns
-        // early on phase=completed, so a losing caller would wrongly complete a running task.
-        LOGGER.info("[{}] TaskRun already admitted or started. Not skipping.", taskExecutionId);
-        return;
-      }
-      self.end(taskExecutionId);
+      // Completed as skipped in one write, from notstarted only: a join queued by both parents,
+      // where the other parent already admitted, started or had it claimed, is left alone.
+      self.end(taskExecutionId, TaskOutcome.skipped());
     }
-  }
-
-  /*
-   * Execute the Start of a task as requested by the Handler or System
-   *
-   * Note: This is synchronous such that a task is moved into the correct status before a response
-   * is provided as part of the API. If the API returned immediately before these checks occur, an
-   * integration may believe the task has started and therefore be able to run and end the task
-   * prior to an asynchronous version of this method actually completing.
-   */
-  public void start(String taskRunId) {
-    start(taskRunId, Optional.empty(), Optional.empty());
   }
 
   /*
@@ -297,7 +265,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved start task request.", taskExecutionId);
+    LOGGER.info("[{}] Received start task request.", taskExecutionId);
 
     // Check if Phase is valid.
     // Pending / Queued means it correctly came from queueTask() or Agent;
@@ -351,7 +319,7 @@ public class TaskExecutionService {
     boolean endTask = false;
     TaskType taskType = taskExecution.getType();
     String wfRunId = wfRunEntity.getId();
-    LOGGER.info("[{}] Recieved Execute task request for type: {}.", taskExecutionId, taskType);
+    LOGGER.info("[{}] Received Execute task request for type: {}.", taskExecutionId, taskType);
 
     // Execution-entry Compare-And-Set: ready becomes running exactly once, baking the durable
     // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
@@ -379,7 +347,7 @@ public class TaskExecutionService {
         // were materialised from its own declaration when the TaskRun was created.
       }
       case decision -> {
-        processDecision(taskExecution, wfRunId);
+        processDecision(taskExecution);
         taskExecution.setStatus(RunStatus.succeeded);
         endTask = true;
       }
@@ -388,7 +356,7 @@ public class TaskExecutionService {
         endTask = this.acquireTaskLock(taskExecution, wfRunEntity);
       }
       case releaselock -> {
-        this.releaseTaskLock(taskExecution, wfRunEntity);
+        this.releaseTaskLock(taskExecution);
         endTask = true;
       }
       case runworkflow -> {
@@ -434,9 +402,9 @@ public class TaskExecutionService {
     // Timeouts are owned by the watcher sweep on the durable timeoutAt deadline - there are no
     // in-memory timers to lose on a crash.
     if (endTask) {
-      // Persist the type-specific outcome (status, results, decision value) for end() to re-read.
-      taskRunRepository.save(taskExecution);
-      self.end(taskExecutionId);
+      // The type-specific outcome (status, message, results, decision value) is written by end()'s
+      // completion itself, so a timeout that landed meanwhile is never rolled back.
+      self.end(taskExecutionId, TaskOutcome.executed(taskExecution));
     } else if (EngineConstants.WAITING_TYPES.contains(taskType)) {
       markWaitingIfIdle(wfRunId);
     }
@@ -474,19 +442,56 @@ public class TaskExecutionService {
   }
 
   /*
-   * Execute the End of a task as requested by the Handler
+   * End a task whose status a caller already recorded, such as a timeout or a cancel.
    */
   @Async("asyncTaskExecutor")
   public void end(String taskRunId) {
-    end(taskRunId, Optional.empty(), Optional.empty());
+    end(taskRunId, null, Optional.empty(), Optional.empty());
   }
 
   /*
-   * End with claimant identity. The completion Compare-And-Set admits exactly one winner - a
-   * terminal status can never be overwritten - and only the winner advances the graph. A loser
-   * (duplicate end, or an end racing a timeout) logs and returns.
+   * End a task with the outcome the engine decided for it, written by the completion itself.
+   */
+  @Async("asyncTaskExecutor")
+  public void end(String taskRunId, TaskOutcome outcome) {
+    end(taskRunId, outcome, Optional.empty(), Optional.empty());
+  }
+
+  /*
+   * End a task with an outcome whose results may not fit MongoDB's 16 MB document limit - a
+   * for-each parent's combined results - ending it with the fallback outcome when they do not.
+   */
+  @Async("asyncTaskExecutor")
+  public void end(String taskRunId, TaskOutcome outcome, TaskOutcome ifTooLarge) {
+    try {
+      end(taskRunId, outcome, Optional.empty(), Optional.empty());
+    } catch (RuntimeException ex) {
+      if (!isDocumentTooLarge(ex)) {
+        throw ex;
+      }
+      LOGGER.error("[{}] {}", taskRunId, ifTooLarge.statusMessage());
+      end(taskRunId, ifTooLarge, Optional.empty(), Optional.empty());
+    }
+  }
+
+  /*
+   * End with claimant identity, for the status a dispatcher or an action already recorded.
    */
   public void end(String taskRunId, Optional<String> claimedBy, Optional<Long> claimSeq) {
+    end(taskRunId, null, claimedBy, claimSeq);
+  }
+
+  /*
+   * The completion Compare-And-Set admits exactly one winner - a terminal status can never be
+   * overwritten - and only the winner advances the graph. A loser (duplicate end, an end racing a
+   * timeout, or an outcome for a task that has moved on) logs and returns. A timeout already
+   * recorded wins over an outcome.
+   */
+  private void end(
+      String taskRunId,
+      TaskOutcome outcome,
+      Optional<String> claimedBy,
+      Optional<Long> claimSeq) {
     // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
     TaskRunEntity taskExecution = taskRunRepository.findById(taskRunId).orElse(null);
     if (taskExecution == null) {
@@ -494,7 +499,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved end task request.", taskExecutionId);
+    LOGGER.info("[{}] Received end task request.", taskExecutionId);
 
     // Check if task has been previously completed or cancelled
     if (RunPhase.completed.equals(taskExecution.getPhase())) {
@@ -546,31 +551,37 @@ public class TaskExecutionService {
     // checks are gone - the durable timeoutAt deadline is the single timeout path.
     boolean taskTimedOut = RunStatus.timedout.equals(taskExecution.getStatus());
 
-    // Completion Compare-And-Set: the caller-persisted terminal status stands unless the task
-    // timed out. Losing means another end already completed this TaskRun.
+    // Completion Compare-And-Set: the outcome, or else the caller-recorded terminal status, stands
+    // unless the task timed out. Losing means another end already completed this TaskRun, or the
+    // outcome's task has moved on.
     TaskRunEntity preImage =
-        taskRunService.tryComplete(
-            taskExecutionId,
-            (taskTimedOut ? Optional.of(RunStatus.timedout) : Optional.empty()),
-            (taskTimedOut
-                ? Optional.of(
-                    MessageFormatter.format(
-                            "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
-                            taskExecution.getTimeout())
-                        .getMessage())
-                : Optional.empty()),
-            duration,
-            claimedBy,
-            claimSeq);
+        (outcome != null && !taskTimedOut)
+            ? taskRunService.tryComplete(taskExecutionId, outcome, duration)
+            : taskRunService.tryComplete(
+                taskExecutionId,
+                (taskTimedOut ? Optional.of(RunStatus.timedout) : Optional.empty()),
+                (taskTimedOut
+                    ? Optional.of(
+                        MessageFormatter.format(
+                                "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
+                                taskExecution.getTimeout())
+                            .getMessage())
+                    : Optional.empty()),
+                duration,
+                claimedBy,
+                claimSeq);
     if (preImage == null) {
       LOGGER.info(
-          "[{}] TaskRun already completed. Only the completion winner advances.", taskExecutionId);
+          "[{}] TaskRun already completed or moved on. Only the completion winner advances.",
+          taskExecutionId);
       return;
     }
     LOGGER.info(
         "[{}] Marking Task as {}.",
         taskExecutionId,
-        (taskTimedOut ? RunStatus.timedout : taskExecution.getStatus()));
+        (taskTimedOut
+            ? RunStatus.timedout
+            : (outcome != null ? outcome.status() : taskExecution.getStatus())));
     // The task that ended may have been the wait the run was idle at: the clock runs again.
     workflowRunStateHelper.tryResumeWaiting(wfRunEntity.getId());
 
@@ -649,10 +660,10 @@ public class TaskExecutionService {
     String reason = null;
     String message = null;
     if (items == null) {
-      reason = FOREACH_ITEMS_INVALID;
+      reason = StatusReason.FOREACH_ITEMS_INVALID;
       message = "The for-each items did not resolve to a JSON array.";
     } else if (items.size() > cap) {
-      reason = FOREACH_TOO_MANY_ITEMS;
+      reason = StatusReason.FOREACH_TOO_MANY_ITEMS;
       message =
           "The for-each items resolved to " + items.size() + " items, over the cap of " + cap + ".";
     }
@@ -663,8 +674,7 @@ public class TaskExecutionService {
     }
     if (reason != null) {
       LOGGER.error("[{}] {}", parent.getId(), message);
-      taskRunService.tryRecordForeachOutcome(parent.getId(), RunStatus.failed, message, reason, null);
-      self.end(parent.getId());
+      self.end(parent.getId(), TaskOutcome.ofItems(RunStatus.failed, reason, message, null));
       return;
     }
     fanOutItems(parent.getId());
@@ -679,10 +689,18 @@ public class TaskExecutionService {
    */
   public void fanOutItems(String parentId) {
     TaskRunEntity parent = taskRunRepository.findById(parentId).orElse(null);
-    if (parent == null
-        || !RunPhase.running.equals(parent.getPhase())
-        || parent.getForeach() == null
-        || !(parent.getForeach().getItems() instanceof List<?> items)) {
+    if (parent == null || !RunPhase.running.equals(parent.getPhase()) || parent.getForeach() == null) {
+      return;
+    }
+    if (!(parent.getForeach().getItems() instanceof List<?> items)) {
+      // Refused at fan-out - no items stored - and its end was lost: end it the same way.
+      self.end(
+          parentId,
+          TaskOutcome.ofItems(
+              RunStatus.failed,
+              StatusReason.FOREACH_ITEMS_INVALID,
+              "The for-each items were refused when the task fanned out.",
+              null));
       return;
     }
     Map<Integer, TaskRunEntity> existing =
@@ -754,9 +772,8 @@ public class TaskExecutionService {
    * Complete a running foreach parent once every item is terminal. It succeeds only when every item
    * succeeded, and each declared result - or, for a task that declares none, each result its items
    * produced - becomes a JSON array in item order, null for an item that did not succeed. The
-   * outcome is recorded field-scoped and the parent then ends through the ordinary completion
-   * Compare-And-Set, so of any number of concurrent last-item enders exactly one completes it and
-   * advances the graph.
+   * parent ends with that outcome in the completion Compare-And-Set itself, so of any number of
+   * concurrent last-item enders exactly one completes it and advances the graph.
    */
   void completeParentIfItemsTerminal(String parentRef) {
     TaskRunEntity parent = taskRunRepository.findById(parentRef).orElse(null);
@@ -784,30 +801,25 @@ public class TaskExecutionService {
                       : null)));
       results.add(new RunResult(declared.getName(), declared.getDescription(), values));
     }
-    try {
-      taskRunService.tryRecordForeachOutcome(
-          parentRef,
-          (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
-          (failed == 0
-              ? "All " + items.size() + " items succeeded."
-              : failed + " of " + items.size() + " items did not succeed."),
-          (failed == 0 ? null : ITEM_FAILED),
-          results);
-    } catch (RuntimeException ex) {
-      if (!isDocumentTooLarge(ex)) {
-        throw ex;
-      }
-      // The combined results cannot be stored, so the task fails without them rather than hang.
-      String message =
-          "The combined results of "
-              + items.size()
-              + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
-              + " (workspace path or URI).";
-      LOGGER.error("[{}] {}", parentRef, message);
-      taskRunService.tryRecordForeachOutcome(
-          parentRef, RunStatus.failed, message, RESULTS_TOO_LARGE, null);
-    }
-    self.end(parentRef);
+    TaskOutcome outcome =
+        TaskOutcome.ofItems(
+            (failed == 0 ? RunStatus.succeeded : RunStatus.failed),
+            (failed == 0 ? null : StatusReason.ITEM_FAILED),
+            (failed == 0
+                ? "All " + items.size() + " items succeeded."
+                : failed + " of " + items.size() + " items did not succeed."),
+            results);
+    // The combined results cannot be stored, so the task fails without them rather than hang.
+    TaskOutcome withoutResults =
+        TaskOutcome.ofItems(
+            RunStatus.failed,
+            StatusReason.RESULTS_TOO_LARGE,
+            "The combined results of "
+                + items.size()
+                + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
+                + " (workspace path or URI).",
+            null);
+    self.end(parentRef, outcome, withoutResults);
   }
 
   // Whether a write failed because the document, or the command carrying it, is over MongoDB's
@@ -896,41 +908,6 @@ public class TaskExecutionService {
     return valid;
   }
 
-  /*
-   * This will approve a task to run
-   *
-   * TODO: confirm this works
-   */
-  public List<String> updateTaskRunForTopic(String workflowRunId, String topic) {
-    List<String> ids = new LinkedList<>();
-
-    LOGGER.info("[{}] Finding taskRunId based on topic.", workflowRunId);
-    List<TaskRunEntity> taskRunEntities =
-        this.taskRunRepository.findByWorkflowRunRef(workflowRunId);
-
-    for (TaskRunEntity taskRun : taskRunEntities) {
-      if (TaskType.eventwait.equals(taskRun.getType())) {
-        List<RunParam> params = taskRun.getParams();
-        if (params != null && ParameterUtil.containsName(params, "topic")) {
-          // TODO: bring back parameter layering
-          // String paramTopic = params.get("topic").toString();
-          // ControllerRequestProperties properties = propertyManager
-          // .buildRequestPropertyLayering(null, taskRunId, activity.getWorkflowId());
-          // topic = propertyManager.replaceValueWithProperty(paramTopic, taskRunId, properties);
-          // String taskId = task.getId();
-          LOGGER.info("[{}] Found task run id: {} ", workflowRunId, taskRun.getId());
-          taskRun.setPreApproved(true);
-          this.taskRunRepository.save(taskRun);
-          ids.add(taskRun.getId());
-        }
-      }
-    }
-
-    // TODO: figure out what to return
-    LOGGER.info("[{}] No task activity ids found for topic: {}", workflowRunId, topic);
-    return ids;
-  }
-
   private void updatePendingApprovalStatus(WorkflowRunEntity wfRunEntity) {
     boolean existingApprovals =
         actionRepository.existsByWorkflowRunRefAndStatus(
@@ -964,7 +941,7 @@ public class TaskExecutionService {
         taskExecution.getId(), new Date(System.currentTimeMillis() + duration));
   }
 
-  private void processDecision(TaskRunEntity taskExecution, String activityId) {
+  private void processDecision(TaskRunEntity taskExecution) {
     String decisionValue = ParameterUtil.getValue(taskExecution.getParams(), "value").toString();
     String value = decisionValue;
     taskExecution.setDecisionValue(value);
@@ -1008,7 +985,7 @@ public class TaskExecutionService {
     return false;
   }
 
-  private void releaseTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+  private void releaseTaskLock(TaskRunEntity taskExecution) {
     String scopedKey = scopedLockKey(taskExecution);
     if (Objects.isNull(scopedKey)) {
       taskExecution.setStatus(RunStatus.failed);
@@ -1094,8 +1071,7 @@ public class TaskExecutionService {
     workflowRunStateHelper.tryResumeWaiting(taskExecution.getWorkflowRunRef());
     if (TaskType.sleep.equals(taskExecution.getType())) {
       taskExecution.setStatus(RunStatus.succeeded);
-      taskRunRepository.save(taskExecution);
-      self.end(taskRunId);
+      self.end(taskRunId, TaskOutcome.executed(taskExecution));
       return;
     }
     if (TaskType.acquirelock.equals(taskExecution.getType())) {
@@ -1105,8 +1081,7 @@ public class TaskExecutionService {
         return;
       }
       if (acquireTaskLock(taskExecution, wfRunEntity)) {
-        taskRunRepository.save(taskExecution);
-        self.end(taskRunId);
+        self.end(taskRunId, TaskOutcome.executed(taskExecution));
       } else {
         markWaitingIfIdle(wfRunEntity.getId());
       }
@@ -1142,7 +1117,7 @@ public class TaskExecutionService {
           "Child workflow nesting depth of "
               + cap
               + " reached; the child workflow was not submitted.");
-      taskExecution.setStatusReason(NESTING_DEPTH_EXCEEDED);
+      taskExecution.setStatusReason(StatusReason.NESTING_DEPTH_EXCEEDED);
       taskExecution.setStatus(RunStatus.failed);
       return true;
     }

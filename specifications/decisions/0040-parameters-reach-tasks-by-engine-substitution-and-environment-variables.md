@@ -24,8 +24,8 @@ so the Jobs executor received unsubstituted scripts and a plain image had no usa
 C and D together are the contract; A and B were removed. The engine resolves references into the TaskRun's
 params and spec fields before admission (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:111,121-136`)
 and persists the resolved copy with the admission compare-and-set
-(`engine/TaskExecutionService.java:181`). The dispatcher exports `PARAM_<NAME>` and `PARAM_NAMES`, with
-explicit task env vars winning on collision (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:111-149`).
+(`engine/TaskExecutionService.java:176`). The dispatcher exports `PARAM_<NAME>` and `PARAM_NAMES`, with
+explicit task env vars winning on collision (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:103-141`).
 Universality decided it: a non-Flow image understands only its command line and its environment.
 
 ## Consequences

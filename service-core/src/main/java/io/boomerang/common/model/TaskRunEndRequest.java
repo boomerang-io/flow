@@ -22,13 +22,10 @@ public class TaskRunEndRequest {
 
   /**
    * Typed cause paired with {@code status}/{@code statusMessage}, for the engine to decide on and
-   * the UI to filter by; {@code statusMessage} stays the human-readable text. Closed set:
-   * DeadlineExceeded, JobDeleted, JobFailed, OOMKilled, ImagePull, AdmissionDenied,
-   * ResultsTooLarge, DispatchError, DispatchPrepareFailed, SpecFillFailed, DispatcherGone,
-   * LeaseExpired, ChildRunFailed,
-   * NestingDepthExceeded, ItemFailed, ForeachItemsInvalid, ForeachTooManyItems, ExceededQuota,
-   * StartTimeout, RateLimited. The last three mean the task never started; the engine requeues it
-   * while its retry budget lasts instead of failing it.
+   * the UI to filter by; {@code statusMessage} stays the human-readable text. The known causes are
+   * {@link StatusReason}'s; {@link StatusReason#REQUEUEABLE} mean the task never started, so the
+   * engine requeues it while its retry budget lasts instead of failing it. Any other value is an
+   * ordinary failure.
    */
   private String statusReason;
 

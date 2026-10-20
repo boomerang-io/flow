@@ -23,7 +23,7 @@ B. An artifact is created only by an upload task, never declared. Its record is 
 run and no quota rides on it. Links are one object, one method, 15 minutes; the task never holds store
 credentials and never calls the engine. Retention, the largest artifact and the storage quota follow GitHub
 Actions: admin settings plus a workspace quota; a task may only shorten its retention. When retention ends the
-file is deleted and the record turns `expired` (`workflow/ArtifactService.java:324`). An embedding product
+file is deleted and the record turns `expired` (`workflow/ArtifactService.java:286`). An embedding product
 enforces its own tenants' quotas before it submits a run.
 
 ## Consequences

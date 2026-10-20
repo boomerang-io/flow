@@ -28,6 +28,6 @@ the request runs as the security-off synthetic admin (`:66-71`). The identity en
 
 - Any code on the wire can read its caller as code on `/api/v2` does, in both security modes.
 - Reads that should not depend on the caller stay caller-free: the artifact quota is read from the run's workspace
-  (`WorkspaceService.getArtifactStorageQuota`).
+  (`workflow/QuotaService.artifactStorage`).
 - Revisit if dispatcher tokens ever carry less than a `global` grant, for example one dispatcher per workspace:
   the identity would then narrow what its routes see.

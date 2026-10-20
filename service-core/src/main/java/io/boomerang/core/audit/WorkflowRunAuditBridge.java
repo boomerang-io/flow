@@ -7,24 +7,26 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.engine.model.WorkflowRunTransition;
-import io.boomerang.engine.repository.WorkflowRunRepository;
+import io.boomerang.common.model.WorkflowRunTransition;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
 /**
  * Bridge from the winner-published WorkflowRun transition events to the audit trail: the run's
  * first status change records a CREATE event and reaching the completed phase records an UPDATE
  * event carrying the terminal facts (status, duration). These events outlive the run documents
- * and the Workflow itself, so the monthly run quota counter and the workspace insights read them
- * rather than the live collections — deleting a Workflow cannot reset either.
+ * and the Workflow itself, so the monthly quota figures read them rather than the live collections
+ * — deleting a Workflow cannot reset them.
  *
  * <p>TaskRun transitions are deliberately not audited: their volume would dwarf every other
- * event in the trail, and no consumer needs them (quotas and insights are WorkflowRun-scoped).
+ * event in the trail, and no consumer needs them (the quotas are WorkflowRun-scoped).
  *
  * <p>The actor is the current principal when the transition happens on a request thread (a
  * manual submit or cancel), else the system sentinel (watcher sweeps, schedule fires). Emission
@@ -40,17 +42,17 @@ public class WorkflowRunAuditBridge {
   private final AuditEventEmitter emitter;
   private final IdentityService identityService;
   private final RelationshipService relationshipService;
-  private final WorkflowRunRepository workflowRunRepository;
+  private final MongoTemplate mongoTemplate;
 
   public WorkflowRunAuditBridge(
       AuditEventEmitter emitter,
       IdentityService identityService,
       RelationshipService relationshipService,
-      WorkflowRunRepository workflowRunRepository) {
+      MongoTemplate mongoTemplate) {
     this.emitter = emitter;
     this.identityService = identityService;
     this.relationshipService = relationshipService;
-    this.workflowRunRepository = workflowRunRepository;
+    this.mongoTemplate = mongoTemplate;
   }
 
   @EventListener
@@ -87,11 +89,10 @@ public class WorkflowRunAuditBridge {
       }
       if (completed) {
         // The completion Compare-And-Set wrote the duration before publishing this event.
-        Long duration =
-            workflowRunRepository
-                .findById(transition.id())
-                .map(WorkflowRunEntity::getDuration)
-                .orElse(0L);
+        Query byId = Query.query(Criteria.where("_id").is(transition.id()));
+        byId.fields().include("duration");
+        WorkflowRunEntity run = mongoTemplate.findOne(byId, WorkflowRunEntity.class);
+        Long duration = (run != null) ? run.getDuration() : 0L;
         emitter.emitAs(
             actor,
             AuditAction.UPDATE,

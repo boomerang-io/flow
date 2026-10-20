@@ -12,25 +12,24 @@ import java.util.List;
  * it, on a budget of three more attempts with backoff: use {@link #exceededQuota} when the runtime
  * refused the work for lack of capacity, {@link #startTimeout} when the work was created but never
  * began within the dispatcher's start deadline, and {@link #rateLimited} when the runtime or a
- * gateway behind it refused the task for rate. Other reasons the engine records include
- * {@code DeadlineExceeded}, {@code JobFailed}, {@code OOMKilled}, {@code ImagePull}, {@code
- * AdmissionDenied} and {@code ResultsTooLarge}; one it does not know is an ordinary failure.
+ * gateway behind it refused the task for rate. The other reasons a dispatcher sends are in {@link
+ * StatusReason}; one the engine does not know is an ordinary failure.
  */
 public class TaskFailure extends RuntimeException {
 
   private static final long serialVersionUID = 1L;
 
-  /** The dispatcher could not run the task. */
-  public static final String DISPATCH_ERROR = "DispatchError";
+  /** The same as {@link StatusReason#DISPATCH_ERROR}. */
+  public static final String DISPATCH_ERROR = StatusReason.DISPATCH_ERROR;
 
-  /** The runtime refused the task's work for lack of capacity; the engine requeues it. */
-  public static final String EXCEEDED_QUOTA = "ExceededQuota";
+  /** The same as {@link StatusReason#EXCEEDED_QUOTA}. */
+  public static final String EXCEEDED_QUOTA = StatusReason.EXCEEDED_QUOTA;
 
-  /** The task's work never began within the start deadline; the engine requeues it. */
-  public static final String START_TIMEOUT = "StartTimeout";
+  /** The same as {@link StatusReason#START_TIMEOUT}. */
+  public static final String START_TIMEOUT = StatusReason.START_TIMEOUT;
 
-  /** The runtime or a gateway behind it refused the task for rate; the engine requeues it. */
-  public static final String RATE_LIMITED = "RateLimited";
+  /** The same as {@link StatusReason#RATE_LIMITED}. */
+  public static final String RATE_LIMITED = StatusReason.RATE_LIMITED;
 
   private final String statusReason;
 

@@ -15,49 +15,14 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
-// @Configurable
 public class KubeServiceImpl implements KubeService {
 
   private static final Logger LOGGER = LogManager.getLogger(KubeServiceImpl.class);
 
   @Autowired protected KubeHelperService helperKubeService;
-
-  @Value("${kube.image.pullPolicy}")
-  protected String kubeImagePullPolicy;
-
-  @Value("${kube.image.pullSecret}")
-  protected String kubeImagePullSecret;
-
-  @Value("${kube.task.backOffLimit}")
-  protected Integer kubeJobBackOffLimit;
-
-  @Value("${kube.task.restartPolicy}")
-  protected String kubeJobRestartPolicy;
-
-  @Value("${dispatcher.tasks.serviceaccount}")
-  protected String kubeJobServiceAccount;
-
-  @Value("${kube.resource.limit.ephemeral-storage}")
-  private String kubeResourceLimitEphemeralStorage;
-
-  @Value("${kube.resource.request.ephemeral-storage}")
-  private String kubeResourceRequestEphemeralStorage;
-
-  @Value("${kube.resource.limit.memory}")
-  private String kubeResourceLimitMemory;
-
-  @Value("${kube.resource.request.memory}")
-  private String kubeResourceRequestMemory;
-
-  @Value("${kube.task.storage.data.memory}")
-  private Boolean kubeWorkerStorageDataMemory;
-
-  @Value("${dispatcher.tasks.hostaliases}")
-  protected String kubeHostAliases;
 
   protected KubernetesClient client = null;
 

@@ -219,18 +219,4 @@ public class WorkspaceScheduleControllerV2 {
       @PathVariable String scheduleId) {
     workflowScheduleService.delete(workspace, scheduleId);
   }
-
-  // TODO: commented out in Web - is this useful?
-  //  @GetMapping(value = "/{scheduleId}/calendar")
-  //  @Operation(summary = "Retrieve a Calendar based on dates.")
-  //  public List<Date> getScheduleForDates(@PathVariable String scheduleId, @RequestParam Long
-  // fromDate, @RequestParam Long toDate) {
-  //    if (fromDate != null && toDate != null) {
-  //      Date from = new Date(fromDate * 1000);
-  //      Date to = new Date(toDate * 1000);
-  //      return workflowScheduleService.getCalendarForDates(scheduleId, from, to);
-  //    } else {
-  //      throw new BoomerangException(0, "Invalid fromDate or toDate", HttpStatus.BAD_REQUEST);
-  //    }
-  //  }
 }

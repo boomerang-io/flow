@@ -47,9 +47,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Run statistics for the Insights page, computed from the WorkflowRuns and TaskRuns a workspace
- * still holds. A deleted Workflow's runs go with it and are not counted here; the audit-trail
- * roll-up in {@code workspace.InsightsService} keeps serving the monthly quotas, which must count
- * them. Every read is a projection of the fields the statistics need, scoped to the workspace's
+ * still holds. A deleted Workflow's runs go with it and are not counted here; the monthly quotas,
+ * which must count them, read the audit trail ({@code AuditQueryService}). Every read is a projection of the fields the statistics need, scoped to the workspace's
  * Workflows through the relationship graph like every other run query.
  */
 @Service
@@ -177,12 +176,7 @@ public class WorkflowRunInsightService {
 
   private List<String> workflowRefs(String workspace, Optional<List<String>> workflows) {
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            workflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(workspace)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, workflows);
     // A workspace the caller cannot reach is a 404; a reachable one with nothing to count is empty.
     if (refs.isEmpty()
         && !relationshipService.check(

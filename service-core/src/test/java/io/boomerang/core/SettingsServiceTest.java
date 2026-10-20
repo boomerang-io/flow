@@ -12,7 +12,6 @@ import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.repository.SettingsRepository;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,8 +58,8 @@ class SettingsServiceTest {
     assertThat(stored).startsWith(PREFIX).endsWith("}").doesNotContain("s3cret");
     assertThat(valueOf(saved.getValue(), "slack.channel")).isEqualTo("#general");
 
-    when(settingsRepository.findById("setting-1")).thenReturn(Optional.of(saved.getValue()));
-    SettingEntity read = settingsService.getSettingById("setting-1");
+    when(settingsRepository.findOneByKey("extensions")).thenReturn(saved.getValue());
+    SettingEntity read = settingsService.getSettingByKey("extensions");
     assertThat(valueOf(read, "slack.signingSecret")).isEqualTo("s3cret");
   }
 
@@ -92,8 +91,8 @@ class SettingsServiceTest {
         config("slack.clientSecret", "secured", null));
 
     settingsService.updateSetting(entity);
-    when(settingsRepository.findById("setting-1")).thenReturn(Optional.of(entity));
-    SettingEntity read = settingsService.getSettingById("setting-1");
+    when(settingsRepository.findOneByKey("extensions")).thenReturn(entity);
+    SettingEntity read = settingsService.getSettingByKey("extensions");
 
     assertThat(valueOf(read, "slack.token")).isEmpty();
     assertThat(valueOf(read, "slack.clientSecret")).isNull();

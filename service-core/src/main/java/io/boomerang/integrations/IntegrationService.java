@@ -56,12 +56,8 @@ public class IntegrationService {
         integrationTemplateRepository.findAllByStatus("active");
     List<Integration> integrations = new LinkedList<>();
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.INTEGRATION,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(workspace)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.INTEGRATION, workspace, Optional.empty());
     LOGGER.debug("Refs: " + refs.toString());
     templates.forEach(
         t -> {

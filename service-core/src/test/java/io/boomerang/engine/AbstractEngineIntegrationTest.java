@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Optional;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -149,9 +148,7 @@ public abstract class AbstractEngineIntegrationTest {
    * clears) one of its own, which used to leave the filter call above running with none.
    */
   protected void seedGlobalTask(String name) {
-    if (!relationshipService
-        .filter(RelationshipType.TASK, Optional.of(List.of(name)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
       return;
     }
     Task task = new Task();

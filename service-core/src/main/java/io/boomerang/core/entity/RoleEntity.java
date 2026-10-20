@@ -18,7 +18,7 @@ public class RoleEntity {
   // TODO if we make workflow by unique name this will need to move to be a prefixed string of
   // /workspace/workspace-name/workflow/workflowId or /user/userId etc
   private String id;
-  // T6-3: a role's "type" is a GRANT scope (workspace/global), not a token class - split from the
+  // a role's "type" is a GRANT scope (workspace/global), not a token class - split from the
   // (former) overloaded AuthScope. See ResolvedPermissions.scope / TokenService.
   private PermissionScope type;
   private String name;

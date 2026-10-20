@@ -63,15 +63,15 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
     String dispatcherA = registerDispatcher(tag + "-a");
     String dispatcherB = registerDispatcher(tag + "-b");
 
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherA), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherA, null, null, null, null), taskRunId));
     assertEquals(1L, taskRunRepository.findById(taskRunId).orElseThrow().getClaim().getSeq());
 
     assertNotNull(
         taskRunService.tryRequeue(
             taskRunId, 1L, new Date(System.currentTimeMillis() - 1000), 1));
 
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB), taskRunId));
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB, null, null, null, null), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB, null, null, null, null), taskRunId));
     TaskRunEntity reclaimed = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(dispatcherB, reclaimed.getClaim().getBy());
     assertEquals(3L, reclaimed.getClaim().getSeq());
@@ -120,12 +120,12 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
                 wfRun.getId())
             .getId();
     String dispatcher = registerDispatcher("released");
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
     assertNotNull(
         taskRunService.tryRequeue(
             taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1));
     // The same dispatcher, back in contact, is handed the termination of the reaped attempt.
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher), taskRunId));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
     TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunStatus.ready, released.getStatus());
     assertEquals(null, released.getClaim().getBy());

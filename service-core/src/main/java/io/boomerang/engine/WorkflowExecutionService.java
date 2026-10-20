@@ -29,8 +29,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -66,8 +66,7 @@ public class WorkflowExecutionService {
             .findById(wfRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     LOGGER.debug("[{}] Received queue WorkflowRun request.", wfRunEntity.getId());
-    // Resolve Parameter Substitutions
-    // TODO: check if we need this
+    // Resolve the run's params; the admission below persists them.
     paramManager.resolveParamLayers(wfRunEntity, Optional.empty());
 
     final Optional<WorkflowRevisionEntity> optWorkflowRevisionEntity =
@@ -156,21 +155,6 @@ public class WorkflowExecutionService {
     cancelPendingAndRunningTasks(workflowExecution);
   }
 
-  @Async("asyncWorkflowExecutor")
-  public void timeout(String wfRunId, String statusMessage) {
-    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
-    WorkflowRunEntity workflowExecution = workflowRunRepository.findById(wfRunId).orElse(null);
-    if (workflowExecution == null) {
-      LOGGER.error("[{}] Unable to find WorkflowRun to timeout.", wfRunId);
-      return;
-    }
-    if (RunStatus.timedout.equals(workflowExecution.getStatus())
-        || (!Objects.isNull(workflowExecution.getTimeout())
-            && workflowExecution.getTimeout() != 0)) {
-      timeoutWorkflow(workflowExecution.getId(), statusMessage);
-    }
-  }
-
   private Supplier<Boolean> executeWorkflowAsync(
       String wfRunId,
       final Long timeout,
@@ -224,17 +208,23 @@ public class WorkflowExecutionService {
     };
   }
 
+  // The timeout off the caller's thread, as an @Async method so a failure is logged like any other.
+  @Async("asyncWorkflowExecutor")
+  public void timeout(String wfRunId, String statusMessage) {
+    timeoutWorkflow(wfRunId, statusMessage);
+  }
+
   /*
    * Times out a running WorkflowRun. Reached from the watcher timeout sweep and the
    * task-timeout path - idempotent against each other via the completion Compare-And-Set.
    */
   public void timeoutWorkflow(String wfRunId, String statusMessage) {
-    LOGGER.debug("[{}] Commencing Timeout Workflow Async...", wfRunId);
+    LOGGER.debug("[{}] Timing out WorkflowRun...", wfRunId);
     WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);
     if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
       return;
     }
-    LOGGER.info("[{}] Timeout Workflow Async...", wfRunId);
+    LOGGER.info("[{}] Timing out WorkflowRun.", wfRunId);
     long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
 
     // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
@@ -256,25 +246,23 @@ public class WorkflowExecutionService {
         && wfRunEntity.getRetries() != 0) {
       long retryCount = wfRunEntity.getRetryCount() != null ? wfRunEntity.getRetryCount() : 0;
       if (retryCount < wfRunEntity.getRetries()) {
-        retryCount++;
         try {
           // An automatic retry always starts - a queued-but-unstarted retry would stall.
-          workflowRunService.retry(wfRunId, true, retryCount);
+          workflowRunService.retry(wfRunId, true, retryCount + 1);
         } catch (BoomerangException e) {
           // The retry is a new run and the workspace's quotas may have no room for it. The source
-          // run is already terminal at this point, so refusing the retry is the whole outcome -
-          // throwing here would only fail the timeout path that got us here.
+          // run is already terminal, so refusing the retry is the whole outcome.
           LOGGER.warn(
-              "[{}] Retry refused: {} {}",
-              wfRunId,
-              e.getReason(),
-              Arrays.toString(e.getArgs()));
+              "[{}] Retry refused: {} {}", wfRunId, e.getReason(), Arrays.toString(e.getArgs()));
         }
       }
     }
   }
 
-  private void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
+
+  // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
+  // running and queued ones are ended, pending ones queued so the admission gate skips them.
+  void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
     // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
     // stored set is the graph; the revision is only needed to materialise a task that does not
     // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
@@ -294,7 +282,7 @@ public class WorkflowExecutionService {
         tasks.stream()
             .filter(t -> RunPhase.running.equals(t.getPhase()) || RunPhase.queued.equals(t.getPhase()))
             .toList();
-    LOGGER.info("Timeout - # of Running/Queued Tasks: " + inFlightTasks.size());
+    LOGGER.info("[{}] Ending {} running or queued TaskRuns.", wfRunEntity.getId(), inFlightTasks.size());
     if (inFlightTasks.size() > 0) {
       inFlightTasks.forEach(
           t -> {
@@ -305,7 +293,7 @@ public class WorkflowExecutionService {
     // trapped by queue task before task order is checked
     List<TaskRunEntity> pendingTasks =
         tasks.stream().filter(t -> RunPhase.pending.equals(t.getPhase())).toList();
-    LOGGER.info("Timeout - # of Pending Tasks: " + pendingTasks.size());
+    LOGGER.info("[{}] Skipping {} pending TaskRuns.", wfRunEntity.getId(), pendingTasks.size());
     if (pendingTasks.size() > 0) {
       pendingTasks.forEach(
           t -> {
