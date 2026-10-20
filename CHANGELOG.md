@@ -137,6 +137,7 @@ tag's release notes.
   approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
   string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
   so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
+  Each approval is kept as it is given, so one that needs several approvers completes when the last of them acts.
 - Each status event describes the transition it was recorded for. An event sent after the run moved on used to
   carry the run's later status, so one change could arrive as two or three copies of a later state. Its
   CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
