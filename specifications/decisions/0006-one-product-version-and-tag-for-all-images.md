@@ -22,7 +22,7 @@ recreated the compatibility matrix the merge removed.
 Option B. A tag matching `5.x.y`, `5.x.y-beta.z` or `5.x.y-rc.z` triggers `.github/workflows/ci-release.yml:9-12`,
 which builds and pushes `flow-service-core`, `flow-service-dispatcher` and `flow-client-web` with that tag
 and publishes the `dispatcher-sdk` artifact at the same version; `:latest` is added only for a stable tag
-(`ci-release.yml:41-50`). `sbom.yml:11-14` scans on the same patterns. The alias tags of option C were
+(`ci-release.yml:58-73`). `sbom.yml:11-14` scans on the same patterns. The alias tags of option C were
 dropped: v5 has never shipped, so there is no v5 embedder to carry through a deprecation window, and v4
 embedders keep pulling the v4 image tags, which stay published. No independent engine version line exists.
 

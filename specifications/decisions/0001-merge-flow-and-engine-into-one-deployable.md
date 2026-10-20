@@ -34,6 +34,6 @@ decision 0109), not a mode. The worker stays a separate deployable (`service-dis
   the engine now publishes Spring `ApplicationEvent`s that the platform side listens to
   (`schedule/ScheduleEventListener.java:26-27`, `core/RelationshipEventListener.java:36-37`).
 - Engine errors reach API callers with their real status codes.
-- One image serves every shape (`.github/workflows/ci-release.yml:22-61`); the shape is set at deploy time.
+- One image serves every shape (`.github/workflows/ci-release.yml:31-36`); the shape is set at deploy time.
 - Revisit if an embedder contractually requires a platform-free classpath, or if a saturated-execution load
   test shows API latency that queue tuning cannot fix.

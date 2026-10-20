@@ -17,10 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # `test` reports without gating; `typecheck` gates: a type error fails the build.
+  # Every job gates: a failing spec, a type error, a raw hex colour outside
+  # src/Styles/_variables.scss (stylelint.config.mjs) or a broken build fails the workflow.
   test:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,13 +42,11 @@ jobs:
         working-directory: client-web
         run: pnpm test
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
   typecheck:
     runs-on: ubuntu-latest
     steps:
@@ -71,14 +69,15 @@ jobs:
       - name: Typecheck
         working-directory: client-web
         run: pnpm run typecheck
+      - name: Lint stylesheets
+        working-directory: client-web
+        run: pnpm run lint:style
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
   build:
     runs-on: ubuntu-latest
     steps:
@@ -102,12 +101,10 @@ jobs:
         working-directory: client-web
         run: pnpm run build
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 # Release/deploy (Docker build + push) lives in ci-release.yml, triggered by the
 # product tag (`x.y.z`, optional `-beta.N`/`-rc.N`). This workflow only tests and builds the app.

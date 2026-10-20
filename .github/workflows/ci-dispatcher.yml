@@ -41,17 +41,16 @@ jobs:
         run: |
           mvn clean test --projects service-dispatcher --also-make --batch-mode
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
   image:
     runs-on: ubuntu-latest
     # The image is the build: service-dispatcher/Dockerfile runs Maven in its build stage from the
-    # checkout. Built here and never pushed; ci-release.yml pushes on a product tag.
+    # checkout. Built here and never pushed; ci-release.yml pushes on a product tag. The layer cache
+    # is GitHub's, one scope per image, shared with ci-release.yml.
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,13 +62,13 @@ jobs:
           context: .
           file: service-dispatcher/Dockerfile
           push: false
+          cache-from: type=gha,scope=flow-service-dispatcher
+          cache-to: type=gha,mode=max,scope=flow-service-dispatcher
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 # Release (multi-platform image build and push) lives in ci-release.yml, triggered by the product tag
 # (`5.x.y`, optional `-beta.N`/`-rc.N`). This workflow tests the module and proves its image builds.

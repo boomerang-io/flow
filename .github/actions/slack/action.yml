@@ -1,0 +1,25 @@
+name: Slack
+description: "Post a job's outcome to the project's Slack channel. Every workflow job ends with it, under `if: always()`."
+# One place for the notifier and its fields. 8398a7/action-slack is archived upstream; replacing it
+# (slackapi/slack-github-action takes a different payload) is a change to this file alone.
+inputs:
+  status:
+    description: The job's outcome; pass `job.status`.
+    required: true
+  webhook-url:
+    description: The incoming webhook; pass `secrets.SLACK_WEBHOOK_URL`.
+    required: true
+  job-name:
+    description: "The job's display name, when the job sets `name:` (a matrix job); the `job` and `took` fields look the job up by it."
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ inputs.status }}
+        fields: repo,message,commit,author,ref,workflow,took,job
+        job_name: ${{ inputs.job-name }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ inputs.webhook-url }}

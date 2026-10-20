@@ -9,6 +9,7 @@ on:
     paths:
       - 'service-core/**'
       - 'client-web/**'
+      - 'pom.xml'
       - 'e2e/**'
       - 'docker-compose.yml'
       - 'docker/**'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'service-core/**'
       - 'client-web/**'
+      - 'pom.xml'
       - 'e2e/**'
       - 'docker-compose.yml'
       - 'docker/**'
@@ -36,9 +38,33 @@ jobs:
         uses: actions/checkout@v4
 
       # Every image builds from the checkout: the Java Dockerfiles run Maven in a build stage and
-      # client-web's runs pnpm, so no host-side build precedes this.
-      - name: Build stack images
-        run: docker compose build service-core client-web
+      # client-web's runs pnpm, so no host-side build precedes this. Buildx builds the two images
+      # docker-compose.yml builds (same context and Dockerfile) with GitHub's layer cache, one scope
+      # per image, and loads them under the names compose gives them (project `flow` + service), so
+      # `up` starts these and builds only the small IDPZero image itself. This is the one
+      # pull-request build of the service-core image (ci-core.yml runs its tests).
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build service-core
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: service-core/Dockerfile
+          load: true
+          tags: flow-service-core
+          cache-from: type=gha,scope=flow-service-core
+          cache-to: type=gha,mode=max,scope=flow-service-core
+
+      - name: Build client-web
+        uses: docker/build-push-action@v6
+        with:
+          context: client-web
+          file: client-web/Dockerfile
+          load: true
+          tags: flow-client-web
+          cache-from: type=gha,scope=flow-client-web
+          cache-to: type=gha,mode=max,scope=flow-client-web
 
       - name: Start stack
         run: docker compose up -d --wait --wait-timeout 180
@@ -79,10 +105,8 @@ jobs:
         run: docker compose down -v
 
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

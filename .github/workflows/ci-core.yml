@@ -36,35 +36,11 @@ jobs:
         run: |
           mvn clean test --projects service-core --also-make --batch-mode
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  image:
-    runs-on: ubuntu-latest
-    # The image is the build: service-core/Dockerfile runs Maven in its build stage from the
-    # checkout. Built here and never pushed; ci-release.yml pushes on a product tag.
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build the image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: service-core/Dockerfile
-          push: false
-      - name: Slack
-        uses: 8398a7/action-slack@v3
-        if: ${{ always() }}
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
 # Release (multi-platform image build and push) lives in ci-release.yml, triggered by the product tag
-# (`5.x.y`, optional `-beta.N`/`-rc.N`). This workflow tests the module and proves its image builds.
+# (`5.x.y`, optional `-beta.N`/`-rc.N`). This workflow tests the module; its image is built once, by
+# ci-e2e.yml for the stack that workflow tests, which also runs on service-core/ and pom.xml changes.

@@ -23,7 +23,7 @@ Every module reads `application.properties` overridden by environment variables 
 ## Deployment shape of `service-core` by properties
 
 There is one shape of `service-core`: every bean loads in every deployment, and four properties express how
-a deployment is used. There is no separate engine image (`.github/workflows/ci-release.yml:24-25`).
+a deployment is used. There is no separate engine image (`.github/workflows/ci-release.yml:31-36`).
 
 | Property (`application.properties`) | Default | `true` | `false` |
 | --- | --- | --- | --- |
@@ -113,22 +113,26 @@ served from the artifact store instead, ahead of any live read (`dispatcher-cont
 
 ## Deployables, images and versioning
 
-One git tag builds and pushes the whole compatible set (`.github/workflows/ci-release.yml:9-13`); the tag
-patterns are `5.x.y`, `5.x.y-beta.z` and `5.x.y-rc.z`. `:latest` moves only on a stable tag (`:73-80`).
-`sbom.yml:11-14` fires on the same patterns. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`
-and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`).
+One git tag builds and pushes the whole compatible set (`.github/workflows/ci-release.yml:9-12`); the tag
+patterns are `5.x.y`, `5.x.y-beta.z` and `5.x.y-rc.z`. `:latest` moves only on a stable tag (`:69-72`).
+`sbom.yml:11-14` fires on the same patterns and scans the three images it builds from the checkout, not the
+source tree. Path-filtered `ci-core.yml`, `ci-dispatcher.yml`
+and `ci-web.yml` test each module on push and pull request (`ci-core.yml:6-16`); `ci-e2e.yml` builds the
+core and webapp images and runs the browser suite against them, and is the only pull-request build of the
+core image. Every image build reads and writes GitHub's layer cache, one scope per image, so a release
+starts from the layers `main` last built.
 
-| Image | Built from | Runtime | Job in `ci-release.yml` |
+| Image | Built from | Runtime | Leg of the `deploy` matrix job in `ci-release.yml` |
 | --- | --- | --- | --- |
-| `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` (`service-core/Dockerfile:10-26`) | `ubuntu/jre:25-26.04_edge`, Canonical's chiseled JRE pinned by digest (decision 0108): no shell, so JVM flags go in `JDK_JAVA_OPTIONS` and an internal CA is a mounted truststore named there; runs as uid 10001 in group 0; port 7700 (`application.properties:1`) | `deploy-core` (`:22`) |
-| `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:6-22`) | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `deploy-dispatcher` (`:72`) |
-| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs `dependencies` alone (`pnpm install --prod`: the serving packages, since the server bundle is self-contained, `client-web/vite.config.mts`) | `node:24-alpine` running `react-router-serve build/server/index.js`, port 3000 | `deploy-webapp` (`:156`) |
+| `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` (`service-core/Dockerfile:10-26`) | `ubuntu/jre:25-26.04_edge`, Canonical's chiseled JRE pinned by digest (decision 0108): no shell, so JVM flags go in `JDK_JAVA_OPTIONS` and an internal CA is a mounted truststore named there; runs as uid 10001 in group 0; port 7700 (`application.properties:1`) | `deploy-core` (`:33`) |
+| `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:6-22`) | same base, port 7702 (`service-dispatcher/.../application.properties:1`) | `deploy-dispatcher` (`:37`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources — a build stage in `client-web/Dockerfile` runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs `dependencies` alone (`pnpm install --prod`: the serving packages, since the server bundle is self-contained, `client-web/vite.config.mts`) | `node:24-alpine` running `react-router-serve build/server/index.js`, port 3000 | `deploy-webapp` (`:41`) |
 
 Every image is complete from a clean checkout; no job builds a jar first. Each build stage runs on the
 builder's own platform (`--platform=$BUILDPLATFORM`): a jar and a browser bundle are the same for every
 target, so the compile happens once and only the runtime stage is built per platform. A root
 `.dockerignore` limits the Java context to the Maven modules. Every product image is built for
-`linux/amd64` and `linux/arm64` (`ci-release.yml`, `platforms:` on each build step). A tag therefore runs
+`linux/amd64` and `linux/arm64` (`ci-release.yml:80`, `platforms:` on the build step). A tag therefore runs
 on an Apple-silicon laptop as well as an x86 cluster, and a Kubernetes pod spec has no per-platform
 escape, so a single-architecture image simply fails to pull on the other.
 
@@ -140,7 +144,7 @@ declares, under an allowed prefix (see `dispatcher-kubernetes.md`). One product 
 
 The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets its
 version from the same tag and deploys it to this repository's GitHub Packages Maven registry
-(`ci-release.yml:120-154`, `dispatcher-sdk/pom.xml:88-94`). No other module is published.
+(`ci-release.yml:96-129`, `dispatcher-sdk/pom.xml:88-94`). No other module is published.
 
 The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
 authenticates with `flow.engine.dispatcher.token`

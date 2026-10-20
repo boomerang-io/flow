@@ -18,11 +18,30 @@ jobs:
   # stage on the builder's platform; client-web's runs pnpm), so there is no jar build or artifact
   # handoff: the image build is the build. A manual run builds each image under a local-only
   # `dev-<sha>` tag and pushes nothing; a product tag logs in and pushes. Tests run in the
-  # path-filtered ci-core, ci-dispatcher and ci-web workflows.
-  deploy-core:
+  # path-filtered ci-core, ci-dispatcher and ci-web workflows. One matrix job builds the three
+  # images; each leg keeps its own check name (deploy-core, deploy-dispatcher, deploy-webapp) and
+  # one failing leg does not cancel the others.
+  deploy:
+    name: deploy-${{ matrix.name }}
     runs-on: ubuntu-latest
-    # One image serves every deployment shape (flow.security.enabled, flow.workspace.single are
-    # set at deploy time). No separate engine image or tag.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One image serves every deployment shape (flow.security.enabled, flow.workspace.single
+          # are set at deploy time). No separate engine image or tag.
+          - name: core
+            repo: flow-service-core
+            context: .
+            file: service-core/Dockerfile
+          - name: dispatcher
+            repo: flow-service-dispatcher
+            context: .
+            file: service-dispatcher/Dockerfile
+          - name: webapp
+            repo: flow-client-web
+            context: client-web
+            file: client-web/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,84 +58,41 @@ jobs:
       - name: Compute image tags
         id: get_version
         # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
+        env:
+          IMAGE: boomerangio/${{ matrix.repo }}
         run: |
           case "$GITHUB_REF" in
             refs/tags/*) VERSION=${GITHUB_REF#refs/tags/} ;;
             *) VERSION="dev-${GITHUB_SHA::7}" ;;
           esac
-          TAGS="boomerangio/flow-service-core:${VERSION}"
+          TAGS="${IMAGE}:${VERSION}"
           case "$VERSION" in
             dev-*|*-beta.*|*-rc.*) ;;
-            *) TAGS="${TAGS},boomerangio/flow-service-core:latest" ;;
+            *) TAGS="${TAGS},${IMAGE}:latest" ;;
           esac
           echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: service-core/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           platforms: linux/amd64,linux/arm64
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.get_version.outputs.TAGS }}
+          # GitHub's layer cache, one scope per image, shared with the image builds in ci-e2e.yml
+          # and ci-dispatcher.yml (a tag reads what main wrote).
+          cache-from: type=gha,scope=${{ matrix.repo }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.repo }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  deploy-dispatcher:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to DockerHub
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Compute image tags
-        id: get_version
-        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
-        run: |
-          case "$GITHUB_REF" in
-            refs/tags/*) VERSION=${GITHUB_REF#refs/tags/} ;;
-            *) VERSION="dev-${GITHUB_SHA::7}" ;;
-          esac
-          TAGS="boomerangio/flow-service-dispatcher:${VERSION}"
-          case "$VERSION" in
-            dev-*|*-beta.*|*-rc.*) ;;
-            *) TAGS="${TAGS},boomerangio/flow-service-dispatcher:latest" ;;
-          esac
-          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: service-dispatcher/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
-          tags: ${{ steps.get_version.outputs.TAGS }}
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-      - name: Slack
-        uses: 8398a7/action-slack@v3
-        if: ${{ always() }}
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          job-name: deploy-${{ matrix.name }}
   publish-sdk:
     runs-on: ubuntu-latest
     # The dispatcher SDK is the only library published: to this repository's GitHub Packages Maven
@@ -146,58 +122,8 @@ jobs:
         run: |
           mvn --batch-mode -f dispatcher-sdk/pom.xml -P release deploy -s settings.xml
       - name: Slack
-        uses: 8398a7/action-slack@v3
         if: ${{ always() }}
+        uses: ./.github/actions/slack
         with:
           status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  deploy-webapp:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to DockerHub
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Compute image tags
-        id: get_version
-        # :latest tracks the newest stable release only — a beta/rc tag must not repoint it.
-        run: |
-          case "$GITHUB_REF" in
-            refs/tags/*) VERSION=${GITHUB_REF#refs/tags/} ;;
-            *) VERSION="dev-${GITHUB_SHA::7}" ;;
-          esac
-          TAGS="boomerangio/flow-client-web:${VERSION}"
-          case "$VERSION" in
-            dev-*|*-beta.*|*-rc.*) ;;
-            *) TAGS="${TAGS},boomerangio/flow-client-web:latest" ;;
-          esac
-          echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v6
-        with:
-          context: client-web
-          file: client-web/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ startsWith(github.ref, 'refs/tags/') }}
-          tags: ${{ steps.get_version.outputs.TAGS }}
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-      - name: Slack
-        uses: 8398a7/action-slack@v3
-        if: ${{ always() }}
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,ref,workflow,took,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
