@@ -124,6 +124,11 @@ tag's release notes.
 
 ### Changed
 
+- Each status event describes the transition it was recorded for. An event sent after the run moved on used to
+  carry the run's later status, so one change could arrive as two or three copies of a later state. Its
+  CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
+  the transition occurred rather than when it was sent. The graph's end node no longer sends a task event; the
+  run's own event reports the end.
 - A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
   code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
   actor, where it named `system`.

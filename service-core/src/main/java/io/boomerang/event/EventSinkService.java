@@ -5,6 +5,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.config.EventSinkProperties.Destination;
+import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.model.TaskRunStatusEvent;
 import io.boomerang.event.model.WorkflowRunStatusEvent;
 import io.boomerang.workflow.TaskService;
@@ -44,28 +45,30 @@ public class EventSinkService {
   }
 
   /**
-   * Synchronous delivery for the outbox dispatcher - any build or transport failure propagates so
-   * the caller can retry. A disabled sink delivers trivially.
+   * Synchronous delivery of one outbox row for the outbox dispatcher - any build or transport
+   * failure propagates so the caller can retry. A disabled sink delivers trivially.
    */
-  public void deliverStatusCloudEvent(TaskRunEntity taskRunEntity) throws Exception {
+  public void deliverStatusCloudEvent(TaskRunEntity taskRunEntity, EventOutboxEntity row)
+      throws Exception {
     if (properties.enabled()) {
-      httpSinkStrict(statusEvent(taskRunEntity).toCloudEvent());
+      httpSinkStrict(statusEvent(taskRunEntity, row).toCloudEvent());
     }
   }
 
   /**
-   * Synchronous delivery for the outbox dispatcher - any build or transport failure propagates so
-   * the caller can retry. A disabled sink delivers trivially.
+   * Synchronous delivery of one outbox row for the outbox dispatcher - any build or transport
+   * failure propagates so the caller can retry. A disabled sink delivers trivially.
    */
-  public void deliverStatusCloudEvent(WorkflowRunEntity workflowRunEntity) throws Exception {
+  public void deliverStatusCloudEvent(WorkflowRunEntity workflowRunEntity, EventOutboxEntity row)
+      throws Exception {
     if (properties.enabled()) {
-      httpSinkStrict(statusEvent(workflowRunEntity).toCloudEvent());
+      httpSinkStrict(statusEvent(workflowRunEntity, row).toCloudEvent());
     }
   }
 
-  private TaskRunStatusEvent statusEvent(TaskRunEntity taskRunEntity) {
+  private TaskRunStatusEvent statusEvent(TaskRunEntity taskRunEntity, EventOutboxEntity row) {
     TaskRunStatusEvent statusEvent =
-        EventFactory.buildStatusUpdateEvent(taskRunEntity, properties.payload());
+        EventFactory.buildStatusUpdateEvent(taskRunEntity, row, properties.payload());
     // A full payload is the public model, whose task reference is the slug form.
     if (statusEvent.getData() instanceof TaskRun taskRun && taskRun.getTaskRef() != null) {
       taskRun.setTaskRef(
@@ -79,9 +82,10 @@ public class EventSinkService {
     return statusEvent;
   }
 
-  private WorkflowRunStatusEvent statusEvent(WorkflowRunEntity workflowRunEntity) {
+  private WorkflowRunStatusEvent statusEvent(
+      WorkflowRunEntity workflowRunEntity, EventOutboxEntity row) {
     WorkflowRunStatusEvent statusEvent =
-        EventFactory.buildStatusUpdateEvent(workflowRunEntity, properties.payload());
+        EventFactory.buildStatusUpdateEvent(workflowRunEntity, row, properties.payload());
     statusEvent.setInitiatorId(
         initiatorLabel(workflowRunEntity.getLabels(), LABEL_KEY_INITIATOR_ID));
     statusEvent.setInitiatorContext(
