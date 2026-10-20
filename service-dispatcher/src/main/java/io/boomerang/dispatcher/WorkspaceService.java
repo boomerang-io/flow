@@ -64,7 +64,7 @@ public class WorkspaceService {
       LOGGER.error(e.getMessage());
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     } catch (IllegalArgumentException e) {
-      if (e.getMessage().contains("condition not found")) {
+      if (e.getMessage() != null && e.getMessage().contains("condition not found")) {
         throw new BoomerangException(
             e, BoomerangError.PVC_CREATE_CONDITION_NOT_MET, "" + waitUntilTimeout);
       }
