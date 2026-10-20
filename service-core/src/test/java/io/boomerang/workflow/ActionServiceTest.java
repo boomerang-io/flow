@@ -3,6 +3,8 @@ package io.boomerang.workflow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,7 +39,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.bson.Document;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.ResponseEntity;
 
 /**
@@ -83,6 +89,22 @@ class ActionServiceTest {
             identityService,
             mongoTemplate);
     when(relationshipService.check(any(), anyString(), any(), any())).thenReturn(true);
+    // The mocked store mirrors the atomic append: the actioner lands on the action findById holds.
+    lenient()
+        .when(
+            mongoTemplate.findAndModify(
+                any(Query.class),
+                any(Update.class),
+                any(FindAndModifyOptions.class),
+                eq(ActionEntity.class)))
+        .thenAnswer(
+            invocation -> {
+              ActionEntity action = actionRepository.findById("a1").orElseThrow();
+              Document push =
+                  (Document) ((Update) invocation.getArgument(1)).getUpdateObject().get("$push");
+              action.getActioners().add((Actioner) push.get("actioners"));
+              return action;
+            });
   }
 
   private ActionEntity manualAction() {

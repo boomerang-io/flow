@@ -39,9 +39,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
@@ -180,7 +182,21 @@ public class ActionService {
         }
         actioner.setComments(request.getComments());
         actioner.setApproved(request.isApproved());
-        actionEntity.getActioners().add(actioner);
+        // Appended in place while the action is open, so each decision is kept until enough have
+        // been made and two approvers acting together both count. A decided action takes no more.
+        actionEntity =
+            mongoTemplate.findAndModify(
+                Query.query(
+                    Criteria.where("_id")
+                        .is(actionEntity.getId())
+                        .and("status")
+                        .is(ActionStatus.submitted)),
+                new Update().push("actioners", actioner),
+                FindAndModifyOptions.options().returnNew(true),
+                ActionEntity.class);
+        if (actionEntity == null) {
+          throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
+        }
       }
 
       int numberApprovals = actionEntity.getNumberOfApprovers();
@@ -203,7 +219,11 @@ public class ActionService {
         } catch (BoomerangException e) {
           throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
         }
-        this.actionRepository.save(actionEntity);
+        // The status alone, so a decision landing alongside is never overwritten.
+        mongoTemplate.updateFirst(
+            Query.query(Criteria.where("_id").is(actionEntity.getId())),
+            Update.update("status", actionEntity.getStatus()),
+            ActionEntity.class);
       }
     }
   }

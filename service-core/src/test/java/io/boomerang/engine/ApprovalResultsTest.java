@@ -3,6 +3,7 @@ package io.boomerang.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
@@ -91,6 +92,57 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
     assertEquals("ship it", resultValue(approve, "approvalComments"));
   }
 
+  @Test
+  void eachApprovalIsKeptUntilEnoughHaveBeenGiven() {
+    String runId =
+        workflowService
+            .submit(
+                approvalWorkflow(new RunParam("numberOfApprovals", "2")),
+                new WorkflowSubmitRequest(),
+                true)
+            .getId();
+    String approveId =
+        awaitEngine("the approval task run exists")
+            .until(
+                () ->
+                    taskRunRepository
+                        .findFirstByNameAndWorkflowRunRef("approve", runId)
+                        .map(TaskRunEntity::getId)
+                        .orElse(null),
+                Objects::nonNull);
+    Query byApprove = new Query(Criteria.where("taskRunRef").is(approveId));
+    ActionEntity action =
+        awaitEngine("the approval action is created")
+            .until(() -> mongoTemplate.findOne(byApprove, ActionEntity.class), a -> a != null);
+
+    actionService.action("approval-results-ws", List.of(approval(action.getId(), "first")));
+
+    ActionEntity afterFirst = mongoTemplate.findById(action.getId(), ActionEntity.class);
+    assertEquals(1, afterFirst.getActioners().size(), "the first approval is kept");
+    assertEquals(ActionStatus.submitted, afterFirst.getStatus());
+
+    actionService.action("approval-results-ws", List.of(approval(action.getId(), "second")));
+
+    awaitEngine("the approval ends once the second approval lands")
+        .until(
+            () ->
+                taskRunRepository
+                    .findFirstByNameAndWorkflowRunRef("approve", runId)
+                    .map(TaskRunEntity::getStatus)
+                    .orElse(null),
+            RunStatus.succeeded::equals);
+    assertEquals(
+        ActionStatus.approved, mongoTemplate.findById(action.getId(), ActionEntity.class).getStatus());
+  }
+
+  private static ActionRequest approval(String actionId, String comments) {
+    ActionRequest request = new ActionRequest();
+    request.setId(actionId);
+    request.setApproved(true);
+    request.setComments(comments);
+    return request;
+  }
+
   private int approversNeeded(RunParam... params) {
     WorkflowRunEntity wfRun =
         savedWorkflowRun("approver-count-wf-" + System.nanoTime(), RunStatus.running, RunPhase.running);
@@ -114,7 +166,7 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
   }
 
   /** start -> approve (approval) -> after (echoes the approval's status) -> end. */
-  private String approvalWorkflow() {
+  private String approvalWorkflow(RunParam... approveParams) {
     Task approval = new Task();
     approval.setName("approval-results-approval-" + System.nanoTime());
     approval.setType(TaskType.approval);
@@ -132,7 +184,7 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
         new LinkedList<>(
             List.of(
                 node("start", TaskType.start, null, null, List.of()),
-                node("approve", TaskType.approval, approvalRef, "start", List.of()),
+                node("approve", TaskType.approval, approvalRef, "start", List.of(approveParams)),
                 node(
                     "after",
                     TaskType.template,
