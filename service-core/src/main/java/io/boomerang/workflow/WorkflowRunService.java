@@ -814,22 +814,19 @@ public class WorkflowRunService {
     if (workflowRunId == null || workflowRunId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REQ);
     }
-    // One Compare-And-Set, in timeoutWorkflow, takes a running run to timed out, so a late timeout
-    // can never overwrite a terminal status and only its winner cancels the tasks and retries.
-    WorkflowRunEntity run =
-        workflowRunRepository
-            .findById(workflowRunId)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    if (RunPhase.running.equals(run.getPhase())) {
+    // The run reads timed out at once; timeoutWorkflow, off this thread, completes it, ends its
+    // tasks and starts any automatic retry. Only the winner of the first Compare-And-Set goes on.
+    WorkflowRunEntity preImage = workflowRunStateHelper.tryMarkTimedOut(workflowRunId);
+    if (preImage != null) {
       // The cause is known here; the completion path just writes the message it is given.
       String statusMessage =
           taskRunTimeout
               ? "A TaskRun exceeded it's timeout."
               : MessageFormatter.format(
                       "The WorkflowRun exceeded the timeout. Timeout was set to {} minutes",
-                      run.getTimeout())
+                      preImage.getTimeout())
                   .getMessage();
-      workflowExecutionService.timeoutWorkflow(workflowRunId, statusMessage);
+      workflowExecutionService.timeout(workflowRunId, statusMessage);
     } else {
       LOGGER.info("[{}] WorkflowRun not running. Nothing to timeout.", workflowRunId);
     }

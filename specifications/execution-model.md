@@ -127,11 +127,13 @@ beneath it, so a task can never outlive the run containing it. By default a task
 timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
 (`workflow/WorkflowService.java:623-637`), and the per-task ceiling is an optional operator control for capping a
 single pod inside a long-running graph rather than a budget every task is entitled to spend.
-A task timeout on the final write times out the whole run (`TaskExecutionService.java:573`). A workflow timeout is one completion CAS, in
-`WorkflowExecutionService.timeoutWorkflow` (`:214`), made on the caller's thread so the run reads `timedout` at once and
-publishes one transition; only its winner then cancels every queued, running and pending task
-(`cancelPendingAndRunningTasks` `:263`) and starts an automatic retry, off that thread.
-`WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:813`) checks the run is running and hands it there.
+A task timeout on the final write times out the whole run (`TaskExecutionService.java:573`). A workflow timeout is two writes and one transition.
+`WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:813`) marks a running run `timedout` on the caller's thread,
+publishing nothing and leaving the phase `running` (`WorkflowRunStateHelper.tryMarkTimedOut` `:376`), and hands it to the
+async `WorkflowExecutionService.timeout` (`:213`). There `timeoutWorkflow` (`:221`) completes it with one CAS, the one
+transition a timeout publishes, and only its winner cancels every queued, running and pending task
+(`cancelPendingAndRunningTasks` `:265`) and starts an automatic retry. A completion that is lost leaves the run in the
+running phase past its deadline, so the timeout sweep drives it again.
 
 **The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting` - an
 approval, a manual task, an event wait, a run-workflow task waiting on its child, a sleep or an acquire-lock wait

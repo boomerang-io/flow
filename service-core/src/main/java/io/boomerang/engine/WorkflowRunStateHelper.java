@@ -369,6 +369,18 @@ public class WorkflowRunStateHelper {
     ResultUtil.upsertResultByName(mongoTemplate, id, WorkflowRunEntity.class, result);
   }
 
+  // Timeout Compare-And-Set: a running run reads timed out at once and stays in the running phase
+  // until timeoutWorkflow completes it, so a completion that is lost - a crash, an executor shut
+  // down - is driven again by the timeout sweep. It publishes nothing: the completion's transition
+  // is the one event a timeout sends. Returns the pre-image, or null when the run is not running.
+  public WorkflowRunEntity tryMarkTimedOut(String id) {
+    return mongoTemplate.findAndModify(
+        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running)),
+        new Update().set("status", RunStatus.timedout),
+        FindAndModifyOptions.options().returnNew(false),
+        WorkflowRunEntity.class);
+  }
+
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
   // matches and publish the transition. Returns the pre-image, or null when another caller won, so
   // the caller does nothing. A null target status or phase is the pre-image's, unchanged.

@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -207,6 +208,12 @@ public class WorkflowExecutionService {
     };
   }
 
+  // The timeout off the caller's thread, as an @Async method so a failure is logged like any other.
+  @Async("asyncWorkflowExecutor")
+  public void timeout(String wfRunId, String statusMessage) {
+    timeoutWorkflow(wfRunId, statusMessage);
+  }
+
   /*
    * Times out a running WorkflowRun. Reached from the watcher timeout sweep and the
    * task-timeout path - idempotent against each other via the completion Compare-And-Set.
@@ -230,24 +237,10 @@ public class WorkflowExecutionService {
       return;
     }
 
-    // The run reads timed out from here on. Ending its tasks and the winner-only auto-retry follow
-    // off the caller's thread - a watcher sweep or a task's own end.
-    asyncWorkflowExecutor.execute(
-        () -> {
-          try {
-            windDownTimedOut(wfRunEntity);
-          } catch (RuntimeException e) {
-            // Logged like any failed async step; the run is already timed out either way.
-            LOGGER.error("[{}] Timeout wind-down failed: {}", wfRunId, e.getMessage(), e);
-          }
-        });
-  }
-
-  // The timeout winner's follow-up: end the run's tasks, then the automatic retry when it has
-  // budget left.
-  private void windDownTimedOut(WorkflowRunEntity wfRunEntity) {
-    String wfRunId = wfRunEntity.getId();
+    // Cancel Running & Pending Tasks
     cancelPendingAndRunningTasks(wfRunEntity);
+
+    // Winner-only auto-retry
     if (!Objects.isNull(wfRunEntity.getRetries())
         && wfRunEntity.getRetries() != -1
         && wfRunEntity.getRetries() != 0) {
@@ -265,6 +258,7 @@ public class WorkflowExecutionService {
       }
     }
   }
+
 
   // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
   // running and queued ones are ended, pending ones queued so the admission gate skips them.
