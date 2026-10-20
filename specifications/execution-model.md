@@ -247,8 +247,9 @@ terminal status and duration — the events the monthly run quota reads (the Ins
 are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
 `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:50`),
 `CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching
-`completed` with a status the caller persisted directly; the graph's end node, like its start node, writes none
-(`event/CloudEventsBridge.java:34-78`). `OutboxDispatcher` drains it every 5 s on every instance, delivering at
+`completed` with a status the caller persisted directly; the graph's end node, like its start node, writes none,
+and a skip or an admission rejection, written as its final status while still pending and then completed by
+`end()`, writes one row, for the completion (`event/CloudEventsBridge.java:34-89`). `OutboxDispatcher` drains it every 5 s on every instance, delivering at
 least once, marking rows `sent` by CAS, and marking them `dead` after 3 failed attempts
 (`event/OutboxDispatcher.java:44`, `:66-92`). A row is delivered as its own transition: the run is re-read for
 the payload and given the row's status and phase, and the event's id and time are the row's id and when the

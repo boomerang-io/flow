@@ -242,7 +242,8 @@ status and phase, and the rest of `data` is the run as it stands when the event 
 (`event/OutboxDispatcher.java:98-116`). A redelivery carries the same `id`, so a consumer MAY drop an `id`
 it has already handled (`source` plus `id` is unique). A task event is sent for every task the run executes;
 the graph's start and end nodes send none, and the run's own event reports its end
-(`event/CloudEventsBridge.java:35-36`).
+(`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, sends one event, when it
+completes (`:78-83`).
 
 | Envelope field | Value |
 | --- | --- |
