@@ -120,7 +120,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   <strong>
                     Succeeded
                   </strong>
-                   in 5min
+                   in 5 min
                 </span>
               </div>
             </dd>
@@ -582,7 +582,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                 <time
                   class="_timeValue_fe6a3c"
                 >
-                  5 mins
+                  5 min
                 </time>
               </p>
               <section
