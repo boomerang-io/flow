@@ -100,7 +100,7 @@ workers claim tasks from task queues. Server MIT-licensed. Cloud bills per Actio
 | Activity retry | `RetryPolicy` 1 s × 2.0 up to 100×, attempts unbounded, `nonRetryableErrorTypes` | `Backoff` 10 s → 5 m, timeouts and lost leases only, ≤ 3 (`WorkflowWatcher.java:153-180`) |
 | Timeouts | Four typed: `ScheduleToStart`, `StartToClose`, `ScheduleToClose`, `Heartbeat` | One `timeoutAt` baked at claim (`TaskRunService.java:244, 259-261`); an unclaimed TaskRun has no deadline of its own |
 | Pause | Activity pause stops new retries; in-flight work finishes | `pauseRequestedAt` at the single admission gate — the same semantics |
-| Schedules | Overlap policy `Skip` / `BufferOne` / `BufferAll` / `CancelOther` / `TerminateOther` / `AllowAll`; catch-up window; jitter | `ScheduleWatcher.fireDueSchedules` computes the next occurrence from now, collapsing any backlog (`service-core/src/main/java/io/boomerang/schedule/ScheduleWatcher.java:110-127`) — an implicit `Skip` |
+| Schedules | Overlap policy `Skip` / `BufferOne` / `BufferAll` / `CancelOther` / `TerminateOther` / `AllowAll`; catch-up window; jitter | `ScheduleWatcher.fireDueSchedules` computes the next occurrence from now, collapsing any backlog (`service-core/src/main/java/io/boomerang/schedule/ScheduleWatcher.java:114-131`) — an implicit `Skip` |
 | Priority / fairness | `priority_key` 1–5, `fairness_key` + weight; dispatch = tier → weighted round-robin → oldest first | None; one workspace's burst starves the rest |
 | Idempotency | `WorkflowIdReusePolicy` + `WorkflowIdConflictPolicy` | Run-creation dedup deliberately not built |
 | Payloads | 2 MB per payload; Search Attributes (indexed) vs Memo (not) | 16 KB params / 4 KB results; the typed-fields rule is the same idea as Search Attributes vs Memo |
@@ -229,7 +229,7 @@ vulnerability CVE-2025-68613 (more than 14,000 exposed instances) and a sandbox 
 | AI | AI Agent root node; human-in-the-loop on tool calls; Guardrails node (jailbreak, personal data, secrets, URLs, topical, custom) | Nothing built |
 
 **Adopt.** A misfire policy with grace on schedules (`misfire: skip | fireOnce | fireAll`, `misfireGraceSeconds`),
-naming the backlog collapse at `ScheduleWatcher.java:113-119` as `fireOnce`. A `retain` flag on `WorkflowRunEntity`
+naming the backlog collapse at `ScheduleWatcher.java:117-123` as `fireOnce`. A `retain` flag on `WorkflowRunEntity`
 exempting a run from pruning, when the retention policy is decided. Guardrail categories reused by name in the AI
 task type. The task-runner broker contract (token, heartbeat, per-task timeout, payload cap) is now at parity with
 the dispatcher protocol.

@@ -66,6 +66,10 @@ public class ScheduleWatcher {
       initialDelayString = "#{T(java.util.concurrent.ThreadLocalRandom).current().nextLong(30000)}",
       fixedDelayString = "${flow.schedule.watcher.interval-ms:30000}")
   public void sweep() {
+    // The switch stops the scheduled sweep too, not just the boot sweep; tests invoke it directly.
+    if (!enabled) {
+      return;
+    }
     // Isolated for the same reason as the engine watcher: an unisolated failure in
     // initializeSchedules would stop fireDueSchedules, silently ending all cron firing.
     SweepRunner.runIsolated("initializeSchedules", this::initializeSchedules, ScheduleWatcher::logSweepFailure);

@@ -1,4 +1,4 @@
-package io.boomerang.config;
+package io.boomerang.core.config;
 
 import java.util.Optional;
 import org.springdoc.core.customizers.ParameterCustomizer;

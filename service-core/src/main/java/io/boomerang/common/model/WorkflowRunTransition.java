@@ -1,4 +1,4 @@
-package io.boomerang.engine.model;
+package io.boomerang.common.model;
 
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;

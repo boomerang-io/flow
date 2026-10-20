@@ -232,7 +232,7 @@ Every externally visible run status change is POSTed to each configured sink as 
 `application.properties:51`); delivery is at-least-once through the outbox, so a consumer MUST treat duplicates as
 benign (decision 0012). Each event describes the transition it was recorded for, whenever it is sent: its subject
 and `data.status`/`data.phase` are that transition's status and phase, and the rest of `data` is the run as it
-stands when the event is sent (`event/OutboxDispatcher.java:98-116`). A redelivery carries the same `id`, so a
+stands when the event is sent (`event/OutboxDispatcher.java:97-115`). A redelivery carries the same `id`, so a
 consumer MAY drop an `id` it has already handled (`source` plus `id` is unique). A task event is sent for every task
 the run executes; the graph's start and end nodes send none, and the run's own event reports its end
 (`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, sends one event, when it completes
@@ -319,7 +319,7 @@ any other value replaces it (decision 0123). A secured value sent as `*****` kee
 | Call | Body | Errors |
 | --- | --- | --- |
 | `PATCH /api/v2/parameters/{name}` | The members of the param to change, `{"description": "…", "value": "…"}`; `name`, if sent, must match the path, and `hiddenValue` is ignored (`workflow/ParameterService.java:72`) | `400 PARAMS_INVALID_REQ` (a rename, or a body that is not an object); `404 PARAMS_INVALID_REFERENCE` (no such param) |
-| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans (`core/SettingsService.java:82`) | `400 SETTINGS_INVALID_KEY` (1030) naming an unknown group or key, or a value that is not a scalar; the whole patch is refused before anything is written |
+| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans (`core/SettingsService.java:72`) | `400 SETTINGS_INVALID_KEY` (1030) naming an unknown group or key, or a value that is not a scalar; the whole patch is refused before anything is written |
 
 Both answer with the updated resource as a read shows it. A `null` here clears, whereas on a full-replace `PUT`
 apply (workflows, catalogue tasks, schedules) a secret sent as `null` keeps the stored value, because there a

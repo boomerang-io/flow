@@ -25,7 +25,7 @@ import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;

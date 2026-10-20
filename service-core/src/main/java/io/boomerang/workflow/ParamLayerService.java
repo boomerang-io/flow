@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /*
@@ -45,6 +46,16 @@ public class ParamLayerService {
           "boomerang.io/global-params",
           "boomerang.io/workspace-params",
           "boomerang.io/context-params");
+
+  // The inbound routes a task can call back on, handed to every run as context params.
+  @Value("${flow.workflow.webhook.url}")
+  private String webhookUrl;
+
+  @Value("${flow.workflow.wfe.url}")
+  private String waitForEventUrl;
+
+  @Value("${flow.workflow.event.url}")
+  private String eventUrl;
 
   private SettingsService settingsService;
   private WorkspaceRepository workspaceRepository;
@@ -262,9 +273,9 @@ public class ParamLayerService {
     contextParams.put("taskrun-ref", "");
     contextParams.put("taskrun-name", "");
     contextParams.put("taskrun-type", "");
-    contextParams.put("webhook-url", this.settingsService.getWebhookURL());
-    contextParams.put("wfe-url", this.settingsService.getWFEURL());
-    contextParams.put("event-url", this.settingsService.getEventURL());
+    contextParams.put("webhook-url", webhookUrl);
+    contextParams.put("wfe-url", waitForEventUrl);
+    contextParams.put("event-url", eventUrl);
 
     // the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
     Optional<List<TokenEntity>> tokens =

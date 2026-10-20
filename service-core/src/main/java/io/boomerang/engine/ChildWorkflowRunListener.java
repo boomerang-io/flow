@@ -8,7 +8,7 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.StatusReason;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.WorkflowRunService;

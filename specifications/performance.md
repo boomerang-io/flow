@@ -33,9 +33,9 @@ Without the parameter cache each resolution reads the revision, the workflow, th
 parameters, the workspace and the workflow's tokens: six reads per task admission and per for-each item. With it,
 the tasks of every run of one revision in one workspace admitted within 10 s share those six. Every global
 parameter, workspace, setting, workflow and revision write calls `evictAll` (`ParameterService.java:73,96,111`,
-`WorkspaceService.java:240,339,630`, `SettingsService.java:149`, `WorkflowService.java:1617,1917`); token writes do
+`WorkspaceService.java:240,339,630`, `SettingsService.java:137`, `WorkflowService.java:1617,1917`); token writes do
 not, because the scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s.
-Redaction reads secured values uncached (`ParamLayerService.java:161`).
+Redaction reads secured values uncached (`ParamLayerService.java:173`).
 
 ## Queue fairness and the indexes behind it
 
@@ -91,8 +91,8 @@ colliding. Each paged query carries `maxTimeMsec(5000)` so a slow database canno
 | --- | --- | --- | --- | --- |
 | `WorkflowWatcher.sweep` (12 sweeps, `WorkflowWatcher.java:149-160`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:136-139`) | 50 (`EngineConstants.java:12`) | Stall grace 60 s (`:55`); dispatcher declared gone after 60 s without a poll (`:78`); a provisioning claim released after the grace, the run failed on its third (`:67`, `:98`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finalise (`:284`) |
 | `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`:203`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`:88`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60) are purged with their task runs, actions, artifacts, logs and relationship node (`:218`); one `existsByInitiatedByRef` per candidate on the `initiated_by_phase` index |
-| `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:69-71`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:41`) |
-| `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:32-35`) | up to 5 s (`:59-61`) | 50 | 3 delivery attempts, then the row is marked dead (`:41`) |
+| `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:73-75`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:41`) |
+| `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:32-34`) | up to 5 s (`:58-60`) | 50 | 3 delivery attempts, then the row is marked dead (`:40`) |
 
 No interval is set in `application.properties`; the defaults come from the `@Scheduled` fallbacks. Cost
 (assumed, not load-tested): one paged indexed query per sweep plus a per-row count or `existsById`, so

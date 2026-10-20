@@ -251,7 +251,7 @@ are not audited (volume; no consumer reads them). Emission is best-effort and ne
 and a skip or an admission rejection, written as its final status while still pending and then completed by
 `end()`, writes one row, for the completion (`event/CloudEventsBridge.java:34-89`). `OutboxDispatcher` drains it every 5 s on every instance, delivering at
 least once, marking rows `sent` by CAS, and marking them `dead` after 3 failed attempts
-(`event/OutboxDispatcher.java:44`, `:66-92`). A row is delivered as its own transition: the run is re-read for
+(`event/OutboxDispatcher.java:43`, `:65-91`). A row is delivered as its own transition: the run is re-read for
 the payload and given the row's status and phase, and the event's id and time are the row's id and when the
 transition occurred, so a row drained late still reports what it recorded and a retry keeps its id
 (`:98-116`, `event/EventFactory.java:44-47,92-95`). There is no broker, no partitioning and no leader.
@@ -264,14 +264,14 @@ in a status — to `pending` with the backoff, attempt count and failure detail 
 (`event/OutboxService.java`, `event/OutboxControllerV2.java`). Every failed attempt writes the exception type and
 message to the row's `lastError` (capped at 1024 characters, latest attempt wins) and a row that exhausts its budget
 also records `deadAt`, so the list route says why a row died and not only that it did
-(`event/OutboxDispatcher.java:75-90`, `:142-172`). Rows that died before these fields existed carry neither and list without them.
+(`event/OutboxDispatcher.java:74-89`, `:141-171`). Rows that died before these fields existed carry neither and list without them.
 
 ## Schedules
 
 Cron and run-once schedules fire from `ScheduleWatcher`, in both modes, on the same every-instance, 30 s, jittered cadence
-(`schedule/ScheduleWatcher.java:32`, `:65-73`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
+(`schedule/ScheduleWatcher.java:32`, `:65-77`). `fireDueSchedules` pages active schedules with `nextFireAt` elapsed and wins each fire with
 `ScheduleService.tryClaimFire`, a CAS that advances `nextFireAt` to the next occurrence computed from now (`schedule/ScheduleService.java:423-436`),
-so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:133-157`).
+so a backlog collapses to one fire. A failed submit is re-armed with the same backoff up to 3 attempts (`ScheduleWatcher.java:137-161`).
 Occurrences are computed with cron-utils' UNIX definition, five fields: minute, hour, day of month, month, day of week.
 `CronService.toUnix` reads a stored cron in any form it was saved in - a six- or seven-field Quartz expression (as v3 and v4
 stored them) is mapped, and for a `cron` schedule the "0 mm HH * DAYS" order an earlier schedule form saved is reordered - and

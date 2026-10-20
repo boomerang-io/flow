@@ -23,7 +23,7 @@ Option C. `MigrationConfiguration` wires Flamingock to core's own `MongoClient`
 (`service-core/src/main/java/io/boomerang/migration/MigrationConfiguration.java`) and
 `flamingock.management-mode=INITIALIZING_BEAN` (`service-core/src/main/resources/application.properties`) runs every
 pending unit before the web server, the scheduler and the dispatcher API start. The one reason that decided it between B
-and C: the outbox dispatcher and watchers are scheduled at context refresh (`OutboxDispatcher.java:63-64`,
+and C: the outbox dispatcher and watchers are scheduled at context refresh (`OutboxDispatcher.java:62-63`,
 `WorkflowWatcher.java:152-155`). Replicas that start together wait on the lock, then re-read the change log and skip
 what another replica applied; a failed unit fails startup and a rolling update stalls with the old pods serving.
 

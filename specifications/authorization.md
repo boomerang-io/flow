@@ -228,7 +228,7 @@ A `settings.config[]` entry typed `secured` is encrypted on every save and decry
 (`getSettingConfig`, `core/SettingsService.java`). The settings API (`GET` and `PATCH /api/v2/settings`, the
 latter a merge patch of `{"<group>": {"<key>": value}}`, `core/SystemControllerV2.java:69`) follows the one secret
 rule (`parameters.md`, "Sensitive parameters"): a set value reads as `*****` and an unset one as nothing
-(`SettingsService.java:200`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
+(`SettingsService.java:178`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
 null clears it, and any other value replaces it (`:110`). A value that will not decrypt is kept as stored on the
 next save of its group (`:222`). The cipher is AES-256-GCM with a random initialisation
 vector per call (`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme

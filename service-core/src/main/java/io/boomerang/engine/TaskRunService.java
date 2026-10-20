@@ -15,7 +15,7 @@ import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.config.SecretValueMongoListener;
 import io.boomerang.engine.model.ClaimFilter;
-import io.boomerang.engine.model.TaskRunTransition;
+import io.boomerang.common.model.TaskRunTransition;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.common.error.BoomerangError;

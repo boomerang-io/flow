@@ -19,7 +19,6 @@ import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,15 +30,6 @@ public class SettingsService {
 
   // The group the API never shows or changes.
   private static final String INTERNAL_GROUP = "internal";
-
-  @Value("${flow.workflow.webhook.url}")
-  private String webhookUrl;
-
-  @Value("${flow.workflow.wfe.url}")
-  private String waitForEventUrl;
-
-  @Value("${flow.workflow.event.url}")
-  private String eventUrl;
 
   private final SettingsRepository settingsRepository;
   private final SecretCipher secretCipher;
@@ -143,18 +133,6 @@ public class SettingsService {
 
   private static BoomerangException invalidSettings(String detail) {
     return new BoomerangException(BoomerangError.SETTINGS_INVALID_KEY, detail);
-  }
-
-  public String getWebhookURL() {
-    return webhookUrl;
-  }
-
-  public String getEventURL() {
-    return eventUrl;
-  }
-
-  public String getWFEURL() {
-    return waitForEventUrl;
   }
 
   public SettingConfig getSettingConfig(String key, String name) {

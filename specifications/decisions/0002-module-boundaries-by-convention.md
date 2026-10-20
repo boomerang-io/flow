@@ -23,8 +23,8 @@ Option C. `service-core` is one Maven module with eight feature packages, `io.bo
 workflow, engine, dispatcher, schedule, event, integrations}` (`service-core/src/main/java/io/boomerang/`),
 each holding its entities, repositories, models, services and controllers. There is no Modulith
 dependency in `service-core/pom.xml` and no ArchUnit test. The one rule that is held today is that `core`
-has zero imports from any feature package; the one place it slips is the audit bridge's read of the engine's
-transition event and run repository (`core/audit/WorkflowRunAuditBridge.java:10-11`). Cross-package calls are
+has zero imports from any feature package; the one place it slips is the encryption listener, which names the
+three feature entities whose secured fields it seals (`core/config/SecretValueMongoListener.java:11-13`). Cross-package calls are
 ordinary injections; the engine never calls the platform side synchronously, it publishes `ApplicationEvent`s.
 
 ## Consequences

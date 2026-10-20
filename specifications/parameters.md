@@ -9,7 +9,7 @@ below are under `service-core/src/main/java/io/boomerang/` unless they start wit
 
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
 from their stores each time it resolves (`engine/ParameterManager.java:527`, through
-`workflow/ParamLayerService.java:108`): at run start for the run's params (`engine/WorkflowExecutionService.java:70`),
+`workflow/ParamLayerService.java:119`): at run start for the run's params (`engine/WorkflowExecutionService.java:70`),
 at each task's admission (`TaskExecutionService.java:204`), at its claim for the spec, and for a for-each task's
 items at fan-out (`:337`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
 workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the revision
@@ -141,7 +141,7 @@ built with `BeanUtils.copyProperties` shares its lists with the entity. On the w
 
 | A client sends | Means | Where it is decided |
 | --- | --- | --- |
-| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:111`) and `ParameterService.patch` (`workflow/ParameterService.java:73`) |
+| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`:132`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:101`) and `ParameterService.patch` (`workflow/ParameterService.java:73`) |
 | `""` | Clear it | the same |
 | `null` on a JSON Merge Patch (settings, global parameters) | Clear it: on a merge patch a null member removes the value, so only `*****` or leaving the member out keeps it | `SettingsService.patchGroup`, `ParameterService.patch` (decision 0123) |
 | Any other value | Replace it | the same |
@@ -172,7 +172,7 @@ task specs is separate and unchanged.
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:210`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
 | Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:310`, canvas `:842`, `:861`). Duplicate copies the unfiltered workflow |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:252`); `internalGet`, which fires the run, is not filtered |
-| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:171`) |
+| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:149`) |
 
 The name join and value scrub remain for runs stored before params carried a type and for secrets that
 land in free text. The join takes the definitions: the workflow revision's param spec and each
@@ -196,7 +196,7 @@ authorization (`core/security/SecurityConfiguration.java:94-95`). A resolved val
 is blanked by name but not value-scrubbed, which would mangle unrelated text (decision 0043).
 
 The union also holds the current values of the run workspace's password-typed **global and workspace**
-parameters (`workflow/ParamLayerService.java:162`, read uncached once per workspace per response;
+parameters (`workflow/ParamLayerService.java:173`, read uncached once per workspace per response;
 `WorkflowRunService.java:192,489`), which no definition declares yet substitution writes into task params,
 scripts and results. A run that used a value since rotated keeps showing it.
 
@@ -215,5 +215,5 @@ secured settings: AES-256-GCM under `flow.encrypt.secret`/`flow.encrypt.salt`, w
 merely starts with `crypt_v1` is plaintext and is encrypted, a labelled value is never encrypted twice, and an
 encryption failure throws rather than storing nothing (`:50`). An unlabelled value from an earlier release is
 encrypted on its next save, and one that will not decrypt is kept as stored - by the listener on load, and by
-settings on the next save of its group (`SettingsService.java:183`); fields: `data-model.md`, "Secret values at
+settings on the next save of its group (`SettingsService.java:161`); fields: `data-model.md`, "Secret values at
 rest". A node's value for a `password` task param is stamped `type: secret` at workflow save.

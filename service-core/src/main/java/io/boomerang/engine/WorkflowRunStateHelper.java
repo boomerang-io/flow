@@ -5,7 +5,7 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
-import io.boomerang.engine.model.WorkflowRunTransition;
+import io.boomerang.common.model.WorkflowRunTransition;
 import java.util.Date;
 import java.util.Collection;
 import java.util.List;

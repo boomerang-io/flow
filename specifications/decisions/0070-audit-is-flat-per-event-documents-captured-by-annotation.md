@@ -35,4 +35,4 @@ counting (`core/audit/AuditRetentionService.java:28,59,83`).
 - Raising the level is not retroactive; events older than the retention expire.
 - Run-lifecycle events come from the engine's transition event, not an annotation:
   `WorkflowRunAuditBridge` emits one `CREATE` and one completion event per run
-  (`core/audit/WorkflowRunAuditBridge.java:56-70`); task-run transitions are not audited.
+  (`core/audit/WorkflowRunAuditBridge.java:58-72`); task-run transitions are not audited.
