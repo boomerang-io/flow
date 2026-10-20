@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Button, InlineNotification } from "@carbon/react";
+import { Button, IconButton } from "@carbon/react";
 import { notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import { Add, Api, ArrowRight, Parameter } from "@carbon/react/icons";
+import { Add, Api, ArrowRight, Close, Parameter } from "@carbon/react/icons";
 import { PlayerFlow, Workflows } from "@carbon/pictograms-react";
 import { useFeature } from "flagged";
 import kebabcase from "lodash/kebabCase";
@@ -14,7 +14,6 @@ import LearnCard from "Components/LearnCard";
 import WorkspaceCard from "Components/WorkspaceCard";
 import WorkspaceCardCreate from "Components/WorkspaceCardCreate";
 import WorkflowTemplateHomeCard from "Components/WorkflowTemplateHomeCard";
-import templateStyles from "Components/WorkflowTemplateHomeCard/workflowTemplateHomeCard.module.scss";
 import { useAppContext } from "Hooks";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -34,8 +33,8 @@ export { loader } from "./homeLoader";
 
 // Home's read is the rollup in ./homeLoader.ts; the workspace list, user and templates still
 // come from useAppContext(), which App.tsx feeds from the root loader. This route module's
-// `action` is keyed by `intent` and covers the four mutations that live under this route: the
-// one owned directly by this component (create-workspace) plus the three owned by components
+// `action` is keyed by `intent` and covers the five mutations that live under this route: the
+// two owned directly by this component (create-workspace, hide-get-started) plus the three owned by components
 // only ever rendered inside Home - WorkspaceCard (leave a workspace), WorkflowTemplateHomeCard
 // (create a workflow from a template) and AttentionList (approve or reject an action). Those
 // components' own `useFetcher()` calls submit here by default without an explicit `action`
@@ -49,7 +48,9 @@ type ActionResult =
   | { intent: "create-workflow-from-template"; workspace: string; workflow?: { name: string } }
   | ({ intent: "create-workflow-from-template"; workspace: string } & ActionError)
   | { intent: "putAction" }
-  | ({ intent: "putAction" } & ActionError);
+  | ({ intent: "putAction" } & ActionError)
+  | { intent: "hide-get-started" }
+  | ({ intent: "hide-get-started" } & ActionError);
 
 export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
@@ -106,6 +107,23 @@ export async function action({ request }: { request: Request }) {
       return actionError({
         intent: "putAction" as const,
         error: formatErrorMessage({ error, defaultMessage: "Request to action failed" }),
+      });
+    }
+  }
+
+  // Closing the Get started row is a profile setting, so it stays closed on every device.
+  if (intent === "hide-get-started") {
+    try {
+      await serverFetch(request)({
+        url: serviceUrl.getUserProfile(),
+        data: { settings: { isShowGetStarted: false } },
+        method: HttpMethod.Patch,
+      });
+      return { intent: "hide-get-started" as const };
+    } catch (error) {
+      return actionError({
+        intent: "hide-get-started" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Get started could not be closed" }),
       });
     }
   }
@@ -224,6 +242,24 @@ export default function Home() {
   }, []);
 
   const sortedWorkspaces = useMemo(() => sortBy(workspaces ?? [], ["name"]), [workspaces]);
+  // Newest first, so the latest example (the AI one, on a stock install) leads the list.
+  const newestTemplates = useMemo(
+    () => sortBy(workflowTemplates ?? [], (template) => -new Date(template.creationDate).getTime()),
+    [workflowTemplates],
+  );
+
+  // Hidden as soon as the close is sent; a failed save brings the row back with a toast.
+  const hideGetStartedFetcher = useFetcher<ActionResult>();
+  useEffect(() => {
+    const result = hideGetStartedFetcher.data;
+    if (hideGetStartedFetcher.state === "idle" && result && isActionError(result)) {
+      notify(<ToastNotification kind="error" title="Get started" subtitle={result.error.message} />);
+    }
+  }, [hideGetStartedFetcher.state, hideGetStartedFetcher.data]);
+  const getStartedClosed =
+    user.settings?.isShowGetStarted === false ||
+    hideGetStartedFetcher.state !== "idle" ||
+    (hideGetStartedFetcher.data?.intent === "hide-get-started" && !isActionError(hideGetStartedFetcher.data));
 
   const isCreateWorkspaceError = Boolean(createWorkspaceFetcher.data && isActionError(createWorkspaceFetcher.data));
   const isCreateWorkspaceLoading = createWorkspaceFetcher.state !== "idle";
@@ -235,7 +271,10 @@ export default function Home() {
   // workspace that ran most recently, else the first by name.
   const primaryWorkspace = data.recentRuns[0]?.workspace ?? sortedWorkspaces[0]?.name ?? "";
   const displayName = user.displayName || user.name;
-  const showSteps = !hasWorkspaces || workflowCount === 0 || data.totalRuns === 0;
+  // Unread runs are not "no runs": the steps do not come back just because the runs read failed.
+  const showSteps =
+    !getStartedClosed &&
+    (!hasWorkspaces || workflowCount === 0 || (data.totalRuns === 0 && !data.degraded.recentRuns));
 
   // The create-workspace modal, mounted behind whichever trigger a spot needs. A single
   // workspace deployment has no create affordance anywhere.
@@ -257,9 +296,9 @@ export default function Home() {
         message={
           hasWorkspaces
             ? daySummary({
-                runsToday: data.runsToday.all,
+                runsToday: data.degraded.runsToday ? null : data.runsToday.all,
                 workspaces: sortedWorkspaces.length,
-                attentionTotal: data.attentionTotal,
+                attentionTotal: data.degraded.attention ? null : data.attentionTotal,
                 attentionApprovals: data.attentionApprovals,
                 attentionManual: data.attentionManual,
               })
@@ -287,18 +326,6 @@ export default function Home() {
         }
       />
 
-      {data.degraded ? (
-        <div className={styles.degraded}>
-          <InlineNotification
-            kind="warning"
-            lowContrast
-            hideCloseButton
-            title="Some numbers could not be loaded."
-            subtitle="Parts of this page show zeros. Refresh to try again."
-          />
-        </div>
-      ) : null}
-
       {hasWorkspaces ? (
         <div className={styles.pulse}>
           <PulseTiles
@@ -320,6 +347,16 @@ export default function Home() {
               <h2 id="get-started-title" className={styles.sectionTitle}>
                 Get started
               </h2>
+              <IconButton
+                kind="ghost"
+                size="sm"
+                label="Close Get started"
+                align="left"
+                onClick={() => hideGetStartedFetcher.submit({ intent: "hide-get-started" }, { method: "post" })}
+                data-testid="home-get-started-close"
+              >
+                <Close />
+              </IconButton>
             </div>
             <GettingStartedSteps
               hasWorkspace={hasWorkspaces}
@@ -377,30 +414,19 @@ export default function Home() {
               title="Recent activity"
               link={activityEnabled ? { to: appLink.activity({ workspace: primaryWorkspace }), text: "All activity" } : undefined}
             >
-              <RecentActivity runs={data.recentRuns} />
+              <RecentActivity runs={data.recentRuns} unavailable={data.degraded.recentRuns} />
             </Section>
           </div>
           <div className={styles.column}>
-            <Section id="start-a-workflow" title="Start a workflow">
-              <div className={styles.list}>
-                <Link
-                  to={appLink.workflows({ workspace: primaryWorkspace })}
-                  className={templateStyles.row}
-                  data-testid="home-blank-workflow"
-                >
-                  <span className={templateStyles.icon} aria-hidden="true">
-                    <Add />
-                  </span>
-                  <span className={templateStyles.body}>
-                    <span className={templateStyles.name}>Blank workflow</span>
-                    <span className={templateStyles.description}>Start from an empty canvas</span>
-                  </span>
-                </Link>
-                {workflowTemplates?.map((template) => (
-                  <WorkflowTemplateHomeCard key={template.name} template={template} workspaces={sortedWorkspaces} />
-                ))}
-              </div>
-            </Section>
+            {newestTemplates.length > 0 ? (
+              <Section id="start-a-workflow" title="Start a workflow">
+                <div className={styles.list}>
+                  {newestTemplates.map((template) => (
+                    <WorkflowTemplateHomeCard key={template.name} template={template} workspaces={sortedWorkspaces} />
+                  ))}
+                </div>
+              </Section>
+            ) : null}
             <Section id="learn" title="Learn" link={{ href: "https://useboomerang.io/docs", text: "Docs" }}>
               <div className={styles.panel}>
                 {learnItems.map(({ key, ...item }) => (

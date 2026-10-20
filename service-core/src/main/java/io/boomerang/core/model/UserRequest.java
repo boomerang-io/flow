@@ -23,6 +23,8 @@ public class UserRequest {
   private UserType type;
   private UserStatus status;
   private Map<String, String> labels = new HashMap<>();
+  // Only the settings named here change; a whole UserSettings would reset the ones left out.
+  private Map<String, Object> settings;
 
   public UserRequest() {}
 

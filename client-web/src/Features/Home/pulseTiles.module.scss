@@ -1,3 +1,4 @@
+@use "@carbon/react/scss/colors";
 @use "@carbon/react/scss/motion" as motion;
 @import "Styles/mixins";
 
@@ -66,6 +67,23 @@
   gap: 0.25rem 0.75rem;
   letter-spacing: var(--cds-label-01-letter-spacing, 0.32px);
   line-height: var(--cds-label-01-line-height, 1.33333);
+}
+
+.unavailable {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
+.warningIcon {
+  fill: var(--cds-support-warning);
+  flex-shrink: 0;
+
+  // The glyph's "!" mark stays black in both themes, as Carbon's inline notification draws it.
+  path:first-of-type {
+    fill: colors.$black-100;
+    opacity: 1;
+  }
 }
 
 .legend {

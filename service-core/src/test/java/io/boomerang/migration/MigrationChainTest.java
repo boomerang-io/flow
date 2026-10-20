@@ -79,7 +79,7 @@ class MigrationChainTest {
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(136);
-    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
     assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(91);
@@ -255,7 +255,7 @@ class MigrationChainTest {
                         Filters.eq("to", "approvergroup:" + group.get("_id")))))
         .isEqualTo(1);
 
-    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "parameters").countDocuments()).isZero();
@@ -477,6 +477,30 @@ class MigrationChainTest {
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(137);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
+  }
+
+  /**
+   * A database seeded before the AI example template joined the seed receives it from its own unit,
+   * with its tasks pointing at live catalogue ids; a second run inserts nothing.
+   */
+  @Test
+  void aDatabaseSeededBeforeTheAiWorkflowTemplateReceivesItFromItsOwnUnit() {
+    MongoDatabase db = migrate("ai-template-upgrade");
+    MongoCollection<Document> templates = collection(db, "workflow_templates");
+    templates.deleteOne(Filters.eq("name", _0026__SeedAiWorkflowTemplate.TEMPLATE));
+    assertThat(templates.countDocuments()).isEqualTo(2);
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0026__SeedAiWorkflowTemplate().execute(db, environment);
+    assertThat(templates.countDocuments()).isEqualTo(3);
+    Document template = templates.find(Filters.eq("name", _0026__SeedAiWorkflowTemplate.TEMPLATE)).first();
+    String aiPromptId =
+        collection(db, "tasks").find(Filters.eq("name", "ai-prompt")).first().get("_id").toString();
+    assertThat(template.getList("tasks", Document.class))
+        .anySatisfy(task -> assertThat(task.getString("taskRef")).isEqualTo(aiPromptId));
+
+    new _0026__SeedAiWorkflowTemplate().execute(db, environment);
+    assertThat(templates.countDocuments()).isEqualTo(3);
   }
 
   /**

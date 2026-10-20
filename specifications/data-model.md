@@ -18,7 +18,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | Collection | Holds | Entity (owner package) |
 | --- | --- | --- |
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`common.entity`; used by `workflow`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by migrations (`_0020__SeedTemplates` seeds them, `_0011__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`common.entity`; `workflow`) |
+| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by migrations (`_0020__SeedTemplates` seeds them, `_0026__SeedAiWorkflowTemplate` adds the AI example to an earlier install, `_0011__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`common.entity`; `workflow`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`common.entity`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`common.entity`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`common.entity`; `engine`) |
@@ -30,7 +30,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `dispatchers` | Registered dispatcher workers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent) | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (personal, team, system): settings, quotas, parameters | `WorkspaceEntity` (`workspace`) |
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
-| `users`, `tokens`, `roles` | User accounts; hashed bearer tokens with principal, permissions, expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
+| `users`, `tokens`, `roles` | User accounts, with per-user UI `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions, expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
 | `audit` | One flat event per audited attempt: CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`/`actorName`/`actorType`), `workspaceId`, `action`, resource (`resourceType`/`resourceId`/`resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged`/`secretsCleared` names, never values); run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) ride the engine's transition listener; expires by TTL | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (schema below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
@@ -266,6 +266,7 @@ a release ships the chain, changes are appended as new units.
 | `_0023__SeedAiTaskFamily` | all | Inserts `ai-prompt` and `ai-agent` from the seed files on a database seeded before they joined the catalogue; an empty database already has them from `_0017`. An install's earlier `ai` task, no longer shipped, is left as it is |
 | `_0024__SeedAiImageInputRevisions` | all | Inserts revision 2 of `ai-prompt` and `ai-agent` (image input, task-ai 2.1.0) where an install holds the task but not that revision; revision 1 is never touched, and a task the install does not hold gets nothing. An empty database already has both revisions from `_0017` |
 | `_0025__ClearCompletedTaskLeases` | all | Unsets `claim.leaseExpiresAt` on completed task runs, which kept it before completion cleared it; a live claim's lease is untouched. Empty and v3 databases have none |
+| `_0026__SeedAiWorkflowTemplate` | all | Inserts the `summarise-a-web-page-with-ai` template (by name and version) on a database seeded before it joined the seed; an empty database already has it from `_0020` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

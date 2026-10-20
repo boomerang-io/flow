@@ -84,7 +84,7 @@ public class _0020__SeedTemplates {
    * In the seed a template task's {@code taskRef} names the catalogue task; stored, it is the task's
    * id. The catalogue is seeded first, so every name resolves.
    */
-  private static void resolveTaskRefs(MongoDatabase db, CollectionNames names, Document template) {
+  static void resolveTaskRefs(MongoDatabase db, CollectionNames names, Document template) {
     for (Document task : template.getList("tasks", Document.class, List.of())) {
       String taskName = task.getString("taskRef");
       if (taskName == null) {
