@@ -14,8 +14,7 @@ under `service-core/src/main/java/io/boomerang/` unless they start with a module
 The contract is the boundary; the process is not. A dispatcher is its own deployable only when a boundary exists
 between it and core: credentials core must not hold, a different network zone, isolation of untrusted content, or
 placement on infrastructure core cannot reach (decision 0105). Where none exists, the poll loop runs inside another
-process through `dispatcher-sdk`, which carries the client, the poll loop, slots, leases and the `TaskHandler` and
-`WorkflowHandler` interfaces (`dispatcher-sdk/.../dispatcher/sdk/`) and nothing Kubernetes-specific.
+process through `dispatcher-sdk` ("SDK"), which carries nothing Kubernetes-specific.
 
 | Shape | Boundary | Where the loop runs |
 | --- | --- | --- |
@@ -30,8 +29,7 @@ process through `dispatcher-sdk`, which carries the client, the poll loop, slots
 The contract covers registration, the two queues, start, heartbeat, end, termination orders, storage release and the
 two optional log pieces ("Logs"), and nothing else. How a task is run — image, command, volumes, resources,
 placement — and what sits behind a live log route are the dispatcher's own (`dispatcher-kubernetes.md` for Flow's).
-One thing a complete dispatcher needs sits outside it today: **dispatcher identity** is a long-lived record upserted
-on name and host (`dispatcher/DispatcherService.java:99-131`) with no expiry or deregistration route.
+One thing a complete dispatcher needs sits outside it: **dispatcher identity** has no expiry or deregistration route.
 
 ## Versioning and compatibility
 
@@ -67,7 +65,7 @@ development; it is independent of `flow.security.enabled` (`authorization.md`, "
 | Report the outcome | `PUT /taskrun/{id}/end` | the task run |
 | Release storage | `POST /workspaces/releasable` | which held volumes may go |
 
-(`dispatcher/DispatcherControllerV1.java:63-242`)
+(`dispatcher/DispatcherControllerV1.java:76-258`)
 
 ## Registration
 
@@ -109,9 +107,15 @@ claims work a filtered poll would; reserving it is not built (flow#499).
 ## What a poll hands out
 
 Each claim is a compare-and-set on one document, so two dispatchers never receive the same run
-(`DispatcherService.java:301-316`). A task run's `taskRef` is its task's slug form, the same form the `task` filter
-takes, resolved once per answer for the poll, start and end alike; the engine stores the task's id
-(`DispatcherService.java:123`, `workflow/TaskService.java:707`). A task run in the answer is one of two orders:
+(`DispatcherService.java:301-316`). A run goes out as the wire's own model, not the public one (`dispatcher/model/`,
+`DispatcherControllerV1.java:260-265`); the SDK reads them as its `TaskRun` and `WorkflowRun`:
+
+| Model | Answers | Fields |
+| --- | --- | --- |
+| `DispatchTaskRun` | The task poll, start and end | `id`, `type`, `name`, `labels`, `timeout` (minutes; null or 0 is unguarded), `params`, `results` (the task's declared results), `workspace`, `spec`, `status`, `phase`, `taskRef` (the task's slug form, as the `task` filter takes it, resolved once per answer; the engine stores the id, `DispatcherService.java:123`, `workflow/TaskService.java:707`), `workflowRef`, `workflowRunRef`, `index` (on a for-each item) |
+| `DispatchWorkflowRun` | The workflow poll and its start | `id`, `status`, `phase`, `workflowRef`, `labels`, `workspace` |
+
+A task run in the answer is one of two orders:
 
 | Phase and status | Order | The dispatcher |
 | --- | --- | --- |
@@ -157,7 +161,7 @@ nothing left to stop treats the order as done.
 
 ## Starting
 
-`PUT /taskrun/{id}/start` carries `dispatcherRef` (the registered id) and answers with the task run
+`PUT /taskrun/{id}/start` carries `dispatcherRef` (the registered id) and answers with the `DispatchTaskRun`
 (`engine/TaskRunService.java:867`). The dispatcher MUST NOT run the task when the answer's phase is `completed` — it
 was cancelled while being handed over — or when the engine answers 4xx. When the engine cannot be reached it MAY run
 the task: the end is still fenced on the claim. The engine moves the task to running asynchronously, so `queued` in
@@ -209,10 +213,9 @@ A claim carries a lease from the moment it is made: the claim sets it 90 s ahead
 working on, and the engine moves each owned one's lease 90 s ahead again (`dispatcher/DispatcherService.java:190`,
 `engine/TaskRunService.java:614`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
 has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
-was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
-(`engine/WorkflowWatcher.java:74`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
-catches a dispatcher that crashes and comes back under the same id within that minute: it stays live, but its
-heartbeats no longer list the claims it lost.
+was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:74`),
+gets the task requeued or abandoned (`execution-model.md`). The lease is what catches a dispatcher that crashes and
+comes back under the same id within that minute: it stays live, but its heartbeats no longer list the claims it lost.
 
 ## Logs
 
@@ -242,12 +245,11 @@ A live route MUST write each line as the task writes it and get it onto the netw
 Under Spring 7 a `StreamingResponseBody`'s `flush()` does not reach the network, so both of Flow's log routes flush
 the servlet response (`common/util/ResponseFlushingOutputStream.java`, at `workflow/TaskRunControllerV2.java:57` and
 `dispatcher/LogV1Controller.java:27`); core flushes every relayed read (`engine/LogClient.java` `copyAsWritten`
-`:166`) and its secret scrub passes whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees
-a line about a second after it is written. A stream stays open for up to two hours
-(`spring.mvc.async.request-timeout`, `application.properties:72`); after 10 minutes with nothing from the
-dispatcher, core's read gives up (`core/config/RestConfig.java` `STREAMING_READ_MINUTES`) and the stream ends with a
-line saying it stopped following (`LogClient` `IDLE_MESSAGE` `:47`); opening the log again follows it from the start
-of the pod's log.
+`:166`) and its secret scrub passes whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a
+line about a second after it is written. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`,
+`application.properties:72`); after 10 minutes with nothing from the dispatcher, core's read gives up
+(`core/config/RestConfig.java` `STREAMING_READ_MINUTES`) and the stream ends with a line saying it stopped following
+(`LogClient` `IDLE_MESSAGE` `:47`); opening the log again follows it from the start of the pod's log.
 
 ## Trace context
 
@@ -322,9 +324,8 @@ catalogue's latest when it asked for none; at run time `DAGUtility.createTaskLis
 it on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version still resolves latest. A new
 Task version therefore changes nothing for workflows already saved, and a run is reproducible from its revision.
 Saving the workflow again with the node's `taskVersion` set, or omitted for latest, moves it forward; the editor
-prompts "New version available" per node from the `upgradesAvailable` flag
-`WorkflowService.areTaskUpgradesAvailable` sets
-(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
+prompts "New version available" per node from the `upgradesAvailable` flag `WorkflowService.areTaskUpgradesAvailable`
+sets (`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:58-64,133`).
 
 ## AI tasks
 
@@ -343,18 +344,17 @@ ignores the image). Everything the model call needs is a declared param:
 Revision 1 of each stays seeded beside revision 2, so a workflow pinned to it keeps running unchanged. A workspace
 image over `maxImageBytes` fails the task with the reason prefix `FILE_TOO_LARGE`; it is never resized or skipped.
 
-The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) copy the definition files in the
-`boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), the source of the contract: a
-param or result added on one side lands on the other as one PR there and a seed sync here. The worker is a task
-image, released on its own `task-ai@<version>` tags; each revision pins the exact `boomerangio/task-ai:<version>`,
-and a deployment moves to a newer worker by seeding a new revision. `slider`, the only param type with a numeric
-range, gives `AbstractParam` nullable `min`, `max` and `step` beside `options`
-(`service-core/.../model/AbstractParam.java`). JSON-valued params are `json` text the image parses up front, failing
-`INVALID_PARAM` with the param's name. Params arrive as `PARAM_<NAME>` environment variables and results return
-through `RESULTS_PATH` as flat typed results under every task's caps (decision 0041: the 1 MB engine guard, 4 KB on
-the Kubernetes dispatcher), so a long `output` fails the task with `RESULTS_TOO_LARGE` rather than truncating;
-`outputFile` and the task log carry what does not fit. There is no usage field and no meter: a platform sums
-`totalTokens` across task runs through the query API.
+The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) copy the definition files in the `boomerang-io/tasks`
+repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), the source of the contract: a param or result added
+on one side lands on the other as one PR there and a seed sync here. The worker is a task image, released on its own
+`task-ai@<version>` tags; each revision pins the exact `boomerangio/task-ai:<version>`, and a deployment moves to a
+newer worker by seeding a new revision. `slider`, the only param type with a numeric range, gives `AbstractParam`
+nullable `min`, `max` and `step` beside `options` (`service-core/.../model/AbstractParam.java`). JSON-valued params
+are `json` text the image parses up front, failing `INVALID_PARAM` with the param's name. Params arrive as
+`PARAM_<NAME>` environment variables and results return through `RESULTS_PATH` as flat typed results under every
+task's caps (decision 0041: the 1 MB engine guard, 4 KB on the Kubernetes dispatcher), so a long `output` fails the
+task with `RESULTS_TOO_LARGE` rather than truncating; `outputFile` and the task log carry what does not fit. There is
+no usage field and no meter: a platform sums `totalTokens` across task runs through the query API.
 
 **Token delivery.** `token` is password-typed, so it is a `secret` param: masked on reads and scrubbed from the log
 stream (`parameters.md`, "Sensitive parameters"), and a plain `PARAM_TOKEN` environment variable on the pod like
@@ -363,8 +363,7 @@ read the token.
 
 ## Errors
 
-Every error body is the engine's standard shape — `timestamp`, `code`, `reason`, `message`, `status` — except the
-authentication filter's bare 401 (`CLAUDE.md`, "API errors").
+Every error is the engine's standard body (`CLAUDE.md`, "API errors"), except the authentication filter's bare 401.
 
 ## SDK
 
@@ -398,3 +397,4 @@ needs a GitHub token with `read:packages`.
 | `RateLimited` end reason, requeued like `ExceededQuota` | Additive |
 | `taskRef` on a task run is the task's slug form; the `task` filter takes the same form | Before the first release (decision 0119) |
 | Trace context derived from the run and task run ids | Additive, no wire change (decision 0120) |
+| Runs go out as `DispatchTaskRun` and `DispatchWorkflowRun`, not the public `TaskRun` and `WorkflowRun`. Gone from the task run: `annotations`, `creationDate`, `startTime`, `duration`, `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef`, `reusedFromRef`; from the workflow run, all but the six fields above, and with them the `RetryFrom` schema | Response fields removed, before the first release |

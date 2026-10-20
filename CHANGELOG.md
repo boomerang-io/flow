@@ -92,6 +92,16 @@ tag's release notes.
 - **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
   integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
   refuse every request.
+- **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
+  `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
+  `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an
+  application built on `io.boomerang:dispatcher-sdk` to 5.0.0-beta.23 or later: its `TaskRun` and `WorkflowRun`
+  have no getters for the dropped fields, so code that read one fails to compile instead of reading null. An older
+  SDK still works against this engine, as its runtime reads only the remaining fields. A dispatcher written against
+  the protocol directly must stop reading a task run's `annotations`, `creationDate`, `startTime`, `duration`,
+  `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef` and
+  `reusedFromRef`, and every workflow-run field but `id`, `status`, `phase`, `workflowRef`, `labels` and
+  `workspace`; it reads them from the run through `/api/v2` instead.
 
 ### Added
 
