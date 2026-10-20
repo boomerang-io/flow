@@ -622,34 +622,13 @@ public class WorkflowService {
       request.setDebug(Boolean.valueOf(enableDebug));
       LOGGER.info("Setting debug = " + enableDebug);
     }
-    // These annotations are processed by the DAGUtility in the Engine
-    Map<String, Object> executionAnnotations = new HashMap<>();
-    executionAnnotations.put(
-        "boomerang.io/task-deletion",
-        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "deletion.policy").getValue());
-    executionAnnotations.put(
-        "boomerang.io/task-default-image",
-        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.image").getValue());
-    // The per-task ceiling is an optional operator control, not a budget every task is entitled
-    // to spend: the seed ships it at 0 so a task inherits its run's timeout, and an operator who
-    // wants a hard per-pod limit sets a number. A blank value means the same as 0 - an install
-    // whose setting was cleared by hand or arrived blank from a v3 migration stamps no annotation
-    // at all rather than handing DAGUtility a string Long.parseLong cannot read.
-    String taskTimeoutSetting =
-        this.settingsService.getSettingConfig(TASK_SETTINGS_KEY, "default.timeout").getValue();
-    if (taskTimeoutSetting != null && !taskTimeoutSetting.isBlank()) {
-      executionAnnotations.put("boomerang.io/task-timeout", taskTimeoutSetting);
-    }
-
-    // Global, workspace and context parameters are not copied onto the run: the engine reads them
-    // from their stores each time it resolves. A child run's request carries its parent's
-    // annotations, so the keys older runs were given are dropped here too.
-    request.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
-
-    // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
-    // other tasks to add a hidden prefix.
-    executionAnnotations.put("boomerang.io/workspace-name", team);
-    request.getAnnotations().putAll(executionAnnotations);
+    // The annotations the engine decides on are the server's: any a client sent are dropped, then
+    // the run is given its own from the task settings and this workspace.
+    request
+        .getAnnotations()
+        .keySet()
+        .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
+    request.getAnnotations().putAll(paramLayerService.executionAnnotations(team));
 
     // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
     // are re-read (now including this run), and a run that pushed a count over its limit is

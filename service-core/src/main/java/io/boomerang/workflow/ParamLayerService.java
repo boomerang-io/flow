@@ -17,6 +17,7 @@ import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +47,12 @@ public class ParamLayerService {
           "boomerang.io/global-params",
           "boomerang.io/workspace-params",
           "boomerang.io/context-params");
+
+  /**
+   * The prefix of the run annotations the engine reads to decide - task defaults and the owning
+   * workspace. Only the server writes them: a client's submit or start never sets one.
+   */
+  public static final String SERVER_ANNOTATION_PREFIX = "boomerang.io/";
 
   // The inbound routes a task can call back on, handed to every run as context params.
   @Value("${flow.workflow.webhook.url}")
@@ -287,5 +294,30 @@ public class ParamLayerService {
         contextParams.put("tokens." + t.getName(), t.getToken());
       }
     }
+  }
+
+  /**
+   * The annotations a run is given from the task settings and its owning workspace, which the
+   * engine reads to decide: the task deletion policy and default image, the per-task timeout
+   * ceiling when one is set, and the workspace whose parameters and lock scope the run uses.
+   */
+  public Map<String, Object> executionAnnotations(String workspace) {
+    Map<String, Object> annotations = new HashMap<>();
+    annotations.put(
+        "boomerang.io/task-deletion",
+        settingsService.getSettingConfig("task", "deletion.policy").getValue());
+    annotations.put(
+        "boomerang.io/task-default-image",
+        settingsService.getSettingConfig("task", "default.image").getValue());
+    // The per-task ceiling is an optional operator control, not a budget every task is entitled
+    // to spend: the seed ships it at 0 so a task inherits its run's timeout. A blank value means
+    // the same as 0 - an install whose setting was cleared by hand or arrived blank from a v3
+    // migration stamps none rather than handing the engine a string it cannot parse.
+    String taskTimeout = settingsService.getSettingConfig("task", "default.timeout").getValue();
+    if (taskTimeout != null && !taskTimeout.isBlank()) {
+      annotations.put("boomerang.io/task-timeout", taskTimeout);
+    }
+    annotations.put("boomerang.io/workspace-name", workspace);
+    return annotations;
   }
 }
