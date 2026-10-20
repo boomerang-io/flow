@@ -209,7 +209,7 @@ error while creating it surfaces as one provisioning failure (`dispatcher/Worksp
 A workflow upgraded from v3 keeps its mount path, written explicitly as `/workspace/workflowrun` when v3 had none
 (`migration/_0010__V3MigrateWorkflows.java:225`), so its tasks need no change. One that declared v3's Workflow
 storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on its revision and is refused at submit
-with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1951`).
+with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1955`).
 
 ## Isolation and placement
 

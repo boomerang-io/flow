@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.common.model.StatusReason;
 import io.boomerang.workflow.ArtifactService;
+import io.boomerang.workflow.WorkflowRetentionService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
@@ -13,24 +14,18 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
-import io.boomerang.core.RelationshipService;
-import io.boomerang.core.SettingsService;
-import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.ActionRepository;
-import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
-import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import java.time.Duration;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -78,16 +73,6 @@ public class WorkflowWatcher {
   // protocol can cancel in-flight work.
   private static final long DISPATCHER_STALE_MILLIS = 60000;
 
-  // Days a finished run is kept: the "retention.days" key of the "workflowrun" settings document,
-  // 365 when the document predates the key, never below 60 so a month's quota counts stay whole.
-  private static final String RUN_RETENTION_KEY = "retention.days";
-  private static final int RUN_RETENTION_DEFAULT_DAYS = 365;
-  private static final int RUN_RETENTION_MIN_DAYS = 60;
-
-  // The scheduler is single-threaded, so one retention pass is bounded to keep the recovery
-  // sweeps on time; a backlog drains over several passes.
-  private static final int MAX_PURGE_PAGES = 20;
-
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
@@ -97,11 +82,8 @@ public class WorkflowWatcher {
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
   private final DispatcherRepository dispatcherRepository;
-  private final TaskRunRepository taskRunRepository;
-  private final WorkflowScheduleRepository scheduleRepository;
-  private final RelationshipService relationshipService;
   private final ArtifactService artifactService;
-  private final SettingsService settingsService;
+  private final WorkflowRetentionService workflowRetentionService;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -126,11 +108,8 @@ public class WorkflowWatcher {
       WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
       DispatcherRepository dispatcherRepository,
-      TaskRunRepository taskRunRepository,
-      WorkflowScheduleRepository scheduleRepository,
-      RelationshipService relationshipService,
       ArtifactService artifactService,
-      SettingsService settingsService) {
+      WorkflowRetentionService workflowRetentionService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -140,11 +119,8 @@ public class WorkflowWatcher {
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
     this.dispatcherRepository = dispatcherRepository;
-    this.taskRunRepository = taskRunRepository;
-    this.scheduleRepository = scheduleRepository;
-    this.relationshipService = relationshipService;
     this.artifactService = artifactService;
-    this.settingsService = settingsService;
+    this.workflowRetentionService = workflowRetentionService;
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -208,67 +184,9 @@ public class WorkflowWatcher {
     }
   }
 
-  /**
-   * Purge finished runs older than the Activity retention: each run's run- and log-scoped
-   * artifacts (files first), actions, task runs, relationship node and finally the run document.
-   * A run another run still points at through {@code initiatedByRef} (a retry's origin, a child's
-   * parent) is kept until that run is gone, so a carried-over task run never outlives the task run
-   * it stands for. In-flight runs, workflow-scoped artifacts and audit records are never touched.
-   * Every delete is by ref and idempotent: a pass that dies halfway is finished by the next one.
-   */
+  /** Purge finished runs past the Activity retention (see {@link WorkflowRetentionService}). */
   public void purgeExpiredRuns() {
-    Date cutoff = new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(runRetentionDays()));
-    Date after = new Date(0);
-    int purged = 0;
-    for (int pages = 0; pages < MAX_PURGE_PAGES; pages++) {
-      List<WorkflowRunEntity> page =
-          workflowRunRepository.findByPhaseAndCreationDateBetween(
-              RunPhase.completed,
-              after,
-              cutoff,
-              PageRequest.of(0, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "creationDate")));
-      for (WorkflowRunEntity wfRun : page) {
-        if (workflowRunRepository.existsByInitiatedByRef(wfRun.getId())) {
-          LOGGER.debug("[{}] Kept past retention: a later run points at it.", wfRun.getId());
-          continue;
-        }
-        try {
-          purgeRun(wfRun.getId());
-          purged++;
-        } catch (RuntimeException ex) {
-          LOGGER.error("[{}] Retention purge failed: {}", wfRun.getId(), ex.getMessage());
-        }
-      }
-      if (page.size() < PAGE_SIZE) {
-        break;
-      }
-      after = page.get(page.size() - 1).getCreationDate();
-    }
-    if (purged > 0) {
-      LOGGER.info("Retention purged {} run(s) created before {}.", purged, cutoff);
-    }
-  }
-
-  private void purgeRun(String wfRunId) {
-    artifactService.deleteForRun(wfRunId);
-    actionRepository.deleteByWorkflowRunRef(wfRunId);
-    taskRunRepository.deleteByWorkflowRunRef(wfRunId);
-    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOWRUN, wfRunId);
-    workflowRunRepository.deleteById(wfRunId);
-    LOGGER.debug("[{}] Purged past retention.", wfRunId);
-  }
-
-  /** Days a finished run is kept: the setting, 365 when absent or not a number, never below 60. */
-  int runRetentionDays() {
-    try {
-      String value =
-          settingsService
-              .getSettingConfig(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY, RUN_RETENTION_KEY)
-              .getValue();
-      return Math.max(RUN_RETENTION_MIN_DAYS, Integer.parseInt(value.trim()));
-    } catch (RuntimeException notConfigured) {
-      return RUN_RETENTION_DEFAULT_DAYS;
-    }
+    workflowRetentionService.purgeExpiredRuns();
   }
 
   private static void logSweepFailure(String sweep, Exception ex) {
@@ -418,48 +336,11 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Prune deleted (tombstoned) Workflows whose runs have all completed: purge each run the way
-   * retention does (its artifacts, actions, task runs, relationship node and the run itself), then
-   * hard-delete the workflow's revisions, leftover actions and schedules, its relationship node,
-   * and finally the workflow document itself. A workflow with a run still in flight is skipped -
-   * the cancel sweep finishes first, so live work is never pruned. Audit records are never
-   * touched: they are the record that outlives the deletion. Every delete is by-ref and
-   * idempotent, so overlapping sweeps are harmless.
+   * Prune deleted (tombstoned) Workflows whose runs have all completed (see {@link
+   * WorkflowRetentionService}).
    */
   public void pruneDeletedWorkflows() {
-    SweepRunner.forEachIsolated(
-        workflowRepository.findByStatus(WorkflowStatus.deleted, PageRequest.of(0, PAGE_SIZE)),
-        workflow -> {
-          if (!workflowRunRepository
-              .findByWorkflowRefAndPhaseIn(workflow.getId(), IN_FLIGHT_PHASES)
-              .isEmpty()) {
-            return;
-          }
-          // Each purge deletes its run, so the first page advances until the workflow has none.
-          List<WorkflowRunEntity> runs;
-          while (!(runs =
-                  workflowRunRepository.findByWorkflowRef(
-                      workflow.getId(), PageRequest.of(0, PAGE_SIZE)))
-              .isEmpty()) {
-            runs.forEach(run -> purgeRun(run.getId()));
-          }
-          artifactService.deleteForWorkflow(workflow.getId(), PAGE_SIZE);
-          // Catch-all for task runs whose run document is already gone.
-          taskRunRepository.deleteByWorkflowRef(workflow.getId());
-          workflowRevisionRepository.deleteByWorkflowRef(workflow.getId());
-          actionRepository.deleteByWorkflowRef(workflow.getId());
-          scheduleRepository.deleteByWorkflowRef(workflow.getId());
-          relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflow.getId());
-          workflowRepository.deleteById(workflow.getId());
-          LOGGER.info(
-              "[{}] Pruned deleted Workflow: its runs with their relationship nodes, artifacts,"
-                  + " revisions, actions, schedules and its own node are removed; audit records"
-                  + " are kept.",
-              workflow.getId());
-        },
-        (workflow, ex) ->
-            LOGGER.error(
-                "[{}] Deleted-workflow prune failed: {}", workflow.getId(), ex.getMessage()));
+    workflowRetentionService.pruneDeletedWorkflows();
   }
 
   /**

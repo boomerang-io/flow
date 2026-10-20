@@ -85,8 +85,8 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 `boomerang.io/*` keys written to stored documents (`grep -rn '"boomerang.io/' service-core/src/main`):
 | Key | Written on | By | Read by the engine? |
 | --- | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs, task runs | `WorkflowService.java:1480,1676,1789`, `TaskService.java:646,713`, `DAGUtility.java:152-153` | No |
-| `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1128` | No |
+| `generation`, `kind` | workflows, tasks, workflow runs, task runs | `WorkflowService.java:1484,1676,1789`, `TaskService.java:646,713`, `DAGUtility.java:152-153` | No |
+| `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1132` | No |
 | `workspace-name` | workflow run at submit; copied to task runs | `WorkflowService.java:640`, `DAGUtility.java:157-159` | Yes — `TaskExecutionService.java:743` |
 | `task-timeout`, `task-default-image`, `task-deletion` | workflow run at submit (workspace executor settings) | `WorkflowService.java:623-629` | Yes — `DAGUtility.java:195-244` |
 | `global-params`, `context-params`, `workspace-params` | No longer written; runs created earlier still carry them, stripped from read payloads and from a child run's request | `WorkflowRunService.java:1152`, `WorkflowService.java:700` | No — the layers are read from their stores (`ParameterManager.java:247`) |
@@ -188,11 +188,11 @@ scope `log`. A second upload for the same task run replaces the first, file and 
 | `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:307`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1012`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:355`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`:456`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete, its workflow's prune (`engine/WorkflowWatcher.java:161`) or its run's
+A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:134`) or its run's
 retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings document
 (365; `seed/settings.json:456`), read at each pass and floored at 60 so a month's quota counts stay whole
-(`WorkflowWatcher.runRetentionDays` `:262`). An hourly pass (`flow.watcher.retention-interval-ms`,
-`purgeExpiredRuns` `:219`) pages runs in phase `completed` created before the cutoff, oldest first, on the
+(`WorkflowRetentionService.runRetentionDays` `:170`). An hourly pass (`flow.watcher.retention-interval-ms`,
+`purgeExpiredRuns` `:94`, run hourly by the watcher) pages runs in phase `completed` created before the cutoff, oldest first, on the
 `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first,
 `workflow/ArtifactService.java` `deleteForRun` `:625`), actions, task runs, relationship node and finally the run
 document. A run another run still names in `initiatedByRef` (a retry's origin, a child's parent) is kept until

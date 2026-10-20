@@ -731,8 +731,8 @@ public class WorkflowService {
   /*
    * Scoped delete: tombstones the Workflow, then cleans up what only this layer knows about -
    * Schedules, the principal's Tokens, open Actions, and the relationship node. The documents
-   * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the watcher's
-   * prune sweep once in-flight runs finalise.
+   * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the retention
+   * service's prune, which the watcher runs once in-flight runs finalise.
    */
   public void delete(String team, String name) {
     if (name == null || name.isBlank()) {
@@ -747,16 +747,20 @@ public class WorkflowService {
       delete(refs.get(0));
       scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
       tokenService.deleteAllForPrincipal(name);
-      // Close out the Workflow's Actions. Inlined from the deleted
-      // ActionService.deleteAllByWorkflow, which was a one-line delegation to this repository
-      // call and had no other caller - injecting ActionService here would make
-      // WorkflowService -> ActionService -> WorkflowService a constructor cycle.
-      actionRepository.deleteByWorkflowRef(refs.get(0));
-      // This has to be the ID (ref) as it is unique across all teams
-      relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, refs.get(0));
+      removeWorkflowReferences(refs.get(0));
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
+  }
+
+  /**
+   * Remove what refers to a Workflow outside its own documents: its Actions and its relationship
+   * node (by id, which is unique across workspaces). Done when the Workflow is deleted and again
+   * when the retention service prunes it; both deletes are idempotent.
+   */
+  public void removeWorkflowReferences(String workflowId) {
+    actionRepository.deleteByWorkflowRef(workflowId);
+    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOW, workflowId);
   }
 
   /*

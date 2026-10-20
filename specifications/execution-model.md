@@ -75,33 +75,33 @@ A dispatcher that fails to provision, or dies holding the claim, does not tell t
 `recoverStaleProvisionClaims` sweep recovers it: a claim older than `flow.watcher.provision-claim-grace-ms`
 (default 5 minutes, well above the dispatcher's 30 s wait per storage claim) is released for the next poll, and
 once `claim.seq` shows the third claim went stale the run is completed `failed` with the message "Workspace
-provisioning did not complete after 3 attempts." (`WorkflowWatcher.java:409-441`,
+provisioning did not complete after 3 attempts." (`WorkflowWatcher.java:327-342`,
 `WorkflowRunStateHelper.java:100-156`). Both writes are fenced on the observed `claim.seq`, so a start or a fresh
 claim wins. The run has no `statusReason` field, so the cause is carried in `statusMessage` only. A `runworkflow` task submits its
 child with `start=true`, so the child follows the same rule (see Child workflows below).
 
 ## The watcher sweeps
 
-`WorkflowWatcher` runs on every instance, once at boot and then every `flow.watcher.interval-ms` (default 30 s) with a random start delay; `flow.watcher.enabled=false` disables it (`engine/WorkflowWatcher.java:119-135`).
+`WorkflowWatcher` runs on every instance, once at boot and then every `flow.watcher.interval-ms` (default 30 s) with a random start delay; `flow.watcher.enabled=false` disables it (`engine/WorkflowWatcher.java:101-114`).
 Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolated so one failure cannot stop the rest (`:139-148`).
 
 | Sweep (`WorkflowWatcher.java`) | Selects | Does |
 | --- | --- | --- |
-| `reapTaskTimeouts` `:161` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:446`) | requeues a dispatched task — `template`, `custom`, `script`, `generic`, `ai` — with attempts < 3 (`tryRequeue` `:549`); otherwise marks it `timedout` (`tryTimeout` `:486`) and ends it |
-| `reapWorkflowTimeouts` `:191` | running workflow runs past `timeoutAt` that are neither paused nor waiting (`findTimedOut` `:321`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:1051`) |
-| `recoverStalledRuns` `:203` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
-| `recoverForeachTasks` `:240` | for-each parents in the `running` phase for > 60 s, whatever their status (`TaskRunService.findRunningForeachParents` `:464`) | a parent whose outcome is recorded (terminal status, phase still `running`) is ended, paused or not — the completion CAS makes a repeat a no-op; any other with no item in flight (`existsInFlightItem` `:502`) and an unpaused run (`:251`, `:264`) re-runs the idempotent fan-out: creates missing items, queues unqueued ones, completes a parent whose items are all terminal (`TaskExecutionService.fanOutItems` `:636`). A paused run is skipped because the pause gate would refuse every item it queued; resume re-runs the fan-out |
-| `resumeDueWaitingTasks` `:225` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:770`) |
-| `cancelDeletedWorkflowRuns` `:242` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
-| `pruneDeletedWorkflows` `:428` | deleted workflows with no in-flight runs | purges each run as the retention sweep does (`purgeRun` `:251`: artifacts with their files, actions, task runs, the run's relationship node, the run), then hard-deletes the workflow's artifacts, revisions, leftover actions, schedules and relationship node, then the workflow document; audit records are kept |
-| `reapRunsWithMissingRevision` `:299` | in-flight runs whose `workflowRevisionRef` no longer resolves — resolved first as the distinct in-flight revision refs minus the ones that exist, then paged by that set, so a backlog of healthy runs never hides an orphan (`WorkflowRunStateHelper.findInFlightRevisionRefs`, `findInFlightWithRevisionIn`) | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest. A cancel whose revision is gone takes the same fallback: it winds down the stored task runs instead of walking the revision (`WorkflowExecutionService.cancelPendingAndRunningTasks` `:259`) |
-| `recoverStaleProvisionClaims` `:408` | `ready/queued` workflow runs whose provisioning `claim.at` is older than the grace period (`WorkflowRunStateHelper.findStaleProvisionClaims` `:100`, served by the `claim_page` index) | releases the claim to `ready/pending` while `claim.seq` < 3 (`tryReleaseProvisionClaim` `:117`); otherwise completes the run `failed` (`tryFailProvision` `:132`) and winds down its task runs like the missing-revision reap |
-| `reapClaimsFromGoneDispatchers` `:343` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:73`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
+| `reapTaskTimeouts` `:202` | task runs `queued`/`running` with `timeoutAt` elapsed (`TaskRunService.findReapable` `:446`) | requeues a dispatched task — `template`, `custom`, `script`, `generic`, `ai` — with attempts < 3 (`tryRequeue` `:549`); otherwise marks it `timedout` (`tryTimeout` `:486`) and ends it |
+| `reapWorkflowTimeouts` `:232` | running workflow runs past `timeoutAt` that are neither paused nor waiting (`findTimedOut` `:321`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:1051`) |
+| `recoverStalledRuns` `:245` | running runs started > 60 s ago with zero in-flight task runs (`existsInFlightByWorkflowRunRef` `:602`) | re-drives the graph advance (`TaskExecutionService.advance` `:515`) |
+| `recoverForeachTasks` `:270` | for-each parents in the `running` phase for > 60 s, whatever their status (`TaskRunService.findRunningForeachParents` `:464`) | a parent whose outcome is recorded (terminal status, phase still `running`) is ended, paused or not — the completion CAS makes a repeat a no-op; any other with no item in flight (`existsInFlightItem` `:502`) and an unpaused run (`:251`, `:264`) re-runs the idempotent fan-out: creates missing items, queues unqueued ones, completes a parent whose items are all terminal (`TaskExecutionService.fanOutItems` `:636`). A paused run is skipped because the pause gate would refuse every item it queued; resume re-runs the fan-out |
+| `resumeDueWaitingTasks` `:304` | `waiting` task runs whose `waitUntil` elapsed (`findWaitingDue` `:615`) | claims via `tryStartWaitingResume` `:637`, then a sleep completes or an `acquirelock` re-attempts (`resumeWaitingTask` `:770`) |
+| `cancelDeletedWorkflowRuns` `:321` | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel path |
+| `pruneDeletedWorkflows` `:342` | deleted workflows with no in-flight runs | calls `WorkflowRetentionService.pruneDeletedWorkflows` (`workflow/WorkflowRetentionService.java:134`), which purges each run as the retention sweep does (`purgeRun` `:182`: artifacts with their files, actions, task runs, the run's relationship node, the run), then hard-deletes the workflow's artifacts, revisions, leftover actions, schedules and relationship node, then the workflow document; audit records are kept |
+| `reapRunsWithMissingRevision` `:352` | in-flight runs whose `workflowRevisionRef` no longer resolves — resolved first as the distinct in-flight revision refs minus the ones that exist, then paged by that set, so a backlog of healthy runs never hides an orphan (`WorkflowRunStateHelper.findInFlightRevisionRefs`, `findInFlightWithRevisionIn`) | completes the run as `invalid`, queues pending tasks (which skip) and ends the rest. A cancel whose revision is gone takes the same fallback: it winds down the stored task runs instead of walking the revision (`WorkflowExecutionService.cancelPendingAndRunningTasks` `:259`) |
+| `recoverStaleProvisionClaims` `:412` | `ready/queued` workflow runs whose provisioning `claim.at` is older than the grace period (`WorkflowRunStateHelper.findStaleProvisionClaims` `:100`, served by the `claim_page` index) | releases the claim to `ready/pending` while `claim.seq` < 3 (`tryReleaseProvisionClaim` `:117`); otherwise completes the run `failed` (`tryFailProvision` `:132`) and winds down its task runs like the missing-revision reap |
+| `reapClaimsFromGoneDispatchers` `:451` | claimed task runs (`findClaimed` `:461`) whose dispatcher has not connected for 60 s (`:73`) | same requeue-or-abandon treatment as a deadline reap (`tryAbandon` `:511`), `statusReason=DispatcherGone` |
 | `reapExpiredLeases` | claimed task runs whose `claim.leaseExpiresAt` has elapsed (`TaskRunService.findLeaseExpired`) | the same requeue-or-abandon treatment, `statusReason=LeaseExpired` |
-| `closeStrayActions` `:420` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
-| `expireArtifacts` `:174` | `available` artifacts past `expirationDate` (workflow-scoped ones have none and expire only when replaced) | deletes the file, then sets `expired` by CAS; the record stays |
-| `reapStaleArtifactUploads` `:183` | `uploading` artifacts older than `flow.artifacts.upload-grace-minutes` | deletes any partial file and the record |
-| `purgeExpiredRuns` `:218`, on its own hourly clock (`flow.watcher.retention-interval-ms`, `:203`) | `completed` runs created before now minus the Activity retention (`workflowrun`/`retention.days`, 365, floored at 60), oldest first on the `phase_creation_sweep` index, at most 20 pages a pass; a run another run names in `initiatedByRef` is skipped until that run is gone | deletes the run's run- and log-scoped artifacts (files first), actions, task runs, relationship node and the run document; workflow-scoped artifacts and audit records are kept (`data-model.md`, "Artifacts") |
+| `closeStrayActions` `:528` | `submitted` actions whose run is already terminal | marks the action `cancelled` by CAS |
+| `expireArtifacts` `:166` | `available` artifacts past `expirationDate` (workflow-scoped ones have none and expire only when replaced) | deletes the file, then sets `expired` by CAS; the record stays |
+| `reapStaleArtifactUploads` `:171` | `uploading` artifacts older than `flow.artifacts.upload-grace-minutes` | deletes any partial file and the record |
+| `purgeExpiredRuns` `:188`, on its own hourly clock (`flow.watcher.retention-interval-ms`, `:180`), calling `WorkflowRetentionService.purgeExpiredRuns` (`workflow/WorkflowRetentionService.java:94`) | `completed` runs created before now minus the Activity retention (`workflowrun`/`retention.days`, 365, floored at 60), oldest first on the `phase_creation_sweep` index, at most 20 pages a pass; a run another run names in `initiatedByRef` is skipped until that run is gone | deletes the run's run- and log-scoped artifacts (files first), actions, task runs, relationship node and the run document; workflow-scoped artifacts and audit records are kept (`data-model.md`, "Artifacts") |
 
 ## Timeouts and crash recovery
 
@@ -143,7 +143,7 @@ declared timeout is excluded from the critical path that floors the run budget (
 a gate that may sit for an hour does not force a run to ask for an hour.
 
 A run's timeout is settled at submit, in the one method every path that creates a run passes through
-(`workflow/WorkflowService.java:1878-1884`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
+(`workflow/WorkflowService.java:1882-1888`), by `workflow/RunTimeoutPolicy.resolve` (`:66-93`). The request's timeout
 wins, else the revision's, else the run-duration quota itself - the workspace's own `maxWorkflowRunDuration`
 override when it has one, else the platform `quotas`/`max.workflowrun.duration` setting
 (`RunTimeoutPolicy.java:152-170`) - so a run is never created unguarded just because nobody named a budget. That value
@@ -161,7 +161,7 @@ jitter (`service-core/.../util/Backoff.java:12-21`). The result is stored as `re
 
 | Situation | Retried? | Where |
 | --- | --- | --- |
-| Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `EngineConstants.java:18-34`, `WorkflowWatcher.java:200`, `:518` |
+| Task run times out or its dispatcher disappears, type is requeueable, attempts < 3 | yes, requeued with backoff | `EngineConstants.java:18-34`, `WorkflowWatcher.java:176`, `:399` |
 | Dispatcher reports it could not start the task (`ExceededQuota`, `StartTimeout`, `RateLimited`), type is requeueable, attempts < 3 | yes, requeued with backoff on the same budget; once spent, the task fails with that reason | `TaskRunService.java:71`, `:1035` |
 | Task run reported `failed`/`invalid` by the dispatcher for any other reason | no — the run advances or fails | `TaskExecutionService.java:446-456` |
 | Gate, wait or inline system task times out | no — terminal `timedout` | `EngineConstants.java:18-31` |
@@ -214,7 +214,7 @@ does, so a run paused past its deadline is not reaped on the next sweep. A pause
 counted once: the flag cleared first extends the deadline only up to the start of the other. Resume clears the
 flag and calls `advance`, which re-queues whatever the gate held back, including the unadmitted items of a running
 for-each task (`TaskExecutionService.java:620`, `WorkflowRunService.java:970-985`). The for-each recovery sweep
-leaves a paused run's fan-out alone for the same reason (`WorkflowWatcher.java:252`).
+leaves a paused run's fan-out alone for the same reason (`WorkflowWatcher.java:190`).
 
 ## The DAG advance
 
@@ -285,7 +285,7 @@ child is submitted with the task's own params minus `workflowRef` and `wait` (`c
 values its node passes, which the designer's Run Workflow modal lists from the child's declared params, and under
 for-each the item's `item` and `index`. The parent run's params are not handed down. A node's params beyond
 `workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses any other with
-`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`). A
+`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1747-1787`). A
 `runscheduledworkflow` task schedules its run with the same rule, also leaving out the `futureIn`, `futurePeriod`,
 `timezone` and `time` it reads itself (`:1320-1323`).
 
@@ -331,7 +331,7 @@ itself stops at the cap, so a broken lineage cannot make it unbounded.
 A task with `foreach` set runs once per item of a JSON array, in parallel, in the same run; the setting is on the
 task, not a task type, and only the types a dispatcher runs (`template`, `script`, `custom`, `ai`, `generic`, the
 two artifact types) and `runworkflow` may carry it — never `start` or `end`, which saving refuses
-(`workflow/WorkflowService.java:133-143`, `:1864-1872`; `engine/DAGUtility.java:146`). A for-each `runworkflow`
+(`workflow/WorkflowService.java:133-143`, `:1868-1876`; `engine/DAGUtility.java:146`). A for-each `runworkflow`
 task submits one child run per item ("Child workflows"). The graph still sees one task run per node:
 `retrieveTaskList` returns only task runs without a `parentRef` (`engine/DAGUtility.java:107`), so items are never
 vertices.
@@ -348,7 +348,7 @@ items (`TaskExecutionService.java:512-516`). A cancel reaches every item because
 task runs, not the graph (`engine/WorkflowExecutionService.java:275-279`). Downstream,
 `$(tasks.<name>.results.<result>)` finds the parent, since the lookup is by exact name and items carry the
 bracketed suffix; a task name ending in `[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214) so
-no task can collide with another task's item, while other brackets (`Deploy [prod]`) are allowed (`workflow/WorkflowService.java:1688-1697`).
+no task can collide with another task's item, while other brackets (`Deploy [prod]`) are allowed (`workflow/WorkflowService.java:1692-1701`).
 
 ## Task locks
 

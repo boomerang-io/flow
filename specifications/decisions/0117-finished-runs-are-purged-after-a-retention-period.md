@@ -19,8 +19,8 @@ Activity needed a bound too. A retry reuses its origin's task runs (decision 011
 ## Decision
 
 B. One setting, `retention.days` on the `workflowrun` document (365, read at each pass, floored at 60 so a
-month's quota counts stay whole; `seed/settings.json:456`, `WorkflowWatcher.runRetentionDays`), and one sweep on
-its own hourly clock (`flow.watcher.retention-interval-ms`, `WorkflowWatcher.purgeExpiredRuns`) that pages
+month's quota counts stay whole; `seed/settings.json:456`, `WorkflowRetentionService.runRetentionDays`), and one sweep on
+its own hourly clock (`flow.watcher.retention-interval-ms`, `WorkflowRetentionService.purgeExpiredRuns`, run by the watcher) that pages
 `completed` runs created before the cutoff on the existing `{phase, creationDate}` index, keeps any run still
 named in another run's `initiatedByRef` (the `{initiatedByRef, phase}` index), and deletes the run's run- and
 log-scoped artifacts (`workflow/ArtifactService.deleteForRun`), actions, task runs, relationship node and then the

@@ -210,7 +210,7 @@ working on, and the engine moves each owned one's lease 90 s ahead again (`dispa
 `engine/TaskRunService.java:614`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
 has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
 was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
-(`engine/WorkflowWatcher.java:79`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
+(`engine/WorkflowWatcher.java:74`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
 catches a dispatcher that crashes and comes back under the same id within that minute: it stays live, but its
 heartbeats no longer list the claims it lost.
 
@@ -278,7 +278,7 @@ MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
 `accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
-submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1966`). Which
+submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1970`). Which
 tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's workspace
 unless its node says `workspace: false` (`engine/DAGUtility.java:226-237`); the canvas offers no way to set that, so
 the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath` settled to the

@@ -20,9 +20,9 @@ as a no-op behind a retention flag, so a deleted workflow's documents accumulate
 ## Decision
 
 Option D. `WorkflowService.delete` is a single guarded status update to `deleted`
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2034-2043`), and submit rejects a non-active
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2038-2047`), and submit rejects a non-active
 workflow. `WorkflowWatcher.cancelDeletedWorkflowRuns` cancels the workflow's in-flight runs through the normal cancel
-path (`engine/WorkflowWatcher.java:313`); `pruneDeletedWorkflows` (`:338`) pages deleted workflows, skips any with a
+path (`engine/WorkflowWatcher.java:321`); `WorkflowRetentionService.pruneDeletedWorkflows` (`workflow/WorkflowRetentionService.java:134`), run by the watcher, pages deleted workflows, skips any with a
 run still in flight, and hard-deletes the artifacts, task runs, workflow runs, revisions, leftover actions, schedules
 and relationship node, then the workflow document. Audit records are never touched. A status marker needs no new
 field and lets the existing sweep machinery wind work down safely; a retention policy, if ever wanted, is a feature

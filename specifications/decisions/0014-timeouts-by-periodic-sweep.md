@@ -22,7 +22,7 @@ four outbound templates with no read timeout, so a hung connection could hold a 
 Option B, later joined by C (decision 0064). `timeoutAt` is baked at claim as start time + budget + 5 s grace
 (`service-core/src/main/java/io/boomerang/engine/RunTimeouts.java:14-18`, `EngineConstants.java:13`,
 `TaskRunService.java:297-305`) and cleared at completion. `WorkflowWatcher.reapTaskTimeouts` and `reapWorkflowTimeouts`
-(`engine/WorkflowWatcher.java:194,223`) are the only reapers; they run on every instance every 30 s (`:145`). Crash
+(`engine/WorkflowWatcher.java:170,223`) are the only reapers; they run on every instance every 30 s (`:122`). Crash
 recovery is the same path: a requeueable task past its deadline is requeued with backoff up to 3 attempts
 (`EngineConstants.java:34`), and `reapClaimsFromGoneDispatchers` (`:469`) shortcuts the wait when the dispatcher has
 not connected. Both reap writes are fenced on the observed `claim.seq`. Every outbound template carries real transport
