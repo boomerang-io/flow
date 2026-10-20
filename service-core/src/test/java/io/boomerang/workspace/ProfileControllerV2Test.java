@@ -48,7 +48,7 @@ class ProfileControllerV2Test {
     // resolvable principal - id/email unset, everything else Lombok-default.
     UserEntity anonymous = new UserEntity();
     when(userService.getCurrentProfileEntity()).thenReturn(anonymous);
-    when(userService.getTeamRefsAndRolesForUser(null)).thenReturn(Map.of());
+    when(userService.getWorkspaceRefsAndRolesForUser(null)).thenReturn(Map.of());
     when(workspaceService.getWorkspaceMembershipSummary(Map.of())).thenReturn(List.of());
     when(tokenService.resolvePermissionsForUser(any(UserEntity.class))).thenReturn(List.of());
 

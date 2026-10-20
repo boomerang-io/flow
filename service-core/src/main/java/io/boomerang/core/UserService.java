@@ -303,7 +303,7 @@ public class UserService {
    * Retrieves the Workspace ref -> role map for the given user. Used to compose the Workspace membership
    * rollup on the Profile response (see getCurrentProfileEntity()).
    */
-  public Map<String, String> getTeamRefsAndRolesForUser(String userId) {
+  public Map<String, String> getWorkspaceRefsAndRolesForUser(String userId) {
     // The security-off virtual user is a member of nothing but can act on everything (its token
     // is global-scoped, and filter() anchors at ROOT for it), so its membership rollup is every
     // workspace as owner - the profile surface stays consistent with the caller's real power.

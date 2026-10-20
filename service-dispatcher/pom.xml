@@ -6,7 +6,7 @@
     <artifactId>service-dispatcher</artifactId>
     <packaging>jar</packaging>
     <name>service-dispatcher</name>
-    <description>Flow Tekton Agent</description>
+    <description>Flow Kubernetes dispatcher</description>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>25</java.version>

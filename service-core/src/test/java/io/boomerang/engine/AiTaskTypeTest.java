@@ -109,10 +109,10 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
         "a template-registered dispatcher's claim page should never hold an ai TaskRun");
 
     // The real claim, over the dispatcher protocol.
-    String aiAgentId =
+    String aiDispatcherId =
         dispatcherService.register(
             new DispatcherRegistrationRequest("ai-zone", "ai-zone.local", List.of("ai")));
-    List<TaskRun> queue = dispatcherService.getTaskQueue(aiAgentId, null, null, null, null).getBody();
+    List<TaskRun> queue = dispatcherService.getTaskQueue(aiDispatcherId, null, null, null, null).getBody();
     assertTrue(
         queue != null && queue.stream().anyMatch(t -> taskRunId.equals(t.getId())),
         "the ai dispatcher's queue should carry the claimed ai TaskRun");

@@ -64,7 +64,7 @@ public class DispatcherService {
   @Value("${flow.queue.enabled:true}")
   private boolean queueEnabled;
 
-  private final DispatcherRepository agentRepository;
+  private final DispatcherRepository dispatcherRepository;
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
   private final MongoTemplate mongoTemplate;
@@ -75,7 +75,7 @@ public class DispatcherService {
   private final TaskService taskService;
 
   public DispatcherService(
-      DispatcherRepository agentRepository,
+      DispatcherRepository dispatcherRepository,
       WorkflowRunStateHelper workflowRunStateHelper,
       TaskRunService taskRunService,
       MongoTemplate mongoTemplate,
@@ -84,7 +84,7 @@ public class DispatcherService {
       ParameterManager parameterManager,
       WorkflowRunRepository workflowRunRepository,
       TaskService taskService) {
-    this.agentRepository = agentRepository;
+    this.dispatcherRepository = dispatcherRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
     this.mongoTemplate = mongoTemplate;
@@ -124,23 +124,23 @@ public class DispatcherService {
   }
 
   /**
-   * Registers the Agent
+   * Registers the Dispatcher
    *
-   * <p>This method saves the agent's details to the database. This can be used in the future to
-   * remove an agent and its token that we no longer trust
+   * <p>This method saves the dispatcher's details to the database. This can be used in the future to
+   * remove a dispatcher and its token that we no longer trust
    *
-   * <p>TODO: expand capabilities to allow revoking an agent's registration and also storing the
+   * <p>TODO: expand capabilities to allow revoking a dispatcher's registration and also storing the
    * token that was used.
    *
    * @param request
-   * @return the ID of the registered agent
+   * @return the ID of the registered dispatcher
    */
   public String register(DispatcherRegistrationRequest request) {
     if (request == null || request.getHost() == null || request.getHost().isEmpty()) {
-      throw new IllegalArgumentException("Agent ID must not be null or empty");
+      throw new IllegalArgumentException("A dispatcher registration needs a host.");
     }
 
-    // Idempotent registration: an agent re-registering with the same name and host refreshes its
+    // Idempotent registration: a dispatcher re-registering with the same name and host refreshes its
     // record instead of colliding on the unique index. The log source is replaced whole: a
     // dispatcher that stops advertising one clears what it registered before.
     Update update =
@@ -161,7 +161,7 @@ public class DispatcherService {
 
     // Log the registration for debugging purposes
     LOGGER.debug(
-        "Registered agent: {}({}) with task types: {}",
+        "Registered dispatcher: {}({}) with task types: {}",
         entity.getId(),
         entity.getName(),
         request.getTaskTypes());
@@ -183,61 +183,61 @@ public class DispatcherService {
    * io.boomerang.engine.TaskRunService#tryClaim}), so a claim left out of every heartbeat is
    * reaped once that lease lapses.
    *
-   * @param agentId the dispatcher sending the heartbeat
+   * @param dispatcherId the dispatcher sending the heartbeat
    * @param ids TaskRun ids the dispatcher still owns
    * @return the number of leases actually renewed
    */
-  public long heartbeat(String agentId, List<String> ids) {
-    if (!agentRepository.existsById(agentId)) {
-      LOGGER.error("Agent {} not registered", agentId);
-      throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
+  public long heartbeat(String dispatcherId, List<String> ids) {
+    if (!dispatcherRepository.existsById(dispatcherId)) {
+      LOGGER.error("Dispatcher {} not registered", dispatcherId);
+      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
-    agentRepository.updateLastConnected(agentId, new Date());
+    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
     if (ids == null || ids.isEmpty()) {
       return 0;
     }
-    long renewed = taskRunService.renewLeases(ids, agentId);
-    LOGGER.debug("Renewed {} of {} lease(s) for dispatcher {}.", renewed, ids.size(), agentId);
+    long renewed = taskRunService.renewLeases(ids, dispatcherId);
+    LOGGER.debug("Renewed {} of {} lease(s) for dispatcher {}.", renewed, ids.size(), dispatcherId);
     return renewed;
   }
 
   /**
-   * Long-poll endpoint dispatching WorkflowRuns to the agent.
+   * Long-poll endpoint dispatching WorkflowRuns to the dispatcher.
    *
    * <p>Each cycle pages the runs awaiting workspace provisioning and claims each one individually
-   * via a Compare-And-Set; racing agents cannot both win a run and the response contains only the
-   * documents this agent actually claimed. Claimed and terminal runs are not redelivered. Releasing
+   * via a Compare-And-Set; racing dispatchers cannot both win a run and the response contains only the
+   * documents this dispatcher actually claimed. Claimed and terminal runs are not redelivered. Releasing
    * a run's storage is not dispatched here - the dispatcher reconciles what it holds against {@link
    * #releasable}.
    *
-   * @param agentId
+   * @param dispatcherId
    * @return
    */
-  public ResponseEntity<List<WorkflowRun>> getWorkflowQueue(String agentId) {
+  public ResponseEntity<List<WorkflowRun>> getWorkflowQueue(String dispatcherId) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
     }
-    // Validate the Agent
-    if (!agentRepository.existsById(agentId)) {
-      LOGGER.error("Agent {} not registered", agentId);
-      throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
+    // Validate the Dispatcher
+    if (!dispatcherRepository.existsById(dispatcherId)) {
+      LOGGER.error("Dispatcher {} not registered", dispatcherId);
+      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
-    agentRepository.updateLastConnected(agentId, new Date());
+    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
     // TODO add in future filtering of workflows based on labels or a setting
 
     // Long poll logic
     Instant endTime = Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open
-    LOGGER.debug("Starting long poll queue for agent: {}", agentId);
+    LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     while (Instant.now().isBefore(endTime)) {
-      LOGGER.debug("Checking queue for agent: {}", agentId);
+      LOGGER.debug("Checking queue for dispatcher: {}", dispatcherId);
       // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
       // provision and start. Runs claimed before an error are still handed out.
       List<WorkflowRun> workflowRuns = new LinkedList<>();
       try {
         for (WorkflowRunEntity candidate : workflowRunStateHelper.findClaimableForProvision(PAGE_SIZE)) {
           WorkflowRunEntity claimed =
-              workflowRunStateHelper.tryClaimForProvision(candidate.getId(), agentId);
+              workflowRunStateHelper.tryClaimForProvision(candidate.getId(), dispatcherId);
           if (claimed != null) {
             // A run that cannot be handed out keeps its provisioning claim until the stale-claim
             // sweep releases it; the rest of the page still goes out.
@@ -249,10 +249,10 @@ public class DispatcherService {
           }
         }
       } catch (Exception e) {
-        LOGGER.error("Error retrieving workflows for agent {}", agentId, e);
+        LOGGER.error("Error retrieving workflows for dispatcher {}", dispatcherId, e);
       }
 
-      LOGGER.debug("Claimed {} WorkflowRuns for Agent: {}", workflowRuns.size(), agentId);
+      LOGGER.debug("Claimed {} WorkflowRuns for Dispatcher: {}", workflowRuns.size(), dispatcherId);
       if (!workflowRuns.isEmpty()) {
         return ResponseEntity.ok(workflowRuns);
       }
@@ -260,22 +260,22 @@ public class DispatcherService {
         break;
       }
     }
-    LOGGER.debug("Ending long poll queue for agent: {}", agentId);
+    LOGGER.debug("Ending long poll queue for dispatcher: {}", dispatcherId);
     return ResponseEntity.noContent().build();
   }
 
   /**
-   * Long-poll endpoint dispatching TaskRuns to the agent.
+   * Long-poll endpoint dispatching TaskRuns to the dispatcher.
    *
-   * <p>Each cycle pages two sets of candidates, both restricted to the agent's registered task
+   * <p>Each cycle pages two sets of candidates, both restricted to the dispatcher's registered task
    * types: the ready/pending unclaimed runs to execute, and the runs a dispatcher still owns whose
    * executor-side work must be terminated - either because the node finished cancelled/timedout,
    * or because it timed out with retry budget left and is parked mid-retry until its previous pod
-   * is gone. Each candidate is claimed individually via a Compare-And-Set, so racing agents cannot
-   * both win a TaskRun and the response contains only the documents this agent actually claimed.
+   * is gone. Each candidate is claimed individually via a Compare-And-Set, so racing dispatchers cannot
+   * both win a TaskRun and the response contains only the documents this dispatcher actually claimed.
    * Neither path redelivers: an execution claim takes ownership, a termination claim releases it.
    *
-   * @param agentId
+   * @param dispatcherId
    * @return
    */
   /*
@@ -315,25 +315,25 @@ public class DispatcherService {
    * filter that matches nothing answers at once with no content.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(
-      String agentId, Integer limit, String type, String task, String workflowLabel) {
+      String dispatcherId, Integer limit, String type, String task, String workflowLabel) {
     if (!queueEnabled) {
       LOGGER.warn("Queue claiming disabled (flow.queue.enabled=false). Returning no content.");
       return ResponseEntity.noContent().build();
     }
-    // Validate the Agent
-    if (!agentRepository.existsById(agentId)) {
-      LOGGER.error("Agent {} not registered", agentId);
-      throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
+    // Validate the Dispatcher
+    if (!dispatcherRepository.existsById(dispatcherId)) {
+      LOGGER.error("Dispatcher {} not registered", dispatcherId);
+      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
-    agentRepository.updateLastConnected(agentId, new Date());
-    DispatcherEntity entity = agentRepository.findTaskTypesByAgentId(agentId);
+    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
+    DispatcherEntity entity = dispatcherRepository.findTaskTypesByDispatcherId(dispatcherId);
     if (entity == null) {
       // Deregistered since the check above.
-      LOGGER.error("Agent {} not registered", agentId);
-      throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
+      LOGGER.error("Dispatcher {} not registered", dispatcherId);
+      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
     if (entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
-      LOGGER.warn("Agent {} has no task types defined. Returning 204.", agentId);
+      LOGGER.warn("Dispatcher {} has no task types defined. Returning 204.", dispatcherId);
       return ResponseEntity.noContent().build();
     }
 
@@ -342,28 +342,28 @@ public class DispatcherService {
     ClaimFilter filter =
         claimFilterService.resolve(entity.getTaskTypes(), type, task, workflowLabel);
     if (filter.matchesNothing()) {
-      LOGGER.debug("Agent {} poll filters match no TaskRun. Returning 204.", agentId);
+      LOGGER.debug("Dispatcher {} poll filters match no TaskRun. Returning 204.", dispatcherId);
       return ResponseEntity.noContent().build();
     }
 
     // Long poll logic
     Instant endTime =
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
-    LOGGER.debug("Starting long poll queue for agent: {}", agentId);
+    LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     while (Instant.now().isBefore(endTime)) {
       LOGGER.debug(
-          "Checking queue for agent: {} with task types: {}", agentId, filter.types());
+          "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
-      // another agent claimed between page and claim is simply skipped. The returned pre-images
+      // another dispatcher claimed between page and claim is simply skipped. The returned pre-images
       // carry the pending/ready wire shape the dispatcher executes. Runs claimed before an error
-      // are still handed out, so no claim is left with an agent that never hears of it.
+      // are still handed out, so no claim is left with a dispatcher that never hears of it.
       List<TaskRun> taskRuns = new LinkedList<>();
       try {
         for (TaskRunEntity candidate :
             (executionPage > 0)
                 ? taskRunService.findClaimable(filter, executionPage)
                 : List.<TaskRunEntity>of()) {
-          TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), agentId);
+          TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), dispatcherId);
           if (claimed != null) {
             TaskRun taskRun = prepare(claimed);
             if (taskRun != null) {
@@ -374,21 +374,21 @@ public class DispatcherService {
         // Second path, mirroring the WorkflowRun provision/teardown pair: a TaskRun a dispatcher
         // still owns carries executor-side work (a Tekton TaskRun and its pod) that has to be
         // terminated - the node either finished cancelled/timedout, or is parked mid-retry. The
-        // claim release is what makes it one agent's job, stops the run being redelivered on the
+        // claim release is what makes it one dispatcher's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
         for (TaskRunEntity candidate :
             taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
           TaskRunEntity claimed =
-              taskRunService.tryClaimForTermination(candidate.getId(), agentId);
+              taskRunService.tryClaimForTermination(candidate.getId(), dispatcherId);
           if (claimed != null) {
             taskRuns.add(new TaskRun(claimed));
           }
         }
       } catch (Exception e) {
-        LOGGER.error("Error retrieving tasks for agent {}", agentId, e);
+        LOGGER.error("Error retrieving tasks for dispatcher {}", dispatcherId, e);
       }
 
-      LOGGER.debug("Claimed {} TaskRuns for Agent: {}", taskRuns.size(), agentId);
+      LOGGER.debug("Claimed {} TaskRuns for Dispatcher: {}", taskRuns.size(), dispatcherId);
       if (!taskRuns.isEmpty()) {
         slugTaskRefs(taskRuns);
         return ResponseEntity.ok(taskRuns);
@@ -397,7 +397,7 @@ public class DispatcherService {
         break;
       }
     }
-    LOGGER.debug("Ending long poll queue for agent: {}", agentId);
+    LOGGER.debug("Ending long poll queue for dispatcher: {}", dispatcherId);
     return ResponseEntity.noContent().build();
   }
 

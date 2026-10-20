@@ -89,11 +89,11 @@ class TaskWorkspaceScopeTest extends AbstractEngineIntegrationTest {
         "the materialised TaskRun should hold the run's workspace");
 
     // The claim payload is what the dispatcher builds the pod from.
-    String agentId =
+    String dispatcherId =
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "workspace-scope-zone", "workspace-scope-zone.local", List.of("template")));
-    List<TaskRun> queue = dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody();
+    List<TaskRun> queue = dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody();
     assertNotNull(queue, "the dispatcher's queue should carry the claimed TaskRun");
     TaskRun claimed =
         queue.stream().filter(t -> taskRunId.equals(t.getId())).findFirst().orElse(null);

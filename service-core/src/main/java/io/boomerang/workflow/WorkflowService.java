@@ -234,17 +234,17 @@ public class WorkflowService {
    *
    * No need to validate params as they are either defaulted or optional
    */
-  public Workflow get(String team, String name, Optional<Integer> version, boolean withTasks) {
+  public Workflow get(String workspace, String name, Optional<Integer> version, boolean withTasks) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
-    Workflow workflow = get(workflowRef(team, name), version, withTasks).getBody();
+    Workflow workflow = get(workflowRef(workspace, name), version, withTasks).getBody();
 
     // Filter out sensitive values - before the slug conversion, while the task refs still resolve
     filterSensitiveValues(List.of(workflow));
 
     // Convert Workflow TaskRefs to Slugs
-    convertTaskRefsToSlugs(team, workflow);
+    convertTaskRefsToSlugs(workspace, workflow);
 
     workflow.setId(null);
     return workflow;
@@ -254,18 +254,18 @@ public class WorkflowService {
    * The unfiltered read, for duplicate only: a copy must carry the stored secrets, not the marker.
    */
   private Workflow internalGet(
-      String team, String name, Optional<Integer> version, boolean withTasks) {
-    Workflow workflow = get(workflowRef(team, name), version, withTasks).getBody();
+      String workspace, String name, Optional<Integer> version, boolean withTasks) {
+    Workflow workflow = get(workflowRef(workspace, name), version, withTasks).getBody();
 
     // Convert Workflow TaskRefs to Slugs
-    convertTaskRefsToSlugs(team, workflow);
+    convertTaskRefsToSlugs(workspace, workflow);
     return workflow;
   }
 
-  private String workflowRef(String team, String name) {
+  private String workflowRef(String workspace, String name) {
     List<String> refs =
         relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (refs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -380,12 +380,12 @@ public class WorkflowService {
    * No need to validate params as they are either defaulted or optional
    */
   //  @Audit(scope = PermissionScope.WORKFLOW)
-  public Workflow create(String team, Workflow request) {
+  public Workflow create(String workspace, Workflow request) {
     // Validate Access - same guard as TaskService.create: the caller must reach the workspace the
     // ownership edge below is written into. Guards every create-shaped route: create, apply and
     // composeApply (when the Workflow does not exist yet) and duplicate all funnel here.
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
 
@@ -403,13 +403,13 @@ public class WorkflowService {
     // Ensure Workflow name is unique within Workspace
     List<String> existingWorkflowRefs =
         relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, team, Optional.of(List.of(request.getName())));
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(request.getName())));
     if (!existingWorkflowRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // Check creation quotas
-    quotaService.assertCanCreateWorkflow(team);
+    quotaService.assertCanCreateWorkflow(workspace);
 
     // Default Triggers
     validateTriggerDefaults(request);
@@ -418,7 +418,7 @@ public class WorkflowService {
     applyWorkspaceDefaults(request);
 
     // Convert TaskRefs to IDs
-    convertTaskSlugsToRefs(team, request);
+    convertTaskSlugsToRefs(workspace, request);
 
     request.setId(null);
 
@@ -428,7 +428,7 @@ public class WorkflowService {
     // Create Relationship
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
-        team,
+        workspace,
         RelationshipLabel.HAS_WORKFLOW,
         RelationshipType.WORKFLOW,
         workflow.getId(),
@@ -442,7 +442,7 @@ public class WorkflowService {
     filterSensitiveValues(List.of(workflow));
 
     // Convert Workflow TaskRefs to Slugs
-    convertTaskRefsToSlugs(team, workflow);
+    convertTaskRefsToSlugs(workspace, workflow);
 
     // Remove ID from Workflow
     workflow.setId(null);
@@ -487,11 +487,11 @@ public class WorkflowService {
    * Apply allows you to create a new version or override an existing Workflow as well as create new
    * Workflow with supplied ID
    */
-  public Workflow apply(String team, Workflow workflow, boolean replace) {
+  public Workflow apply(String workspace, Workflow workflow, boolean replace) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
           relationshipService.refsInWorkspace(
-              RelationshipType.WORKFLOW, team, Optional.of(List.of(workflow.getName())));
+              RelationshipType.WORKFLOW, workspace, Optional.of(List.of(workflow.getName())));
       if (!refs.isEmpty()) {
         workflow.setId(refs.get(0));
 
@@ -504,12 +504,12 @@ public class WorkflowService {
         // A trigger the request leaves out keeps its stored value, as labels do; then sync the
         // workflow's schedules with the schedule trigger.
         WorkflowTrigger currentTriggers =
-            this.get(team, workflow.getName(), Optional.empty(), false).getTriggers();
+            this.get(workspace, workflow.getName(), Optional.empty(), false).getTriggers();
         workflow.setTriggers(withStoredTriggers(workflow.getTriggers(), currentTriggers));
-        updateScheduleTriggers(team, workflow, currentTriggers);
+        updateScheduleTriggers(workspace, workflow, currentTriggers);
 
         // Convert TaskSlugs to Refs(IDs)
-        convertTaskSlugsToRefs(team, workflow);
+        convertTaskSlugsToRefs(workspace, workflow);
 
         // TODO go through and ensure all the required ParamSpec elements are set
 
@@ -519,7 +519,7 @@ public class WorkflowService {
         filterSensitiveValues(List.of(appliedWorkflow));
 
         // Convert Workflow TaskRefs(IDs) to Slugs
-        convertTaskRefsToSlugs(team, appliedWorkflow);
+        convertTaskRefsToSlugs(workspace, appliedWorkflow);
 
         workflow.setId(null);
         return appliedWorkflow;
@@ -527,7 +527,7 @@ public class WorkflowService {
     }
     if (workflow != null) {
       workflow.setId(null);
-      return this.create(team, workflow);
+      return this.create(workspace, workflow);
     }
     throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
@@ -536,8 +536,8 @@ public class WorkflowService {
    * Submit Workflow to Run
    */
   public WorkflowRun submit(
-      String team, String name, WorkflowSubmitRequest request, boolean start) {
-    return submit(team, name, request, start, null);
+      String workspace, String name, WorkflowSubmitRequest request, boolean start) {
+    return submit(workspace, name, request, start, null);
   }
 
   /*
@@ -549,7 +549,7 @@ public class WorkflowService {
    * overload above and gets null, matching prior behaviour.
    */
   public WorkflowRun submit(
-      String team, String name, WorkflowSubmitRequest request, boolean start,
+      String workspace, String name, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
@@ -557,9 +557,9 @@ public class WorkflowService {
 
     List<String> refs =
         relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
-      WorkflowRun wfRun = this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
+      WorkflowRun wfRun = this.internalSubmit(workspace, refs.get(0), request, start, initiatedByRef);
       // The submit response is a consumer read like any other: secret-typed params go out
       // redacted. The filter copies the params, so the run the engine holds is untouched.
       DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
@@ -576,13 +576,13 @@ public class WorkflowService {
    *
    * TODO: surely there is a better way to do this
    */
-  public void internalSubmitForTeam(String team, WorkflowSubmitRequest request, boolean start) {
+  public void internalSubmitForWorkspace(String workspace, WorkflowSubmitRequest request, boolean start) {
     // This should return IDs as the next method requires to take in the Workflow ID
     List<String> wfRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, Optional.empty());
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
     wfRefs.forEach(
         r -> {
-          this.internalSubmit(team, r, request, start);
+          this.internalSubmit(workspace, r, request, start);
         });
   }
 
@@ -592,8 +592,8 @@ public class WorkflowService {
    * Caution: bypasses the authN and authZ and Relationship checks
    */
   public WorkflowRun internalSubmit(
-      String team, String workflowId, WorkflowSubmitRequest request, boolean start) {
-    return internalSubmit(team, workflowId, request, start, null);
+      String workspace, String workflowId, WorkflowSubmitRequest request, boolean start) {
+    return internalSubmit(workspace, workflowId, request, start, null);
   }
 
   /*
@@ -602,7 +602,7 @@ public class WorkflowService {
    * Caution: bypasses the authN and authZ and Relationship checks
    */
   public WorkflowRun internalSubmit(
-      String team, String workflowId, WorkflowSubmitRequest request, boolean start,
+      String workspace, String workflowId, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
     // Check if Workflow exists and is active. Then check triggers are enabled.
     // Presumed workflow exists as relationship was valid to get to this point.
@@ -611,7 +611,7 @@ public class WorkflowService {
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
     // Check Quotas - Throws Exception
-    quotaService.assertRunQuotas(team, Optional.ofNullable(request.getWorkspace()));
+    quotaService.assertRunQuotas(workspace, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -648,7 +648,7 @@ public class WorkflowService {
 
     // Add Contextual Information such as team-name. Used by Engine and the AcquireTaskLock and
     // other tasks to add a hidden prefix.
-    executionAnnotations.put("boomerang.io/workspace-name", team);
+    executionAnnotations.put("boomerang.io/workspace-name", workspace);
     request.getAnnotations().putAll(executionAnnotations);
 
     // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
@@ -658,7 +658,7 @@ public class WorkflowService {
     WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
     if (enforceQuotas) {
       try {
-        quotaService.assertAdmittedRunWithinQuotas(team);
+        quotaService.assertAdmittedRunWithinQuotas(workspace);
       } catch (BoomerangException overQuota) {
         // The run pushed a count over its limit: it removes itself, so it uses no quota.
         discardRun(wfRun.getId());
@@ -670,7 +670,7 @@ public class WorkflowService {
     // TODO: create this run relationship based on decision of team vs workflow
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
-        team,
+        workspace,
         RelationshipLabel.HAS_WORKFLOWRUN,
         RelationshipType.WORKFLOWRUN,
         wfRun.getId(),
@@ -688,14 +688,14 @@ public class WorkflowService {
   /*
    * Retrieve a workflows changelog from all versions
    */
-  public ResponseEntity<List<ChangeLogVersion>> changelog(String team, String name) {
+  public ResponseEntity<List<ChangeLogVersion>> changelog(String workspace, String name) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
         relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       return ResponseEntity.ok(changelog(refs.get(0)).getBody());
     } else {
@@ -709,14 +709,14 @@ public class WorkflowService {
    * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the retention
    * service's prune, which the watcher runs once in-flight runs finalise.
    */
-  public void delete(String team, String name) {
+  public void delete(String workspace, String name) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     List<String> refs =
         relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
@@ -741,8 +741,8 @@ public class WorkflowService {
   /*
    * Export the Workflow as JSON
    */
-  public ResponseEntity<InputStreamResource> export(String team, String name) {
-    final Workflow workflow = this.get(team, name, Optional.empty(), true);
+  public ResponseEntity<InputStreamResource> export(String workspace, String name) {
+    final Workflow workflow = this.get(workspace, name, Optional.empty(), true);
 
     HttpHeaders headers = new HttpHeaders();
     headers.add("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -770,13 +770,13 @@ public class WorkflowService {
    *
    * Relationship checks are handled in the Get and Create methods
    */
-  public Workflow duplicate(String team, String name) {
+  public Workflow duplicate(String workspace, String name) {
     // From the unfiltered read: a copy of the filtered one would carry the redaction marker in
     // place of every secret, and the duplicate would lose them.
-    Workflow workflow = this.internalGet(team, name, Optional.empty(), true);
+    Workflow workflow = this.internalGet(workspace, name, Optional.empty(), true);
     workflow.setName(workflow.getName() + "-duplicate");
     workflow.setDisplayName(workflow.getDisplayName() + " (duplicate)");
-    return this.create(team, workflow);
+    return this.create(workspace, workflow);
   }
 
   /*
@@ -786,15 +786,15 @@ public class WorkflowService {
    *
    * TODO: add a type to handle canvas or Tekton YAML etc etc
    */
-  public WorkflowCanvas composeGet(String team, String name, Optional<Integer> version) {
+  public WorkflowCanvas composeGet(String workspace, String name, Optional<Integer> version) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     // The same masked read as get, keeping the id the canvas carries.
-    Workflow response = get(workflowRef(team, name), version, true).getBody();
+    Workflow response = get(workflowRef(workspace, name), version, true).getBody();
     filterSensitiveValues(List.of(response));
-    convertTaskRefsToSlugs(team, response);
+    convertTaskRefsToSlugs(workspace, response);
     return convertWorkflowToCanvas(response);
   }
 
@@ -805,13 +805,13 @@ public class WorkflowService {
    *
    * TODO: add a type to handle canvas or Tekton YAML etc etc
    */
-  public WorkflowCanvas composeApply(String team, WorkflowCanvas canvas, boolean replace) {
+  public WorkflowCanvas composeApply(String workspace, WorkflowCanvas canvas, boolean replace) {
     if (canvas == null) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
-    Workflow response = this.apply(team, workflow, replace);
+    Workflow response = this.apply(workspace, workflow, replace);
     return convertWorkflowToCanvas(response);
   }
 
@@ -822,13 +822,13 @@ public class WorkflowService {
    *
    * Relationship check handled in Get
    */
-  public List<String> getAvailableParameters(String team, String name) {
+  public List<String> getAvailableParameters(String workspace, String name) {
     if (name == null || name.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
-    final Workflow workflow = this.get(team, name, Optional.empty(), true);
-    List<String> paramKeys = paramLayerService.buildParamKeys(team, workflow);
+    final Workflow workflow = this.get(workspace, name, Optional.empty(), true);
+    List<String> paramKeys = paramLayerService.buildParamKeys(workspace, workflow);
     workflow
         .getTasks()
         .forEach(
@@ -873,7 +873,7 @@ public class WorkflowService {
    * Determine if Schedules need to be disabled based on triggers
    */
   private void updateScheduleTriggers(
-      final String team, final Workflow request, WorkflowTrigger currentTriggers) {
+      final String workspace, final Workflow request, WorkflowTrigger currentTriggers) {
     ScheduleService schedules = scheduleService.getObject();
     if (!Objects.isNull(request.getTriggers())
         && !Objects.isNull(request.getTriggers().getSchedule())
@@ -882,9 +882,9 @@ public class WorkflowService {
       boolean currentSchedulerEnabled = currentTriggers.getSchedule().getEnabled();
       boolean requestSchedulerEnabled = request.getTriggers().getSchedule().getEnabled();
       if (currentSchedulerEnabled != false && requestSchedulerEnabled == false) {
-        schedules.disableAllTriggerSchedules(team, request.getId());
+        schedules.disableAllTriggerSchedules(workspace, request.getId());
       } else if (currentSchedulerEnabled == false && requestSchedulerEnabled == true) {
-        schedules.enableAllTriggerSchedules(team, request.getId());
+        schedules.enableAllTriggerSchedules(workspace, request.getId());
       }
     }
   }
@@ -1105,7 +1105,7 @@ public class WorkflowService {
    * A node's taskRef is the task's id in storage and its slug form on the API; TaskService owns
    * the translation, in one batch per workflow.
    */
-  private void convertTaskRefsToSlugs(String team, Workflow workflow) {
+  private void convertTaskRefsToSlugs(String workspace, Workflow workflow) {
     List<WorkflowTask> nodes =
         workflow.getTasks().stream()
             .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
@@ -1135,7 +1135,7 @@ public class WorkflowService {
                                     RelationshipType.WORKFLOW,
                                     Optional.of(List.of(param.getValue().toString())),
                                     Optional.of(RelationshipType.WORKSPACE),
-                                    Optional.of(List.of(team)));
+                                    Optional.of(List.of(workspace)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
                                   BoomerangError.WORKFLOW_INVALID_TASK_REF,
@@ -1169,14 +1169,14 @@ public class WorkflowService {
   }
 
   // A slug form naming another workspace's task, or no task, refuses the save.
-  private void convertTaskSlugsToRefs(String team, Workflow workflow) {
+  private void convertTaskSlugsToRefs(String workspace, Workflow workflow) {
     validateTaskRefsPresent(workflow.getTasks());
     List<WorkflowTask> nodes =
         workflow.getTasks().stream()
             .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
             .toList();
     Map<String, String> taskRefs =
-        taskService.refsBySlug(team, nodes.stream().map(WorkflowTask::getTaskRef).toList());
+        taskService.refsBySlug(workspace, nodes.stream().map(WorkflowTask::getTaskRef).toList());
     nodes.forEach(
         t -> {
           if (!taskRefs.containsKey(t.getTaskRef())) {
@@ -1199,7 +1199,7 @@ public class WorkflowService {
                             List<String> refs =
                                 relationshipService.refsInWorkspace(
                                     RelationshipType.WORKFLOW,
-                                    team,
+                                    workspace,
                                     Optional.of(List.of(param.getValue().toString())));
                             if (refs == null || refs.isEmpty()) {
                               throw new BoomerangException(

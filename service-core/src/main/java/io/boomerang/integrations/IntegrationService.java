@@ -92,18 +92,18 @@ public class IntegrationService {
     return integrations;
   }
 
-  public String getTeamByRef(String ref) {
+  public String getWorkspaceByRef(String ref) {
     Optional<IntegrationsEntity> optEntity = integrationsRepository.findByRef(ref);
     if (optEntity.isPresent()) {
       LOGGER.debug("Integration Entity ID: " + optEntity.get().getId());
-      String team =
+      String workspace =
           relationshipService.getParentByLabel(
               RelationshipLabel.HAS_INTEGRATION,
               RelationshipType.INTEGRATION,
               optEntity.get().getId());
-      LOGGER.debug("Workspace Ref: " + team);
-      if (!team.isBlank()) {
-        return team;
+      LOGGER.debug("Workspace Ref: " + workspace);
+      if (!workspace.isBlank()) {
+        return workspace;
       }
     }
     return null;

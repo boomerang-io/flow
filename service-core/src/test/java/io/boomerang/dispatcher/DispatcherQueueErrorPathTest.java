@@ -60,7 +60,7 @@ class DispatcherQueueErrorPathTest {
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.template));
     when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByAgentId(AGENT)).thenReturn(dispatcher);
+    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
   }
 
   private static TaskRunEntity taskRun(String id) {

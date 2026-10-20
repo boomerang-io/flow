@@ -105,11 +105,11 @@ class SecretParamTypeTest extends AbstractEngineIntegrationTest {
     assertEquals(ParamType.secret, param(runEntity.getParams(), "dsn").getType());
 
     // Downward: the claim carries the real values and the type, on the wire.
-    String agentId =
+    String dispatcherId =
         dispatcherService.register(
             new DispatcherRegistrationRequest("secret-zone", "secret-zone.local", List.of("generic")));
     TaskRun claimed =
-        dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody().stream()
+        dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody().stream()
             .filter(t -> taskRunId.equals(t.getId()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("the generic dispatcher should claim the task"));

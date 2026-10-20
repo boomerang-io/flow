@@ -161,8 +161,8 @@ public class TaskService {
   /*
    * Retrieve a TEAMTASK by team, name and optional version. If no version specified, will retrieve the latest.
    */
-  public Task get(String team, String name, Optional<Integer> version) {
-    return getIn(new Scope(team), name, version);
+  public Task get(String workspace, String name, Optional<Integer> version) {
+    return getIn(new Scope(workspace), name, version);
   }
 
   /*
@@ -299,13 +299,13 @@ public class TaskService {
   /*
    * Creates the Task and Relationship
    */
-  public Task create(String team, Task request) {
+  public Task create(String workspace, Task request) {
     // Validate Access
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
-    return createIn(new Scope(team), request);
+    return createIn(new Scope(workspace), request);
   }
 
   public Task createGlobal(Task request) {
@@ -394,8 +394,8 @@ public class TaskService {
    * Names are akin to a slug and are immutable. If the name changes, a new TaskTemplate is created
    *
    */
-  public Task apply(String name, String team, Task request, boolean replace) {
-    return applyIn(new Scope(team), name, request, replace);
+  public Task apply(String name, String workspace, Task request, boolean replace) {
+    return applyIn(new Scope(workspace), name, request, replace);
   }
 
   public Task applyGlobal(String name, Task request, boolean replace) {
@@ -479,8 +479,8 @@ public class TaskService {
     }
   }
 
-  public TektonTask getAsTekton(String team, String name, Optional<Integer> version) {
-    Task template = this.get(team, name, version);
+  public TektonTask getAsTekton(String workspace, String name, Optional<Integer> version) {
+    Task template = this.get(workspace, name, version);
     return TektonConverter.convertTaskTemplateToTektonTask(template);
   }
 
@@ -489,9 +489,9 @@ public class TaskService {
     return TektonConverter.convertTaskTemplateToTektonTask(template);
   }
 
-  public TektonTask createAsTekton(String team, TektonTask tektonTask) {
+  public TektonTask createAsTekton(String workspace, TektonTask tektonTask) {
     Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
-    this.create(team, template);
+    this.create(workspace, template);
     return tektonTask;
   }
 
@@ -502,9 +502,9 @@ public class TaskService {
   }
 
   public TektonTask applyAsTekton(
-      String name, String team, TektonTask tektonTask, boolean replace) {
+      String name, String workspace, TektonTask tektonTask, boolean replace) {
     Task template = TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
-    this.apply(name, team, template, replace);
+    this.apply(name, workspace, template, replace);
     return tektonTask;
   }
 
@@ -518,11 +518,11 @@ public class TaskService {
     TektonConverter.convertTektonTaskToTaskTemplate(tektonTask);
   }
 
-  public List<ChangeLogVersion> changelog(String team, String name) {
+  public List<ChangeLogVersion> changelog(String workspace, String name) {
     if (name.isBlank() || !name.matches(NAME_REGEX)) {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
     }
-    return changelogIn(new Scope(team), name);
+    return changelogIn(new Scope(workspace), name);
   }
 
   public List<ChangeLogVersion> changelogGlobal(String name) {
@@ -547,8 +547,8 @@ public class TaskService {
    * Deletes a TeamTask - team is required as you cannot delete a global template (only make
    * inactive)
    */
-  public void delete(String team, String name) {
-    deleteIn(new Scope(team), name);
+  public void delete(String workspace, String name) {
+    deleteIn(new Scope(workspace), name);
   }
 
   /*

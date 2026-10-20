@@ -21,7 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 /**
  * {@code GET /api/v2/user/&#123;userId&#125;/workspaces} backs the admin User detail Workspaces
  * tab. The rollup must be resolved for the VIEWED user's id - the same
- * getTeamRefsAndRolesForUser/getWorkspaceMembershipSummary composition ProfileControllerV2 performs
+ * getWorkspaceRefsAndRolesForUser/getWorkspaceMembershipSummary composition ProfileControllerV2 performs
  * for the current user - and an unknown id must fail as USER_NOT_FOUND rather than return an empty
  * (or the caller's own) membership list.
  */
@@ -47,7 +47,7 @@ class UserWorkspaceControllerV2Test {
     WorkspaceSummary summary = new WorkspaceSummary();
     summary.setName("test-workspace");
     when(userService.getUserByID(USER_ID)).thenReturn(Optional.of(new User()));
-    when(userService.getTeamRefsAndRolesForUser(USER_ID)).thenReturn(Map.of("ref", "owner"));
+    when(userService.getWorkspaceRefsAndRolesForUser(USER_ID)).thenReturn(Map.of("ref", "owner"));
     when(workspaceService.getWorkspaceMembershipSummary(Map.of("ref", "owner")))
         .thenReturn(List.of(summary));
 

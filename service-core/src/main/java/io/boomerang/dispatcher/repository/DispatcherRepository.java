@@ -12,8 +12,8 @@ public interface DispatcherRepository extends MongoRepository<DispatcherEntity, 
 
   @Query("{ '_id': ?0 }")
   @Update("{ '$set': { 'lastConnectedDate': ?1 } }")
-  void updateLastConnected(String agentId, Date lastConnected);
+  void updateLastConnected(String dispatcherId, Date lastConnected);
 
   @Query(value = "{ '_id': ?0 }", fields = "{ 'taskTypes': 1 }")
-  DispatcherEntity findTaskTypesByAgentId(String agentId);
+  DispatcherEntity findTaskTypesByDispatcherId(String dispatcherId);
 }

@@ -59,7 +59,7 @@ class DispatcherQueueLimitTest {
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(TYPES);
     when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByAgentId(AGENT)).thenReturn(dispatcher);
+    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
     // One claimable run, so a poll answers at once instead of holding for its window.
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(taskRun("ready")));

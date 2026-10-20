@@ -64,7 +64,7 @@ public class ProfileControllerV2 {
   public UserProfile getProfile() {
     UserEntity baseEntity = userService.getCurrentProfileEntity();
     UserProfile profile = new UserProfile(baseEntity);
-    Map<String, String> teamRefsAndRoles = userService.getTeamRefsAndRolesForUser(profile.getId());
+    Map<String, String> teamRefsAndRoles = userService.getWorkspaceRefsAndRolesForUser(profile.getId());
     List<WorkspaceSummary> teams = workspaceService.getWorkspaceMembershipSummary(teamRefsAndRoles);
     profile.setTeams(teams);
     profile.setPermissions(tokenService.resolvePermissionsForUser(baseEntity));

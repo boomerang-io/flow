@@ -64,7 +64,7 @@ class DispatcherQueuePrepareFailureTest {
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.uploadartifact));
     when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByAgentId(AGENT)).thenReturn(dispatcher);
+    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(upload("broken"), upload("fine")), List.of());
     when(taskRunService.tryClaim("broken", AGENT)).thenReturn(upload("broken"));

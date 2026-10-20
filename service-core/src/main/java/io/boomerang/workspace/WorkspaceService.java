@@ -138,11 +138,11 @@ public class WorkspaceService {
   /*
    * Retrieve a single team
    */
-  public Workspace get(String team) {
-    if (!Objects.isNull(team) && !team.isBlank()) {
+  public Workspace get(String workspace) {
+    if (!Objects.isNull(workspace) && !workspace.isBlank()) {
       if (relationshipService.check(
-          RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
-        Optional<WorkspaceEntity> entity = workspaceRepository.findByNameIgnoreCase(team);
+          RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+        Optional<WorkspaceEntity> entity = workspaceRepository.findByNameIgnoreCase(workspace);
         if (entity.isPresent()) {
           return convertWorkspaceEntityToWorkspace(entity.get());
         }
@@ -247,17 +247,17 @@ public class WorkspaceService {
   /*
    * Patch team
    */
-  public Workspace patch(String team, WorkspaceRequest request) {
+  public Workspace patch(String workspace, WorkspaceRequest request) {
     if (request != null) {
-      LOGGER.debug("[{}] Patch request received.", team);
-      if (team == null || team.isBlank()) {
+      LOGGER.debug("[{}] Patch request received.", workspace);
+      if (workspace == null || workspace.isBlank()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
       if (!relationshipService.check(
-          RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+          RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
-      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
       if (!optWorkspaceEntity.isPresent()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
@@ -326,14 +326,14 @@ public class WorkspaceService {
   /*
    * Destructive cascade Workspace deletion. Refused on a single-workspace instance.
    */
-  public void delete(String team) {
-    if (single || team == null || team.isBlank()) {
+  public void delete(String workspace) {
+    if (single || workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
 
     // If no relationship, user has no access or team doesn't exist
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
 
@@ -344,14 +344,14 @@ public class WorkspaceService {
             RelationshipType.WORKFLOW,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)));
+            Optional.of(List.of(workspace)));
     LOGGER.debug("Workspace Workflow Refs: {}", workflowRefs.toString());
     if (workflowRefs.size() > 0) {
-      workflowRefs.forEach(ref -> workflowService.delete(team, ref));
+      workflowRefs.forEach(ref -> workflowService.delete(workspace, ref));
     }
 
     // Delete all Tokens
-    tokenService.deleteAllForPrincipal(team);
+    tokenService.deleteAllForPrincipal(workspace);
 
     // Delete all Workspace Tasks. TEAMTASK is the relationship type that anchors a task under
     // a workspace - TASK anchors the global catalogue under root and would never match here.
@@ -360,18 +360,18 @@ public class WorkspaceService {
             RelationshipType.TEAMTASK,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)));
+            Optional.of(List.of(workspace)));
     if (templateNames.size() > 0) {
-      templateNames.forEach(name -> taskService.delete(team, name));
+      templateNames.forEach(name -> taskService.delete(workspace, name));
     }
 
     // TODO - Delete Workspace Integration Installations
 
     // Delete Workspace
-    workspaceRepository.deleteByName(team);
+    workspaceRepository.deleteByName(workspace);
 
     // Delete Workspace relationship node
-    relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, team);
+    relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, workspace);
   }
 
   /*
@@ -445,16 +445,16 @@ public class WorkspaceService {
     return pages;
   }
 
-  public void removeMembers(String team, List<WorkspaceMember> request) {
+  public void removeMembers(String workspace, List<WorkspaceMember> request) {
     if (request != null && !request.isEmpty()) {
-      if (team == null || team.isBlank()) {
+      if (workspace == null || workspace.isBlank()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
       }
       if (!relationshipService.check(
-          RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+          RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
-      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
       if (!optWorkspaceEntity.isPresent()) {
         throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
       }
@@ -474,7 +474,7 @@ public class WorkspaceService {
         userRefs.forEach(
             userRef ->
                 relationshipService.removeEdge(
-                    RelationshipType.USER, userRef, RelationshipType.WORKSPACE, team));
+                    RelationshipType.USER, userRef, RelationshipType.WORKSPACE, workspace));
       }
     }
   }
@@ -484,19 +484,19 @@ public class WorkspaceService {
    *
    *  TODO: ensure the remaining owner cannot leave the team
    */
-  public void leave(String team) {
-    if (team == null || team.isBlank()) {
+  public void leave(String workspace) {
+    if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    relationshipService.removeEdge(RelationshipType.WORKSPACE, team);
+    relationshipService.removeEdge(RelationshipType.WORKSPACE, workspace);
   }
 
   /*
@@ -541,15 +541,15 @@ public class WorkspaceService {
   /*
    * Delete parameters by key
    */
-  public void deleteParameter(String team, String name) {
-    if (team == null || team.isBlank()) {
+  public void deleteParameter(String workspace, String name) {
+    if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
@@ -579,7 +579,7 @@ public class WorkspaceService {
   private void createOrUpdateApproverGroups(
       WorkspaceEntity workspaceEntity, List<ApproverGroupRequest> request) {
     List<ApproverGroupEntity> approverGroupEntities =
-        getApproverGroupsForTeam(workspaceEntity.getName());
+        getApproverGroupsForWorkspace(workspaceEntity.getName());
 
     for (ApproverGroupRequest r : request) {
       // Ensure ApproverGroupName is not blank or null
@@ -651,10 +651,10 @@ public class WorkspaceService {
   // Retrieve ApproverGroups by relationship as they are stored separately to the WorkspaceEntity.
   // The relationship node's ref is the group id (its slug is the name), so ask for refs - the
   // repository lookup below is by id.
-  private List<ApproverGroupEntity> getApproverGroupsForTeam(String team) {
+  private List<ApproverGroupEntity> getApproverGroupsForWorkspace(String workspace) {
     List<String> approverGroupRefs =
         relationshipService.refsInWorkspace(
-            RelationshipType.APPROVERGROUP, team, Optional.empty());
+            RelationshipType.APPROVERGROUP, workspace, Optional.empty());
     List<ApproverGroupEntity> approverGroupEntities =
         approverGroupRepository.findByIdIn(approverGroupRefs);
     return approverGroupEntities;
@@ -665,15 +665,15 @@ public class WorkspaceService {
    *
    * - Removes relationship as well
    */
-  public void deleteApproverGroups(String team, List<String> request) {
-    if (team == null || team.isBlank()) {
+  public void deleteApproverGroups(String workspace, List<String> request) {
+    if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
@@ -690,15 +690,15 @@ public class WorkspaceService {
   /*
    * Delete custom quotas on the team and reset back to default
    */
-  public void deleteCustomQuotas(String team) {
-    if (team == null || team.isBlank()) {
+  public void deleteCustomQuotas(String workspace) {
+    if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
     }
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, team, Optional.empty(), Optional.empty())) {
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(team);
+    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
     }
@@ -773,14 +773,14 @@ public class WorkspaceService {
     Workspace team = new Workspace(workspaceEntity);
 
     // Get Members
-    team.setMembers(getUsersForTeam(workspaceEntity.getName()));
+    team.setMembers(getUsersForWorkspace(workspaceEntity.getName()));
 
     // The workspace's limits and current usage
     team.setQuotas(quotaService.current(workspaceEntity));
 
     // Get Approver Groups
     List<ApproverGroupEntity> approverGroupEntities =
-        getApproverGroupsForTeam(workspaceEntity.getName());
+        getApproverGroupsForWorkspace(workspaceEntity.getName());
     List<ApproverGroup> approverGroups = new LinkedList<>();
     approverGroupEntities.forEach(
         age -> {
@@ -819,8 +819,8 @@ public class WorkspaceService {
   /*
    * Returns the List of UserSummary for a team
    */
-  private List<WorkspaceMember> getUsersForTeam(String team) {
-    Map<String, String> memberRoleMap = relationshipService.membersAndRoles(team);
+  private List<WorkspaceMember> getUsersForWorkspace(String workspace) {
+    Map<String, String> memberRoleMap = relationshipService.membersAndRoles(workspace);
     List<WorkspaceMember> teamUsers = new LinkedList<>();
     if (!memberRoleMap.isEmpty()) {
       memberRoleMap.forEach(
@@ -844,7 +844,7 @@ public class WorkspaceService {
    * If relationship already exists, patch the role.
    * If user does not exist, a user record will be created with a relationship to the team
    */
-  private void createOrUpdateUserRelationships(String team, List<WorkspaceMember> users) {
+  private void createOrUpdateUserRelationships(String workspace, List<WorkspaceMember> users) {
     if (users != null && !users.isEmpty()) {
       for (WorkspaceMember userSummary : users) {
         Optional<User> userEntity = Optional.empty();
@@ -884,7 +884,7 @@ public class WorkspaceService {
               userEntity.get().getId(),
               RelationshipLabel.MEMBER_OF,
               RelationshipType.WORKSPACE,
-              team,
+              workspace,
               Optional.of(Map.of("role", userSummary.getRole())));
         } else {
           throw new BoomerangException(BoomerangError.TEAM_INVALID_USER_ROLE);

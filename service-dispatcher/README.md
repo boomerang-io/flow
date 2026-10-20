@@ -98,7 +98,7 @@ Kubernetes-only.
 
 `dispatcher.tasks.runtimeClassName` sets the Pod `runtimeClassName` (gVisor / Kata / Confidential Containers) for every
 task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
-One setting per agent deployment; run a second agent deployment for a different isolation tier.
+One setting per dispatcher deployment; run a second dispatcher deployment for a different isolation tier.
 
 Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
 `/workspace/<type>` (or the declared mount path). Params reach the task container two ways, both usable by any image,

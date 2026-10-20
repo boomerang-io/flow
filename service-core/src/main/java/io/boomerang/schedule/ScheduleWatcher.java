@@ -133,7 +133,7 @@ public class ScheduleWatcher {
    */
   private void fireWithRetry(WorkflowScheduleEntity schedule) {
     try {
-      scheduleJob.execute(resolveTeam(schedule), schedule.getWorkflowRef(), schedule.getId());
+      scheduleJob.execute(resolveWorkspace(schedule), schedule.getWorkflowRef(), schedule.getId());
       scheduleService.clearRetryCount(schedule.getId());
       LOGGER.info(
           "[{}] Schedule fired for Workflow ({}).", schedule.getId(), schedule.getWorkflowRef());
@@ -159,7 +159,7 @@ public class ScheduleWatcher {
 
   // The owning team is the workflow's parent in the relationship graph - the source of truth,
   // always current (a denormalized copy could go stale if the workflow moved teams).
-  private String resolveTeam(WorkflowScheduleEntity schedule) {
+  private String resolveWorkspace(WorkflowScheduleEntity schedule) {
     return relationshipService.getParentByLabel(
         RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, schedule.getWorkflowRef());
   }
