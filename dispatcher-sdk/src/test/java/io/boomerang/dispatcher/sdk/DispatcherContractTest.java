@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.boomerang.dispatcher.sdk.model.DispatcherRegistrationRequest;
 import io.boomerang.dispatcher.sdk.model.HeartbeatRequest;
-import io.boomerang.dispatcher.sdk.model.RetryFrom;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
@@ -53,17 +52,16 @@ class DispatcherContractTest {
   private static final Map<String, Class<?>> MODELLED = new LinkedHashMap<>();
 
   static {
+    MODELLED.put("DispatchTaskRun", TaskRun.class);
+    MODELLED.put("DispatchWorkflowRun", WorkflowRun.class);
     MODELLED.put("DispatcherRegistrationRequest", DispatcherRegistrationRequest.class);
     MODELLED.put("HeartbeatRequest", HeartbeatRequest.class);
-    MODELLED.put("RetryFrom", RetryFrom.class);
     MODELLED.put("RunParam", RunParam.class);
     MODELLED.put("RunResult", RunResult.class);
     MODELLED.put("TaskEnvVar", TaskEnvVar.class);
-    MODELLED.put("TaskRun", TaskRun.class);
     MODELLED.put("TaskRunSpec", TaskRunSpec.class);
     MODELLED.put("TaskRunStartRequest", TaskRunStartRequest.class);
     MODELLED.put("TaskRunEndRequest", TaskRunEndRequest.class);
-    MODELLED.put("WorkflowRun", WorkflowRun.class);
     MODELLED.put("WorkflowWorkspace", WorkflowWorkspace.class);
     MODELLED.put("WorkspaceReleaseQuery", WorkspaceReleaseQuery.class);
     MODELLED.put("WorkspaceReleaseResponse", WorkspaceReleaseResponse.class);

@@ -59,13 +59,13 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowRun"
+                $ref: "#/components/schemas/DispatchWorkflowRun"
         "400":
           description: "Bad Request"
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowRun"
+                $ref: "#/components/schemas/DispatchWorkflowRun"
   /dispatcher/v1/taskrun/{taskRunId}/start:
     put:
       tags:
@@ -90,13 +90,13 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/TaskRun"
+                $ref: "#/components/schemas/DispatchTaskRun"
         "400":
           description: "Bad Request"
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/TaskRun"
+                $ref: "#/components/schemas/DispatchTaskRun"
   /dispatcher/v1/taskrun/{taskRunId}/log:
     put:
       tags:
@@ -159,13 +159,13 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/TaskRun"
+                $ref: "#/components/schemas/DispatchTaskRun"
         "400":
           description: "Bad Request"
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/TaskRun"
+                $ref: "#/components/schemas/DispatchTaskRun"
   /dispatcher/v1/workspaces/releasable:
     post:
       tags:
@@ -238,7 +238,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/WorkflowRun"
+                  $ref: "#/components/schemas/DispatchWorkflowRun"
         "204":
           description: "No Items Found"
           content:
@@ -246,7 +246,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/WorkflowRun"
+                  $ref: "#/components/schemas/DispatchWorkflowRun"
         "400":
           description: "Bad Request"
           content:
@@ -254,7 +254,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/WorkflowRun"
+                  $ref: "#/components/schemas/DispatchWorkflowRun"
   /dispatcher/v1/{id}/tasks:
     get:
       tags:
@@ -305,7 +305,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/TaskRun"
+                  $ref: "#/components/schemas/DispatchTaskRun"
         "204":
           description: "No Items Found"
           content:
@@ -313,7 +313,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/TaskRun"
+                  $ref: "#/components/schemas/DispatchTaskRun"
         "400":
           description: "Bad Request"
           content:
@@ -321,7 +321,7 @@ paths:
               schema:
                 type: "array"
                 items:
-                  $ref: "#/components/schemas/TaskRun"
+                  $ref: "#/components/schemas/DispatchTaskRun"
 components:
   schemas:
     HeartbeatRequest:
@@ -379,19 +379,6 @@ components:
           type: "string"
         accessMode:
           type: "string"
-    RetryFrom:
-      type: "object"
-      properties:
-        scope:
-          type: "string"
-          enum:
-          - "all"
-          - "failed"
-          - "nodes"
-        nodes:
-          type: "array"
-          items:
-            type: "string"
     RunResult:
       type: "object"
       properties:
@@ -407,7 +394,7 @@ components:
           type: "string"
         value:
           type: "string"
-    TaskRun:
+    DispatchTaskRun:
       type: "object"
       properties:
         id:
@@ -441,18 +428,6 @@ components:
           type: "object"
           additionalProperties:
             type: "string"
-        annotations:
-          type: "object"
-          additionalProperties: {}
-        creationDate:
-          type: "string"
-          format: "date-time"
-        startTime:
-          type: "string"
-          format: "date-time"
-        duration:
-          type: "integer"
-          format: "int64"
         timeout:
           type: "integer"
           format: "int64"
@@ -488,30 +463,15 @@ components:
           - "pending"
           - "running"
           - "completed"
-        statusMessage:
-          type: "string"
-        statusReason:
-          type: "string"
         taskRef:
           type: "string"
-        taskVersion:
-          type: "integer"
-          format: "int32"
         workflowRef:
           type: "string"
-        workflowRevisionRef:
-          type: "string"
         workflowRunRef:
-          type: "string"
-        workflowName:
-          type: "string"
-        parentRef:
           type: "string"
         index:
           type: "integer"
           format: "int32"
-        reusedFromRef:
-          type: "string"
     TaskRunSpec:
       type: "object"
       properties:
@@ -544,14 +504,11 @@ components:
           - "Never"
           - "OnSuccess"
           - "Always"
-    WorkflowRun:
+    DispatchWorkflowRun:
       type: "object"
       properties:
         id:
           type: "string"
-        creationDate:
-          type: "string"
-          format: "date-time"
         status:
           type: "string"
           enum:
@@ -572,66 +529,14 @@ components:
           - "pending"
           - "running"
           - "completed"
-        paused:
-          type: "boolean"
-        startTime:
-          type: "string"
-          format: "date-time"
-        duration:
-          type: "integer"
-          format: "int64"
-        statusMessage:
-          type: "string"
-        timeout:
-          type: "integer"
-          format: "int64"
-        retries:
-          type: "integer"
-          format: "int64"
         workflowRef:
-          type: "string"
-        workflowRevisionRef:
           type: "string"
         labels:
           type: "object"
           additionalProperties:
             type: "string"
-        annotations:
-          type: "object"
-          additionalProperties: {}
-        params:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/RunParam"
-        tasks:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/TaskRun"
-        debug:
-          type: "boolean"
-        workflowName:
-          type: "string"
-        workflowDisplayName:
-          type: "string"
-        workflowVersion:
-          type: "integer"
-          format: "int32"
-        trigger:
-          type: "string"
-        initiatedByRef:
-          type: "string"
-        initiatedByWorkflowRunRef:
-          type: "string"
-        retryFrom:
-          $ref: "#/components/schemas/RetryFrom"
-        results:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/RunResult"
         workspace:
           $ref: "#/components/schemas/WorkflowWorkspace"
-        awaitingApproval:
-          type: "boolean"
     TaskRunStartRequest:
       type: "object"
       properties:

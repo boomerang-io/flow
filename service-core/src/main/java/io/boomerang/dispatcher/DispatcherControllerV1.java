@@ -3,13 +3,13 @@ package io.boomerang.dispatcher;
 import io.boomerang.core.security.AuthExempt;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.HeartbeatRequest;
-import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
-import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
+import io.boomerang.dispatcher.model.DispatchTaskRun;
+import io.boomerang.dispatcher.model.DispatchWorkflowRun;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +38,10 @@ import org.springframework.web.bind.annotation.*;
  * <p>Every dispatcher route lives here, under one root, and runs as the dispatcher's token
  * ({@link DispatcherAuthFilter}). Embedders and hosts use the v2 surface ({@link
  * io.boomerang.workflow.WorkspaceWorkflowRunControllerV2}, {@link io.boomerang.workflow.TaskRunControllerV2}).
+ *
+ * <p>The runs go out as the wire's own models, {@link DispatchWorkflowRun} and {@link
+ * DispatchTaskRun}, not the public {@code WorkflowRun} and {@code TaskRun}: a field added to a
+ * public run model for people and hosts does not reach a dispatcher.
  *
  * <p>{@code /{id}/workflows} and {@code /workflowrun/{id}/start} overlap in shape; Spring's
  * {@code RequestMappingInfo} ordering prefers a literal segment over a path variable, so a
@@ -87,10 +92,12 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<List<WorkflowRun>> dispatcherWorkflowQueue(
+  public ResponseEntity<List<DispatchWorkflowRun>> dispatcherWorkflowQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id) {
-    return dispatcherService.getWorkflowQueue(id);
+    return toWire(
+        dispatcherService.getWorkflowQueue(id),
+        runs -> runs.stream().map(DispatchWorkflowRun::of).toList());
   }
 
   @GetMapping(value = "/{id}/tasks")
@@ -101,7 +108,7 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "204", description = "No Items Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<List<TaskRun>> dispatcherTasksQueue(
+  public ResponseEntity<List<DispatchTaskRun>> dispatcherTasksQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
           String id,
       @Parameter(
@@ -130,7 +137,9 @@ public class DispatcherControllerV1 {
                       + " wildcard in the values.")
           @RequestParam(required = false)
           String workflowLabel) {
-    return dispatcherService.getTaskQueue(id, limit, type, task, workflowLabel);
+    return toWire(
+        dispatcherService.getTaskQueue(id, limit, type, task, workflowLabel),
+        taskRuns -> taskRuns.stream().map(DispatchTaskRun::of).toList());
   }
 
   @PutMapping(value = "/{id}/heartbeat")
@@ -156,7 +165,7 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public WorkflowRun start(
+  public DispatchWorkflowRun start(
       @Parameter(
               name = "workflowRunId",
               description = "ID of WorkflowRun to Start",
@@ -164,7 +173,7 @@ public class DispatcherControllerV1 {
           @PathVariable(required = true)
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workflowRunService.start(workflowRunId, runRequest);
+    return DispatchWorkflowRun.of(workflowRunService.start(workflowRunId, runRequest));
   }
 
   @PostMapping(value = "/workspaces/releasable")
@@ -188,12 +197,12 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<TaskRun> startTaskRun(
+  public ResponseEntity<DispatchTaskRun> startTaskRun(
       @Parameter(name = "taskRunId", description = "ID of Task Run to Start", required = true)
           @PathVariable(required = true)
           String taskRunId,
       @RequestBody Optional<TaskRunStartRequest> taskRunRequest) {
-    return dispatcherService.startTaskRun(taskRunId, taskRunRequest);
+    return toWire(dispatcherService.startTaskRun(taskRunId, taskRunRequest), DispatchTaskRun::of);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/end")
@@ -203,12 +212,12 @@ public class DispatcherControllerV1 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<TaskRun> endTaskRun(
+  public ResponseEntity<DispatchTaskRun> endTaskRun(
       @Parameter(name = "taskRunId", description = "ID of Task Run to End", required = true)
           @PathVariable(required = true)
           String taskRunId,
       @RequestBody Optional<TaskRunEndRequest> taskRunRequest) {
-    return dispatcherService.endTaskRun(taskRunId, taskRunRequest);
+    return toWire(dispatcherService.endTaskRun(taskRunId, taskRunRequest), DispatchTaskRun::of);
   }
 
   @PutMapping(value = "/taskrun/{taskRunId}/log", consumes = MediaType.ALL_VALUE)
@@ -246,5 +255,12 @@ public class DispatcherControllerV1 {
       throws IOException {
     taskRunService.storeLog(taskRunId, dispatcherRef, request.getInputStream());
     return ResponseEntity.noContent().build();
+  }
+
+  // The answer as the wire carries it: the same status and headers, the body in the wire's model.
+  private static <T, R> ResponseEntity<R> toWire(ResponseEntity<T> answer, Function<T, R> model) {
+    return ResponseEntity.status(answer.getStatusCode())
+        .headers(answer.getHeaders())
+        .body(answer.getBody() == null ? null : model.apply(answer.getBody()));
   }
 }

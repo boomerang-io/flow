@@ -18,11 +18,11 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Characterisation of what the PUBLIC {@code /api/v2} run models actually put on the wire.
  *
- * <p>{@link WorkflowRun} and {@link TaskRun} are the SAME classes returned by both the public v2
- * surface (e.g. {@code WorkspaceWorkflowRunControllerV2.get/query/start/cancel}) and the
- * worker-facing {@code /dispatcher/v1} surface ({@code DispatcherControllerV1}). There is no
- * bespoke wire model separating the two, so every field on these classes is visible to BOTH
- * audiences. That makes this test the contract guard for the v2 surface.
+ * <p>{@link WorkflowRun} and {@link TaskRun} are what the public v2 surface returns (e.g. {@code
+ * WorkspaceWorkflowRunControllerV2.get/query/start/cancel}). The worker-facing {@code
+ * /dispatcher/v1} surface has its own models ({@code DispatchWorkflowRun}, {@code
+ * DispatchTaskRun}), pinned by {@code contracts/dispatcher-v1.yaml}. This test is the contract
+ * guard for the v2 surface.
  *
  * <p>Two distinct invariants are covered:
  *
@@ -34,8 +34,9 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li><b>{@code phase} is currently serialised</b> — this DOCUMENTS a known deviation from the
  *       stated architecture invariant ("status is the only external-facing field; phase is
  *       internal orchestration state and is never exposed in public API responses"). {@code
- *       phase} is legitimate on the dispatcher wire, but because one class serves both surfaces it
- *       also reaches {@code /api/v2}. See {@link #phaseIsStillSerialisedOnThePublicModels()}.
+ *       phase} is legitimate on the dispatcher wire, which now carries it on its own models; on
+ *       {@code /api/v2} the webapp still reads it. See {@link
+ *       #phaseIsStillSerialisedOnThePublicModels()}.
  * </ul>
  */
 @Tag("smoke")
@@ -139,12 +140,10 @@ class PublicRunModelSerialisationTest {
    * suite rather than only in a specification document.
    *
    * <p>The architecture invariant says {@code phase} must never appear in a public {@code /api/v2}
-   * response. It does, because {@link WorkflowRun}/{@link TaskRun} are shared with the dispatcher
-   * wire, which legitimately needs {@code phase} to dispatch on. The one position {@code status}
-   * cannot express is {@code queued} — every other phase pairs with a status the caller already
-   * sees — so that single gap is now the whole reason the field stays exposed. Closing it requires
-   * either a dispatcher-specific wire model or a {@code @JsonView}/mixin split — a design decision,
-   * not a drive-by change.
+   * response. It does: the dispatcher no longer needs it here, as its wire has its own models, but
+   * the webapp reads {@code TaskRun.phase} and the list routes filter on it. The one position
+   * {@code status} cannot express is {@code queued} — every other phase pairs with a status the
+   * caller already sees. Removing it is a public API decision, not a drive-by change.
    *
    * <p><b>When {@code phase} is removed from the public surface, invert these assertions.</b>
    */
@@ -153,13 +152,13 @@ class PublicRunModelSerialisationTest {
     assertThat(serialise(new WorkflowRun()).has("phase"))
         .as(
             "KNOWN DEVIATION: phase is serialised on the public v2 WorkflowRun response. "
-                + "Invert this assertion once the public/dispatcher model split lands.")
+                + "Invert this assertion once phase leaves the public models.")
         .isTrue();
 
     assertThat(fieldNamesOf(TaskRun.class))
         .as(
             "KNOWN DEVIATION: phase is declared on the public v2 TaskRun response. "
-                + "Invert this assertion once the public/dispatcher model split lands.")
+                + "Invert this assertion once phase leaves the public models.")
         .contains("phase");
   }
 
