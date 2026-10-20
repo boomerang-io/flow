@@ -435,9 +435,14 @@ public class DAGUtility {
           RunPhase taskRunPhase = liveTask.getPhase();
           LOGGER.debug("[{}] Phase: {}", taskId, taskRunPhase.toString());
           if (RunPhase.completed.equals(taskRunPhase)) {
-            if (TaskType.decision.equals(currentTask.getType())) {
+            if (TaskType.decision.equals(currentTask.getType())
+                && RunStatus.succeeded.equals(liveTask.getStatus())) {
               String decisionValue = liveTask.getDecisionValue();
               processDecision(graph, tasks, decisionValue, currentTask.getId(), currentTask);
+            } else if (TaskType.decision.equals(currentTask.getType())) {
+              // A switch that never ran - skipped, or failed at admission - made no decision, so it
+              // takes no branch: what is reachable only through it is skipped.
+              graph.removeAllEdges(Set.copyOf(graph.outgoingEdgesOf(currentTask.getId())));
             } else {
               currentTask.setStatus(liveTask.getStatus());
               this.updateTaskInGraph(graph, tasks, currentTask);
