@@ -302,7 +302,7 @@ Every other type runs inside the engine. `TaskType` (`service-core/.../enums/Tas
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `decision` | Evaluates the branch and ends `succeeded` |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:438-445`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |

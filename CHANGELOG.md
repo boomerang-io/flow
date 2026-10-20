@@ -124,6 +124,9 @@ tag's release notes.
 
 ### Changed
 
+- A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
+  branches, so the tasks after it are skipped and the run carries on. It used to fail the run with a null-value
+  error when the next task was queued.
 - An approval task ends with the five results it declares: `approvalStatus` (`approved` or `rejected`),
   `approvalDate` (ISO 8601, UTC), `approvalUserName`, `approvalUserEmail` and `approvalComments`, taken from the
   approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
