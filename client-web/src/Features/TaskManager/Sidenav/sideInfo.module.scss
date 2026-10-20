@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .container {
@@ -117,7 +119,7 @@
   justify-content: space-between;
 
   svg {
-    fill: #0072c3;
+    fill: colors.$cyan-60;
   }
 }
 

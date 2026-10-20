@@ -1,3 +1,6 @@
+/* stylelint-disable color-no-hex -- a copy of GitHub's markdown stylesheet (the .markdown-body
+   rules), kept with GitHub's own palette; its colours are not Flow's to retheme here. */
+
 .markdown-body .octicon {
   display: inline-block;
   fill: currentColor;

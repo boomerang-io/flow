@@ -1,5 +1,7 @@
+@use "@carbon/react/scss/colors";
+
 .tab {
-  border-bottom: 0.125rem solid #b9bfc7;
+  border-bottom: 0.125rem solid colors.$cool-gray-30;
   color: var(--cds-icon-secondary);
   font-size: 0.875rem;
   letter-spacing: 00.01rem;
@@ -11,7 +13,7 @@
   width: 10rem;
 
   &:hover {
-    border-bottom: 0.125rem solid #5d6168;
+    border-bottom: 0.125rem solid colors.$cool-gray-60;
     color: var(--cds-text-primary);
   }
 }

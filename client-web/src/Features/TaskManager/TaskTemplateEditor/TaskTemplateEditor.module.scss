@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/animation";
 @import "Styles/mixins";
 
@@ -45,7 +47,7 @@
   &:hover,
   &:focus,
   &:active {
-    box-shadow: inset 0 0 0 2px var(--cds-danger), inset 0 0 0 3px #f2f4f8;
+    box-shadow: inset 0 0 0 2px var(--cds-danger), inset 0 0 0 3px colors.$cool-gray-10;
     color: var(--cds-support-01);
     svg,
     path {

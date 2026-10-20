@@ -1,8 +1,10 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .node {
-  background: #002b50;
-  border: 0.125rem solid #002b50;
+  background: colors.$cyan-90;
+  border: 0.125rem solid colors.$cyan-90;
   color: white;
   width: 9rem;
   height: 5rem;
@@ -13,11 +15,11 @@
   @include border-radius();
 
   &.locked {
-    background: #697077;
-    border: 0.1875rem solid #697077;
+    background: colors.$cool-gray-60;
+    border: 0.1875rem solid colors.$cool-gray-60;
     .port {
-      background-color: #50565b;
-      border: 0.0625rem solid #50565b;
+      background-color: colors.$cool-gray-70;
+      border: 0.0625rem solid colors.$cool-gray-70;
     }
 
     &.running {
@@ -56,7 +58,7 @@
   stroke: var(--cds-interactive-01);
 
   &.locked {
-    stroke: #697077;
+    stroke: colors.$cool-gray-60;
   }
 }
 

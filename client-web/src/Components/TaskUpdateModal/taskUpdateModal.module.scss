@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 .versionsContainer {
   display: flex;
   padding-right: 1rem;
@@ -9,12 +11,12 @@
 }
 
 .versionHeader {
-  background: #dde1e6;
+  background: colors.$cool-gray-20;
   width: 100%;
   height: 4.375rem;
   padding: 1rem;
   &.latest {
-    background: #3ddbd9;
+    background: colors.$teal-30;
   }
 }
 

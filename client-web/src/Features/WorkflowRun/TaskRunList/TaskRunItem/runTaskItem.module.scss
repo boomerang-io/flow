@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 // Name and status, one line of time, then the actions; the entry is as tall as its content.
@@ -24,7 +26,7 @@
   }
 
   &.running {
-    border-top: 0.25rem solid #d5d9e0;
+    border-top: 0.25rem solid colors.$cool-gray-20;
 
     .progressBar {
       position: absolute;
@@ -64,11 +66,11 @@
   &.notstarted,
   &.invalid,
   &.skipped {
-    border-top: 0.25rem solid #d5d9e0;
+    border-top: 0.25rem solid colors.$cool-gray-20;
   }
 
   &:last-of-type {
-    border-bottom: 0.0625rem solid #d5d9e0;
+    border-bottom: 0.0625rem solid colors.$cool-gray-20;
   }
 
   // A for-each task's items list gets a little room below it.
@@ -217,9 +219,9 @@
   &.notstarted,
   &.invalid,
   &.skipped {
-    color: #6f7878;
+    color: colors.$cool-gray-60;
     svg {
-      fill: #6f7878;
+      fill: colors.$cool-gray-60;
     }
   }
 }
@@ -281,7 +283,7 @@
 }
 
 .sectionHeader {
-  color: #4d5358;
+  color: colors.$cool-gray-70;
   font-size: 0.75rem;
   letter-spacing: 0.00875rem;
   line-height: 0.9375rem;
@@ -302,7 +304,7 @@
 }
 
 .actioner {
-  border-left: 0.125rem solid #d5d9e0;
+  border-left: 0.125rem solid colors.$cool-gray-20;
   margin-top: 0.75rem;
   padding-left: 0.75rem;
 
@@ -312,7 +314,7 @@
 }
 
 .actionerMeta {
-  color: #4d5358;
+  color: colors.$cool-gray-70;
   font-size: 0.75rem;
   letter-spacing: 0.00875rem;
   line-height: 0.9375rem;

@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 .container {
   --fc-button-bg-color: var(--cds-interactive-01);
   --fc-button-border-color: var(--cds-interactive-01);
@@ -17,7 +19,7 @@
 }
 
 :global .fc-button-primary:focus {
-  box-shadow: inset 0 0 0 1px #0072c3, inset 0 0 0 2px #f2f4f8 !important;
+  box-shadow: inset 0 0 0 1px colors.$cyan-60, inset 0 0 0 2px colors.$cool-gray-10 !important;
 }
 
 .eventContentContainer {

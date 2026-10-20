@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .tableSkeleton {
@@ -5,7 +7,7 @@
     color: var(--cds-interactive-01);
   }
   thead {
-    background-color: #d5d9e0;
+    background-color: colors.$cool-gray-20;
     th:nth-of-type(1) {
       width: 15% !important;
     }
@@ -115,13 +117,13 @@
 
   &.failed, &.cancelled {
     td {
-      background-color: #fcd0d3;
+      background-color: colors.$red-20;
     }
 
     &:hover {
-      background-color: #fcd0d3;
+      background-color: colors.$red-20;
       td {
-        background-color: #fcd0d3;
+        background-color: colors.$red-20;
       }
     }
 
@@ -135,13 +137,13 @@
 
   &.invalid {
     td {
-      background-color: #d5d9e0;
+      background-color: colors.$cool-gray-20;
     }
 
     &:hover {
-      background-color: #d5d9e0;
+      background-color: colors.$cool-gray-20;
       td {
-        background-color: #d5d9e0;
+        background-color: colors.$cool-gray-20;
       }
     }
   }
@@ -159,9 +161,9 @@
 
   &.notstarted {
     .status {
-      color: #50565b;
+      color: colors.$cool-gray-70;
       svg {
-        fill: #50565b;
+        fill: colors.$cool-gray-70;
       }
     }
   }

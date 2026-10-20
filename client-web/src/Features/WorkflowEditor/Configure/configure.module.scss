@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .container {
@@ -93,7 +95,7 @@
   }
 
   &:hover {
-    background: #bae6ff;
+    background: colors.$cyan-20;
   }
 }
 
@@ -152,7 +154,7 @@
 }
 
 .descriptionLength {
-  color: #525252;
+  color: colors.$gray-70;
   font-size: 0.75rem;
   letter-spacing: 0.02rem;
   line-height: 1rem;

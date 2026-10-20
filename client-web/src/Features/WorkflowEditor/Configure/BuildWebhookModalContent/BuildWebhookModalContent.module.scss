@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .webhookurlContainer {
@@ -9,7 +11,7 @@
   }
 
   :global .cds--copy-btn {
-    background-color: #f2f4f8 !important;
+    background-color: colors.$cool-gray-10 !important;
   }
 
   :global .cds--copy-btn:hover {
@@ -36,7 +38,7 @@
 }
 
 .codeSnippet{
-  background: var(--cds-background, #f2f4f8);
+  background: var(--cds-background, colors.$cool-gray-10);
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
   padding-block-end: none !important;
@@ -44,12 +46,12 @@
 
   button{
     border-radius: 0 !important;
-    background: var(--cds-background, #f2f4f8);
+    background: var(--cds-background, colors.$cool-gray-10);
   }
 }
 
 .codeSnippetInline{
-  background: var(--cds-background, #f2f4f8);
+  background: var(--cds-background, colors.$cool-gray-10);
 }
 
 .webhookURL {

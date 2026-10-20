@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .tableSkeleton {
@@ -5,7 +7,7 @@
     color: var(--cds-interactive-01);
   }
   thead {
-    background-color: #d5d9e0;
+    background-color: colors.$cool-gray-20;
     th:nth-of-type(1) {
       width: 15% !important;
     }

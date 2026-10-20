@@ -1,7 +1,9 @@
+@use "@carbon/react/scss/colors";
+
 @import "Styles/mixins";
 
 .codeSnippet{
-  background: var(--cds-background, #f2f4f8);
+  background: var(--cds-background, colors.$cool-gray-10);
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
   padding-block-end: none !important;
@@ -9,7 +11,7 @@
 
   button{
     border-radius: 0 !important;
-    background: var(--cds-background, #f2f4f8);
+    background: var(--cds-background, colors.$cool-gray-10);
   }
 
   pre {
@@ -18,7 +20,7 @@
 }
 
 .codeSnippetInline{
-  background: var(--cds-background, #f2f4f8);
+  background: var(--cds-background, colors.$cool-gray-10);
 }
 
 .sectionHeader {

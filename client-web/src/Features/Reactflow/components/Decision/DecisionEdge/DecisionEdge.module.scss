@@ -1,13 +1,15 @@
+@use "@carbon/react/scss/colors";
+
 .editorEdge {
   stroke: var(--flow-switch-primary);
   &.locked {
-    stroke: #50565b;
+    stroke: colors.$cool-gray-70;
   }
 }
 
 .runEdge {
   &.succeeded {
-    stroke: #50565b;
+    stroke: colors.$cool-gray-70;
   }
   &.waiting,
   &.notstarted,

@@ -1,3 +1,5 @@
+@use "@carbon/react/scss/colors";
+
 .b-switch-config {
   min-height: 5rem;
   padding-top: 1rem;
@@ -17,7 +19,7 @@
 }
 
 .s-switch-customvalue-desc {
-  color: #121619;
+  color: colors.$cool-gray-100;
   font-size: 0.875rem;
   letter-spacing: 0.01rem;
   line-height: 1.25;
