@@ -206,19 +206,13 @@ public class QuotaService {
   // The usage is counted under the name the caller gave, which the lookup matched ignoring case.
   private CurrentQuotas current(WorkspaceEntity entity, String workspace) {
     CurrentQuotas quotas = new CurrentQuotas(limits(entity));
-    LocalDate monthStart = LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1);
-    Date from = Date.from(monthStart.atStartOfDay(ZoneOffset.UTC).toInstant());
-    Date nextMonth = Date.from(monthStart.plusMonths(1).atStartOfDay(ZoneOffset.UTC).toInstant());
-    // The run-duration figures end a day before the month does: the window the rollup they came
-    // from always read.
-    Date durationsTo =
-        Date.from(monthStart.plusMonths(1).minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant());
-    quotas.setMonthlyResetDate(nextMonth);
+    MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
+    quotas.setMonthlyResetDate(month.to());
 
     // Milliseconds, like every run duration: this month's total and the mean per run, from the
     // audit trail so runs of since-deleted Workflows still count.
     AuditQueryService.RunTotals runTotals =
-        auditQueryService.runTotals(workspace, from, durationsTo);
+        auditQueryService.runTotals(workspace, month.from(), month.to());
     quotas.setCurrentRunTotalDuration(runTotals.duration());
     quotas.setCurrentRunAverageDuration(
         (runTotals.runs() > 0) ? runTotals.duration() / runTotals.runs() : 0L);
@@ -230,8 +224,9 @@ public class QuotaService {
     // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
     // events outlive both the run documents and the Workflow).
     long liveMonthly =
-        countRuns(workflowRefs, Optional.of(from), Optional.of(nextMonth), Optional.empty());
-    long auditMonthly = auditQueryService.countRunsCreated(workspace, from, nextMonth);
+        countRuns(
+            workflowRefs, Optional.of(month.from()), Optional.of(month.to()), Optional.empty());
+    long auditMonthly = auditQueryService.countRunsCreated(workspace, month.from(), month.to());
     quotas.setCurrentRuns((int) Math.max(auditMonthly, liveMonthly));
     // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
     // work counts against the limit - it measures what is running now, which deletion
@@ -360,6 +355,17 @@ public class QuotaService {
   }
 
   // ── Counts ────────────────────────────────────────────────────────────────
+
+  // The UTC calendar month a day falls in, as the half-open window every monthly figure reads:
+  // from its first instant up to, not including, the first instant of the next month.
+  record MonthWindow(Date from, Date to) {
+    static MonthWindow of(LocalDate day) {
+      LocalDate monthStart = day.withDayOfMonth(1);
+      return new MonthWindow(
+          Date.from(monthStart.atStartOfDay(ZoneOffset.UTC).toInstant()),
+          Date.from(monthStart.plusMonths(1).atStartOfDay(ZoneOffset.UTC).toInstant()));
+    }
+  }
 
   /** Runs of the given Workflows created in the window and in the given statuses, counted. */
   private long countRuns(

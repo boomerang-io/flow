@@ -144,6 +144,9 @@ tag's release notes.
 - A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
   `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
 - The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
+- A workspace's monthly run-duration figures (`currentRunTotalDuration`, `currentRunAverageDuration`) cover the
+  whole UTC calendar month. They used to stop at midnight before the month's last day, so that day's runs were
+  never counted.
 - A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
   other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
   Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
