@@ -19,7 +19,7 @@ import ErrorModal from "Components/ErrorModal";
 import { useAppContext, useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
-import dateHelper, { getSimplifiedDuration } from "Utils/dateHelper";
+import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
@@ -116,10 +116,10 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
     canActionWorkflowRun && (displayStartButton || displayRetryButton || displayPauseButton || displayResumeButton);
   // The overflow's items open these modals, which cannot sit inside a menu item themselves.
   const [openModal, setOpenModal] = React.useState<"advanced" | "cancel" | null>(null);
-  // "in 21s" once finished, "for 2m 10s" while running, nothing before it starts.
+  // "in 21 s" once finished, "for 2 min 10 s" while running, nothing before it starts.
   const runDuration =
     phase === RunPhase.Completed && typeof workflowRun.duration === "number"
-      ? `in ${getSimplifiedDuration(workflowRun.duration / 1000)}`
+      ? `in ${formatDuration(workflowRun.duration)}`
       : status === RunStatus.Running && workflowRun.startTime
         ? `for ${dateHelper.durationFromThenToNow(workflowRun.startTime)}`
         : "";
@@ -270,7 +270,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Start time</dt>
-            <dd className={styles.dataValue}>{moment(creationDate).format("YYYY-MM-DD hh:mm A")}</dd>
+            <dd className={styles.dataValue}>{moment(creationDate).format(DATETIME_DISPLAY_FORMAT)}</dd>
           </dl>
           {/* Inside to outside: the run error, View results, the one primary run action, then the overflow. */}
           <div className={styles.controls}>

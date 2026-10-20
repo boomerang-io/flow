@@ -11,6 +11,7 @@ import { ExecutionStatusCopy } from "Constants";
 import { FlowWorkspaceSummary, RunStatus } from "Types";
 import { isActionError } from "Utils/actionResult";
 import styles from "./workspaceCard.module.scss";
+import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 /** Home's per-workspace rollup (Features/Home/homeLoader.ts). Absent when that read degraded. */
 export interface WorkspaceCardStats {
@@ -139,7 +140,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, stats }) => {
         ) : (
           <>
             <span className={cx(styles.dot, styles.dotIdle)} aria-hidden="true" />
-            No runs yet · created {moment(workspace.creationDate).format("YYYY-MM-DD")}
+            No runs yet · created {moment(workspace.creationDate).format(DATE_DISPLAY_FORMAT)}
           </>
         )}
       </p>

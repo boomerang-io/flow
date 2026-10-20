@@ -20,6 +20,7 @@ import { serverFetch } from "Config/serverFetch";
 import { PaginatedWorkflowResponse } from "Types";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Workflows.module.scss";
+import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module for the Workflows tab (app/routes/manageWorkspaceWorkflows.tsx). Read-only, so a
 // loader and no action. The workspace-scoped list used to be a useQuery keyed on the same URL;
@@ -106,7 +107,7 @@ function Workflows() {
                     </div>
                   </StructuredListCell>
                   <StructuredListCell>
-                    <time>{moment(workflow.creationDate).format("YYYY-MM-DD hh:mm A")}</time>
+                    <time>{moment(workflow.creationDate).format(DATETIME_DISPLAY_FORMAT)}</time>
                   </StructuredListCell>
                   <StructuredListCell>{workflow.description !== "" ? workflow.description : "---"}</StructuredListCell>
                   <StructuredListCell>{workflow.version}</StructuredListCell>

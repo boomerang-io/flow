@@ -40,7 +40,7 @@ import {
   scheduleFrequency,
   weeklyCron,
 } from "Utils/cronHelper";
-import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone } from "Utils/dateHelper";
+import { DATETIME_LOCAL_INPUT_FORMAT, defaultTimeZone, timezoneOptions, transformTimeZone, NEXT_RUN_FORMAT, TIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { toDynamicInputs } from "Utils/paramsHelper";
 import { validateCronExpression } from "Config/resourceRoutes";
 import { DataDrivenInput, DayOfWeekKey, ScheduleManagerFormInputs, ScheduleUnion, Workflow } from "Types";
@@ -541,7 +541,7 @@ function summarise(values: any): string {
   const frequency: ScheduleFrequency = values.frequency;
   if (frequency === "once") {
     const at = values.dateTime ? moment(values.dateTime, DATETIME_LOCAL_INPUT_FORMAT) : undefined;
-    return at?.isValid() ? `Runs once on ${at.format("ddd D MMM YYYY")} at ${at.format("h:mm A")} (${zone})` : "Choose a date and time.";
+    return at?.isValid() ? `Runs once on ${at.format("ddd D MMM YYYY")} at ${at.format(TIME_DISPLAY_FORMAT)} (${zone})` : "Choose a date and time.";
   }
   if (frequency === "custom") {
     return values.cronSchedule ? `${describeCron(values.cronSchedule)} (${zone})` : "Enter a cron expression.";
@@ -552,7 +552,7 @@ function summarise(values: any): string {
     return frequency === "weekly" && !values.days.length ? "Choose at least one day." : "Enter a time.";
   }
   const next = nextOccurrence(frequency, { days: values.days, time: values.time, minute: values.minute, timezone: zone });
-  return `Runs ${lowerFirst(describeCron(cron))} (${zone})${next ? ` · next ${next.format("ddd D MMM, h:mm A")}` : ""}`;
+  return `Runs ${lowerFirst(describeCron(cron))} (${zone})${next ? ` · next ${next.format(NEXT_RUN_FORMAT)}` : ""}`;
 }
 
 const lowerFirst = (text: string) => (text.startsWith("Every") ? `e${text.slice(1)}` : text);

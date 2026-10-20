@@ -27,6 +27,7 @@ import { isActionError } from "Utils/actionResult";
 import { TokenType } from "Constants";
 import { Token } from "Types";
 import styles from "./GlobalTokens.module.scss";
+import { DATE_LONG_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module: loader/action attached at app/routes/tokens.tsx (path=/admin/tokens), following
 // the GlobalParameters.tsx reference conversion (see that file for the fuller rationale comment).
@@ -155,11 +156,11 @@ function Tokens() {
       case "expirationDate":
         return (
           <p className={styles.tableTextarea}>
-            {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
+            {value ? moment(value).utc().startOf("day").format(DATE_LONG_DISPLAY_FORMAT) : "---"}
           </p>
         );
       case "lastUsedAt":
-        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format(DATE_LONG_DISPLAY_FORMAT) : "Never"}</p>;
       case "delete":
         return tokenDetails && tokenDetails.id ? (
           <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />

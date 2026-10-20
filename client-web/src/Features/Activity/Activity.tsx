@@ -15,6 +15,7 @@ import { serverFetch } from "Config/serverFetch";
 import styles from "./Activity.module.scss";
 import ActivityHeader from "./ActivityHeader";
 import ActivityTable from "./ActivityTable";
+import { DATE_PICKER_FORMAT } from "Utils/dateHelper";
 
 // Route module: this file's `loader` is attached to the route in app/routes/activity.tsx
 // (path "/:workspace/activity") rather than being defined inline there, so the data-fetching
@@ -41,7 +42,7 @@ const DEFAULT_SORT = "creationDate";
  * while the client-rendered date picker showed today, and a refresh would not help.
  * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
  */
-const defaultMaxDate = () => moment().format("MM/DD/YYYY");
+const defaultMaxDate = () => moment().format(DATE_PICKER_FORMAT);
 const defaultFromDate = () => moment().subtract(3, "months").valueOf();
 const defaultToDate = () => moment().endOf("day").valueOf();
 
@@ -334,13 +335,13 @@ function WorkflowActivity() {
               autoComplete="off"
               id="activity-date-picker-start"
               labelText="Start date"
-              value={moment(selectedFromDate).format("MM/DD/YYYY")}
+              value={moment(selectedFromDate).format(DATE_PICKER_FORMAT)}
             />
             <DatePickerInput
               autoComplete="off"
               id="activity-date-picker-end"
               labelText="End date"
-              value={moment(selectedToDate).format("MM/DD/YYYY")}
+              value={moment(selectedToDate).format(DATE_PICKER_FORMAT)}
             />
           </DatePicker>
         </div>

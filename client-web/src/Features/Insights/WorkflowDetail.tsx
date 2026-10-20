@@ -5,7 +5,8 @@ import moment from "moment";
 import { appLink } from "Config/appConfig";
 import cx from "classnames";
 import { InsightsTaskRow, InsightsWorkflowDetail } from "Types";
-import { formatCost, formatDuration, formatTokens } from "./format";
+import { formatCost, formatTokens } from "./format";
+import { formatDuration } from "Utils/dateHelper";
 import UsagePanel from "./UsagePanel";
 import styles from "./Insights.module.scss";
 

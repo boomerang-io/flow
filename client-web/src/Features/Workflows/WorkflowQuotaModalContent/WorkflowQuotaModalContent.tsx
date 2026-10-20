@@ -5,6 +5,7 @@ import ProgressBar from "Components/ProgressBar";
 import { FlowWorkspaceQuotas } from "Types";
 import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
 import styles from "./WorkflowQuotaModalContent.module.scss";
+import { DATE_LONG_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 export default function WorkflowQuotaModalContent({
   closeModal,
@@ -60,7 +61,7 @@ export default function WorkflowQuotaModalContent({
           {`Current usage: ${formatQuotaUsage(quotas.currentRuns, quotas.maxWorkflowRunMonthly)}`}
         </p>
         <time className={styles.detailedText}>
-          {`Resets on ${moment.utc(quotas.monthlyResetDate).format("MMMM DD, YYYY")}`}
+          {`Resets on ${moment.utc(quotas.monthlyResetDate).format(DATE_LONG_DISPLAY_FORMAT)}`}
         </time>
       </QuotaSection>
       <hr className={styles.divider} />

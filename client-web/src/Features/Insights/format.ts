@@ -1,25 +1,3 @@
-/** "1 min 48 s", "22 min", "1 h 10 min"; sub-second durations read "< 1 s". */
-export function formatDuration(ms: number): string {
-  if (!ms || ms <= 0) {
-    return "0 s";
-  }
-  if (ms < 1000) {
-    return "< 1 s";
-  }
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) {
-    return `${seconds} s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const restSeconds = seconds % 60;
-  if (minutes < 60) {
-    return restSeconds ? `${minutes} min ${restSeconds} s` : `${minutes} min`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const restMinutes = minutes % 60;
-  return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`;
-}
-
 /** "a=b, c=d" typed in the label filter, as the list the API takes; blank entries dropped. */
 export function parseLabels(text: string): Array<string> {
   return text

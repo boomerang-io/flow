@@ -1,7 +1,7 @@
 //@ts-nocheck
 import React from "react";
 import { DataTableSkeleton, DataTable, Pagination } from "@carbon/react";
-import { getHumanizedDuration, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
+import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import cx from "classnames";
 import moment from "moment";
 import queryString from "query-string";
@@ -10,6 +10,7 @@ import EmptyState from "Components/EmptyState";
 import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { appLink } from "Config/appConfig";
 import styles from "./activityTable.module.scss";
+import { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 interface ActivityTableProps {
   navigate: NavigateFunction;
@@ -124,11 +125,11 @@ function ActivityTable(props: ActivityTableProps) {
           </p>
         );
       case HeadersKey.CreationDate:
-        return <time className={styles.tableTextarea}>{moment(value).format("YYYY-MM-DD hh:mm A")}</time>;
+        return <time className={styles.tableTextarea}>{moment(value).format(DATETIME_DISPLAY_FORMAT)}</time>;
       case HeadersKey.Duration:
         return (
           <time className={styles.tableTextarea}>
-            {value ? (value < 1000 ? "< 1 second" : getHumanizedDuration(parseInt(value / 1000, 10))) : "---"}
+            {value ? formatDuration(value) : "---"}
           </time>
         );
       case HeadersKey.Status:

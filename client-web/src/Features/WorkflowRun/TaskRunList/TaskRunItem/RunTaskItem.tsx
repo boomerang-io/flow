@@ -4,7 +4,7 @@ import { ArrowRight, ChevronDown, ChevronUp, Redo } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
-import dateHelper from "Utils/dateHelper";
+import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { foreachItemSuffix, foreachParentSummary } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, NodeType, PASSWORD_CONSTANT, executionStatusIcon } from "Constants";
 import { Action, Param, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
@@ -27,7 +27,7 @@ function hasLog(taskRun: TaskRun) {
 
 function taskRunDuration(taskRun: TaskRun) {
   return taskRun.duration
-    ? dateHelper.timeMillisecondsToTimeUnit(taskRun.duration)
+    ? formatDuration(taskRun.duration)
     : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
 }
 
@@ -350,7 +350,7 @@ function ActionersList({ actioners, showVerdict }: { actioners: SimpleApprover[]
           <p className={styles.sectionDetail}>{approverLabel(actioner)}</p>
           <p className={styles.actionerMeta}>
             {showVerdict ? `${actioner.approved ? "Approved" : "Rejected"} · ` : ""}
-            {actioner.date ? moment(actioner.date).format("YYYY-MM-DD hh:mm A") : "---"}
+            {actioner.date ? moment(actioner.date).format(DATETIME_DISPLAY_FORMAT) : "---"}
           </p>
           {actioner.comments && <p className={styles.sectionDetail}>{actioner.comments}</p>}
         </li>

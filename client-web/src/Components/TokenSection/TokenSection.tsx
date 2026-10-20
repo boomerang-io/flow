@@ -28,6 +28,7 @@ import { isActionError } from "Utils/actionResult";
 import styles from "./TokenSection.module.scss";
 import { useTokenSectionData } from "./tokenRouteData";
 import type { TokenActionResult } from "./tokenRoute";
+import { DATE_LONG_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 /*
  * Loader/action-driven (see tokenRoute.ts): the token list comes from the matched route's
@@ -143,11 +144,11 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
       case "expirationDate":
         return (
           <p className={styles.tableTextarea}>
-            {value ? moment(value).utc().startOf("day").format("MMMM DD, YYYY") : "---"}
+            {value ? moment(value).utc().startOf("day").format(DATE_LONG_DISPLAY_FORMAT) : "---"}
           </p>
         );
       case "lastUsedAt":
-        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format("MMMM DD, YYYY") : "Never"}</p>;
+        return <p className={styles.tableTextarea}>{value ? moment(value).utc().format(DATE_LONG_DISPLAY_FORMAT) : "Never"}</p>;
       case "delete":
         return tokenDetails && tokenDetails.id ? (
           <DeleteToken tokenItem={tokenDetails} deleteToken={deleteToken} />

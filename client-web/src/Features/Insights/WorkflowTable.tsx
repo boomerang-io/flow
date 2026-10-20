@@ -5,7 +5,8 @@ import cx from "classnames";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
 import { InsightsDay, InsightsWorkflow } from "Types";
-import { formatDuration, formatPercent } from "./format";
+import { formatPercent } from "./format";
+import { formatDuration } from "Utils/dateHelper";
 import styles from "./Insights.module.scss";
 
 interface WorkflowTableProps {

@@ -2,7 +2,7 @@ import DateHelper, {
   transformTimeZone,
   DATETIME_LOCAL_DISPLAY_FORMAT,
   DATETIME_LOCAL_INPUT_FORMAT,
-  getSimplifiedDuration,
+  formatDuration,
 } from "./dateHelper";
 
 // Characterisation spec: pins the CURRENT
@@ -12,19 +12,20 @@ import DateHelper, {
 // a new implementation; if a deliberate output change is needed, change it here with a comment
 // explaining why, not silently.
 
-describe("DateHelper.timeMillisecondsToTimeUnit", () => {
+// Every run and task duration renders through this one formatter, so the same duration reads the
+// same on Activity, the run page, a task row, Insights and the Quotas page.
+describe("formatDuration", () => {
   test.each([
-    [0, ""],
-    [59 * 1000, "59 secs"],
-    [61 * 1000, "1 min 1 sec"],
-    [(3600 + 60 + 1) * 1000, "1 hr 1 min 1 sec"],
-    [25 * 3600 * 1000, "25 hrs"],
-    [3 * 24 * 3600 * 1000, "72 hrs"],
-    [1000, "1 sec"],
-    [999, "999 ms"],
-    [1, "1 ms"],
-  ])("timeMillisecondsToTimeUnit(%i) === %j", (ms, expected) => {
-    expect(DateHelper.timeMillisecondsToTimeUnit(ms)).toBe(expected);
+    [0, "0 s"],
+    [999, "< 1 s"],
+    [1000, "1 s"],
+    [59 * 1000, "59 s"],
+    [61 * 1000, "1 min 1 s"],
+    [22 * 60 * 1000, "22 min"],
+    [(3600 + 60 + 1) * 1000, "1 h 1 min"],
+    [25 * 3600 * 1000, "25 h"],
+  ])("formatDuration(%i) === %j", (ms, expected) => {
+    expect(formatDuration(ms)).toBe(expected);
   });
 });
 
@@ -57,7 +58,7 @@ describe("DateHelper.humanizedSimpleTimeAgo", () => {
 });
 
 describe("DateHelper.durationFromThenToNow", () => {
-  test("delegates to timeMillisecondsToTimeUnit on the elapsed ms", () => {
+  test("formats the elapsed ms like any other duration", () => {
     vi.setSystemTime(new Date("2024-06-15T12:00:00.000Z"));
     expect(DateHelper.durationFromThenToNow("2024-06-15T11:59:00.000Z")).toBe("1 min");
     vi.setSystemTime(new Date("2020-01-01T00:00:00.000Z"));
@@ -74,18 +75,5 @@ describe("DateHelper named exports", () => {
   test("format constants are unchanged", () => {
     expect(DATETIME_LOCAL_DISPLAY_FORMAT).toBe("MMMM DD, YYYY h:mma");
     expect(DATETIME_LOCAL_INPUT_FORMAT).toBe("YYYY-MM-DDTHH:mm");
-  });
-});
-
-describe("getSimplifiedDuration", () => {
-  test.each([
-    [0, "0s"],
-    [59, "59s"],
-    [61, "1min"],
-    [3661, "1h"],
-    [25 * 3600, "25h"],
-    [3 * 24 * 3600, "72h"],
-  ])("getSimplifiedDuration(%i) === %j", (seconds, expected) => {
-    expect(getSimplifiedDuration(seconds)).toBe(expected);
   });
 });

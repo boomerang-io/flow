@@ -22,6 +22,7 @@ import { ModalTriggerProps, Task, ChangeLog } from "Types";
 import { TemplateRequestType, FormProps } from "../constants";
 import VersionSwitcher from "./VersionSwitcher";
 import styles from "./header.module.scss";
+import { DATE_SHORT_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 const ArchiveText: React.FC = () => (
   <>
@@ -410,7 +411,7 @@ const Header: React.FC<HeaderProps> = ({
         )}
         <p className={styles.lastUpdate}>{`Version ${versionCount === 1 ? "created" : "updated"} ${moment(
           lastUpdated.date,
-        ).format("MMM DD, YYYY")}`}</p>
+        ).format(DATE_SHORT_DISPLAY_FORMAT)}`}</p>
       </div>
     </FeatureHeader>
   );

@@ -17,6 +17,7 @@ import { Artifact, ArtifactScope, ArtifactStatus, PaginatedResponse } from "Type
 import queryString from "query-string";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Artifacts.module.scss";
+import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 // Route module for the Artifacts tab of /:workspace/manage (app/routes/manageWorkspaceArtifacts.tsx).
 // Follows the Activity.tsx pattern: every filter/pagination value (page/limit/statuses) is read
@@ -283,7 +284,7 @@ function Artifacts() {
                                 <>
                                   {isExpired ? "Expired " : "Expires "}
                                   {artifact.expirationDate
-                                    ? moment(artifact.expirationDate).format("YYYY-MM-DD")
+                                    ? moment(artifact.expirationDate).format(DATE_DISPLAY_FORMAT)
                                     : "---"}
                                 </>
                               )}

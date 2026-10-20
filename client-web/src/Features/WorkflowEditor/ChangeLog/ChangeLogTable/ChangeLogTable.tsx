@@ -6,6 +6,7 @@ import PropTypes from "prop-types";
 import EmptyState from "Components/EmptyState";
 import { ChangeLog } from "Types";
 import styles from "./changeLogTable.module.scss";
+import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZES = [DEFAULT_PAGE_SIZE, 25, 50];
@@ -76,7 +77,7 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
 
     switch (column.header) {
       case "Date":
-        return <p className={styles.tableText}>{moment(value).format("YYYY-MM-DD hh:mm A")}</p>;
+        return <p className={styles.tableText}>{moment(value).format(DATETIME_DISPLAY_FORMAT)}</p>;
       default:
         return <p className={styles.tableText}>{value || "---"}</p>;
     }

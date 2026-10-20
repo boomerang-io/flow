@@ -1,6 +1,7 @@
 import cronstrue from "cronstrue";
 import moment from "moment-timezone";
 import { DayOfWeekKey, DayOfWeekCronAbbreviation, ScheduleUnion } from "Types";
+import { TIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 
 export const daysOfWeekCronList: Array<{ labelText: string, value: DayOfWeekKey, id: DayOfWeekKey, cron: DayOfWeekCronAbbreviation, cronNumber: [index: string, secondIndex?: string], key: DayOfWeekKey}> = [
   { labelText: "Sunday", value: "sunday", id: "sunday", cron: "SUN", cronNumber: ["0", "7"], key: "sunday" },
@@ -144,7 +145,7 @@ export function frequencyToSchedule(
   }
 }
 
-const formatTime = (time: string) => moment(time, "HH:mm").format("h:mm A");
+const formatTime = (time: string) => moment(time, "HH:mm").format(TIME_DISPLAY_FORMAT);
 
 function describeDays(days: Array<DayOfWeekKey>): string {
   if (sameDays(days, ALL_DAYS)) {
