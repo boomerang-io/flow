@@ -14,6 +14,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.core.config.RestConfig;
 import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.config.EventSinkProperties.Destination;
+import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.EventPayload;
 import io.boomerang.workflow.TaskService;
 import java.util.Date;
@@ -47,7 +48,7 @@ class EventSinkDeliveryTest {
         .andRespond(withSuccess());
 
     sinkService(restTemplate, List.of(), List.of(new Destination(HEADER_URL, null, "Bearer s3cret")))
-        .deliverStatusCloudEvent(workflowRun());
+        .deliverStatusCloudEvent(workflowRun(), outboxRow());
 
     server.verify();
   }
@@ -64,7 +65,7 @@ class EventSinkDeliveryTest {
 
     sinkService(
             restTemplate, List.of(), List.of(new Destination(HEADER_URL, "x-api-key", "s3cret")))
-        .deliverStatusCloudEvent(workflowRun());
+        .deliverStatusCloudEvent(workflowRun(), outboxRow());
 
     server.verify();
   }
@@ -79,7 +80,7 @@ class EventSinkDeliveryTest {
         .andExpect(headerDoesNotExist("Authorization"))
         .andRespond(withSuccess());
 
-    sinkService(restTemplate, List.of(BARE_URL), List.of()).deliverStatusCloudEvent(workflowRun());
+    sinkService(restTemplate, List.of(BARE_URL), List.of()).deliverStatusCloudEvent(workflowRun(), outboxRow());
 
     server.verify();
   }
@@ -96,7 +97,7 @@ class EventSinkDeliveryTest {
             restTemplate,
             List.of(BARE_URL),
             List.of(new Destination(HEADER_URL, null, "Bearer s3cret")))
-        .deliverStatusCloudEvent(workflowRun());
+        .deliverStatusCloudEvent(workflowRun(), outboxRow());
     server.verify();
 
     server.reset();
@@ -104,7 +105,7 @@ class EventSinkDeliveryTest {
             new EventSinkProperties(false, EventPayload.thin, List.of(BARE_URL), List.of()),
             restTemplate,
             mock(TaskService.class))
-        .deliverStatusCloudEvent(workflowRun());
+        .deliverStatusCloudEvent(workflowRun(), outboxRow());
     server.verify();
   }
 
@@ -134,5 +135,12 @@ class EventSinkDeliveryTest {
     entity.setPhase(RunPhase.completed);
     entity.setCreationDate(new Date(0));
     return entity;
+  }
+
+  private static EventOutboxEntity outboxRow() {
+    EventOutboxEntity row = new EventOutboxEntity();
+    row.setId("row-1");
+    row.setOccurredAt(new Date(5000));
+    return row;
   }
 }

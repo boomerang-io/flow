@@ -932,6 +932,7 @@ public class TaskRunService {
         new TaskRunTransition(
             preImage.getId(),
             preImage.getWorkflowRunRef(),
+            preImage.getType(),
             preImage.getStatus(),
             preImage.getPhase(),
             toStatus,

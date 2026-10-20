@@ -10,6 +10,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.EventPayload;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
@@ -29,6 +30,9 @@ class StatusEventPayloadTest {
 
   private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
+  // The outbox row an event is built for: it gives the event its id and time, not its payload.
+  private static final EventOutboxEntity ROW = outboxRow();
+
   private static final List<String> THIN_WORKFLOWRUN_KEYS =
       List.of("id", "workflowRef", "status", "phase", "labels", "creationDate", "startTime", "duration");
 
@@ -39,7 +43,7 @@ class StatusEventPayloadTest {
 
   @Test
   void thinWorkflowRunEventCarriesIdentityAndLifecycleOnly() throws Exception {
-    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.thin));
+    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin));
 
     assertThat(data.propertyNames()).containsExactlyInAnyOrderElementsOf(THIN_WORKFLOWRUN_KEYS);
     assertThat(data.get("id").asString()).isEqualTo("wfr-1");
@@ -51,7 +55,7 @@ class StatusEventPayloadTest {
 
   @Test
   void thinTaskRunEventCarriesIdentityAndLifecycleOnly() throws Exception {
-    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(taskRun(), EventPayload.thin));
+    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.thin));
 
     assertThat(data.propertyNames()).containsExactlyInAnyOrderElementsOf(THIN_TASKRUN_KEYS);
     assertThat(data.get("workflowRunRef").asString()).isEqualTo("wfr-1");
@@ -62,8 +66,8 @@ class StatusEventPayloadTest {
   void aThinPayloadNeverCarriesParamsResultsOrAnnotations() throws Exception {
     for (JsonNode data :
         List.of(
-            payload(EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.thin)),
-            payload(EventFactory.buildStatusUpdateEvent(taskRun(), EventPayload.thin)))) {
+            payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin)),
+            payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.thin)))) {
       assertThat(data.propertyNames()).doesNotContain("params", "results", "annotations");
       assertThat(data.toString()).doesNotContain("api-key", "s3cret", "result-value");
     }
@@ -72,11 +76,11 @@ class StatusEventPayloadTest {
   @Test
   void theFullPayloadIsThePublicRunModel() throws Exception {
     JsonNode workflowRunData =
-        payload(EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.full));
+        payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.full));
     assertThat(workflowRunData.propertyNames()).contains("params", "results", "annotations");
     assertThat(workflowRunData.get("params").get(0).get("value").asString()).isEqualTo("s3cret");
 
-    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun(), EventPayload.full));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.full));
     assertThat(taskRunData.propertyNames()).contains("params", "results", "spec", "name");
     assertThat(taskRunData.get("results").get(0).get("value").asString()).isEqualTo("result-value");
   }
@@ -87,14 +91,14 @@ class StatusEventPayloadTest {
   void theFullPayloadRedactsSecretTypedParams() throws Exception {
     WorkflowRunEntity wfRun = workflowRun();
     wfRun.setParams(List.of(new RunParam("dbPassword", "s3cret-value", ParamType.secret)));
-    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, EventPayload.full));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, ROW, EventPayload.full));
     assertThat(workflowRunData.get("params").get(0).get("value").asString()).isEqualTo("*****");
     assertThat(workflowRunData.get("params").get(0).get("type").asString()).isEqualTo("secret");
     assertThat(wfRun.getParams().get(0).getValue()).isEqualTo("s3cret-value");
 
     TaskRunEntity taskRun = taskRun();
     taskRun.setParams(List.of(new RunParam("dsn", "postgres://app:pw@db", ParamType.secret)));
-    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, EventPayload.full));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, ROW, EventPayload.full));
     assertThat(taskRunData.toString()).doesNotContain("postgres://app:pw@db");
     assertThat(taskRun.getParams().get(0).getValue()).isEqualTo("postgres://app:pw@db");
   }
@@ -109,7 +113,7 @@ class StatusEventPayloadTest {
     taskRun.setResults(List.of(new RunResult("output", "logged in as ghp_echoed_secret")));
     taskRun.setStatusMessage("failed with ghp_echoed_secret");
     taskRun.setAnnotations(Map.of("note", "ghp_echoed_secret"));
-    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, EventPayload.full));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, ROW, EventPayload.full));
     assertThat(taskRunData.toString()).doesNotContain("ghp_echoed_secret");
     assertThat(taskRunData.get("results").get(0).get("value").asString())
         .isEqualTo("logged in as *****");
@@ -118,15 +122,15 @@ class StatusEventPayloadTest {
     WorkflowRunEntity wfRun = workflowRun();
     wfRun.setParams(List.of(new RunParam("dbPassword", "wf-echoed-secret", ParamType.secret)));
     wfRun.setResults(List.of(new RunResult("dsn", "postgres://app:wf-echoed-secret@db")));
-    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, EventPayload.full));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, ROW, EventPayload.full));
     assertThat(workflowRunData.toString()).doesNotContain("wf-echoed-secret");
     assertThat(wfRun.getResults().get(0).getValue()).isEqualTo("postgres://app:wf-echoed-secret@db");
   }
 
   @Test
   void theCloudEventEnvelopeIsTheSameForBothPayloads() throws Exception {
-    var thin = EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.thin).toCloudEvent();
-    var full = EventFactory.buildStatusUpdateEvent(workflowRun(), EventPayload.full).toCloudEvent();
+    var thin = EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin).toCloudEvent();
+    var full = EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.full).toCloudEvent();
 
     assertThat(thin.getType()).isEqualTo("io.boomerang.event.status.workflowrun").isEqualTo(full.getType());
     assertThat(thin.getSource()).isEqualTo(full.getSource());
@@ -174,5 +178,12 @@ class StatusEventPayloadTest {
     entity.setParams(List.of(new RunParam("password", "s3cret")));
     entity.setResults(List.of(new RunResult("output", "result-value")));
     return entity;
+  }
+
+  private static EventOutboxEntity outboxRow() {
+    EventOutboxEntity row = new EventOutboxEntity();
+    row.setId("row-1");
+    row.setOccurredAt(new Date(5000));
+    return row;
   }
 }
