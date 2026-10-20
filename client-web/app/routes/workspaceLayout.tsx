@@ -44,7 +44,7 @@ export async function loader({
     return { status: "ok", workspace: response.data };
   } catch (error) {
     // An unknown slug is a not-found, same as the /:workspace/* catch-all renders for an unknown
-    // sub-path. The real backend reports it as 400 TEAM_INVALID_REF (WorkspaceService.get -
+    // sub-path. The real backend reports it as 400 WORKSPACE_INVALID_REF (WorkspaceService.get -
     // BoomerangError puts it on BAD_REQUEST, not 404); the MSW handler uses 404. Treat both as
     // "this workspace does not exist"; anything else (5xx, unreachable core) is a real error.
     if (axios.isAxiosError(error) && (error.response?.status === 404 || error.response?.status === 400)) {

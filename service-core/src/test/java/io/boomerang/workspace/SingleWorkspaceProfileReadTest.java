@@ -43,6 +43,6 @@ class SingleWorkspaceProfileReadTest extends AbstractEngineIntegrationTest {
         .perform(get("/api/v2/profile"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.type").value("admin"))
-        .andExpect(jsonPath("$.teams[*].name").value(hasItem("system")));
+        .andExpect(jsonPath("$.workspaces[*].name").value(hasItem("system")));
   }
 }

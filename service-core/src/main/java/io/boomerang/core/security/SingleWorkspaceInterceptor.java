@@ -41,7 +41,7 @@ public class SingleWorkspaceInterceptor implements HandlerInterceptor {
                 + "instance only serves the '{}' workspace.",
             workspace,
             SYSTEM_WORKSPACE);
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF, workspace);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF, workspace);
       }
     }
     return true;

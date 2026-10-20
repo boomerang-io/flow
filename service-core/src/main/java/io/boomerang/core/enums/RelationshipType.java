@@ -6,8 +6,8 @@ import java.util.Map;
 // The former TEAM type is labelled "workspace". No stored rel_nodes/rel_edges "type" value says
 // "team": the migrations write workspace nodes from the start (_0004__SeedSystemWorkspace,
 // _0013__V3BuildRelationshipGraph), so there is no "team" input alias.
-// TEAMTASK ("teamtask") keeps its name - it is not itself a workspace node type, it is the type of
-// a task scoped to a workspace.
+// WORKSPACETASK is a task scoped to a workspace; TASK is one in the global catalogue under root.
+// Databases from before the rename stored "teamtask": _0027__RenameWorkspaceTaskNodes moves them.
 public enum RelationshipType {
   ROOT("root"),
   WORKSPACE("workspace"),
@@ -19,7 +19,7 @@ public enum RelationshipType {
   //  TOKEN("token"),
   INTEGRATION("integration"),
   SCHEDULE("schedule"),
-  TEAMTASK("teamtask"),
+  WORKSPACETASK("workspacetask"),
   TASK("task");
 
   private String label;

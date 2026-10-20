@@ -9,7 +9,7 @@ import org.springframework.beans.BeanUtils;
 /*
  * Utilised by the Profile endpoint
  *
- * Same as User but with Teams & permissions
+ * Same as User but with the workspaces they belong to and their permissions
  *
  * Lives in workspace.model, NOT core.model. The type spans core (UserEntity, ResolvedPermissions)
  * and workspace (WorkspaceSummary). io.boomerang.core has zero outbound feature-package imports and
@@ -19,7 +19,7 @@ import org.springframework.beans.BeanUtils;
 @Data
 public class UserProfile extends UserEntity {
 
-  List<WorkspaceSummary> teams;
+  List<WorkspaceSummary> workspaces;
 
   List<ResolvedPermissions> permissions;
 

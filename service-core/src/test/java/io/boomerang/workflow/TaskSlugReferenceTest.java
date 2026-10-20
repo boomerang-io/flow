@@ -184,7 +184,7 @@ class TaskSlugReferenceTest extends AbstractEngineIntegrationTest {
   private String localId() {
     return relationshipService
         .filter(
-            RelationshipType.TEAMTASK,
+            RelationshipType.WORKSPACETASK,
             Optional.of(List.of(localSlug)),
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(workspace)),

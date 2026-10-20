@@ -142,7 +142,7 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
 
     Task read = taskService.get(SYSTEM, name, Optional.empty());
     assertHidden(taskService.apply(name, SYSTEM, read, false), "ws-task-default-1");
-    assertEquals("ws-task-default-1", storedDefault(RelationshipType.TEAMTASK, name));
+    assertEquals("ws-task-default-1", storedDefault(RelationshipType.WORKSPACETASK, name));
   }
 
   @Test

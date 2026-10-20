@@ -586,6 +586,44 @@ class MigrationChainTest {
   }
 
   /**
+   * A workspace's own task node written as {@code teamtask} moves to {@code workspacetask} under its
+   * new id, with its fields kept and its edge re-pointed; other nodes and edges are untouched, and a
+   * second run changes nothing.
+   */
+  @Test
+  void aTeamTaskNodeIsRenamedWithItsEdges() {
+    MongoDatabase db = migrate("workspace-task-nodes");
+    MongoCollection<Document> nodes = collection(db, "rel_nodes");
+    MongoCollection<Document> edges = collection(db, "rel_edges");
+    nodes.insertOne(
+        new Document("_id", "teamtask:t1")
+            .append("type", "teamtask")
+            .append("ref", "t1")
+            .append("slug", "my-task")
+            .append("data", new Document("k", "v")));
+    edges.insertOne(
+        new Document("from", "workspace:w1").append("label", "hasTask").append("to", "teamtask:t1"));
+    long otherNodes = nodes.countDocuments(Filters.ne("type", "teamtask"));
+    long otherEdges = edges.countDocuments(Filters.ne("to", "teamtask:t1"));
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0027__RenameWorkspaceTaskNodes().execute(db, environment);
+    new _0027__RenameWorkspaceTaskNodes().execute(db, environment);
+
+    assertThat(nodes.countDocuments(Filters.eq("type", "teamtask"))).isZero();
+    Document node = nodes.find(Filters.eq("_id", "workspacetask:t1")).first();
+    assertThat(node).isNotNull().containsEntry("type", "workspacetask").containsEntry("slug", "my-task");
+    assertThat(node.get("data", Document.class)).containsEntry("k", "v");
+    assertThat(edges.countDocuments(Filters.regex("to", "^teamtask:"))).isZero();
+    assertThat(
+            edges.countDocuments(
+                Filters.and(Filters.eq("from", "workspace:w1"), Filters.eq("to", "workspacetask:t1"))))
+        .isEqualTo(1);
+    assertThat(nodes.countDocuments(Filters.ne("type", "workspacetask"))).isEqualTo(otherNodes);
+    assertThat(edges.countDocuments(Filters.ne("to", "workspacetask:t1"))).isEqualTo(otherEdges);
+  }
+
+  /**
    * The seed carries no ids: every seeded document takes one from MongoDB, and a revision or a
    * template task points at its catalogue task by that task's live id.
    */

@@ -1451,7 +1451,7 @@ class V3DumpMigrationTest {
     // written. ----
     List<String> validNodePrefixes =
         List.of(
-            "root:", "workspace:", "user:", "workflow:", "workflowrun:", "task:", "teamtask:",
+            "root:", "workspace:", "user:", "workflow:", "workflowrun:", "task:", "workspacetask:",
             "approvergroup:", "schedule:", "integration:");
     for (Document node : collection("rel_nodes").find()) {
       String id = node.getString("_id");
@@ -1469,7 +1469,7 @@ class V3DumpMigrationTest {
     }
 
     // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
-    // team-scoped tasks, so zero "teamtask" nodes are ever written for v3 data. The seeded
+    // workspace-scoped tasks, so zero "workspacetask" nodes are ever written for v3 data. The seeded
     // ai-prompt, ai-agent, upload-artifact and download-artifact tasks, which no v3 install can
     // hold, make 93 and are root-scoped the same way. ----
     assertThat(collection("tasks").countDocuments()).isEqualTo(93);
@@ -1478,7 +1478,7 @@ class V3DumpMigrationTest {
             collection("rel_edges")
                 .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
         .isEqualTo(93);
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "teamtask")))
+    assertThat(collection("rel_nodes").countDocuments(Filters.in("type", "teamtask", "workspacetask")))
         .as("v3 task_templates carries no team-scoping field at all")
         .isZero();
 

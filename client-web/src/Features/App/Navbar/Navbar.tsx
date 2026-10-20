@@ -72,8 +72,8 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
         platformName={platformName}
         productName={appName}
         skipToContentProps={skipToContentProps}
-        // The shell's platform `User` requires a `teams` array; FlowUser only carries it on the profile response.
-        user={{ ...userData, teams: userData.teams ?? [] }}
+        // The shell's platform `User` requires a `teams` array; Flow's profile names it `workspaces`.
+        user={{ ...userData, teams: userData.workspaces ?? [] }}
         supportMenuItems={[
           <HeaderMenuItem type="button" onClick={handleOnTutorialClick} text="Tutorial" />,
           <HeaderMenuItem type="link" kind="external" href="https://www.useboomerang.io/flow" text="Docs" />,
@@ -99,7 +99,7 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
                       <span>Your Workspaces</span>
                     </li>
                     <SwitcherDivider />
-                    {(userData.teams ?? []).map((workspace) => {
+                    {(userData.workspaces ?? []).map((workspace) => {
                       return (
                         <SwitcherItem
                           aria-label={workspace.displayName}

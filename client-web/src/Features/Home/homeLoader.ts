@@ -148,7 +148,7 @@ export async function loader({ request }: { request: Request }): Promise<HomeLoa
   const now = moment();
 
   const profile = await settle(api.get<FlowUser>(serviceUrl.getUserProfile()));
-  const workspaces: Array<FlowWorkspaceSummary> = profile.ok ? profile.data.teams ?? [] : [];
+  const workspaces: Array<FlowWorkspaceSummary> = profile.ok ? profile.data.workspaces ?? [] : [];
   const degraded: HomeDegraded = {
     runsToday: !profile.ok,
     attention: !profile.ok,

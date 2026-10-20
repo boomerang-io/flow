@@ -34,7 +34,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
   const fetcher = useFetcher<UserProfileActionResult>();
   const result = fetcher.data;
 
-  const workspaceCount = user.teams?.length ?? 0;
+  const workspaceCount = user.workspaces?.length ?? 0;
 
   // Replaces the mutateAsync try/catch: the fetcher settles asynchronously, so the notify() calls
   // fire off the settled result instead.

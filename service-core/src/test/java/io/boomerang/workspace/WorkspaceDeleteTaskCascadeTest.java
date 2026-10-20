@@ -20,11 +20,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Deleting a workspace must remove that workspace's own tasks and no others. The cascade resolves
- * a workspace's tasks through the TEAMTASK relationship (the type that actually anchors a task
+ * a workspace's tasks through the WORKSPACETASK relationship (the type that actually anchors a task
  * under a workspace - TASK anchors the global catalogue under root instead) and deletes each by
  * workspace + name, the shape {@link TaskService#delete(String, String)} expects.
  *
- * <p>Fixtures wire the TEAMTASK/TASK relationship edges directly (mirroring what {@link
+ * <p>Fixtures wire the WORKSPACETASK/TASK relationship edges directly (mirroring what {@link
  * TaskService#create} does) rather than going through that method itself: its duplicate
  * check calls {@code RelationshipService.check()}, which - unrelated to anything under test here
  * - always answers "exists" when there is no principal on the SecurityContext, as in this test.
@@ -75,7 +75,7 @@ class WorkspaceDeleteTaskCascadeTest extends AbstractEngineIntegrationTest {
         RelationshipType.WORKSPACE,
         team,
         RelationshipLabel.HAS_TASK,
-        RelationshipType.TEAMTASK,
+        RelationshipType.WORKSPACETASK,
         task.getId(),
         task.getName(),
         Optional.empty(),

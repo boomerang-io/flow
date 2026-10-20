@@ -151,7 +151,7 @@ const defaultFeatures = buildFeatureFlags(featureFlagsFixture.features);
 // carried forward.
 const defaultContextValue = {
   user: userFixture,
-  // AppContext.workspaces is FlowWorkspaceSummary[] (App.tsx: sortBy(userData.teams, "name")) -
+  // AppContext.workspaces is FlowWorkspaceSummary[] (App.tsx: sortBy(userData.workspaces, "name")) -
   // the fixture module holds the paginated wire response, so unwrap it to the flat array here.
   workspaces: workspacesFixture.content,
 };
@@ -161,7 +161,7 @@ const defaultContextValue = {
 const defaultWorkspaceValue = { workspace: workspacesFixture.content[0] };
 
 export interface RenderContextOptions extends RenderRouteOptions, Omit<RenderOptions, "wrapper"> {
-  // Loosely typed on purpose: callers pass fixture slices (e.g. `profile.teams`) whose literal
+  // Loosely typed on purpose: callers pass fixture slices (e.g. `profile.workspaces`) whose literal
   // shape doesn't line up 1:1 with `AppContext.workspaces`/`.user`, and some (WorkflowRun.spec.tsx)
   // also supply AppContext fields `defaultContextValue` doesn't carry a default for
   // (`isTutorialActive`, `setIsTutorialActive`) - untyped ApiServer/fixtures modules predate the

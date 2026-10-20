@@ -93,7 +93,7 @@ class SingleWorkspaceGuardTest extends AbstractEngineIntegrationTest {
     mockMvc
         .perform(get("/api/v2/workspace/not-system/workflow/" + MISSING_WORKFLOW))
         .andExpect(status().isNotFound())
-        .andExpect(content().string(containsString("TEAM_INVALID_REF")));
+        .andExpect(content().string(containsString("WORKSPACE_INVALID_REF")));
   }
 
   @Test
@@ -105,7 +105,7 @@ class SingleWorkspaceGuardTest extends AbstractEngineIntegrationTest {
     BoomerangException ex =
         assertThrows(BoomerangException.class, () -> workspaceService.create(request));
 
-    assertEquals("TEAM_INVALID_REQ", ex.getReason());
+    assertEquals("WORKSPACE_INVALID_REQ", ex.getReason());
   }
 
   @Test
@@ -113,6 +113,6 @@ class SingleWorkspaceGuardTest extends AbstractEngineIntegrationTest {
     BoomerangException ex =
         assertThrows(BoomerangException.class, () -> workspaceService.delete("system"));
 
-    assertEquals("TEAM_INVALID_REQ", ex.getReason());
+    assertEquals("WORKSPACE_INVALID_REQ", ex.getReason());
   }
 }

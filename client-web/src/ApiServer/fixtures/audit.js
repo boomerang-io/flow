@@ -39,7 +39,7 @@ const audit = {
         sourceIp: "10.12.0.9",
         httpMethod: "PATCH",
         requestPath: "/api/v2/workspace/ibm-services",
-        errorSummary: "BoomerangException: TEAM_INVALID_REQ",
+        errorSummary: "BoomerangException: WORKSPACE_INVALID_REQ",
       },
     },
     {

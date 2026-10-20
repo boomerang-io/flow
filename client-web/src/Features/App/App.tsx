@@ -425,7 +425,7 @@ function Main({
         setIsTutorialActive,
         communityUrl: contextData?.platform?.communityUrl ?? "",
         name: contextData?.platform?.name ?? "",
-        workspaces: sortBy(userData.teams, "name"),
+        workspaces: sortBy(userData.workspaces, "name"),
         user: userData,
         workflowTemplates: workflowTemplatesData,
       }}

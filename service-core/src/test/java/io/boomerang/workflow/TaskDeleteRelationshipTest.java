@@ -53,14 +53,14 @@ class TaskDeleteRelationshipTest extends AbstractEngineIntegrationTest {
   void deletingAWorkspaceTaskRemovesItsNodeAndTheWorkspaceEdge() {
     String name = "task-delete-rel-scoped";
     taskService.create(WORKSPACE, newTask(name));
-    String nodeId = nodeId(RelationshipType.TEAMTASK, name);
+    String nodeId = nodeId(RelationshipType.WORKSPACETASK, name);
     assertTrue(
         edgesTouching(nodeId).size() == 1, "the create must have written the workspace's edge");
 
     taskService.delete(WORKSPACE, name);
 
     assertFalse(
-        relationshipService.doesSlugOrRefExistForType(RelationshipType.TEAMTASK, name),
+        relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACETASK, name),
         "no rel_nodes row may survive the delete");
     assertTrue(edgesTouching(nodeId).isEmpty(), "no rel_edges row may point at the deleted node");
   }
@@ -90,7 +90,7 @@ class TaskDeleteRelationshipTest extends AbstractEngineIntegrationTest {
     String name = "task-delete-rel-ungraphed";
     Task created = taskService.create(newTask(name));
     assertFalse(
-        relationshipService.doesSlugOrRefExistForType(RelationshipType.TEAMTASK, name),
+        relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACETASK, name),
         "the unscoped create writes no relationship node");
 
     assertDoesNotThrow(() -> taskService.delete(created.getId()));

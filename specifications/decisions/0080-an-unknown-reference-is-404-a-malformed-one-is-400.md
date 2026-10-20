@@ -23,7 +23,7 @@ a client protocol error.
 Option C. A `*_INVALID_REF*` code now answers `404` and means the resource the request path
 addresses does not exist (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java`);
 blank, missing or unusable input answers `400` under the matching `*_INVALID_REQ` code
-(`TEAM_INVALID_REQ`, `WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ` join the
+(`WORKSPACE_INVALID_REQ`, `WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ` join the
 existing `WORKFLOWRUN_INVALID_REQ`, `TASKRUN_INVALID_REQ`, `SCHEDULE_INVALID_REQ`). A reference that
 does not resolve *inside a body* is a `400`, not a `404`: the route exists, the payload is wrong —
 which is why a workflow node naming a missing Task keeps `WORKFLOW_INVALID_TASK_REF` on `400`.

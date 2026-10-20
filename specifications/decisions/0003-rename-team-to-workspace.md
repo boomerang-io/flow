@@ -33,6 +33,8 @@ to `bfk`; the old prefix is rejected outright, with no deprecation window
 
 - One vocabulary across API, code, database and docs.
 - Any v4 client that used `/api/v2/team/...` must change its paths; there is no compatibility window.
-- Some internals still say "team": the error code `TEAM_INVALID_REF`
-  (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java:42`), and the `teamRef` parameter
-  names inside `WebhookEventService` and `ScheduleJob`. These are cosmetic and can be swept at any time.
+- The error reasons (`WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`, `WORKSPACE_NON_UNIQUE_NAME`,
+  `WORKSPACE_INVALID_USER_ROLE`, `WORKFLOW_WORKSPACE_INACTIVE`; codes unchanged), the profile's `workspaces` field and the
+  `workspacetask` node type follow the rename; `_0027__RenameWorkspaceTaskNodes` moves a beta database's `teamtask` nodes.
+- The `teamRef` parameter names inside `WebhookEventService` and `ScheduleJob` still say "team". These are cosmetic and
+  can be swept at any time.

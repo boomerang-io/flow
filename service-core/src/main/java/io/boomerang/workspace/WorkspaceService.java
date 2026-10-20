@@ -128,11 +128,11 @@ public class WorkspaceService {
       // Ensures unique team name (slug)
       if (relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, kebabName)
           || RESERVED_WORKSPACE_NAMES.contains(kebabName)) {
-        throw new BoomerangException(BoomerangError.TEAM_NON_UNIQUE_NAME);
+        throw new BoomerangException(BoomerangError.WORKSPACE_NON_UNIQUE_NAME);
       }
       return ResponseEntity.ok().build();
     }
-    throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+    throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
   }
 
   /*
@@ -148,7 +148,7 @@ public class WorkspaceService {
         }
       }
     }
-    throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+    throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
   }
 
   /*
@@ -160,7 +160,7 @@ public class WorkspaceService {
    */
   public Workspace create(WorkspaceRequest request) {
     if (single) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // Validate name - will throw exception if not valid
@@ -240,7 +240,7 @@ public class WorkspaceService {
 
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     } else {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
   }
 
@@ -251,15 +251,15 @@ public class WorkspaceService {
     if (request != null) {
       LOGGER.debug("[{}] Patch request received.", workspace);
       if (workspace == null || workspace.isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
       }
       if (!relationshipService.check(
           RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
       if (!optWorkspaceEntity.isPresent()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
       boolean updatedName = false;
@@ -320,7 +320,7 @@ public class WorkspaceService {
       createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     }
-    throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+    throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
   }
 
   /*
@@ -328,13 +328,13 @@ public class WorkspaceService {
    */
   public void delete(String workspace) {
     if (single || workspace == null || workspace.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
 
     // If no relationship, user has no access or team doesn't exist
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
 
     // Get and delete all Workflows (this cascade deletes the Workflows, WorkflowRevisions,
@@ -353,11 +353,11 @@ public class WorkspaceService {
     // Delete all Tokens
     tokenService.deleteAllForPrincipal(workspace);
 
-    // Delete all Workspace Tasks. TEAMTASK is the relationship type that anchors a task under
+    // Delete all Workspace Tasks. WORKSPACETASK is the relationship type that anchors a task under
     // a workspace - TASK anchors the global catalogue under root and would never match here.
     List<String> templateNames =
         relationshipService.filter(
-            RelationshipType.TEAMTASK,
+            RelationshipType.WORKSPACETASK,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
             Optional.of(List.of(workspace)));
@@ -448,15 +448,15 @@ public class WorkspaceService {
   public void removeMembers(String workspace, List<WorkspaceMember> request) {
     if (request != null && !request.isEmpty()) {
       if (workspace == null || workspace.isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
       }
       if (!relationshipService.check(
           RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
       if (!optWorkspaceEntity.isPresent()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       List<String> userRefs = new LinkedList<>();
       for (WorkspaceMember userSummary : request) {
@@ -486,15 +486,15 @@ public class WorkspaceService {
    */
   public void leave(String workspace) {
     if (workspace == null || workspace.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     relationshipService.removeEdge(RelationshipType.WORKSPACE, workspace);
   }
@@ -543,15 +543,15 @@ public class WorkspaceService {
    */
   public void deleteParameter(String workspace, String name) {
     if (workspace == null || workspace.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
@@ -584,7 +584,7 @@ public class WorkspaceService {
     for (ApproverGroupRequest r : request) {
       // Ensure ApproverGroupName is not blank or null
       if (r.getName() == null || r.getName().isBlank()) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
       }
 
       // Match by id when supplied so a rename updates the existing group; name matching is the
@@ -667,15 +667,15 @@ public class WorkspaceService {
    */
   public void deleteApproverGroups(String workspace, List<String> request) {
     if (workspace == null || workspace.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
 
     for (String r : request) {
@@ -692,15 +692,15 @@ public class WorkspaceService {
    */
   public void deleteCustomQuotas(String workspace) {
     if (workspace == null || workspace.isBlank()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REQ);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
     if (!optWorkspaceEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
 
@@ -887,7 +887,7 @@ public class WorkspaceService {
               workspace,
               Optional.of(Map.of("role", userSummary.getRole())));
         } else {
-          throw new BoomerangException(BoomerangError.TEAM_INVALID_USER_ROLE);
+          throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_USER_ROLE);
         }
       }
     }

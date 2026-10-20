@@ -51,7 +51,7 @@ class SingleWorkspaceReadTest extends AbstractEngineIntegrationTest {
     BoomerangException ex =
         assertThrows(BoomerangException.class, () -> workspaceService.get("other"));
 
-    assertEquals("TEAM_INVALID_REF", ex.getReason());
+    assertEquals("WORKSPACE_INVALID_REF", ex.getReason());
     assertEquals(404, ex.getStatus().value());
   }
 
@@ -86,6 +86,6 @@ class SingleWorkspaceReadTest extends AbstractEngineIntegrationTest {
     mockMvc
         .perform(get("/api/v2/workspace/other"))
         .andExpect(status().isNotFound())
-        .andExpect(content().string(containsString("TEAM_INVALID_REF")));
+        .andExpect(content().string(containsString("WORKSPACE_INVALID_REF")));
   }
 }

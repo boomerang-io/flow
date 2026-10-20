@@ -181,7 +181,7 @@ public class WorkflowRunInsightService {
     if (refs.isEmpty()
         && !relationshipService.check(
             RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     return refs;
   }

@@ -29,7 +29,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * SecurityContext (as here) it always answers true, so creation failed with TASK_ALREADY_EXISTS
  * on every single call, whether or not a name actually collided. The fix is a pure existence
  * lookup: creation must succeed with no collision and still reject a real duplicate, both within
- * a workspace (TEAMTASK) and in the global catalogue (TASK).
+ * a workspace (WORKSPACETASK) and in the global catalogue (TASK).
  */
 class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
 
@@ -49,7 +49,7 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void creatingATeamTaskWithAUniqueNameSucceeds() {
+  void creatingAWorkspaceTaskWithAUniqueNameSucceeds() {
     String workspace = createWorkspace("task-uniqueness-a");
 
     Task task = taskService.create(workspace, newTask("unique-team-task"));
@@ -59,7 +59,7 @@ class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void creatingATeamTaskWithADuplicateNameInTheSameWorkspaceIsRejected() {
+  void creatingAWorkspaceTaskWithADuplicateNameInTheSameWorkspaceIsRejected() {
     String workspace = createWorkspace("task-uniqueness-b");
     taskService.create(workspace, newTask("duplicate-team-task"));
 

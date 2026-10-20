@@ -181,7 +181,7 @@ class TaskWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
         RelationshipType.WORKSPACE,
         workspace,
         RelationshipLabel.HAS_TASK,
-        RelationshipType.TEAMTASK,
+        RelationshipType.WORKSPACETASK,
         task.getId(),
         task.getName(),
         Optional.empty(),
