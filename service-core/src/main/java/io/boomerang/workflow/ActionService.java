@@ -5,6 +5,7 @@ import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
@@ -31,6 +32,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -194,6 +196,9 @@ public class ActionService {
         try {
           TaskRunEndRequest endRequest = new TaskRunEndRequest();
           endRequest.setStatus(approved ? RunStatus.succeeded : RunStatus.failed);
+          if (actionEntity.getType() == ActionType.approval) {
+            endRequest.setResults(approvalResults(actionEntity));
+          }
           engineTaskRunService.end(actionEntity.getTaskRunRef(), Optional.ofNullable(endRequest));
         } catch (BoomerangException e) {
           throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
@@ -201,6 +206,35 @@ public class ActionService {
         this.actionRepository.save(actionEntity);
       }
     }
+  }
+
+  /*
+   * The results the approval task declares: the outcome, and the date, approver and comments of
+   * the last actioner - the one whose action decided it. An approver that resolves to no user (a
+   * machine token) is named by its recorded id and has no email.
+   */
+  private List<RunResult> approvalResults(ActionEntity actionEntity) {
+    List<RunResult> results =
+        new LinkedList<>(List.of(new RunResult("approvalStatus", actionEntity.getStatus().name())));
+    if (actionEntity.getActioners().isEmpty()) {
+      return results;
+    }
+    Actioner decider = actionEntity.getActioners().getLast();
+    Optional<User> user =
+        (decider.getApproverId() != null)
+            ? userService.getUserByID(decider.getApproverId())
+            : Optional.empty();
+    results.add(
+        new RunResult(
+            "approvalDate",
+            (decider.getDate() != null) ? decider.getDate().toInstant().toString() : ""));
+    results.add(
+        new RunResult(
+            "approvalUserName",
+            user.map(User::getName).orElse(Objects.toString(decider.getApproverId(), ""))));
+    results.add(new RunResult("approvalUserEmail", user.map(User::getEmail).orElse("")));
+    results.add(new RunResult("approvalComments", Objects.toString(decider.getComments(), "")));
+    return results;
   }
 
   private Action convertToAction(ActionEntity actionEntity) {

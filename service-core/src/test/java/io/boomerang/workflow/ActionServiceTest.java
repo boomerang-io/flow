@@ -3,16 +3,22 @@ package io.boomerang.workflow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.enums.ActionType;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.model.User;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskRunService;
@@ -21,12 +27,14 @@ import io.boomerang.workflow.model.Action;
 import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
+import java.time.Instant;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -212,5 +220,110 @@ class ActionServiceTest {
     Action action = actionService.get("team1", "a1");
 
     assertThat(action.getWorkspaceName()).isEqualTo("my-workspace");
+  }
+
+  @Test
+  void anApprovedApprovalEndsTheTaskWithItsFiveResults() {
+    actAs("u1", "Ada Lovelace", "ada@example.com");
+    ActionEntity entity = approvalAction(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(true, "Looks good")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.succeeded);
+    assertThat(result(end, "approvalStatus")).isEqualTo("approved");
+    assertThat(result(end, "approvalUserName")).isEqualTo("Ada Lovelace");
+    assertThat(result(end, "approvalUserEmail")).isEqualTo("ada@example.com");
+    assertThat(result(end, "approvalComments")).isEqualTo("Looks good");
+    assertThat(Instant.parse(String.valueOf(result(end, "approvalDate")))).isNotNull();
+  }
+
+  @Test
+  void aRejectedApprovalEndsTheTaskFailedWithTheRejectedStatus() {
+    actAs("u1", "Ada Lovelace", "ada@example.com");
+    ActionEntity entity = approvalAction(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(false, "Not yet")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(result(end, "approvalStatus")).isEqualTo("rejected");
+    assertThat(result(end, "approvalComments")).isEqualTo("Not yet");
+  }
+
+  @Test
+  void twoRequiredApproversHoldTheTaskUntilTheSecondDecidesIt() {
+    ActionEntity entity = approvalAction(2);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+    UserEntity first = new UserEntity();
+    first.setId("u1");
+    when(userService.getCurrentUser()).thenReturn(first);
+
+    actionService.action("team1", List.of(request(true, "first")));
+
+    verify(engineTaskRunService, never()).end(any(), any());
+
+    actAs("u2", "Grace Hopper", "grace@example.com");
+    actionService.action("team1", List.of(request(true, "second")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(result(end, "approvalStatus")).isEqualTo("approved");
+    assertThat(result(end, "approvalUserName")).isEqualTo("Grace Hopper");
+    assertThat(result(end, "approvalComments")).isEqualTo("second");
+  }
+
+  @Test
+  void aManualTaskEndsWithNoApprovalResults() {
+    when(userService.getCurrentUser()).thenReturn(null);
+    ActionEntity entity = manualAction();
+    entity.setNumberOfApprovers(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(true, null)));
+
+    assertThat(endRequest().getResults()).isEmpty();
+  }
+
+  private ActionEntity approvalAction(int approvers) {
+    ActionEntity entity = manualAction();
+    entity.setType(ActionType.approval);
+    entity.setTaskRunRef("tr1");
+    entity.setNumberOfApprovers(approvers);
+    return entity;
+  }
+
+  private void actAs(String id, String name, String email) {
+    UserEntity entity = new UserEntity();
+    entity.setId(id);
+    when(userService.getCurrentUser()).thenReturn(entity);
+    User user = new User();
+    user.setId(id);
+    user.setName(name);
+    user.setEmail(email);
+    when(userService.getUserByID(id)).thenReturn(Optional.of(user));
+  }
+
+  private static ActionRequest request(boolean approved, String comments) {
+    ActionRequest request = new ActionRequest();
+    request.setId("a1");
+    request.setApproved(approved);
+    request.setComments(comments);
+    return request;
+  }
+
+  private TaskRunEndRequest endRequest() {
+    ArgumentCaptor<Optional<TaskRunEndRequest>> captor = ArgumentCaptor.captor();
+    verify(engineTaskRunService).end(any(), captor.capture());
+    return captor.getValue().orElseThrow();
+  }
+
+  private static Object result(TaskRunEndRequest end, String name) {
+    return end.getResults().stream()
+        .filter(r -> name.equals(r.getName()))
+        .map(RunResult::getValue)
+        .findFirst()
+        .orElse(null);
   }
 }

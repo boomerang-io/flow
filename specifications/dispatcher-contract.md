@@ -307,7 +307,7 @@ Every other type runs inside the engine. `TaskType` (`service-core/.../enums/Tas
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |
 | `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
-| `approval`, `manual` | Create an action and wait for a person |
+| `approval`, `manual` | Create an action and wait for a person. An approval waits for `numberOfApprovals` approvers (`numberOfApprovers` is still read; `engine/TaskExecutionService.java:1435-1446`) and ends with `approvalStatus`, `approvalDate`, `approvalUserName`, `approvalUserEmail` and `approvalComments` from the action that decided it (`workflow/ActionService.java:200,216-238`); a manual task ends with none |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
 | `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |

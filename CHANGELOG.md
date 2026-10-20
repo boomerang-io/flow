@@ -124,6 +124,11 @@ tag's release notes.
 
 ### Changed
 
+- An approval task ends with the five results it declares: `approvalStatus` (`approved` or `rejected`),
+  `approvalDate` (ISO 8601, UTC), `approvalUserName`, `approvalUserEmail` and `approvalComments`, taken from the
+  approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
+  string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
+  so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
 - Each status event describes the transition it was recorded for. An event sent after the run moved on used to
   carry the run's later status, so one change could arrive as two or three copies of a later state. Its
   CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
