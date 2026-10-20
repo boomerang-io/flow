@@ -22,7 +22,7 @@ instance was invisible on the others until they rebuilt.
 Option B. Every `check()` and `filter()` reads live MongoDB: one edge query plus one node batch-load per
 level, anchored at the caller's own node, with only a per-HTTP-request memo
 (`service-core/src/main/java/io/boomerang/core/RelationshipService.java:31-51`, `check()` at `:364`,
-`findNodes()` at `:603`). The deciding reason is correctness under replication: any instance sees every
+`findNodes()` at `:595`). The deciding reason is correctness under replication: any instance sees every
 committed write immediately, which `RelationshipServiceTest` pins with two service instances sharing one
 database (`service-core/src/test/java/io/boomerang/core/RelationshipServiceTest.java:262-264`).
 

@@ -29,27 +29,27 @@ branch installs the resolved `Token` as the `Authentication`'s details with an e
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `isFlowBearer` `:309-312`) | `getTokenAuthentication` (`:286-306`) | shape gate `TokenTypePrefix.isFlowToken` (`:290-294`), then SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:403-417`) |
-| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:180-244`) | the token is parsed for `email`/`emailAddress` and names as the proxy sent it, **not signature-verified**: the route rests on the proxy in front of `service-core` (boomerang-io/flow#512 tracks checking it against an issuer). A session token is minted for that email |
-| 1c | `Authorization: Basic email:password` | same method (`:245-275`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:79-91`), not a raw string comparison; session token minted for the email |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `isFlowBearer` `:309-312`) | `getTokenAuthentication` (`:286-306`) | shape gate `TokenTypePrefix.isFlowToken` (`:290-294`), then SHA-256 hash lookup in `tokens`, expiry check (`core/TokenService.java:398-412`) |
+| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`:180-239`) | the token is parsed for `email`/`emailAddress` and names as the proxy sent it, **not signature-verified**: the route rests on the proxy in front of `service-core` (boomerang-io/flow#512 tracks checking it against an issuer). A session token is minted for that email |
+| 1c | `Authorization: Basic email:password` | same method (`:240-270`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `:79-91`), not a raw string comparison; session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
 | 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`:50-57`) |
-| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:317-341`) | session token minted for the forwarded email |
+| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`:312-336`) | session token minted for the forwarded email |
 | 5 | `flow_session` cookie | `getTokenAuthentication` (`:119-120,161-172`) | the opaque `bfs_` value minted by `POST /internal/v1/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
-normalised email for 60 seconds per instance (`core/TokenService.java:585-619`). User creation is allowed
+normalised email for 60 seconds per instance (`core/TokenService.java:580-614`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
 (`AuthenticationFilter.java:185-195`).
 
 Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java`), a
 per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
-filter's `validate` followed by `get` costs one repository read (`core/TokenService.java:411-423`). Only a
+filter's `validate` followed by `get` costs one repository read (`core/TokenService.java:406-418`). Only a
 present, unexpired entity is cached - misses are never cached - and the entity's `expirationDate` is re-checked
 on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.security.token-cache.ttl`,
 `flow.security.token-cache.max-size`, `flow.security.token-cache.enabled`, `application.properties:23-25`).
 `TokenService.delete` evicts the token's hash and `deleteAllForPrincipal` flushes the cache
-(`core/TokenService.java:458-472`); `touchLastUsed` does not evict. Eviction is per instance: after a revoke on
+(`core/TokenService.java:453-467`); `touchLastUsed` does not evict. Eviction is per instance: after a revoke on
 one instance, another instance MAY still honour the token until its own entry ages out, at most the TTL.
 
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint` (`:132-136`), except on
@@ -81,9 +81,9 @@ server routes (`client-web/app/Features/Auth/`), so the id_token never reaches t
 
 | `AuthScope` | Prefix | Holder | Grants | How it is minted |
 | --- | --- | --- | --- | --- |
-| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:711-731`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
+| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:706-726`) | only by `AuthenticationFilter`/the exchange; `POST /api/v2/token` rejects it (`:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`:178-188`) | `POST /api/v2/token` |
-| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:379-385`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:764-781`) |
+| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`:374-380`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`:759-776`) |
 | `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
 
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
@@ -96,7 +96,7 @@ registers whether or not security is on. Being a `global` token, it is refused b
 webapp cannot sign in with it.
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
-human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a token that does
+human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:379-382`), and a token that does
 not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any database lookup on both
 paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:290-294`) and
 `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
@@ -128,9 +128,9 @@ the method's annotations first, then the class's, whichever kind each is:
 
 1. Neither annotation → error log, `flow.security.denied{resource=unannotated}` and a denied `AuthorizationDecision`, answered like the missing permission in step 5 (`:80-98`).
 2. `@AuthExempt` → the call proceeds with no permission check (`:74-76`, `:81-84`).
-3. `@AuthCriteria` but no identity → throws `AuthenticationCredentialsNotFoundException` (`:100-106`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:116-134`).
-4. Token class not in `assignableScopes` → same exception and response, counted in `flow.security.denied` (`:108-117`).
-5. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:119-136`).
+3. `@AuthCriteria` but no identity → throws `AuthenticationCredentialsNotFoundException` (`:100-106`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:132-150`).
+4. Token class not in `assignableScopes` → same exception and response, counted in `flow.security.denied` (`:100-109`).
+5. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:111-128`).
 
 `EndpointAuthorizationResponseTest` pins the 401 and the 403 over HTTP against real endpoints, and that an exempt
 route is public only where the permit list also names it; `MethodSecurityConfigurationTest` pins the denial of an
@@ -210,7 +210,7 @@ or `/api/v2/workspace/{workspace}/**` request whose segment is not `system` (`co
 `DispatcherAuthFilter` checks every request that chain claims, regardless of `flow.security.enabled`
 (`dispatcher/DispatcherAuthFilter.java:63-93`): the bearer must be Flow-shaped, then
 `TokenService.validateActorToken` requires a stored, unexpired `global` token with a non-null `actorKind`
-(`core/TokenService.java:432-437`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5
+(`core/TokenService.java:427-432`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5
 minutes. The token then becomes the request's identity, the one the same bearer carries on `/api/v2`
 (`DispatcherAuthFilter.java:88-100`): `RelationshipService` sees a `global` caller and audit records name the
 dispatcher's token as the actor. That holds with security off too, because this chain runs ahead of the
@@ -228,9 +228,9 @@ A `settings.config[]` entry typed `secured` is encrypted on every save and decry
 (`getSettingConfig`, `core/SettingsService.java`). The settings API (`GET` and `PATCH /api/v2/settings`, the
 latter a merge patch of `{"<group>": {"<key>": value}}`, `core/SystemControllerV2.java:69`) follows the one secret
 rule (`parameters.md`, "Sensitive parameters"): a set value reads as `*****` and an unset one as nothing
-(`SettingsService.java:210`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
+(`SettingsService.java:200`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
 null clears it, and any other value replaces it (`:110`). A value that will not decrypt is kept as stored on the
-next save of its group (`:232`). The cipher is AES-256-GCM with a random initialisation
+next save of its group (`:222`). The cipher is AES-256-GCM with a random initialisation
 vector per call (`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme
 in its own label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value carrying the whole
 label pass through the cipher untouched, and an encryption failure throws (`core/SecretCipher.java:38-60`).
@@ -246,7 +246,7 @@ migration rather than leaving a credential unreadable, unless `flow.migration.re
 blanks each such value and logs it by setting, to be entered again in Settings. Both pairs default to
 `FLOW_ENCRYPT_SECRET` and `FLOW_ENCRYPT_SALT`, the names v3's chart kept its pair under, so a v3 install upgrades
 with that Secret as it is; `MONGO_ENCRYPT_*` overrides the v3 pair alone
-(`service-core/src/main/resources/application.properties:141-147`). The unit is idempotent on the label, so a
+(`service-core/src/main/resources/application.properties:137-143`). The unit is idempotent on the label, so a
 second run changes nothing (decisions 0100, 0106).
 
 ## Known gaps

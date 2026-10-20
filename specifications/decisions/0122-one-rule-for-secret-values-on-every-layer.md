@@ -23,7 +23,7 @@ C, because it needs no new field yet gives every layer the same read shape and a
 every write (`DataAdapterUtil.keepSecretValue`, `common/util/DataAdapterUtil.java:132`) and one the read shape
 (`maskSecretValue`, `:173`); global and workspace parameters, workflow defaults and nodes, catalogue task defaults,
 schedules and settings all call them (`core/SettingsService.java:84`). A run request follows the same rule against
-its defaults (`ParameterUtil.suppliedParams`, `ParameterUtil.java:235`). A marker with nothing stored is no value,
+its defaults (`ParameterUtil.suppliedParams`, `ParameterUtil.java:215`). A marker with nothing stored is no value,
 never the secret. The cipher recognises only its whole label and throws when it cannot encrypt
 (`core/SecretCipher.java:38-60`).
 

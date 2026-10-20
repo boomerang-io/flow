@@ -18,10 +18,10 @@ library that was supposed to guard this was not actually mutually exclusive (det
 
 ## Decision
 
-Option B. `findClaimable` pages eligible ids oldest first (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:75-95`)
+Option B. `findClaimable` pages eligible ids oldest first (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:73-88`)
 and `tryClaim` claims each by id in one write that re-checks status, phase, absence of `claim.by` and the retry
-backoff, and sets `claim.by`, `claim.at`, `$inc claim.seq` and `timeoutAt` together (`TaskRunService.java:238-258`).
-Only the claimed set is dispatched (`dispatcher/DispatcherService.java:205-215`). The atomic write is what makes two
+backoff, and sets `claim.by`, `claim.at`, `$inc claim.seq` and `timeoutAt` together (`TaskRunService.java:231-251`).
+Only the claimed set is dispatched (`dispatcher/DispatcherService.java:206-216`). The atomic write is what makes two
 claimants unable to both win; the page is what lets a claimant skip candidates it cannot take.
 
 ## Consequences

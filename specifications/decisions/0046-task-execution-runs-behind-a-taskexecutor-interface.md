@@ -22,10 +22,10 @@ shape as a plain Kubernetes Job.
 
 C. `TaskExecutor` has four methods — `create`, `watch`, `cancel`, `delete`
 (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-27`) — and `dispatcher.executor`
-selects exactly one bean: `tekton` (`kube/TektonServiceImpl.java:53`, the default) or `kube-jobs`
-(`kube/KubeJobsExecutor.java:65`, a `batch/v1` Job whose timeout is `activeDeadlineSeconds` and whose
+selects exactly one bean: `tekton` (`kube/TektonServiceImpl.java:54`, the default) or `kube-jobs`
+(`kube/KubeJobsExecutor.java:66`, a `batch/v1` Job whose timeout is `activeDeadlineSeconds` and whose
 results come from the container termination message). `TaskService` calls the interface and nothing else
-(`dispatcher/TaskService.java:64-68`). Removing the Tekton dependency for clusters that do not want it,
+(`dispatcher/TaskService.java:65-69`). Removing the Tekton dependency for clusters that do not want it,
 without breaking the ones that do, decided it.
 
 ## Consequences

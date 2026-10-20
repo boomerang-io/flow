@@ -20,7 +20,7 @@ left the v3 pair blank and the re-encrypt unit stopped. An install that has lost
 ## Decision
 
 Option B. `flow.encrypt.*` and `mongo.encrypt.*` both default to `FLOW_ENCRYPT_SECRET`/`FLOW_ENCRYPT_SALT`
-(`service-core/src/main/resources/application.properties:141-147`); `MONGO_ENCRYPT_*` overrides the v3 pair alone.
+(`service-core/src/main/resources/application.properties:137-143`); `MONGO_ENCRYPT_*` overrides the v3 pair alone.
 `flow.migration.reset-unreadable-settings=true` makes `_0022__ReencryptSettingsAesGcm` blank each v3 value that does
 not decrypt, logging it by setting, instead of stopping. The one reason it beat C: a wrong pair is
 indistinguishable from a lost one, so blanking credentials must be the operator's explicit choice.

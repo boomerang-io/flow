@@ -1,7 +1,7 @@
 # Design system
 
-Boomerang Flow's design system is IBM Carbon v11 with the Boomerang theme and the Boomerang Carbon add-ons; no
-other design system's tokens or components belong here.
+Boomerang Flow's design system is IBM Carbon v11 with the Boomerang theme and the Boomerang Carbon add-ons; no other
+design system's tokens or components belong here.
 
 ## Package stack (`client-web/package.json`)
 
@@ -14,49 +14,50 @@ Styling is **SCSS + CSS Modules** (`*.module.scss`), not Tailwind and not CSS-in
 
 ## Theme wiring (the canonical recipe)
 
-The Boomerang theme is Carbon's **White** theme with the Boomerang theme merged over it through Carbon's compat layer,
-emitted as CSS custom properties under `[data-carbon-theme="boomerang"]` together with Carbon's button (merged with
-Boomerang's v11 button tokens), notification and tag component tokens. The canonical wiring is
-`client-web/src/Styles/_carbon-components.scss:1-42`; a new Carbon app copies that file rather than improvising a theme.
+The Boomerang theme is Carbon's **White** theme with the Boomerang theme merged over it through Carbon's compat
+layer, emitted as CSS custom properties under `[data-carbon-theme="boomerang"]` together with Carbon's button
+(merged with Boomerang's v11 button tokens), notification and tag component tokens. The canonical wiring is
+`client-web/src/Styles/_carbon-components.scss:1-42`; a new Carbon app copies that file rather than improvising a
+theme.
 
-Global stylesheet import order (`styles.scss`): `variables → animation → carbon-components →
-@boomerang-io/styles → base`.
+Global stylesheet import order (`styles.scss`): `variables → animation → carbon-components → @boomerang-io/styles →
+base`.
 
 ## Tokens — use tokens, never raw hex in components
 
 ### 1. Carbon compat tokens (the working token layer)
 
-The app consumes Carbon's **v10→v11 compat** tokens as CSS custom properties `--cds-*`. Reach for
-these first — they re-theme automatically:
+The app consumes Carbon's **v10→v11 compat** tokens as CSS custom properties `--cds-*`. Reach for these first — they
+re-theme automatically:
 
 - Surfaces: `--cds-ui-background`, `--cds-ui-01`, `--cds-ui-02`, `--cds-ui-03`
 - Text: `--cds-text-01` (primary), `--cds-text-02` (secondary), `--cds-text-03` (placeholder)
 - Interactive/brand: `--cds-interactive-01`, `--cds-link-01`
-- Support: `--cds-support-01` (error), `--cds-support-02` (success), `--cds-support-03` (warning), `--cds-support-04` (info)
+- Support: `--cds-support-01` (error), `--cds-support-02` (success), `--cds-support-03` (warning),
+  `--cds-support-04` (info)
 
-In SCSS, the Carbon token functions/mixins (`$ui-01`, `$text-01`, `type-style()`,
-`$spacing-05`, …) are available from the `@use` above. Body defaults (from `_base.scss`) are
-`background: var(--cds-ui-background)`, `color: var(--cds-text-01)`, `line-height: 1.3`,
-`font-family: "IBM Plex Sans"`.
+In SCSS, the Carbon token functions/mixins (`$ui-01`, `$text-01`, `type-style()`, `$spacing-05`, …) are available
+from the `@use` above. Body defaults (from `_base.scss`) are `background: var(--cds-ui-background)`, `color:
+var(--cds-text-01)`, `line-height: 1.3`, `font-family: "IBM Plex Sans"`.
 
 ### 2. Boomerang brand palette (`@boomerang-io/styles`)
 
-The brand ramps live in `@boomerang-io/styles` as SCSS variables, each in graded steps `1…90`.
-Verified ramps include: **aqua, blue, cerulean, cool-gray, cool-white, gold, gray** (and more —
-read the package for the full set). Examples:
+The brand ramps live in `@boomerang-io/styles` as SCSS variables, each in graded steps `1…90`. Verified ramps
+include: **aqua, blue, cerulean, cool-gray, cool-white, gold, gray** (and more — read the package for the full set).
+Examples:
 
 ```
 $cerulean-90: #1b2834   $aqua-30: #00b6cb   $gold-20: #ffb000
 $cool-gray-50: #6f7878   $blue-50: #2d74da   $gray-1: #eaeaea
 ```
 
-**Boomerang's signature brand colour is purple** (`#6e32c9`, see Flow accents below). Use the
-palette variables by name; do not paste raw hex into component styles.
+**Boomerang's signature brand colour is purple** (`#6e32c9`, see Flow accents below). Use the palette variables by
+name; do not paste raw hex into component styles.
 
 ### 3. Flow accent tokens (app-specific, `src/Styles/_variables.scss`)
 
-Flow defines a small set of product accents on `:root` for workflow-execution semantics. These
-are the ONLY app-level raw values, and they exist because they encode run status, not brand:
+Flow defines a small set of product accents on `:root` for workflow-execution semantics. These are the ONLY
+app-level raw values, and they exist because they encode run status, not brand:
 
 | Token | Value | Meaning (Flow run/status semantics) |
 | ----- | ----- | ----------------------------------- |
@@ -66,30 +67,29 @@ are the ONLY app-level raw values, and they exist because they encode run status
 | `--flow-darkest-blue` | `#1b2834` | Darkest surface accent (headers, deep chrome). |
 | `--flow-lightest-teal` | `#c0f5e8` | Lightest teal accent — the `$teal-1` step of the Boomerang teal ramp. Used on dark chrome (tutorial finish marker, notification-banner links). |
 
-Map new run-status UI to these accents (or the Carbon `support-*` tokens) — never introduce a new
-status colour ad hoc.
+Map new run-status UI to these accents (or the Carbon `support-*` tokens) — never introduce a new status colour ad
+hoc.
 
 ## Typography
 
-- Font family: **IBM Plex Sans** (loaded via Carbon fonts; `$use-akamai-cdn: true` serves them
-  from Akamai). Mono/code: IBM Plex Mono.
-- Use Carbon **type tokens / `type-style()`**, not hardcoded `font-size`/`line-height`. The type
-  scale (`$productive-heading-0X`, `$body-long-0X`, `$label-01`, …) comes from
-  `@carbon/react/scss/type`.
+- Font family: **IBM Plex Sans** (loaded via Carbon fonts; `$use-akamai-cdn: true` serves them from Akamai).
+  Mono/code: IBM Plex Mono.
+- Use Carbon **type tokens / `type-style()`**, not hardcoded `font-size`/`line-height`. The type scale
+  (`$productive-heading-0X`, `$body-long-0X`, `$label-01`, …) comes from `@carbon/react/scss/type`.
 
 ## Layout, grid, spacing
 
-- **Carbon 2x Grid** (`@carbon/react/scss/grid`) — 16-column responsive grid; use `Grid`/`Column`
-  (or `.cds--grid`/`.cds--col`).
-- **Spacing scale**: Carbon `$spacing-01 … $spacing-13` (0.125rem → 10rem). Use these, not
-  arbitrary px. Layer/zone tokens (`@carbon/react/scss/layer`, `/zone`) manage elevation context.
+- **Carbon 2x Grid** (`@carbon/react/scss/grid`) — 16-column responsive grid; use `Grid`/`Column` (or
+  `.cds--grid`/`.cds--col`).
+- **Spacing scale**: Carbon `$spacing-01 … $spacing-13` (0.125rem → 10rem). Use these, not arbitrary px. Layer/zone
+  tokens (`@carbon/react/scss/layer`, `/zone`) manage elevation context.
 
 ## Page header
 
 Every route's header is the add-ons `FeatureHeader` in one anatomy, set once in
 `client-web/src/Styles/_carbon-components.scss:64-103`: 16px top, the breadcrumb (18px), the title (36px, 28px
-regular), then a 40px row holding the page's tabs or, when it has none, its one-line description (truncated). It
-is a `min-height` of 112px, not a height, so a long description or 200% zoom grows it instead of clipping.
+regular), then a 40px row holding the page's tabs or, when it has none, its one-line description (truncated). It is
+a `min-height` of 112px, not a height, so a long description or 200% zoom grows it instead of clipping.
 
 | Part | Rule |
 | --- | --- |
@@ -99,34 +99,32 @@ is a `min-height` of 112px, not a height, so a long description or 200% zoom gro
 | Tabs and description | A page with tabs carries no description line (Actions). |
 
 The workflow editor's task palette follows the same density: one 32px title row ("Add a task", Expand all, the
-collapse control), one search row with the filter and the task count in the placeholder, and 40px single-line
-task rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
+collapse control), one search row with the filter and the task count in the placeholder, and 40px single-line task
+rows (`client-web/src/Features/WorkflowEditor/Designer/Tasks/`).
 
 ## Components — prefer the library, in this order
 
-1. **Boomerang add-ons** (`@boomerang-io/carbon-addons-boomerang-react`) — Boomerang-styled/extended
-   components. Prefer these when one exists. The set in use (146 files in `client-web` import the
-   library): `UIShell`, `User`, `HeaderMenuItem`, `ComposedModal`, `ConfirmModal`, `ModalForm`,
-   `ModalFlow`, `ModalFlowForm`, `DynamicFormik`, `DataDrivenInput`, `ComboBox`,
-   `Creatable`, `CheckboxList`, `RadioGroup`, `TextInput`, `TextArea`, `Toggle`, `Loading`,
-   `TooltipHover`, `ToastNotification`, `notify`, and the error surfaces
-   `Error / Error403 / Error404 / ErrorFullPage / ErrorMessage / ErrorPage`. The library dropped
-   `AutoSuggest` in 4.9; the editor's parameter inputs fall back to plain fields
-   (`client-web/src/Features/Reactflow/components/shared/inputs.tsx:16-19`).
-   - The **`UIShell`** provides the Boomerang header/side-nav chrome — use it for app shell, do
-     not hand-roll navigation.
-2. **Carbon** (`@carbon/react`) — for anything the add-ons don't cover (`Button`, `DataTable`,
-   `Modal`, `Tabs`, `Tag`, `InlineNotification`, form inputs, etc.).
-3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it
-   themes correctly; never with raw colours or off-scale spacing.
+1. **Boomerang add-ons** (`@boomerang-io/carbon-addons-boomerang-react`) — Boomerang-styled/extended components.
+   Prefer these when one exists. The set in use (146 files in `client-web` import the library): `UIShell`, `User`,
+   `HeaderMenuItem`, `ComposedModal`, `ConfirmModal`, `ModalForm`, `ModalFlow`, `ModalFlowForm`, `DynamicFormik`,
+   `DataDrivenInput`, `ComboBox`, `Creatable`, `CheckboxList`, `RadioGroup`, `TextInput`, `TextArea`, `Toggle`,
+   `Loading`, `TooltipHover`, `ToastNotification`, `notify`, and the error surfaces `Error / Error403 / Error404 /
+   ErrorFullPage / ErrorMessage / ErrorPage`. The library dropped `AutoSuggest` in 4.9; the editor's parameter
+   inputs fall back to plain fields (`client-web/src/Features/Reactflow/components/shared/inputs.tsx:16-19`).
+   - The **`UIShell`** provides the Boomerang header/side-nav chrome — use it for app shell, do not hand-roll
+     navigation.
+2. **Carbon** (`@carbon/react`) — for anything the add-ons don't cover (`Button`, `DataTable`, `Modal`, `Tabs`,
+   `Tag`, `InlineNotification`, form inputs, etc.).
+3. **Custom** — only when neither library has it. Build it from Carbon tokens + the 2x grid so it themes correctly;
+   never with raw colours or off-scale spacing.
 
 ### Lists and tables
 
 List pages follow the Activity page (`client-web/src/Features/Activity/Activity.tsx`), not Carbon's table toolbar
-and batch-action bar: labelled filters ("Filter by Workflow", "Filter by status") in a row above the table, a date range
-on the right, sortable headers, a row that opens the item, and status as an icon with coloured text rather than a tag
-(Activity, Actions, Users). Search on a list of people or workspaces sits in the page header. Actions opens on what is
-waiting (`client-web/src/Features/Actions/Actions.tsx`, `resolveStatuses`).
+and batch-action bar: labelled filters ("Filter by Workflow", "Filter by status") in a row above the table, a date
+range on the right, sortable headers, a row that opens the item, and status as an icon with coloured text rather
+than a tag (Activity, Actions, Users). Search on a list of people or workspaces sits in the page header. Actions
+opens on what is waiting (`client-web/src/Features/Actions/Actions.tsx`, `resolveStatuses`).
 
 ### Switching views and choosing values
 
@@ -137,34 +135,34 @@ waiting (`client-web/src/Features/Actions/Actions.tsx`, `resolveStatuses`).
 | One choice inside a form | Radio buttons; a choice with settings opens them underneath, on the next layer (the schedule form's When) |
 
 Content switchers are Boomerang blue, not the theme's inverse ink: one rule in
-`client-web/src/Styles/_carbon-components.scss` points the switcher's `border-inverse`,
-`layer-selected-inverse` and `text-secondary` tokens at the interactive and link colours.
+`client-web/src/Styles/_carbon-components.scss` points the switcher's `border-inverse`, `layer-selected-inverse` and
+`text-secondary` tokens at the interactive and link colours.
 
 ### Parameters
 
-Workflow, workspace and global parameters share one table (`client-web/src/Features/Parameters/ParametersTable/ParametersTable.tsx`):
-Name first in monospace (what tasks type), Label, then Type and Default value for a workflow or Value for the other two, a
-Required, Read-only or Secured tag, Description, and a menu with Edit, Copy reference and Delete. Search and Add parameter sit
-in the table toolbar. Each scope keeps its own modal; both are titled "Edit parameter" or "Add parameter", show the name as
-text with its reference once it exists (`$(params.x)`, `$(workspace.params.x)`, `$(global.params.x)`), and treat the label as
-optional, falling back to the name. The workflow modal previews the field a run shows.
+Workflow, workspace and global parameters share one table
+(`client-web/src/Features/Parameters/ParametersTable/ParametersTable.tsx`): Name first in monospace (what tasks
+type), Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or
+Secured tag, Description, and a menu with Edit, Copy reference and Delete. Search and Add parameter sit in the table
+toolbar. Each scope keeps its own modal; both are titled "Edit parameter" or "Add parameter", show the name as text
+with its reference once it exists (`$(params.x)`, `$(workspace.params.x)`, `$(global.params.x)`), and treat the
+label as optional, falling back to the name. The workflow modal previews the field a run shows.
 
 ### Schedules
 
-A workflow's Schedules tab and the workspace Schedules page share `Components/ScheduleViews`: a content
-switcher over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30
-days), Week and Month. The calendar views share a toolbar: Today as a ghost button with the calendar icon, then
-previous, next and the dates shown. The schedule form's When offers Once, Hourly, Daily, Weekdays, Weekly and
-Custom (cron), stored as the three schedule types (`client-web/src/Utils/cronHelper.tsx`, `frequencyToSchedule`),
-with a line under the time zone saying what will happen and when it next runs.
+A workflow's Schedules tab and the workspace Schedules page share `Components/ScheduleViews`: a content switcher
+over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30 days), Week and
+Month. The calendar views share a toolbar: Today as a ghost button with the calendar icon, then previous, next and
+the dates shown. The schedule form's When offers Once, Hourly, Daily, Weekdays, Weekly and Custom (cron), stored as
+the three schedule types (`client-web/src/Utils/cronHelper.tsx`, `frequencyToSchedule`), with a line under the time
+zone saying what will happen and when it next runs.
 
 ### Task parameter inputs
 
-A catalogue task's parameters are rendered generically: the editor's config modal hands
-`task.spec.params` to the add-ons' `DynamicFormik`, which dispatches on each param's `type`
-(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:95`).
-The type vocabulary is `InputType` (`client-web/src/Constants/index.ts:86`); the Task Manager's
-add/edit-field form offers the same list
+A catalogue task's parameters are rendered generically: the editor's config modal hands `task.spec.params` to the
+add-ons' `DynamicFormik`, which dispatches on each param's `type`
+(`client-web/src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:95`). The type vocabulary
+is `InputType` (`client-web/src/Constants/index.ts:86`); the Task Manager's add/edit-field form offers the same list
 (`client-web/src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:22`).
 
 | Input type | Renders as | Notes |
@@ -177,30 +175,27 @@ add/edit-field form offers the same list
 | `texteditor`, `texteditor::{javascript,shell,text,yaml}` | `TextEditorModal` | Syntax mode from the suffix. |
 | **`slider`** | **`Components/Slider`** (`client-web/src/Components/Slider/Slider.tsx:49`) | Carbon `Slider` plus a number input; reads `min`/`max`/`step`. |
 
-`DataDrivenInput` has no branch of its own for `slider`, so a slider param is routed to the local
-component through its `customComponent` escape hatch
-(`client-web/src/Utils/paramsHelper.ts:11`). Two rules hold for it:
+`DataDrivenInput` has no branch of its own for `slider`, so a slider param is routed to the local component through
+its `customComponent` escape hatch (`client-web/src/Utils/paramsHelper.ts:11`). Two rules hold for it:
 
 - The value is written back to the form as a **string**, like every other param value
   (`client-web/src/Components/Slider/SliderInput.tsx:39`).
-- The value is clamped to `[min, max]` and snapped to `step`, with the floating-point residue of
-  fractional steps trimmed (`client-web/src/Components/Slider/Slider.tsx:23`).
+- The value is clamped to `[min, max]` and snapped to `step`, with the floating-point residue of fractional steps
+  trimmed (`client-web/src/Components/Slider/Slider.tsx:23`).
 
-`min`, `max` and `step` are nullable numbers on the param model
-(`client-web/src/Types/index.tsx:150-155`) mirroring the backend's; only `slider` requires all
-three, and the Task Manager's field form shows them for that type alone
+`min`, `max` and `step` are nullable numbers on the param model (`client-web/src/Types/index.tsx:150-155`) mirroring
+the backend's; only `slider` requires all three, and the Task Manager's field form shows them for that type alone
 (`.../TemplateConfigModalContent.tsx:176`).
 
 ### Task palette icons and categories
 
-The editor palette groups tasks by the catalogue's free-text `category`, with `workflow` pinned
-first and the rest alphabetical (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:123`).
-The task's `icon` field is a key into one shared icon map
-(`client-web/src/Utils/taskIcons.tsx:27`), used by the palette tile
+The editor palette groups tasks by the catalogue's free-text `category`, with `workflow` pinned first and the rest
+alphabetical (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:123`). The task's `icon` field is a
+key into one shared icon map (`client-web/src/Utils/taskIcons.tsx:27`), used by the palette tile
 (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:15`), the canvas node
-(`.../Template/TemplateNode/TemplateNode.tsx:224`) and the palette's "Filter by Task Type" list.
-A seeded task whose `icon` is not in that map falls back to a generic `Bee`, so **an icon key must
-exist here before the backend seeds a task that uses it**.
+(`.../Template/TemplateNode/TemplateNode.tsx:224`) and the palette's "Filter by Task Type" list. A seeded task whose
+`icon` is not in that map falls back to a generic `Bee`, so **an icon key must exist here before the backend seeds a
+task that uses it**.
 
 | Icon key (`task.icon`) | Carbon icon | Typical category |
 | ---------------------- | ----------- | ---------------- |
@@ -211,84 +206,75 @@ exist here before the backend seeds a task that uses it**.
 | `Message` | `Chat` | `Communication with Slack` |
 | … | see `taskIcons` for the full list | |
 
-Node type and icon are separate: `ai` is its own node type
-(`client-web/src/Constants/index.ts:120`) mapped to a thin wrapper over the Template node
-(`client-web/src/Features/Reactflow/Reactflow.tsx:84`) that only re-tints the border with the
-Boomerang purple accent (`client-web/src/Features/Reactflow/components/Ai/AiNode.module.scss:6`).
-A new node type MUST be added to all three of `markerTypes`, `edgeTypes` and `nodeTypes` — they
-are keyed exhaustively off `NodeType`.
+Node type and icon are separate: `ai` is its own node type (`client-web/src/Constants/index.ts:120`) mapped to a
+thin wrapper over the Template node (`client-web/src/Features/Reactflow/Reactflow.tsx:84`) that only re-tints the
+border with the Boomerang purple accent (`client-web/src/Features/Reactflow/components/Ai/AiNode.module.scss:6`). A
+new node type MUST be added to all three of `markerTypes`, `edgeTypes` and `nodeTypes` — they are keyed exhaustively
+off `NodeType`.
 
 ### Task configuration modal
 
-Every task edit form keeps **Task Name** above everything else, then, for a task type that can run
-for each item (`template`, `script`, `custom`, `ai`, `generic`;
-`client-web/src/Features/Reactflow/components/shared/foreach.ts:24`), Carbon line `Tabs` with two
-tabs, **Parameters | Configure**, mirroring the workflow editor's own Parameters and Configure
-header tabs. Any other type renders its fields without a tab bar
-(`client-web/src/Features/Reactflow/components/shared/TaskFormTabs.tsx:32-34`).
+Every task edit form keeps **Task Name** above everything else, then, for a task type that can run for each item
+(`template`, `script`, `custom`, `ai`, `generic`;
+`client-web/src/Features/Reactflow/components/shared/foreach.ts:24`), Carbon line `Tabs` with two tabs, **Parameters
+| Configure**, mirroring the workflow editor's own Parameters and Configure header tabs. Any other type renders its
+fields without a tab bar (`client-web/src/Features/Reactflow/components/shared/TaskFormTabs.tsx:32-34`).
 
-- **Parameters** holds the task's parameters and its "Result Parameters"; **Configure** holds
-  settings about how the task runs ("Run for each item" today; per-task timeout and retry belong
-  here when they come).
-- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves both and
-  validation is shared.
-- A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each")
-  while a setting on that tab is on, and a `WarningFilled` icon in the error colour, with an
-  `aria-label` "<Tab> has an error", while one of its fields is invalid (`TaskFormTabs.tsx:49-83`).
-  Apply never fails for a reason on a tab the user is not looking at.
+- **Parameters** holds the task's parameters and its "Result Parameters"; **Configure** holds settings about how the
+  task runs ("Run for each item" today; per-task timeout and retry belong here when they come).
+- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves both and validation is shared.
+- A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each") while a setting on
+  that tab is on, and a `WarningFilled` icon in the error colour, with an `aria-label` "<Tab> has an error", while
+  one of its fields is invalid (`TaskFormTabs.tsx:49-83`). Apply never fails for a reason on a tab the user is not
+  looking at.
 - The modal resets button padding, so the tab list restores Carbon's tab padding itself
   (`shared/TaskFormTabs.module.scss:8`).
 
 ### Palette entry points
 
-A palette item MAY be an entry point to a setting rather than a node type of its own. "For each"
-is listed first in the Workflow category (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:24-27`);
-dropping it opens a `ComposedModal`, "Repeat a task for each item", that picks the task and its
-items and then opens that task's normal form with the setting on
-(`client-web/src/Features/Reactflow/components/Foreach/ForeachModal.tsx:51,138`). What lands on the
-canvas is an ordinary task. The palette item and the Configure toggle store the same thing, so
-nothing records which path made it (decision 0082).
+A palette item MAY be an entry point to a setting rather than a node type of its own. "For each" is listed first in
+the Workflow category (`client-web/src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:24-27`); dropping it opens a
+`ComposedModal`, "Repeat a task for each item", that picks the task and its items and then opens that task's normal
+form with the setting on (`client-web/src/Features/Reactflow/components/Foreach/ForeachModal.tsx:51,138`). What
+lands on the canvas is an ordinary task. The palette item and the Configure toggle store the same thing, so nothing
+records which path made it (decision 0082).
 
 ### Fanned-out tasks on the canvas and in the run
 
-- **Canvas node:** a task with `foreach` set is drawn as a stack of cards: two offset copies behind
-  the node in `--flow-switch-primary`, and a badge at its top-left reusing `.badgeContainer`
-  (`.../Template/TemplateNode/TemplateNode.module.scss:279-316`). In run mode the badge reports
-  progress, "For each · 2 of 3 succeeded", or "For each · 0 items"
-  (`.../Template/TemplateNode/TemplateNode.tsx:202-205`). The node's status is the parent task
-  run's, found by name while skipping items (`client-web/src/Utils/taskRunHelper.ts:22`).
-- **Task log:** item task runs are grouped under their task, never listed flat. The task's entry
-  shows a purple "For each" `Tag` and a summary ("3 items · 1 succeeded · 1 running · 1 failed",
-  or the failure message when it never fanned out), and a ghost "Show items" button with
-  `aria-expanded` lists each item's index, value, status, reason, duration and its own "View Log"
-  (`client-web/src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:60-145`). The parent
-  has no pod, so it offers no log of its own. Whether a task fans out comes from the workflow's
-  node definition, not from whether items exist (`taskRunHelper.ts:17`).
-- **Task log actions:** an entry's actions ("View Details", "View Log", "Show items") sit on one
-  flex row with a gap, and the start and end entries grow to fit them
-  (`.../TaskRunItem/runTaskItem.module.scss:74,247`).
+- **Canvas node:** a task with `foreach` set is drawn as a stack of cards: two offset copies behind the node in
+  `--flow-switch-primary`, and a badge at its top-left reusing `.badgeContainer`
+  (`.../Template/TemplateNode/TemplateNode.module.scss:279-316`). In run mode the badge reports progress, "For each
+  · 2 of 3 succeeded", or "For each · 0 items" (`.../Template/TemplateNode/TemplateNode.tsx:202-205`). The node's
+  status is the parent task run's, found by name while skipping items (`client-web/src/Utils/taskRunHelper.ts:22`).
+- **Task log:** item task runs are grouped under their task, never listed flat. The task's entry shows a purple "For
+  each" `Tag` and a summary ("3 items · 1 succeeded · 1 running · 1 failed", or the failure message when it never
+  fanned out), and a ghost "Show items" button with `aria-expanded` lists each item's index, value, status, reason,
+  duration and its own "View Log"
+  (`client-web/src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:60-145`). The parent has no pod, so
+  it offers no log of its own. Whether a task fans out comes from the workflow's node definition, not from whether
+  items exist (`taskRunHelper.ts:17`).
+- **Task log actions:** an entry's actions ("View Details", "View Log", "Show items") sit on one flex row with a
+  gap, and the start and end entries grow to fit them (`.../TaskRunItem/runTaskItem.module.scss:74,247`).
 
 ### Canvas node ports
 
-React Flow v12 translates a side handle half its width outward. Our ports are already offset by
-their full width (the `.port` rules in the Start, End and Template node styles), so the global
-stylesheet keeps only the vertical centring and every port touches its node
-(`client-web/src/Features/Reactflow/styles.scss:27`). A new node type's ports MUST follow the same
-offset rather than re-adding the transform.
+React Flow v12 translates a side handle half its width outward. Our ports are already offset by their full width
+(the `.port` rules in the Start, End and Template node styles), so the global stylesheet keeps only the vertical
+centring and every port touches its node (`client-web/src/Features/Reactflow/styles.scss:27`). A new node type's
+ports MUST follow the same offset rather than re-adding the transform.
 
 ### Class-name conventions
 
-- Carbon component classes are prefixed **`cds--`** (v11). Override with care and scope under
-  `#app`, as `_base.scss` already does for a few Carbon internals.
-- Boomerang custom classes use **`b-`**; app-local classes use **`c-`**. New styles go in a
-  co-located `*.module.scss` (CSS Modules), matching neighbours.
+- Carbon component classes are prefixed **`cds--`** (v11). Override with care and scope under `#app`, as
+  `_base.scss` already does for a few Carbon internals.
+- Boomerang custom classes use **`b-`**; app-local classes use **`c-`**. New styles go in a co-located
+  `*.module.scss` (CSS Modules), matching neighbours.
 - The theme is activated by the attribute **`data-carbon-theme="boomerang"`** on a root element.
 
 ## Data visualisation
 
-Use `@carbon/charts` / `@carbon/charts-react` (already themed to Carbon). Do not add a second
-charting library. If building charts, also honour the `dataviz` skill's colour rules on top of
-Carbon's categorical palette.
+Use `@carbon/charts` / `@carbon/charts-react` (already themed to Carbon). Do not add a second charting library. If
+building charts, also honour the `dataviz` skill's colour rules on top of Carbon's categorical palette.
 
 ## Do / Don't
 
@@ -308,10 +294,10 @@ Carbon's categorical palette.
 
 ## Motion
 
-Flow is a productivity tool used many times a day, so motion is decided by frequency before it is
-styled: an interaction a person triggers constantly gets no animation, a daily one gets a fast
-subtle one, and only first-run or empty-state moments may be expressive. Every value comes from
-Carbon's motion tokens, never a hand-typed curve or duration.
+Flow is a productivity tool used many times a day, so motion is decided by frequency before it is styled: an
+interaction a person triggers constantly gets no animation, a daily one gets a fast subtle one, and only first-run
+or empty-state moments may be expressive. Every value comes from Carbon's motion tokens, never a hand-typed curve or
+duration.
 
 | Rule | Value | Where |
 | --- | --- | --- |
@@ -320,20 +306,18 @@ Carbon's motion tokens, never a hand-typed curve or duration.
 | Status never pulses, numbers never count up, nothing scales on hover, lists never stagger | none | Reviewed against the same list as the Do / Don't table |
 | Reduced motion is honoured everywhere | one global `prefers-reduced-motion: reduce` rule sets every animation and transition to 0.01 ms | `client-web/src/Styles/_base.scss:22` |
 
-Carbon components carry their own transitions and do not check the preference themselves, which
-is why the reduced-motion rule is global and lives in the base stylesheet, not per component.
+Carbon components carry their own transitions and do not check the preference themselves, which is why the
+reduced-motion rule is global and lives in the base stylesheet, not per component.
 
 ### Home
 
-The landing page (`client-web/src/Features/Home/Home.tsx`) is a rollup of every workspace the
-caller belongs to: a hero band with the day's one-sentence summary, four "pulse" tiles that link
-into Activity, Actions, Schedules and the workspace list, the actions waiting on the person with
-Approve / Reject inline, the workspace cards, the five newest runs, the templates and a short
-Learn list. A first run (no workspaces) shows a three-step checklist and four concept tiles
-instead. Its read fans out per workspace from a route loader
-(`client-web/src/Features/Home/homeLoader.ts`); see decision 0088. The hero's eyebrow carries the
-platform's configured name from the app context - the product name is never a literal in the
-page.
+The landing page (`client-web/src/Features/Home/Home.tsx`) is a rollup of every workspace the caller belongs to: a
+hero band with the day's one-sentence summary, four "pulse" tiles that link into Activity, Actions, Schedules and
+the workspace list, the actions waiting on the person with Approve / Reject inline, the workspace cards, the five
+newest runs, the templates and a short Learn list. A first run (no workspaces) shows a three-step checklist and four
+concept tiles instead. Its read fans out per workspace from a route loader
+(`client-web/src/Features/Home/homeLoader.ts`); see decision 0088. The hero's eyebrow carries the platform's
+configured name from the app context - the product name is never a literal in the page.
 
 ### Insights
 
@@ -342,40 +326,39 @@ is it getting slower, what fails and why, where does the time go. Four headline 
 delta coloured by whether the change is welcome (`HeadlineTiles.tsx`); runs per day are stacked bars by outcome,
 never a smoothed line, because counts are discrete (`RunsPerDayChart.tsx`); the per-workflow table, worst success
 rate first, is the primary object and its selected row drives two detail panels (`WorkflowTable.tsx`,
-`WorkflowDetail.tsx`); duration is shown as a p5 to p95 range with a p50 mark on a log scale, with the run
-timeout marked, in place of a scatter of every run (`DurationSpread.tsx`). The chart library takes literal colours,
-so the outcome colours are read off the status tokens at mount with the theme's values as fallbacks
-(`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of legends. When the period ran an
-`ai` task, a model usage panel follows the chart, and a third panel follows the selected workflow's two, each
-giving total tokens, cost when any task reported one, and one row per model; the selected workflow's ai tasks
-add a tokens and cost column to their timing rows (`UsagePanel.tsx`). Run labels are a typed `key=value` filter
-beside the others, applied on Enter or blur so typing does not reload the page.
+`WorkflowDetail.tsx`); duration is shown as a p5 to p95 range with a p50 mark on a log scale, with the run timeout
+marked, in place of a scatter of every run (`DurationSpread.tsx`). The chart library takes literal colours, so the
+outcome colours are read off the status tokens at mount with the theme's values as fallbacks (`statusColors.ts`);
+everything else is tokens. Outcomes with no runs stay out of legends. When the period ran an `ai` task, a model
+usage panel follows the chart, and a third panel follows the selected workflow's two, each giving total tokens, cost
+when any task reported one, and one row per model; the selected workflow's ai tasks add a tokens and cost column to
+their timing rows (`UsagePanel.tsx`). Run labels are a typed `key=value` filter beside the others, applied on Enter
+or blur so typing does not reload the page.
 
 ### Manage
 
 The platform's administration is one side-nav link, "Manage" with the cog, to one tabbed page
-(`client-web/src/Features/Manage/Manage.tsx`; the server sends the single link,
-`core/NavigationService.java`). The tabs are Settings, Workspaces, Users, Parameters, Tokens, Tasks and
-Audit, each a nested route with its own loader, shown only when the caller's grants and the feature flags
-allow it; the area's root sends the caller to the first tab they may see. The layout's header carries the
-breadcrumb, the title and the tab row, so a tab's page starts with its controls and carries no header or
-description of its own. A user's detail page stays outside the tabs, titled with the user's name.
+(`client-web/src/Features/Manage/Manage.tsx`; the server sends the single link, `core/NavigationService.java`). The
+tabs are Settings, Workspaces, Users, Parameters, Tokens, Tasks and Audit, each a nested route with its own loader,
+shown only when the caller's grants and the feature flags allow it; the area's root sends the caller to the first
+tab they may see. The layout's header carries the breadcrumb, the title and the tab row, so a tab's page starts with
+its controls and carries no header or description of its own. A user's detail page stays outside the tabs, titled
+with the user's name.
 
 Two tabs have their own shape:
 
 - **Settings** is one group at a time (`/admin/settings/:group`): the groups in a left section list
   (`FeatureSideNav`, the same component the workflow Configure screen uses), the selected group's name and
-  description above a single-column form at a readable width, and a save bar at the bottom that wakes up
-  only when something changed (`Features/Settings/SettingsSection`). A group's name is a plain noun for
-  what it controls (Quotas, Integrations, Run limits) and its description one sentence; both come from the
-  seeded settings document, not the client.
-- **Audit** follows the list-page style: count tiles (`Components/StatTile`), the capture configuration as
-  one line linking to Settings, the labelled filter row with the date range on the right, and the table in
-  a rounded panel with the outcome as an icon plus its name and actions and levels in sentence case
-  (`Features/Audit/Audit.tsx`).
+  description above a single-column form at a readable width, and a save bar at the bottom that wakes up only when
+  something changed (`Features/Settings/SettingsSection`). A group's name is a plain noun for what it controls
+  (Quotas, Integrations, Run limits) and its description one sentence; both come from the seeded settings document,
+  not the client.
+- **Audit** follows the list-page style: count tiles (`Components/StatTile`), the capture configuration as one line
+  linking to Settings, the labelled filter row with the date range on the right, and the table in a rounded panel
+  with the outcome as an icon plus its name and actions and levels in sentence case (`Features/Audit/Audit.tsx`).
 
-Workflow templates have no page in the product: they are seeded content, listed on Home, and their catalogue
-lives in the public docs.
+Workflow templates have no page in the product: they are seeded content, listed on Home, and their catalogue lives
+in the public docs.
 
 ## Browser support
 
@@ -385,30 +368,27 @@ Chrome, Firefox and Safari (`client-web/package.json:133-144`, `browserslist`).
 
 ## Accessibility and how tests locate things
 
-Carbon components expose their accessible names through their label props, and both assistive
-technology and the end-to-end suite depend on them: `labelText` on inputs (`TextArea`, `Search`),
-`iconDescription` on icon-only buttons, `title`/text content on tiles and headings. A control
-added without one is invisible twice over — to a screen reader and to a `getByRole`/`getByLabel`
-locator. Two conventions the canvas editor already follows and new UI MUST keep:
+Carbon components expose their accessible names through their label props, and both assistive technology and the
+end-to-end suite depend on them: `labelText` on inputs (`TextArea`, `Search`), `iconDescription` on icon-only
+buttons, `title`/text content on tiles and headings. A control added without one is invisible twice over — to a
+screen reader and to a `getByRole`/`getByLabel` locator. Two conventions the canvas editor already follows and new
+UI MUST keep:
 
-- Every interactive element carries a role and a name. The palette entries are `role="option"`
-  named by the task's display name (`Designer/Tasks/Task/Task.tsx`); icon-only buttons carry
-  `iconDescription` (the version buttons in `WorkflowEditor/Header/Header.tsx`) or an `alt`
-  (`WorkflowEditButton`: "Workflow edit button").
-- Form inputs are named by their parameter label, not their key: the task-edit form renders
-  `textbox "Shell Interpreter"`, not `#shell` (`Reactflow/components/shared/inputs.tsx`).
+- Every interactive element carries a role and a name. The palette entries are `role="option"` named by the task's
+  display name (`Designer/Tasks/Task/Task.tsx`); icon-only buttons carry `iconDescription` (the version buttons in
+  `WorkflowEditor/Header/Header.tsx`) or an `alt` (`WorkflowEditButton`: "Workflow edit button").
+- Form inputs are named by their parameter label, not their key: the task-edit form renders `textbox "Shell
+  Interpreter"`, not `#shell` (`Reactflow/components/shared/inputs.tsx`).
 
-The end-to-end suite (`e2e/`) locates elements in this order, which doubles as an accessibility
-check — a journey that can only be written with CSS selectors is a journey a screen-reader user
-cannot follow:
+The end-to-end suite (`e2e/`) locates elements in this order, which doubles as an accessibility check — a journey
+that can only be written with CSS selectors is a journey a screen-reader user cannot follow:
 
 1. `getByRole(role, { name })` / `getByLabel(...)` — the accessible contract, preferred.
-2. `getByTestId(...)` — for containers with no natural role (list rows, cards); `data-testid`
-   values are part of the UI's test contract and renames MUST update the suite.
+2. `getByTestId(...)` — for containers with no natural role (list rows, cards); `data-testid` values are part of the
+   UI's test contract and renames MUST update the suite.
 3. CSS/structural selectors — only for third-party internals with no accessible surface (the
-   `.react-flow__node-*`/`.react-flow__handle` canvas classes, `.CodeMirror`), each with a
-   comment saying why.
+   `.react-flow__node-*`/`.react-flow__handle` canvas classes, `.CodeMirror`), each with a comment saying why.
 
-When a locator fails, read the Playwright page snapshot in the failure's `error-context.md` — it
-is the accessibility tree, so it shows both what the test should target and what a screen reader
-actually gets (a collapsed accordion's content, for example, is absent from it).
+When a locator fails, read the Playwright page snapshot in the failure's `error-context.md` — it is the
+accessibility tree, so it shows both what the test should target and what a screen reader actually gets (a collapsed
+accordion's content, for example, is absent from it).

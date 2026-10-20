@@ -19,7 +19,7 @@ values its author never linked.
 ## Decision
 
 A. `TaskExecutionService.childParams` submits the child with copies of the task's own params minus `workflowRef`
-and `wait` (`engine/TaskExecutionService.java:1228-1234`); under for-each the item's `item` and `index` are among
+and `wait` (`engine/TaskExecutionService.java:1176-1182`); under for-each the item's `item` and `index` are among
 them. One reason decided it: what a child receives is what its author linked, as in v3, where the child got the
 node's inputs minus `workflowId`, and in the v4 engine. The copy of the parent run's params was added in 2025 and
 never shipped in a release.

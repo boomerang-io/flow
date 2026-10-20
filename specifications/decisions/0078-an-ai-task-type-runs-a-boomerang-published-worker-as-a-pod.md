@@ -19,7 +19,7 @@ same everywhere (endpoint, model, prompt, token), so the work is declaring it, n
 ## Decision
 
 C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`engine/TaskExecutionService.java:243,373`); the dispatcher runs the image and command the `ai` revision declares,
+(`engine/TaskExecutionService.java:238,373`); the dispatcher runs the image and command the `ai` revision declares,
 like any other type, and each seeded revision (`ai-prompt`, `ai-agent`) pins its exact `boomerangio/task-ai` tag, released
 from `boomerang-io/tasks`, not a product image (decision 0006 stands;
 `service-dispatcher/.../executor/TaskImageResolver.java:125-143`). Two things

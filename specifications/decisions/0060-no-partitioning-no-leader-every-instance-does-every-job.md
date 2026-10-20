@@ -21,9 +21,9 @@ instance would act on a given run at a time.
 
 Option C. Every state change is a CAS whose query encodes the expected prior state, so a second
 instance acting on the same run finds the state already changed and performs no side effects
-(`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:232-270`;
+(`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:225-263`;
 `engine/WorkflowRunStateHelper.java`). The sweeps run on every instance with a random start offset
-and act only through those primitives (`engine/WorkflowWatcher.java:36-41,116-119`). Partitioning
+and act only through those primitives (`engine/WorkflowWatcher.java:37-42,116-119`). Partitioning
 would only save the loser's no-op, and a leader would add the one failure mode the sweeps exist to
 remove.
 

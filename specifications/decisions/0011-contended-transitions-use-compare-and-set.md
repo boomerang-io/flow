@@ -19,9 +19,9 @@ silently rolled back each other's claims, deadlines and results.
 ## Decision
 
 Option B, with no `@Version` anywhere. Every execution-state write goes through `findAndModifyPreImage`
-(`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:669`, `WorkflowRunStateHelper.java:331-334`);
+(`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:645`, `WorkflowRunStateHelper.java:331-334`);
 a null pre-image means another caller won and the handler returns without side effects
-(for example `TaskExecutionService.java:181-187`, `:463-473`, `WorkflowExecutionService.java:193-197`). The reason
+(for example `TaskExecutionService.java:176-182`, `:446-456`, `WorkflowExecutionService.java:192-196`). The reason
 that decided it: a CAS query names the state the side effect depends on, which is exactly the property a
 winner-only action needs.
 
@@ -30,5 +30,5 @@ winner-only action needs.
 - The engine runs with no distributed lock library and no leader; overlapping instances and sweeps are safe by
   construction, and a duplicate hint costs one primary-key no-op.
 - Whole-document `save()` survives only for caller-side request merges before a handler runs
-  (`TaskRunService.java:718`, `:779`) and for the fixed-field `updateStatusAndSaveTask` fallback paths.
+  (`TaskRunService.java:694`, `:755`) and for the fixed-field `updateStatusAndSaveTask` fallback paths.
 - Definition CRUD (workflows, tasks) is outside this decision; it MAY adopt `@Version` for edit conflicts.

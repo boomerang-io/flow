@@ -18,9 +18,9 @@ gate stalled on bodies it did not recognise.
 
 ## Decision
 
-Option B. `core/RestExceptionHandler.java:36-55` renders every `BoomerangException` as
+Option B. `core/RestExceptionHandler.java:43-65` renders every `BoomerangException` as
 `RestErrorResponse` (`timestamp`, `code`, `reason`, `message`, `status`, optional `cause`), and
-`:72-84` maps `AuthenticationException` onto the same shape so a `401` has the same body as a
+`:64-76` maps `AuthenticationException` onto the same shape so a `401` has the same body as a
 `400`. Codes and HTTP statuses come from the single `BoomerangError` enum
 (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java`); messages come from
 `service-core/src/main/resources/messages.properties`, keyed by `reason`.
@@ -28,5 +28,5 @@ Option B. `core/RestExceptionHandler.java:36-55` renders every `BoomerangExcepti
 ## Consequences
 
 - A client can switch on `reason` (stable string) or `code` (stable number) without inspecting the HTTP status.
-- New error conditions MUST be added to `BoomerangError` and `messages.properties` together; an enum constant with no message renders as `No message available` (`RestExceptionHandler.java:47`).
+- New error conditions MUST be added to `BoomerangError` and `messages.properties` together; an enum constant with no message renders as `No message available` (`RestExceptionHandler.java:54`).
 - `service-dispatcher` still carries its own `ErrorDetail`; it is not part of the public API shape.

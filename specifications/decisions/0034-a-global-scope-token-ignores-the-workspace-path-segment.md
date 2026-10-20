@@ -20,7 +20,7 @@ segment is never compared. This was raised as a possible privilege escalation.
 
 Option B. `check()` is `case global: return true;`
 (`service-core/src/main/java/io/boomerang/core/RelationshipService.java:417-419`), while `filter()` still
-anchors a global caller at `root` and walks so list endpoints return real data (`:509-513`). The deciding
+anchors a global caller at `root` and walks so list endpoints return real data (`:501-505`). The deciding
 reason is that a global token is already permitted to reach the same object through its true workspace URL,
 so ignoring the segment grants nothing the caller does not already hold.
 

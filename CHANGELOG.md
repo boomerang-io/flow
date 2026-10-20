@@ -127,8 +127,14 @@ tag's release notes.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
   next major version.
+- `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
+  constants are the same values.
 
 ### Changed
+
+- Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
+  is still published to GitHub Packages.
+- `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
 
 - A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
   the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
@@ -179,12 +185,13 @@ tag's release notes.
   dispatcher that runs outside its network.
 - **Task logs are stored by `service-core` when it has an artifact store.** The dispatcher uploads a finished
   task's log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core
-  serves that copy first, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
+  serves that copy once the task has ended, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
   log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
   `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`). Core's
   `flow.agent.service.host` and `flow.agent.logstream.url` are gone: nothing on core names a dispatcher, and a
-  dispatcher that registers no URL has no live log to follow. The dispatcher's `/api/v1/logs` route
-  now accepts only the bearer it generates at start and registers; nothing but core can read it. Two new keys
+  dispatcher that registers no URL has no live log to follow. The dispatcher's live log route,
+  `/api/v1/logs/stream`, accepts only the bearer it generates at start and registers; nothing but core can read
+  it. Its v3 `GET /api/v1/logs` read is gone, and it serves no OpenAPI page. Two new keys
   in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
   apart from artifact retention; stored logs never count toward artifact storage. Set
   `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.

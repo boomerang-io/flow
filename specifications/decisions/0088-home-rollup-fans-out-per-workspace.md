@@ -8,7 +8,7 @@ The redesigned Home shows, across every workspace the caller belongs to, today's
 actions waiting on them, the newest runs and the next scheduled run. No endpoint returns that
 rollup. The profile response already carries a per-workspace `insights` block (workflow and member
 counts), computed inside the bootstrap that every route pays for
-(`service-core/src/main/java/io/boomerang/workspace/WorkspaceService.java:837`).
+(`service-core/src/main/java/io/boomerang/workspace/WorkspaceService.java:815`).
 
 ## Options
 

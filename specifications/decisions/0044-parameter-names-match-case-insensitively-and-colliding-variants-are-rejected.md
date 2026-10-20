@@ -22,7 +22,7 @@ and `MY_KEY` all become `PARAM_MY_KEY`, and the catalogue's own params are camel
 B. `$(params.x)` resolves over a case-insensitive view of the parameter layers
 (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:238`), the node-value merge is
 case-insensitive with the declared casing winning
-(`service-core/src/main/java/io/boomerang/common/util/ParameterUtil.java:57-66`), and names that fold to the
+(`service-core/src/main/java/io/boomerang/common/util/ParameterUtil.java:57-65`), and names that fold to the
 same env var fail with `PARAM_NAME_COLLISION` at workflow save
 (`service-core/.../workflow/WorkflowService.java:1593-1599`) and task save (`workflow/TaskService.java:366-374`).
 GitHub Actions is the one mainstream system with a folded env channel, and it pairs insensitivity with a
@@ -33,4 +33,4 @@ uniqueness rule for exactly this reason.
 - `PARAM_NAMES` stays, because JavaScript destructuring in the task library is case-sensitive.
 - The dispatcher keeps its dispatch-time collision check as a backstop for definitions saved earlier
   (`service-dispatcher/.../kube/KubeHelperService.java:131-140`).
-- Any variant of `names` is a reserved parameter name (`ParameterUtil.java:85-89`).
+- Any variant of `names` is a reserved parameter name (`ParameterUtil.java:65-69`).
