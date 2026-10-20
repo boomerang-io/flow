@@ -16,9 +16,9 @@ import CreateServiceTokenButton from "./CreateToken";
 const ROUTE_PATH = "/:workspace/editor/:workflow/*";
 const ROUTE = "/test-workspace/editor/test-workflow/configure/tokens";
 
-// The app populates AppContext.workspaces from the flat user.teams array
+// The app populates AppContext.workspaces from the flat user.workspaces array
 // (see Features/App/App.tsx) -- not the paginated workspaces query response.
-const contextValue = { workspaces: profile.teams };
+const contextValue = { workspaces: profile.workspaces };
 
 function renderCreateToken() {
   return renderWithContext(

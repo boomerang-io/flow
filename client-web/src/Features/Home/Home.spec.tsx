@@ -37,7 +37,7 @@ function renderHome(
     route: "/home",
     loader: () => data,
     action,
-    contextValue: { name: "Acme Automation", workflowTemplates: [], workspaces: fixtures.profile.teams, ...contextValue },
+    contextValue: { name: "Acme Automation", workflowTemplates: [], workspaces: fixtures.profile.workspaces, ...contextValue },
   });
 }
 

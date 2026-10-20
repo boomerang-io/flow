@@ -67,7 +67,7 @@ export interface ResolvedPermissions {
   actions: string[];
 }
 
-// `teams` is redeclared below with the Flow shape (the platform type has `teams: any[]`, required).
+// The platform type requires `teams: any[]`; Flow's profile carries the list as `workspaces` instead.
 export interface FlowUser extends Omit<User, "teams"> {
   id: string;
   email: string;
@@ -81,7 +81,7 @@ export interface FlowUser extends Omit<User, "teams"> {
   settings?: FlowUserSettings;
   // Only present on the profile response; carries the caller's resolved workspace
   // memberships and permissions alongside the base user record.
-  teams?: Array<FlowWorkspaceSummary>;
+  workspaces?: Array<FlowWorkspaceSummary>;
   permissions?: Array<ResolvedPermissions>;
 }
 

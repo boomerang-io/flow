@@ -33,7 +33,7 @@ const profile = {
   notificationSettings: {},
   status: "active",
   projects: null,
-  teams: [
+  workspaces: [
       {
           name: "tyson-workspace",
           displayName: "Tyson Workspace",

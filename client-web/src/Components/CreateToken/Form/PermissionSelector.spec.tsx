@@ -12,7 +12,7 @@ import CreateServiceTokenButton from "../CreateToken";
 // inside a real loader-carrying <Route>, same pattern as that spec.
 const ROUTE_PATH = "/:workspace/editor/:workflow/*";
 const ROUTE = "/test-workspace/editor/test-workflow/configure/tokens";
-const contextValue = { workspaces: profile.teams };
+const contextValue = { workspaces: profile.workspaces };
 
 function renderCreateToken() {
   return renderWithContext(
