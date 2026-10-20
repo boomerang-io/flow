@@ -89,6 +89,7 @@ export interface FlowUserSettings {
   hasConsented: boolean;
   isShowHelp: boolean | null;
   isFirstVisit: boolean;
+  isShowGetStarted?: boolean;
 }
 
 export interface SimpleApprover {

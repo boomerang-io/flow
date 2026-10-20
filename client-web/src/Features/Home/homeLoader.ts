@@ -15,8 +15,9 @@ import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatus, S
  *
  * Two waves, not one: the workspace list has to come first (a route loader cannot read the root
  * loader's data server-side), so the profile is fetched here again - same endpoint, same session,
- * cheap. Every per-workspace read is `allSettled`: a workspace whose reads fail contributes
- * zeros and flips `degraded`, it never blanks the page.
+ * cheap. Every per-workspace read is `allSettled`: a failed read contributes nothing and marks its
+ * part of the rollup in `degraded`, so that part renders as unavailable rather than as zero; it
+ * never blanks the page. A failed profile read marks every part.
  *
  * "Today" is the server's calendar day (the same choice Activity's loader makes) - the request
  * carries no client time zone.
@@ -80,9 +81,17 @@ export interface HomeLoaderData {
   totalRuns: number;
   nextSchedule: HomeSchedule | null;
   schedulesTotal: number;
+  /** Per workspace; absent for a workspace whose run count could not be read. */
   stats: Record<string, HomeWorkspaceStats>;
-  /** True when any read failed; the page renders with zeros for that part. */
-  degraded: boolean;
+  degraded: HomeDegraded;
+}
+
+/** The parts of the rollup at least one read failed for. */
+export interface HomeDegraded {
+  runsToday: boolean;
+  attention: boolean;
+  schedules: boolean;
+  recentRuns: boolean;
 }
 
 export const EMPTY_RUN_COUNTS: HomeRunCounts = { all: 0, succeeded: 0, failed: 0, running: 0, waiting: 0 };
@@ -138,14 +147,14 @@ export async function loader({ request }: { request: Request }): Promise<HomeLoa
   const api = serverFetch(request);
   const now = moment();
 
-  let workspaces: Array<FlowWorkspaceSummary> = [];
-  let degraded = false;
   const profile = await settle(api.get<FlowUser>(serviceUrl.getUserProfile()));
-  if (profile.ok) {
-    workspaces = profile.data.teams ?? [];
-  } else {
-    degraded = true;
-  }
+  const workspaces: Array<FlowWorkspaceSummary> = profile.ok ? profile.data.teams ?? [] : [];
+  const degraded: HomeDegraded = {
+    runsToday: !profile.ok,
+    attention: !profile.ok,
+    schedules: !profile.ok,
+    recentRuns: !profile.ok,
+  };
 
   const countQuery = queryString.stringify(
     { fromDate: now.clone().startOf("day").valueOf(), toDate: now.clone().endOf("day").valueOf() },
@@ -221,12 +230,17 @@ export async function loader({ request }: { request: Request }): Promise<HomeLoa
     }
     schedulesTotal += scheduleCount;
 
-    degraded = degraded || !count.ok || !runs.ok || !actions.ok || !schedules.ok;
-    stats[workspace.name] = {
-      runsToday: counts,
-      lastRun: workspaceRuns.slice().sort(newestFirst)[0] ?? null,
-      schedules: scheduleCount,
-    };
+    degraded.runsToday = degraded.runsToday || !count.ok;
+    degraded.recentRuns = degraded.recentRuns || !runs.ok;
+    degraded.attention = degraded.attention || !actions.ok;
+    degraded.schedules = degraded.schedules || !schedules.ok;
+    if (count.ok) {
+      stats[workspace.name] = {
+        runsToday: counts,
+        lastRun: workspaceRuns.slice().sort(newestFirst)[0] ?? null,
+        schedules: scheduleCount,
+      };
+    }
   }
 
   recentRuns = recentRuns.sort(newestFirst).slice(0, RECENT_RUNS_LIMIT);

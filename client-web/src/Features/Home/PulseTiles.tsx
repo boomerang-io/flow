@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "@carbon/react/icons";
+import { ArrowRight, WarningAltFilled } from "@carbon/react/icons";
 import cx from "classnames";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
@@ -25,18 +25,27 @@ interface TileProps {
   value: React.ReactNode;
   detail: React.ReactNode;
   accent?: boolean;
+  /** The number could not be read: say so instead of showing a zero that looks real. */
+  unavailable?: boolean;
   testId: string;
 }
 
-function Tile({ to, label, value, detail, accent = false, testId }: TileProps) {
+function Tile({ to, label, value, detail, accent = false, unavailable = false, testId }: TileProps) {
   return (
-    <Link to={to} className={cx(styles.tile, { [styles.tileAccent]: accent })} data-testid={testId}>
+    <Link to={to} className={cx(styles.tile, { [styles.tileAccent]: accent && !unavailable })} data-testid={testId}>
       <span>
         <span className={styles.label}>{label}</span>
-        <span className={styles.value}>{value}</span>
+        <span className={styles.value}>{unavailable ? "---" : value}</span>
       </span>
       <span className={styles.footer}>
-        <span className={styles.detail}>{detail}</span>
+        {unavailable ? (
+          <span className={cx(styles.detail, styles.unavailable)}>
+            <WarningAltFilled size={16} className={styles.warningIcon} aria-hidden="true" />
+            Could not load. Refresh to try again.
+          </span>
+        ) : (
+          <span className={styles.detail}>{detail}</span>
+        )}
         <ArrowRight size={20} className={styles.arrow} aria-hidden="true" />
       </span>
     </Link>
@@ -49,7 +58,8 @@ function Tile({ to, label, value, detail, accent = false, testId }: TileProps) {
  */
 export default function PulseTiles(props: PulseTilesProps) {
   const { data, primaryWorkspace, workspaceCount, workflowCount, memberCount, activityEnabled, schedulesEnabled } = props;
-  const { runsToday, attention, attentionTotal, attentionApprovals, attentionManual, nextSchedule, schedulesTotal } = data;
+  const { runsToday, attention, attentionTotal, attentionApprovals, attentionManual, nextSchedule, schedulesTotal, degraded } =
+    data;
   const attentionWorkspace = attention[0]?.workspace ?? primaryWorkspace;
 
   return (
@@ -58,6 +68,7 @@ export default function PulseTiles(props: PulseTilesProps) {
         to={activityEnabled ? appLink.activity({ workspace: primaryWorkspace }) : "#recent-activity"}
         label="Runs today"
         value={runsToday.all}
+        unavailable={degraded.runsToday}
         testId="home-pulse-runs"
         detail={
           <>
@@ -81,6 +92,7 @@ export default function PulseTiles(props: PulseTilesProps) {
         label="Waiting on you"
         value={attentionTotal}
         accent={attentionTotal > 0}
+        unavailable={degraded.attention}
         testId="home-pulse-attention"
         detail={`${count(attentionApprovals, "approval")} · ${count(attentionManual, "manual task")}`}
       />
@@ -89,6 +101,7 @@ export default function PulseTiles(props: PulseTilesProps) {
           to={appLink.schedules({ workspace: nextSchedule?.workspace ?? primaryWorkspace })}
           label="Next scheduled run"
           value={nextSchedule ? moment(nextSchedule.nextScheduleDate).fromNow() : "None"}
+          unavailable={degraded.schedules}
           testId="home-pulse-schedule"
           detail={
             nextSchedule

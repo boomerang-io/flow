@@ -1,5 +1,6 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import * as fixtures from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
 import Home from "./Home";
@@ -21,16 +22,21 @@ function rollup(overrides: Partial<HomeLoaderData> = {}): HomeLoaderData {
     nextSchedule: null,
     schedulesTotal: 0,
     stats: {},
-    degraded: false,
+    degraded: { runsToday: false, attention: false, schedules: false, recentRuns: false },
     ...overrides,
   };
 }
 
-function renderHome(data: HomeLoaderData, contextValue: Record<string, unknown> = {}) {
+function renderHome(
+  data: HomeLoaderData,
+  contextValue: Record<string, unknown> = {},
+  action: (args: { request: Request }) => Promise<unknown> = async () => null,
+) {
   return renderWithContext(<Home />, {
     path: "/home",
     route: "/home",
     loader: () => data,
+    action,
     contextValue: { name: "Acme Automation", workflowTemplates: [], workspaces: fixtures.profile.teams, ...contextValue },
   });
 }
@@ -127,9 +133,67 @@ describe("Home", () => {
     expect(screen.queryByTestId("home-pulse-runs")).not.toBeInTheDocument();
   });
 
-  test("warns when part of the rollup could not be loaded", async () => {
-    renderHome(rollup({ degraded: true }));
+  test("marks only the numbers that could not be loaded, never showing them as zero", async () => {
+    renderHome(
+      rollup({
+        runsToday: EMPTY_RUN_COUNTS,
+        recentRuns: [],
+        degraded: { runsToday: false, attention: true, schedules: false, recentRuns: true },
+      }),
+    );
 
-    expect(await screen.findByText("Some numbers could not be loaded.")).toBeInTheDocument();
+    const attention = await screen.findByTestId("home-pulse-attention");
+    expect(attention).toHaveTextContent("---");
+    expect(attention).toHaveTextContent("Could not load. Refresh to try again.");
+    expect(screen.getByTestId("home-pulse-runs")).not.toHaveTextContent("Could not load");
+    expect(screen.getByText("Recent runs could not be loaded. Refresh to try again.")).toBeInTheDocument();
+    expect(screen.queryByText(/No runs yet\. Run a workflow/)).not.toBeInTheDocument();
+    // The hero states the runs it read and says nothing about the actions it could not read.
+    expect(screen.getByText("No runs yet today across your 3 workspaces.")).toBeInTheDocument();
+  });
+
+  test("says today's runs could not be loaded rather than that there were none", async () => {
+    renderHome(rollup({ degraded: { runsToday: true, attention: false, schedules: false, recentRuns: false } }));
+
+    expect(await screen.findByText(/Today's runs across your 3 workspaces could not be loaded\./)).toBeInTheDocument();
+    expect(screen.getByTestId("home-pulse-runs")).toHaveTextContent("---");
+  });
+
+  test("closes Get started for good: the row goes and the close is sent to be saved", async () => {
+    const intents: Array<string> = [];
+    renderHome(rollup({ totalRuns: 0 }), {}, async ({ request }) => {
+      intents.push(String((await request.formData()).get("intent")));
+      return { intent: "hide-get-started" };
+    });
+
+    expect(await screen.findByRole("list", { name: "Get started" })).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("home-get-started-close"));
+
+    expect(await screen.findByTestId("home-pulse-runs")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Get started" })).not.toBeInTheDocument();
+    expect(intents).toEqual(["hide-get-started"]);
+  });
+
+  test("keeps Get started closed for a user who closed it before", async () => {
+    renderHome(rollup({ totalRuns: 0 }), { user: { ...fixtures.profile, settings: { isShowGetStarted: false } } });
+
+    expect(await screen.findByTestId("home-pulse-runs")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Get started" })).not.toBeInTheDocument();
+  });
+
+  test("starts a workflow from templates only, newest first", async () => {
+    renderHome(rollup(), {
+      workflowTemplates: [
+        { name: "older", displayName: "Older example", creationDate: "2022-05-06T00:00:00Z", icon: "bot", description: "" },
+        { name: "ai", displayName: "Summarise a web page with AI", creationDate: "2026-10-19T00:00:00Z", icon: "bot", description: "" },
+      ],
+    });
+
+    const list = await screen.findByRole("region", { name: "Start a workflow" });
+    expect(within(list).getAllByTestId("workflow-card-title").map((title) => title.textContent)).toEqual([
+      "Summarise a web page with AI",
+      "Older example",
+    ]);
+    expect(screen.queryByText("Blank workflow")).not.toBeInTheDocument();
   });
 });
