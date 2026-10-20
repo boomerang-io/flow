@@ -52,9 +52,9 @@ The protocol carries its own version, `1`, apart from the product version.
 ## Authentication
 
 Every call carries `Authorization: Bearer <token>`: a global Flow token with an actor kind — a machine token
-(`dispatcher/DispatcherAuthFilter.java:54-80`, `core/TokenService.java:433-438`). Anything else is a bare
-401. `flow.dispatcher.auth.enabled=false` makes the filter a pass-through for local development; it is
-independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
+(`dispatcher/DispatcherAuthFilter.java:63-93`, `core/TokenService.java:432-437`). Anything else is a bare
+401. The token is the identity the request runs as. `flow.dispatcher.auth.enabled=false` checks nothing, for local
+development; it is independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
 
 ## The lifecycle
 
@@ -142,9 +142,8 @@ fails only for a workspace or global parameter deleted since; the task then ends
 `SpecFillFailed` (`DispatcherService.java:460`). Any other failure while a claimed task is prepared for hand-out
 ends it `failed` with reason `DispatchPrepareFailed`, logged with its id and the cause, and the other tasks
 claimed in the same poll are still handed out, so no claim stays with a dispatcher that never hears of it
-(`DispatcherService.prepare` `:419`). Preparing a task reads nothing from the caller: a dispatcher call carries
-no user identity, so an artifact task's storage quota is read from its run's workspace
-(`workspace/WorkspaceService.getArtifactStorageQuota` `:782`). The termination order, the start and end answers and every
+(`DispatcherService.prepare` `:413`). Preparing a task does not depend on who calls: an artifact task's storage
+quota is read from its run's workspace (`workspace/WorkspaceService.getArtifactStorageQuota` `:782`). The termination order, the start and end answers and every
 consumer read carry the stored spec. The TaskRun's params are the task's declared params merged with the values
 authored on the workflow node (`engine/DAGUtility.java:183`). A `custom` task takes its runtime from its own
 params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue entry, which

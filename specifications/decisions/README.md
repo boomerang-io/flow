@@ -97,3 +97,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0122 | [One rule for secret values on every layer](0122-one-rule-for-secret-values-on-every-layer.md) | accepted | 2026-10-19 |
 | 0123 | [Settings and global parameters take a merge patch](0123-settings-and-global-parameters-take-a-merge-patch.md) | accepted | 2026-10-19 |
 | 0124 | [A claim carries a lease from the moment it is made](0124-a-claim-carries-a-lease-from-the-moment-it-is-made.md) | accepted | 2026-10-20 |
+| 0126 | [A dispatcher route runs as the dispatcher's token](0126-a-dispatcher-route-runs-as-the-dispatchers-token.md) | accepted | 2026-10-20 |
