@@ -31,8 +31,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
  * The workspace scoping on the read side of the {@code
  * /api/v2/workspace/&#123;workspace&#125;/workflowrun} surface: {@code query} and {@code count}.
  *
- * <p>Both go through the shared {@code workspaceWorkflowRefs} helper in {@link
- * WorkflowRunService}, the one call that decides what a caller may read. This pins it.
+ * <p>Both resolve the workspace's Workflows through {@code RelationshipService.refsInWorkspace},
+ * the one call that decides what a caller may read. This pins it.
  *
  * <p>The identity is a {@code session}-scope member rather than the base class's global token: a
  * global token returns {@code true} from every relationship check and anchors {@code filter} at

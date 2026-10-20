@@ -176,12 +176,7 @@ public class WorkflowRunInsightService {
 
   private List<String> workflowRefs(String workspace, Optional<List<String>> workflows) {
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            workflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(workspace)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, workflows);
     // A workspace the caller cannot reach is a 404; a reachable one with nothing to count is empty.
     if (refs.isEmpty()
         && !relationshipService.check(

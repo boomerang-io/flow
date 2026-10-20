@@ -367,12 +367,7 @@ public class ActionService {
 
     // Get Refs that request has access to
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return Page.empty();
     }
@@ -411,12 +406,7 @@ public class ActionService {
       Optional<List<ActionStatus>> statuses) {
     ActionSummary summary = new ActionSummary();
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, queryWorkflows);
     if (workflowRefs == null || workflowRefs.size() == 0) {
       return summary;
     }

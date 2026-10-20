@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.common.validation.ResourceName;
 import io.boomerang.common.model.TaskResponsePage;
@@ -53,14 +54,12 @@ import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 /**
@@ -149,12 +148,8 @@ public class TaskService {
     // Checks principal and provided Task has relationship to Workspace.
     if (!Objects.isNull(name) && !name.isBlank()) {
       List<String> taskRefs =
-          relationshipService.filter(
-              RelationshipType.TEAMTASK,
-              Optional.of(List.of(name)),
-              Optional.of(RelationshipType.WORKSPACE),
-              Optional.of(List.of(team)),
-              false);
+          relationshipService.refsInWorkspace(
+              RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
       if (!taskRefs.isEmpty()) {
         // Assumes there is only one task of that slug in a team
         return internalGet(taskRefs.get(0), version);
@@ -230,12 +225,7 @@ public class TaskService {
 
     // Check for relationship
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            queryNames,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.TEAMTASK, queryTeam, queryNames);
     LOGGER.debug("Task Refs: {}", refs.toString());
     if (refs.isEmpty()) {
       return new TaskResponsePage();
@@ -317,12 +307,8 @@ public class TaskService {
 
     // Check Slugs for Tasks in team
     List<String> existingTeamTaskRefs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(request.getName())),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.TEAMTASK, team, Optional.of(List.of(request.getName())));
     if (!existingTeamTaskRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.TASK_ALREADY_EXISTS, request.getName());
     }
@@ -441,12 +427,8 @@ public class TaskService {
     }
 
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       request.setId(refs.get(0));
       // Name is immutable
@@ -586,12 +568,8 @@ public class TaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_NAME, name);
     }
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       return internalChangelog(refs.get(0));
     }
@@ -627,12 +605,8 @@ public class TaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REQ);
     }
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.TEAMTASK,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.TEAMTASK, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       delete(refs.get(0));
       // Mirrors the TEAMTASK node create() writes - the Task is gone, so its node and the
@@ -945,11 +919,7 @@ public class TaskService {
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryNames,
       Optional<List<String>> queryIds) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -958,13 +928,9 @@ public class TaskService {
                 .in("name", queryNames)
                 .in("_id", queryIds.map(ids -> ids.stream().map(ObjectId::new).toList()))
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
-    List<TaskEntity> taskEntities = mongoTemplate.find(query.with(pageable), TaskEntity.class);
+    List<TaskEntity> taskEntities = mongoTemplate.find(query, TaskEntity.class);
 
     List<Task> tasks = new LinkedList<>();
     taskEntities.forEach(
@@ -979,10 +945,7 @@ public class TaskService {
         });
 
     Page<Task> pages =
-        PageableExecutionUtils.getPage(
-            tasks,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), TaskEntity.class));
+        PagingUtil.page(tasks, pageable, mongoTemplate, query, TaskEntity.class);
 
     return pages;
   }

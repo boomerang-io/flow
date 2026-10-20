@@ -20,6 +20,7 @@ import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -63,7 +64,6 @@ import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -290,7 +290,8 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
 
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    List<String> wfRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
       // No reachable Workflow. A workspace the caller cannot reach (or that does not exist) is a
       // 404 like every other unresolvable workspace reference; a reachable workspace with nothing
@@ -337,7 +338,8 @@ public class WorkflowRunService {
       Optional<Long> to,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
+    List<String> wfRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     return count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
   }
 
@@ -619,20 +621,6 @@ public class WorkflowRunService {
     }
   }
 
-  /** The Workflows of the given workspace that the caller may see, narrowed by the query filter. */
-  private List<String> workspaceWorkflowRefs(
-      String queryTeam, Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
-    LOGGER.debug("Workflow Refs: {}", wfRefs.toString());
-    return wfRefs;
-  }
-
   // ── Unscoped operations (engine, webhook and v1 dispatcher callers) ────────
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
@@ -665,11 +653,7 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -681,11 +665,7 @@ public class WorkflowRunService {
                 .in("workflowRef", queryWorkflows)
                 .in("trigger", queryTriggers)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<WorkflowRunEntity> wfRunEntities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
@@ -699,10 +679,7 @@ public class WorkflowRunService {
         });
 
     Page<WorkflowRun> pages =
-        PageableExecutionUtils.getPage(
-            wfRuns,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
+        PagingUtil.page(wfRuns, pageable, mongoTemplate, query, WorkflowRunEntity.class);
 
     return pages;
   }

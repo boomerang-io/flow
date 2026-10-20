@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
@@ -73,7 +74,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
@@ -82,7 +82,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -292,12 +291,8 @@ public class WorkflowService {
 
   private String workflowRef(String team, String name) {
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
     if (refs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
@@ -355,12 +350,7 @@ public class WorkflowService {
 
     // Get Refs that request has access to
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
     if (refs.isEmpty()) {
       return new WorkflowResponsePage();
@@ -400,12 +390,7 @@ public class WorkflowService {
       Optional<List<String>> queryWorkflows) {
     // Get Refs that request has access to
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
 
     // Handle no Workflows for Workspace. Otherwise the engine will return all workflows due to no filter
@@ -444,12 +429,8 @@ public class WorkflowService {
 
     // Ensure Workflow name is unique within Workspace
     List<String> existingWorkflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(request.getName())),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, team, Optional.of(List.of(request.getName())));
     if (!existingWorkflowRefs.isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
@@ -540,12 +521,8 @@ public class WorkflowService {
   public Workflow apply(String team, Workflow workflow, boolean replace) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
-          relationshipService.filter(
-              RelationshipType.WORKFLOW,
-              Optional.of(List.of(workflow.getName())),
-              Optional.of(RelationshipType.WORKSPACE),
-              Optional.of(List.of(team)),
-              false);
+          relationshipService.refsInWorkspace(
+              RelationshipType.WORKFLOW, team, Optional.of(List.of(workflow.getName())));
       if (!refs.isEmpty()) {
         workflow.setId(refs.get(0));
 
@@ -610,12 +587,8 @@ public class WorkflowService {
     }
 
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       WorkflowRun wfRun = this.internalSubmit(team, refs.get(0), request, start, initiatedByRef);
       // The submit response is a consumer read like any other: secret-typed params go out
@@ -637,12 +610,7 @@ public class WorkflowService {
   public void internalSubmitForTeam(String team, WorkflowSubmitRequest request, boolean start) {
     // This should return IDs as the next method requires to take in the Workflow ID
     List<String> wfRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, Optional.empty());
     wfRefs.forEach(
         r -> {
           this.internalSubmit(team, r, request, start);
@@ -751,12 +719,8 @@ public class WorkflowService {
     }
 
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       return ResponseEntity.ok(changelog(refs.get(0)).getBody());
     } else {
@@ -776,12 +740,8 @@ public class WorkflowService {
     }
 
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(name)),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, team, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
       // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
@@ -1353,12 +1313,10 @@ public class WorkflowService {
                         param -> {
                           if (param.getName().equals("workflowRef") && param.getValue() != null) {
                             List<String> refs =
-                                relationshipService.filter(
+                                relationshipService.refsInWorkspace(
                                     RelationshipType.WORKFLOW,
-                                    Optional.of(List.of(param.getValue().toString())),
-                                    Optional.of(RelationshipType.WORKSPACE),
-                                    Optional.of(List.of(team)),
-                                    false);
+                                    team,
+                                    Optional.of(List.of(param.getValue().toString())));
                             if (refs == null || refs.isEmpty()) {
                               throw new BoomerangException(
                                   BoomerangError.WORKFLOW_INVALID_TASK_REF,
@@ -1413,11 +1371,7 @@ public class WorkflowService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryIds) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -1425,11 +1379,7 @@ public class WorkflowService {
                 .in("status", WorkflowStatus.class, queryStatus, "status")
                 .in("id", queryIds)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowEntity> wfEntities = mongoTemplate.find(query, WorkflowEntity.class);
@@ -1453,10 +1403,7 @@ public class WorkflowService {
         });
 
     Page<Workflow> pages =
-        PageableExecutionUtils.getPage(
-            workflows,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowEntity.class));
+        PagingUtil.page(workflows, pageable, mongoTemplate, query, WorkflowEntity.class);
     LOGGER.debug(pages.toString());
     return pages;
   }

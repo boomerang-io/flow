@@ -3,6 +3,7 @@ package io.boomerang.workspace;
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByFieldType;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
@@ -60,7 +61,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
@@ -69,7 +69,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.core.env.Environment;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -430,12 +429,8 @@ public class WorkspaceService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       List<String> teamRefs) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
 
     QueryCriteria criteria = new QueryCriteria();
     if (querySearch.isPresent() && !querySearch.get().isBlank()) {
@@ -456,11 +451,7 @@ public class WorkspaceService {
                 .in("status", WorkspaceStatus.class, queryStatus, "status")
                 .in("name", teamRefs)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<WorkspaceEntity> workspaceEntities = mongoTemplate.find(query, WorkspaceEntity.class);
 
@@ -471,10 +462,7 @@ public class WorkspaceService {
     }
 
     Page<Workspace> pages =
-        PageableExecutionUtils.getPage(
-            teams,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkspaceEntity.class));
+        PagingUtil.page(teams, pageable, mongoTemplate, query, WorkspaceEntity.class);
 
     return pages;
   }
@@ -687,12 +675,8 @@ public class WorkspaceService {
   // repository lookup below is by id.
   private List<ApproverGroupEntity> getApproverGroupsForTeam(String team) {
     List<String> approverGroupRefs =
-        relationshipService.filter(
-            RelationshipType.APPROVERGROUP,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, team, Optional.empty());
     List<ApproverGroupEntity> approverGroupEntities =
         approverGroupRepository.findByIdIn(approverGroupRefs);
     return approverGroupEntities;
@@ -1009,12 +993,7 @@ public class WorkspaceService {
     // work counts against the limit - it measures what is running now, which deletion
     // legitimately reduces.
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(team)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, team, Optional.empty());
     // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
     // so a just-admitted run may not be audited yet (the live count covers that race), while a
     // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE

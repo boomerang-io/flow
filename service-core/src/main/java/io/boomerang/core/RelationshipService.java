@@ -436,6 +436,21 @@ public class RelationshipService {
     return flattenedPermissionPrincipals.containsAll(toList);
   }
 
+  /**
+   * The refs of the {@code type} nodes in {@code workspace} that the current principal may see,
+   * narrowed to {@code refsOrSlugs} when given - the lookup most workspace-scoped reads and writes
+   * start from.
+   */
+  public List<String> refsInWorkspace(
+      RelationshipType type, String workspace, Optional<List<String>> refsOrSlugs) {
+    return filter(
+        type,
+        refsOrSlugs,
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(workspace)),
+        false);
+  }
+
   public List<String> filter(
       RelationshipType toType,
       Optional<List<String>> toRefsOrSlugs,

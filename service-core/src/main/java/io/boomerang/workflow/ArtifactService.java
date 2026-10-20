@@ -524,7 +524,9 @@ public class ArtifactService {
     Query query =
         Query.query(
             where("workflowRef")
-                .in(workspaceWorkflowRefs(workspace, workflow.map(List::of)))
+                .in(
+                    relationshipService.refsInWorkspace(
+                        RelationshipType.WORKFLOW, workspace, workflow.map(List::of)))
                 .and("status")
                 .in(
                     statuses
@@ -554,7 +556,8 @@ public class ArtifactService {
             .findById(artifactId)
             .filter(
                 found ->
-                    workspaceWorkflowRefs(workspace, Optional.empty())
+                    relationshipService.refsInWorkspace(
+                        RelationshipType.WORKFLOW, workspace, Optional.empty())
                         .contains(found.getWorkflowRef()))
             .orElseThrow(
                 () -> new BoomerangException(BoomerangError.ARTIFACT_INVALID_REF, artifactId));
@@ -682,16 +685,6 @@ public class ArtifactService {
             Optional.of(List.of(workspace)))) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }
-  }
-
-  /** The workspace's workflow refs the caller may see, narrowed to the named ones when given. */
-  private List<String> workspaceWorkflowRefs(String workspace, Optional<List<String>> names) {
-    return relationshipService.filter(
-        RelationshipType.WORKFLOW,
-        names,
-        Optional.of(RelationshipType.WORKSPACE),
-        Optional.of(List.of(workspace)),
-        false);
   }
 
   /**

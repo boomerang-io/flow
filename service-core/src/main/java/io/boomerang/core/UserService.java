@@ -1,5 +1,6 @@
 package io.boomerang.core;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -27,14 +28,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -350,12 +349,8 @@ public class UserService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryIds) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
 
     // TODO figure out a Ref search for querying users - lock to admin for now.
     // List<String> userRefs = relationshipService.getFilteredRefs(Optional.empty(),
@@ -369,11 +364,7 @@ public class UserService {
                 .in("status", UserStatus.class, queryStatus, "status")
                 .in("id", queryIds)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<UserEntity> entities = mongoTemplate.find(query, UserEntity.class);
     LOGGER.debug("Found " + entities.size() + " users.");
@@ -383,10 +374,7 @@ public class UserService {
       entities.forEach(e -> users.add(new User(e)));
     }
     Page<User> pages =
-        PageableExecutionUtils.getPage(
-            users,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), UserEntity.class));
+        PagingUtil.page(users, pageable, mongoTemplate, query, UserEntity.class);
 
     return pages;
   }

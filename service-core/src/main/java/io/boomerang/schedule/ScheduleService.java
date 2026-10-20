@@ -120,12 +120,7 @@ public class ScheduleService {
       Optional<List<String>> queryTypes,
       Optional<List<String>> queryWorkflows) {
     List<String> refs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            queryWorkflows,
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(queryTeam)),
-            false);
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     if (!refs.isEmpty()) {
       Query query =
           new Query(
@@ -172,12 +167,8 @@ public class ScheduleService {
   public WorkflowSchedule create(String team, final WorkflowSchedule schedule) {
     if (schedule != null && schedule.getWorkflowRef() != null) {
       List<String> refs =
-          relationshipService.filter(
-              RelationshipType.WORKFLOW,
-              Optional.of(List.of(schedule.getWorkflowRef())),
-              Optional.of(RelationshipType.WORKSPACE),
-              Optional.of(List.of(team)),
-              false);
+          relationshipService.refsInWorkspace(
+              RelationshipType.WORKFLOW, team, Optional.of(List.of(schedule.getWorkflowRef())));
       if (!refs.isEmpty()) {
         schedule.setWorkflowRef(refs.get(0));
         WorkflowScheduleEntity scheduleEntity = internalCreate(team, schedule);

@@ -1,5 +1,6 @@
 package io.boomerang.core;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.TokenEntity;
@@ -37,14 +38,12 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -474,12 +473,8 @@ public class TokenService {
       Optional<String> querySort,
       Optional<List<AuthScope>> queryTypes,
       Optional<List<String>> queryPrincipals) {
-    Pageable pageable = Pageable.unpaged();
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("creationDate")));
-    if (queryLimit.isPresent()) {
-      pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
-    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -487,11 +482,7 @@ public class TokenService {
                 .in("type", queryTypes)
                 .in("principal", queryPrincipals)
                 .build());
-    if (queryLimit.isPresent()) {
-      query.with(pageable);
-    } else {
-      query.with(sort);
-    }
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
     List<TokenEntity> entities = mongoTemplate.find(query, TokenEntity.class);
 
@@ -504,10 +495,7 @@ public class TokenService {
         });
 
     Page<Token> pages =
-        PageableExecutionUtils.getPage(
-            response,
-            pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), TokenEntity.class));
+        PagingUtil.page(response, pageable, mongoTemplate, query, TokenEntity.class);
 
     return pages;
   }

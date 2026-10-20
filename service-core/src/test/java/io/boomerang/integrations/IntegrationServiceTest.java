@@ -53,8 +53,7 @@ class IntegrationServiceTest {
   void linksEachIntegrationByTheRefOfItsOwnType() {
     when(templates.findAllByStatus("active"))
         .thenReturn(List.of(template("GitHub", "github_app"), template("Slack", "slack")));
-    when(relationships.filter(
-            any(RelationshipType.class), any(), any(), any(), any(Boolean.class)))
+    when(relationships.refsInWorkspace(any(RelationshipType.class), anyString(), any()))
         .thenReturn(List.of("slack-ref", "github-ref"));
     when(integrations.findByIdAndType(anyString(), anyString())).thenReturn(Optional.empty());
     when(integrations.findByIdAndType("github-ref", "github_app"))
@@ -80,8 +79,7 @@ class IntegrationServiceTest {
   @Test
   void leavesAnIntegrationWithNoRefOfItsTypeUnlinked() {
     when(templates.findAllByStatus("active")).thenReturn(List.of(template("Slack", "slack")));
-    when(relationships.filter(
-            any(RelationshipType.class), any(), any(), any(), any(Boolean.class)))
+    when(relationships.refsInWorkspace(any(RelationshipType.class), anyString(), any()))
         .thenReturn(List.of("github-ref"));
     when(integrations.findByIdAndType(anyString(), anyString())).thenReturn(Optional.empty());
 
