@@ -96,7 +96,8 @@ tag's release notes.
 - A retry can start from the tasks that did not succeed, or from named tasks: `PUT …/workflowrun/{id}/retry` takes
   an optional `{scope: all | failed | nodes, nodes, params, labels}`. The rest is carried over as copies marked
   `reusedFromRef`, and the run records `retryFrom`. The run page's Retry run and each task's Retry from here open
-  the same choice.
+  the same choice. The new run starts with an empty run workspace, so files the carried-over tasks wrote there are
+  not carried over; pass them as workflow-scoped artifacts, or re-run everything. The dialog says so.
 - `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
   and never written to a log.
 - The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that

@@ -178,8 +178,12 @@ downstream of the retry point is copied under the new run with its results and a
 claim, deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and
 only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Queueing refuses a completed task
 run, so the start advances from the copies as if each had just ended (`WorkflowExecutionService.java:203-207`).
-Everything that did not succeed re-runs
-in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
+The new run gets a workspace volume of its own, empty like any run's ("Volumes and workspaces" in
+`dispatcher-kubernetes.md`): files the carried-over tasks wrote to the origin's workspace are not in it, so a re-run
+task that reads one fails. A file that a retry point may separate from its reader travels as a workflow-scoped
+artifact (the upload and download artifact tasks), which outlives the run; otherwise the retry takes `scope: all`.
+The retry dialog warns of this for a scoped retry of a run with a workspace
+(`client-web/.../RetryRunModal.tsx:94-95,155-164`). Everything that did not succeed re-runs in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
 tasks stay on the new run; the ones a re-run set-property task writes are dropped first. A scoped retry of an
 origin that is still active cancels the origin after the new run is queued, so one lineage never has two live
 runs; a plain retry leaves the origin alone. The run records the point as `retryFrom`. Refused before anything is

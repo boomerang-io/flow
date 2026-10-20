@@ -31,10 +31,10 @@ origin after the new run is written, as Temporal's reset terminates the original
 
 - A carried-over task run's log is streamed from the origin (`streamTaskRunLog`); retention and purge-by-run must
   hold a run while a newer run's task runs point at it.
-- A for-each parent re-runs whole; re-running only its failed items is deferred until a workflow proves the need,
-  since a retry resolves the items again and copies reused by position are correct only when they resolve identically.
+- Workspace files are not carried over: the new run gets an empty volume. Files a retry may split from their reader
+  travel as workflow-scoped artifacts and the dialog warns; handing a retry the origin's volume waits for a need.
+- A for-each parent re-runs whole: a retry resolves its items again, so copies reused by position could be wrong.
   Per-item retries belong in a child workflow fanned out by a `runworkflow` for-each; a failed child is retried alone.
-- Per-task param overrides are not built: the plan sets task params from the revision in `createTaskList`, so
-  they would be a `DAGUtility` change to review on its own. Prompt templates that must change between retries
-  belong in run params.
+- Per-task param overrides are not built: the plan sets task params from the revision in `createTaskList`, so they
+  would be a `DAGUtility` change to review on its own; values that change between retries belong in run params.
 - Running the latest revision is refused: copies are matched by name and a changed graph can orphan them.

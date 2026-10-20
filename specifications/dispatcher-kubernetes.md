@@ -189,8 +189,8 @@ storage is one workspace per run, declared on the workflow and copied onto the r
 `mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher provisions one persistent volume claim
 (PVC) keyed by the run id, labelled `boomerang.io/tier=workspace` and `boomerang.io/workspace-ref=<run id>`, before
 the run starts (`dispatcher/WorkflowService.java:42-57`), and deletes it when its reconciliation finds the run
-completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume is shared between runs: files that must survive
-a run are artifacts with scope `workflow` ("Artifacts" in `data-model.md`). Both executors mount that one claim at
+completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume is shared between runs, a retry and its origin
+included: files that must survive a run are artifacts with scope `workflow` ("Artifacts" in `data-model.md`). Both executors mount that one claim at
 the TaskRun's path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212-217`, one declaration and one
 binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
 hold the claim, so under `Never` it stays `Terminating` until retention removes them.
