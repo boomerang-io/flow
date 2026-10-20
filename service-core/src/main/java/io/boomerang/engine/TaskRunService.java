@@ -588,8 +588,9 @@ public class TaskRunService {
   }
 
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
-  // set only when provided; claimant identity enforced as fencing when provided. Returns the
-  // pre-image, or null when already completed - a terminal status is never overwritten.
+  // set only when provided; claimant identity enforced as fencing when provided. The deadline and
+  // the lease go with it, so the timeout and lease sweeps' sparse indexes hold only live work.
+  // Returns the pre-image, or null when already completed - a terminal status is never overwritten.
   public TaskRunEntity tryComplete(
       String id,
       Optional<RunStatus> status,
@@ -608,7 +609,8 @@ public class TaskRunService {
         new Update()
             .set("phase", RunPhase.completed)
             .set("duration", duration)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
@@ -707,7 +709,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", "DeadlineExceeded")
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -730,7 +733,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", statusReason)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {

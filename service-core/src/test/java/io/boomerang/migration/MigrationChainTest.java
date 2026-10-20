@@ -530,6 +530,38 @@ class MigrationChainTest {
   }
 
   /**
+   * A completed task run keeps no lease: the unit clears one left from before completion cleared
+   * it, leaves a live claim's lease alone, and finds nothing on a second run.
+   */
+  @Test
+  void completedTaskRunsLoseTheirLeaseAndLiveClaimsKeepIt() {
+    MongoDatabase db = migrate("completed-task-leases");
+    MongoCollection<Document> taskRuns = collection(db, "task_runs");
+    java.util.Date lease = new java.util.Date();
+    taskRuns.insertOne(
+        new Document("_id", "done")
+            .append("workflowRunRef", "run-1")
+            .append("name", "done")
+            .append("phase", "completed")
+            .append("claim", new Document("by", "d1").append("leaseExpiresAt", lease)));
+    taskRuns.insertOne(
+        new Document("_id", "live")
+            .append("workflowRunRef", "run-1")
+            .append("name", "live")
+            .append("phase", "running")
+            .append("claim", new Document("by", "d1").append("leaseExpiresAt", lease)));
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0025__ClearCompletedTaskLeases().execute(db, environment);
+    new _0025__ClearCompletedTaskLeases().execute(db, environment);
+
+    Document doneClaim = taskRuns.find(Filters.eq("_id", "done")).first().get("claim", Document.class);
+    assertThat(doneClaim).doesNotContainKey("leaseExpiresAt").containsEntry("by", "d1");
+    Document liveClaim = taskRuns.find(Filters.eq("_id", "live")).first().get("claim", Document.class);
+    assertThat(liveClaim).containsKey("leaseExpiresAt");
+  }
+
+  /**
    * The seed carries no ids: every seeded document takes one from MongoDB, and a revision or a
    * template task points at its catalogue task by that task's live id.
    */

@@ -71,6 +71,28 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void completingAClaimedTaskClearsItsLeaseSoTheSweepIndexHoldsOnlyLiveClaims() {
+    TaskRunEntity taskRun =
+        claimedTaskRun(
+            "lease-cleared-on-complete",
+            "dispatcher-c",
+            new Date(System.currentTimeMillis() + 60_000));
+
+    taskRunService.tryComplete(
+        taskRun.getId(),
+        java.util.Optional.of(RunStatus.succeeded),
+        java.util.Optional.empty(),
+        0L,
+        java.util.Optional.of("dispatcher-c"),
+        java.util.Optional.empty());
+
+    TaskRunEntity completed = taskRunRepository.findById(taskRun.getId()).orElseThrow();
+    assertEquals(RunPhase.completed, completed.getPhase());
+    assertEquals("dispatcher-c", completed.getClaim().getBy(), "the claimant stays for termination");
+    assertEquals(null, completed.getClaim().getLeaseExpiresAt());
+  }
+
+  @Test
   void aLeaseInTheFutureIsUntouched() {
     TaskRunEntity taskRun =
         claimedTaskRun(
