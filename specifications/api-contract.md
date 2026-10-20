@@ -235,8 +235,8 @@ and `data.status`/`data.phase` are that transition's status and phase, and the r
 stands when the event is sent (`event/OutboxDispatcher.java:97-115`). A redelivery carries the same `id`, so a
 consumer MAY drop an `id` it has already handled (`source` plus `id` is unique). A task event is sent for every task
 the run executes; the graph's start and end nodes send none, and the run's own event reports its end
-(`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, sends one event, when it completes
-(`:78-83`).
+(`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, completes in one write and sends
+one event; a run timeout sends one (`engine/TaskRunService.java:533`, `WorkflowExecutionService.java:221`).
 
 | Envelope field | Value |
 | --- | --- |

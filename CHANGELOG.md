@@ -144,6 +144,9 @@ tag's release notes.
 - A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
   `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
 - The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
+- The engine ends a task it decided the end of - a skip, an admission refusal, an engine-run task's result, a for-each
+  parent's outcome - in one write that carries the outcome, so a timeout that lands meanwhile is never rolled back
+  and each such end publishes one transition.
 - A workspace's monthly run-duration figures (`currentRunTotalDuration`, `currentRunAverageDuration`) cover the
   whole UTC calendar month. They used to stop at midnight before the month's last day, so that day's runs were
   never counted.
@@ -165,7 +168,7 @@ tag's release notes.
   carry the run's later status, so one change could arrive as two or three copies of a later state. Its
   CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
   the transition occurred rather than when it was sent. The graph's end node no longer sends a task event; the
-  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two.
+  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two. A workflow timeout sends one where it sent two.
 - A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
   code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
   actor, where it named `system`.
