@@ -162,25 +162,13 @@ public class TaskExecutionService {
     Optional<WorkflowRunEntity> wfRunEntity =
         workflowRunRepository.findById(taskExecution.getWorkflowRunRef());
     if (!wfRunEntity.isPresent()) {
-      updateStatusAndSaveTask(
-          taskExecution,
-          RunStatus.cancelled,
-          RunPhase.completed,
-          Optional.of("Unable to find WorkflowRun"));
+      completeUnrun(taskExecution, RunStatus.cancelled, "Unable to find WorkflowRun");
       return;
     } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
-      // Set duration. If in Queued. There will be no start time.
-      long duration =
-          taskExecution.getStartTime() != null
-              ? new Date().getTime() - taskExecution.getStartTime().getTime()
-              : 0;
-      taskExecution.setDuration(duration);
-      updateStatusAndSaveTask(
+      completeUnrun(
           taskExecution,
           RunStatus.skipped,
-          RunPhase.completed,
-          Optional.of(
-              "[{}] WorkflowRun has been marked as {}. TaskRun was never queued, setting TaskRun as Skipped."),
+          "[{}] WorkflowRun has been marked as {}. TaskRun was never queued, setting TaskRun as Skipped.",
           wfRunEntity.get().getId(),
           wfRunEntity.get().getStatus());
       return;
@@ -326,25 +314,13 @@ public class TaskExecutionService {
     Optional<WorkflowRunEntity> wfRunEntity =
         workflowRunRepository.findById(taskExecution.getWorkflowRunRef());
     if (!wfRunEntity.isPresent()) {
-      updateStatusAndSaveTask(
-          taskExecution,
-          RunStatus.cancelled,
-          RunPhase.completed,
-          Optional.of("Unable to find WorkflowRun"));
+      completeUnrun(taskExecution, RunStatus.cancelled, "Unable to find WorkflowRun");
       return;
     } else if (RunPhase.completed.equals(wfRunEntity.get().getPhase())) {
-      // Set duration. If in Queued. There will be no start time.
-      long duration =
-          taskExecution.getStartTime() != null
-              ? new Date().getTime() - taskExecution.getStartTime().getTime()
-              : 0;
-      taskExecution.setDuration(duration);
-      updateStatusAndSaveTask(
+      completeUnrun(
           taskExecution,
           RunStatus.cancelled,
-          RunPhase.completed,
-          Optional.of(
-              "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion."),
+          "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",
           wfRunEntity.get().getId(),
           wfRunEntity.get().getStatus());
       return;
@@ -1627,21 +1603,23 @@ public class TaskExecutionService {
     return taskRunEntity;
   }
 
-  public void updateStatusAndSaveTask(
-      TaskRunEntity taskExecution,
-      RunStatus status,
-      RunPhase phase,
-      Optional<String> message,
-      Object... messageArgs) {
-    if (message.isPresent()) {
-      String formatted = MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage();
-      taskExecution.setStatusMessage(formatted);
-      if (RunStatus.failed.equals(status)) {
-        LOGGER.error(formatted);
-      }
-    }
-    taskExecution.setStatus(status);
-    taskExecution.setPhase(phase);
-    taskRunRepository.save(taskExecution);
+  /*
+   * End a TaskRun that will not run - its run is gone or already completed - through the completion
+   * Compare-And-Set, so the end is published (audit, events, a waiting parent) like any other and a
+   * caller that lost the race to another transition changes nothing.
+   */
+  private void completeUnrun(
+      TaskRunEntity taskExecution, RunStatus status, String message, Object... messageArgs) {
+    long duration =
+        (taskExecution.getStartTime() != null)
+            ? new Date().getTime() - taskExecution.getStartTime().getTime()
+            : 0;
+    taskRunService.tryComplete(
+        taskExecution.getId(),
+        Optional.of(status),
+        Optional.of(MessageFormatter.arrayFormat(message, messageArgs).getMessage()),
+        duration,
+        Optional.empty(),
+        Optional.empty());
   }
 }
