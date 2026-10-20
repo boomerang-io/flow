@@ -324,7 +324,8 @@ after a release needs a change unit of its own to reach an existing database, wh
 what `_0024__SeedAiImageInputRevisions` is for their revision 2. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
-(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
+(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`); the run each starts
+or schedules gets only its node's other params. On an upgraded v3
 install, `_0019__V3UpgradeCatalogueRevisions` adds whichever of them the seeded revision declares and the install's
 revision lacks, and moves any revision off the retired `worker-flow` image (`:44-46,72`).
 

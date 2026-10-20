@@ -281,11 +281,13 @@ it can't read has no next occurrence and never fires.
 ## Child workflows
 
 A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1146-1226`). The
-child is submitted with the task's own params minus `workflowRef` and `wait` (`childParams` `:1228-1234`): the
+child is submitted with the task's own params minus `workflowRef` and `wait` (`childParams` `:1206-1211`): the
 values its node passes, which the designer's Run Workflow modal lists from the child's declared params, and under
 for-each the item's `item` and `index`. The parent run's params are not handed down. A node's params beyond
 `workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses any other with
-`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`).
+`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`). A
+`runscheduledworkflow` task schedules its run with the same rule, also leaving out the `futureIn`, `futurePeriod`,
+`timezone` and `time` it reads itself (`:1320-1323`).
 
 **Lineage.** The child is submitted through the lineage-stamping overload
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and

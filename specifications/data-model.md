@@ -77,7 +77,7 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
 | Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
-`claim.leaseExpiresAt` is written by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `renewLeases`) and unset on requeue (`:583`);
+`claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion, timeout, abandon and requeue (`tryComplete` `:613`, `tryTimeout` `:713`, `tryAbandon` `:737`, requeue `:801`), so the sparse `lease_sweep` index holds only live claims;
 crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:45-51`) and `ControlStateFieldsTest`
 (`retry-of`, `retry-count`, `timeout-cause` are never written as annotations).
@@ -265,6 +265,7 @@ a release ships the chain, changes are appended as new units.
 | `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0106) |
 | `_0023__SeedAiTaskFamily` | all | Inserts `ai-prompt` and `ai-agent` from the seed files on a database seeded before they joined the catalogue; an empty database already has them from `_0017`. An install's earlier `ai` task, no longer shipped, is left as it is |
 | `_0024__SeedAiImageInputRevisions` | all | Inserts revision 2 of `ai-prompt` and `ai-agent` (image input, task-ai 2.1.0) where an install holds the task but not that revision; revision 1 is never touched, and a task the install does not hold gets nothing. An empty database already has both revisions from `_0017` |
+| `_0025__ClearCompletedTaskLeases` | all | Unsets `claim.leaseExpiresAt` on completed task runs, which kept it before completion cleared it; a live claim's lease is untouched. Empty and v3 databases have none |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

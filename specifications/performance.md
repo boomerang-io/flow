@@ -16,7 +16,8 @@ instance. Correctness rests on three primitives, all in the live path:
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:36-41` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
 Crash recovery is the lease the claim sets 90 s ahead and each 30 s heartbeat renews
-(`TaskRunService.java:323`, `:638`; served by the `lease_sweep` index, `_0021__Indexes.java:62`), the absolute
+(`TaskRunService.java:323`, `:640`; served by the sparse `lease_sweep` index, `_0021__Indexes.java:62`, which holds
+only live claims because completion clears the lease, `:613`), the absolute
 `timeoutAt` written at claim = now + timeout + 5 s grace (`engine/RunTimeouts.java:14-17`), and the gone-dispatcher
 sweep below.
 
