@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +41,7 @@ import org.springframework.web.bind.annotation.RestController;
 /*
  * The extensions management controller
  *
- * The Slack extension depends on the SlackSecurityVerificationFilter
+ * The inbound Slack routes accept only a request Slack signed (SlackService.verifySignature).
  */
 @RestController
 @RequestMapping("/api/v2/integration")
@@ -53,9 +54,13 @@ public class IntegrationControllerV2 {
   // Shared by the five Slack routes.
   private static final String SLACK_EXEMPT_REASON =
       "Meant for Slack, which cannot hold a Flow token. Not reachable by Slack today: the route is"
-          + " outside SecurityConfiguration's permit list, so a Flow credential is still required,"
-          + " and request-signature verification is not wired. A signed-in caller meets no"
-          + " permission rule here - the legacy integration, boomerang-io/flow#374.";
+          + " outside SecurityConfiguration's permit list, so a Flow credential is still required."
+          + " The three inbound POST routes accept only a request Slack signed with the configured"
+          + " signing secret - the legacy integration, boomerang-io/flow#374.";
+
+  // The headers Slack signs every request with.
+  private static final String SLACK_TIMESTAMP_HEADER = "x-slack-request-timestamp";
+  private static final String SLACK_SIGNATURE_HEADER = "x-slack-signature";
 
   @Autowired private IntegrationService integrationService;
 
@@ -121,17 +126,15 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  ResponseEntity<?> receiveSlackCommand(HttpServletRequest request
-      // @RequestBody String body
-      // @RequestHeader("x-slack-request-timestamp") String timestamp,
-      // @RequestHeader("x-slack-signature") String signature,
-      // @RequestParam MultiValueMap<String, String> slackEvent
-      ) throws IOException {
-    // LOGGER.debug("Signature: " + signature);
-    // LOGGER.debug("Timestamp: " + timestamp);
-    // LOGGER.debug("Payload: " + slackEvent);
-
-    CompletableFuture.supplyAsync(slackService.createRunModal(requestValueMapper(request)));
+  ResponseEntity<?> receiveSlackCommand(
+      HttpServletRequest request,
+      @RequestHeader(value = SLACK_TIMESTAMP_HEADER, required = false) String timestamp,
+      @RequestHeader(value = SLACK_SIGNATURE_HEADER, required = false) String signature) {
+    String body = rawBody(request);
+    if (!slackService.verifySignature(signature, timestamp, body)) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    CompletableFuture.supplyAsync(slackService.createRunModal(formValues(body)));
     return ResponseEntity.ok().build();
   }
 
@@ -146,15 +149,15 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  ResponseEntity<?> receiveSlackInteractivity(HttpServletRequest request
-      // @RequestHeader("x-slack-request-timestamp") String timestamp,
-      // @RequestHeader("x-slack-signature") String signature,
-      // @RequestParam MultiValueMap<String, String> slackEvent
-      ) {
-    // LOGGER.debug(slackEvent);
-    // JsonNode payload = objectMapper.readTree(slackEvent.get("payload").get(0));
-    Map<String, String> slackEvent = requestValueMapper(request);
-    JsonNode payload = objectMapper.readTree(slackEvent.get("payload"));
+  ResponseEntity<?> receiveSlackInteractivity(
+      HttpServletRequest request,
+      @RequestHeader(value = SLACK_TIMESTAMP_HEADER, required = false) String timestamp,
+      @RequestHeader(value = SLACK_SIGNATURE_HEADER, required = false) String signature) {
+    String body = rawBody(request);
+    if (!slackService.verifySignature(signature, timestamp, body)) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    JsonNode payload = objectMapper.readTree(formValues(body).get("payload"));
     if (payload.has("type") && "view_submission".equals(payload.get("type").asText())) {
       CompletableFuture.supplyAsync(slackService.executeRunModal(payload));
     } else if (payload.has("type")) {
@@ -178,11 +181,13 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   ResponseEntity<?> receiveSlackEvent(
-      HttpServletRequest request,
-      @RequestHeader("x-slack-request-timestamp") String timestamp,
-      @RequestHeader("x-slack-signature") String signature,
-      @RequestBody JsonNode payload) {
-    LOGGER.info(payload);
+      @RequestHeader(value = SLACK_TIMESTAMP_HEADER, required = false) String timestamp,
+      @RequestHeader(value = SLACK_SIGNATURE_HEADER, required = false) String signature,
+      @RequestBody String body) {
+    if (!slackService.verifySignature(signature, timestamp, body)) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+    JsonNode payload = objectMapper.readTree(body);
     if (payload.has("challenge")) {
       LOGGER.info("Challenge: " + payload.get("challenge"));
       return ResponseEntity.ok().body(payload.get("challenge"));
@@ -200,31 +205,25 @@ public class IntegrationControllerV2 {
     return ResponseEntity.ok().build();
   }
 
-  /*
-   * Helper method for retrieving the URL Parameters that aren't accessible after the Spring Boot
-   * filters
-   *
-   * Workaround reference: https://www.baeldung.com/java-url-encoding-decoding
-   */
-  private Map<String, String> requestValueMapper(HttpServletRequest request) {
-    String body = "";
+  // The body exactly as Slack sent it: the signature is over these bytes, so a form route reads the
+  // stream itself rather than letting Spring bind parameters. An unreadable body fails the check.
+  private static String rawBody(HttpServletRequest request) {
     try {
-      body = new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+      return new String(request.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
+      return null;
     }
-    LOGGER.debug("Body: " + body);
+  }
 
-    Map<String, String> result =
-        Arrays.stream(body.split("&"))
-            .map(i -> i.split("="))
-            .collect(
-                Collectors.toMap(
-                    a -> a[0],
-                    a -> a.length > 1 ? URLDecoder.decode(a[1], StandardCharsets.UTF_8) : ""));
-    LOGGER.debug("Map: " + result.toString());
-    return result;
+  // A form-encoded body as name to value, values URL-decoded.
+  private static Map<String, String> formValues(String body) {
+    return Arrays.stream(body.split("&"))
+        .map(pair -> pair.split("=", 2))
+        .collect(
+            Collectors.toMap(
+                pair -> pair[0],
+                pair -> pair.length > 1 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "",
+                (first, second) -> first));
   }
 
   /*

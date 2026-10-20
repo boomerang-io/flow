@@ -20,6 +20,7 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -158,6 +159,47 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
             .getValue());
     // The parent run's own param is not handed down; the node passed only greeting.
     assertTrue(childRun.getParams().stream().noneMatch(p -> "who".equals(p.getName())));
+  }
+
+  /*
+   * A child with nothing to run is completed invalid as it is queued. With a workspace the submit
+   * returns it unstarted, so only its published end can release the parent that waits on it.
+   */
+  @Test
+  void aChildInvalidWhenQueuedEndsItsWaitingParent() {
+    Workflow empty = new Workflow();
+    empty.setName("child-invalid-at-queue-" + System.nanoTime());
+    empty.setWorkspace(new WorkflowWorkspace());
+    empty.setTasks(
+        new LinkedList<>(
+            List.of(
+                node("start", TaskType.start, null, null, null),
+                node("end", TaskType.end, null, "start", null))));
+    Workflow child = workflowService.create(empty, false).getBody();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        child.getId(),
+        child.getName(),
+        Optional.empty(),
+        Optional.empty());
+    String parentWorkflowId = createParentWorkflow("parent-invalid-child", child.getId(), true);
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the waiting parent task ends with its invalid child")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = parentTask(parentRunId);
+              assertNotNull(task);
+              assertEquals(RunPhase.completed, task.getPhase());
+              assertEquals(RunStatus.failed, task.getStatus());
+            });
+    String childRunId = resultValue(parentTask(parentRunId), "workflowRunRef");
+    assertEquals(
+        RunStatus.invalid, workflowRunRepository.findById(childRunId).orElseThrow().getStatus());
   }
 
   @Test

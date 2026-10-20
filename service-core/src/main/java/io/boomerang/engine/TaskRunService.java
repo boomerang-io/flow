@@ -46,6 +46,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.slf4j.helpers.MessageFormatter;
 
 /*
  * Handles CRUD of TaskRuns
@@ -587,9 +588,27 @@ public class TaskRunService {
     return mongoTemplate.exists(query, TaskRunEntity.class);
   }
 
+  // Completion Compare-And-Set for a TaskRun that will not run - its run is gone or already
+  // completed - with its status and a formatted message, so its end is published like any other.
+  public TaskRunEntity tryComplete(
+      TaskRunEntity taskRun, RunStatus status, String message, Object... messageArgs) {
+    long duration =
+        (taskRun.getStartTime() != null)
+            ? new Date().getTime() - taskRun.getStartTime().getTime()
+            : 0;
+    return tryComplete(
+        taskRun.getId(),
+        Optional.of(status),
+        Optional.of(MessageFormatter.arrayFormat(message, messageArgs).getMessage()),
+        duration,
+        Optional.empty(),
+        Optional.empty());
+  }
+
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
-  // set only when provided; claimant identity enforced as fencing when provided. Returns the
-  // pre-image, or null when already completed - a terminal status is never overwritten.
+  // set only when provided; claimant identity enforced as fencing when provided. The deadline and
+  // the lease go with it, so the timeout and lease sweeps' sparse indexes hold only live work.
+  // Returns the pre-image, or null when already completed - a terminal status is never overwritten.
   public TaskRunEntity tryComplete(
       String id,
       Optional<RunStatus> status,
@@ -608,7 +627,8 @@ public class TaskRunService {
         new Update()
             .set("phase", RunPhase.completed)
             .set("duration", duration)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
@@ -707,7 +727,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", "DeadlineExceeded")
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -730,7 +751,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", statusReason)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {

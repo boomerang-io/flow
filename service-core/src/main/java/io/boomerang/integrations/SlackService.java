@@ -4,8 +4,6 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import com.slack.api.Slack;
-import com.slack.api.app_backend.SlackSignature.Generator;
-import com.slack.api.app_backend.SlackSignature.Verifier;
 import com.slack.api.methods.SlackApiException;
 import com.slack.api.methods.request.users.UsersInfoRequest;
 import com.slack.api.methods.response.chat.ChatPostMessageResponse;
@@ -37,6 +35,13 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.HexFormat;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -60,12 +65,15 @@ import org.springframework.web.client.HttpClientErrorException;
  * The Slack app needs the following oauth scopes: - chat:write - commands - users:read -
  * users:read:email
  *
- * This service depends on the SlackSecurityVerificationFilter
+ * Inbound Slack requests are checked against the signing secret first (verifySignature).
  */
 @Service
 public class SlackService {
 
   private static final Logger LOGGER = LogManager.getLogger();
+
+  // How far a Slack request's timestamp may be from now before it is refused as a replay.
+  private static final long SIGNATURE_MAX_AGE_SECONDS = 300;
 
   private static final String MODAL_TEXT_TAGLINE =
       "The better way to automate with no-code workflow automation.";
@@ -861,21 +869,54 @@ public class SlackService {
   }
 
   /*
-   * Utlity method for verifying requests are signed by Slack
-   *
-   * <h4>Specifications</h4> <ul> <li><a
-   * href="https://api.slack.com/authentication/verifying-requests-from-slack">Verifying Requests
-   * from Slack</a></li> </ul>
+   * Whether a request was signed by Slack with the configured signing secret
+   * (https://api.slack.com/authentication/verifying-requests-from-slack). With no secret configured
+   * nothing is accepted.
    */
-  public Boolean verifySignature(String signature, String timestamp, String body) {
-    String key =
-        this.settingsService.getSettingConfig("integration", "slack.signingSecret").getValue();
-    LOGGER.debug("Slack Timestamp: " + timestamp);
-    LOGGER.debug("Slack Body: " + body);
-    Generator generator = new Generator(key);
-    Verifier verifier = new Verifier(generator);
-    LOGGER.debug("Slack Signature: " + signature);
-    LOGGER.debug("Computed Signature: " + generator.generate(timestamp, body));
-    return verifier.isValid(timestamp, body, signature);
+  public boolean verifySignature(String signature, String timestamp, String body) {
+    String secret;
+    try {
+      secret = settingsService.getSettingConfig("integration", "slack.signingSecret").getValue();
+    } catch (IllegalArgumentException e) {
+      secret = null;
+    }
+    if (secret == null || secret.isBlank()) {
+      LOGGER.warn("Refusing a Slack request: no Slack signing secret is configured.");
+      return false;
+    }
+    return isSignedBy(secret, signature, timestamp, body, Instant.now());
+  }
+
+  // v0= + hex HMAC-SHA256 of v0:{timestamp}:{raw body}, compared in constant time; a timestamp more
+  // than five minutes from now is refused, so a captured request cannot be replayed later.
+  static boolean isSignedBy(
+      String secret, String signature, String timestamp, String body, Instant now) {
+    if (signature == null || timestamp == null || body == null) {
+      return false;
+    }
+    long sentAt;
+    try {
+      sentAt = Long.parseLong(timestamp.trim());
+    } catch (NumberFormatException e) {
+      return false;
+    }
+    if (Math.abs(now.getEpochSecond() - sentAt) > SIGNATURE_MAX_AGE_SECONDS) {
+      return false;
+    }
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+      String expected =
+          "v0="
+              + HexFormat.of()
+                  .formatHex(
+                      mac.doFinal(
+                          ("v0:" + timestamp.trim() + ":" + body)
+                              .getBytes(StandardCharsets.UTF_8)));
+      return MessageDigest.isEqual(
+          expected.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
+    } catch (GeneralSecurityException e) {
+      return false;
+    }
   }
 }

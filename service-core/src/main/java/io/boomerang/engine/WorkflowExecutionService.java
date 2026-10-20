@@ -25,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
-import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
@@ -90,15 +89,17 @@ public class WorkflowExecutionService {
         return;
       }
     }
-    // The run IS the record of this outcome: it is persisted as invalid/completed and the
-    // submit response carries that status truthfully. Throwing here as well turned a
-    // half-persisted result into a 500 for the caller. Starting an invalid run still fails
-    // loudly - start() rejects any phase other than pending/queued.
-    updateStatusAndSaveWorkflow(
-        wfRunEntity,
+    // The run IS the record of this outcome: it is completed as invalid and the submit response
+    // carries that status truthfully. Throwing here as well turned a half-persisted result into a
+    // 500 for the caller. Starting an invalid run still fails loudly - start() rejects any phase
+    // other than pending/queued. Completed through the Compare-And-Set so the end is published: a
+    // child run that is invalid ends its waiting parent, and the run is audited like any other.
+    workflowRunStateHelper.tryComplete(
+        wfRunEntity.getId(),
+        List.of(RunPhase.pending, RunPhase.queued),
         RunStatus.invalid,
-        RunPhase.completed,
-        Optional.of("Failed to run workflow: incomplete, or invalid, workflow"));
+        "Failed to run workflow: incomplete, or invalid, workflow",
+        0);
     LOGGER.error(
         "[{}] Failed to run workflow: incomplete, or invalid, workflow. Run marked invalid.",
         wfRunEntity.getId());
@@ -206,11 +207,12 @@ public class WorkflowExecutionService {
           taskExecutionService.advance(wfRunEntity.getId());
         }
       } catch (Exception e) {
-        updateStatusAndSaveWorkflow(
-            wfRunEntity,
+        workflowRunStateHelper.tryComplete(
+            wfRunEntity.getId(),
+            List.of(RunPhase.running),
             RunStatus.invalid,
-            RunPhase.completed,
-            Optional.of("Failed to run workflow: unable to process Workflow and queue all tasks."));
+            "Failed to run workflow: unable to process Workflow and queue all tasks.",
+            RunTimeouts.executionMillis(wfRunEntity, new Date()));
         throw new BoomerangException(
             1000,
             "WORKFLOW_RUNTIME_EXCEPTION",
@@ -312,18 +314,4 @@ public class WorkflowExecutionService {
     }
   }
 
-  private void updateStatusAndSaveWorkflow(
-      WorkflowRunEntity workflowExecution,
-      RunStatus status,
-      RunPhase phase,
-      Optional<String> message,
-      Object... messageArgs) {
-    if (message.isPresent()) {
-      workflowExecution.setStatusMessage(
-          MessageFormatter.arrayFormat(message.get(), messageArgs).getMessage());
-    }
-    workflowExecution.setStatus(status);
-    workflowExecution.setPhase(phase);
-    workflowRunRepository.save(workflowExecution);
-  }
 }

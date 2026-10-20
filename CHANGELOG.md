@@ -86,6 +86,12 @@ tag's release notes.
   claim its dispatcher stops reporting is requeued even when the dispatcher restarts under the same id. Flow's
   Kubernetes dispatcher and the dispatcher SDK heartbeat every 30 s from the claim; a dispatcher written against
   the protocol directly that sends no heartbeat has every claim requeued 90 s after it was made.
+- **The first start clears the lease from completed task runs.** Change unit `_0025__ClearCompletedTaskLeases`
+  runs one update over `task_runs`; completion now clears the lease itself, so the lease sweep reads only live
+  claims. Nothing else changes and no setting is involved.
+- **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
+  integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
+  refuse every request.
 
 ### Added
 
@@ -124,6 +130,12 @@ tag's release notes.
 
 ### Changed
 
+- A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
+  the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
+  parent waiting on it, and such a run is audited and counted against quota.
+- A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
+  `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
+- The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
 - A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
   other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
   Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
