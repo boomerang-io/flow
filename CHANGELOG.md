@@ -96,7 +96,8 @@ tag's release notes.
 - A retry can start from the tasks that did not succeed, or from named tasks: `PUT …/workflowrun/{id}/retry` takes
   an optional `{scope: all | failed | nodes, nodes, params, labels}`. The rest is carried over as copies marked
   `reusedFromRef`, and the run records `retryFrom`. The run page's Retry run and each task's Retry from here open
-  the same choice.
+  the same choice. The new run starts with an empty run workspace, so files the carried-over tasks wrote there are
+  not carried over; pass them as workflow-scoped artifacts, or re-run everything. The dialog says so.
 - `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
   and never written to a log.
 - The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that
@@ -105,7 +106,8 @@ tag's release notes.
   task's results.
 - A run-workflow node may carry params its child workflow declares, such as an upstream task's result; the child
   run receives them resolved. A param the child does not declare is refused at save with
-  `WORKFLOW_INVALID_CHILD_PARAM` (1218).
+  `WORKFLOW_INVALID_CHILD_PARAM` (1218). A child run receives only the params its node passes, plus `item` and
+  `index` under for-each; the parent run's params are not handed down, as in v3.
 - Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
   run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
   OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.

@@ -1182,7 +1182,7 @@ public class TaskExecutionService {
       String workflowRef = workflowRefValue.toString();
       WorkflowSubmitRequest request = new WorkflowSubmitRequest();
       request.setTrigger(TriggerEnum.task);
-      request.setParams(childParams(taskExecution, wfRunEntity));
+      request.setParams(childParams(taskExecution));
       request.setAnnotations(wfRunEntity.getAnnotations());
       // The child's own Workflow declares its workspace; the parent's is not handed down.
       request.setTimeout(wfRunEntity.getTimeout());
@@ -1221,25 +1221,16 @@ public class TaskExecutionService {
   }
 
   /*
-   * The params a child run is submitted with: copies of the parent run's, with the task's own
-   * written over them - which is how a for-each item hands its item and index to its child - minus
-   * the two that address the task itself. Copies, so the merge never touches the parent run.
+   * The params a child run is submitted with: copies of the task's own - the values its node passes,
+   * and a for-each item's item and index - minus the two that address the task itself. The parent
+   * run's params are not handed down: a child gets only what its node passes.
    */
-  private static List<RunParam> childParams(
-      TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
-    List<RunParam> params =
-        wfRunEntity.getParams().stream()
-            .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
-            .collect(Collectors.toCollection(LinkedList::new));
-    return ParameterUtil.addUniqueParams(
-        params,
-        taskExecution.getParams().stream()
-            .filter(
-                p ->
-                    !"workflowRef".equalsIgnoreCase(p.getName())
-                        && !"wait".equalsIgnoreCase(p.getName()))
-            .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
-            .toList());
+  private static List<RunParam> childParams(TaskRunEntity taskExecution) {
+    return taskExecution.getParams().stream()
+        .filter(
+            p -> !"workflowRef".equalsIgnoreCase(p.getName()) && !"wait".equalsIgnoreCase(p.getName()))
+        .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
+        .collect(Collectors.toCollection(LinkedList::new));
   }
 
   /*

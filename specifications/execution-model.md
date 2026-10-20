@@ -178,8 +178,12 @@ downstream of the retry point is copied under the new run with its results and a
 claim, deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and
 only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Queueing refuses a completed task
 run, so the start advances from the copies as if each had just ended (`WorkflowExecutionService.java:203-207`).
-Everything that did not succeed re-runs
-in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
+The new run gets a workspace volume of its own, empty like any run's ("Volumes and workspaces" in
+`dispatcher-kubernetes.md`): files the carried-over tasks wrote to the origin's workspace are not in it, so a re-run
+task that reads one fails. A file that a retry point may separate from its reader travels as a workflow-scoped
+artifact (the upload and download artifact tasks), which outlives the run; otherwise the retry takes `scope: all`.
+The retry dialog warns of this for a scoped retry of a run with a workspace
+(`client-web/.../RetryRunModal.tsx:94-95,155-164`). Everything that did not succeed re-runs in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
 tasks stay on the new run; the ones a re-run set-property task writes are dropped first. A scoped retry of an
 origin that is still active cancels the origin after the new run is queued, so one lineage never has two live
 runs; a plain retry leaves the origin alone. The run records the point as `retryFrom`. Refused before anything is
@@ -264,10 +268,11 @@ it can't read has no next occurrence and never fires.
 ## Child workflows
 
 A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1146-1226`). The
-child is submitted with the parent run's params and the task's own written over them, minus `workflowRef` and
-`wait` (`childParams` `:1228`), so a for-each item's `item` and `index` reach its child as run params. A node's
-params beyond `workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses
-any other with `WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`).
+child is submitted with the task's own params minus `workflowRef` and `wait` (`childParams` `:1228-1234`): the
+values its node passes, which the designer's Run Workflow modal lists from the child's declared params, and under
+for-each the item's `item` and `index`. The parent run's params are not handed down. A node's params beyond
+`workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses any other with
+`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`).
 
 **Lineage.** The child is submitted through the lineage-stamping overload
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and
