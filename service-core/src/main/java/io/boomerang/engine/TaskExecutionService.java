@@ -41,6 +41,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonMaximumSizeExceededException;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -1431,12 +1432,17 @@ public class TaskExecutionService {
           }
         }
 
-        if (ParameterUtil.containsName(taskExecution.getParams(), "numberOfApprovers")) {
-          String numberOfApprovers =
-              (String) ParameterUtil.getValue(taskExecution.getParams(), "numberOfApprovers");
-          if (numberOfApprovers != null && !numberOfApprovers.isBlank()) {
-            actionEntity.setNumberOfApprovers(Integer.valueOf(numberOfApprovers));
-          }
+        // The approval task declares numberOfApprovals; numberOfApprovers, the name read before,
+        // is still taken from a definition that sets it.
+        List<RunParam> params = taskExecution.getParams();
+        Object numberOfApprovals =
+            Stream.of("numberOfApprovals", "numberOfApprovers")
+                .map(name -> ParameterUtil.getValue(params, name))
+                .filter(value -> value != null && !value.toString().isBlank())
+                .findFirst()
+                .orElse(null);
+        if (numberOfApprovals != null) {
+          actionEntity.setNumberOfApprovers(Integer.valueOf(numberOfApprovals.toString().trim()));
         }
       } else if (type.equals(ActionType.manual)) {
         if (ParameterUtil.containsName(taskExecution.getParams(), "instructions")) {

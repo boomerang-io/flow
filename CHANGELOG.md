@@ -124,6 +124,11 @@ tag's release notes.
 
 ### Changed
 
+- An approval task ends with the five results it declares: `approvalStatus` (`approved` or `rejected`),
+  `approvalDate` (ISO 8601, UTC), `approvalUserName`, `approvalUserEmail` and `approvalComments`, taken from the
+  approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
+  string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
+  so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
 - A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
   code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
   actor, where it named `system`.
