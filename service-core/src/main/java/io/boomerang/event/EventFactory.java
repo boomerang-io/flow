@@ -5,6 +5,7 @@ import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.EventPayload;
 import io.boomerang.event.enums.EventType;
 import io.boomerang.event.model.RunStatusSummary;
@@ -46,8 +47,12 @@ public class EventFactory {
   //    }
   //  }
 
+  /*
+   * The status event for one outbox row: its id is the row's, so a retried delivery keeps it, and
+   * its time is when the transition occurred.
+   */
   public static WorkflowRunStatusEvent buildStatusUpdateEvent(
-      WorkflowRunEntity wfRunEntity, EventPayload payload) {
+      WorkflowRunEntity wfRunEntity, EventOutboxEntity row, EventPayload payload) {
 
     // Event subject
     // @formatter:off
@@ -59,10 +64,10 @@ public class EventFactory {
 
     // Create workflow status update event
     WorkflowRunStatusEvent statusEvent = new WorkflowRunStatusEvent();
-    statusEvent.setId(UUID.randomUUID().toString());
+    statusEvent.setId(row.getId());
     statusEvent.setSource(URI.create(EVENT_SOURCE_URI));
     statusEvent.setSubject(eventSubject);
-    statusEvent.setDate(new Date());
+    statusEvent.setDate(row.getOccurredAt());
     statusEvent.setType(EventType.WORKFLOWRUN_STATUS_UPDATE);
     statusEvent.setData(
         RunStatusSummary.project(
@@ -72,7 +77,7 @@ public class EventFactory {
   }
 
   public static TaskRunStatusEvent buildStatusUpdateEvent(
-      TaskRunEntity taskRunEntity, EventPayload payload) {
+      TaskRunEntity taskRunEntity, EventOutboxEntity row, EventPayload payload) {
 
     // Event subject
     // @formatter:off
@@ -84,10 +89,10 @@ public class EventFactory {
 
     // Create task status update event
     TaskRunStatusEvent statusUpdateEvent = new TaskRunStatusEvent();
-    statusUpdateEvent.setId(UUID.randomUUID().toString());
+    statusUpdateEvent.setId(row.getId());
     statusUpdateEvent.setSource(URI.create(EVENT_SOURCE_URI));
     statusUpdateEvent.setSubject(eventSubject);
-    statusUpdateEvent.setDate(new Date());
+    statusUpdateEvent.setDate(row.getOccurredAt());
     statusUpdateEvent.setType(EventType.TASKRUN_STATUS_UPDATE);
     statusUpdateEvent.setData(RunStatusSummary.project(new TaskRun(taskRunEntity), payload));
 

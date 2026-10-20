@@ -2,6 +2,7 @@ package io.boomerang.event;
 
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.engine.model.TaskRunTransition;
 import io.boomerang.engine.model.WorkflowRunTransition;
@@ -13,7 +14,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Bridge from the winner-published domain transition events to the CloudEvents egress: each
- * externally-visible transition becomes one outbox row that the dispatcher delivers. The bean
+ * externally-visible transition becomes one outbox row that the dispatcher delivers. The end node
+ * emits nothing, as the start node never does: the run's own completion event reports it. The bean
  * only exists when the sink is enabled, so a disabled sink never accumulates pending rows.
  */
 @Component
@@ -31,7 +33,8 @@ public class CloudEventsBridge {
 
   @EventListener
   public void onTaskRunTransition(TaskRunTransition transition) {
-    if (emits(
+    if (!TaskType.end.equals(transition.type())
+        && emits(
         transition.fromStatus(),
         transition.fromPhase(),
         transition.toStatus(),

@@ -236,14 +236,21 @@ A caller with no relationship to the workflow gets `PERMISSION_DENIED`
 Every externally visible run status change is POSTed to each configured sink as a structured
 CloudEvent 1.0 (`application/cloudevents+json`). Egress is off by default
 (`flow.events.sink.enabled=false`, `application.properties:50`); delivery is at-least-once through the
-outbox, so a consumer MUST treat duplicates as benign (decision 0012).
+outbox, so a consumer MUST treat duplicates as benign (decision 0012). Each event describes the transition it
+was recorded for, whenever it is sent: its subject and `data.status`/`data.phase` are that transition's
+status and phase, and the rest of `data` is the run as it stands when the event is sent
+(`event/OutboxDispatcher.java:98-116`). A redelivery carries the same `id`, so a consumer MAY drop an `id`
+it has already handled (`source` plus `id` is unique). A task event is sent for every task the run executes;
+the graph's start and end nodes send none, and the run's own event reports its end
+(`event/CloudEventsBridge.java:35-36`).
 
 | Envelope field | Value |
 | --- | --- |
 | `type` | `io.boomerang.event.status.workflowrun`, `io.boomerang.event.status.taskrun` (`event/enums/EventType.java:9-11`) |
 | `source` | `/apis/v1/events` |
-| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}` (`event/EventFactory.java:54-58,79-83`) |
-| `id` | a fresh UUID per delivery, not a run id |
+| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}`, the status the transition reached (`event/EventFactory.java:59-62,84-87`) |
+| `id` | the outbox row's id, the same on every delivery of that transition; not a run id (`:67`, `:92`) |
+| `time` | when the transition occurred, not when it was sent (`:70`, `:95`) |
 | `initiatorcontext` (extension) | the run's `initiatorContext` label, when set (task events only, `event/model/TaskRunStatusEvent.java:37-40`) |
 
 `data` carries the run, in one of two shapes chosen by `flow.events.sink.payload`

@@ -1,5 +1,7 @@
 package io.boomerang.event;
 
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.OutboxStatus;
@@ -21,8 +23,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Drains the events_outbox: re-reads the referenced run and delivers its status CloudEvent, then
- * marks the row sent via a Compare-And-Set. Runs on every instance; at-least-once - a racing
+ * Drains the events_outbox: delivers each row's status CloudEvent - the referenced run re-read and
+ * given the row's own status and phase - then marks the row sent via a Compare-And-Set. Runs on every instance; at-least-once - a racing
  * double delivery is possible but only one dispatcher marks the row sent. Rows that exhaust
  * their retries go dead (kept, logged, never silently dropped), with the failure and the time
  * they gave up recorded on the row for the operator route to show. Scheduling rides the same
@@ -89,19 +91,27 @@ public class OutboxDispatcher {
     }
   }
 
-  // The referenced run is the payload source of truth - a row whose run no longer exists has
-  // nothing to deliver and goes dead.
+  // Each event describes its own row's transition: the referenced run is re-read for the rest of
+  // the payload and given the row's status and phase, so a row drained after the run moved on still
+  // reports the change it recorded. A row whose run no longer exists has nothing to deliver and
+  // goes dead.
   private void deliver(EventOutboxEntity row) throws Exception {
     if (EventOutboxEntity.REF_TYPE_TASKRUN.equals(row.getRefType())) {
-      eventSinkService.deliverStatusCloudEvent(
+      TaskRunEntity taskRun =
           taskRunRepository
               .findById(row.getRef())
-              .orElseThrow(() -> new IllegalStateException("TaskRun no longer exists")));
+              .orElseThrow(() -> new IllegalStateException("TaskRun no longer exists"));
+      taskRun.setStatus(row.getTo().status());
+      taskRun.setPhase(row.getTo().phase());
+      eventSinkService.deliverStatusCloudEvent(taskRun, row);
     } else {
-      eventSinkService.deliverStatusCloudEvent(
+      WorkflowRunEntity workflowRun =
           workflowRunRepository
               .findById(row.getRef())
-              .orElseThrow(() -> new IllegalStateException("WorkflowRun no longer exists")));
+              .orElseThrow(() -> new IllegalStateException("WorkflowRun no longer exists"));
+      workflowRun.setStatus(row.getTo().status());
+      workflowRun.setPhase(row.getTo().phase());
+      eventSinkService.deliverStatusCloudEvent(workflowRun, row);
     }
   }
 
