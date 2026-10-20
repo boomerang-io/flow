@@ -117,6 +117,13 @@ class TaskServiceCreateFailureTest {
   }
 
   @Test
+  void aClientErrorWithNoMessageIsADispatchError() throws Exception {
+    // An API server too loaded to answer can fail a request with no message at all.
+    assertEquals(
+        "DispatchError", reasonWhenCreateThrows(new KubernetesClientException((String) null)));
+  }
+
+  @Test
   void anyOtherForbiddenIsADispatchError() throws Exception {
     assertEquals(
         "DispatchError",
