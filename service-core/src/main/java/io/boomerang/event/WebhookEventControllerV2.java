@@ -136,7 +136,7 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&eventId={eventId}&access_token={access_token}
    * </code>
    */
   @PostMapping(value = "/callback", consumes = "application/json; charset=utf-8")
@@ -161,8 +161,17 @@ public class WebhookEventControllerV2 {
               required = false)
           @RequestParam(defaultValue = "succeeded")
           String status,
+      @Parameter(
+              name = "eventId",
+              description =
+                  "Identifies this delivery. A repeat with the same eventId for the same run is"
+                      + " acknowledged and not applied again, for 7 days.",
+              required = false)
+          @RequestParam(required = false)
+          String eventId,
       @RequestBody JsonNode payload) {
-    webhookEventService.processWFE(ref, topic, status, Optional.of(payload));
+    webhookEventService.processWFE(
+        ref, topic, status, Optional.of(payload), Optional.ofNullable(eventId));
   }
 
   /**
@@ -173,7 +182,7 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&access_token={access_token}
+   * <code>/callback?ref={workflowrun}&topic={topic}&status={status}&eventId={eventId}&access_token={access_token}
    * </code>
    */
   @GetMapping(value = "/callback")
@@ -197,8 +206,17 @@ public class WebhookEventControllerV2 {
               description = "The status to set for the WaitForEvent TaskRun. Succeeded | Failed.",
               required = false)
           @RequestParam(defaultValue = "succeeded")
-          String status) {
-    webhookEventService.processWFE(ref, topic, status, Optional.empty());
+          String status,
+      @Parameter(
+              name = "eventId",
+              description =
+                  "Identifies this delivery. A repeat with the same eventId for the same run is"
+                      + " acknowledged and not applied again, for 7 days.",
+              required = false)
+          @RequestParam(required = false)
+          String eventId) {
+    webhookEventService.processWFE(
+        ref, topic, status, Optional.empty(), Optional.ofNullable(eventId));
   }
 
   /**

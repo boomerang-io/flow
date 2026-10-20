@@ -112,6 +112,9 @@ tag's release notes.
 
 ### Added
 
+- The wait-for-event callback (`POST`/`GET /api/v2/callback`) takes an optional `eventId`. A repeat of the same
+  callback for the same run is acknowledged and not applied again for 7 days; without one, each delivery is
+  applied as before.
 - A run's timeout bounds execution only: while every in-flight task waits on an approval, a manual task, an
   event, a child run, a sleep or a lock, the deadline is parked and moved forward by the time waited, and the
   same applies after a pause. A wait is indefinite unless its task declares a timeout. A run's reported duration

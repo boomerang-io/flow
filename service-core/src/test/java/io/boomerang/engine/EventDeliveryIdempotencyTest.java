@@ -2,6 +2,7 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -12,34 +13,26 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
+import io.boomerang.event.WebhookEventService;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * Q-127 #24 — {@code WorkflowRunService.event} delivery idempotency.
- *
- * <p>The audit's fix shape for #24 was "addUniqueResults; event-id dedup". Only the second half
- * shipped ({@code WorkflowRunService.java:920-938}, the {@code events_inbox} ledger keyed {@code
- * "<runId>:<eventId>"}), and it is gated on {@code request.getId()} being set. The only production
- * caller — {@code WebhookEventService.processWFE} ({@code WebhookEventService.java:185-195}) —
- * never sets an id, because the endpoint behind it ({@code WebhookEventControllerV2
- * .acceptWaitForEvent}, {@code POST}/{@code GET /callback}) takes only {@code ref}, {@code topic}
- * and {@code status} and so has no event identifier to pass on.
- *
- * <p><b>The first half was ruled NOT to be fixed (maintainer, 2026-08-25)</b>: the redelivered
- * result is appended a second time and that behaviour is now recorded by a characterization test
- * rather than asserted away — see {@link #webhookRedeliveryAppendsEventWaitResultsTwice} for the
- * full reasoning and for what would have to change to make deduplication possible.
+ * {@code WorkflowRunService.event} delivery idempotency. A delivery that carries an id is recorded in
+ * the {@code events_inbox} ledger keyed {@code "<runId>:<eventId>"}, so a redelivery is acknowledged
+ * and not applied again; the wait-for-event callback passes its optional {@code eventId} through. A
+ * delivery without an id is applied each time, and converges because results merge by name.
  */
 class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowRunService workflowRunService;
+  @Autowired private WebhookEventService webhookEventService;
 
-  /**
-   * Builds the request exactly as {@code WebhookEventService.processWFE} does: topic, status and
-   * results, and NO id.
-   */
+  /** Builds the request as a callback without an {@code eventId} does: topic, status and results. */
   private static WorkflowRunEventRequest webhookDelivery(String topic) {
     WorkflowRunEventRequest request = new WorkflowRunEventRequest();
     request.setTopic(topic);
@@ -66,9 +59,8 @@ class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
    * duplicating: results are merged by name on every write path - {@code
    * TaskRunService.applyEventDelivery} now keys on the result name exactly as {@code end()} does
    * through {@code ResultUtil.addUniqueResults}. Two deliveries with the same key leave one
-   * element. The inbox ledger ({@link #deliveryWithATransportIdIsDedupedByTheInboxLedger}) is
-   * still the only thing that suppresses re-applying a distinct event, and the webhook endpoint
-   * still carries no event id to feed it.
+   * element. Only the inbox ledger ({@link #deliveryWithATransportIdIsDedupedByTheInboxLedger})
+   * suppresses re-applying a delivery, and it needs an id.
    */
   @Test
   void webhookRedeliveryConvergesOnOneResultPerKey() {
@@ -89,12 +81,7 @@ class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
     assertEquals("{\"build\":\"ok-again\"}", results.get(0).getValue(), "last write wins");
   }
 
-  /**
-   * The dedup ledger that #24's fix shipped, exercised the only way it can fire — with an id no
-   * production caller sets. The contrast with {@link
-   * #webhookRedeliveryAppendsEventWaitResultsTwice} is the point: the mechanism works, nothing
-   * reaches it.
-   */
+  /** A delivery with an id is applied once; a second with the same id is suppressed by the ledger. */
   @Test
   void deliveryWithATransportIdIsDedupedByTheInboxLedger() {
     WorkflowRunEntity wfRun =
@@ -114,5 +101,32 @@ class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
         1,
         results.stream().filter(r -> "data".equals(r.getName())).count(),
         "the inbox ledger should have suppressed the redelivery; got " + results);
+  }
+
+  /**
+   * The wait-for-event callback passes its {@code eventId} to the ledger: the same callback sent
+   * twice applies the first payload only.
+   */
+  @Test
+  void aCallbackRedeliveredWithItsEventIdIsAppliedOnce() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("callback-event-id-wf", RunStatus.running, RunPhase.running);
+    String taskRunId = savedEventWaitTask("release-approved", wfRun, RunStatus.ready).getId();
+    ObjectNode first = JsonNodeFactory.instance.objectNode().put("build", "first");
+    ObjectNode again = JsonNodeFactory.instance.objectNode().put("build", "again");
+
+    webhookEventService.processWFE(
+        wfRun.getId(), "release-approved", "succeeded", Optional.of(first), Optional.of("delivery-1"));
+    webhookEventService.processWFE(
+        wfRun.getId(), "release-approved", "succeeded", Optional.of(again), Optional.of("delivery-1"));
+
+    List<RunResult> data =
+        taskRunRepository.findById(taskRunId).orElseThrow().getResults().stream()
+            .filter(r -> "data".equals(r.getName()))
+            .toList();
+    assertEquals(1, data.size(), "one data result; got " + data);
+    String value = String.valueOf(data.get(0).getValue());
+    assertTrue(
+        value.contains("first") && !value.contains("again"), "the redelivery was applied: " + value);
   }
 }
