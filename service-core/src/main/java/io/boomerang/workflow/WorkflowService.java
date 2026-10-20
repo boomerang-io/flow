@@ -362,7 +362,7 @@ public class WorkflowService {
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new WorkflowResponsePage();
     }
 
