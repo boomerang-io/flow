@@ -689,10 +689,18 @@ public class TaskExecutionService {
    */
   public void fanOutItems(String parentId) {
     TaskRunEntity parent = taskRunRepository.findById(parentId).orElse(null);
-    if (parent == null
-        || !RunPhase.running.equals(parent.getPhase())
-        || parent.getForeach() == null
-        || !(parent.getForeach().getItems() instanceof List<?> items)) {
+    if (parent == null || !RunPhase.running.equals(parent.getPhase()) || parent.getForeach() == null) {
+      return;
+    }
+    if (!(parent.getForeach().getItems() instanceof List<?> items)) {
+      // Refused at fan-out - no items stored - and its end was lost: end it the same way.
+      self.end(
+          parentId,
+          TaskOutcome.ofItems(
+              RunStatus.failed,
+              StatusReason.FOREACH_ITEMS_INVALID,
+              "The for-each items were refused when the task fanned out.",
+              null));
       return;
     }
     Map<Integer, TaskRunEntity> existing =

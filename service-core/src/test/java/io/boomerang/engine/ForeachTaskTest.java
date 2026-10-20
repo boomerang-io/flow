@@ -232,6 +232,27 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
    * A crash between the last item ending and the parent completing: every item is terminal and the
    * parent is still running. The recovery completes it with the collected results.
    */
+  /*
+   * Items refused at fan-out store none, and the failed end is handed off. When that end is lost,
+   * the recovery ends the parent failed instead of leaving it running with nothing to fan out.
+   */
+  @Test
+  void recoveryEndsAParentWhoseItemsWereRefusedAndWhoseEndWasLost() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("foreach-refused-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity parent = savedCrashedParent(wfRun, null);
+
+    workflowWatcher.recoverForeachTasks();
+
+    awaitEngine("the refused parent is ended failed")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity ended = taskRunRepository.findById(parent.getId()).orElseThrow();
+              assertEquals(RunPhase.completed, ended.getPhase());
+              assertEquals(RunStatus.failed, ended.getStatus());
+              assertEquals("ForeachItemsInvalid", ended.getStatusReason());
+            });
+  }
+
   @Test
   void recoveryCompletesAParentWhoseItemsAreAllTerminal() {
     WorkflowRunEntity wfRun = savedWorkflowRun("foreach-finish-wf", RunStatus.running, RunPhase.running);
