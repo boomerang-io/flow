@@ -19,7 +19,7 @@ const workspace = {
         currentWorkflowCount: 3,
         currentRuns: 10,
         currentConcurrentRuns: 0,
-        currentRunMedianDuration: 2,
+        currentRunAverageDuration: 120000,
         currentRunTotalDuration: 20,
         monthlyResetDate: "August 1, 2020",
         maxArtifactStorage: 5,

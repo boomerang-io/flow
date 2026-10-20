@@ -23,7 +23,7 @@ const quotas: FlowWorkspaceQuotas = {
   currentWorkflowCount: 0,
   currentConcurrentRuns: 0,
   currentRunTotalDuration: 0,
-  currentRunMedianDuration: 0,
+  currentRunAverageDuration: 0,
   currentArtifactStorage: 0,
   maxWorkflowCount: 10,
   maxWorkflowRunMonthly: 100,

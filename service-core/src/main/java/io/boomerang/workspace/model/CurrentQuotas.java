@@ -8,8 +8,8 @@ public class CurrentQuotas extends Quotas {
   private Integer currentWorkflowCount;
   private Integer currentRuns;
   private Integer currentConcurrentRuns;
-  private Integer currentRunTotalDuration;
-  private Integer currentRunMedianDuration;
+  private Long currentRunTotalDuration;
+  private Long currentRunAverageDuration;
   // Bytes held by the workspace's available and uploading artifacts.
   private Long currentArtifactStorage;
   // TODO: future - can't currently calculate this easily
@@ -26,8 +26,8 @@ public class CurrentQuotas extends Quotas {
   public String toString() {
     return "CurrentQuotas [currentWorkflowCount=" + currentWorkflowCount + ", currentRuns="
         + currentRuns + ", currentConcurrentRuns=" + currentConcurrentRuns
-        + ", currentRunTotalDuration=" + currentRunTotalDuration + ", currentRunMedianDuration="
-        + currentRunMedianDuration + ", currentArtifactStorage=" + currentArtifactStorage
+        + ", currentRunTotalDuration=" + currentRunTotalDuration + ", currentRunAverageDuration="
+        + currentRunAverageDuration + ", currentArtifactStorage=" + currentArtifactStorage
         + ", monthlyResetDate=" + monthlyResetDate + "]";
   }
   
@@ -49,10 +49,10 @@ public class CurrentQuotas extends Quotas {
   public void setCurrentConcurrentRuns(Integer currentConcurrentRuns) {
     this.currentConcurrentRuns = currentConcurrentRuns;
   }
-  public Integer getCurrentRunTotalDuration() {
+  public Long getCurrentRunTotalDuration() {
     return currentRunTotalDuration;
   }
-  public void setCurrentRunTotalDuration(Integer currentRunDuration) {
+  public void setCurrentRunTotalDuration(Long currentRunDuration) {
     this.currentRunTotalDuration = currentRunDuration;
   }
   public Date getMonthlyResetDate() {
@@ -61,11 +61,11 @@ public class CurrentQuotas extends Quotas {
   public void setMonthlyResetDate(Date monthlyResetDate) {
     this.monthlyResetDate = monthlyResetDate;
   }
-  public Integer getCurrentRunMedianDuration() {
-    return currentRunMedianDuration;
+  public Long getCurrentRunAverageDuration() {
+    return currentRunAverageDuration;
   }
-  public void setCurrentRunMedianDuration(Integer currentRunMedianDuration) {
-    this.currentRunMedianDuration = currentRunMedianDuration;
+  public void setCurrentRunAverageDuration(Long currentRunAverageDuration) {
+    this.currentRunAverageDuration = currentRunAverageDuration;
   }
   public Long getCurrentArtifactStorage() {
     return currentArtifactStorage;

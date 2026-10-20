@@ -91,7 +91,6 @@ public class InsightsService {
     insight.setTotalRuns((long) byRun.size());
     insight.setConcurrentRuns(inFlight);
     insight.setTotalDuration(totalDuration);
-    insight.setMedianDuration(byRun.isEmpty() ? 0L : totalDuration / byRun.size());
     insight.setRuns(summaries);
     return insight;
   }
