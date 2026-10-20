@@ -13,16 +13,6 @@ public final class DateUtil {
     // Do nothing
   }
 
-  public static Date sanityNullDate(Date date) {
-    if (date == null) {
-      return null;
-    }
-
-    LocalDateTime localDateTime = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-
-    return asDate(localDateTime);
-  }
-
   public static Date asDate(LocalDate localDate) {
     return Date.from(localDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant());
   }

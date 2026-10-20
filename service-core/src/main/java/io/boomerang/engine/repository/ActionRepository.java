@@ -11,8 +11,7 @@ import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.Update;
 import org.springframework.stereotype.Repository;
 
-// Explicitly named (E8.2a merge; retained post-J3 merge of the former
-// io.boomerang.workflow.repository.ActionRepository, whose finder methods are now unioned below).
+// Explicitly named: the one action repository, holding the finders the workflow side used too.
 @Repository("engineActionRepository")
 public interface ActionRepository extends MongoRepository<ActionEntity, String> {
 

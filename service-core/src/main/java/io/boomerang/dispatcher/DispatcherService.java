@@ -305,23 +305,13 @@ public class DispatcherService {
     }
   }
 
-  public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId) {
-    return getTaskQueue(agentId, null);
-  }
-
   /**
    * Long-poll for TaskRuns, claiming at most {@code limit} new ones to execute - the slots the
    * dispatcher has free - and never more than a page. A limit of 0 claims none and still hands out
-   * termination orders, which free slots rather than take them. No limit means a full page.
-   */
-  public ResponseEntity<List<TaskRun>> getTaskQueue(String agentId, Integer limit) {
-    return getTaskQueue(agentId, limit, null, null, null);
-  }
-
-  /**
-   * Long-poll for TaskRuns as above, narrowed by optional filters: task types, task slugs, and a
-   * label on the workflow definition (see {@link ClaimFilterService}). Termination orders follow
-   * the same filters. A filter that matches nothing answers at once with no content.
+   * termination orders, which free slots rather than take them; no limit means a full page. The
+   * poll is narrowed by optional filters: task types, task slugs, and a label on the workflow
+   * definition (see {@link ClaimFilterService}). Termination orders follow the same filters. A
+   * filter that matches nothing answers at once with no content.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(
       String agentId, Integer limit, String type, String task, String workflowLabel) {

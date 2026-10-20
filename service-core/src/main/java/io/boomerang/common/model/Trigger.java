@@ -29,14 +29,6 @@ public class Trigger {
     this.enabled = enabled;
   }
 
-  // public TriggerEnum getType() {
-  // return type;
-  // }
-  //
-  // public void setType(TriggerEnum type) {
-  // this.type = type;
-  // }
-
   public List<TriggerCondition> getConditions() {
     return conditions;
   }

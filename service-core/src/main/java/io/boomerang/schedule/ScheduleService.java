@@ -293,40 +293,6 @@ public class ScheduleService {
   }
 
   /*
-   * Retrieves the calendar dates between a start and end date period for a specific workflow
-   *
-   * @return list of Schedule Calendars
-   */
-  public List<WorkflowScheduleCalendar> getCalendarsForWorkflow(
-      String team, final String workflowId, Date fromDate, Date toDate) {
-    if (relationshipService.hasNodes(
-        RelationshipType.WORKSPACE,
-        team,
-        RelationshipType.WORKFLOW,
-        Optional.of(List.of(workflowId)),
-        Optional.empty(),
-        Optional.empty())) {
-      List<WorkflowScheduleCalendar> scheduleCalendars = new LinkedList<>();
-      final Optional<List<WorkflowScheduleEntity>> scheduleEntities =
-          scheduleRepository.findByWorkflowRefInAndStatusIn(
-              List.of(workflowId), getStatusesNotCompletedOrDeleted());
-      if (scheduleEntities.isPresent()) {
-        scheduleEntities
-            .get()
-            .forEach(
-                e -> {
-                  WorkflowScheduleCalendar scheduleCalendar = new WorkflowScheduleCalendar();
-                  scheduleCalendar.setScheduleId(e.getId());
-                  scheduleCalendar.setDates(getCalendarForDates(e.getId(), fromDate, toDate));
-                  scheduleCalendars.add(scheduleCalendar);
-                });
-      }
-      return scheduleCalendars;
-    }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
-  }
-
-  /*
    * Retrieves the calendar dates between a start and end date period for a specific schedule
    *
    * @return a list of dates for a single Schedule Calendar

@@ -66,8 +66,7 @@ public class WorkflowExecutionService {
             .findById(wfRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     LOGGER.debug("[{}] Received queue WorkflowRun request.", wfRunEntity.getId());
-    // Resolve Parameter Substitutions
-    // TODO: check if we need this
+    // Resolve the run's params; the admission below persists them.
     paramManager.resolveParamLayers(wfRunEntity, Optional.empty());
 
     final Optional<WorkflowRevisionEntity> optWorkflowRevisionEntity =

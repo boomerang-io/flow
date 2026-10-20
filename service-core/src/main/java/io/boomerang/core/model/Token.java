@@ -23,7 +23,7 @@ public class Token {
   private boolean valid;
   private String principal;
   private List<ResolvedPermissions> permissions = new LinkedList<>();
-  // T6-1: surfaced for audit/UI visibility - null on every human/pre-existing token.
+  // surfaced for audit/UI visibility - null on every human/pre-existing token.
   private TokenActorKind actorKind;
   private String createdBy;
   private Date lastUsedAt;

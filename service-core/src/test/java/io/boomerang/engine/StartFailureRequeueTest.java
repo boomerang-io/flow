@@ -60,7 +60,7 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
       taskRunRepository.save(task);
     }
     String dispatcher = registerDispatcher(tag);
-    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher), task.getId()));
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), task.getId()));
     return new String[] {task.getId(), dispatcher};
   }
 
@@ -94,7 +94,7 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
 
     // The claim survives the requeue; the next poll hands it out as a termination order, which
     // releases it so the task is claimable again once its backoff has passed.
-    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1]), claimed[0]));
+    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1], null, null, null, null), claimed[0]));
     TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
     assertEquals(RunStatus.ready, after.getStatus());
     assertEquals(RunPhase.pending, after.getPhase());
@@ -111,7 +111,7 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
     assertEquals(RunPhase.pending, after.getPhase());
     assertEquals(1, after.getRetry().getCount());
     assertTrue(after.getRetry().getAfter().after(new Date()), "the backoff gates the next claim");
-    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1]), claimed[0]));
+    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1], null, null, null, null), claimed[0]));
     after = taskRunRepository.findById(claimed[0]).orElseThrow();
     assertEquals(RunStatus.ready, after.getStatus());
     assertEquals(null, after.getClaim().getBy());

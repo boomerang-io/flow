@@ -57,9 +57,7 @@ class ForeachChildRunTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void seedCatalogueAndWorkspace() {
-    if (relationshipService
-        .filter(RelationshipType.WORKSPACE, Optional.of(List.of(WORKSPACE)))
-        .isEmpty()) {
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, WORKSPACE)) {
       relationshipService.createNode(
           RelationshipType.WORKSPACE, WORKSPACE, WORKSPACE, Optional.empty());
     }

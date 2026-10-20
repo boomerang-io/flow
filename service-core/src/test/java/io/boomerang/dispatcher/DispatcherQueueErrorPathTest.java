@@ -78,7 +78,7 @@ class DispatcherQueueErrorPathTest {
     when(taskRunService.tryClaim("failing", AGENT))
         .thenThrow(new IllegalStateException("claim write failed"));
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, null, null, null, null);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).extracting(TaskRun::getId).containsExactly("claimed");
@@ -92,7 +92,7 @@ class DispatcherQueueErrorPathTest {
     ExecutorService executor = Executors.newSingleThreadExecutor();
     try {
       Future<ResponseEntity<List<TaskRun>>> poll =
-          executor.submit(() -> dispatcherService.getTaskQueue(AGENT));
+          executor.submit(() -> dispatcherService.getTaskQueue(AGENT, null, null, null, null));
       Thread.sleep(2500);
 
       // Three cycles at most in 2.5 s: one at once, then one per 1 s re-check.

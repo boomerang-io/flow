@@ -1,6 +1,7 @@
 package io.boomerang.schedule;
 
 import io.boomerang.common.entity.WorkflowScheduleEntity;
+import io.boomerang.engine.EngineConstants;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
 import io.boomerang.core.RelationshipService;
@@ -31,8 +32,7 @@ import org.springframework.stereotype.Service;
 public class ScheduleWatcher {
 
   private static final Logger LOGGER = LogManager.getLogger();
-  // Mirrors the engine's EngineConstants.SWEEP_PAGE_SIZE; shared once the modules merge (DD-02).
-  private static final int PAGE_SIZE = 50;
+  private static final int PAGE_SIZE = EngineConstants.SWEEP_PAGE_SIZE;
   // Bounded retry of a failed fire, restoring JobRunr's removed default-number-of-retries=3.
   private static final int MAX_RETRY_ATTEMPTS = 3;
 

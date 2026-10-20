@@ -266,7 +266,7 @@ public class ParamLayerService {
     contextParams.put("wfe-url", this.settingsService.getWFEURL());
     contextParams.put("event-url", this.settingsService.getEventURL());
 
-    // T6-3: the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
+    // the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
     Optional<List<TokenEntity>> tokens =
         tokenRepository.findByPrincipalAndTypeAndActorKind(
             workflowId, AuthScope.key, TokenActorKind.WORKFLOW);

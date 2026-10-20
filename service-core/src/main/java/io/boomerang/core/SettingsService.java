@@ -171,16 +171,6 @@ public class SettingsService {
         () -> new IllegalArgumentException("Unable to find configuration object: " + name));
   }
 
-  public SettingEntity getSettingById(String id) {
-    Optional<SettingEntity> entity = settingsRepository.findById(id);
-    if (entity.isPresent()) {
-      showDecryptedValues(entity.get());
-    }
-
-    return entity.orElseThrow(
-        () -> new IllegalArgumentException("Unable to find configuration with ID: " + id));
-  }
-
   public SettingEntity getSettingByKey(String key) {
     final SettingEntity settingsEntity = settingsRepository.findOneByKey(key);
     if (settingsEntity != null) {

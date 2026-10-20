@@ -181,7 +181,7 @@ public class RelationshipService {
   }
 
   /**
-   * T6-3: the {@link RelationshipType} an identity's OWN node lives under - shared by every
+   * the {@link RelationshipType} an identity's OWN node lives under - shared by every
    * "for the current principal" convenience overload ({@link #createEdge(RelationshipType,
    * String, Optional)}, {@link #updateEdgeData(RelationshipType, String, Map)}, {@link
    * #removeEdge(RelationshipType, String)}). {@code identity.getType().getLabel()}
@@ -393,7 +393,7 @@ public class RelationshipService {
             intermediateType,
             intermediateList);
       case key:
-        // T6-3: `key` folds the retired `workflow`/`workspace` classes together - actorKind
+        // `key` folds the retired `workflow`/`workspace` classes together - actorKind
         // (only ever WORKFLOW here) tells them apart. No actorKind (or a non-workflow one, e.g.
         // SERVICE) means the old `workspace` shape: principal is a workspace id.
         return hasNodes(
@@ -436,14 +436,6 @@ public class RelationshipService {
     return flattenedPermissionPrincipals.containsAll(toList);
   }
 
-  /*
-   * Filter objects to subset the current principal has the relationship & permission to access
-   */
-  @Deprecated
-  public List<String> filter(RelationshipType toType, Optional<List<String>> toRefsOrSlugs) {
-    return filter(toType, toRefsOrSlugs, Optional.empty(), Optional.empty());
-  }
-
   public List<String> filter(
       RelationshipType toType,
       Optional<List<String>> toRefsOrSlugs,
@@ -480,7 +472,7 @@ public class RelationshipService {
           fromType = RelationshipType.USER;
           break;
         case key:
-          // T6-3: `key` folds the retired `workflow`/`workspace` classes together - actorKind
+          // `key` folds the retired `workflow`/`workspace` classes together - actorKind
           // (only ever WORKFLOW here) tells them apart, same as check() above.
           if (TokenActorKind.WORKFLOW.equals(identity.getActorKind())) {
             fromType = RelationshipType.WORKFLOW;

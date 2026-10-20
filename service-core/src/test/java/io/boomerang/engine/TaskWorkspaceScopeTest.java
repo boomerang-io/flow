@@ -93,7 +93,7 @@ class TaskWorkspaceScopeTest extends AbstractEngineIntegrationTest {
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "workspace-scope-zone", "workspace-scope-zone.local", List.of("template")));
-    List<TaskRun> queue = dispatcherService.getTaskQueue(agentId).getBody();
+    List<TaskRun> queue = dispatcherService.getTaskQueue(agentId, null, null, null, null).getBody();
     assertNotNull(queue, "the dispatcher's queue should carry the claimed TaskRun");
     TaskRun claimed =
         queue.stream().filter(t -> taskRunId.equals(t.getId())).findFirst().orElse(null);

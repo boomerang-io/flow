@@ -91,7 +91,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>F3 collapsed the former {@code api.WorkspaceTaskService} pass-through into this class: the
  * slug resolution and the operation now live together instead of being split across a service
- * boundary that only existed because the engine used to be a separate deployable (DD-02).
+ * boundary that only existed because the engine used to be a separate deployable.
  */
 @Service
 public class TaskService {

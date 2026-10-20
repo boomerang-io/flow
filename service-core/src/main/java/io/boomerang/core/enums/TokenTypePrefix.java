@@ -29,9 +29,9 @@ public enum TokenTypePrefix {
 
   private static final Map<String, TokenTypePrefix> BY_PREFIX = new HashMap<>();
 
-  // ARCHIE pattern (T6-1): a cheap, pre-DB shape gate — a bearer that doesn't even look like a
+  // ARCHIE pattern: a cheap, pre-DB shape gate — a bearer that doesn't even look like a
   // Flow token never reaches Mongo. Covers exactly the four live prefixes above (g/k/u/s) - the
-  // retired "t"/"w" prefixes are deliberately NOT matched (T6-3: no deprecation window).
+  // retired "t"/"w" prefixes are deliberately NOT matched (no deprecation window).
   private static final Pattern TOKEN_PATTERN = Pattern.compile("^bf[gkus]_.+");
 
   private TokenTypePrefix(String prefix) {

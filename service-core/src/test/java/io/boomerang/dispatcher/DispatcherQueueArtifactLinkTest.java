@@ -93,7 +93,7 @@ class DispatcherQueueArtifactLinkTest {
   void anOptionalDownloadWithNothingToFetchEndsSucceededWithFoundFalse() {
     when(artifactService.fillLinkParams(taskRun("missing"))).thenReturn(LinkOutcome.NOT_FOUND);
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, null, null, null, null);
 
     TaskRunEndRequest request = endOf("missing");
     assertThat(request.getStatus()).isEqualTo(RunStatus.succeeded);
@@ -114,7 +114,7 @@ class DispatcherQueueArtifactLinkTest {
     when(artifactService.refusalMessage(any(BoomerangException.class)))
         .thenReturn("No artifact \"missing\" was found on this run.");
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, null, null, null, null);
 
     TaskRunEndRequest request = endOf("missing");
     assertThat(request.getStatus()).isEqualTo(RunStatus.failed);

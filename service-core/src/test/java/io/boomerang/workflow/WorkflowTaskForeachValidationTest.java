@@ -198,9 +198,7 @@ class WorkflowTaskForeachValidationTest extends AbstractEngineIntegrationTest {
 
   /** A global template Task (created once per name) declaring {@code paramName} when given. */
   private String template(String name, String paramName) {
-    if (!relationshipService
-        .filter(RelationshipType.TASK, java.util.Optional.of(List.of(name)))
-        .isEmpty()) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
       return name;
     }
     Task task = new Task();

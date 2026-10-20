@@ -109,22 +109,6 @@ public class UserControllerV2 {
     return userService.query(page, limit, order, sort, labels, statuses, ids);
   }
 
-  // TODO - figure out if this is valid or whether an 'invite' user should exist
-  //  @PostMapping(value = "")
-  //  @AuthScope(action = PermissionAction.WRITE, scope = PermissionScope.USER, types =
-  // {AuthType.global})
-  //  @Operation(summary = "Create a new Boomerang Flow user")
-  //  @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK"),
-  //      @ApiResponse(responseCode = "400", description = "Bad Request")})
-  //  public ResponseEntity<User> addUser(@RequestBody UserRequest request) {
-  //    if (isUserManagementAvaliable()) {
-  //      User flowUserEntity = userService.create(request);
-  //      return ResponseEntity.ok(flowUserEntity);
-  //    } else {
-  //      return ResponseEntity.badRequest().build();
-  //    }
-  //  }
-
   @PatchMapping(value = "/{userId}")
   @AuthCriteria(
       action = PermissionAction.WRITE,

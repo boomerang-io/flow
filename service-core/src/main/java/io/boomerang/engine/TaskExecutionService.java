@@ -151,7 +151,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved queue task request: {}", taskExecutionId, taskExecution.getName());
+    LOGGER.info("[{}] Received queue task request: {}", taskExecutionId, taskExecution.getName());
 
     // Check if TaskRun Phase is valid
     if (!RunPhase.pending.equals(taskExecution.getPhase())) {
@@ -274,18 +274,6 @@ public class TaskExecutionService {
   }
 
   /*
-   * Execute the Start of a task as requested by the Handler or System
-   *
-   * Note: This is synchronous such that a task is moved into the correct status before a response
-   * is provided as part of the API. If the API returned immediately before these checks occur, an
-   * integration may believe the task has started and therefore be able to run and end the task
-   * prior to an asynchronous version of this method actually completing.
-   */
-  public void start(String taskRunId) {
-    start(taskRunId, Optional.empty(), Optional.empty());
-  }
-
-  /*
    * Start with claimant identity. The execution-entry Compare-And-Set in execute() makes a
    * duplicate start harmless; fencing rejects a start carrying a superseded claim.
    */
@@ -297,7 +285,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved start task request.", taskExecutionId);
+    LOGGER.info("[{}] Received start task request.", taskExecutionId);
 
     // Check if Phase is valid.
     // Pending / Queued means it correctly came from queueTask() or Agent;
@@ -351,7 +339,7 @@ public class TaskExecutionService {
     boolean endTask = false;
     TaskType taskType = taskExecution.getType();
     String wfRunId = wfRunEntity.getId();
-    LOGGER.info("[{}] Recieved Execute task request for type: {}.", taskExecutionId, taskType);
+    LOGGER.info("[{}] Received Execute task request for type: {}.", taskExecutionId, taskType);
 
     // Execution-entry Compare-And-Set: ready becomes running exactly once, baking the durable
     // timeoutAt deadline. A duplicate dispatch of the same TaskRun loses here and performs no
@@ -379,7 +367,7 @@ public class TaskExecutionService {
         // were materialised from its own declaration when the TaskRun was created.
       }
       case decision -> {
-        processDecision(taskExecution, wfRunId);
+        processDecision(taskExecution);
         taskExecution.setStatus(RunStatus.succeeded);
         endTask = true;
       }
@@ -388,7 +376,7 @@ public class TaskExecutionService {
         endTask = this.acquireTaskLock(taskExecution, wfRunEntity);
       }
       case releaselock -> {
-        this.releaseTaskLock(taskExecution, wfRunEntity);
+        this.releaseTaskLock(taskExecution);
         endTask = true;
       }
       case runworkflow -> {
@@ -494,7 +482,7 @@ public class TaskExecutionService {
       return;
     }
     String taskExecutionId = taskExecution.getId();
-    LOGGER.info("[{}] Recieved end task request.", taskExecutionId);
+    LOGGER.info("[{}] Received end task request.", taskExecutionId);
 
     // Check if task has been previously completed or cancelled
     if (RunPhase.completed.equals(taskExecution.getPhase())) {
@@ -896,41 +884,6 @@ public class TaskExecutionService {
     return valid;
   }
 
-  /*
-   * This will approve a task to run
-   *
-   * TODO: confirm this works
-   */
-  public List<String> updateTaskRunForTopic(String workflowRunId, String topic) {
-    List<String> ids = new LinkedList<>();
-
-    LOGGER.info("[{}] Finding taskRunId based on topic.", workflowRunId);
-    List<TaskRunEntity> taskRunEntities =
-        this.taskRunRepository.findByWorkflowRunRef(workflowRunId);
-
-    for (TaskRunEntity taskRun : taskRunEntities) {
-      if (TaskType.eventwait.equals(taskRun.getType())) {
-        List<RunParam> params = taskRun.getParams();
-        if (params != null && ParameterUtil.containsName(params, "topic")) {
-          // TODO: bring back parameter layering
-          // String paramTopic = params.get("topic").toString();
-          // ControllerRequestProperties properties = propertyManager
-          // .buildRequestPropertyLayering(null, taskRunId, activity.getWorkflowId());
-          // topic = propertyManager.replaceValueWithProperty(paramTopic, taskRunId, properties);
-          // String taskId = task.getId();
-          LOGGER.info("[{}] Found task run id: {} ", workflowRunId, taskRun.getId());
-          taskRun.setPreApproved(true);
-          this.taskRunRepository.save(taskRun);
-          ids.add(taskRun.getId());
-        }
-      }
-    }
-
-    // TODO: figure out what to return
-    LOGGER.info("[{}] No task activity ids found for topic: {}", workflowRunId, topic);
-    return ids;
-  }
-
   private void updatePendingApprovalStatus(WorkflowRunEntity wfRunEntity) {
     boolean existingApprovals =
         actionRepository.existsByWorkflowRunRefAndStatus(
@@ -964,7 +917,7 @@ public class TaskExecutionService {
         taskExecution.getId(), new Date(System.currentTimeMillis() + duration));
   }
 
-  private void processDecision(TaskRunEntity taskExecution, String activityId) {
+  private void processDecision(TaskRunEntity taskExecution) {
     String decisionValue = ParameterUtil.getValue(taskExecution.getParams(), "value").toString();
     String value = decisionValue;
     taskExecution.setDecisionValue(value);
@@ -1008,7 +961,7 @@ public class TaskExecutionService {
     return false;
   }
 
-  private void releaseTaskLock(TaskRunEntity taskExecution, WorkflowRunEntity wfRunEntity) {
+  private void releaseTaskLock(TaskRunEntity taskExecution) {
     String scopedKey = scopedLockKey(taskExecution);
     if (Objects.isNull(scopedKey)) {
       taskExecution.setStatus(RunStatus.failed);

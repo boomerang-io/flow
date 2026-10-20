@@ -40,7 +40,7 @@ import org.springframework.security.core.Authentication;
  *
  * <p>Registered only when {@code flow.security.enabled=true} ({@link
  * MethodSecurityConfiguration}), mirroring the retired interceptor's own gating - with security
- * off, every request already carries the synthetic global admin identity (decision 0032), which
+ * off, every request already carries the synthetic global admin identity, which
  * passes every check below unconditionally, exactly as before.
  *
  * <p><b>401 vs 403.</b> The interceptor infrastructure turns a denied {@link AuthorizationDecision}

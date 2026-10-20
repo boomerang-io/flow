@@ -9,7 +9,6 @@ import org.springframework.context.NoSuchMessageException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -34,9 +33,6 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice
 public class RestExceptionHandler extends ResponseEntityExceptionHandler {
-
-  // private static final Logger LOGGER =
-  // LogManager.getLogger(ResponseEntityExceptionHandler.class);
 
   @Value("${flow.error.include-cause:false}")
   public boolean includeCause;
@@ -64,10 +60,6 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     if (includeCause && ex.getCause() != null) {
       errorResponse.setCause(ex.getCause().toString());
     }
-
-    // LOGGER.error("Exception["+errorResponse.getCode()+"] " + errorResponse.getReason() + " - " +
-    // errorResponse.getMessage());
-    // LOGGER.error(ExceptionUtils.getStackTrace(ex));
 
     return new ResponseEntity<>(errorResponse, new HttpHeaders(), ex.getStatus());
   }

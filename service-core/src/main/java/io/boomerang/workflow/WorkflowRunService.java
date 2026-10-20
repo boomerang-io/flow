@@ -85,7 +85,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
  *
  * <p>F3 collapsed the former {@code api.WorkspaceWorkflowRunService} pass-through into this class:
  * the workspace check and the operation now live together instead of being split across a service
- * boundary that only existed because the engine used to be a separate deployable (DD-02).
+ * boundary that only existed because the engine used to be a separate deployable.
  */
 @Service
 public class WorkflowRunService {
@@ -648,7 +648,6 @@ public class WorkflowRunService {
   }
 
   // ── Unscoped operations (engine, webhook and v1 dispatcher callers) ────────
-
 
   public WorkflowRun get(String wfRunId, boolean withTasks) {
     if (wfRunId == null || wfRunId.isBlank()) {
@@ -1391,39 +1390,6 @@ public class WorkflowRunService {
   private List<TaskRun> getTaskRuns(String workflowRunId) {
     List<TaskRunEntity> taskRunEntities = taskRunRepository.findByWorkflowRunRef(workflowRunId);
     return taskRunEntities.stream().map(t -> new TaskRun(t)).collect(Collectors.toList());
-
-    //
-    // TODO: Update the following or make sure they are set on the run at execution end task time.
-    // if (TaskType.approval.equals(run.getTaskType())
-    // || TaskType.manual.equals(run.getTaskType())) {
-    // Action approval = approvalService.getApprovalByTaskActivits(task.getId());
-    // response.setApproval(approval);
-    // } else if (TaskType.runworkflow == task.getTaskType()
-    // && task.getRunWorkflowActivityId() != null) {
-    //
-    // String runWorkflowActivityId = task.getRunWorkflowActivityId();
-    // ActivityEntity activity =
-    // this.flowActivityService.findWorkflowActivtyById(runWorkflowActivityId);
-    // if (activity != null) {
-    // response.setRunWorkflowActivityStatus(activity.getStatus());
-    // }
-    // } else if (TaskType.eventwait == task.getTaskType()) {
-    // List<TaskOutputResult> results = new LinkedList<>();
-    // TaskOutputResult result = new TaskOutputResult();
-    // result.setName("eventPayload");
-    // result.setDescription("Payload that was received with the Wait For Event");
-    // if (task.getOutputs() != null) {
-    // String json = task.getOutputs().get("eventPayload");
-    // result.setValue(json);
-    // }
-    // results.add(result);
-    // response.setResults(results);
-    // } else if (TaskType.template == task.getTaskType()
-    // || TaskType.customtask == task.getTaskType() || TaskType.script == task.getTaskType()) {
-    // List<TaskOutputResult> results = new LinkedList<>();
-    // setupTaskOutputResults(task, response, results);
-    //
-    // }
   }
 
   private void logPayload(WorkflowRunRequest request) {

@@ -12,7 +12,7 @@ public interface TokenRepository extends MongoRepository<TokenEntity, String> {
 
   Optional<List<TokenEntity>> findByPrincipalAndType(String principal, AuthScope type);
 
-  // T6-3: the retired `workflow` token class folded into `key` + actorKind=WORKFLOW - callers
+  // the retired `workflow` token class folded into `key` + actorKind=WORKFLOW - callers
   // that used to filter on the (now-gone) workflow AuthScope value narrow with this instead.
   Optional<List<TokenEntity>> findByPrincipalAndTypeAndActorKind(
       String principal, AuthScope type, TokenActorKind actorKind);

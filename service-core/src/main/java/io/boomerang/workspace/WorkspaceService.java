@@ -796,28 +796,6 @@ public class WorkspaceService {
         .orElse(null);
   }
 
-  //
-  // private void setWorkflowStorage(List<WorkflowSummary> workflows, WorkflowQuotas workflowQuotas)
-  // {
-  // Integer currentWorkflowsPersistentStorage = 0;
-  // if(workflows != null) {
-  // for (WorkflowSummary workflow : workflows) {
-  // if (workflow.getStorage() == null) {
-  // workflow.setStorage(new Storage());
-  // }
-  // if (workflow.getStorage().getActivity() == null) {
-  // workflow.getStorage().setActivity(new ActivityStorage());
-  // }
-  //
-  // if (workflow.getStorage().getActivity().getEnabled()) {
-  // currentWorkflowsPersistentStorage += 1;
-  // }
-  // }
-  // }
-  // workflowQuotas.setCurrentWorkflowsPersistentStorage(currentWorkflowsPersistentStorage);
-  // }
-  //
-
   /*
    * Builds the WorkspaceSummary (with Insights) list for the given team-ref -> role map,
    * skipping any ref that no longer resolves to an existing Workspace (stale relationship
@@ -872,21 +850,6 @@ public class WorkspaceService {
    */
   private Workspace convertWorkspaceEntityToWorkspace(WorkspaceEntity workspaceEntity) {
     Workspace team = new Workspace(workspaceEntity);
-
-    //    List<WorkflowSummary> summary = new LinkedList<>();
-    //    try {
-    //      WorkflowResponsePage response = workflowService.query(Optional.empty(),
-    // Optional.empty(), Optional.of(Direction.ASC), Optional.empty(), Optional.empty(),
-    // Optional.of(List.of(workspaceEntity.getId())), Optional.empty());
-    //      if (response.getContent() != null && !response.getContent().isEmpty()) {
-    //        List<Workflow> workflows = response.getContent();
-    //        workflows.forEach(w -> summary.add(new WorkflowSummary(w)));
-    //      }
-    //    } catch (BoomerangException e) {
-    //      LOGGER.error("convertWorkspaceEntityToWorkspace() - issue in retrieving Workflows for this team.
-    // Most likely cause is page size is being returned as 0");
-    //    }
-    //    team.setWorkflows(summary);
 
     // Get Members
     team.setMembers(getUsersForTeam(workspaceEntity.getName()));

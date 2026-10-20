@@ -112,7 +112,7 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
     String aiAgentId =
         dispatcherService.register(
             new DispatcherRegistrationRequest("ai-zone", "ai-zone.local", List.of("ai")));
-    List<TaskRun> queue = dispatcherService.getTaskQueue(aiAgentId).getBody();
+    List<TaskRun> queue = dispatcherService.getTaskQueue(aiAgentId, null, null, null, null).getBody();
     assertTrue(
         queue != null && queue.stream().anyMatch(t -> taskRunId.equals(t.getId())),
         "the ai dispatcher's queue should carry the claimed ai TaskRun");

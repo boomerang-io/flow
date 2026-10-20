@@ -90,12 +90,6 @@ public class WorkspaceEntity {
     this.externalRef = externalRef;
   }
 
-  //  public WorkspaceSettings getSettings() {
-  //    return settings;
-  //  }
-  //  public void setSettings(WorkspaceSettings settings) {
-  //    this.settings = settings;
-  //  }
   public Map<String, String> getLabels() {
     return labels;
   }

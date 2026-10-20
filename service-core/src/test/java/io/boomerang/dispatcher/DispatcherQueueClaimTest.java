@@ -111,7 +111,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
 
     for (String agent : List.of(agentA, agentA, agentB)) {
       String beaconId = savedReadyTaskRun().getId();
-      ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
+      ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent, null, null, null, null);
       assertTrue(containsId(response, beaconId), "poll should have claimed its ready beacon");
       assertFalse(
           containsId(response, terminalId),
@@ -143,7 +143,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
           pool.submit(
               () -> {
                 startGun.await();
-                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentA);
+                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentA, null, null, null, null);
                 firstBack.countDown();
                 return response;
               });
@@ -151,7 +151,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
           pool.submit(
               () -> {
                 startGun.await();
-                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentB);
+                ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agentB, null, null, null, null);
                 firstBack.countDown();
                 return response;
               });
@@ -185,7 +185,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     String timedOutId =
         savedOwnedTerminalTaskRun(TaskType.template, RunStatus.timedout, owner).getId();
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(owner);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(owner, null, null, null, null);
 
     TaskRun cancelled = delivered(response, cancelledId);
     assertNotNull(cancelled, "a cancelled TaskRun the dispatcher owns must be delivered");
@@ -216,12 +216,12 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     String terminalId =
         savedOwnedTerminalTaskRun(TaskType.template, RunStatus.cancelled, agentA).getId();
 
-    ResponseEntity<List<TaskRun>> first = dispatcherService.getTaskQueue(agentA);
+    ResponseEntity<List<TaskRun>> first = dispatcherService.getTaskQueue(agentA, null, null, null, null);
     assertNotNull(delivered(first, terminalId), "the first poll must receive the termination");
 
     for (String agent : List.of(agentA, agentB)) {
       String beaconId = savedReadyTaskRun().getId();
-      ResponseEntity<List<TaskRun>> repoll = dispatcherService.getTaskQueue(agent);
+      ResponseEntity<List<TaskRun>> repoll = dispatcherService.getTaskQueue(agent, null, null, null, null);
       assertTrue(containsId(repoll, beaconId), "poll should have claimed its ready beacon");
       assertFalse(
           containsId(repoll, terminalId), "a claimed termination must never be redelivered");
@@ -237,7 +237,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
         savedOwnedTerminalTaskRun(TaskType.custom, RunStatus.cancelled, agent).getId();
     String beaconId = savedReadyTaskRun().getId();
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent, null, null, null, null);
 
     assertTrue(containsId(response, beaconId), "poll should have claimed its ready beacon");
     assertFalse(
@@ -266,7 +266,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     parked.setRetry(retry);
     taskRunRepository.save(parked);
 
-    ResponseEntity<List<TaskRun>> first = dispatcherService.getTaskQueue(agentA);
+    ResponseEntity<List<TaskRun>> first = dispatcherService.getTaskQueue(agentA, null, null, null, null);
     TaskRun dispatched = delivered(first, parked.getId());
     assertNotNull(dispatched, "a parked retry must be dispatched so the old pod is terminated");
     assertEquals(RunPhase.completed, dispatched.getPhase());
@@ -274,7 +274,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
 
     for (String agent : List.of(agentA, agentB)) {
       String beaconId = savedReadyTaskRun().getId();
-      ResponseEntity<List<TaskRun>> repoll = dispatcherService.getTaskQueue(agent);
+      ResponseEntity<List<TaskRun>> repoll = dispatcherService.getTaskQueue(agent, null, null, null, null);
       assertTrue(containsId(repoll, beaconId), "poll should have claimed its ready beacon");
       assertFalse(
           containsId(repoll, parked.getId()), "a claimed termination must never be redelivered");
@@ -286,7 +286,7 @@ class DispatcherQueueClaimTest extends AbstractEngineIntegrationTest {
     String agent = registerAgent("payload-agent");
     String taskId = savedReadyTaskRun().getId();
 
-    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent);
+    ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(agent, null, null, null, null);
     TaskRun claimed =
         response.getBody().stream()
             .filter(t -> taskId.equals(t.getId()))
