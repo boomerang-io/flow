@@ -31,6 +31,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
 
+  private static final String LABEL = "queued-task-cancel-cascade-test";
+
   @Autowired private TaskService taskService;
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
@@ -57,7 +59,12 @@ class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
         dispatcherService.register(
             new DispatcherRegistrationRequest(
                 "cancel-cascade-agent", "cancel-cascade-agent.local", List.of("template")));
-    List<TaskRun> claimed = dispatcherService.getTaskQueue(dispatcherId, null, null, null, null).getBody();
+    // Filtered to this workflow: the shared database holds other classes' unclaimed tasks, and an
+    // unfiltered poll claims only the oldest page of them.
+    List<TaskRun> claimed =
+        dispatcherService
+            .getTaskQueue(dispatcherId, null, null, null, LABEL + "=cancel-queued")
+            .getBody();
     assertTrue(
         claimed != null && claimed.stream().anyMatch(t -> taskRunId.equals(t.getId())),
         "the agent must have claimed the task ahead of the cancel");
@@ -93,6 +100,7 @@ class QueuedTaskCancelCascadeTest extends AbstractEngineIntegrationTest {
 
     Workflow workflow = new Workflow();
     workflow.setName(name);
+    workflow.getLabels().put(LABEL, name);
     workflow.setTasks(
         List.of(
             workflowTask("start", TaskType.start, null),
