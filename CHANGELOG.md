@@ -124,6 +124,11 @@ tag's release notes.
 
 ### Changed
 
+- A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
+  other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
+  Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
+  overflows. The insights response drops `medianDuration`, which was also the mean; `totalDuration` and
+  `totalRuns` give it.
 - A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
   branches, so the tasks after it are skipped and the run carries on. It used to fail the run with a null-value
   error when the next task was queued.

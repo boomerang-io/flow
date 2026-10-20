@@ -502,7 +502,7 @@ export interface FlowWorkspaceQuotas {
   currentWorkflowCount: number;
   currentConcurrentRuns: number;
   currentRunTotalDuration: number;
-  currentRunMedianDuration: number;
+  currentRunAverageDuration: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
   // For the five max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already

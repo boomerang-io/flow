@@ -752,7 +752,6 @@ public class WorkflowRunService {
     wfRunInsight.setConcurrentRuns(
         entities.stream().filter(run -> RunPhase.running.equals(run.getPhase())).count());
     wfRunInsight.setTotalDuration(totalDuration);
-    wfRunInsight.setMedianDuration(entities.size() != 0 ? totalDuration / entities.size() : 0L);
     List<WorkflowRunSummary> runs = new LinkedList<>();
     entities.forEach(
         e -> {

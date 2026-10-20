@@ -1047,8 +1047,10 @@ public class WorkspaceService {
             Optional.empty(),
             Optional.empty());
     LOGGER.debug("Insights: {}", insight.toString());
-    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration().intValue());
-    currentQuotas.setCurrentRunMedianDuration(insight.getMedianDuration().intValue());
+    // Milliseconds, like every run duration: this month's total and the mean per run.
+    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration());
+    currentQuotas.setCurrentRunAverageDuration(
+        (insight.getTotalRuns() > 0) ? insight.getTotalDuration() / insight.getTotalRuns() : 0L);
 
     // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
     // work counts against the limit - it measures what is running now, which deletion

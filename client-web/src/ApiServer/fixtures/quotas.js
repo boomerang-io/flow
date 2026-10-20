@@ -8,7 +8,7 @@ const quotas = {
   currentWorkflowCount: 1,
   currentConcurrentRuns: 0,
   currentRunTotalDuration: 300,
-  currentRunMedianDuration: 120,
+  currentRunAverageDuration: 120000,
   maxArtifactStorage: 5,
   artifactRetentionDays: 30,
   currentArtifactStorage: 1073741824,

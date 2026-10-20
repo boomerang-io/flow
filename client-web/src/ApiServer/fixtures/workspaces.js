@@ -36,7 +36,7 @@ const workspaces = {
               "currentWorkflowCount": 6,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -65,7 +65,7 @@ const workspaces = {
               "currentWorkflowCount": 1,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -94,7 +94,7 @@ const workspaces = {
               "currentWorkflowCount": 1,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -135,7 +135,7 @@ const workspaces = {
               "currentWorkflowCount": 18,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -164,7 +164,7 @@ const workspaces = {
               "currentWorkflowCount": 2,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -193,7 +193,7 @@ const workspaces = {
               "currentWorkflowCount": 18,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
@@ -222,7 +222,7 @@ const workspaces = {
               "currentWorkflowCount": 5,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
-              "currentRunMedianDuration": 0,
+              "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0
           },
