@@ -329,20 +329,6 @@ public class WorkflowRunService {
   }
 
   /*
-   * Retrieve the insights / statistics for a specific period of time and filters
-   */
-  public WorkflowRunInsight insight(
-      String queryTeam,
-      Optional<Long> from,
-      Optional<Long> to,
-      Optional<List<String>> queryLabels,
-      Optional<List<String>> queryWorkflows) {
-    List<String> wfRefs = workspaceWorkflowRefs(queryTeam, queryWorkflows);
-    return insights(
-        from.map(Date::new), to.map(Date::new), queryLabels, Optional.empty(), Optional.of(wfRefs));
-  }
-
-  /*
    * Retrieve the counts by status for a specific period of time and filters
    */
   public WorkflowRunCount count(
@@ -719,51 +705,6 @@ public class WorkflowRunService {
             () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), WorkflowRunEntity.class));
 
     return pages;
-  }
-
-  /*
-   * Generates stats / insights for a given set of filters
-   */
-  public WorkflowRunInsight insights(
-      Optional<Date> from,
-      Optional<Date> to,
-      Optional<List<String>> labels,
-      Optional<List<String>> queryWorkflowRuns,
-      Optional<List<String>> queryWorkflows) {
-    Query query =
-        new Query(
-            new QueryCriteria()
-                .between("creationDate", from, to)
-                .labels(labels)
-                .in("workflowRef", queryWorkflows)
-                .build());
-    LOGGER.debug("Query: " + query.toString());
-    List<WorkflowRunEntity> entities = mongoTemplate.find(query, WorkflowRunEntity.class);
-
-    // Collect the Stats
-    long totalDuration = 0;
-    for (WorkflowRunEntity entity : entities) {
-      totalDuration += entity.getDuration();
-    }
-
-    WorkflowRunInsight wfRunInsight = new WorkflowRunInsight();
-    wfRunInsight.setTotalRuns(Long.valueOf(entities.size()));
-    wfRunInsight.setConcurrentRuns(
-        entities.stream().filter(run -> RunPhase.running.equals(run.getPhase())).count());
-    wfRunInsight.setTotalDuration(totalDuration);
-    List<WorkflowRunSummary> runs = new LinkedList<>();
-    entities.forEach(
-        e -> {
-          WorkflowRunSummary summary = ConvertUtil.entityToModel(e, WorkflowRunSummary.class);
-          final Optional<WorkflowEntity> optWorkflow =
-              workflowRepository.findById(e.getWorkflowRef());
-          if (optWorkflow.isPresent()) {
-            summary.setWorkflowName(optWorkflow.get().getName());
-          }
-          runs.add(summary);
-        });
-    wfRunInsight.setRuns(runs);
-    return wfRunInsight;
   }
 
   /*

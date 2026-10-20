@@ -13,7 +13,6 @@ import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.WorkflowCount;
 import io.boomerang.common.enums.RunStatus;
-import io.boomerang.common.model.WorkflowRunInsight;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
@@ -97,7 +96,6 @@ public class WorkspaceService {
   private final SettingsService settingsService;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
-  private final InsightsService insightsService;
   private final WorkflowService workflowService;
   private final WorkflowRunService workflowRunService;
   private final AuditQueryService auditQueryService;
@@ -117,7 +115,6 @@ public class WorkspaceService {
       SettingsService settingsService,
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
-      InsightsService insightsService,
       WorkflowService workflowService,
       WorkflowRunService workflowRunService,
       AuditQueryService auditQueryService,
@@ -134,7 +131,6 @@ public class WorkspaceService {
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
-    this.insightsService = insightsService;
     this.workflowService = workflowService;
     this.workflowRunService = workflowRunService;
     this.auditQueryService = auditQueryService;
@@ -1002,18 +998,12 @@ public class WorkspaceService {
     currentMonthEnd.add(Calendar.MONTH, 1);
     currentMonthEnd.add(Calendar.DAY_OF_MONTH, -1);
 
-    WorkflowRunInsight insight =
-        insightsService.get(
-            team,
-            currentMonthStart.getTime(),
-            currentMonthEnd.getTime(),
-            Optional.empty(),
-            Optional.empty());
-    LOGGER.debug("Insights: {}", insight.toString());
+    AuditQueryService.RunTotals runTotals =
+        auditQueryService.runTotals(team, currentMonthStart.getTime(), currentMonthEnd.getTime());
     // Milliseconds, like every run duration: this month's total and the mean per run.
-    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration());
+    currentQuotas.setCurrentRunTotalDuration(runTotals.duration());
     currentQuotas.setCurrentRunAverageDuration(
-        (insight.getTotalRuns() > 0) ? insight.getTotalDuration() / insight.getTotalRuns() : 0L);
+        (runTotals.runs() > 0) ? runTotals.duration() / runTotals.runs() : 0L);
 
     // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
     // work counts against the limit - it measures what is running now, which deletion

@@ -12,8 +12,6 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
-import io.boomerang.common.model.WorkflowRunInsight;
-import io.boomerang.common.model.WorkflowRunSummary;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
@@ -31,14 +29,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
  * The workspace scoping on the read side of the {@code
- * /api/v2/workspace/&#123;workspace&#125;/workflowrun} surface: {@code query}, {@code insight} and
- * {@code count}.
+ * /api/v2/workspace/&#123;workspace&#125;/workflowrun} surface: {@code query} and {@code count}.
  *
- * <p>F3 moved these three off the deleted {@code api.WorkspaceWorkflowRunService} and onto the
- * shared {@code workspaceWorkflowRefs} helper in {@link WorkflowRunService}. Nothing in the suite
- * touched that path, so the one call that decides what a caller may read - {@code
- * RelationshipService.filter(WORKFLOW, ..., WORKSPACE, [queryTeam], false)} - changed shape
- * unpinned. This pins it.
+ * <p>Both go through the shared {@code workspaceWorkflowRefs} helper in {@link
+ * WorkflowRunService}, the one call that decides what a caller may read. This pins it.
  *
  * <p>The identity is a {@code session}-scope member rather than the base class's global token: a
  * global token returns {@code true} from every relationship check and anchors {@code filter} at
@@ -153,23 +147,11 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void insightAndCountAreScopedToTheSameWorkflows() {
+  void countIsScopedToTheWorkspacesWorkflows() {
     long mine = runCount(MY_WORKFLOW);
     assertTrue(
         runCount(SIBLING_WORKFLOW) > 0,
         "the sibling workspace must actually have runs, or nothing is being excluded");
-
-    WorkflowRunInsight insight =
-        workflowRunService.insight(
-            MY_WORKSPACE, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-    assertEquals(
-        List.of(MY_WORKFLOW),
-        insight.getRuns().stream().map(WorkflowRunSummary::getWorkflowRef).distinct().toList(),
-        "insight must summarise only the named workspace's Workflows");
-    assertEquals(
-        mine,
-        insight.getTotalRuns().longValue(),
-        "insight must total only the named workspace's runs");
 
     WorkflowRunCount count =
         workflowRunService.count(
@@ -181,7 +163,7 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void anUnreachableWorkspaceIs404FromQueryAndAnswersZeroFromInsightAndCount() {
+  void anUnreachableWorkspaceIs404FromQueryAndAnswersZeroFromCount() {
     // The caller has no path to FOREIGN_WORKSPACE. That is an unresolvable workspace reference,
     // so query answers the same 404 the rest of the product uses for one (TEAM_INVALID_REF) -
     // not a run reference error, since no run was named.
@@ -192,20 +174,7 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
             "query must refuse a workspace the caller cannot reach");
     assertEquals(BoomerangError.TEAM_INVALID_REF.getReason(), ex.getReason());
 
-    // insight and count deliberately do NOT throw on the same input - they answer zero. The
-    // asymmetry predates F3, which put all three on one helper where it is easy to "tidy away".
-    assertEquals(
-        0L,
-        workflowRunService
-            .insight(
-                FOREIGN_WORKSPACE,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty())
-            .getTotalRuns()
-            .longValue(),
-        "insight answers zero for an unreachable workspace rather than throwing");
+    // count deliberately does NOT throw on the same input - it answers zero.
     assertEquals(
         0L,
         workflowRunService

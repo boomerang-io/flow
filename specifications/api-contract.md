@@ -13,7 +13,7 @@ everything else is global.
 
 | Scope | Prefix | Controllers (`service-core/src/main/java/io/boomerang/...`) |
 | --- | --- | --- |
-| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workspace/WorkspaceInsightsControllerV2.java:27` |
+| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workflow/WorkspaceInsightsControllerV2.java:29` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]` (list, stream, delete; the uploading run serves its workflow-scoped artifacts too), `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` (list largest first, filtered by `statuses`, `scope` (`run`, `workflow`) and `workflow` (a workflow name); delete); every artifact carries `scope`; an expired or replaced artifact answers `410` | `workflow/WorkspaceArtifactControllerV2.java:42,165-182` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
@@ -159,11 +159,11 @@ results exceed MongoDB's 16 MB document limit, when it fails for a for-each caus
 
 ## Insights
 
-Two reads under `/api/v2/workspace/{workspace}/insights` (`workspace/WorkspaceInsightsControllerV2.java:45,83`),
+Two reads under `/api/v2/workspace/{workspace}/insights` (`workflow/WorkspaceInsightsControllerV2.java:44,82`),
 both computed from the WorkflowRuns and TaskRuns the workspace still holds
 (`workflow/WorkflowRunInsightService.java`), never from the audit trail. A deleted workflow's runs are gone with it
-and are not counted; the audit-trail roll-up (`workspace/InsightsService.java`) serves the monthly quotas only
-(decision 0089). The period is `[fromDate, toDate)` in epoch milliseconds and defaults to the last 90 days.
+and are not counted; the monthly quotas total runs from the audit trail instead
+(`core/audit/AuditQueryService.java:153`, decision 0089). The period is `[fromDate, toDate)` in epoch milliseconds and defaults to the last 90 days.
 
 | Read | Returns |
 | --- | --- |

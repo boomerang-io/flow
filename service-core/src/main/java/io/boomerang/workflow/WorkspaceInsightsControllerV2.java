@@ -1,4 +1,4 @@
-package io.boomerang.workspace;
+package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowRunInsightSummary;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail;
@@ -6,7 +6,6 @@ import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
-import io.boomerang.workflow.WorkflowRunInsightService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -23,8 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The Insights page's reads: statistics over the runs a workspace still holds. The audit-trail
- * roll-up ({@code InsightsService}) is not served here; it feeds the quotas.
+ * The Insights page's reads: statistics over the runs a workspace still holds. The quota's run
+ * figures come from the audit trail instead ({@code AuditQueryService.runTotals}).
  */
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}/insights")
