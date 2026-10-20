@@ -235,7 +235,7 @@ public class KubeJobsExecutor implements TaskExecutor {
     jobMeta.setGenerateName(helperKubeService.getPrefixTask() + "-" + taskRunRef + "-");
     jobMeta.setLabels(taskLabels);
     jobMeta.setAnnotations(
-        helperKubeService.getAnnotations("task", workflowRef, workflowRunRef, taskRunRef));
+        helperKubeService.getAnnotations(workflowRef));
 
     Job job = new Job();
     job.setMetadata(jobMeta);

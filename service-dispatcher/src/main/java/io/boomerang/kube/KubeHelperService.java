@@ -7,21 +7,16 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.PodStart;
 import tools.jackson.databind.ObjectMapper;
-import io.fabric8.kubernetes.api.model.Affinity;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerState;
 import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
 import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.HostAlias;
-import io.fabric8.kubernetes.api.model.LabelSelector;
 import io.fabric8.kubernetes.api.model.Pod;
-import io.fabric8.kubernetes.api.model.PodAffinityTerm;
-import io.fabric8.kubernetes.api.model.PodAntiAffinity;
 import io.fabric8.kubernetes.api.model.PodSpec;
 import io.fabric8.kubernetes.api.model.PodStatus;
 import io.fabric8.kubernetes.api.model.Toleration;
-import io.fabric8.kubernetes.api.model.WeightedPodAffinityTerm;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.util.ArrayList;
@@ -81,10 +76,6 @@ public class KubeHelperService {
 
   protected String getPrefixPVC() {
     return bmrgProduct + "-pvc";
-  }
-
-  protected String getPrefixPV() {
-    return bmrgProduct + "-pv";
   }
 
   public String getPrefixCM() {
@@ -170,16 +161,6 @@ public class KubeHelperService {
     return new ArrayList<>(byName.values());
   }
 
-  protected List<EnvVar> createEnvVars(
-      String workflowId, String workflowActivityId, String taskName, String taskActivityId) {
-    List<EnvVar> envVars = new ArrayList<>();
-    envVars.add(createEnvVar("BMRG_WORKFLOW_ID", workflowId));
-    envVars.add(createEnvVar("BMRG_WORKFLOWRUN_ID", workflowActivityId));
-    envVars.add(createEnvVar("BMRG_TASKRUN_ID", taskActivityId));
-    envVars.add(createEnvVar("BMRG_TASKRUN_NAME", taskName.replace(" ", "")));
-    return envVars;
-  }
-
   /**
    * Fold a param name into its environment variable suffix: upper-cased, with any character
    * outside {@code [A-Za-z0-9_]} replaced by {@code _}. Locale.ROOT so the fold matches task-core's
@@ -202,58 +183,6 @@ public class KubeHelperService {
       return stringValue;
     }
     return OBJECT_MAPPER.writeValueAsString(value);
-  }
-
-  //
-  // /*
-  // * Passes through optional method inputs to the sub methods which need to handle this.
-  // */
-  // protected V1ObjectMeta getMetadata(String tier, String workflowName, String workflowId,
-  // String workflowActivityId, String taskId, String taskActivityId, String generateName,
-  // Map<String, String> labels) {
-  // V1ObjectMeta metadata = new V1ObjectMeta();
-  // metadata.annotations(createAnnotations(tier, workflowName, workflowId, workflowActivityId,
-  // taskId, taskActivityId));
-  // metadata.labels(createLabels(tier, workflowId, workflowActivityId, taskId, taskActivityId,
-  // labels));
-  // if (StringUtils.isNotBlank(generateName)) {
-  // metadata.generateName(generateName + "-");
-  // }
-  // return metadata;
-  // }
-  //
-  // /*
-  // * Sets the tolerations and nodeSelector to match the dedicated node taints and node-role label
-  // */
-  // protected void getTolerationAndSelector(V1PodSpec podSpec) {
-  // V1Toleration nodeTolerationItem = new V1Toleration();
-  // nodeTolerationItem.key("dedicated");
-  // nodeTolerationItem.value("bmrg-worker");
-  // nodeTolerationItem.effect("NoSchedule");
-  // nodeTolerationItem.operator("Equal");
-  // podSpec.addTolerationsItem(nodeTolerationItem);
-  // podSpec.putNodeSelectorItem("node-role.kubernetes.io/bmrg-worker", "true");
-  // }
-  //
-  /*
-   * Sets the pod anti affinity
-   */
-  protected Affinity getPodAffinity(Map<String, String> labels) {
-    Affinity affinity = new Affinity();
-    PodAntiAffinity podAntiAffinity = new PodAntiAffinity();
-    List<WeightedPodAffinityTerm> weightedPodAffinityTerms = new ArrayList<>();
-    LabelSelector labelSelector = new LabelSelector();
-    labelSelector.setMatchLabels(labels);
-    PodAffinityTerm podAffinityTerm = new PodAffinityTerm();
-    podAffinityTerm.setLabelSelector(labelSelector);
-    podAffinityTerm.setTopologyKey("kubernetes.io/hostname");
-    WeightedPodAffinityTerm weightedPodAffinityTerm = new WeightedPodAffinityTerm();
-    weightedPodAffinityTerm.setWeight(100);
-    weightedPodAffinityTerm.setPodAffinityTerm(podAffinityTerm);
-    weightedPodAffinityTerms.add(weightedPodAffinityTerm);
-    podAntiAffinity.setPreferredDuringSchedulingIgnoredDuringExecution(weightedPodAffinityTerms);
-    affinity.setPodAntiAffinity(podAntiAffinity);
-    return affinity;
   }
 
   // A Toleration with no key, operator, or effect matches nothing and Kubernetes rejects the
@@ -412,11 +341,6 @@ public class KubeHelperService {
     return getLabels("task", workflowRef, workflowRunRef, taskRunRef, customLabels);
   }
 
-  protected Map<String, String> getWorkflowLabels(
-      String workflowRef, String workflowRunRef, Map<String, String> customLabels) {
-    return getLabels("workflow", workflowRef, workflowRunRef, null, customLabels);
-  }
-
   // A workspace claim is keyed by the run that owns it: workspace-ref is the workflow run ref.
   protected Map<String, String> getWorkspaceLabels(
       String workflowRef, String workflowRunRef, Map<String, String> customLabels) {
@@ -429,12 +353,9 @@ public class KubeHelperService {
     return labels;
   }
 
-  protected Map<String, String> getAnnotations(
-      String tier, String workflowRef, String workflowRunRef, String taskRunRef) {
+  protected Map<String, String> getAnnotations(String workflowRef) {
     Map<String, String> annotations = new HashMap<>();
     annotations.put("boomerang.io/workflow-ref", workflowRef);
-    annotations.put(
-        "boomerang.io/selector", labelSelector(tier, workflowRef, workflowRunRef, taskRunRef));
     return annotations;
   }
 
@@ -442,23 +363,7 @@ public class KubeHelperService {
     Map<String, String> annotations = new HashMap<>();
     annotations.put("boomerang.io/workflow-ref", workflowRef);
     annotations.put("boomerang.io/workspace-ref", workflowRunRef);
-    annotations.put("boomerang.io/selector", workspaceLabelSelector(workflowRunRef));
     return annotations;
-  }
-
-  protected String labelSelector(
-      String tier, String workflowRef, String workflowRunRef, String taskRunRef) {
-    StringBuilder labelSelector =
-        new StringBuilder("boomerang.io/product=" + bmrgProduct + ",boomerang.io/tier=" + tier);
-    Optional.ofNullable(workflowRef)
-        .ifPresent(str -> labelSelector.append(",boomerang.io/workflow-ref=" + str));
-    Optional.ofNullable(workflowRunRef)
-        .ifPresent(str -> labelSelector.append(",boomerang.io/workflowrun-ref=" + str));
-    Optional.ofNullable(taskRunRef)
-        .ifPresent(str -> labelSelector.append(",boomerang.io/taskrun-ref=" + str));
-
-    LOGGER.info("  labelSelector: " + labelSelector.toString());
-    return labelSelector.toString();
   }
 
   /**
@@ -631,14 +536,4 @@ public class KubeHelperService {
         : DEFAULT_WORKSPACE_MOUNT_PATH;
   }
 
-  protected String workspaceLabelSelector(String workflowRunRef) {
-    String labelSelector =
-        "boomerang.io/product="
-            + bmrgProduct
-            + ",boomerang.io/tier=workspace,boomerang.io/workspace-ref="
-            + workflowRunRef;
-
-    LOGGER.info("  labelSelector: " + labelSelector);
-    return labelSelector;
-  }
 }

@@ -39,17 +39,9 @@ public class LogService {
   @Value("${dispatcher.logging.port}")
   protected String lokiPort;
 
-  public String getLogForTask(String workflowRef, String workflowRunRef, String taskRunRef) {
-    return logKubeService.getPodLog(workflowRef, workflowRunRef, taskRunRef, null);
-  }
-
   public StreamingResponseBody streamLogForTask(
       HttpServletResponse response, String workflowRef, String workflowRunRef, String taskRunRef) {
-    //    StreamingResponseBody srb = null;
     try {
-      //      if (logKubeService.isKubePodAvailable(workflowId, workflowActivityId, taskId,
-      // taskActivityId)
-      //          && "default".equals(loggingType)) {
       if ("default".equals(loggingType)) {
         return logKubeService.streamPodLog(response, workflowRef, workflowRunRef, taskRunRef, null);
       } else if ("loki".equals(loggingType)) {

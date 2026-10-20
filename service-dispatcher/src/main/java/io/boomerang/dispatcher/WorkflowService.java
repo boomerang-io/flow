@@ -1,6 +1,5 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.dispatcher.model.Response;
 import io.boomerang.dispatcher.sdk.WorkflowHandler;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 import io.boomerang.error.BoomerangException;
@@ -30,20 +29,15 @@ public class WorkflowService implements WorkflowHandler {
     this.workspaceService = workspaceService;
   }
 
-  @Override
-  public void provision(WorkflowRun workflow) {
-    execute(workflow);
-  }
-
   /**
    * Ensure the run's workspace claim exists when the run declares one. A claim that exists already
    * is kept, so a run handed out again provisions nothing twice.
    */
-  public Response execute(WorkflowRun workflow) {
+  @Override
+  public void provision(WorkflowRun workflow) {
     LOGGER.info(workflow.toString());
     if (workflow.getWorkspace() == null) {
-      return new Response(
-          "0", "WorkflowRun (" + workflow.getId() + ") created without a workspace.");
+      return;
     }
     try {
       if (kubeService.checkWorkspacePVCExists(workflow.getId(), false)) {
@@ -59,7 +53,5 @@ public class WorkflowService implements WorkflowHandler {
       LOGGER.error(e.getMessage());
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    return new Response(
-        "0", "WorkflowRun (" + workflow.getId() + ") has been created successfully.");
   }
 }

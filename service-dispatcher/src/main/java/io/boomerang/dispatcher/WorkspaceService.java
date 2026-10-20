@@ -1,6 +1,5 @@
 package io.boomerang.dispatcher;
 
-import io.boomerang.dispatcher.model.Response;
 import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
@@ -42,14 +41,11 @@ public class WorkspaceService {
   }
 
   /** Create the run's workspace claim, labelled with the run's labels. */
-  public Response create(
+  public void create(
       String workflowRef,
       String workflowRunRef,
       WorkflowWorkspace workspace,
       Map<String, String> labels) {
-    Response response =
-        new Response(
-            "0", "Workspace for WorkflowRun (" + workflowRunRef + ") has been created successfully.");
     LOGGER.info("CreateWorkspace Request: workflowRunRef={}, {}", workflowRunRef, workspace);
     try {
       kubeService.createWorkspacePVC(
@@ -76,19 +72,16 @@ public class WorkspaceService {
       LOGGER.error("Unexpected error creating Workspace for WorkflowRun ({}).", workflowRunRef, e);
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    return response;
   }
 
   /** Release the run's workspace claim; a claim that is already gone is already released. */
-  public Response delete(String workflowRunRef) {
-    Response response = new Response("0", "Workspace has been successfully deleted.");
+  public void delete(String workflowRunRef) {
     try {
       kubeService.deleteWorkspacePVC(workflowRunRef);
     } catch (KubeRuntimeException e) {
       throw new BoomerangException(e, 1, e.toString(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
-    LOGGER.info("deleteWorkspace() - " + response.getMessage());
-    return response;
+    LOGGER.info("Deleted the workspace of WorkflowRun ({}).", workflowRunRef);
   }
 
   private static String orDefault(String value, String fallback) {

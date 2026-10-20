@@ -249,7 +249,7 @@ public class KubeJobsExecutorTest {
   public void testCreateCommandTaskWithRunWorkspace() throws Exception {
     TaskRun task = commandTask("taskrun-cmd", true);
 
-    // Pre-create the run's claim, exactly as WorkflowService.execute() does before any task of
+    // Pre-create the run's claim, exactly as WorkflowService.provision() does before any task of
     // the run reaches the executor.
     try {
       kubeService.createWorkspacePVC(
