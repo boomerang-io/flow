@@ -91,6 +91,13 @@ class LiveLogStreamTest {
             // The relay gave up on this route first; nothing left to write.
           }
         });
+    // A route that refuses before sending anything, as a dispatcher that no longer has the pod does.
+    dispatcherRoute.createContext(
+        "/refusing/stream",
+        exchange -> {
+          exchange.sendResponseHeaders(503, -1);
+          exchange.close();
+        });
     dispatcherRoute.start();
   }
 
@@ -176,6 +183,42 @@ class LiveLogStreamTest {
         .writeTo(StreamUtils.nonFlushing(received));
 
     assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo("start\n" + LogClient.IDLE_MESSAGE);
+  }
+
+  @Test
+  void aTaskWithNoLiveRouteIsAnsweredByTheFallback() throws Exception {
+    DispatcherRepository dispatchers = mock(DispatcherRepository.class);
+    when(dispatchers.findById("d-1")).thenReturn(Optional.empty());
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+
+    new LogClient(new RestTemplate(), dispatchers)
+        .streamLog(runningTask(), out -> out.write("stored\n".getBytes(StandardCharsets.UTF_8)))
+        .writeTo(received);
+
+    assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo("stored\n");
+  }
+
+  @Test
+  void aRouteThatFailsBeforeAnsweringIsAnsweredByTheFallback() throws Exception {
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+
+    logClient("/refusing/stream", new HttpComponentsClientHttpRequestFactory())
+        .streamLog(runningTask(), out -> out.write("stored\n".getBytes(StandardCharsets.UTF_8)))
+        .writeTo(received);
+
+    assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo("stored\n");
+  }
+
+  @Test
+  void aLiveStreamIsServedAheadOfTheFallback() throws Exception {
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+    firstLineReachedReader.countDown();
+
+    logClient()
+        .streamLog(runningTask(), out -> out.write("stored\n".getBytes(StandardCharsets.UTF_8)))
+        .writeTo(received);
+
+    assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo("tick-1\ntick-2\n");
   }
 
   @Test
