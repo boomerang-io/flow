@@ -83,6 +83,37 @@ class TaskExecutionServiceRunScheduledWorkflowTest {
   }
 
   @Test
+  void theScheduleCarriesOnlyTheParamsTheNodePasses() throws Exception {
+    TaskRunEntity taskRun = new TaskRunEntity();
+    taskRun.setName("run-scheduled-workflow");
+    taskRun.setCreationDate(Date.from(LocalDateTime.of(2026, 1, 1, 0, 0, 0).toInstant(java.time.ZoneOffset.UTC)));
+    taskRun.setParams(
+        new LinkedList<>(
+            List.of(
+                new RunParam("workflowRef", "wf-1"),
+                new RunParam("futureIn", "2"),
+                new RunParam("futurePeriod", "days"),
+                new RunParam("timezone", "UTC"),
+                new RunParam("time", "09:30"),
+                new RunParam("greeting", "hello"))));
+    Method method =
+        TaskExecutionService.class.getDeclaredMethod(
+            "runScheduledWorkflow",
+            TaskRunEntity.class,
+            io.boomerang.common.entity.WorkflowRunEntity.class);
+    method.setAccessible(true);
+
+    method.invoke(service, taskRun, null);
+
+    ArgumentCaptor<ScheduleRequested> captor = ArgumentCaptor.forClass(ScheduleRequested.class);
+    verify(eventPublisher).publishEvent(captor.capture());
+    assertThat(captor.getValue().schedule().getParams())
+        .extracting(RunParam::getName)
+        .containsExactly("greeting");
+    assertThat(taskRun.getParams()).hasSize(6);
+  }
+
+  @Test
   void twentyFourHourTimeIsNotFoldedTo12Hour() throws Exception {
     // The exact bug case from A20's brief: time=14:30 must stay 14:30, not fold to 02:30.
     Date result = invoke("1", "days", "UTC", "14:30");

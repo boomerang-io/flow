@@ -30,6 +30,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -1159,7 +1160,7 @@ public class TaskExecutionService {
       String workflowRef = workflowRefValue.toString();
       WorkflowSubmitRequest request = new WorkflowSubmitRequest();
       request.setTrigger(TriggerEnum.task);
-      request.setParams(childParams(taskExecution));
+      request.setParams(childParams(taskExecution, "workflowRef", "wait"));
       request.setAnnotations(wfRunEntity.getAnnotations());
       // The child's own Workflow declares its workspace; the parent's is not handed down.
       request.setTimeout(wfRunEntity.getTimeout());
@@ -1199,13 +1200,12 @@ public class TaskExecutionService {
 
   /*
    * The params a child run is submitted with: copies of the task's own - the values its node passes,
-   * and a for-each item's item and index - minus the two that address the task itself. The parent
-   * run's params are not handed down: a child gets only what its node passes.
+   * and a for-each item's item and index - minus the ones the task reads itself. The parent run's
+   * params are not handed down: a child gets only what its node passes.
    */
-  private static List<RunParam> childParams(TaskRunEntity taskExecution) {
+  private static List<RunParam> childParams(TaskRunEntity taskExecution, String... ownParams) {
     return taskExecution.getParams().stream()
-        .filter(
-            p -> !"workflowRef".equalsIgnoreCase(p.getName()) && !"wait".equalsIgnoreCase(p.getName()))
+        .filter(p -> Arrays.stream(ownParams).noneMatch(own -> own.equalsIgnoreCase(p.getName())))
         .map(p -> new RunParam(p.getName(), p.getValue(), p.getType()))
         .collect(Collectors.toCollection(LinkedList::new));
   }
@@ -1317,14 +1317,10 @@ public class TaskExecutionService {
         }
         LOGGER.debug("With execution set to: " + executionZdt + " in UTC");
 
-        // Define new properties removing the System Task specific properties
-        // TODO - determine if we need to resolve any param layers before executing new workflow
-        List<RunParam> newParamList = taskExecution.getParams();
-        ParameterUtil.removeEntry(newParamList, "workflowId");
-        ParameterUtil.removeEntry(newParamList, "futureIn");
-        ParameterUtil.removeEntry(newParamList, "futurePeriod");
-        ParameterUtil.removeEntry(newParamList, "timezone");
-        ParameterUtil.removeEntry(newParamList, "time");
+        // The scheduled run gets what the node passes, minus the params this task reads itself.
+        List<RunParam> newParamList =
+            childParams(
+                taskExecution, "workflowRef", "wait", "futureIn", "futurePeriod", "timezone", "time");
 
         // Define and create the schedule
         WorkflowSchedule schedule = new WorkflowSchedule();
