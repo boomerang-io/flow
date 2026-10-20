@@ -210,7 +210,7 @@ All three routes require `webhook/action` permission and accept `session`, `user
 | `POST /api/v2/webhook` (`application/json`) | Raw JSON, converted to run params; GitHub (`X-GitHub-Event`) and Slack (`x-slack-signature`) payloads branch on their headers | `?ref=` — a body with neither a known header nor `ref` is `400` (`:79-84,121-127`) |
 | `POST /api/v2/event` (`application/cloudevents+json`) | CloudEvents 1.0 structured mode | `?ref=`, else the first path element of the CloudEvent `subject` (`:210-224`; `event/WebhookEventService.java:82-88`) |
 | `POST /api/v2/event` (any other type) | CloudEvents 1.0 binary mode, attributes in `ce-*` headers | same (`:228-243`) |
-| `POST|GET /api/v2/callback?ref={workflowrun}&topic=&status=` | Resumes a "Wait For Event" task | `ref` is the workflow run (`:139-196`) |
+| `POST|GET /api/v2/callback?ref={workflowrun}&topic=&status=&eventId=` | Resumes a "Wait For Event" task | `ref` is the workflow run. An optional `eventId` makes a repeat of the same callback for that run a no-op for 7 days, the `events_inbox` expiry; without one, each delivery is applied (`event/WebhookEventService.java`, `processWFE`) |
 
 Accepted CloudEvent shape (structured mode):
 

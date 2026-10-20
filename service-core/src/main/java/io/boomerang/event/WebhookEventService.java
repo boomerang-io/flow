@@ -183,15 +183,18 @@ public class WebhookEventService {
     return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
   }
 
+  // An eventId makes a redelivery of the same callback a no-op: the run's event inbox records it.
   public void processWFE(
-      String workflowRunId, String topic, String status, Optional<JsonNode> payload) {
+      String workflowRunId,
+      String topic,
+      String status,
+      Optional<JsonNode> payload,
+      Optional<String> eventId) {
     WorkflowRunEventRequest request = new WorkflowRunEventRequest();
+    eventId.ifPresent(request::setId);
     request.setTopic(topic);
     request.setStatus(RunStatus.getRunStatus(status));
-    if (payload.isPresent()) {
-      RunResult data = new RunResult("data", (Object) payload);
-      request.setResults(List.of(data));
-    }
+    payload.ifPresent(data -> request.setResults(List.of(new RunResult("data", (Object) data))));
     workflowRunService.event(workflowRunId, request);
   }
 
