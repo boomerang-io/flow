@@ -373,6 +373,48 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
     assertEquals(1, rowsFor(wfRun.getId()).size(), "the run's completion writes one row");
   }
 
+  /*
+   * A skip is two writes - skipped while still pending, then end()'s completion - and a consumer
+   * sees one event for it, from the completion. An admission rejection takes the same two steps.
+   */
+  @Test
+  void aSkippedTaskWritesOneRowFromItsCompletion() {
+    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("outbox-skip-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity skipped =
+        savedTaskRun(
+            "skipped",
+            TaskType.template,
+            RunStatus.notstarted,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+
+    bridge.onTaskRunTransition(
+        new TaskRunTransition(
+            skipped.getId(),
+            wfRun.getId(),
+            TaskType.template,
+            RunStatus.notstarted,
+            RunPhase.pending,
+            RunStatus.skipped,
+            RunPhase.pending));
+    bridge.onTaskRunTransition(
+        new TaskRunTransition(
+            skipped.getId(),
+            wfRun.getId(),
+            TaskType.template,
+            RunStatus.skipped,
+            RunPhase.pending,
+            RunStatus.skipped,
+            RunPhase.completed));
+
+    List<EventOutboxEntity> rows = rowsFor(skipped.getId());
+    assertEquals(1, rows.size(), "one row for the skip");
+    assertEquals(RunPhase.completed, rows.get(0).getTo().phase());
+  }
+
   // A sink that records every structured CloudEvent it receives, answering the first delivery of
   // the row failOnce (when given) with a 500 so the dispatcher retries it.
   private OutboxDispatcher recordingDispatcher(String failOnce) {

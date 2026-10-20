@@ -34,6 +34,7 @@ public class CloudEventsBridge {
   @EventListener
   public void onTaskRunTransition(TaskRunTransition transition) {
     if (!TaskType.end.equals(transition.type())
+        && !endsBeforeCompleting(transition)
         && emits(
         transition.fromStatus(),
         transition.fromPhase(),
@@ -71,6 +72,16 @@ public class CloudEventsBridge {
   // A transition emits when the externally-visible status changes, or when the run reaches the
   // terminal phase carrying a caller-persisted status (whose change was never emitted). Claim
   // transitions (phase-only, non-terminal) stay silent.
+  // A skip or an admission rejection is two writes: the final status while still pending
+  // (TaskRunService.trySkip, tryReject), then end()'s completion. Only the completion is an event,
+  // so one change of state sends one.
+  private static boolean endsBeforeCompleting(TaskRunTransition transition) {
+    return RunPhase.pending == transition.toPhase()
+        && (RunStatus.skipped == transition.toStatus()
+            || RunStatus.failed == transition.toStatus()
+            || RunStatus.invalid == transition.toStatus());
+  }
+
   private static boolean emits(
       RunStatus fromStatus, RunPhase fromPhase, RunStatus toStatus, RunPhase toPhase) {
     return fromStatus != toStatus || (fromPhase != toPhase && RunPhase.completed == toPhase);
