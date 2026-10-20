@@ -30,6 +30,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -71,6 +75,27 @@ public abstract class AbstractEngineIntegrationTest {
   @Autowired protected RelationshipService relationshipService;
   @Autowired protected SettingsRepository settingsRepository;
   @Autowired protected TaskService taskService;
+  @Autowired private MongoTemplate mongoTemplate;
+
+  /**
+   * Starts every test with an empty claim queue. The database is shared and a dispatcher poll
+   * claims the oldest page of ready task runs, so tasks earlier tests left ready would crowd out
+   * the ones a test creates and polls for. They end as cancelled, which no poll, sweep or
+   * termination claim picks up.
+   */
+  @BeforeEach
+  void cancelTasksEarlierTestsLeftReady() {
+    mongoTemplate.updateMulti(
+        Query.query(
+            Criteria.where("status")
+                .is(RunStatus.ready)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("claim.by")
+                .exists(false)),
+        new Update().set("status", RunStatus.cancelled).set("phase", RunPhase.completed),
+        TaskRunEntity.class);
+  }
 
   /**
    * Establishes an identity for every test, mirroring production: a served request always has one
