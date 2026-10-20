@@ -22,9 +22,9 @@ counts), computed inside the bootstrap that every route pays for
 
 C. Home's loader reads the profile, then fires `workflowrun/count`, `workflowrun/query`,
 `action/query` and `schedule/query` for every workspace in one wave and merges the pages
-(`client-web/src/Features/Home/homeLoader.ts:153`). It is the only design that adds nothing to the
+(`client-web/src/Features/Home/homeLoader.ts:171`). It is the only design that adds nothing to the
 data model or to the cost of the routes that do not show these numbers. Each read is settled on
-its own, so one failing workspace contributes zeros and a warning, never a blank page.
+its own: a failed read marks only its number as not loaded, never as zero, and never blanks the page.
 
 ## Consequences
 

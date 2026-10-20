@@ -47,6 +47,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.slf4j.helpers.MessageFormatter;
 
 /*
  * Handles CRUD of TaskRuns
@@ -579,6 +580,23 @@ public class TaskRunService {
                         Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
             .maxTimeMsec(5000);
     return mongoTemplate.exists(query, TaskRunEntity.class);
+  }
+
+  // Completion Compare-And-Set for a TaskRun that will not run - its run is gone or already
+  // completed - with its status and a formatted message, so its end is published like any other.
+  public TaskRunEntity tryComplete(
+      TaskRunEntity taskRun, RunStatus status, String message, Object... messageArgs) {
+    long duration =
+        (taskRun.getStartTime() != null)
+            ? new Date().getTime() - taskRun.getStartTime().getTime()
+            : 0;
+    return tryComplete(
+        taskRun.getId(),
+        Optional.of(status),
+        Optional.of(MessageFormatter.arrayFormat(message, messageArgs).getMessage()),
+        duration,
+        Optional.empty(),
+        Optional.empty());
   }
 
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage

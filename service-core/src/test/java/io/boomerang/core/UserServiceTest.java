@@ -14,6 +14,7 @@ import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.UserRequest;
+import io.boomerang.core.model.UserSettings;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.IdentityService;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Covers {@code UserService}'s "no principal" behaviour (e.g. {@code
@@ -49,7 +51,13 @@ class UserServiceTest {
   @BeforeEach
   void setUp() {
     userService =
-        new UserService(mongoTemplate, identityService, extUserService, relationshipService, userRepository);
+        new UserService(
+            mongoTemplate,
+            identityService,
+            extUserService,
+            relationshipService,
+            userRepository,
+            JsonMapper.builder().build());
     // externalUserUrl blank = the internal (non-external-IdP) user store, the default posture.
     ReflectionTestUtils.setField(userService, "externalUserUrl", "");
   }
@@ -100,6 +108,39 @@ class UserServiceTest {
         .isEqualTo(BoomerangError.AUTH_REQUIRED.getReason());
 
     verify(userRepository, never()).findByEmailAndStatus(any(), any());
+  }
+
+  /**
+   * A profile patch names only the settings it changes: closing Home's "Get started" row must not
+   * reset the user's consent or their other settings to the defaults.
+   */
+  @Test
+  void patchingOneSettingLeavesTheOthersAsStored() {
+    io.boomerang.core.model.Token self =
+        new io.boomerang.core.model.Token(io.boomerang.core.security.enums.AuthScope.session);
+    self.setPrincipal("u1");
+    when(identityService.getCurrentPrincipal()).thenReturn("u1");
+    when(identityService.getCurrentIdentity()).thenReturn(self);
+
+    UserEntity stored = new UserEntity();
+    stored.setId("u1");
+    stored.getSettings().setHasConsented(true);
+    stored.getSettings().setIsFirstVisit(false);
+    when(userRepository.findByIdAndStatus("u1", UserStatus.active)).thenReturn(Optional.of(stored));
+    when(userRepository.save(any(UserEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    UserRequest request = new UserRequest();
+    request.setSettings(java.util.Map.of("isShowGetStarted", false));
+    userService.updateCurrentProfile(request);
+
+    ArgumentCaptor<UserEntity> saved = ArgumentCaptor.forClass(UserEntity.class);
+    verify(userRepository).save(saved.capture());
+    UserSettings settings = saved.getValue().getSettings();
+    assertThat(settings.getIsShowGetStarted()).isFalse();
+    assertThat(settings.getHasConsented()).isTrue();
+    assertThat(settings.getIsFirstVisit()).isFalse();
+    assertThat(settings.getIsShowHelp()).isTrue();
   }
 
   /**

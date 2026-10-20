@@ -47,7 +47,7 @@ describe("Home --- loader", () => {
     expect(trace.startedTogether(WORKSPACE_COUNT * 4)).toBe(true);
     expect(data.runsToday).toEqual({ all: 6, succeeded: 3, failed: 3, running: 0, waiting: 0 });
     expect(Object.keys(data.stats)).toHaveLength(WORKSPACE_COUNT);
-    expect(data.degraded).toBe(false);
+    expect(data.degraded).toEqual({ runsToday: false, attention: false, schedules: false, recentRuns: false });
   });
 
   test("merges runs across workspaces newest first and caps the list", async () => {
@@ -131,7 +131,7 @@ describe("Home --- loader", () => {
     expect(data.schedulesTotal).toBe(2 * WORKSPACE_COUNT);
   });
 
-  test("degrades instead of throwing when one workspace's read fails", async () => {
+  test("marks only the failed part, instead of throwing, when one workspace's read fails", async () => {
     server.use(
       http.get(serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace: ":workspace" }), ({ params }) =>
         params.workspace === "system"
@@ -145,9 +145,10 @@ describe("Home --- loader", () => {
 
     const data = await loader({ request: request() });
 
-    expect(data.degraded).toBe(true);
+    expect(data.degraded).toEqual({ runsToday: true, attention: false, schedules: false, recentRuns: false });
     expect(data.runsToday.all).toBe(WORKSPACE_COUNT - 1);
-    expect(data.stats.system.runsToday.all).toBe(0);
+    // No stats rather than zeros, so the workspace card shows its count as unknown.
+    expect(data.stats.system).toBeUndefined();
   });
 
   test("renders an empty rollup, not an error, when the profile cannot be read", async () => {
@@ -155,7 +156,7 @@ describe("Home --- loader", () => {
 
     const data = await loader({ request: request() });
 
-    expect(data.degraded).toBe(true);
+    expect(data.degraded).toEqual({ runsToday: true, attention: true, schedules: true, recentRuns: true });
     expect(data.recentRuns).toEqual([]);
     expect(data.stats).toEqual({});
   });

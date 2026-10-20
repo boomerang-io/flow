@@ -32,12 +32,19 @@ function formatDuration(duration: number): string {
   return duration < 1000 ? "< 1 second" : getHumanizedDuration(Math.round(duration / 1000));
 }
 
-/** The newest runs across the caller's workspaces, one real table row each; the name opens the run. */
-export default function RecentActivity({ runs }: { runs: Array<HomeRun> }) {
+/**
+ * The newest runs across the caller's workspaces, one real table row each; the name opens the run.
+ * `unavailable` means a workspace's runs could not be read, so an empty list is not "no runs yet".
+ */
+export default function RecentActivity({ runs, unavailable = false }: { runs: Array<HomeRun>; unavailable?: boolean }) {
   if (runs.length === 0) {
     return (
       <div className={styles.table}>
-        <p className={styles.empty}>No runs yet. Run a workflow and it shows up here.</p>
+        <p className={styles.empty}>
+          {unavailable
+            ? "Recent runs could not be loaded. Refresh to try again."
+            : "No runs yet. Run a workflow and it shows up here."}
+        </p>
       </div>
     );
   }
