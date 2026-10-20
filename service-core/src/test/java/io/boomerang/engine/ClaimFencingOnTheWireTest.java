@@ -104,6 +104,48 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
         null, after.getStatusMessage(), "the rejected request's merge must not be written");
   }
 
+  // The window between a requeued task's termination hand-off and its next claim: the claim is
+  // released (status ready, no claim.by) and the backoff has not elapsed. The claimant whose claim
+  // was reaped - it lost contact with core while its pod kept running - then reports the end.
+  @Test
+  void aLateEndAfterTheClaimWasReleasedIsRejectedAndChangesNothing() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("released-wf", RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun(
+                "released-task",
+                TaskType.template,
+                RunStatus.ready,
+                RunPhase.pending,
+                wfRun.getWorkflowRef(),
+                wfRun.getId())
+            .getId();
+    String dispatcher = registerDispatcher("released");
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher), taskRunId));
+    assertNotNull(
+        taskRunService.tryRequeue(
+            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1));
+    // The same dispatcher, back in contact, is handed the termination of the reaped attempt.
+    assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher), taskRunId));
+    TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
+    assertEquals(RunStatus.ready, released.getStatus());
+    assertEquals(null, released.getClaim().getBy());
+
+    TaskRunEndRequest endRequest = new TaskRunEndRequest();
+    endRequest.setStatus(RunStatus.succeeded);
+    endRequest.setStatusMessage("late pod result");
+    endRequest.setDispatcherRef(dispatcher);
+    BoomerangException rejected =
+        assertThrows(
+            BoomerangException.class, () -> taskRunService.end(taskRunId, Optional.of(endRequest)));
+    assertEquals(BoomerangError.TASKRUN_CLAIM_SUPERSEDED.getCode(), rejected.getCode());
+
+    // Still claimable for its next attempt once the backoff has passed.
+    TaskRunEntity after = taskRunRepository.findById(taskRunId).orElseThrow();
+    assertEquals(RunStatus.ready, after.getStatus());
+    assertEquals(RunPhase.pending, after.getPhase());
+    assertEquals(null, after.getStatusMessage());
+  }
+
   @Test
   void currentClaimantResultIsAcceptedOnTheDispatcherWire() {
     String[] scenario = supersededClaimantScenario("current");

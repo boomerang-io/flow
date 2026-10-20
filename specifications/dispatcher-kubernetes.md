@@ -19,14 +19,17 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 `config/DispatcherConfig.java:23-52`. SDK paths below are under `dispatcher-sdk/.../dispatcher/sdk/`.
 
 - **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and
-  waits until 5 s after the start of one that failed or was answered empty at once (`QueuePoller.java:19,68-87`).
+  waits until 5 s after the start of one that failed or was answered empty at once (`QueuePoller.java:23,104-123`).
   A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
 - **Slots.** It holds at most `flow.dispatcher.task.max-in-flight` tasks (25; 0 is no cap). A task is in flight from
   its claim - taken on the poll's thread, so the next poll counts it - until the engine has taken its end, a
-  Pending pod and a retried end included; each task poll sends `limit` = the free slots (`InFlightTasks.java:28`,
-  `TaskRunner.java:89-93`, `Dispatcher.java:246`). It sends no filters; termination orders take no slot.
-- **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, so a lease is
-  renewed for as long as its handler runs and its end is pending (`Dispatcher.java:176-186`).
+  Pending pod and a retried end included; each task poll sends `limit` = the free slots (`InFlightTasks.java:30`,
+  `TaskRunner.java:89-93`, `Dispatcher.java:265`). It sends no filters; termination orders take no slot. While
+  every slot is taken a `limit=0` poll keeps termination orders coming, and a slot that frees starts a work poll
+  at once beside it (`Dispatcher.java:259-282`).
+- **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, from its claim
+  until its end is taken, so the lease the claim set is renewed for as long as its handler runs and its end is
+  pending (`Dispatcher.java:190`, `:291-299`). There is no switch to turn it off.
 - **Start answer.** It runs nothing when start answers `completed` or a 4xx, and goes ahead when the engine cannot
   be reached (`TaskRunner.java:157-177`). A claim for a type it did not register is skipped (`:90`).
 - **Termination.** A terminate order signals the running task and calls `TaskService.cancel`, which cancels the
@@ -51,6 +54,12 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
   route accepts only the bearer generated at every start and registered as `logsToken`
   (`dispatcher/LogAuthFilter.java`, `config/DispatcherConfig.java`). `flow.dispatcher.logs.url` is the address the
   engine reads it at, registered as `logsUrl`; blank registers none, and a running task then has no log to follow.
+  A running pod's log is followed (`watchLog`) and every read is written and the servlet response flushed at
+  once (`kube/KubeLogService.java` `watchedPodLog` `:122`, `copyAsWritten` `:273`; the route wraps its body in
+  `dispatcher/ResponseFlushingOutputStream.java`, because Spring 7 makes the body stream's own flush a no-op);
+  a Pending pod is answered with one
+  "waiting for the task's container to start" line and followed once it starts, or told it has not started after
+  five minutes (`startingPodLog` `:148`); a finished pod is read once (`finishedPodLog` `:190`).
   With `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the
   runtime object is deleted and stored with the engine, where it is served first and outlives the pod
   (`dispatcher/TaskService.java`, `storeLog`; `dispatcher-contract.md`, "Logs").
@@ -135,6 +144,7 @@ environment variables (`kube/KubeHelperService.java:111-149`):
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
 | `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`, set by the executor that runs it: `4096` on Jobs (the termination message cap, `KubeJobsExecutor.TERMINATION_MESSAGE_MAX_BYTES`); `tekton.results.maxBytes` on Tekton (default `4096`, raised to the cluster's `max-result-size` under sidecar-logs). A task budgets against it rather than a constant of its own |
 | `DEBUG`, `CI=true`, `FLOW_VERSION`, proxy vars | Debug flag, CI marker, the dispatcher's `flow.version`, and the `HTTP_PROXY` family when `proxy.enable=true` |
+| `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`, `dispatcher-sdk/.../model/TaskRun.java:66`), on every task |
 
 Explicitly declared task env vars win on a name collision (`KubeHelperService.java:145-147`). There is no
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
@@ -179,8 +189,8 @@ storage is one workspace per run, declared on the workflow and copied onto the r
 `mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher provisions one persistent volume claim
 (PVC) keyed by the run id, labelled `boomerang.io/tier=workspace` and `boomerang.io/workspace-ref=<run id>`, before
 the run starts (`dispatcher/WorkflowService.java:42-57`), and deletes it when its reconciliation finds the run
-completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume is shared between runs: files that must survive
-a run are artifacts with scope `workflow` ("Artifacts" in `data-model.md`). Both executors mount that one claim at
+completed (`dispatcher/WorkspaceReconciler.java:58-65`). No volume is shared between runs, a retry and its origin
+included: files that must survive a run are artifacts with scope `workflow` ("Artifacts" in `data-model.md`). Both executors mount that one claim at
 the TaskRun's path (`KubeJobsExecutor.java:278-299`; `TektonServiceImpl.java:212-217`, one declaration and one
 binding named `workspace`; the fallback is `KubeHelperService.workspaceMountPath` `:546`). Finished task pods still
 hold the claim, so under `Never` it stays `Terminating` until retention removes them.
@@ -249,18 +259,28 @@ Kubernetes-only.
 
 An `ai` revision declares its image and command (`dispatcher-contract.md`, "AI tasks"), and this dispatcher runs
 them exactly as it does for `custom` or `template` (a revision with an image and no command runs the image's own
-entrypoint; one with no image is refused as `NO_TASK_IMAGE`; `executor/TaskImageResolver.java:91-98`,
+entrypoint; one with no image is refused as `NO_TASK_IMAGE`; `executor/TaskImageResolver.java:125-143`,
 `dispatcher/TaskService.java:118-130`). There is no worker-image property: every `ai` revision declares its image.
 That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default
 `boomerangio/task-ai`, which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other
 `ai` task before it runs, never-started with `statusReason=ImageNotAllowed` and a message naming the image and the
-property (`TaskImageResolver.allowedAiImage` `:60-66`), so a dispatcher registered for `ai` stays the egress zone
+property (`TaskImageResolver.allowedAiImage` `:71-77`), so a dispatcher registered for `ai` stays the egress zone
 for the worker alone unless an operator adds a prefix. An `ai` task never runs a script.
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,
-each only when set, ahead of the task's own environment (`TaskImageResolver.java:76-88`); the task's own `endpoint`
+each only when set, ahead of the task's own environment (`TaskImageResolver.java:91-92`); the task's own `endpoint`
 and `token` params still arrive as `PARAM_ENDPOINT` and `PARAM_TOKEN` and win inside the image.
+
+**OpenTelemetry.** With `flow.dispatcher.ai.otel.endpoint` set, every `ai` pod also gets
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` (from `.otel.headers`, visible in the pod spec like the
+token), `OTEL_EXPORTER_OTLP_PROTOCOL` (from `.otel.protocol`, default `http/protobuf`), `OTEL_SERVICE_NAME` =
+`flow-task-<taskRef>`, and `OTEL_RESOURCE_ATTRIBUTES` carrying `flow.workflow.run.id`, `flow.task.run.id` and
+`flow.task.name`, percent-encoded (`TaskImageResolver.java:93-104`, `:120`); blank sends none, and a task's own
+variable of the same name wins. task-ai exports GenAI-convention spans over `http/protobuf` or `http/json`;
+`grpc` is unsupported and logs one warning, exporting nothing. It reads `TRACEPARENT` through the W3C propagator,
+so its spans join the run's trace. Langfuse takes OTLP over HTTP only (`<host>/api/public/otel`); Tempo listens
+for it on port 4318.
 
 **Network zone.** A dispatcher registered with `taskTypes=[ai]` receives only `ai` tasks
 (`DispatcherService.java:260-340`, `TaskRunService.findClaimable`), so the AI zone is a second dispatcher

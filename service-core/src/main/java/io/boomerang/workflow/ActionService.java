@@ -5,10 +5,12 @@ import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
@@ -26,20 +28,22 @@ import io.boomerang.workflow.model.ActionRequest;
 import io.boomerang.workflow.model.ActionSummary;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
@@ -178,7 +182,21 @@ public class ActionService {
         }
         actioner.setComments(request.getComments());
         actioner.setApproved(request.isApproved());
-        actionEntity.getActioners().add(actioner);
+        // Appended in place while the action is open, so each decision is kept until enough have
+        // been made and two approvers acting together both count. A decided action takes no more.
+        actionEntity =
+            mongoTemplate.findAndModify(
+                Query.query(
+                    Criteria.where("_id")
+                        .is(actionEntity.getId())
+                        .and("status")
+                        .is(ActionStatus.submitted)),
+                new Update().push("actioners", actioner),
+                FindAndModifyOptions.options().returnNew(true),
+                ActionEntity.class);
+        if (actionEntity == null) {
+          throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
+        }
       }
 
       int numberApprovals = actionEntity.getNumberOfApprovers();
@@ -194,13 +212,49 @@ public class ActionService {
         try {
           TaskRunEndRequest endRequest = new TaskRunEndRequest();
           endRequest.setStatus(approved ? RunStatus.succeeded : RunStatus.failed);
+          if (actionEntity.getType() == ActionType.approval) {
+            endRequest.setResults(approvalResults(actionEntity));
+          }
           engineTaskRunService.end(actionEntity.getTaskRunRef(), Optional.ofNullable(endRequest));
         } catch (BoomerangException e) {
           throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
         }
-        this.actionRepository.save(actionEntity);
+        // The status alone, so a decision landing alongside is never overwritten.
+        mongoTemplate.updateFirst(
+            Query.query(Criteria.where("_id").is(actionEntity.getId())),
+            Update.update("status", actionEntity.getStatus()),
+            ActionEntity.class);
       }
     }
+  }
+
+  /*
+   * The results the approval task declares: the outcome, and the date, approver and comments of
+   * the last actioner - the one whose action decided it. An approver that resolves to no user (a
+   * machine token) is named by its recorded id and has no email.
+   */
+  private List<RunResult> approvalResults(ActionEntity actionEntity) {
+    List<RunResult> results =
+        new LinkedList<>(List.of(new RunResult("approvalStatus", actionEntity.getStatus().name())));
+    if (actionEntity.getActioners().isEmpty()) {
+      return results;
+    }
+    Actioner decider = actionEntity.getActioners().getLast();
+    Optional<User> user =
+        (decider.getApproverId() != null)
+            ? userService.getUserByID(decider.getApproverId())
+            : Optional.empty();
+    results.add(
+        new RunResult(
+            "approvalDate",
+            (decider.getDate() != null) ? decider.getDate().toInstant().toString() : ""));
+    results.add(
+        new RunResult(
+            "approvalUserName",
+            user.map(User::getName).orElse(Objects.toString(decider.getApproverId(), ""))));
+    results.add(new RunResult("approvalUserEmail", user.map(User::getEmail).orElse("")));
+    results.add(new RunResult("approvalComments", Objects.toString(decider.getComments(), "")));
+    return results;
   }
 
   private Action convertToAction(ActionEntity actionEntity) {
@@ -399,34 +453,12 @@ public class ActionService {
       Optional<List<String>> workflowRefs,
       Optional<List<ActionType>> type,
       Optional<List<ActionStatus>> status) {
-    List<Criteria> criterias = new ArrayList<>();
-
-    if (from.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("creationDate").gte(from.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (to.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("creationDate").lte(to.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (workflowRefs.isPresent()) {
-      Criteria workflowIdsCriteria = Criteria.where("workflowRef").in(workflowRefs.get());
-      criterias.add(workflowIdsCriteria);
-    }
-
-    if (type.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("type").in(type.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    if (status.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("status").in(status.get());
-      criterias.add(dynamicCriteria);
-    }
-
-    return new Criteria().andOperator(criterias.toArray(new Criteria[criterias.size()]));
+    return new QueryCriteria()
+        .between("creationDate", from, to)
+        .in("workflowRef", workflowRefs)
+        .in("type", type)
+        .in("status", status)
+        .build();
   }
 
 }

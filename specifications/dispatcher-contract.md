@@ -52,9 +52,9 @@ The protocol carries its own version, `1`, apart from the product version.
 ## Authentication
 
 Every call carries `Authorization: Bearer <token>`: a global Flow token with an actor kind — a machine token
-(`dispatcher/DispatcherAuthFilter.java:54-80`, `core/TokenService.java:433-438`). Anything else is a bare
-401. `flow.dispatcher.auth.enabled=false` makes the filter a pass-through for local development; it is
-independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
+(`dispatcher/DispatcherAuthFilter.java:63-93`, `core/TokenService.java:432-437`). Anything else is a bare
+401. The token is the identity the request runs as. `flow.dispatcher.auth.enabled=false` checks nothing, for local
+development; it is independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
 
 ## The lifecycle
 
@@ -88,7 +88,12 @@ second, and answers as soon as it has claimed something — at most a page of 20
 A dispatcher SHOULD poll again as soon as a poll returns runs or was held for its window, and SHOULD wait about
 5 s after a poll that failed or was answered at once with nothing — claiming switched off
 (`flow.queue.enabled=false`) and a filter that matches nothing both answer that way. The SDK's poller does
-exactly this (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`).
+exactly this (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:104-123`).
+
+A dispatcher with no free slot keeps a `limit=0` poll open so termination orders still reach it. It MAY open a
+work poll beside that one the moment a slot frees, rather than wait out the hold: each termination order is
+claimed by its own compare-and-set, so two polls never receive the same one (`DispatcherService.java:387-392`).
+The SDK does this, with at most one work poll in flight per pool (`dispatcher-sdk/.../dispatcher/sdk/Dispatcher.java:259-282`).
 
 The task poll takes optional query parameters:
 
@@ -130,11 +135,15 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 | What | When | Stored |
 | --- | --- | --- |
 | The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:209`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:336`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:338,381`) | No - the stored spec keeps its references; only the copy on the claim carries values |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:294`, called from `dispatcher/DispatcherService.java:450`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. Admission has checked every reference, so the fill-in
 fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
-`SpecFillFailed` (`DispatcherService.java:396`). The termination order, the start and end answers and every
+`SpecFillFailed` (`DispatcherService.java:460`). Any other failure while a claimed task is prepared for hand-out
+ends it `failed` with reason `DispatchPrepareFailed`, logged with its id and the cause, and the other tasks
+claimed in the same poll are still handed out, so no claim stays with a dispatcher that never hears of it
+(`DispatcherService.prepare` `:413`). Preparing a task does not depend on who calls: an artifact task's storage
+quota is read from its run's workspace (`workspace/WorkspaceService.getArtifactStorageQuota` `:782`). The termination order, the start and end answers and every
 consumer read carry the stored spec. The TaskRun's params are the task's declared params merged with the values
 authored on the workflow node (`engine/DAGUtility.java:183`). A `custom` task takes its runtime from its own
 params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue entry, which
@@ -167,7 +176,8 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 
 - `status` is `succeeded`, `failed` or `invalid`; anything else is `400 TASKRUN_INVALID_END_STATUS` (`:967`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes
-  nothing (`:1054-1066`).
+  nothing, including an end that arrives after the engine reaped the claim and released it for another attempt
+  (`:1137-1152`).
 - `results` carries only the result names the task's definition declares; the caps below bound its size.
 - `statusReason` is a closed set (`service-core/.../model/TaskRunEndRequest.java`). Two of them mean the task
   never started, and the engine requeues it instead of failing it — with backoff, on the same budget of three
@@ -199,28 +209,69 @@ the params cap at its own admission.
 
 ## Leases and heartbeat
 
-A claim has no lease until the dispatcher's first heartbeat for it. `PUT /{id}/heartbeat` lists the task run
-ids the dispatcher is still working on; the engine sets each owned one's lease 90 s ahead
-(`flow.dispatcher.lease-ms`, `DispatcherService.java:62`, `:138-151`). A dispatcher SHOULD beat every 30 s for any
-task that can outlive a minute. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
-(`engine/WorkflowWatcher.java:76`), gets the task requeued or abandoned (`execution-model.md`).
+A claim carries a lease from the moment it is made: the claim sets it 90 s ahead (`flow.dispatcher.lease-ms`,
+`engine/TaskRunService.java:297`, `:323`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
+working on, and the engine moves each owned one's lease 90 s ahead again (`dispatcher/DispatcherService.java:189`,
+`engine/TaskRunService.java:638`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
+has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
+was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s
+(`engine/WorkflowWatcher.java:78`), gets the task requeued or abandoned (`execution-model.md`). The lease is what
+catches a dispatcher that crashes and comes back under the same id within that minute: it stays live, but its
+heartbeats no longer list the claims it lost.
 
 ## Logs
 
 A task's log is read through core alone — `GET /api/v2/taskrun/{id}/log`, which authorizes the reader and
-scrubs the run's secrets (`workflow/WorkflowRunService.java:433-455`) — and core serves it from the first of
-these (`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolve`):
+scrubs the run's secrets (`workflow/WorkflowRunService.java:464-500`) — from one of three sources
+(`engine/TaskRunService.java` `streamLog` `:1161-1183`, `engine/LogClient.java` `streamLog` `:90`):
 
 | Source | When |
 | --- | --- |
 | The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end. Core stores it as a log-scoped artifact of the run for the task-log retention setting, 7 days by default (`workflow/ArtifactService.java` `storeTaskLog`; `data-model.md`, "Artifacts") and answers 204. 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. A later upload for the same task run replaces the earlier one. |
 | The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream. What answers there — the pod, Loki — is the dispatcher's own. |
-| A message | Neither: a 200 whose body says no log is available. Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
+| A message | Neither answers: a 200 whose body says no log is available. Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
+
+Which source answers depends on whether the task has ended. While it runs, the live route. A log stored during
+this attempt — after the current claim was made (`TaskRunService.java:1187-1192`) — answers instead when the
+claim's dispatcher registered no `logsUrl` or its route fails before answering (`LogClient.java:131`), so a
+dispatcher that uploads snapshots while a task runs is still followed live, and one without a live route still
+shows its latest snapshot. A requeued task's earlier attempt is never served while the new attempt runs, and a
+live stream that fails part way through is not restarted from the stored copy. Once the task has ended, the stored
+log; without one, the live route.
 
 A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished,
 and MAY both serve live and upload. A dispatcher with no HTTP surface registers no `logsUrl` and uploads; one
 whose logs live only in a pod registers a `logsUrl` so a running task can be followed. Flow's Kubernetes
 dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
+
+A live route MUST write each line as the task writes it and get it onto the network, never collect the body first.
+Under Spring 7 a `StreamingResponseBody`'s own `flush()` does not reach the network, so both of Flow's log routes
+flush the servlet response instead (`common/util/ResponseFlushingOutputStream.java`, used at
+`workflow/TaskRunControllerV2.java:57`; the dispatcher's twin at `dispatcher/LogV1Controller.java:27`): core relays
+every read and flushes it (`engine/LogClient.java` `copyAsWritten` `:166`), and its scrub of the run's secrets
+passes on whole lines only (`common/util/FilterValuesOutputStream.java`), so a reader sees a line about a second
+after the task wrote it. A stream stays open for up to two hours (`spring.mvc.async.request-timeout`,
+`application.properties:72`). When the dispatcher sends nothing for 10 minutes, core's read gives up
+(`core/config/RestConfig.java` `STREAMING_READ_MINUTES`) and the reader's stream ends with a line saying it stopped
+following (`LogClient` `IDLE_MESSAGE` `:47`); opening the log again follows it from the start of the pod's log.
+
+## Trace context
+
+Flow stores no traces; a task and a dispatcher export their own OpenTelemetry spans to the operator's backend
+(decision 0120). So that every task of one run lands in one trace, a dispatcher SHOULD derive a W3C
+`traceparent` for each task run from two ids it already holds and hand it to the task as `TRACEPARENT`; an
+in-process handler uses it as the parent context of its spans.
+
+| Part | Value |
+| --- | --- |
+| version, flags | `00`, `01` (sampled) |
+| trace-id | `00000000` followed by the run's `workflowRunRef`, 32 lowercase hex |
+| parent-id | the last 16 hex of the task run's `id` |
+
+A task run `6ad1bfa6cfefa66e88d5e2e0` of run `6ad1bfa3cfefa66e88d5e24a` gets
+`00-000000006ad1bfa3cfefa66e88d5e24a-cfefa66e88d5e2e0-01`. The SDK derives it (`TaskRun.traceparent()`,
+`TaskContext.traceparent()`); it is computed, not carried, so the protocol and `contracts/dispatcher-v1.yaml` do
+not change. A retry is a new run, so it is its own trace, linked to its origin through `initiatedByRef`.
 
 ## Storage
 
@@ -242,20 +293,21 @@ nothing later in the run changes it.
 
 ## Task types
 
-Only `template`, `custom`, `script`, `generic` and `ai` tasks go to a dispatcher
-(`engine/TaskExecutionService.java:208-212,340`), plus the two artifact types; every other type runs inside the
-engine. `TaskType` (`service-core/.../enums/TaskType.java:15-32`) is dispatched in `TaskExecutionService.java:320-373`.
+Only `template`, `custom`, `script`, `generic`, `ai`, `uploadartifact` and `downloadartifact` tasks go to a
+dispatcher: admission leaves them for a claim instead of executing them (`engine/TaskExecutionService.java:259-268`).
+Every other type runs inside the engine. `TaskType` (`service-core/.../enums/TaskType.java:15-61`) is dispatched in
+`TaskExecutionService.java:398-454`.
 
 | Type | Behaviour |
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `decision` | Evaluates the branch and ends `succeeded` |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:438-445`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |
 | `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
-| `approval`, `manual` | Create an action and wait for a person |
+| `approval`, `manual` | Create an action and wait for a person. An approval waits for `numberOfApprovals` approvers (`numberOfApprovers` is still read; `engine/TaskExecutionService.java:1435-1446`) and ends with `approvalStatus`, `approvalDate`, `approvalUserName`, `approvalUserEmail` and `approvalComments` from the action that decided it (`workflow/ActionService.java:200,216-238`); a manual task ends with none |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
 | `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
@@ -268,10 +320,12 @@ migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/ta
 (`service-core/src/main/java/io/boomerang/migration/_0017__SeedTaskCatalogue.java:68-160`); the two artifact tasks
 follow (`_0018__SeedArtifactTasks`). A seeded task is never inserted again once present, so a task added to the seed
 after a release needs a change unit of its own to reach an existing database, which is what
-`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`. A `template` or `script` task without
+`_0023__SeedAiTaskFamily` is for `ai-prompt` and `ai-agent`; a new revision of a seeded task needs one too, which is
+what `_0024__SeedAiImageInputRevisions` is for their revision 2. A `template` or `script` task without
 an explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:212-218`).
 The engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
-(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`). On an upgraded v3
+(`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`); the run each starts
+or schedules gets only its node's other params. On an upgraded v3
 install, `_0019__V3UpgradeCatalogueRevisions` adds whichever of them the seeded revision declares and the install's
 revision lacks, and moves any revision off the retired `worker-flow` image (`:44-46,72`).
 
@@ -291,15 +345,19 @@ surfaces this per node as a "New version available" prompt, driven by the `upgra
 
 An `ai` task calls an OpenAI-compatible endpoint. The author never builds a container: the node references one of
 two seeded catalogue tasks of type `ai`, the engine treats it as any other dispatched type, and a dispatcher runs
-the image and command the revision declares, `boomerangio/task-ai:2.0.0` with `prompt` or `agent` (how Flow's
+the image and command the revision declares, `boomerangio/task-ai:2.1.0` at revision 2 and `2.0.0` at revision 1,
+with `prompt` or `agent` (how Flow's
 Kubernetes dispatcher does, and which images it admits, is in `dispatcher-kubernetes.md`, "AI tasks"; an
 in-process dispatcher runs the same contract in its own handler and ignores the image). Everything the model call
 needs is a declared param:
 
 | Task | Params | Results |
 | --- | --- | --- |
-| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace) | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
-| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all | The 9 plus `turns` and `toolCalls` |
+| `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace); revision 2 adds `images` (run-workspace paths or https URLs, sent as image content parts), `imageDetail` and `maxImageBytes`, 20 in all | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
+| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all, 29 at revision 2 with the same three image params | The 9 plus `turns` and `toolCalls` |
+
+Revision 1 of each stays seeded beside revision 2, so a workflow pinned to it keeps running unchanged. A workspace
+image over `maxImageBytes` fails the task with the reason prefix `FILE_TOO_LARGE`; it is never resized or skipped.
 
 The seed entries (`seed/tasks.json`, `seed/task-revisions.json`) are copies of the definition files in the
 `boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), which are the source of the
@@ -338,7 +396,7 @@ neither modelled nor listed as deliberately not. Paths are under `dispatcher-sdk
 | Class | Gives the author |
 | --- | --- |
 | `DispatcherClient` | One method per route over the host's `RestClient` (keeping its proxy, certificates and timeouts), the token on engine calls only (`DispatcherClient.java:56-64`) |
-| `Dispatcher` | Registration retried with backoff until the engine answers, with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one long-poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java`) |
+| `Dispatcher` | Registration retried with backoff until the engine answers, with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool, with the pacing above, `limit` = the pool's free capacity read on every poll, and optional filters, and while the pool is full a `limit=0` poll for termination orders that a freed slot never waits behind; the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s for every task in flight; a stop that drains for 10 s (`Dispatcher.java`) |
 | `TaskRunner` | The start answer honoured; the end retried with backoff until the engine takes it or refuses it with a 4xx, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`TaskRunner.java`) |
 | `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` (`TaskFailure.exceededQuota`, `startTimeout` for the requeued reasons); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`LogUploader.java`) |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim time, the download verified against `sha256` (`ArtifactTransfer.java:83-131`) |
@@ -358,3 +416,4 @@ the only Flow library published. Reading it needs a GitHub token with `read:pack
 | `type` on each `RunParam`, with `secret` | Additive (decision 0115) |
 | `RateLimited` end reason, requeued like `ExceededQuota` | Additive |
 | `taskRef` on a task run is the task's slug form; the `task` filter takes the same form | Before the first release (decision 0119) |
+| Trace context derived from the run and task run ids | Additive, no wire change (decision 0120) |

@@ -155,6 +155,36 @@ class ScheduleSecretParamTest extends AbstractEngineIntegrationTest {
     assertFalse(rawSchedule(id).toJson().contains("sched-secret-0002"));
   }
 
+  @Test
+  void theMarkerOnCreateIsNoValueABlankClearsAndAnUnsetSecretReadsAsNothing() {
+    String id = scheduleService.create(workspace, schedule(DataAdapterUtil.REDACTED)).getId();
+    WorkflowScheduleEntity stored = scheduleRepository.findById(id).orElseThrow();
+    assertEquals(null, value(stored.getParams(), "dbPass"), "the marker is never saved as the secret");
+    assertEquals(null, value(scheduleService.get(workspace, id).getParams(), "dbPass"));
+
+    String set = scheduleService.create(workspace, schedule("sched-secret-0003")).getId();
+    WorkflowSchedule edit = scheduleService.get(workspace, set);
+    edit.setParams(
+        new LinkedList<>(List.of(new RunParam("dbPass", ""), new RunParam("region", "eu-west-1"))));
+    scheduleService.apply(workspace, edit);
+    assertEquals("", value(scheduleRepository.findById(set).orElseThrow().getParams(), "dbPass"));
+    assertEquals(null, value(scheduleService.get(workspace, set).getParams(), "dbPass"));
+  }
+
+  @Test
+  void aSecretThatIsOnlyAReferenceReadsAsWrittenAndAnythingAroundOneStaysMasked() {
+    String id =
+        scheduleService.create(workspace, schedule("$(workspace.params.dbPass)")).getId();
+    WorkflowSchedule read = scheduleService.get(workspace, id);
+    assertEquals("$(workspace.params.dbPass)", value(read.getParams(), "dbPass"));
+    assertEquals(ParamType.secret, type(read.getParams(), "dbPass"), "it stays secret-typed");
+
+    String wrapped =
+        scheduleService.create(workspace, schedule("pass-$(workspace.params.dbPass)")).getId();
+    assertEquals(
+        DataAdapterUtil.REDACTED, value(scheduleService.get(workspace, wrapped).getParams(), "dbPass"));
+  }
+
   private WorkflowSchedule schedule(String secret) {
     WorkflowSchedule schedule = new WorkflowSchedule();
     schedule.setName("nightly");

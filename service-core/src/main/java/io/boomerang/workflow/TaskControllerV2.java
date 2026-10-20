@@ -3,6 +3,8 @@ package io.boomerang.workflow;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -138,6 +140,7 @@ public class TaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
+  @Audited(action = AuditAction.CREATE, resourceType = "task", resourceId = "#task?.getName()")
   @Operation(
       summary = "Create a new Task",
       description =
@@ -156,6 +159,10 @@ public class TaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "task",
+      resourceId = "#tektonTask?.getMetadata()?.getName()")
   @Operation(
       summary = "Create a new Task using Tekton Task YAML",
       description =
@@ -174,6 +181,7 @@ public class TaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
+  @Audited(action = AuditAction.UPDATE, resourceType = "task", resourceId = "#name")
   @Operation(
       summary = "Update, replace, or create new, Task",
       description =
@@ -198,6 +206,7 @@ public class TaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
+  @Audited(action = AuditAction.UPDATE, resourceType = "task", resourceId = "#name")
   @Operation(
       summary = "Update, replace, or create new using Tekton Task YAML",
       description =

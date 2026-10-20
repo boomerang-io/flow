@@ -75,7 +75,7 @@ public class LogService {
       LOGGER.info("Loki filter: " + filter);
 
       final String encodedQuery = URLEncoder.encode(filter, StandardCharsets.UTF_8);
-      final Integer limit = 5000; // max chunk size supported by Loki
+      final int limit = 5000; // max chunk size supported by Loki
       final String direction = "forward"; // default backward
       final String lokiEndpoint = "http://" + lokiHost + ":" + lokiPort;
       final String uri =

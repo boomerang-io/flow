@@ -1,35 +1,41 @@
 ---
 name: spring-module
-description: Spring Boot patterns for the Boomerang Flow backend (Java 21 / Spring Boot 3, MongoDB). Use this skill when creating or modifying any backend Java class — entities, repositories, services, controllers, config — in service-flow, service-engine, service-dispatcher, or io.boomerang.common. Triggers on any Java backend work. If you're writing Java here, read this skill first.
+description: Spring Boot patterns for the Boomerang Flow backend (Java 25 / Spring Boot 4, MongoDB). Use this skill when creating or modifying any backend Java class — entities, repositories, services, controllers, config — in service-core, dispatcher-sdk or service-dispatcher. Triggers on any Java backend work. If you're writing Java here, read this skill first.
 ---
 
 # Spring Boot Module Patterns — Boomerang Flow
 
-Java 21, Spring Boot 3.4.x, Maven multi-module, MongoDB primary store, Lombok, Log4j2.
+Java 25, Spring Boot 4.1, Maven multi-module, MongoDB primary store, Lombok, Log4j2.
 Match the conventions **already in the codebase** — the examples below are real files; read
 the nearest equivalent before writing.
 
 ## Modules and package layout
 
-Four Maven modules under the parent `pom.xml`:
+Three Maven modules under the parent `pom.xml`:
 
-| Module           | Package roots (`io.boomerang.*`)                                   | Role                                             |
-| ---------------- | ------------------------------------------------------------------ | ------------------------------------------------ |
-| `service-flow`   | `core`, `workflow`, `integrations`, `security`, `client`, `config`, `common`, `error` | v2 REST API, auth/authz, teams, tokens.          |
-| `service-engine` | `engine`, `audit`, `aspect`, `client`, `config`, `util`, `error`   | DAG execution, WorkflowRun/TaskRun lifecycle.    |
-| `service-dispatcher`  | `agent`, `kube`, `client`, `config`, `error`                       | Pluggable execution worker (Tekton default).     |
+| Module | Package roots (`io.boomerang.*`) | Role |
+| --- | --- | --- |
+| `service-core` | `core`, `workspace`, `workflow`, `engine`, `dispatcher`, `schedule`, `event`, `integrations`, `migration`, `common`, `config` | The product: v2 REST API, authentication and authorization, workspaces, definitions, the DAG engine, the dispatcher-facing v1 API, the database migrations. |
+| `dispatcher-sdk` | `dispatcher` | The dispatcher protocol as a library, published as `io.boomerang:dispatcher-sdk`. Depends on spring-web and Jackson only, never on `service-core`; owns its wire models. |
+| `service-dispatcher` | `dispatcher`, `executor`, `kube`, `config`, `error` | Flow's Kubernetes dispatcher, built on the SDK: Tekton (default) or plain Jobs. |
 
-Within a domain area, code is grouped by role: `entity/`, `model/`, `service`, controller,
-`repository` — not a deep per-feature module tree. Follow the layout of the package you are
-editing (e.g. `service-flow/**/core/`, `service-engine/**/engine/`).
+Within a feature package, code is grouped by role: `entity/`, `model/`, `repository/`, then the
+service and controller classes at the package root. Follow the layout of the package you are
+editing (e.g. `service-core/src/main/java/io/boomerang/core/`, `.../engine/`).
 
-**Invariant** (from `CLAUDE.md`): `io.boomerang.common` holds the domain model only. Flow-only or
-engine-only logic belongs in that service module. No new **synchronous HTTP** calls between
-service-flow and service-engine — use CloudEvents (or in-process `ApplicationEvent` post-merge).
+**Invariants** (from `CLAUDE.md`):
+- `io.boomerang.common` holds the domain model only: entities, public models, enums, errors and
+  pure utilities. No beans, no repositories, no service logic.
+- The engine never calls the platform side (`core`, `workspace`, `schedule`, `integrations`)
+  synchronously; it publishes `ApplicationEvent`s those packages listen to. `engine` and
+  `workflow` are the two halves of one bounded context and call each other directly.
+- `service-core` MUST NOT gain Kubernetes, Tekton or Docker dependencies.
+- Anything the engine reads to make a decision is a typed field, never a `boomerang.io/*`
+  annotation; labels are user metadata only.
 
 ## Entity Pattern
 
-Read `service-flow/src/main/java/io/boomerang/core/entity/TokenEntity.java` for the canonical shape.
+Read `service-core/src/main/java/io/boomerang/core/entity/TokenEntity.java` for the canonical shape.
 
 ```java
 @Data                                   // Lombok — getters/setters/equals/hashCode/toString
@@ -44,15 +50,12 @@ public class TokenEntity {
   private Date creationDate = new Date();
   private Date expirationDate;
   private List<ResolvedPermissions> permissions = new LinkedList<>();
-
-  // Add @Version for entities with concurrent transitions (e.g. WorkflowRun).
-  // @Version private Long version;
 }
 ```
 
 Key conventions:
 - `@Data` (Lombok) on entities; `@JsonIgnoreProperties(ignoreUnknown = true)` + `@JsonInclude(NON_NULL)`.
-- **Entities stay Lombok-only — do NOT add nested `Fields` constant classes or `public static final String` field-name constants** (maintainer ruling 2026-08-13). Mongo `Criteria`/`Update` calls use **raw string literals** (`Criteria.where("claim.by")`, `.set("retry.after", …)`) — the house style, consistent with the loader changeunits. A field-name constants holder is NOT wanted (it clutters the entities); only introduce one with an explicit maintainer exception. This overrides any generic "magic strings → constants" instinct here.
+- **Entities stay Lombok-only — do NOT add nested `Fields` constant classes or `public static final String` field-name constants** (maintainer ruling 2026-08-13). Mongo `Criteria`/`Update` calls use **raw string literals** (`Criteria.where("claim.by")`, `.set("retry.after", …)`) — the house style, consistent with the migration change units. A field-name constants holder is NOT wanted (it clutters the entities); only introduce one with an explicit maintainer exception. This overrides any generic "magic strings → constants" instinct here.
 - **Collection name via SpEL** — `#{@mongoConfiguration.fullCollectionName('<name>')}` so the
   configured collection prefix (`flow.mongo.collection.prefix`) is applied. Never hardcode a
   bare collection name.
@@ -61,8 +64,12 @@ Key conventions:
   you're editing; do not mix `Date` and `Instant` within one entity.
 - `@Indexed` on fields used in filters/lookups. For the engine's claim query, the index is
   correctness-critical — coordinate index changes with `specifications/performance.md` and `data-model.md`.
-- `@Version` (optimistic locking) on entities with concurrent state transitions — this is how
-  v5 does workflow-level transition safety instead of a distributed lock (ARCHIE lesson).
+- **Concurrent state transitions are compare-and-set, not `@Version` and not a lock.** One
+  `findAndModify` whose query carries the expected state (and the claim's fencing sequence where
+  one exists) and whose update sets the new state; a miss means another writer got there first.
+  See `findAndModifyPreImage` in `engine/TaskRunService.java` and `engine/WorkflowRunStateHelper.java`.
+- **Data-model changes are a review gate:** present any new field, index, collection or
+  migration for discussion before implementing it.
 
 ## Repository Pattern
 
@@ -81,9 +88,9 @@ public interface TokenRepository extends MongoRepository<TokenEntity, String> {
 
 - Extend `MongoRepository<Entity, String>`; derived methods for simple queries, `@Query` for
   complex ones. Return `List<>` for collections, `Optional<>` for single lookups.
-- **Atomic claiming** (engine pollers) uses a single `findAndModify` (MongoTemplate
-  `findAndModify` with the claim predicate + ownership update) — not a distributed lock and not
-  read-then-write. This is the concurrency backbone; see `specifications/execution-model.md`.
+- **Atomic claiming** (the dispatcher queue) is the same compare-and-set: one `findAndModify`
+  with the claim predicate and the ownership update — never read-then-write. This is the
+  concurrency backbone; see `specifications/execution-model.md`.
 
 ## Service Pattern
 
@@ -95,7 +102,7 @@ public class TokenService {
   @Autowired private ApplicationEventPublisher eventPublisher;
 
   public TokenEntity create(TokenCreateRequest request) {
-    var token = new TokenEntity();
+    TokenEntity token = new TokenEntity();
     token.setType(request.type());
     token.setCreationDate(new Date());
     // ... set fields, validate state transitions explicitly
@@ -107,17 +114,20 @@ public class TokenService {
 - `@Service`. The prevailing injection style in this codebase is **field `@Autowired`** — match
   it when editing existing classes. Constructor injection is acceptable for brand-new components,
   but stay consistent within a class.
-- Validate state transitions explicitly; throw the project's domain errors (see
-  `io.boomerang.error.BoomerangError` / `ErrorDetail`) rather than raw `RuntimeException`.
-- **Transition handlers must be idempotent** (`CLAUDE.md` invariant): the reconciler may call
-  them on restart. Re-read current state from the DB before acting, check the transition hasn't
-  already occurred, and use versioned writes. Only create a TaskRun for a DAG step if no
-  non-SUPERSEDED SUCCEEDED run exists for it.
-- Prefer `ApplicationEventPublisher` for in-process decoupling; CloudEvents for cross-service.
+- Validate state transitions explicitly; throw `BoomerangException` with a `BoomerangError`
+  (`io.boomerang.common.error`) rather than a raw `RuntimeException`. Messages live in
+  `messages.properties`.
+- **Transition handlers must be idempotent** (`CLAUDE.md` invariant): a watcher sweep may call
+  them again after a restart. Re-read current state from the database, compare-and-set, and never
+  create a step's task run when a succeeded one exists.
+- `ApplicationEventPublisher` between feature packages. Outbound CloudEvents (webhooks, event
+  sinks) go through the outbox in `io.boomerang.event`.
+- **Execution review gate:** a change to `DAGUtility` or `TaskExecutionService` lists the exact
+  methods and semantics it touches and gets review before implementation.
 
 ## Controller Pattern
 
-Read `service-flow/src/main/java/io/boomerang/core/TokenControllerV2.java`.
+Read `service-core/src/main/java/io/boomerang/core/TokenControllerV2.java`.
 
 ```java
 @RestController
@@ -129,10 +139,13 @@ public class TokenControllerV2 {
 
   @PostMapping("/token")
   @AuthCriteria(
-      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.team,
-                          AuthScope.workflow, AuthScope.session},
+      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.WRITE)
+  @Audited(
+      action = AuditAction.TOKEN_CREATE,
+      resourceType = "token",
+      resourceId = "#result?.getId()")
   @Operation(summary = "Create Token")
   public TokenCreateResponse createToken(@RequestBody TokenCreateRequest request) {
     return tokenService.create(request);
@@ -141,29 +154,46 @@ public class TokenControllerV2 {
 ```
 
 Conventions:
-- Name controllers `*ControllerV2` (flow, `/api/v2`) or `*ControllerV1` (engine, `/api/v1`).
-- Team-scoped resources nest under `/api/v2/team/{team}/...`.
-- **Authorization is annotation-driven.** Every protected endpoint method carries
+- Name controllers `*ControllerV2` for `/api/v2`, and `*ControllerV1` for the versioned wire
+  surfaces: `/dispatcher/v1` (the dispatcher protocol, `contracts/dispatcher-v1.yaml`) and
+  `/internal/v1` (the webapp's own server).
+- Workspace-scoped resources nest under `/api/v2/workspace/{workspace}/...` in a
+  `Workspace*ControllerV2`.
+- **Authorization is annotation-driven.** Every endpoint method carries
   `@AuthCriteria(assignableScopes = {...}, resource = PermissionResource.X, action = PermissionAction.Y)`.
   `AuthCriteriaAuthorizationManager` enforces it. A handler with **no** `@AuthCriteria` is denied
   and fails `AuthCriteriaCoverageTest`; the only opt-out is `@AuthExempt(reason = "…")`, which
   skips the permission check — so use it only for a route that is public by design or
-  authenticated another way, and say which in the reason. See the `security-audit` skill.
+  authenticated another way, and say which in the reason. Services then check the data with
+  `RelationshipService`. See `specifications/authorization.md` and the `security-audit` skill.
 - `resource`/`action` must be real enum values: `PermissionResource` (system, workflow,
-  workflowrun, workflowtemplate, taskrun, task, action, user, team, token, parameter, schedule,
-  insights, integration, webhook, `**`=ANY) and `PermissionAction` (read, write, delete, action).
+  workflowrun, workflowtemplate, taskrun, task, action, user, workspace, token, parameter,
+  schedule, insights, integration, webhook, `**`=ANY) and `PermissionAction` (read, write,
+  delete, action). `assignableScopes` lists token classes: `session`, `user`, `key`, `global`.
+- A mutating endpoint carries `@Audited(action = AuditAction.X, ...)`.
 - Document endpoints with Swagger `@Tag` / `@Operation` / `@Parameter`.
-- **Status is the only external-facing field; never expose `phase`** in a response body.
-- Return the model/record directly; use `ResponseEntity` only for custom status codes. Use
-  request records for input, not entities.
+- **`status` is the external field.** `phase` stays exposed beside it on `WorkflowRun` and
+  `TaskRun` only because the dispatcher dispatches on it. No execution-state field (`claim`,
+  `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`, `waitingSince`) appears in a public
+  model; `PublicRunModelSerialisationTest` pins it.
+- Return the model directly; use `ResponseEntity` only for custom status codes. Use request
+  models for input, not entities.
 
-## Deployment modes (`flow.mode`)
+## Deployment shape is properties, not modes
 
-New mode-gated behaviour uses `@ConditionalOnProperty` — the same pattern as
-`flow.authorization.enabled` (see `SecurityDisabledConfiguration`). Modes: `full` (default),
-`engine` (headless/embedded, no auth module, single `default` workspace), `standalone`
-(single-user, local agent, no Kubernetes). Anything you add must be sound in all modes it can
-run under, not just `full`.
+Every bean loads in every deployment; there is no mode switch. Two properties express the shape:
+`flow.security.enabled` (default `true`; `false` runs every request as a synthetic admin) and
+`flow.workspace.single` (default `false`; `true` pins `{workspace}` to `system`). An embedded
+headless engine runs with both flipped. Rules:
+
+- Never add a mode enum or a mode-conditional bean. A deployment-shape switch is a
+  `flow.<subsystem>.<switch>` property; a runtime product toggle is a `features.<name>` stored
+  setting. A switch lives in exactly one of those tiers.
+- A value an operator tunes after deployment (a retention, a switch, a limit) is a key in
+  `service-core/src/main/resources/seed/settings.json`, read through `SettingsService` with a
+  fallback. Properties are for wiring: URLs, ports, credentials, byte caps that protect the process.
+- Anything you add must hold with security off and on a single-workspace install, not only on
+  the default secured, multi-workspace shape.
 
 ## Code style (maintainer-ruled + Spring team conventions)
 
@@ -173,19 +203,18 @@ Repo rulings (from v5 review feedback — these override any generated-code habi
   `<Name>Client` ONLY for interfaces to an external system, `<Name>ExecutionService` for the
   engine's execution orchestrators, and a small set of error/config shapes. The DOMAIN service
   carries the plain name (`workflow.WorkflowService` = the definition service); when layers
-  collide on a simple name, the composition/shim layer takes the marked name
-  (`api.TeamWorkflowService` pairing `TeamWorkflowControllerV2`) — never suffix the domain class
-  (`WorkflowDefinitionService`-style names were explicitly overruled).
+  collide on a simple name, the composition layer takes the marked name — never suffix the
+  domain class (`WorkflowDefinitionService`-style names were explicitly overruled).
 - **Smallest honest expression.** No long-form if/else with staging variables when a
   guarded expression states the rule. Express the semantics, skip the scaffolding.
   Reference shape: `long timeout = <default>; if (userValue set && valid && not greater)
   timeout = userValue;` — two statements, zero ceremony.
 - **Comments state what the code guarantees, in 1–2 lines.** NEVER put process language
-  in code: no epic/phase codes (E0/E2/D3), no "v5", no spec-file citations — git history
-  carries provenance. Bad: `// v5 E2/D3 fix, see timeout-audit.md`. Good:
+  in code: no epic/phase/track codes (E0, D3, T6-3), no "v5", no spec-file citations — git
+  history carries provenance. Bad: `// v5 E2/D3 fix, see timeout-audit.md`. Good:
   `// Timeout = the platform default, or the task's own value when set and not greater.`
 - **No process language in identifiers.** Class/test names describe BEHAVIOUR
-  (`AgentQueueClaimTest`), never phases or scenario numbers (`E0Scenario02...` was
+  (`TaskClaimFencingTest`), never phases or scenario numbers (`E0Scenario02...` was
   rejected: "E0 makes no meaningful sense in the code base once this refactor is
   finished").
 - **Check the sibling pattern first.** Before writing logic, look for the same concern
@@ -212,8 +241,20 @@ apply where they don't conflict with the repo's existing idiom:
 - `Assert.notNull(arg, "Arg must not be null")` for argument validation;
   `CONSTANT_CASE` only for truly constant `static final`s; utility classes `abstract` +
   private constructor, `*Utils` suffix.
-- Tests: JUnit Jupiter + AssertJ assertions + Mockito; static imports fine in tests.
-  (Spring suffixes test classes `Tests`; this repo uses `*Test`/`*IT` — match the repo.)
+- Tests: JUnit Jupiter (its own `Assertions` in most classes, AssertJ in some — match the
+  class) and Mockito; static imports fine in tests. Spring suffixes test classes `Tests`;
+  this repo uses `*Test` — match the repo.
+
+## Tests
+
+- A `@SpringBootTest` that adds a property, `@Import`, `@MockitoBean` or `@MockitoSpyBean` boots
+  its own context (~33 s for service-core's first). Put new spies on
+  `AbstractSpiedEngineIntegrationTest` and new properties beside an existing set.
+- `@Tag("smoke")` marks the fast tier (`mvn test -Dgroups=smoke`): one context boot per module,
+  the run lifecycle, the dispatcher contract, the migration chain, the public-model pin and the
+  authorization coverage check. Tag a new class only if it belongs in that list.
+- Per-class times land in `target/surefire-reports/TEST-*.xml`; sort on `time` before guessing
+  where a slow run goes.
 
 ## Gotchas — "agent does X, do Y instead"
 
@@ -244,14 +285,26 @@ only document where this repo diverges from defaults.)
   X x = opt.get();` → use the codebase idioms: `.orElseThrow(() -> new
   BoomerangException(...))` on throwing paths; `.orElse(null)` + one null-check on
   log-and-return paths. No Optional staging variables.
+- Agent refactors a v3 migration change unit's duplicated helpers → leave them; they are
+  production upgrade code. Run `V3DumpMigrationTest` after touching anything in
+  `io.boomerang.migration`.
+- Agent sees `NoClassDefFoundError` for a class that exists while every Spring context fails
+  to load → another build recompiled `target/` under the run; re-run in a worktree of your own.
 - Agent asserts a library/framework incompatibility from jar metadata or docs → **check
   the reference repos first** (ARCHIE at `~/Workspaces/tlawrie/asdr`, CHEER at
-  `~/Workspaces/walkaboutdev/cheer.dev`) — a working deployment beats inferred metadata
+  `~/Workspaces/cheerdev/cheer.dev`) — a working deployment beats inferred metadata
   (e.g. flamingock-springboot-integration was claimed Boot-3-only; CHEER runs it on Boot 4).
 
 ## Config / dependencies
 
-- Build via the parent `pom.xml` + per-module poms. Java 21, Spring Boot parent 3.4.x, Log4j2
-  (spring-boot-starter-logging is excluded in favour of log4j2 — don't reintroduce Logback).
-- Cheapest verification for a backend change: `mvn -q -B -pl <module> -am compile`, then
-  `mvn -q -B -pl <module> test` when the touched module has tests.
+- Build via the parent `pom.xml` (Spring Boot parent 4.1) + per-module poms. Log4j2:
+  `spring-boot-starter-logging` is excluded in favour of `spring-boot-starter-log4j2` — don't
+  reintroduce Logback.
+- `RestConfig` (proxy, trust-all option, per-template timeouts, the streaming template) is a
+  product requirement for enterprises behind proxies and internal CAs. Framework upgrades MUST
+  preserve it.
+- Java 25 is required. If Maven reports `class file version 69.0 … only recognizes … up to 65.0`,
+  run `export JAVA_HOME=$(/usr/libexec/java_home -v 25)`.
+- Cheapest verification: `mvn -q -B -pl service-core compile`, then
+  `mvn -q -B -pl service-core test -Dtest=<Class>`. `service-dispatcher` builds on the SDK, so it
+  takes `-pl dispatcher-sdk,service-dispatcher -am`.

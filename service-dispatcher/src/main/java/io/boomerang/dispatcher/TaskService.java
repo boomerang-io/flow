@@ -119,7 +119,9 @@ public class TaskService implements TaskHandler {
     // Every other type, `ai` included, must declare its image.
     String image = imageResolver.image(task);
     if (image == null || image.isBlank()) {
-      throw new TaskExecutionException("DispatchError", "NO_TASK_IMAGE - " + task.getClass().toString());
+      throw new TaskExecutionException(
+          "DispatchError",
+          "NO_TASK_IMAGE - task " + task.getName() + " (" + task.getId() + ") declares no image");
     }
     // An `ai` revision may only declare an image under an allowed prefix; anything else is
     // refused here, before anything is created, so the refusal is visible on the task.
@@ -143,7 +145,7 @@ public class TaskService implements TaskHandler {
       }
       // KubernetesClientException handles the case where an internal admission
       // controller rejects the creation
-      if (e.getMessage().contains("admission webhook")) {
+      if (e.getMessage() != null && e.getMessage().contains("admission webhook")) {
         LOGGER.info(e.toString());
         throw new TaskExecutionException("AdmissionDenied", "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
       } else {

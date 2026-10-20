@@ -3,12 +3,15 @@ import { Button } from "@carbon/react";
 import { DynamicFormik } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Save } from "@carbon/react/icons";
 import { FormikProps } from "formik";
+import { DynamicSecretInput } from "Components/SecretInput";
 import { useAppContext } from "Hooks";
-import { UserRole } from "Constants";
+import { REDACTED, UserRole } from "Constants";
 import { DataDrivenInput } from "Types";
 import { toDynamicInputs } from "Utils/paramsHelper";
 import { SettingsGroup } from "../Settings";
 import styles from "./settingsSection.module.scss";
+
+const SECURED = "secured";
 
 interface SettingsSectionProps {
   settingsGroup: SettingsGroup;
@@ -30,9 +33,13 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, settingsGroup
 
   // Formik reads dotted keys as nested paths; the inputs carry the raw key as a test id so a
   // test (and the end-to-end journey) can find a field without depending on its label.
+  // A secured entry reads as the marker when set; its field keeps it unless replaced or cleared.
   const formattedInputs = settingsGroup.config.map((input) => ({
     ...input,
     "data-testid": input.key,
+    ...(input.type === SECURED
+      ? { customComponent: DynamicSecretInput, isSet: input.value === REDACTED, readOnly: isOperator }
+      : {}),
   }));
 
   return (

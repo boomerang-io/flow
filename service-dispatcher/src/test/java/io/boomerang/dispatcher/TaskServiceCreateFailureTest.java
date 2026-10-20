@@ -56,6 +56,7 @@ class TaskServiceCreateFailureTest {
   void anAiTaskWithNoImageIsRefusedAsNoTaskImageLikeAnyOtherType() throws Exception {
     TaskRun task = task();
     task.setType(TaskType.ai);
+    task.setName("summarise");
     when(imageResolver.image(any())).thenReturn("");
 
     TaskExecutionException refusal =
@@ -63,6 +64,8 @@ class TaskServiceCreateFailureTest {
 
     assertEquals("DispatchError", refusal.getStatusReason());
     assertTrue(refusal.getMessage().startsWith("NO_TASK_IMAGE"));
+    // The refusal names the task, not a Java class.
+    assertTrue(refusal.getMessage().contains("summarise (task-1)"), refusal.getMessage());
     verify(executor, never()).create(any(), any());
   }
 
@@ -114,6 +117,13 @@ class TaskServiceCreateFailureTest {
         reasonWhenCreateThrows(
             new KubernetesClientException(
                 "admission webhook \"policy.example.com\" denied the request", 403, null)));
+  }
+
+  @Test
+  void aClientErrorWithNoMessageIsADispatchError() throws Exception {
+    // An API server too loaded to answer can fail a request with no message at all.
+    assertEquals(
+        "DispatchError", reasonWhenCreateThrows(new KubernetesClientException((String) null)));
   }
 
   @Test

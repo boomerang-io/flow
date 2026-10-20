@@ -63,6 +63,35 @@ tag's release notes.
   takes the same form: a bare slug now matches only a global task.
 - **A workspace quota of 0 is unlimited, and an absent quota inherits the platform default.** A workspace PATCH
   merges quotas field by field instead of replacing the stored set.
+- **Settings and global parameters are updated by `PATCH`; their `PUT` routes are gone.** Send a JSON Merge Patch
+  (`application/merge-patch+json` or `application/json`): `PATCH /api/v2/settings` with
+  `{"<group>": {"<key>": value}}`, for example `{"artifacts": {"retention.default.days": "30"}}`, and
+  `PATCH /api/v2/parameters/{name}` with only the members to change. An absent member is unchanged, `null` clears
+  it, and a secured value sent as `*****` is kept. An unknown settings group or key is now a `400
+  SETTINGS_INVALID_KEY` rather than ignored.
+- **One rule for secret values on every layer, and blank now clears.** A set secret reads `*****` and an unset one
+  reads `null` on parameters, workflow defaults and node values, task defaults, schedules, settings and runs
+  (workflow defaults used to read blank; node, schedule and run values used to read `*****` even when unset). On a
+  write, `*****`, `null` or a missing value keeps the stored secret, `""` clears it, and any other value sets it.
+  Before, a blank kept the secret: a client that sends `""` to mean "unchanged" must send `*****` or leave the
+  value out. On a run request, a param sent as `null` or `*****`, or left out, keeps the declared default for every
+  param type. A value that is only a reference, such as `$(workspace.params.token)`, reads as written.
+- **A workflow body's unknown top-level fields are ignored and no longer echoed back** in the save response, so the
+  response shows exactly what was stored.
+- **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
+  encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
+  migration.
+- **A dispatcher must heartbeat every task it holds; `flow.dispatcher.lease.enabled` is gone.** A claim now carries
+  a lease from the moment it is made, 90 s ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a
+  claim its dispatcher stops reporting is requeued even when the dispatcher restarts under the same id. Flow's
+  Kubernetes dispatcher and the dispatcher SDK heartbeat every 30 s from the claim; a dispatcher written against
+  the protocol directly that sends no heartbeat has every claim requeued 90 s after it was made.
+- **The first start clears the lease from completed task runs.** Change unit `_0025__ClearCompletedTaskLeases`
+  runs one update over `task_runs`; completion now clears the lease itself, so the lease sweep reads only live
+  claims. Nothing else changes and no setting is involved.
+- **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
+  integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
+  refuse every request.
 
 ### Added
 
@@ -73,11 +102,27 @@ tag's release notes.
 - A retry can start from the tasks that did not succeed, or from named tasks: `PUT …/workflowrun/{id}/retry` takes
   an optional `{scope: all | failed | nodes, nodes, params, labels}`. The rest is carried over as copies marked
   `reusedFromRef`, and the run records `retryFrom`. The run page's Retry run and each task's Retry from here open
-  the same choice.
+  the same choice. The new run starts with an empty run workspace, so files the carried-over tasks wrote there are
+  not carried over; pass them as workflow-scoped artifacts, or re-run everything. The dialog says so.
 - `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
   and never written to a log.
+- The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that
+  changes or clears a secret names it in the event's `detail`, never its value.
 - A run-workflow task may run for each item, one child run per item, and a waited child's results become the
   task's results.
+- A run-workflow node may carry params its child workflow declares, such as an upstream task's result; the child
+  run receives them resolved. A param the child does not declare is refused at save with
+  `WORKFLOW_INVALID_CHILD_PARAM` (1218). A child run receives only the params its node passes, plus `item` and
+  `index` under for-each; the parent run's params are not handed down, as in v3.
+- Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
+  run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
+  OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.
+- Every task gets a `TRACEPARENT` derived from its run and task run ids, so one run's tasks share one trace, and
+  `TaskRun.traceparent()` in the dispatcher SDK computes the same value. On `service-dispatcher`,
+  `flow.dispatcher.ai.otel.endpoint`, `.headers` and `.protocol` (blank by default) give `ai` pods the OTLP
+  exporter settings. Flow stores no traces; point them at Langfuse, Phoenix, LangSmith or Tempo.
+- Insights filter by run `labels` and roll up AI usage: tokens, cost and a breakdown by model for the period, and
+  tokens and cost per task.
 - A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
@@ -85,6 +130,43 @@ tag's release notes.
 
 ### Changed
 
+- A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
+  the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
+  parent waiting on it, and such a run is audited and counted against quota.
+- A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
+  `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
+- The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
+- A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
+  other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
+  Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
+  overflows. The insights response drops `medianDuration`, which was also the mean; `totalDuration` and
+  `totalRuns` give it.
+- A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
+  branches, so the tasks after it are skipped and the run carries on. It used to fail the run with a null-value
+  error when the next task was queued.
+- An approval task ends with the five results it declares: `approvalStatus` (`approved` or `rejected`),
+  `approvalDate` (ISO 8601, UTC), `approvalUserName`, `approvalUserEmail` and `approvalComments`, taken from the
+  approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
+  string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
+  so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
+  Each approval is kept as it is given, so one that needs several approvers completes when the last of them acts.
+- Each status event describes the transition it was recorded for. An event sent after the run moved on used to
+  carry the run's later status, so one change could arrive as two or three copies of a later state. Its
+  CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
+  the transition occurred rather than when it was sent. The graph's end node no longer sends a task event; the
+  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two.
+- A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
+  code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
+  actor, where it named `system`.
+- While a task runs, its log is read live from its dispatcher even when a copy is stored; a copy stored during this
+  attempt answers only when the dispatcher has no live route or its route is unavailable, and once the task ends
+  the stored copy is served first. A requeued task no longer shows its previous attempt's log while it runs again.
+- A followed task log that has written nothing for 10 minutes ends with a line saying the view stopped following,
+  instead of the connection dropping mid-log; open the log again to keep following. No new property: the two-hour
+  async request timeout applies only to the streamed routes, both task logs and artifact downloads.
+- Task logs and artifacts store reliably on S3-compatible stores such as SeaweedFS: the store's client sends
+  checksums only where S3 requires them, so a log is no longer refused now and then with "The Content-Md5 you
+  specified is not valid".
 - Settings are built from the shipped seed on first start, carrying an upgraded install's own values, so an
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.
@@ -106,3 +188,22 @@ tag's release notes.
   in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
   apart from artifact retention; stored logs never count toward artifact storage. Set
   `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.
+- List filters behave the same on every route. A `labels` entry without a value, such as `labels=team`, is a
+  `400 QUERY_INVALID_FILTERS` everywhere instead of a server error on most lists. A label is split once on its
+  first `=`, so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter
+  now matches. The action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are
+  read ignoring case on the run, task, workflow, user, workspace and schedule lists.
+- A running task's log streams as it is written, through `service-core` and the Kubernetes dispatcher, instead of
+  arriving whole when the task ends. Read before its container starts, it shows one waiting line and then the live
+  log.
+- A dispatcher whose task slots are all taken claims new work the moment one frees, instead of up to 30 s later
+  when the engine let go of its held poll. The dispatcher SDK keeps a poll that claims nothing open for
+  termination orders while full, and starts its work poll beside it as soon as a task ends; it never asks for
+  more than its free slots. This applies to `service-dispatcher` and to any dispatcher built on
+  `io.boomerang:dispatcher-sdk`; the wire is unchanged.
+- A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
+  and is kept when the YAML is applied back unchanged.
+- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas
+  enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
+  poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
+  rest of the poll is still handed out.

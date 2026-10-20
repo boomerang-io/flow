@@ -10,7 +10,9 @@ import {
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import PropTypes from "prop-types";
 import * as Yup from "yup";
+import { DynamicSecretInput } from "Components/SecretInput";
 import TextEditorModal from "Components/TextEditorModal";
+import { InputType, REDACTED } from "Constants";
 import { SUPPORTED_AUTOSUGGEST_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import styles from "./WorkflowTaskForm.module.scss";
 
@@ -194,6 +196,26 @@ class WorkflowTaskForm extends Component {
 
     const taskResults = task.results;
 
+    const initValues = { taskName: node.name };
+    task.params.forEach((p) => {
+      const initialValue = node.params.find((param) => param.name === p.name)?.["value"] ?? "";
+      initValues[p.name] = Boolean(initialValue) ? initialValue : p.default;
+    });
+
+    // A secret param reads as the marker when set; the field keeps it unless replaced or cleared.
+    const nodeHasValue = (name) => Boolean(node.params.find((param) => param.name === name)?.["value"]);
+    const paramInputs = taskVersionParams.map((p) =>
+      p.type === InputType.Password
+        ? {
+            ...p,
+            customComponent: DynamicSecretInput,
+            isSet: initValues[p.name] === REDACTED,
+            setHelperText: nodeHasValue(p.name) ? undefined : "Uses the task's default. Type a value to override it.",
+            suggestReference: true,
+          }
+        : p,
+    );
+
     // Add the name input
     const inputs = [
       {
@@ -204,7 +226,7 @@ class WorkflowTaskForm extends Component {
         required: true,
         customComponent: TaskNameTextInput,
       },
-      ...taskVersionParams,
+      ...paramInputs,
       ...additionalConfig,
       {
         outputs: taskResults,
@@ -213,12 +235,6 @@ class WorkflowTaskForm extends Component {
         customComponent: ResultsInput,
       },
     ];
-
-    const initValues = { taskName: node.name };
-    task.params.forEach((p) => {
-      const initialValue = node.params.find((param) => param.name === p.name)?.["value"] ?? "";
-      initValues[p.name] = Boolean(initialValue) ? initialValue : p.default;
-    });
 
     return (
       <DynamicFormik

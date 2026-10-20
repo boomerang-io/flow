@@ -13,7 +13,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.BeanUtils;
@@ -40,13 +39,10 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Method for filtering sensitive data from AbstractConfigs (e.g. make null the value of any
-   * password type field)
+   * Mask the value, or the default, of each {@code fieldType} param in place with {@link
+   * #maskSecretValue}, and mark it {@code hiddenValue}. A lone Flow reference is left as written.
    *
-   * @param properties
-   * @param isDefaultValue - Specify if the defaultValue or the value should be made null
-   * @param fieldType
-   * @return
+   * @param isDefaultValue whether the default rather than the value is masked
    */
   public static List<AbstractParam> filterValueByFieldType(
       List<AbstractParam> properties, boolean isDefaultValue, String fieldType) {
@@ -55,15 +51,7 @@ public class DataAdapterUtil {
     }
 
     for (AbstractParam property : properties) {
-      if (!fieldType.equals(property.getType())) {
-        continue;
-      }
-      if (isDefaultValue) {
-        property.setDefaultValue(null);
-      } else {
-        property.setValue(null);
-      }
-      property.setHiddenValue(Boolean.TRUE);
+      filterAbstractParam(property, isDefaultValue, fieldType);
     }
     return properties;
   }
@@ -74,10 +62,14 @@ public class DataAdapterUtil {
     // param short-circuited true and every param was redacted regardless of type - and a null param
     // with a non-null fieldType entered the block and threw.
     if (param != null && fieldType != null && fieldType.equals(param.getType())) {
+      Object hidden = isDefaultValue ? param.getDefaultValue() : param.getValue();
+      if (ParameterUtil.isSingleFlowReference(hidden)) {
+        return param;
+      }
       if (isDefaultValue) {
-        param.setDefaultValue(null);
+        param.setDefaultValue(maskSecretValue(param.getDefaultValue()));
       } else {
-        param.setValue(null);
+        param.setValue(maskSecretValue(param.getValue()));
       }
       param.setHiddenValue(Boolean.TRUE);
     }
@@ -85,29 +77,27 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Method for filtering sensitive data from Parameters based on AbstractConfig type (e.g. make
-   * null the value of any password type field)
-   *
-   * @param params
-   * @param fieldType
-   * @return
+   * Mask the value and default of each {@code fieldType} param in place with {@link
+   * #maskSecretValue}: a workflow's own params, on a definition read.
    */
   public static void filterParamSpecValueByFieldType(List<AbstractParam> params, String fieldType) {
+    if (params == null || fieldType == null) {
+      return;
+    }
     params.stream()
         .filter(p -> fieldType.equals(p.getType()))
         .forEach(
             p -> {
-              p.setValue("");
-              p.setDefaultValue("");
+              p.setValue(maskSecretValue(p.getValue()));
+              p.setDefaultValue(maskSecretValue(p.getDefaultValue()));
             });
   }
 
   /**
-   * Redact by field type on a definition read (a catalogue task): returns a NEW list of copies in
-   * which each {@code fieldType} param's default and value, when set, read as {@code replacement}.
-   * An unset one stays unset, so a reader can tell "no default" from "a hidden default". Copies
-   * rather than mutates, because a model built with BeanUtils.copyProperties shares its spec with
-   * the entity it came from. The edit-side partner is {@link #keepParamSpecValueByFieldType}.
+   * {@link #filterParamSpecValueByFieldType(List, String)} as a NEW list of copies, a set value or
+   * default reading as {@code replacement}, for a catalogue task: a model built with
+   * BeanUtils.copyProperties shares its spec with the entity it came from. The edit-side partner
+   * is {@link #keepParamSpecValueByFieldType}.
    */
   public static List<AbstractParam> filterParamSpecValueByFieldType(
       List<AbstractParam> params, String fieldType, String replacement) {
@@ -120,22 +110,35 @@ public class DataAdapterUtil {
               if (!fieldType.equals(p.getType())) {
                 return p;
               }
-              AbstractParam copy = new AbstractParam();
-              BeanUtils.copyProperties(p, copy);
-              copy.setDefaultValue(isUnset(p.getDefaultValue()) ? p.getDefaultValue() : replacement);
-              copy.setValue(isUnset(p.getValue()) ? p.getValue() : replacement);
-              return copy;
+              AbstractParam masked = new AbstractParam();
+              BeanUtils.copyProperties(p, masked);
+              masked.setDefaultValue(masked(p.getDefaultValue(), replacement));
+              masked.setValue(masked(p.getValue(), replacement));
+              return masked;
             })
         .collect(Collectors.toList());
   }
 
+  private static Object masked(Object value, String replacement) {
+    Object shown = maskSecretValue(value);
+    return REDACTED.equals(shown) ? replacement : shown;
+  }
+
   /**
-   * The edit-side partner of the field-type filters on a definition: a client that read a hidden
-   * default sends back {@link #REDACTED}, or a blank, for it. Each incoming {@code fieldType}
-   * param carrying either takes the stored default (and value) of the param with the same name,
-   * case-insensitively - the rule {@link #keepRunParamValueByFieldType} applies to run params. A
-   * {@link #REDACTED} left over, with nothing stored to keep, becomes blank: the marker is never
-   * saved as the secret.
+   * The one rule for a secret value a client writes, on every layer: {@link #REDACTED}, or no value
+   * at all, keeps the stored value; a blank clears it; anything else replaces it. A marker with
+   * nothing stored to keep - or a marker an earlier release stored - is no value, never the secret.
+   */
+  public static Object keepSecretValue(Object incoming, Object stored) {
+    if (incoming == null || REDACTED.equals(incoming)) {
+      return REDACTED.equals(stored) ? null : stored;
+    }
+    return incoming;
+  }
+
+  /**
+   * {@link #keepSecretValue} for each incoming {@code fieldType} param of a definition, against the
+   * stored param of the same name, case-insensitively: its default and its value.
    */
   public static void keepParamSpecValueByFieldType(
       List<AbstractParam> incoming, List<AbstractParam> stored, String fieldType) {
@@ -146,24 +149,16 @@ public class DataAdapterUtil {
         .filter(p -> fieldType.equals(p.getType()) && p.getName() != null)
         .forEach(
             p -> {
-              Optional<AbstractParam> match =
-                  stored == null
-                      ? Optional.empty()
+              AbstractParam match =
+                  (stored == null)
+                      ? null
                       : stored.stream()
                           .filter(s -> p.getName().equalsIgnoreCase(s.getName()))
-                          .findFirst();
-              if (isMasked(p.getDefaultValue()) && match.isPresent()) {
-                p.setDefaultValue(match.get().getDefaultValue());
-              }
-              if (isMasked(p.getValue()) && match.isPresent()) {
-                p.setValue(match.get().getValue());
-              }
-              if (REDACTED.equals(p.getDefaultValue())) {
-                p.setDefaultValue("");
-              }
-              if (REDACTED.equals(p.getValue())) {
-                p.setValue("");
-              }
+                          .findFirst()
+                          .orElse(null);
+              p.setDefaultValue(
+                  keepSecretValue(p.getDefaultValue(), (match != null) ? match.getDefaultValue() : null));
+              p.setValue(keepSecretValue(p.getValue(), (match != null) ? match.getValue() : null));
             });
   }
 
@@ -171,9 +166,15 @@ public class DataAdapterUtil {
     return value == null || (value instanceof String s && s.isBlank());
   }
 
-  /** What a client sends back for a value it read hidden: nothing, a blank, or the marker. */
-  public static boolean isMasked(Object value) {
-    return isUnset(value) || REDACTED.equals(value);
+  /**
+   * The one read shape for a secret value, on every layer: a lone Flow reference holds no secret's
+   * text and reads as written, an unset value reads as nothing, and a set one as {@link #REDACTED}.
+   */
+  public static Object maskSecretValue(Object value) {
+    if (ParameterUtil.isSingleFlowReference(value)) {
+      return value;
+    }
+    return isUnset(value) ? null : REDACTED;
   }
 
   /**
@@ -238,11 +239,12 @@ public class DataAdapterUtil {
   }
 
   /**
-   * Redact by type: every param of {@code paramType} has its value replaced with {@link #REDACTED}.
-   * Returns a NEW list of new params rather than mutating in place, because a model built with
-   * BeanUtils.copyProperties shares its param list with the entity it came from - so this is safe
-   * on a model whose entity is still in use (a submit response, a status event). The type check is
-   * authoritative for params; the value scrub stays for free text.
+   * Redact by type: every param of {@code paramType} reads as {@link #REDACTED} when set and as
+   * nothing when unset. Returns a NEW list of new params rather than mutating in place, because a
+   * model built with BeanUtils.copyProperties shares its param list with the entity it came from -
+   * so this is safe on a model whose entity is still in use (a submit response, a status event).
+   * The type check is authoritative for params; the value scrub stays for free text. A run holds
+   * resolved values, so a value that happens to look like a reference is masked like any other.
    */
   public static List<RunParam> filterRunParamValueByFieldType(
       List<RunParam> params, ParamType paramType) {
@@ -253,35 +255,56 @@ public class DataAdapterUtil {
         .map(
             p ->
                 paramType.equals(p.getType())
-                    ? new RunParam(p.getName(), REDACTED, p.getType())
+                    ? new RunParam(
+                        p.getName(), isUnset(p.getValue()) ? null : REDACTED, p.getType())
                     : p)
         .collect(Collectors.toList());
   }
 
   /**
-   * The edit-side partner of {@link #filterRunParamValueByFieldType(List, ParamType)}: a client
-   * that read a masked secret sends back {@link #REDACTED}, or a blank, for it. Each incoming param
-   * of {@code paramType} carrying either takes the stored value of the param with the same name, so
-   * an edit to anything else never overwrites the secret - the rule global and workspace parameter
-   * edits follow for a blank value.
+   * {@link #filterRunParamValueByFieldType(List, ParamType)} for the values a definition stores -
+   * a workflow task node's, a schedule's - with {@link #maskSecretValue}, so a value that is
+   * exactly one Flow reference stays as written. The param keeps its type, so the value it
+   * resolves to is masked wherever a run shows it.
+   */
+  public static List<RunParam> filterDefinitionValueByFieldType(
+      List<RunParam> params, ParamType paramType) {
+    if (params == null || paramType == null) {
+      return params;
+    }
+    return params.stream()
+        .map(
+            p ->
+                paramType.equals(p.getType())
+                    ? new RunParam(p.getName(), maskSecretValue(p.getValue()), p.getType())
+                    : p)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * {@link #keepSecretValue} for each incoming param of {@code paramType}, against the stored
+   * param of the same name, case-insensitively - a workflow node's, a schedule's. With nothing
+   * stored, a marker becomes no value.
    */
   public static void keepRunParamValueByFieldType(
       List<RunParam> incoming, List<RunParam> stored, ParamType paramType) {
-    if (incoming == null || stored == null || paramType == null) {
+    if (incoming == null || paramType == null) {
       return;
     }
     incoming.stream()
         .filter(p -> paramType.equals(p.getType()) && p.getName() != null)
-        .filter(
-            p ->
-                p.getValue() == null
-                    || (p.getValue() instanceof String s && (s.isBlank() || REDACTED.equals(s))))
         .forEach(
             p ->
-                stored.stream()
-                    .filter(s -> p.getName().equalsIgnoreCase(s.getName()))
-                    .findFirst()
-                    .ifPresent(s -> p.setValue(s.getValue())));
+                p.setValue(
+                    keepSecretValue(
+                        p.getValue(),
+                        (stored == null)
+                            ? null
+                            : stored.stream()
+                                .filter(s -> p.getName().equalsIgnoreCase(s.getName()))
+                                .findFirst()
+                                .map(RunParam::getValue)
+                                .orElse(null))));
   }
 
   /** {@link #filterRunParamValueByFieldType(List, ParamType)} on one TaskRun MODEL's params. */
@@ -456,21 +479,18 @@ public class DataAdapterUtil {
     return values.stream().map(v -> scrubString(v, secrets)).collect(Collectors.toList());
   }
 
+  // The name join for runs stored before params carried a type: each run param a `fieldType` spec
+  // param names reads as a set secret does, REDACTED, or as nothing when unset.
   public static void filterRunParamValueByFieldType(
       List<AbstractParam> config, List<RunParam> params, String fieldType) {
-    if (config.stream().anyMatch(c -> fieldType.equals(c.getType()))) {
-      config.stream()
-          .filter(c -> fieldType.equals(c.getType()))
-          .forEach(
-              c -> {
-                c.setValue("");
-                params.stream()
-                    .filter(param -> param.getName().equalsIgnoreCase((c.getName())))
-                    .forEach(
-                        p -> {
-                          p.setValue("");
-                        });
-              });
-    }
+    config.stream()
+        .filter(c -> fieldType.equals(c.getType()))
+        .forEach(
+            c -> {
+              c.setValue(maskSecretValue(c.getValue()));
+              params.stream()
+                  .filter(param -> param.getName().equalsIgnoreCase(c.getName()))
+                  .forEach(p -> p.setValue(isUnset(p.getValue()) ? null : REDACTED));
+            });
   }
 }

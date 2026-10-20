@@ -31,15 +31,21 @@ public class SecretCipher {
         AESAlgorithm.textEncryptorFor(encryptConfig.getSecretKey(), encryptConfig.getSalt());
   }
 
-  /** Whether a stored value already carries the label. */
+  /**
+   * Whether a stored value carries the whole label, {@code crypt_v1{AESGCM|<ciphertext>}}. A value
+   * that only starts with {@code crypt_v1} is plaintext, and is encrypted like any other.
+   */
   public static boolean isEncrypted(String value) {
-    return value != null && value.startsWith(LABEL);
+    return value != null
+        && value.startsWith(PREFIX)
+        && value.endsWith("}")
+        && value.length() > PREFIX.length() + 1;
   }
 
   /**
    * The labelled ciphertext of a value. Blank values and values already carrying the label pass
-   * through, so a value is never encrypted twice. Null when encryption fails, as {@link
-   * AESAlgorithm#encrypt} answers.
+   * through, so a value is never encrypted twice - a stored value that will not decrypt is kept as
+   * it is, never wrapped. Throws when encryption fails, so a secret is never written as nothing.
    */
   public String encrypt(String value) {
     if (!StringUtils.hasText(value) || isEncrypted(value)) {
@@ -49,7 +55,7 @@ public class SecretCipher {
       return PREFIX + encryptor.encrypt(value) + "}";
     } catch (RuntimeException e) {
       LOGGER.error("A value could not be encrypted ({}).", e.getClass().getName());
-      return null;
+      throw new IllegalStateException("A secret value could not be encrypted.");
     }
   }
 
@@ -65,7 +71,7 @@ public class SecretCipher {
     }
     // Only the AESGCM label exists in storage: _0022__ReencryptSettingsAesGcm rewrites the retired
     // CBC scheme as the context starts, before anything is served.
-    String ciphertext = value.replace(PREFIX, "").replace("}", "");
+    String ciphertext = value.substring(PREFIX.length(), value.length() - 1);
     try {
       return encryptor.decrypt(ciphertext);
     } catch (RuntimeException e) {

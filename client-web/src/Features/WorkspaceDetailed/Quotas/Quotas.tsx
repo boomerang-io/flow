@@ -13,6 +13,7 @@ import styles from "./Quotas.module.scss";
 import RestoreDefaults from "./RestoreDefaults";
 import { ModalTriggerProps } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { getSimplifiedDuration } from "Utils/dateHelper";
 import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 
@@ -195,7 +196,7 @@ function Quotas() {
           minValue={0}
           helperText={UNLIMITED_AT_ZERO}
           detailedTitle="Current average execution time"
-          detailedData={`${workspace.quotas.currentRunMedianDuration} minutes`}
+          detailedData={getSimplifiedDuration(workspace.quotas.currentRunAverageDuration / 1000)}
           inputLabel="Maximum duration"
           inputUnits="minutes"
           stepValue={1}

@@ -23,12 +23,12 @@ import org.springframework.core.env.Environment;
  * always in the catalogue. Idempotent on {@code name} + {@code version}, the guard the template seed
  * uses, so an install that already holds a template of that name keeps its own.
  */
-@Change(id = "0024-seed-ai-workflow-template", author = "boomerang", transactional = false)
+@Change(id = "0026-seed-ai-workflow-template", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
 @Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
-public class _0024__SeedAiWorkflowTemplate {
+public class _0026__SeedAiWorkflowTemplate {
 
-  private static final Logger LOG = LoggerFactory.getLogger(_0024__SeedAiWorkflowTemplate.class);
+  private static final Logger LOG = LoggerFactory.getLogger(_0026__SeedAiWorkflowTemplate.class);
 
   static final String TEMPLATE = "summarise-a-web-page-with-ai";
 

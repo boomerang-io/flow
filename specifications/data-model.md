@@ -18,7 +18,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | Collection | Holds | Entity (owner package) |
 | --- | --- | --- |
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`common.entity`; used by `workflow`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by migrations (`_0020__SeedTemplates` seeds them, `_0024__SeedAiWorkflowTemplate` adds the AI example to an earlier install, `_0011__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`common.entity`; `workflow`) |
+| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content: written only by migrations (`_0020__SeedTemplates` seeds them, `_0026__SeedAiWorkflowTemplate` adds the AI example to an earlier install, `_0011__V3ExtractWorkflowTemplates` imports a v3 database's `scope=template` workflows) and never by the API | `WorkflowTemplateEntity` (`common.entity`; `workflow`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`common.entity`; `workflow`) |
 | `workflow_runs` | Execution record of one workflow run | `WorkflowRunEntity` (`common.entity`; `engine`) |
 | `task_runs` | Execution record of one task in a run; the claim queue | `TaskRunEntity` (`common.entity`; `engine`) |
@@ -32,7 +32,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts, with per-user UI `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions, expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
-| `audit` | One flat event per audited attempt: CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`/`actorName`/`actorType`), `workspaceId`, `action`, resource (`resourceType`/`resourceId`/`resourceName`), `outcome`, `level`, `payload`; run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) ride the engine's transition listener; expires by TTL | `AuditEventEntity` (`core.audit`) |
+| `audit` | One flat event per audited attempt: CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`/`actorName`/`actorType`), `workspaceId`, `action`, resource (`resourceType`/`resourceId`/`resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged`/`secretsCleared` names, never values); run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) ride the engine's transition listener; expires by TTL | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (schema below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
 | `integrations`, `integration_templates` | Installed integrations and their catalogue | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
@@ -77,7 +77,7 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
 | Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
-`claim.leaseExpiresAt` is written by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `renewLeases`) and unset on requeue (`:583`);
+`claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion, timeout, abandon and requeue (`tryComplete` `:613`, `tryTimeout` `:713`, `tryAbandon` `:737`, requeue `:801`), so the sparse `lease_sweep` index holds only live claims;
 crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:45-51`) and `ControlStateFieldsTest`
 (`retry-of`, `retry-count`, `timeout-cause` are never written as annotations).
@@ -99,7 +99,7 @@ labels set by the dispatcher (`service-dispatcher/src/main/java/io/boomerang/kub
 ## Secret values at rest
 
 Secret parameter values are stored encrypted, as `crypt_v1{AESGCM|<ciphertext>}`, and read back as plaintext
-(`core/config/SecretValueMongoListener.java:92`; `parameters.md`, "Sensitive parameters"). No field is added;
+(`core/config/SecretValueMongoListener.java:95`; `parameters.md`, "Sensitive parameters"). No field is added;
 the stored value changes shape. A secret is recognised by the type stored beside its value:
 
 | Collection | Field | Secret when |
@@ -111,13 +111,18 @@ the stored value changes shape. A secret is recognised by the type stored beside
 | `workflow_revisions` | `tasks[].params[].value` | `type == secret`, stamped at save from the task's declared `password` param |
 | `workflow_schedules` | `params[].value` | `type == secret`, stamped at save from the workflow's declared `password` param |
 | `workflow_runs`, `task_runs` | `params[].value` | `type == secret` |
+| `integrations` | `data.accessToken`, `data.refreshToken`, the same two under `data.authedUser`, and `data.incomingWebhook.url` | always: a stored Slack OAuth response, whose webhook URL posts by itself |
 
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled in
 on the claim payload only. Values stored before encryption load as they are and are encrypted on their next save;
-there is no migration. Not encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task
-`results`, and the `global-params`/`workspace-params` annotations that runs created before the layers were read
-from their stores still carry. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java`
-with the same cipher; the settings API reads it as `*****` (`:49`) and engine and integration reads get plaintext.
+there is no migration. A Slack integration stored before its tokens were encrypted keeps its plaintext tokens until
+it is next saved, which re-linking Slack does; that is by decision, with no migration to encrypt them sooner. Not
+encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task `results`, and the
+`global-params`/`workspace-params` annotations that runs created before the layers were read from their stores still
+carry. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java` with the same cipher;
+the settings API reads it by the one secret rule - `*****` when set, nothing when unset (`:171`) - and engine and
+integration reads get plaintext. A stored value that will not decrypt is kept as stored, on load and on the next save
+of its group, never written back as nothing (`:193`).
 
 ## Relationship graph schema
 `rel_nodes` and `rel_edges` are plain documents; the authorization reference describes the walk over them.
@@ -209,7 +214,9 @@ A download whose artifact does not exist fails the task with `ArtifactRefused`, 
 ends succeeded gets `found=true` appended by the engine (`engine/TaskRunService.java` `reportArtifactFound`
 `:1056`), so a decision after the task can branch on `found`. The store is any S3-compatible service
 (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*` and off unless `flow.artifacts.enabled`
-(`workflow/config/ArtifactStoreConfiguration.java:28`).
+(`workflow/config/ArtifactStoreConfiguration.java:30`). Its client sends checksums only where S3 requires them
+(`:83-84`): the SDK's default checksum on every upload is refused intermittently by S3-compatible stores such as
+SeaweedFS, while AWS S3 and MinIO accept either.
 
 ## Migrations
 `service-core` runs every pending change unit on Flamingock while its context starts, before the web server,
@@ -257,7 +264,9 @@ a release ships the chain, changes are appended as new units.
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
 | `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or a blank key (`authorization.md`, decisions 0100, 0106) |
 | `_0023__SeedAiTaskFamily` | all | Inserts `ai-prompt` and `ai-agent` from the seed files on a database seeded before they joined the catalogue; an empty database already has them from `_0017`. An install's earlier `ai` task, no longer shipped, is left as it is |
-| `_0024__SeedAiWorkflowTemplate` | all | Inserts the `summarise-a-web-page-with-ai` template (by name and version) on a database seeded before it joined the seed; an empty database already has it from `_0020` |
+| `_0024__SeedAiImageInputRevisions` | all | Inserts revision 2 of `ai-prompt` and `ai-agent` (image input, task-ai 2.1.0) where an install holds the task but not that revision; revision 1 is never touched, and a task the install does not hold gets nothing. An empty database already has both revisions from `_0017` |
+| `_0025__ClearCompletedTaskLeases` | all | Unsets `claim.leaseExpiresAt` on completed task runs, which kept it before completion cleared it; a live claim's lease is untouched. Empty and v3 databases have none |
+| `_0026__SeedAiWorkflowTemplate` | all | Inserts the `summarise-a-web-page-with-ai` template (by name and version) on a database seeded before it joined the seed; an empty database already has it from `_0020` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

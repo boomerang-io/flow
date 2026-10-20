@@ -20,6 +20,7 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -113,6 +114,92 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
     // Lineage is the typed pair, not a new field: trigger "task" plus the submitting TaskRun's id.
     assertEquals("task", childRun.getTrigger());
     assertEquals(task.getId(), childRun.getInitiatedByRef());
+  }
+
+  @Test
+  void onlyTheParamsTheNodePassesReachTheChildResolved() {
+    String childWorkflowId =
+        createWorkflow(
+            "child-forwarded-param",
+            node("work", TaskType.template, echoTaskRef, "start", null),
+            ExecutionCondition.success,
+            List.of(param("greeting", "text")));
+    AbstractParam who = param("who", "text");
+    who.setDefaultValue("world");
+    String parentWorkflowId =
+        createWorkflow(
+            "parent-forwarded-param",
+            node(
+                "child",
+                TaskType.runworkflow,
+                runWorkflowTaskRef,
+                "start",
+                new LinkedList<>(
+                    List.of(
+                        new RunParam("workflowRef", childWorkflowId),
+                        new RunParam("wait", "false"),
+                        new RunParam("greeting", "hello $(params.who)")))),
+            ExecutionCondition.always,
+            List.of(who));
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the child run was submitted")
+        .until(() -> resultValue(parentTask(parentRunId), "workflowRunRef") != null);
+    WorkflowRunEntity childRun =
+        workflowRunRepository
+            .findById(resultValue(parentTask(parentRunId), "workflowRunRef"))
+            .orElseThrow();
+    assertEquals(
+        "hello world",
+        childRun.getParams().stream()
+            .filter(p -> "greeting".equals(p.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getValue());
+    // The parent run's own param is not handed down; the node passed only greeting.
+    assertTrue(childRun.getParams().stream().noneMatch(p -> "who".equals(p.getName())));
+  }
+
+  /*
+   * A child with nothing to run is completed invalid as it is queued. With a workspace the submit
+   * returns it unstarted, so only its published end can release the parent that waits on it.
+   */
+  @Test
+  void aChildInvalidWhenQueuedEndsItsWaitingParent() {
+    Workflow empty = new Workflow();
+    empty.setName("child-invalid-at-queue-" + System.nanoTime());
+    empty.setWorkspace(new WorkflowWorkspace());
+    empty.setTasks(
+        new LinkedList<>(
+            List.of(
+                node("start", TaskType.start, null, null, null),
+                node("end", TaskType.end, null, "start", null))));
+    Workflow child = workflowService.create(empty, false).getBody();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        child.getId(),
+        child.getName(),
+        Optional.empty(),
+        Optional.empty());
+    String parentWorkflowId = createParentWorkflow("parent-invalid-child", child.getId(), true);
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the waiting parent task ends with its invalid child")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = parentTask(parentRunId);
+              assertNotNull(task);
+              assertEquals(RunPhase.completed, task.getPhase());
+              assertEquals(RunStatus.failed, task.getStatus());
+            });
+    String childRunId = resultValue(parentTask(parentRunId), "workflowRunRef");
+    assertEquals(
+        RunStatus.invalid, workflowRunRepository.findById(childRunId).orElseThrow().getStatus());
   }
 
   @Test
@@ -329,10 +416,19 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
    */
   private String createWorkflow(
       String name, WorkflowTask middle, ExecutionCondition endCondition) {
+    return createWorkflow(name, middle, endCondition, List.of());
+  }
+
+  private String createWorkflow(
+      String name,
+      WorkflowTask middle,
+      ExecutionCondition endCondition,
+      List<AbstractParam> params) {
     WorkflowTask end = node("end", TaskType.end, null, middle.getName(), null);
     end.getDependencies().get(0).setExecutionCondition(endCondition);
     Workflow workflow = new Workflow();
     workflow.setName(name + "-" + System.nanoTime());
+    workflow.setParams(new LinkedList<>(params));
     workflow.setTasks(
         new LinkedList<>(List.of(node("start", TaskType.start, null, null, null), middle, end)));
     Workflow created = workflowService.create(workflow, false).getBody();

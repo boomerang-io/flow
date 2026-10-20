@@ -1,6 +1,6 @@
 package io.boomerang.core;
 
-import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.entity.UserEntity;
@@ -43,7 +43,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.http.HttpStatus;
@@ -211,9 +210,9 @@ public class TokenService {
     String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
 
     final String hashToken = hashString(uniqueToken);
-    LOGGER.debug("Token: " + uniqueToken);
     tokenEntity.setToken(hashToken);
     tokenEntity = tokenRepository.save(tokenEntity);
+    LOGGER.debug("Created {} token {}", request.getType(), tokenEntity.getId());
 
     // Create an Audit relationship
     // relationshipService.addRelationshipRef(RelationshipRef.USER,
@@ -486,32 +485,13 @@ public class TokenService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-    if (queryTypes.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("type").in(queryTypes.get());
-      criteriaList.add(dynamicCriteria);
-    }
-    if (queryPrincipals.isPresent()) {
-      Criteria dynamicCriteria = Criteria.where("principal").in(queryPrincipals.get());
-      criteriaList.add(dynamicCriteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .in("type", queryTypes)
+                .in("principal", queryPrincipals)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {

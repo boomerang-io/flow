@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.common.validation.ResourceName;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.entity.TaskEntity;
@@ -14,6 +15,7 @@ import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.UserService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -31,10 +33,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -49,7 +48,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -61,7 +59,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
@@ -203,7 +200,7 @@ public class TaskService {
   /*
    * Every read of a catalogue task through the /api/v2 surface - get, query, the Tekton YAML reads
    * and the create and apply responses - shows a password-typed param's default as the redaction
-   * marker. The unscoped reads the engine and the workflow save use (get(ref, version), getSpecs,
+   * marker when set and as nothing when unset. The unscoped reads the engine and the workflow save use (get(ref, version), getSpecs,
    * retrieveAndValidateTask) are not filtered: a task run needs the real default. The spec is
    * copied rather than changed, as the model shares it with the revision entity.
    */
@@ -240,7 +237,7 @@ public class TaskService {
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Task Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new TaskResponsePage();
     }
     return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
@@ -261,7 +258,7 @@ public class TaskService {
         relationshipService.filter(
             RelationshipType.TASK, queryNames, Optional.empty(), Optional.empty(), false);
     LOGGER.debug("Global Task Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new TaskResponsePage();
     }
     return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
@@ -805,11 +802,15 @@ public class TaskService {
     request.getAnnotations().put("boomerang.io/generation", ANNOTATION_GENERATION);
     request.getAnnotations().put("boomerang.io/kind", ANNOTATION_KIND);
 
-    // A hidden default sent back with nothing stored to keep (an import of an exported task) is
-    // saved blank, never as the marker.
+    // A hidden default sent back with nothing stored to keep (an import of an exported task) is no
+    // value, never the marker.
     if (request.getSpec() != null) {
       DataAdapterUtil.keepParamSpecValueByFieldType(
           request.getSpec().getParams(), List.of(), FieldType.PASSWORD.value());
+      SecretChangeHolder.compare(
+          Map.of(),
+          SecretChangeHolder.secretValues(
+              "", request.getSpec().getParams(), FieldType.PASSWORD.value()));
     }
 
     // Set as initial version
@@ -860,13 +861,18 @@ public class TaskService {
       throw new BoomerangException(BoomerangError.TASK_INVALID_REF, request.getName(), "latest");
     }
 
-    // A password default read hidden and sent back as the marker or blank keeps the stored one,
-    // so a read-edit-apply of anything else never overwrites the secret.
+    // The one secret write rule: a password default sent back as the marker, or not at all, keeps
+    // the stored one; a blank clears it; anything else replaces it.
     if (request.getSpec() != null && taskRevisionEntity.get().getSpec() != null) {
       DataAdapterUtil.keepParamSpecValueByFieldType(
           request.getSpec().getParams(),
           taskRevisionEntity.get().getSpec().getParams(),
           FieldType.PASSWORD.value());
+      SecretChangeHolder.compare(
+          SecretChangeHolder.secretValues(
+              "", taskRevisionEntity.get().getSpec().getParams(), FieldType.PASSWORD.value()),
+          SecretChangeHolder.secretValues(
+              "", request.getSpec().getParams(), FieldType.PASSWORD.value()));
     }
 
     // Update TaskTemplateEntity
@@ -944,54 +950,14 @@ public class TaskService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(TaskStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryNames.isPresent()) {
-      Criteria criteria = Criteria.where("name").in(queryNames.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryIds.isPresent()) {
-      List<ObjectId> queryOIds =
-          queryIds.get().stream().map(ObjectId::new).collect(Collectors.toList());
-      Criteria criteria = Criteria.where("_id").in(queryOIds);
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .labels(queryLabels)
+                .in("status", TaskStatus.class, queryStatus, "status")
+                .in("name", queryNames)
+                .in("_id", queryIds.map(ids -> ids.stream().map(ObjectId::new).toList()))
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {

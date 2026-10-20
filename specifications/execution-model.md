@@ -36,18 +36,21 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   (`TaskRunService.java:275-316`). A null result means another dispatcher won; the loser skips the candidate.
 - `claim.seq` is never cleared and fences stale claimants. The dispatcher names itself on every `start` and `end`
   (`dispatcherRef` on `TaskRunStartRequest`/`TaskRunEndRequest`, the value the engine wrote to `claim.by`;
-  `dispatcher-sdk/.../dispatcher/sdk/TaskRunner.java:157-206`). A request whose `dispatcherRef` does not match `claim.by` is
-  rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged (`TaskRunService.rejectSupersededClaimant`,
-  called at `:755` and `:792`), and the claimant is re-checked on the handler's entry (`claimantIsValid`,
-  `engine/TaskExecutionService.java:546-570`). A request with no identity is accepted as the legacy protocol.
+  `dispatcher-sdk/.../dispatcher/sdk/TaskRunner.java:157-206`). A request whose `dispatcherRef` does not match `claim.by`
+  is rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged, and so is one for an unfinished task run
+  with no `claim.by` at all - a reaped claim that a termination hand-off released, so a late end changes nothing
+  and the task runs again once its backoff passes (`TaskRunService.rejectSupersededClaimant` `:1137-1152`, called at
+  `:960`, `:997` and `:1191`). The claimant is re-checked on the handler's entry by the same rule (`claimantIsValid`,
+  `engine/TaskExecutionService.java:893-919`). A request with no identity is accepted as the legacy protocol.
   `claim.seq` is not on the wire, so a dispatcher that lost and re-won the same claim is not distinguished from
   its earlier self.
 - `claim.leaseExpiresAt` on `RunClaim` (`service-core/.../model/RunClaim.java:21`, indexed by
-  `service-core/.../migration/_0021__Indexes.java:59`) is the dispatcher's liveness signal: each dispatcher sends one
-  batched heartbeat every 30 s listing the task runs its executor threads are still working on, and the engine
-  sets the lease 90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases`, fenced on `claim.by`;
-  `flow.dispatcher.lease-ms`). A requeue unsets it (`TaskRunService.java:583`). A claim that was never
-  heartbeated holds no lease and is recovered by the deadline and gone-dispatcher sweeps alone.
+  `service-core/.../migration/_0021__Indexes.java:62`) is the dispatcher's liveness signal. The claim sets it 90 s
+  ahead in the same write (`TaskRunService.tryClaim` `:297`, `:323`; `flow.dispatcher.lease-ms`); each dispatcher
+  then sends one batched heartbeat every 30 s listing the task runs it still holds, and the engine moves the lease
+  90 s ahead for the ids that dispatcher owns (`TaskRunService.renewLeases` `:638`, fenced on `claim.by`). A
+  requeue unsets it. A claim its dispatcher stops listing - a crash, or a crash and a restart under the same
+  dispatcher id, which keeps the dispatcher live - is reaped once its lease lapses.
 - The claim answer carries the task's spec filled in from its stored references (`ParameterManager.fillSpec`,
   called at `DispatcherService.java:338`); the stored spec keeps the references. Params are frozen at admission,
   so a requeued task is filled in with the same param values; a workspace or global reference written straight
@@ -105,7 +108,7 @@ Each sweep pages 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`) and is isolate
 Timeouts are deadline-based: `timeoutAt` = start time + budget in minutes + 5 s grace (`engine/RunTimeouts.java:14-18`,
 `EngineConstants.java:9`), written by the claim and start transitions and cleared by completion. There are no per-run
 timers; the sweeps above are the only reaper. A crashed dispatcher, a dead executor thread or a pod that died while the dispatcher's watch was closed is recovered by
-the same path: the claimed task's lease lapses (90 s without a heartbeat), or its dispatcher goes stale (60 s), or
+the same path: the claimed task's lease lapses (90 s after its claim or its last heartbeat), or its dispatcher goes stale (60 s), or
 it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fenced on the
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.java:659-664`). A task's budget, in
 minutes, is the smallest of three ceilings — the platform setting stamped as the run's `boomerang.io/task-timeout`
@@ -172,17 +175,28 @@ terminal, so the timeout path logs and stops rather than failing (`WorkflowExecu
 user-initiated retry gets the 400 `QUOTA_EXCEEDED`.
 
 A user retry takes a scope (`WorkflowRunRetryRequest`: `scope` of `all`, `failed` or `nodes`, plus `nodes`,
-`params` and `labels`). With `failed` or `nodes`, every origin task run that succeeded or was skipped and is not
-downstream of the retry point is copied under the new run with its results and a typed `reusedFromRef`, and with
-claim, deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and
-only the rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`). Everything that did not succeed re-runs
-in every scope; `nodes` adds the named tasks and their descendants. Run results from carried-over set-property
+`params` and `labels`). With `failed` or `nodes`, every origin task run that succeeded and is not downstream of
+the retry point is copied under the new run with its results and a typed `reusedFromRef`, and with claim,
+deadline, retry and wait state dropped, so the plan adopts it by name (`DAGUtility.createTaskList`) and only the
+rest executes (`WorkflowRunService.java` `retryPlan`, `carryOver`, `isCarriable` `:1195`). A skipped task run is
+never copied: it is planned afresh, so a task the origin never reached runs, and one a condition skipped is decided
+again by the same inputs and skipped again. Queueing refuses a completed task
+run, so the start advances from the copies as if each had just ended (`WorkflowExecutionService.java:203-207`).
+The new run gets a workspace volume of its own, empty like any run's ("Volumes and workspaces" in
+`dispatcher-kubernetes.md`): files the carried-over tasks wrote to the origin's workspace are not in it, so a re-run
+task that reads one fails. A file that a retry point may separate from its reader travels as a workflow-scoped
+artifact (the upload and download artifact tasks), which outlives the run; otherwise the retry takes `scope: all`.
+The retry dialog warns of this for a scoped retry of a run with a workspace
+(`client-web/.../RetryRunModal.tsx:94-95,155-164`). Every task that neither succeeded nor was skipped re-runs with its descendants in every scope; `nodes` adds the
+named tasks and theirs. Run results from carried-over set-property
 tasks stay on the new run; the ones a re-run set-property task writes are dropped first. A scoped retry of an
 origin that is still active cancels the origin after the new run is queued, so one lineage never has two live
 runs; a plain retry leaves the origin alone. The run records the point as `retryFrom`. Refused before anything is
 written, as `WORKFLOWRUN_RETRY_INVALID` naming the task: an unknown name, the start or end node, a name inside an
-acquire-lock/release-lock pair, `failed` on a run where everything succeeded, or names with any other scope. The
-origin's revision is the one re-run; a for-each parent re-runs whole when any item failed.
+acquire-lock/release-lock pair, `failed` on a succeeded run with no failed task, or names with any other scope. A
+retry that fails while it is put in place - its copies written, the new run not yet queued - discards the new run,
+its copies and its node, leaves the origin untouched, and answers with a coded error (`:1037-1071`). The origin's
+revision is the one re-run; a for-each parent re-runs whole when any item failed.
 
 A requeue of a claimed attempt keeps `claim.by` (a pod may still be alive) and bumps `claim.seq`, so the stale attempt cannot report and the next
 attempt cannot start until the dispatcher's termination poll releases the claim (`TaskRunService.java:530-592`, `tryClaimForTermination` `:155`).
@@ -232,9 +246,15 @@ terminal status and duration — the events the monthly run quota reads (the Ins
 `api-contract.md` § Insights). TaskRun transitions
 are not audited (volume; no consumer reads them). Emission is best-effort and never fails the transition. When
 `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:50`),
-`CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching `completed` with a status the caller persisted directly (`event/CloudEventsBridge.java:32-71`)
-and `OutboxDispatcher` drains it every 5 s on every instance, delivering at least once, marking rows `sent` by CAS,
-and marking them `dead` after 3 failed attempts (`event/OutboxDispatcher.java:41`, `:59-85`). There is no broker, no partitioning and no leader.
+`CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching
+`completed` with a status the caller persisted directly; the graph's end node, like its start node, writes none,
+and a skip or an admission rejection, written as its final status while still pending and then completed by
+`end()`, writes one row, for the completion (`event/CloudEventsBridge.java:34-89`). `OutboxDispatcher` drains it every 5 s on every instance, delivering at
+least once, marking rows `sent` by CAS, and marking them `dead` after 3 failed attempts
+(`event/OutboxDispatcher.java:44`, `:66-92`). A row is delivered as its own transition: the run is re-read for
+the payload and given the row's status and phase, and the event's id and time are the row's id and when the
+transition occurred, so a row drained late still reports what it recorded and a retry keeps its id
+(`:98-116`, `event/EventFactory.java:67-70,92-95`). There is no broker, no partitioning and no leader.
 Each delivery carries the run's identity and lifecycle, not its params and results, unless `flow.events.sink.payload=full` (decision 0079); the payload shape and the sink configuration are in `api-contract.md`.
 Accepted limitation: no transaction spans the CAS commit and the outbox insert (`event/entity/EventOutboxEntity.java:13-19`), so a crash
 between them loses that one notification. The engine never reads the outbox, so a lost row cannot stall a run.
@@ -244,7 +264,7 @@ in a status — to `pending` with the backoff, attempt count and failure detail 
 (`event/OutboxService.java`, `event/OutboxControllerV2.java`). Every failed attempt writes the exception type and
 message to the row's `lastError` (capped at 1024 characters, latest attempt wins) and a row that exhausts its budget
 also records `deadAt`, so the list route says why a row died and not only that it did
-(`event/OutboxDispatcher.java:73-88`, `:132-162`). Rows that died before these fields existed carry neither and list without them.
+(`event/OutboxDispatcher.java:75-90`, `:142-172`). Rows that died before these fields existed carry neither and list without them.
 
 ## Schedules
 
@@ -261,8 +281,13 @@ it can't read has no next occurrence and never fires.
 ## Child workflows
 
 A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1146-1226`). The
-child is submitted with the parent run's params and the task's own written over them, minus `workflowRef` and
-`wait` (`childParams` `:1228`), so a for-each item's `item` and `index` reach its child as run params.
+child is submitted with the task's own params minus `workflowRef` and `wait` (`childParams` `:1206-1211`): the
+values its node passes, which the designer's Run Workflow modal lists from the child's declared params, and under
+for-each the item's `item` and `index`. The parent run's params are not handed down. A node's params beyond
+`workflowRef` and `wait` must be ones the child workflow's latest revision declares; saving refuses any other with
+`WORKFLOW_INVALID_CHILD_PARAM` (1218) naming the child (`workflow/WorkflowService.java:1743-1783`). A
+`runscheduledworkflow` task schedules its run with the same rule, also leaving out the `futureIn`, `futurePeriod`,
+`timezone` and `time` it reads itself (`:1320-1323`).
 
 **Lineage.** The child is submitted through the lineage-stamping overload
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and

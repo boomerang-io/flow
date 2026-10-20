@@ -3,8 +3,10 @@ package io.boomerang.workspace;
 import static io.boomerang.common.util.DataAdapterUtil.filterValueByFieldType;
 import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByFieldType;
 
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
@@ -44,8 +46,6 @@ import io.boomerang.workspace.model.WorkspaceSummaryInsights;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
 import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.TaskService;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.LinkedList;
@@ -57,7 +57,6 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -442,56 +441,25 @@ public class WorkspaceService {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
 
-    List<Criteria> criteriaList = new ArrayList<>();
+    QueryCriteria criteria = new QueryCriteria();
     if (querySearch.isPresent() && !querySearch.get().isBlank()) {
       // Anchored prefix match (not an unanchored `.*term.*` scan) so a future index on name /
       // displayName can actually serve this - no such index exists yet on the workspaces
       // collection today, so this still executes as a collection scan until one is added.
       String escapedSearch = Pattern.quote(querySearch.get().trim());
-      Criteria searchCriteria =
+      criteria.add(
           new Criteria()
               .orOperator(
                   Criteria.where("name").regex("^" + escapedSearch, "i"),
-                  Criteria.where("displayName").regex("^" + escapedSearch, "i"));
-      criteriaList.add(searchCriteria);
+                  Criteria.where("displayName").regex("^" + escapedSearch, "i")));
     }
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkspaceStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    Criteria criteria = Criteria.where("name").in(teamRefs);
-    criteriaList.add(criteria);
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            criteria
+                .labels(queryLabels)
+                .in("status", WorkspaceStatus.class, queryStatus, "status")
+                .in("name", teamRefs)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
@@ -575,10 +543,12 @@ public class WorkspaceService {
   private List<AbstractParam> createOrUpdateParameters(
       List<AbstractParam> parameters, List<AbstractParam> request) {
     if (!request.isEmpty()) {
+      Map<String, Object> secretsBefore =
+          SecretChangeHolder.secretValues("", parameters, FieldType.PASSWORD.value());
       LOGGER.debug("Starting Parameters: {}", ParameterUtil.abstractParamNames(parameters));
-      // A secured parameter's value and default are never returned to the caller, so a request
-      // that only edits another field sends them back blank or as the redaction marker - carry
-      // the stored secret forward instead of letting the wholesale replacement below wipe it out.
+      // The one secret write rule: a secured value or default sent back as the redaction marker,
+      // or not at all, carries the stored secret forward through the replacement below; a blank
+      // clears it.
       keepParamSpecValueByFieldType(request, parameters, FieldType.PASSWORD.value());
 
       List<String> names = request.stream().map(AbstractParam::getName).toList();
@@ -589,14 +559,18 @@ public class WorkspaceService {
               name -> {
                 throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
               });
-      // Check if parameter exists and remove
+      // A request param replaces the stored one of the same name in any case, as the keep step
+      // above matches it.
       parameters =
           parameters.stream()
-              .filter(p -> !names.contains(p.getName()))
+              .filter(p -> names.stream().noneMatch(name -> name.equalsIgnoreCase(p.getName())))
               .collect(Collectors.toList());
 
       // Add all new / updated params
       parameters.addAll(request);
+      SecretChangeHolder.compare(
+          secretsBefore,
+          SecretChangeHolder.secretValues("", parameters, FieldType.PASSWORD.value()));
     }
     LOGGER.debug("Ending Parameters: {}", ParameterUtil.abstractParamNames(parameters));
     return parameters;
@@ -798,6 +772,28 @@ public class WorkspaceService {
       return currentQuotas;
     }
     return null;
+  }
+
+  /**
+   * The workspace's quota limits with only its current artifact storage filled in, or null when no
+   * workspace has the ref. It reads the relationship graph without a caller identity, so the
+   * dispatcher protocol and the engine, which act for no user, can check an artifact against it.
+   */
+  public CurrentQuotas getArtifactStorageQuota(String workspaceRef) {
+    return workspaceRepository
+        .findById(workspaceRef)
+        .map(
+            workspace -> {
+              Quotas quotas = setDefaultQuotas();
+              setCustomQuotas(quotas, workspace.getQuotas());
+              CurrentQuotas currentQuotas = new CurrentQuotas(quotas);
+              currentQuotas.setCurrentArtifactStorage(
+                  artifactService.storedBytes(
+                      relationshipService.findNodeRefs(
+                          RelationshipType.WORKSPACE, workspaceRef, RelationshipType.WORKFLOW)));
+              return currentQuotas;
+            })
+        .orElse(null);
   }
 
   //
@@ -1051,8 +1047,10 @@ public class WorkspaceService {
             Optional.empty(),
             Optional.empty());
     LOGGER.debug("Insights: {}", insight.toString());
-    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration().intValue());
-    currentQuotas.setCurrentRunMedianDuration(insight.getMedianDuration().intValue());
+    // Milliseconds, like every run duration: this month's total and the mean per run.
+    currentQuotas.setCurrentRunTotalDuration(insight.getTotalDuration());
+    currentQuotas.setCurrentRunAverageDuration(
+        (insight.getTotalRuns() > 0) ? insight.getTotalDuration() / insight.getTotalRuns() : 0L);
 
     // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
     // work counts against the limit - it measures what is running now, which deletion

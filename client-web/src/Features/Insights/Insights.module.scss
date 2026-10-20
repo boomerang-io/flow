@@ -286,6 +286,15 @@
   grid-template-columns: 12rem minmax(0, 1fr);
 }
 
+// A fourth column for an ai task's tokens and cost, present only when the workflow ran one.
+.taskRowUsage {
+  grid-template-columns: 10rem minmax(0, 1fr) 7rem 10rem;
+}
+
+.labelFilter {
+  min-width: 16rem;
+}
+
 .taskRow .bar {
   height: 0.75rem;
   width: 100%;

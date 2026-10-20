@@ -503,7 +503,7 @@ export interface FlowWorkspaceQuotas {
   currentWorkflowCount: number;
   currentConcurrentRuns: number;
   currentRunTotalDuration: number;
-  currentRunMedianDuration: number;
+  currentRunAverageDuration: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
   // For the five max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
@@ -796,6 +796,27 @@ export interface InsightsSummary {
   previous: InsightsTotals;
   daily: Array<InsightsDay>;
   workflows: Array<InsightsWorkflow>;
+  /** Absent from a core that predates usage roll-ups. */
+  usage?: InsightsUsage;
+}
+
+/** Token counts summed over ai task runs; `cost` is the endpoint's own figure, null when none reported one. */
+export interface InsightsUsageSums {
+  aiTaskRuns: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  reasoningTokens: number;
+  cachedPromptTokens: number;
+  cost: number | null;
+}
+
+export interface InsightsModelUsage extends InsightsUsageSums {
+  model: string | null;
+}
+
+export interface InsightsUsage extends InsightsUsageSums {
+  byModel: Array<InsightsModelUsage>;
 }
 
 export interface InsightsTaskRow {
@@ -805,6 +826,9 @@ export interface InsightsTaskRow {
   failed: number;
   p50Duration: number;
   p95Duration: number;
+  /** Null for a task that is not an ai task. */
+  totalTokens?: number | null;
+  cost?: number | null;
 }
 
 export interface InsightsFailure {
@@ -827,6 +851,7 @@ export interface InsightsWorkflowDetail {
   retriedRuns: number;
   tasks: Array<InsightsTaskRow>;
   failures: Array<InsightsFailure>;
+  usage?: InsightsUsage;
 }
 
 //Schedule types

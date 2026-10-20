@@ -2,6 +2,9 @@ package io.boomerang.dispatcher.sdk;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.commons.logging.Log;
@@ -12,7 +15,8 @@ import org.apache.commons.logging.LogFactory;
  * the next poll starts at once after one that brought runs or was held for its window; after one
  * that failed or was answered empty almost at once - claiming switched off, a filter that matches
  * nothing, an engine that cannot be reached - it starts no sooner than {@link
- * #IDLE_POLL_SPACING} after that poll started, so the engine is never asked in a tight loop.
+ * #IDLE_POLL_SPACING} after that poll started, so the engine is never asked in a tight loop. A
+ * loop that is not due waits for {@link #wake}, checking again at least every spacing.
  */
 final class QueuePoller<T> {
 
@@ -24,6 +28,8 @@ final class QueuePoller<T> {
   private final Supplier<List<T>> poll;
   private final Consumer<T> handOff;
   private final Duration idleSpacing;
+  private final BooleanSupplier due;
+  private final Semaphore wakeups = new Semaphore(0);
 
   private volatile boolean running;
   private volatile Thread thread;
@@ -37,10 +43,21 @@ final class QueuePoller<T> {
   }
 
   QueuePoller(String name, Supplier<List<T>> poll, Consumer<T> handOff, Duration idleSpacing) {
+    this(name, poll, handOff, idleSpacing, () -> true);
+  }
+
+  /** As above, polling only while {@code due} holds. */
+  QueuePoller(
+      String name,
+      Supplier<List<T>> poll,
+      Consumer<T> handOff,
+      Duration idleSpacing,
+      BooleanSupplier due) {
     this.name = name;
     this.poll = poll;
     this.handOff = handOff;
     this.idleSpacing = idleSpacing;
+    this.due = due;
   }
 
   synchronized void start() {
@@ -58,9 +75,28 @@ final class QueuePoller<T> {
     }
   }
 
+  /** Check at once whether the loop is due; a wake while it polls is checked after that poll. */
+  void wake() {
+    wakeups.release();
+  }
+
   private void loop() {
     while (running && !Thread.currentThread().isInterrupted()) {
-      pollOnce();
+      if (due.getAsBoolean()) {
+        pollOnce();
+      } else {
+        awaitWake();
+      }
+    }
+  }
+
+  // A wake given between the check and this wait is not lost: its permit is still there.
+  private void awaitWake() {
+    try {
+      wakeups.tryAcquire(idleSpacing.toNanos(), TimeUnit.NANOSECONDS);
+      wakeups.drainPermits();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
     }
   }
 

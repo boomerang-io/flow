@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -31,6 +32,7 @@ import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskExecutionService;
@@ -50,13 +52,12 @@ import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import java.io.ByteArrayInputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +66,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -279,8 +279,7 @@ public class WorkflowService {
   }
 
   /*
-   * This method is used by the compose methods and duplicate, and ensures the password values are
-   * not filtered.
+   * The unfiltered read, for duplicate only: a copy must carry the stored secrets, not the marker.
    */
   private Workflow internalGet(
       String team, String name, Optional<Integer> version, boolean withTasks) {
@@ -307,13 +306,14 @@ public class WorkflowService {
 
   /*
    * Every read of a Workflow through the /api/v2 surface - get, query, export, and the create,
-   * apply and duplicate responses - hides its secrets: a password-typed workflow param's default
-   * is blanked, the convention the run form relies on (a blank leaves the stored default in place
-   * on a run), and a task node's value for a param its task declares as password reads as the
-   * redaction marker. The node's type is stamped from the task's spec here as well as at save, so
-   * a revision saved before stamping existed is hidden too; the specs are resolved in one batch for
-   * the whole page. The canvas reads (composeGet, composeApply) are deliberately not filtered.
-   * Must run while the task refs are still refs, before convertTaskRefsToSlugs.
+   * apply and duplicate responses - hides its secrets with the one read shape
+   * (DataAdapterUtil.maskSecretValue): a password-typed workflow param's default, and a task
+   * node's value for a param its task declares as password, read as the redaction marker when set
+   * and as nothing when unset; one that is exactly one Flow reference reads as written. The node's
+   * type is stamped from the task's spec here as well as at save, so a revision saved before
+   * stamping existed is hidden too; the specs are resolved in one batch for the whole page. The
+   * canvas reads (composeGet, composeApply) are filtered the same way. Must run while the task refs
+   * are still refs, before convertTaskRefsToSlugs.
    */
   private void filterSensitiveValues(List<Workflow> workflows) {
     Set<TaskService.TaskRef> refs =
@@ -336,7 +336,7 @@ public class WorkflowService {
           ParameterUtil.stampSecretParams(task.getParams(), spec.getParams());
         }
         task.setParams(
-            DataAdapterUtil.filterRunParamValueByFieldType(task.getParams(), ParamType.secret));
+            DataAdapterUtil.filterDefinitionValueByFieldType(task.getParams(), ParamType.secret));
       }
     }
   }
@@ -362,7 +362,7 @@ public class WorkflowService {
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Workflow Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new WorkflowResponsePage();
     }
 
@@ -423,14 +423,6 @@ public class WorkflowService {
    */
   //  @Audit(scope = PermissionScope.WORKFLOW)
   public Workflow create(String team, Workflow request) {
-    return create(team, request, true);
-  }
-
-  /*
-   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
-   * values as they are.
-   */
-  private Workflow create(String team, Workflow request, boolean filterTasks) {
     // Validate Access - same guard as TaskService.create: the caller must reach the workspace the
     // ownership edge below is written into. Guards every create-shaped route: create, apply and
     // composeApply (when the Workflow does not exist yet) and duplicate all funnel here.
@@ -493,12 +485,7 @@ public class WorkflowService {
     // TODO go through and ensure all the required ParamSpec elements are set
 
     // Filter out sensitive values
-    if (filterTasks) {
-      filterSensitiveValues(List.of(workflow));
-    } else {
-      DataAdapterUtil.filterParamSpecValueByFieldType(
-          workflow.getParams(), FieldType.PASSWORD.value());
-    }
+    filterSensitiveValues(List.of(workflow));
 
     // Convert Workflow TaskRefs to Slugs
     convertTaskRefsToSlugs(team, workflow);
@@ -551,14 +538,6 @@ public class WorkflowService {
    * Workflow with supplied ID
    */
   public Workflow apply(String team, Workflow workflow, boolean replace) {
-    return apply(team, workflow, replace, true);
-  }
-
-  /*
-   * filterTasks is false only for the canvas (composeApply), whose response keeps the task nodes'
-   * values as they are.
-   */
-  private Workflow apply(String team, Workflow workflow, boolean replace, boolean filterTasks) {
     if (workflow != null && workflow.getName() != null && !workflow.getName().isBlank()) {
       List<String> refs =
           relationshipService.filter(
@@ -591,12 +570,7 @@ public class WorkflowService {
         Workflow appliedWorkflow = apply(workflow, replace).getBody();
 
         // Filter out sensitive values
-        if (filterTasks) {
-          filterSensitiveValues(List.of(appliedWorkflow));
-        } else {
-          DataAdapterUtil.filterParamSpecValueByFieldType(
-              appliedWorkflow.getParams(), FieldType.PASSWORD.value());
-        }
+        filterSensitiveValues(List.of(appliedWorkflow));
 
         // Convert Workflow TaskRefs(IDs) to Slugs
         convertTaskRefsToSlugs(team, appliedWorkflow);
@@ -607,7 +581,7 @@ public class WorkflowService {
     }
     if (workflow != null) {
       workflow.setId(null);
-      return this.create(team, workflow, filterTasks);
+      return this.create(team, workflow);
     }
     throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
   }
@@ -878,7 +852,10 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
-    final Workflow response = this.internalGet(team, name, version, true);
+    // The same masked read as get, keeping the id the canvas carries.
+    Workflow response = get(workflowRef(team, name), version, true).getBody();
+    filterSensitiveValues(List.of(response));
+    convertTaskRefsToSlugs(team, response);
     return convertWorkflowToCanvas(response);
   }
 
@@ -895,7 +872,7 @@ public class WorkflowService {
     }
 
     Workflow workflow = convertCanvasToWorkflow(canvas);
-    Workflow response = this.apply(team, workflow, replace, false);
+    Workflow response = this.apply(team, workflow, replace);
     return convertWorkflowToCanvas(response);
   }
 
@@ -1441,47 +1418,13 @@ public class WorkflowService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkflowStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryIds.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryIds.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .labels(queryLabels)
+                .in("status", WorkflowStatus.class, queryStatus, "status")
+                .in("id", queryIds)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
@@ -1526,49 +1469,13 @@ public class WorkflowService {
       Optional<Date> to,
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("id", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowEntity> wfEntities = mongoTemplate.find(query, WorkflowEntity.class);
 
@@ -1717,14 +1624,13 @@ public class WorkflowService {
   }
 
   /*
-   * The save-side partner of filterSensitiveValues: a client that read a Workflow and sends it
-   * back sends a blank for each password-typed workflow default and the redaction marker for each
-   * secret task-node value. Either keeps the stored value - the workflow param of the same name,
-   * and the node param of the same name on the node of the same name in the latest revision - so
-   * a read-edit-apply never wipes a secret. With nothing stored to keep (a new Workflow, or an
-   * import of an export into another one), a workflow default is saved blank and a marked node
-   * value is dropped from the node, so the task's own default applies on a run rather than the
-   * marker. Runs after createWorkflowRevisionEntity has stamped the node params secret.
+   * The save-side partner of filterSensitiveValues, with the one secret write rule
+   * (DataAdapterUtil.keepSecretValue): the redaction marker, or no value, keeps the stored value -
+   * the workflow param of the same name, and the node param of the same name on the node of the
+   * same name in the latest revision - a blank clears it, and anything else replaces it. A node
+   * secret left with no value is dropped from the node, so the task's own default applies on a
+   * run. Runs after createWorkflowRevisionEntity has stamped the node params secret. The names of
+   * the secrets the write changed or cleared go to the audit trail.
    */
   private static void keepSecretValues(
       WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
@@ -1732,28 +1638,53 @@ public class WorkflowService {
         incoming.getParams(),
         stored != null ? stored.getParams() : List.of(),
         FieldType.PASSWORD.value());
-    if (incoming.getTasks() == null) {
-      return;
+    if (incoming.getTasks() != null) {
+      keepNodeSecretValues(incoming, stored);
     }
+    SecretChangeHolder.compare(secretValues(stored), secretValues(incoming));
+  }
+
+  // A revision's secret values by name: its own params as params.<name>, each node's as
+  // tasks.<node>.<param>.
+  private static Map<String, Object> secretValues(WorkflowRevisionEntity revision) {
+    Map<String, Object> values = new LinkedHashMap<>();
+    if (revision == null) {
+      return values;
+    }
+    values.putAll(
+        SecretChangeHolder.secretValues(
+            "params.", revision.getParams(), FieldType.PASSWORD.value()));
+    if (revision.getTasks() != null) {
+      revision.getTasks().stream()
+          .filter(task -> task.getName() != null)
+          .forEach(
+              task ->
+                  values.putAll(
+                      SecretChangeHolder.secretRunValues(
+                          "tasks." + task.getName() + ".", task.getParams(), ParamType.secret)));
+    }
+    return values;
+  }
+
+  private static void keepNodeSecretValues(
+      WorkflowRevisionEntity incoming, WorkflowRevisionEntity stored) {
     for (WorkflowTask task : incoming.getTasks()) {
       if (task.getParams() == null) {
         continue;
       }
-      if (stored != null && stored.getTasks() != null) {
-        stored.getTasks().stream()
-            .filter(s -> s.getName() != null && s.getName().equals(task.getName()))
-            .findFirst()
-            .ifPresent(
-                s ->
-                    DataAdapterUtil.keepRunParamValueByFieldType(
-                        task.getParams(), s.getParams(), ParamType.secret));
-      }
+      List<RunParam> storedParams =
+          (stored == null || stored.getTasks() == null)
+              ? List.of()
+              : stored.getTasks().stream()
+                  .filter(s -> s.getName() != null && s.getName().equals(task.getName()))
+                  .findFirst()
+                  .map(WorkflowTask::getParams)
+                  .orElse(List.of());
+      DataAdapterUtil.keepRunParamValueByFieldType(
+          task.getParams(), storedParams, ParamType.secret);
       task.setParams(
           task.getParams().stream()
-              .filter(
-                  p ->
-                      !(ParamType.secret.equals(p.getType())
-                          && DataAdapterUtil.REDACTED.equals(p.getValue())))
+              .filter(p -> !(ParamType.secret.equals(p.getType()) && p.getValue() == null))
               .collect(Collectors.toCollection(LinkedList::new)));
     }
   }
@@ -1769,9 +1700,8 @@ public class WorkflowService {
    * Template spec leaves undeclared, so a Template with an empty declared set is left unchecked
    * rather than treated as "no params allowed".
    *
-   * <p>A null-valued param is rejected regardless of that carve-out: a name-only placeholder
-   * (the caller never supplied a value) is never a legitimate save - it silently starves a
-   * required input (e.g. runworkflow's "workflowRef") until the run itself fails.
+   * <p>A param with no value is accepted: a secret one keeps its stored value (keepSecretValues),
+   * and a task that requires a value fails its own run with a message naming the parameter.
    */
   private void validateDeclaredParams(WorkflowTask wfTask, Task taskTemplate) {
     if (wfTask.getParams() != null) {
@@ -1810,10 +1740,44 @@ public class WorkflowService {
             .map(RunParam::getName)
             .filter(name -> declaredNames.stream().noneMatch(d -> d.equalsIgnoreCase(name)))
             .collect(Collectors.toList());
-    if (!undeclaredNames.isEmpty()) {
+    if (!undeclaredNames.isEmpty() && TaskType.runworkflow.equals(wfTask.getType())) {
+      validateChildParams(wfTask, undeclaredNames);
+    } else if (!undeclaredNames.isEmpty()) {
       throw new BoomerangException(
           BoomerangError.WORKFLOW_INVALID_TASK_PARAM,
           wfTask.getName(),
+          undeclaredNames.toString());
+    }
+  }
+
+  /*
+   * A run-workflow node hands its params to the child run (TaskExecutionService.childParams), so
+   * the ones its catalogue task does not declare must be declared by the child workflow's latest
+   * revision, the one the child runs. By now workflowRef holds the child's id (convertTaskSlugsToRefs).
+   */
+  private void validateChildParams(WorkflowTask wfTask, List<String> forwardedNames) {
+    Object workflowRef = ParameterUtil.getValue(wfTask.getParams(), "workflowRef");
+    List<String> childNames =
+        Optional.ofNullable(workflowRef)
+            .flatMap(
+                ref -> workflowRevisionRepository.findByWorkflowRefAndLatestVersion(ref.toString()))
+            .map(WorkflowRevisionEntity::getParams)
+            .orElse(List.of())
+            .stream()
+            .map(AbstractParam::getName)
+            .toList();
+    List<String> undeclaredNames =
+        forwardedNames.stream()
+            .filter(name -> childNames.stream().noneMatch(c -> c.equalsIgnoreCase(name)))
+            .toList();
+    if (!undeclaredNames.isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_INVALID_CHILD_PARAM,
+          wfTask.getName(),
+          Optional.ofNullable(workflowRef)
+              .flatMap(ref -> workflowRepository.findById(ref.toString()))
+              .map(WorkflowEntity::getName)
+              .orElse(String.valueOf(workflowRef)),
           undeclaredNames.toString());
     }
   }
@@ -2072,7 +2036,9 @@ public class WorkflowService {
     }
     if (request.getParams() != null && !request.getParams().isEmpty()) {
       wfRunEntity.setParams(
-          ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams()));
+          ParameterUtil.addUniqueParams(
+              wfRunEntity.getParams(),
+              ParameterUtil.suppliedParams(wfRunEntity.getParams(), request.getParams())));
     }
     rejectNonStringSecrets(wfRunEntity.getParams());
     if (!Objects.isNull(request.getRetries()) && request.getRetries() != 0) {

@@ -22,8 +22,11 @@ public class LogV1Controller {
       @RequestParam(value = "workflowRef", required = true) String workflowRef,
       @RequestParam(value = "workflowRunRef", required = true) String workflowRunRef,
       @RequestParam(value = "taskRunRef", required = false) String taskRunRef) {
+    // A running pod's log is followed live: each flush must reach the engine, not Spring's buffer.
     return new ResponseEntity<>(
-        logService.streamLogForTask(response, workflowRef, workflowRunRef, taskRunRef),
+        ResponseFlushingOutputStream.flushing(
+            logService.streamLogForTask(response, workflowRef, workflowRunRef, taskRunRef),
+            response),
         HttpStatus.OK);
   }
 

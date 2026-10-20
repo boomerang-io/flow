@@ -15,10 +15,11 @@ instance. Correctness rests on three primitives, all in the live path:
 | Status-CAS transitions (`tryTransition`, `tryComplete`, `tryRequeue`) | `TaskRunService.java:548-590`, `engine/WorkflowRunStateHelper.java` | Concurrent advance from two instances converges: the second CAS finds the state already changed and performs no side effects. |
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:36-41` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
-Worker leases are not used (`claim.leaseExpiresAt` is only ever unset, `TaskRunService.java:185,216,583`,
-so the `lease_sweep` index at `_0021__Indexes.java:59` stays empty);
-crash recovery is the absolute `timeoutAt` written at claim = now + timeout + 5 s grace
-(`TaskRunService.java:251,260`; `engine/RunTimeouts.java:14-17`) plus the gone-dispatcher sweep below.
+Crash recovery is the lease the claim sets 90 s ahead and each 30 s heartbeat renews
+(`TaskRunService.java:323`, `:640`; served by the sparse `lease_sweep` index, `_0021__Indexes.java:62`, which holds
+only live claims because completion clears the lease, `:613`), the absolute
+`timeoutAt` written at claim = now + timeout + 5 s grace (`engine/RunTimeouts.java:14-17`), and the gone-dispatcher
+sweep below.
 
 Two caches are per instance and trade a bounded staleness for fewer reads; a write clears them only on the
 instance that took it.
@@ -53,13 +54,14 @@ other burst. Each item end reads its siblings once to decide whether the parent 
 costs n indexed reads of at most n documents.
 
 Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`DispatcherService.java:48-50`),
-and reconnect as soon as a poll returns (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:68-87`). Each
+and reconnect as soon as a poll returns (`dispatcher-sdk/.../dispatcher/sdk/QueuePoller.java:104-123`). Each
 connected dispatcher therefore costs about 3 indexed queries per second when idle (task claim, task
 termination, run provision) and one request every 30 s per queue. A newly ready task waits at most about
-1 s for a connected dispatcher with a free slot. A dispatcher holds at most `flow.dispatcher.task.max-in-flight`
+1 s for a connected dispatcher with a free slot, including a slot that frees while the engine holds a full
+dispatcher's `limit=0` poll. A dispatcher holds at most `flow.dispatcher.task.max-in-flight`
 tasks (25), a Pending pod and a retried end report included, and each poll claims no more than its free slots, so
 under a backlog the work it cannot run stays claimable by other dispatchers
-(`dispatcher-sdk/.../dispatcher/sdk/InFlightTasks.java:28`).
+(`dispatcher-sdk/.../dispatcher/sdk/InFlightTasks.java:30`).
 `flow.queue.enabled=false` stops claiming only; sweeps keep running (`DispatcherService.java:57-58,166,262`).
 While claiming is off the engine answers each poll at once with 204, and the dispatcher then waits 5 s between
 polls.
@@ -70,6 +72,7 @@ Indexes come only from the change unit `_0021__Indexes`; entity annotations are 
 | --- | --- | --- | --- |
 | `claim_page` | `task_runs {type, status, phase, creationDate}` | `service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:53-57` | `findClaimable` page and its sort |
 | `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `_0021__Indexes.java:63-67` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
+| `run_tasks` | `task_runs {workflowRunRef, status, name}` | `_0021__Indexes.java:61` | A run's task runs; the Insights task-run read and its one `usage` aggregation per response, matched on the counted runs' ids with `type` and `foreach` as residual filters (`workflow/WorkflowRunInsightService.java:294`) |
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0021__Indexes.java:60-61` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
 | `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0021__Indexes.java:71-74` | Run provision claim page and `recoverStaleProvisionClaims`; `reapWorkflowTimeouts` |
 | `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0021__Indexes.java:75-78` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns`; the retention page of `purgeExpiredRuns` (`{phase, creationDate}`), with its lineage check on `initiated_by_phase` |
@@ -139,8 +142,14 @@ quiet-but-healthy stream is not cut at the control read timeout (`core/config/Re
 | `streamingRestTemplate` (`:110-116`) | 10 s | 10 min | 10 s | Trust-all | Dispatcher log streams |
 
 Pool: 200 total / 200 per route, keep-alive 5 min (`:48-54,174-189`). Companions: Mongo
-`connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout 600 s
-for the log stream (`:49`); dispatcher task default 60 min when the task sets none plus a 2 min watch
+`connectTimeoutMS=10000&socketTimeoutMS=120000` (`application.properties:45`); async request timeout two hours
+for a streamed response, so a running task's log is followed for that long, on both core (`:72`) and the
+dispatcher (`service-dispatcher/src/main/resources/application.properties:7`). It reaches only the three
+routes that answer asynchronously: core's task log and artifact download and the dispatcher's task log
+(`workflow/TaskRunControllerV2.java`, `workflow/WorkspaceArtifactControllerV2.java`,
+`dispatcher/LogV1Controller.java`); the dispatcher queue's long polls are synchronous and keep their 30 s hold. A
+log the dispatcher has sent nothing on for 10 minutes ends at the streaming template's read timeout above, with a
+closing line to the reader; dispatcher task default 60 min when the task sets none plus a 2 min watch
 grace (`service-dispatcher/src/main/resources/application.properties:41,28`).
 
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all
@@ -230,7 +239,6 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 | Per-class kill switches | One global `flow.queue.enabled` that stops claiming only | An incident needs one class stopped while others run |
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
-| Worker leases and renewal | Absolute `timeoutAt` at claim; gone-dispatcher sweep at 60 s | Worker-crash recovery latency is shown to matter |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`kube/TektonServiceImpl.java`, `executor/JobWatcher.java`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
 | An event-driven dispatcher poll | A 30 s long poll that re-checks every 1 s (`dispatcher/DispatcherService.java:48-49`); the dispatcher reconnects at once | A measured idle-query cost at the dispatcher count in use, or a workload that needs task-to-task hops well under 1 s |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, creationDate) has picked the ready tasks, keeping oldest first (`TaskRunService.java:182-191`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |

@@ -45,7 +45,6 @@ public class DispatcherConfig {
       @Value("${flow.dispatcher.name}") String name,
       @Value("${flow.dispatcher.task-types}") List<String> taskTypes,
       @Value("${flow.dispatcher.task.max-in-flight:25}") int maxInFlight,
-      @Value("${flow.dispatcher.lease.enabled:true}") boolean leaseEnabled,
       @Value("${flow.dispatcher.lease.beat-ms:30000}") long beatMs,
       @Value("${flow.dispatcher.logs.url:}") String logsUrl) {
     return Dispatcher.builder()
@@ -54,7 +53,7 @@ public class DispatcherConfig {
         .taskTypes(taskTypes)
         .tasks(taskService, () -> maxInFlight)
         .workflows(workflowService)
-        .heartbeatInterval(leaseEnabled ? Duration.ofMillis(beatMs) : Duration.ZERO)
+        .heartbeatInterval(Duration.ofMillis(beatMs))
         .logs(logsUrl, Dispatcher.Builder.randomLogsToken())
         .build();
   }

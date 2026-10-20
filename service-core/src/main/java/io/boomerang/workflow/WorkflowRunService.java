@@ -20,6 +20,7 @@ import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.FilterValuesOutputStream;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -38,9 +39,6 @@ import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -52,7 +50,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -65,9 +62,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -370,21 +367,13 @@ public class WorkflowRunService {
       Optional<Date> from,
       Optional<Date> to,
       Optional<Set<RunStatus>> statuses) {
-    List<Criteria> criteriaList = new ArrayList<>();
-    criteriaList.add(Criteria.where("workflowRef").in(workflowRefs));
-    if (from.isPresent() && !to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").gte(from.get()));
-    } else if (!from.isPresent() && to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").lt(to.get()));
-    } else if (from.isPresent() && to.isPresent()) {
-      criteriaList.add(Criteria.where("creationDate").gte(from.get()).lt(to.get()));
-    }
-    if (statuses.isPresent()) {
-      criteriaList.add(Criteria.where("status").in(statuses.get()));
-    }
     Query query =
         new Query(
-            new Criteria().andOperator(criteriaList.toArray(new Criteria[criteriaList.size()])));
+            new QueryCriteria()
+                .in("workflowRef", workflowRefs)
+                .between("creationDate", from, to)
+                .in("status", statuses)
+                .build());
     LOGGER.debug("Quota count query: {}", query);
     return mongoTemplate.count(query, WorkflowRunEntity.class);
   }
@@ -504,7 +493,11 @@ public class WorkflowRunService {
     if (secrets.isEmpty()) {
       return body;
     }
-    return outputStream -> body.writeTo(new FilterValuesOutputStream(outputStream, secrets));
+    return outputStream -> {
+      FilterValuesOutputStream scrubbed = new FilterValuesOutputStream(outputStream, secrets);
+      body.writeTo(scrubbed);
+      scrubbed.finish();
+    };
   }
 
   // The resolved values of every password-typed param on the owning run, per DataAdapterUtil's
@@ -692,80 +685,17 @@ public class WorkflowRunService {
     if (queryLimit.isPresent()) {
       pageable = PageRequest.of(queryPage.get(), queryLimit.get(), sort);
     }
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    // TODO add the ability to OR labels not just AND
-    if (queryLabels.isPresent()) {
-      queryLabels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryStatus.isPresent()) {
-      if (queryStatus.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunStatus.class, q))) {
-        Criteria criteria = Criteria.where("status").in(queryStatus.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-      }
-    }
-
-    if (queryPhase.isPresent()) {
-      if (queryPhase.get().stream()
-          .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(RunPhase.class, q))) {
-        Criteria criteria = Criteria.where("phase").in(queryPhase.get());
-        criteriaList.add(criteria);
-      } else {
-        throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "phase");
-      }
-    }
-
-    if (queryWorkflowRuns.isPresent()) {
-      Criteria criteria = Criteria.where("id").in(queryWorkflowRuns.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    if (queryTriggers.isPresent()) {
-      LOGGER.debug("Triggers: {}", queryTriggers.get().toString());
-      Criteria criteria = Criteria.where("trigger").in(queryTriggers.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(queryLabels)
+                .in("status", RunStatus.class, queryStatus, "status")
+                .in("phase", RunPhase.class, queryPhase, "phase")
+                .in("id", queryWorkflowRuns)
+                .in("workflowRef", queryWorkflows)
+                .in("trigger", queryTriggers)
+                .build());
     if (queryLimit.isPresent()) {
       query.with(pageable);
     } else {
@@ -801,64 +731,20 @@ public class WorkflowRunService {
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    } else {
-      // TODO find all Workflows based on team, then
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("workflowRef", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowRunEntity> entities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
     // Collect the Stats
-    Long totalDuration = 0L;
-    Long duration;
-
+    long totalDuration = 0;
     for (WorkflowRunEntity entity : entities) {
-      duration = entity.getDuration();
-      if (duration != null) {
-        totalDuration += duration;
-      }
-      // addActivityDetail(executions, activity);
+      totalDuration += entity.getDuration();
     }
 
     WorkflowRunInsight wfRunInsight = new WorkflowRunInsight();
@@ -866,7 +752,6 @@ public class WorkflowRunService {
     wfRunInsight.setConcurrentRuns(
         entities.stream().filter(run -> RunPhase.running.equals(run.getPhase())).count());
     wfRunInsight.setTotalDuration(totalDuration);
-    wfRunInsight.setMedianDuration(entities.size() != 0 ? totalDuration / entities.size() : 0L);
     List<WorkflowRunSummary> runs = new LinkedList<>();
     entities.forEach(
         e -> {
@@ -890,49 +775,13 @@ public class WorkflowRunService {
       Optional<Date> to,
       Optional<List<String>> labels,
       Optional<List<String>> queryWorkflows) {
-    List<Criteria> criteriaList = new ArrayList<>();
-
-    if (from.isPresent() && !to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get());
-      criteriaList.add(criteria);
-    } else if (!from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").lt(to.get());
-      criteriaList.add(criteria);
-    } else if (from.isPresent() && to.isPresent()) {
-      Criteria criteria = Criteria.where("creationDate").gte(from.get()).lt(to.get());
-      criteriaList.add(criteria);
-    }
-
-    // TODO add the ability to OR labels not just AND
-    if (labels.isPresent()) {
-      labels.get().stream()
-          .forEach(
-              l -> {
-                String decodedLabel = "";
-                try {
-                  decodedLabel = URLDecoder.decode(l, "UTF-8");
-                } catch (UnsupportedEncodingException e) {
-                  throw new BoomerangException(e, BoomerangError.QUERY_INVALID_FILTERS, "labels");
-                }
-                LOGGER.debug(decodedLabel.toString());
-                String[] label = decodedLabel.split("[=]+");
-                Criteria labelsCriteria =
-                    Criteria.where("labels." + label[0].replace(".", "#")).is(label[1]);
-                criteriaList.add(labelsCriteria);
-              });
-    }
-
-    if (queryWorkflows.isPresent()) {
-      Criteria criteria = Criteria.where("workflowRef").in(queryWorkflows.get());
-      criteriaList.add(criteria);
-    }
-
-    Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-    Criteria allCriteria = new Criteria();
-    if (criteriaArray.length > 0) {
-      allCriteria.andOperator(criteriaArray);
-    }
-    Query query = new Query(allCriteria);
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .labels(labels)
+                .in("workflowRef", queryWorkflows)
+                .build());
     LOGGER.debug("Query: " + query.toString());
     List<WorkflowRunEntity> wfRunEntities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
@@ -994,7 +843,9 @@ public class WorkflowRunService {
         wfRunEntity.getAnnotations().putAll(optRunRequest.get().getAnnotations());
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
-                wfRunEntity.getParams(), optRunRequest.get().getParams()));
+                wfRunEntity.getParams(),
+                ParameterUtil.suppliedParams(
+                    wfRunEntity.getParams(), optRunRequest.get().getParams())));
         // The rule submit holds a merged request to: a secret is a string only.
         WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
         // A request carrying a workspace overrides the run's; the dispatcher's start sends none.
@@ -1164,7 +1015,9 @@ public class WorkflowRunService {
       wfRunEntity.setRetryFrom((plan != null) ? plan.retryFrom() : null);
       // Overrides merge over the origin's own: a param replaces the one of that name, a label is
       // put over the one of that key.
-      ParameterUtil.addUniqueParams(wfRunEntity.getParams(), request.getParams());
+      ParameterUtil.addUniqueParams(
+          wfRunEntity.getParams(),
+          ParameterUtil.suppliedParams(wfRunEntity.getParams(), request.getParams()));
       WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
       wfRunEntity.getLabels().putAll(request.getLabels());
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
@@ -1174,25 +1027,41 @@ public class WorkflowRunService {
         wfRunEntity.setTrigger(TriggerEnum.retry.getTrigger());
       }
       workflowRunRepository.save(wfRunEntity);
-      if (plan != null) {
-        carryOver(plan.carried(), wfRunEntity.getId());
-      }
+      // A retry that cannot be put in place leaves nothing behind: the clone, its copies and its
+      // node are discarded, the origin is untouched, and the caller gets a coded error.
+      try {
+        if (plan != null) {
+          carryOver(plan.carried(), wfRunEntity.getId());
+        }
 
-      // Recorded before the clone is queued, so it never executes as reachable-but-unowned
-      // (visible in /query via its Workflow yet denied on GET /{id}).
-      if (owner != null) {
-        relationshipService.createNodeAndEdge(
-            RelationshipType.WORKSPACE,
-            owner,
-            RelationshipLabel.HAS_WORKFLOWRUN,
-            RelationshipType.WORKFLOWRUN,
-            wfRunEntity.getId(),
-            wfRunEntity.getId(),
-            Optional.empty(),
-            Optional.empty());
-      }
+        // Recorded before the clone is queued, so it never executes as reachable-but-unowned
+        // (visible in /query via its Workflow yet denied on GET /{id}).
+        if (owner != null) {
+          relationshipService.createNodeAndEdge(
+              RelationshipType.WORKSPACE,
+              owner,
+              RelationshipLabel.HAS_WORKFLOWRUN,
+              RelationshipType.WORKFLOWRUN,
+              wfRunEntity.getId(),
+              wfRunEntity.getId(),
+              Optional.empty(),
+              Optional.empty());
+        }
 
-      workflowExecutionService.queue(wfRunEntity.getId());
+        workflowExecutionService.queue(wfRunEntity.getId());
+      } catch (RuntimeException e) {
+        LOGGER.error("[{}] Retry of {} could not be put in place.", wfRunEntity.getId(), workflowRunId, e);
+        discard(wfRunEntity.getId());
+        throw (e instanceof BoomerangException boomerang)
+            ? boomerang
+            : new BoomerangException(
+                e,
+                1000,
+                "WORKFLOW_RUNTIME_EXCEPTION",
+                "[{0}] Failed to retry the run: the new run could not be put in place.",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                workflowRunId);
+      }
 
       // A scoped retry taken while the origin still runs - the usual case when a run sits at a
       // review gate and a stage is redone - cancels the origin once the new run is in place. A
@@ -1255,14 +1124,21 @@ public class WorkflowRunService {
         taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(origin.getId()).stream()
             .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
 
-    // Everything that did not succeed re-runs in every scope; named tasks are added to that.
+    // Everything that neither succeeded nor was skipped re-runs with its descendants in every
+    // scope; named tasks are added to that. A skipped task is not carried over either: it is
+    // planned afresh, so one the run never reached runs, and one a condition skipped decides again.
     Set<String> seed = new HashSet<>();
     for (WorkflowTask task : revision.getTasks()) {
-      if (!isCarriable(runsByName.get(task.getName()))) {
+      TaskRunEntity taskRun = runsByName.get(task.getName());
+      if (!isCarriable(taskRun)
+          && !(taskRun != null && RunStatus.skipped.equals(taskRun.getStatus()))) {
         seed.add(task.getName());
       }
     }
-    if (scope == RetryScope.failed && seed.isEmpty()) {
+    // A succeeded run's skipped tasks were all decided by conditions, so there is nothing to redo.
+    if (scope == RetryScope.failed
+        && seed.isEmpty()
+        && RunStatus.succeeded.equals(origin.getStatus())) {
       throw retryInvalid("No task of this run failed.");
     }
     for (String name : nodes) {
@@ -1280,8 +1156,9 @@ public class WorkflowRunService {
 
     List<TaskRunEntity> carried = new LinkedList<>();
     for (WorkflowTask task : revision.getTasks()) {
-      if (!rerun.contains(task.getName())) {
-        carried.add(runsByName.get(task.getName()));
+      TaskRunEntity taskRun = runsByName.get(task.getName());
+      if (!rerun.contains(task.getName()) && isCarriable(taskRun)) {
+        carried.add(taskRun);
       }
     }
     // A run result written by a set-property task that re-runs is written again; the rest stay.
@@ -1306,12 +1183,17 @@ public class WorkflowRunService {
         !RunPhase.completed.equals(origin.getPhase()));
   }
 
-  // A task run is carried over only when it finished well; absent, failed, cancelled, timed out,
-  // or still in flight all re-run.
+  // A task run is carried over only when it succeeded; skipped, absent, failed, cancelled, timed
+  // out, or still in flight are all planned afresh.
   private static boolean isCarriable(TaskRunEntity taskRun) {
-    return taskRun != null
-        && (RunStatus.succeeded.equals(taskRun.getStatus())
-            || RunStatus.skipped.equals(taskRun.getStatus()));
+    return taskRun != null && RunStatus.succeeded.equals(taskRun.getStatus());
+  }
+
+  // What a retry wrote before it failed: the clone, its task-run copies and its node.
+  private void discard(String wfRunId) {
+    taskRunRepository.deleteByWorkflowRunRef(wfRunId);
+    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOWRUN, wfRunId);
+    workflowRunRepository.deleteById(wfRunId);
   }
 
   // Every task reachable from the seed over the given edges, the seed included.

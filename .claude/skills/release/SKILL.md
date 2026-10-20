@@ -6,7 +6,7 @@ argument-hint: <semver>   e.g. 5.0.0 or 5.1.0-beta.1 or 5.0.0-rc.2
 
 # Release
 
-v5 ships as **one product version line** (DD-03 / AM-9): a single annotated tag in the form
+v5 ships as **one product version line**: a single annotated tag in the form
 **`5.x.y`** (optionally `5.x.y-beta.z` or `5.x.y-rc.z`) fires `.github/workflows/ci-release.yml`,
 which builds and pushes the whole compatible image set to Docker Hub — `flow-service-core`,
 `flow-service-dispatcher`, `flow-client-web` (the exact image names are in
@@ -22,8 +22,9 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 - `<semver>` MUST match `^5\.[0-9]+\.[0-9]+(-(rc|beta)\.[0-9]+)?$` — the workflow triggers only
   on the `5.` product line. Pre-release suffixes push only `:<semver>` — `:latest` moves on
   stable tags alone.
-- Releases are cut from `main` only, from a clean, pushed working tree. (While v5 integration
-  lives on `feat-v5`, a release from there needs an explicit user decision.)
+- A stable `5.x.y` tag is cut from `main`. A `-beta.N` or `-rc.N` tag is cut from `feat-v5`, the
+  integration branch for the current major, as the 5.0.0 betas have been. Either way the tree is
+  clean and pushed; any other branch needs an explicit user decision.
 - One tag releases EVERYTHING — there is no partial release. If only one module changed, the
   whole set still rebuilds and ships at the new version.
 - The annotated tag MESSAGE is the human-facing release note — write it before tagging.
@@ -32,7 +33,10 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 
 ### 1. Validate
 - Parse and validate `<semver>`. Confirm the tag doesn't already exist (`git tag -l '<semver>'`).
-- `git status` clean; on `main`; `git rev-parse HEAD` == `git rev-parse origin/main` (fetch first).
+- `git status` clean; on the release branch for this tag (`main` for stable, `feat-v5` for a
+  pre-release); `git rev-parse HEAD` == `git rev-parse origin/<branch>` (fetch first). Other
+  sessions may hold uncommitted work in the main checkout, so tag from a worktree of your own
+  when `git status` is not clean.
 - The latest CI runs on HEAD are green for every module workflow (`ci-core.yml`,
   `ci-dispatcher.yml`, `ci-web.yml`, `ci-e2e.yml`). Releasing on red CI needs an
   explicit user decision.
@@ -62,7 +66,7 @@ git push origin '<semver>'
   green; `sbom.yml` runs off the same tag.
 - Report the image tags and the run URL. Remind the user that pushing images does **not**
   auto-deploy to any cluster — the environment (and the helm chart, which needs the
-  `dispatcher.*` config keys since the DD-06 rename) must be pointed at the new tag separately.
+  `dispatcher.*` config keys) must be pointed at the new tag separately.
 
 ## Failure notes
 - If `CI Release` didn't trigger, check the tag matches the `5.[0-9]+.[0-9]+` patterns in

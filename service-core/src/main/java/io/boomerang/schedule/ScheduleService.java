@@ -15,7 +15,9 @@ import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -25,7 +27,6 @@ import io.boomerang.workflow.WorkflowService;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
-import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -126,31 +127,13 @@ public class ScheduleService {
             Optional.of(List.of(queryTeam)),
             false);
     if (!refs.isEmpty()) {
-      List<Criteria> criteriaList = new ArrayList<>();
-      Criteria criteria = Criteria.where("workflowRef").in(refs);
-      criteriaList.add(criteria);
-
-      if (queryStatus.isPresent()) {
-        if (queryStatus.get().stream()
-            .allMatch(q -> EnumUtils.isValidEnumIgnoreCase(WorkflowScheduleStatus.class, q))) {
-          Criteria statusCriteria = Criteria.where("status").in(queryStatus.get());
-          criteriaList.add(statusCriteria);
-        } else {
-          throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
-        }
-      }
-
-      if (queryTypes.isPresent()) {
-        Criteria queryCriteria = Criteria.where("type").in(queryTypes.get());
-        criteriaList.add(queryCriteria);
-      }
-
-      Criteria[] criteriaArray = criteriaList.toArray(new Criteria[criteriaList.size()]);
-      Criteria allCriteria = new Criteria();
-      if (criteriaArray.length > 0) {
-        allCriteria.andOperator(criteriaArray);
-      }
-      Query query = new Query(allCriteria);
+      Query query =
+          new Query(
+              new QueryCriteria()
+                  .in("workflowRef", refs)
+                  .in("status", WorkflowScheduleStatus.class, queryStatus, "status")
+                  .in("type", queryTypes)
+                  .build());
       final Pageable pageable = PageRequest.of(page, limit, sort);
       query.with(pageable);
 
@@ -221,8 +204,14 @@ public class ScheduleService {
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
     BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
     stampSecretParams(scheduleEntity, workflow);
+    // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
+    DataAdapterUtil.keepRunParamValueByFieldType(
+        scheduleEntity.getParams(), List.of(), ParamType.secret);
+    SecretChangeHolder.compare(
+        Map.of(),
+        SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
     storeCronAsUnix(scheduleEntity);
-    Boolean enableJob = false;
+    boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
         && workflow != null
         && workflow.getTriggers().getSchedule().getEnabled()) {
@@ -254,7 +243,7 @@ public class ScheduleService {
   // Every schedule response masks its secret params; the copy leaves the entity's list untouched.
   private static WorkflowSchedule masked(WorkflowSchedule schedule) {
     schedule.setParams(
-        DataAdapterUtil.filterRunParamValueByFieldType(schedule.getParams(), ParamType.secret));
+        DataAdapterUtil.filterDefinitionValueByFieldType(schedule.getParams(), ParamType.secret));
     return schedule;
   }
 
@@ -396,16 +385,20 @@ public class ScheduleService {
         storeCronAsUnix(scheduleEntity);
         Workflow workflow =
             workflowService.get(team, request.getWorkflowRef(), Optional.empty(), false);
-        // A secret read back masked, or blank, keeps its stored value.
+        // The one secret write rule: the marker, or no value, keeps the stored value; a blank
+        // clears it.
         stampSecretParams(scheduleEntity, workflow);
         DataAdapterUtil.keepRunParamValueByFieldType(
             scheduleEntity.getParams(), storedParams, ParamType.secret);
+        SecretChangeHolder.compare(
+            SecretChangeHolder.secretRunValues("", storedParams, ParamType.secret),
+            SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
 
         /*
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check
          */
         WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
-        Boolean enableJob = true;
+        boolean enableJob = true;
         if (!previousStatus.equals(newStatus)) {
           if (WorkflowScheduleStatus.active.equals(previousStatus)
               && WorkflowScheduleStatus.inactive.equals(newStatus)) {

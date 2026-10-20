@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.entity.SettingEntity;
@@ -16,6 +20,7 @@ import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.LinkedList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,6 +115,42 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
                   .containsEntry("status", "cancelled")
                   .containsEntry("phase", "completed")
                   .containsKey("duration");
+            });
+  }
+
+  /*
+   * A run with nothing to execute is completed invalid when it is queued. That end goes through
+   * the completion Compare-And-Set like any other, so it is audited and counted.
+   */
+  @Test
+  void aRunInvalidWhenQueuedRecordsItsEnd() {
+    String workspace = createWorkspace("run-audit-invalid-ws");
+    Workflow empty = new Workflow();
+    empty.setName("run-audit-invalid-workflow");
+    WorkflowTask start = new WorkflowTask();
+    start.setName("start");
+    start.setType(TaskType.start);
+    WorkflowTask end = new WorkflowTask();
+    end.setName("end");
+    end.setType(TaskType.end);
+    WorkflowTaskDependency afterStart = new WorkflowTaskDependency();
+    afterStart.setTaskRef("start");
+    end.setDependencies(new LinkedList<>(List.of(afterStart)));
+    empty.setTasks(new LinkedList<>(List.of(start, end)));
+    workflowService.create(workspace, empty);
+
+    WorkflowRun run =
+        workflowService.submit(workspace, "run-audit-invalid-workflow", manualRequest(), false);
+
+    assertThat(run.getStatus()).isEqualTo(RunStatus.invalid);
+    awaitEngine("invalid run audit event")
+        .untilAsserted(
+            () -> {
+              List<AuditEventEntity> events = eventsFor(run.getId(), "UPDATE");
+              assertThat(events).hasSize(1);
+              assertThat(events.get(0).getPayload())
+                  .containsEntry("status", "invalid")
+                  .containsEntry("phase", "completed");
             });
   }
 

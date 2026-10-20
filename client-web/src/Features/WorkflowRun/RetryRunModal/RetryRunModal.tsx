@@ -91,6 +91,8 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
   const failedAvailable = hasUnfinishedTask(workflowRun.tasks ?? []);
   const isActive = workflowRun.phase !== RunPhase.Completed;
   const needsNodes = scope === "nodes" && nodes.length === 0;
+  // The new run gets a fresh shared workspace, so files a carried-over task wrote to the old one are gone.
+  const losesWorkspaceFiles = scope !== "all" && Boolean(workflowRun.workspace);
 
   const handleSubmit = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -149,6 +151,16 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
                   invalidText="Choose at least one task"
                 />
               </div>
+            )}
+            {losesWorkspaceFiles && (
+              <InlineNotification
+                className={styles.notice}
+                hideCloseButton
+                kind="warning"
+                lowContrast
+                title="Workspace files are not carried over."
+                subtitle="The new run starts with an empty workspace, so a re-run task will not find files the carried-over tasks wrote there. Pass those files as artifacts, or re-run everything."
+              />
             )}
             {isActive && (
               <InlineNotification

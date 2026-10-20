@@ -63,6 +63,16 @@ The `from` default is load-bearing rather than cosmetic: it keeps both the page 
 `AuditEvent` is the entity minus the CloudEvents envelope (`type`, `source`, `subject`) and the TTL anchor
 `createdAt`; `payload` is passed through as captured and holds request discriminators only, never content.
 
+Audited at the `WRITE` level: creating, updating and applying workspaces (with their parameters), workflows
+(with compose, duplicate and submit), global parameters, admin settings, catalogue tasks (JSON and Tekton YAML,
+global and workspace routes) and schedules, and creating a token. Audited at `DESTRUCTIVE`: deleting a
+workspace, workflow, global or workspace parameter, schedule or artifact, and revoking a token; a catalogue task
+delete is not audited. A write that changes a secret adds
+`payload.detail`, `{"secretsChanged": ["<name>"], "secretsCleared": ["<name>"]}`, naming the secrets and never
+their values (`parameters.md`, "Sensitive parameters"). Run admission and completion are recorded by the engine,
+and only `workflowrun` `CREATE` events count toward the monthly run quota
+(`core/audit/AuditQueryService.java:179`).
+
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the
 former alias was retired and only `/api/v2/workspace/{workspace}` is registered
 (`core/security/EngineWorkspaceInterceptorConfiguration.java:12-13`). `TaskRun` is the one run
@@ -108,6 +118,18 @@ list filters as comma-separated values (`statuses`, `phase`, `workflows`, `trigg
 treat these as today's contract; boomerang-io/flow#328 proposes moving to Spring Data `Pageable`
 (`sort=field,dir`), which would change the wire.
 
+Every list route reads its filters through one builder (`common/util/QueryCriteria.java`), so they mean
+the same thing everywhere:
+
+| Filter | Meaning |
+| --- | --- |
+| `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
+| `fromDate`, `toDate` | Half-open: `fromDate` is included and `toDate` is excluded, on runs, actions, tokens and audit events alike (`:25-33`) |
+| `statuses`, `phase` | On the run, task, workflow, user, workspace and schedule lists, read ignoring case; a value that names no status or phase is `400 QUERY_INVALID_FILTERS` |
+| `ids` | Matches those ids, on every list that takes it, the user list included |
+
+A list query with no filter matches everything.
+
 The task and workflow `/{name}/changelog` endpoints are not paged: they return every version in
 ascending version order, so the last entry is the latest (`workflow/TaskControllerV2.java:220`,
 `WorkspaceTaskControllerV2.java:273`, `WorkspaceWorkflowControllerV2.java:207`; the sort is in
@@ -142,7 +164,7 @@ its combined results exceed MongoDB's 16 MB document limit, when it fails for a 
 
 ## Insights
 
-Two reads under `/api/v2/workspace/{workspace}/insights` (`workspace/WorkspaceInsightsControllerV2.java:41,79`),
+Two reads under `/api/v2/workspace/{workspace}/insights` (`workspace/WorkspaceInsightsControllerV2.java:45,83`),
 both computed from the WorkflowRuns and TaskRuns the workspace still holds
 (`workflow/WorkflowRunInsightService.java`), never from the audit trail. A deleted workflow's runs are gone with
 it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java`) serves the monthly quotas only
@@ -150,13 +172,24 @@ it and are not counted; the audit-trail roll-up (`workspace/InsightsService.java
 
 | Read | Returns |
 | --- | --- |
-| `GET …/insights?fromDate&toDate&workflows&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first. `workflows` takes names or ids. |
-| `GET …/insights/workflow/{workflow}?fromDate&toDate` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, queue-wait percentiles, `retriedRuns`, and up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
+| `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first; `usage` over the period's runs. `workflows` takes names or ids. |
+| `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on an `ai` task's row (null otherwise), queue-wait percentiles, `retriedRuns`, up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run, and `usage` over the workflow's runs. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
+
+`labels` is the list filter described under "Pagination and sorting", read by the same builder
+(`common/util/QueryCriteria.java`). It narrows both periods of the summary.
+
+`usage` (`service-core/…/model/WorkflowRunInsightUsage.java`) sums the results the `ai` task runs of the counted
+runs reported: `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`,
+`cachedPromptTokens` and `cost`, and the same sums per `model` result in `byModel`, most tokens first
+(`workflow/WorkflowRunInsightService.java:294` `aiUsage`). A result that is empty or not a number adds nothing, so
+a task that did not report `cost` leaves it `null`; `cost` is the endpoint's own figure in its own currency and
+is summed as reported. A for-each parent holds its items' results as arrays and is left out; its items count,
+under the parent's name on the detail's task rows. A task that is not an `ai` task never counts.
 
 Durations and waits are milliseconds; a percentile over no runs is `0`. Both reads are projections of the fields
 the statistics need, scoped to the workspace's workflows through the relationship graph like every other run query;
-the task-run read goes through the `workflowRunRef` index using the runs already fetched, so no new index exists for
-it.
+the task-run read and the one `usage` aggregation per response go through the `workflowRunRef`-first `task_runs`
+indexes using the runs already fetched, so no new index exists for either.
 
 ## YAML content negotiation
 
@@ -165,7 +198,10 @@ and `Content-Type` headers on the same paths as JSON (`workflow/TaskControllerV2
 `workflow/WorkspaceTaskControllerV2.java:71,184,241,301-302`). The converter is a Jackson
 `YAMLMapper` with `LITERAL_BLOCK_STYLE` enabled, so multi-line strings such as `spec.script` are
 emitted as `|` blocks (`workflow/config/YamlJacksonHttpMessageConverter.java:11-15`). With no
-`Accept` header the JSON handler wins (`workflow/config/YamlConfiguration.java:16-23`).
+`Accept` header the JSON handler wins (`workflow/config/YamlConfiguration.java:16-23`). The YAML is a
+Tekton task: each param's default and description ride on `spec.params`, and the
+`boomerang.io/params` annotation carries the rest of its fields, so a YAML read applied back unchanged
+leaves the task as it was (`workflow/tekton/TektonConverter.java:33-44`).
 
 ## Webhook and event endpoints
 
@@ -200,14 +236,22 @@ A caller with no relationship to the workflow gets `PERMISSION_DENIED`
 Every externally visible run status change is POSTed to each configured sink as a structured
 CloudEvent 1.0 (`application/cloudevents+json`). Egress is off by default
 (`flow.events.sink.enabled=false`, `application.properties:50`); delivery is at-least-once through the
-outbox, so a consumer MUST treat duplicates as benign (decision 0012).
+outbox, so a consumer MUST treat duplicates as benign (decision 0012). Each event describes the transition it
+was recorded for, whenever it is sent: its subject and `data.status`/`data.phase` are that transition's
+status and phase, and the rest of `data` is the run as it stands when the event is sent
+(`event/OutboxDispatcher.java:98-116`). A redelivery carries the same `id`, so a consumer MAY drop an `id`
+it has already handled (`source` plus `id` is unique). A task event is sent for every task the run executes;
+the graph's start and end nodes send none, and the run's own event reports its end
+(`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, sends one event, when it
+completes (`:78-83`).
 
 | Envelope field | Value |
 | --- | --- |
 | `type` | `io.boomerang.event.status.workflowrun`, `io.boomerang.event.status.taskrun` (`event/enums/EventType.java:9-11`) |
 | `source` | `/apis/v1/events` |
-| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}` (`event/EventFactory.java:54-58,79-83`) |
-| `id` | a fresh UUID per delivery, not a run id |
+| `subject` | `/workflowrun/{id}/status/{status}` or `/taskrun/{id}/status/{status}`, the status the transition reached (`event/EventFactory.java:59-62,84-87`) |
+| `id` | the outbox row's id, the same on every delivery of that transition; not a run id (`:67`, `:92`) |
+| `time` | when the transition occurred, not when it was sent (`:70`, `:95`) |
 | `initiatorcontext` (extension) | the run's `initiatorContext` label, when set (task events only, `event/model/TaskRunStatusEvent.java:37-40`) |
 
 `data` carries the run, in one of two shapes chosen by `flow.events.sink.payload`
@@ -263,11 +307,31 @@ workflows in step with their own definitions MUST update in place and MUST NOT d
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD
 skip the call when nothing changed (for example by storing a hash of the definition in its own annotation).
 
+A top-level field the workflow model does not carry, such as the retired `workspaces` list, is ignored: it is
+not saved and not returned, so the create and update responses show exactly what was stored
+(`common/model/Workflow.java`, which keeps `@JsonIgnoreProperties(ignoreUnknown = true)` and no catch-all). A
+client that compares the response with what it sent sees a dropped field.
+
 Triggers follow the same rule as labels: a trigger the update leaves out, or a missing `triggers` block,
 keeps its stored value (`workflow/WorkflowService.java:559-564`). Only a trigger the request sends changes, and
 turning `schedule` off moves the workflow's schedules to `trigger_disabled` (`:933-948`). Every read fills a
 trigger the stored workflow lacks with its default, manual on and the rest off, so responses, exports and
 editors always carry all five (`workflow/ConvertUtil.java:26-48`).
+
+## Partial updates
+
+Admin settings and global parameters are updated by a JSON Merge Patch (RFC 7396), sent as
+`application/merge-patch+json` or `application/json`: an absent member is unchanged, a `null` member is cleared,
+and any other value replaces it (decision 0123). A secured value sent as `*****` keeps the stored one.
+
+| Call | Body | Errors |
+| --- | --- | --- |
+| `PATCH /api/v2/parameters/{name}` | The members of the param to change, `{"description": "…", "value": "…"}`; `name`, if sent, must match the path, and `hiddenValue` is ignored (`workflow/ParameterService.java:72`) | `400 PARAMS_INVALID_REQ` (a rename, or a body that is not an object); `404 PARAMS_INVALID_REFERENCE` (no such param) |
+| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans (`core/SettingsService.java:82`) | `400 SETTINGS_INVALID_KEY` (1030) naming an unknown group or key, or a value that is not a scalar; the whole patch is refused before anything is written |
+
+Both answer with the updated resource as a read shows it. A `null` here clears, whereas on a full-replace `PUT`
+apply (workflows, catalogue tasks, schedules) a secret sent as `null` keeps the stored value, because there a
+missing member and a `null` member cannot be told apart.
 
 ## Labels and annotations
 
@@ -288,10 +352,12 @@ Definitions declare parameters as `AbstractParam` (a UI-driven field: `name`, `t
 runtime values are `RunParam` (`name`, `value`, `type`; `common/model/RunParam.java:12-17`). `type` is
 one of `string`, `array`, `object` or `secret` and is omitted when absent, which means `string`; an
 unknown value is `400 PARAM_INVALID_TYPE` (1216), and a `secret` whose value is not a string is
-`400 PARAM_SECRET_NOT_STRING` (1217). A `secret` param's value is returned as `*****` on every run read,
-submit and lifecycle response and `full` status event; the dispatcher claim carries the real value. Task and
-workflow definition reads hide secrets too, except the workflow canvas, and a hidden value sent back on an
-apply keeps the stored one (`parameters.md`, "Sensitive parameters").
+`400 PARAM_SECRET_NOT_STRING` (1217). Every secret - on a run, a definition, a schedule, a global or workspace
+parameter, or a secured setting - follows one rule: it reads as `*****` when set and as nothing when unset; a
+client that sends back `*****`, `null` or no value keeps the stored secret, `""` clears it, and any other value
+replaces it. A run request that sends no value, or `*****` for a secret, leaves the declared default in place.
+On a definition, a value that is exactly one Flow reference reads as written. The dispatcher claim carries the
+real value (`parameters.md`, "Sensitive parameters"; decision 0122).
 
 | Object | Field | Element type |
 | --- | --- | --- |

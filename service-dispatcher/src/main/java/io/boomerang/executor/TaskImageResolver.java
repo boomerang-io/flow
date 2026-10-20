@@ -4,6 +4,8 @@ import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,6 +51,15 @@ public class TaskImageResolver {
   @Value("${flow.dispatcher.ai.image-prefixes:boomerangio/task-ai}")
   private List<String> aiImagePrefixes;
 
+  @Value("${flow.dispatcher.ai.otel.endpoint:}")
+  private String aiOtelEndpoint;
+
+  @Value("${flow.dispatcher.ai.otel.headers:}")
+  private String aiOtelHeaders;
+
+  @Value("${flow.dispatcher.ai.otel.protocol:http/protobuf}")
+  private String aiOtelProtocol;
+
   /**
    * Whether an {@code ai} revision may declare this image: it starts with one of
    * {@code flow.dispatcher.ai.image-prefixes}, compared on the string as declared, so a prefix of
@@ -66,25 +77,48 @@ public class TaskImageResolver {
   }
 
   /**
-   * The task-defined environment, which for an {@code ai} task starts with the dispatcher's
-   * credential defaults: {@code OPENAI_BASE_URL} from {@code flow.dispatcher.ai.endpoint} and
-   * {@code OPENAI_API_KEY} from {@code flow.dispatcher.ai.token}, each only when configured. The
-   * task's own {@code endpoint} and {@code token} params still arrive as {@code PARAM_ENDPOINT} and
-   * {@code PARAM_TOKEN} and win inside the image; a task-defined variable of the same name wins
-   * over the default.
+   * The task-defined environment, after the dispatcher's defaults. Every task gets {@code
+   * TRACEPARENT}, derived from its run and task run ids ({@link TaskRun#traceparent()}). An {@code
+   * ai} task also gets {@code OPENAI_BASE_URL} and {@code OPENAI_API_KEY} from {@code
+   * flow.dispatcher.ai.endpoint} and {@code .token}, and, when {@code flow.dispatcher.ai.otel.endpoint}
+   * is set, the OTLP exporter settings and the task's service name and resource attributes. Each
+   * default is added only when it has a value; a task-defined variable of the same name wins.
    */
   public List<TaskEnvVar> environment(TaskRun task) {
     List<TaskEnvVar> environment = new ArrayList<>();
-    if (isAi(task) && StringUtils.hasText(aiEndpoint)) {
-      environment.add(new TaskEnvVar("OPENAI_BASE_URL", aiEndpoint));
-    }
-    if (isAi(task) && StringUtils.hasText(aiToken)) {
-      environment.add(new TaskEnvVar("OPENAI_API_KEY", aiToken));
+    add(environment, "TRACEPARENT", task.traceparent());
+    if (isAi(task)) {
+      add(environment, "OPENAI_BASE_URL", aiEndpoint);
+      add(environment, "OPENAI_API_KEY", aiToken);
+      if (StringUtils.hasText(aiOtelEndpoint)) {
+        add(environment, "OTEL_EXPORTER_OTLP_ENDPOINT", aiOtelEndpoint);
+        add(environment, "OTEL_EXPORTER_OTLP_HEADERS", aiOtelHeaders);
+        add(environment, "OTEL_EXPORTER_OTLP_PROTOCOL", aiOtelProtocol);
+        add(environment, "OTEL_SERVICE_NAME", "flow-task-" + task.getTaskRef());
+        add(
+            environment,
+            "OTEL_RESOURCE_ATTRIBUTES",
+            "flow.workflow.run.id=" + resourceValue(task.getWorkflowRunRef())
+                + ",flow.task.run.id=" + resourceValue(task.getId())
+                + ",flow.task.name=" + resourceValue(task.getName()));
+      }
     }
     if (spec(task).getEnvs() != null) {
       environment.addAll(spec(task).getEnvs());
     }
     return environment;
+  }
+
+  private static void add(List<TaskEnvVar> environment, String name, String value) {
+    if (StringUtils.hasText(value)) {
+      environment.add(new TaskEnvVar(name, value));
+    }
+  }
+
+  // OTEL_RESOURCE_ATTRIBUTES values are percent-encoded, so a comma or equals sign in a task name
+  // cannot split the list.
+  private static String resourceValue(String value) {
+    return (value != null) ? URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20") : "";
   }
 
   /** The container image to run; never null for an artifact task. */

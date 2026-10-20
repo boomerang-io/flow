@@ -9,10 +9,9 @@ Boomerang Flow's UI is **IBM Carbon Design System v11** with the **Boomerang the
 top and the **Boomerang Carbon add-ons** as the component library. Signature brand colour is
 **purple (`#6e32c9`)**. Do not use EY Motif (ARCHIE) or cheer.dev tokens/components here.
 
-> Note: `flow.service.workflow` is the **backend** — it ships no frontend today. The Boomerang
-> Flow UI lives in the separate **`flow.client.web`** repo (`boomerang.app.flow`), which is the
-> source of truth. This skill governs any UI this project does produce (admin/console, generated
-> docs, embedded views) and keeps it consistent with Boomerang.
+> The Boomerang Flow UI is `client-web/` in this repository: React 18 and React Router 7 in
+> framework mode with server-side rendering. It is the source of truth for every value below.
+> The separate `flow.client.web` repository is the pre-monorepo webapp, kept for history only.
 
 ## Step 1: Read the specification
 
@@ -20,24 +19,22 @@ top and the **Boomerang Carbon add-ons** as the component library. Signature bra
 Read: specifications/design-system.md
 ```
 
-It holds the exact package versions, the canonical theme-wiring SCSS, the token system, and the
-verified component list. The spec is the source of truth; this skill is the how-to.
+It holds the package stack (versions in `client-web/package.json`), how the theme is wired (the recipe itself is
+`client-web/src/Styles/_carbon-components.scss`), the token system, and the verified component list. The spec is the
+source of truth; this skill is the how-to.
 
 ## Step 2: If a value or component is uncertain, read the real package
 
-The authoritative implementation is `flow.client.web`. When you need a precise token value, a
-component API, or the theme setup, read it there rather than guessing:
+The authoritative implementation is `client-web/` in this repository. When you need a precise
+token value, a component API, or the theme setup, read it there rather than guessing:
 
-```
-Reference repo: /Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web
-```
-
-- `src/Styles/_carbon-components.scss` — the canonical Carbon+Boomerang theme wiring.
-- `src/Styles/_variables.scss` — the Flow accent tokens (`--flow-switch-primary`, `--flow-wait`, …).
-- `src/Styles/styles.scss`, `_base.scss` — import order and global base styles.
-- `node_modules/@boomerang-io/styles` — the Boomerang brand colour ramps (aqua/blue/cerulean/
-  cool-gray/gold/gray, steps 1…90).
-- `node_modules/@boomerang-io/carbon-addons-boomerang-react` — the component library + `boomerang` theme.
+- `client-web/src/Styles/_carbon-components.scss` — the canonical Carbon+Boomerang theme wiring.
+- `client-web/src/Styles/_variables.scss` — the Flow accent tokens (`--flow-switch-primary`, `--flow-wait`, …).
+- `client-web/src/Styles/styles.scss`, `_base.scss` — import order and global base styles.
+- `client-web/app/root.tsx` — the document shell that sets `data-carbon-theme="boomerang"`.
+- `client-web/node_modules/@boomerang-io/styles` — the Boomerang brand colour ramps (aqua/blue/
+  cerulean/cool-gray/gold/gray, steps 1…90).
+- `client-web/node_modules/@boomerang-io/carbon-addons-boomerang-react` — the component library + `boomerang` theme.
 
 ## Core rules (NON-NEGOTIABLE)
 
@@ -50,7 +47,7 @@ Reference repo: /Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web
    `--cds-interactive-01`, `--cds-support-01…04`) and named Boomerang palette variables. The only
    sanctioned raw values are the Flow accent `:root` tokens (they encode run status, not brand).
 4. **Components** in priority order: (1) Boomerang add-ons — `UIShell`, `ComposedModal`,
-   `ConfirmModal`, `ModalForm`/`ModalFlow`, `DynamicFormik`, `DataDrivenInput`, `AutoSuggest`,
+   `ConfirmModal`, `ModalForm`/`ModalFlow`, `DynamicFormik`, `DataDrivenInput`,
    `ComboBox`, `TextInput`, `TextArea`, `Toggle`, `Loading`, `TooltipHover`, `ToastNotification`,
    `notify`, `Error*` surfaces, `User`; (2) Carbon (`Button`, `DataTable`, `Tabs`, `Tag`, …);
    (3) custom, built from Carbon tokens + 2x grid, only when neither library has it. Use `UIShell`
@@ -64,6 +61,10 @@ Reference repo: /Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web
 8. **Styling mechanics**: SCSS + CSS Modules (`*.module.scss`) co-located with the component.
    Carbon classes are `cds--`; Boomerang custom `b-`; app-local `c-`. Scope Carbon overrides under
    a root (`#app`) as `_base.scss` does.
+9. **List pages** follow the Activity page (`client-web/src/Features/Activity/Activity.tsx`):
+   labelled filters in a row above the table, the row opens the item, status as icon and text.
+   Not Carbon's table toolbar or batch-action bar. `specifications/design-system.md` has the
+   full page anatomy.
 
 ## Reviewing UI for consistency
 

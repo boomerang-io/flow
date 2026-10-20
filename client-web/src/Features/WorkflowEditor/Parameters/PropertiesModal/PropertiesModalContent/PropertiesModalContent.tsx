@@ -12,6 +12,7 @@ import {
 import { Formik, FormikProps } from "formik";
 import clonedeep from "lodash/cloneDeep";
 import * as Yup from "yup";
+import SecretInput from "Components/SecretInput";
 import { validateUrlWithProperties } from "Utils/urlPropertySyntaxHelper";
 import {
   InputProperty,
@@ -19,7 +20,7 @@ import {
   InputTypeCopy,
   WorkflowPropertyAction,
   PROPERTY_KEY_REGEX,
-  PASSWORD_CONSTANT,
+  REDACTED,
 } from "Constants";
 import { DataDrivenInput, FormikSetFieldValue, WorkflowPropertyActionType } from "Types";
 import styles from "./PropertiesModalContent.module.scss";
@@ -157,8 +158,23 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
             value={values.default || ""}
           />
         );
+      case InputType.Password:
+        return (
+          <SecretInput
+            data-testid="text-input"
+            id={InputProperty.DefaultValue}
+            labelText="Default value (optional)"
+            onBlur={handleBlur}
+            onChange={(value) => setFieldValue(InputProperty.DefaultValue, value)}
+            placeholder="No default"
+            value={values.default}
+            isSet={this.props.isEdit && this.props.property?.default === REDACTED}
+            helperText="Hidden here and in logs."
+            suggestReference
+          />
+        );
       default:
-        // Fallback to text input here because it covers text, password, and url
+        // Fallback to text input here because it covers text and url
         return (
           <TextInput
             data-testid="text-input"
@@ -166,16 +182,9 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
             labelText="Default value (optional)"
             onBlur={handleBlur}
             onChange={handleChange}
-            placeholder={
-              this.props.isEdit && values.type.value === InputType.Password ? PASSWORD_CONSTANT : "No default"
-            }
+            placeholder="No default"
             type={values.type.value}
             value={values.default || ""}
-            helperText={
-              values.type.value === InputType.Password
-                ? "Hidden here and in logs. Enter a new default to replace it."
-                : null
-            }
           />
         );
     }

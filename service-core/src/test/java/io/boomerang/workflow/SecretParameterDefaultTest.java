@@ -70,25 +70,37 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aGlobalUpdateSendingTheMarkerOrABlankKeepsTheStoredDefault() {
+  void aGlobalPatchSendingTheMarkerOrNoValueKeepsTheStoredDefaultAndABlankOrNullClearsIt() {
     parameterService.create(param("defGlobalKeep", "glob-def-0002", "glob-val-0002"));
 
-    for (Object sentBack : new Object[] {DataAdapterUtil.REDACTED, "", null}) {
-      AbstractParam edit = param("defGlobalKeep", sentBack, sentBack);
-      edit.setDescription("edited " + sentBack);
-      AbstractParam updated = parameterService.update(edit);
+    String marker = DataAdapterUtil.REDACTED;
+    for (String patch :
+        new String[] {
+          "{\"default\":\"" + marker + "\",\"value\":\"" + marker + "\",\"description\":\"marker\"}",
+          "{\"description\":\"omitted\"}"
+        }) {
+      AbstractParam updated = parameterService.patch("defGlobalKeep", patchOf(patch));
 
       assertThat(json(updated)).doesNotContain("glob-def-0002").doesNotContain("glob-val-0002");
       AbstractParam stored = unfilteredGlobal("defGlobalKeep");
-      assertThat(stored.getDefaultValue()).as("sent back %s", sentBack).isEqualTo("glob-def-0002");
-      assertThat(stored.getValue()).as("sent back %s", sentBack).isEqualTo("glob-val-0002");
-      assertThat(stored.getDescription()).isEqualTo("edited " + sentBack);
+      assertThat(stored.getDefaultValue()).as("patch %s", patch).isEqualTo("glob-def-0002");
+      assertThat(stored.getValue()).as("patch %s", patch).isEqualTo("glob-val-0002");
     }
 
-    AbstractParam updated = parameterService.update(param("defGlobalKeep", "glob-def-0003", null));
+    AbstractParam updated =
+        parameterService.patch("defGlobalKeep", patchOf("{\"default\":\"glob-def-0003\"}"));
     assertThat(json(updated)).doesNotContain("glob-def-0003");
     assertThat(unfilteredGlobal("defGlobalKeep").getDefaultValue()).isEqualTo("glob-def-0003");
+    assertThat(unfilteredGlobal("defGlobalKeep").getValue()).isEqualTo("glob-val-0002");
     assertThat(rawGlobal("defGlobalKeep").getString("defaultValue")).startsWith(LABEL);
+
+    parameterService.patch("defGlobalKeep", patchOf("{\"default\":\"\",\"value\":null}"));
+    assertThat(unfilteredGlobal("defGlobalKeep").getDefaultValue()).isEqualTo("");
+    assertThat(unfilteredGlobal("defGlobalKeep").getValue()).isNull();
+  }
+
+  private tools.jackson.databind.JsonNode patchOf(String json) {
+    return JsonMapper.builder().build().readTree(json);
   }
 
   @Test
@@ -134,7 +146,7 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aWorkspacePatchSendingTheMarkerOrABlankKeepsTheStoredDefault() {
+  void aWorkspacePatchSendingTheMarkerOrNoValueKeepsTheStoredDefaultAndABlankClearsIt() {
     String name = "secret-default-keep-ws";
     WorkspaceRequest create = new WorkspaceRequest();
     create.setName(name);
@@ -142,7 +154,7 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
     create.setParameters(List.of(param("wsKeepPass", "ws-def-0002", "ws-val-0002")));
     workspaceService.create(create);
 
-    for (Object sentBack : new Object[] {DataAdapterUtil.REDACTED, "", null}) {
+    for (Object sentBack : new Object[] {DataAdapterUtil.REDACTED, null}) {
       AbstractParam edit = param("wsKeepPass", sentBack, sentBack);
       edit.setDescription("edited " + sentBack);
       WorkspaceRequest patch = new WorkspaceRequest();
@@ -165,6 +177,34 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
                 .getDefaultValue())
         .isEqualTo("ws-def-0003");
     assertThat(workspaceParam(name, "wsKeepPass").getString("defaultValue")).startsWith(LABEL);
+
+    WorkspaceRequest clear = new WorkspaceRequest();
+    clear.setParameters(List.of(param("wsKeepPass", "", "")));
+    workspaceService.patch(name, clear);
+    AbstractParam cleared =
+        named(workspaceRepository.findByNameIgnoreCase(name).orElseThrow().getParameters(), "wsKeepPass");
+    assertThat(cleared.getDefaultValue()).isEqualTo("");
+    assertThat(cleared.getValue()).isEqualTo("");
+  }
+
+  @Test
+  void aWorkspacePatchWithACaseVariantNameReplacesTheParameterInsteadOfAddingOne() {
+    String name = "secret-case-variant-ws";
+    WorkspaceRequest create = new WorkspaceRequest();
+    create.setName(name);
+    create.setDisplayName(name);
+    create.setParameters(List.of(param("wsCaseToken", "ws-case-def", "ws-case-val")));
+    workspaceService.create(create);
+
+    WorkspaceRequest patch = new WorkspaceRequest();
+    patch.setParameters(List.of(param("WSCASETOKEN", DataAdapterUtil.REDACTED, DataAdapterUtil.REDACTED)));
+    workspaceService.patch(name, patch);
+
+    List<AbstractParam> stored =
+        workspaceRepository.findByNameIgnoreCase(name).orElseThrow().getParameters();
+    assertThat(stored).hasSize(1);
+    assertThat(stored.get(0).getValue()).isEqualTo("ws-case-val");
+    assertThat(stored.get(0).getDefaultValue()).isEqualTo("ws-case-def");
   }
 
   private AbstractParam unfilteredGlobal(String name) {

@@ -92,3 +92,10 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0117 | [Finished runs are purged after a retention period, by a sweep that follows lineage](0117-finished-runs-are-purged-after-a-retention-period.md) | accepted | 2026-10-16 |
 | 0118 | [A waited child run hands its results to its run-workflow task](0118-a-waited-child-run-hands-its-results-to-its-task.md) | accepted | 2026-10-19 |
 | 0119 | [Task references are slugs on the API and ids in storage](0119-task-references-are-slugs-on-the-api-and-ids-in-storage.md) | accepted | 2026-10-19 |
+| 0120 | [Flow hands out trace context; tasks export their own spans](0120-flow-hands-out-trace-context-and-tasks-export-their-own-spans.md) | accepted | 2026-10-19 |
+| 0121 | [A definition value that is only a reference reads as written](0121-a-definition-value-that-is-only-a-reference-reads-as-written.md) | accepted | 2026-10-19 |
+| 0122 | [One rule for secret values on every layer](0122-one-rule-for-secret-values-on-every-layer.md) | accepted | 2026-10-19 |
+| 0123 | [Settings and global parameters take a merge patch](0123-settings-and-global-parameters-take-a-merge-patch.md) | accepted | 2026-10-19 |
+| 0124 | [A claim carries a lease from the moment it is made](0124-a-claim-carries-a-lease-from-the-moment-it-is-made.md) | accepted | 2026-10-20 |
+| 0126 | [A dispatcher route runs as the dispatcher's token](0126-a-dispatcher-route-runs-as-the-dispatchers-token.md) | accepted | 2026-10-20 |
+| 0125 | [A child run receives only the params its node passes](0125-a-child-run-receives-only-the-params-its-node-passes.md) | accepted | 2026-10-20 |

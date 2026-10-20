@@ -58,6 +58,21 @@ public class TaskRun {
         && (RunStatus.cancelled.equals(status) || RunStatus.timedout.equals(status));
   }
 
+  /**
+   * Return the W3C {@code traceparent} for this task run: the trace id is the run's id, the parent
+   * id the task run's, so every task of one run lands in one trace. Null when either id is not 24 hex.
+   */
+  @JsonIgnore
+  public String traceparent() {
+    return (isObjectId(workflowRunRef) && isObjectId(id))
+        ? "00-00000000" + workflowRunRef.toLowerCase() + "-" + id.substring(8).toLowerCase() + "-01"
+        : null;
+  }
+
+  private static boolean isObjectId(String value) {
+    return value != null && value.matches("[0-9a-fA-F]{24}");
+  }
+
   /** The value of the named param, or null when the task run carries none. */
   public Object param(String name) {
     return (params == null)

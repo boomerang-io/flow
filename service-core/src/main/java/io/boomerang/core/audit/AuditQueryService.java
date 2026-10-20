@@ -1,5 +1,6 @@
 package io.boomerang.core.audit;
 
+import io.boomerang.common.util.QueryCriteria;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.EnumMap;
@@ -111,18 +112,11 @@ public class AuditQueryService {
       Optional<List<String>> outcomes,
       Optional<Date> from,
       Optional<Date> to) {
-    List<Criteria> criteria = new ArrayList<>();
-    workspaceIds.ifPresent(values -> criteria.add(Criteria.where("workspaceId").in(values)));
+    QueryCriteria criteria = new QueryCriteria().in("workspaceId", workspaceIds);
     actor.filter(value -> !value.isBlank()).ifPresent(value -> criteria.add(actorMatch(value)));
-    actions.ifPresent(values -> criteria.add(Criteria.where("action").in(values)));
-    levels.ifPresent(values -> criteria.add(Criteria.where("level").in(values)));
-    resourceTypes.ifPresent(values -> criteria.add(Criteria.where("resourceType").in(values)));
+    criteria.in("action", actions).in("level", levels).in("resourceType", resourceTypes);
     resourceId.ifPresent(value -> criteria.add(Criteria.where("resourceId").is(value)));
-    outcomes.ifPresent(values -> criteria.add(Criteria.where("outcome").in(values)));
-    timeRange(from, to).ifPresent(criteria::add);
-    return criteria.isEmpty()
-        ? new Criteria()
-        : new Criteria().andOperator(criteria.toArray(new Criteria[0]));
+    return criteria.in("outcome", outcomes).between("time", from, to).build();
   }
 
   /**
@@ -186,15 +180,5 @@ public class AuditQueryService {
                     Criteria.where("resourceType").is("workflowrun"),
                     Criteria.where("time").gte(from).lt(to)));
     return mongoTemplate.count(query, AuditEventEntity.class);
-  }
-
-  private static Optional<Criteria> timeRange(Optional<Date> from, Optional<Date> to) {
-    if (from.isEmpty() && to.isEmpty()) {
-      return Optional.empty();
-    }
-    Criteria time = Criteria.where("time");
-    from.ifPresent(time::gte);
-    to.ifPresent(time::lt);
-    return Optional.of(time);
   }
 }

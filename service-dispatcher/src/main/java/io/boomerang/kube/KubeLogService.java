@@ -7,6 +7,7 @@ import io.fabric8.kubernetes.client.dsl.LogWatch;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -27,6 +28,14 @@ public class KubeLogService {
 
   private static final String NO_POD_YET_MESSAGE = "No Pod found yet for the requested Task.";
 
+  // A Pod still Pending (scheduling, pulling the image, creating the container) has no log yet:
+  // Kubernetes answers a log read with its own "waiting to start" status. Say so once, wait for
+  // the container to start, then follow its log in the same response.
+  static final String WAITING_FOR_START_MESSAGE = "Waiting for the task's container to start.\n";
+  static final String DID_NOT_START_MESSAGE =
+      "The task's container has not started yet. Open the log again to keep following it.\n";
+  private Duration podStartWait = Duration.ofMinutes(5);
+
   private final KubeHelperService helperKubeService;
 
   KubernetesClient client = null;
@@ -39,6 +48,11 @@ public class KubeLogService {
   // Tests swap in the mock-server client after the context is up.
   public void setClient(KubernetesClient client) {
     this.client = client;
+  }
+
+  // Tests shorten how long a Pending Pod is waited for.
+  void setPodStartWait(Duration podStartWait) {
+    this.podStartWait = podStartWait;
   }
 
   public String getPodLog(
@@ -99,7 +113,13 @@ public class KubeLogService {
       // that never receives another event and never closes. Read it once instead.
       return finishedPodLog(namespace, podName);
     }
+    if (isPending(pod)) {
+      return startingPodLog(namespace, podName);
+    }
+    return watchedPodLog(namespace, podName);
+  }
 
+  private StreamingResponseBody watchedPodLog(String namespace, String podName) {
     try {
       LogWatch logWatch = client.pods().inNamespace(namespace).withName(podName).watchLog();
       InputStream inputStream = logWatch.getOutput();
@@ -121,6 +141,43 @@ public class KubeLogService {
       LOGGER.error("streamPodLog Exception: ", e);
       throw new KubeRuntimeException("Error streamPodLog", e);
     }
+  }
+
+  // Say the container is starting, wait for the Pod to leave Pending, then answer as the Pod's
+  // state then calls for: follow a running Pod, read a finished one once.
+  private StreamingResponseBody startingPodLog(String namespace, String podName) {
+    return outputStream -> {
+      outputStream.write(WAITING_FOR_START_MESSAGE.getBytes(StandardCharsets.UTF_8));
+      outputStream.flush();
+      Pod current = awaitStart(namespace, podName);
+      if (current == null) {
+        outputStream.write(NO_POD_YET_MESSAGE.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
+      } else if (isPending(current)) {
+        outputStream.write(DID_NOT_START_MESSAGE.getBytes(StandardCharsets.UTF_8));
+        outputStream.flush();
+      } else if (isTerminal(current)) {
+        finishedPodLog(namespace, podName).writeTo(outputStream);
+      } else {
+        watchedPodLog(namespace, podName).writeTo(outputStream);
+      }
+    };
+  }
+
+  // The Pod once it has left Pending, the still-Pending Pod when the wait runs out, or null when it
+  // is gone.
+  private Pod awaitStart(String namespace, String podName) {
+    long deadline = System.nanoTime() + podStartWait.toNanos();
+    Pod current = client.pods().inNamespace(namespace).withName(podName).get();
+    try {
+      while (current != null && isPending(current) && System.nanoTime() < deadline) {
+        Thread.sleep(POD_TERMINATION_POLL_INTERVAL.toMillis());
+        current = client.pods().inNamespace(namespace).withName(podName).get();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+    return current;
   }
 
   private StreamingResponseBody noPodYetLog() {
@@ -162,6 +219,10 @@ public class KubeLogService {
     return "Succeeded".equals(phase) || "Failed".equals(phase);
   }
 
+  private boolean isPending(Pod pod) {
+    return pod.getStatus() != null && "Pending".equals(pod.getStatus().getPhase());
+  }
+
   private void closeQuietly(AutoCloseable closeable) {
     try {
       closeable.close();
@@ -170,12 +231,9 @@ public class KubeLogService {
     }
   }
 
-  // Note: the loop this replaced never flushed per-chunk either (only once, in its finally block,
-  // after the whole read loop finished) — so a live log tail was already only as timely as the
-  // JDK's own I/O buffering, not the byte-at-a-time reads here. transferTo preserves that: it
-  // writes straight through to outputStream, and this method's own flush() below still runs once,
-  // after all bytes are copied. It also drops the old `> 0` read-loop condition, which stopped
-  // early on any legal zero-length read; transferTo loops correctly until end-of-stream (-1).
+  // Every read is written and flushed at once, so a line reaches the reader when the container
+  // writes it, not when the response buffer fills or the Pod ends. The loop runs until
+  // end-of-stream (-1); a legal zero-length read does not stop it.
   protected StreamingResponseBody getPodLog(InputStream inputStream, String podName) {
     return getPodLog(inputStream, podName, null);
   }
@@ -189,7 +247,7 @@ public class KubeLogService {
     return outputStream -> {
       LOGGER.info("Log stream started for pod " + podName + "...");
       try {
-        long bytesStreamed = inputStream.transferTo(outputStream);
+        long bytesStreamed = copyAsWritten(inputStream, outputStream);
         LOGGER.info(
             "Log stream completed for pod "
                 + podName
@@ -210,5 +268,17 @@ public class KubeLogService {
         LOGGER.info("Log stream closed for pod " + podName + "...");
       }
     };
+  }
+
+  static long copyAsWritten(InputStream in, OutputStream out) throws IOException {
+    byte[] buffer = new byte[8192];
+    long copied = 0;
+    int read;
+    while ((read = in.read(buffer)) != -1) {
+      out.write(buffer, 0, read);
+      out.flush();
+      copied += read;
+    }
+    return copied;
   }
 }

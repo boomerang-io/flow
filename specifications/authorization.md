@@ -99,7 +99,7 @@ webapp cannot sign in with it.
 human tokens. Only the SHA-256 hash of a raw token is stored (`TokenService.java:384-387`), and a token that does
 not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any database lookup on both
 paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above (`:290-294`) and
-`DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:94`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
+`DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_` bearer never reaches Mongo.
 
 Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
 (`**/read`, `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`,
@@ -145,7 +145,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state |
-| The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them today; request-signature verification is not wired (boomerang-io/flow#374) |
+| The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them today (boomerang-io/flow#374). The three inbound POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.verifySignature`, `IntegrationControllerV2`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
@@ -208,10 +208,15 @@ or `/api/v2/workspace/{workspace}/**` request whose segment is not `system` (`co
 
 `/dispatcher/**` is its own filter chain (`dispatcher/DispatcherSecurityConfiguration.java:26,37-47`), and
 `DispatcherAuthFilter` checks every request that chain claims, regardless of `flow.security.enabled`
-(`dispatcher/DispatcherAuthFilter.java:54-80`): the bearer must be Flow-shaped, then
+(`dispatcher/DispatcherAuthFilter.java:63-93`): the bearer must be Flow-shaped, then
 `TokenService.validateActorToken` requires a stored, unexpired `global` token with a non-null `actorKind`
-(`core/TokenService.java:433-438`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5 minutes. `flow.dispatcher.auth.enabled=false`
-(default `true`, `application.properties:34`) turns the filter into a pass-through for local development.
+(`core/TokenService.java:432-437`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5
+minutes. The token then becomes the request's identity, the one the same bearer carries on `/api/v2`
+(`DispatcherAuthFilter.java:88-100`): `RelationshipService` sees a `global` caller and audit records name the
+dispatcher's token as the actor. That holds with security off too, because this chain runs ahead of the
+synthetic admin's. The chain's `SecurityContextHolderFilter` clears the identity when the request ends.
+`flow.dispatcher.auth.enabled=false` (default `true`, `application.properties:43`) checks nothing, for local
+development, and the request acts as the synthetic admin of "Security off" (`:66-71`).
 The chain's matcher is the only statement of which paths need the token: the filter keeps no path list of its
 own, and nothing else is served under the prefix. `DispatcherAuthTest` pins that a path under the prefix no
 handler serves still needs the token, and that `/api/v1/dispatcher` is no longer served. The wire has its own
@@ -220,12 +225,15 @@ prefix so that it can be routed separately from the public API (`api-contract.md
 ## Secured settings at rest
 
 A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every internal read
-(`getSettingConfig`, `core/SettingsService.java:111`). The settings API (`GET` and `PUT /api/v2/system/settings`) shows
-a set value as `*****` and a blank as blank (`:164`); a save that sends back `*****`, a blank or the stored ciphertext
-keeps the stored value, and any other value replaces it (`:94`). The cipher is AES-256-GCM with a random initialisation vector per call
-(`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme in its own
-label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value already labelled pass
-through the cipher untouched (`:175-183`).
+(`getSettingConfig`, `core/SettingsService.java`). The settings API (`GET` and `PATCH /api/v2/settings`, the
+latter a merge patch of `{"<group>": {"<key>": value}}`, `core/SystemControllerV2.java:69`) follows the one secret
+rule (`parameters.md`, "Sensitive parameters"): a set value reads as `*****` and an unset one as nothing
+(`SettingsService.java:210`); a patch that sends `*****` or leaves the entry out keeps the stored value, a blank or a
+null clears it, and any other value replaces it (`:110`). A value that will not decrypt is kept as stored on the
+next save of its group (`:232`). The cipher is AES-256-GCM with a random initialisation
+vector per call (`core/model/AESAlgorithm.java:27-48`, `Encryptors.delux`), and the stored value carries the scheme
+in its own label, `crypt_v1{AESGCM|…}` — the library does not tag it. A blank value and a value carrying the whole
+label pass through the cipher untouched, and an encryption failure throws (`core/SecretCipher.java:38-60`).
 
 The key is `flow.encrypt.secret` and `flow.encrypt.salt` (`core/model/EncryptionConfig.java`), required on every
 install: a blank pair refuses startup. Two historical populations are brought forward by the change unit

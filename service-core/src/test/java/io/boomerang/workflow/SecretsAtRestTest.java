@@ -29,6 +29,8 @@ import io.boomerang.core.SecretCipher;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.integrations.entity.IntegrationsEntity;
+import io.boomerang.integrations.repository.IntegrationsRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.entity.GlobalParamEntity;
 import io.boomerang.workflow.model.CanvasNode;
@@ -42,6 +44,7 @@ import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -81,6 +84,7 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
   @Autowired private TaskRevisionRepository taskRevisionRepository;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkflowScheduleRepository scheduleRepository;
+  @Autowired private IntegrationsRepository integrationsRepository;
 
   @BeforeEach
   void enableParameterLayers() {
@@ -92,7 +96,7 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
   // ── each stored secret is ciphertext on disk and plaintext in memory ─────────────────────────
 
   @Test
-  void aPasswordGlobalParameterIsCiphertextAtRestAndBlankOnTheConsumerRead() {
+  void aPasswordGlobalParameterIsCiphertextAtRestAndMaskedOnTheConsumerRead() {
     parameterService.create(declared("restGlobalToken", "password", null, "glob-secret-0001"));
     parameterService.create(declared("restGlobalRegion", "text", null, "ap-southeast-2"));
 
@@ -105,8 +109,9 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
     assertEquals(
         "glob-secret-0001",
         globalParamRepository.findOneByName("restGlobalToken").orElseThrow().getValue());
-    // The existing consumer filter: a password-typed definition's value is never returned.
-    assertNull(
+    // The consumer read: a password-typed definition's value reads as the marker, never itself.
+    assertEquals(
+        io.boomerang.common.util.DataAdapterUtil.REDACTED,
         parameterService.getAll().stream()
             .filter(p -> "restGlobalToken".equals(p.getName()))
             .findFirst()
@@ -167,6 +172,50 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
 
   // A value already carrying the label is stored as it is; a plaintext value written by an
   // earlier release loads unchanged.
+  // The stored Slack OAuth response the Slack service reads its team token from.
+  @Test
+  void aStoredSlackTeamAuthKeepsItsTokensAndWebhookUrlAsCiphertextAtRest() {
+    Map<String, Object> data = new HashMap<>();
+    data.put("ok", true);
+    data.put("accessToken", "xoxb-at-rest-0001");
+    data.put("refreshToken", "xoxe-at-rest-0002");
+    data.put("team", new HashMap<>(Map.of("id", "T-at-rest", "name", "At Rest")));
+    data.put("authedUser", new HashMap<>(Map.of("id", "U-at-rest", "accessToken", "xoxp-at-rest-0003")));
+    data.put(
+        "incomingWebhook",
+        new HashMap<>(
+            Map.of("channel", "#general", "url", "https://hooks.slack.com/services/T/B/at-rest-0004")));
+    IntegrationsEntity auth = new IntegrationsEntity();
+    auth.setType("slack_auth");
+    auth.setData(data);
+    auth.setLabels(new HashMap<>(Map.of("teamId", "T-at-rest")));
+    String id = integrationsRepository.save(auth).getId();
+
+    Document stored = raw(IntegrationsEntity.class, Criteria.where("_id").is(id)).get("data", Document.class);
+    assertTrue(stored.getString("accessToken").startsWith(LABEL), stored.toJson());
+    assertTrue(stored.getString("refreshToken").startsWith(LABEL));
+    assertTrue(stored.get("authedUser", Document.class).getString("accessToken").startsWith(LABEL));
+    assertTrue(stored.get("incomingWebhook", Document.class).getString("url").startsWith(LABEL));
+    assertFalse(stored.toJson().contains("at-rest-000"), stored.toJson());
+    assertEquals("T-at-rest", stored.get("team", Document.class).getString("id"), "the rest stays plaintext");
+    assertEquals("#general", stored.get("incomingWebhook", Document.class).getString("channel"));
+
+    // The read the Slack service makes, by type and team label, hands back plaintext.
+    Map<?, ?> loaded =
+        (Map<?, ?>)
+            integrationsRepository.findByType("slack_auth").stream()
+                .filter(e -> "T-at-rest".equals(e.getLabels().get("teamId")))
+                .findFirst()
+                .orElseThrow()
+                .getData();
+    assertEquals("xoxb-at-rest-0001", loaded.get("accessToken"));
+    assertEquals("xoxe-at-rest-0002", loaded.get("refreshToken"));
+    assertEquals("xoxp-at-rest-0003", ((Map<?, ?>) loaded.get("authedUser")).get("accessToken"));
+    assertEquals(
+        "https://hooks.slack.com/services/T/B/at-rest-0004",
+        ((Map<?, ?>) loaded.get("incomingWebhook")).get("url"));
+  }
+
   @Test
   void aLabelledValueIsNotEncryptedTwiceAndALegacyPlaintextValueLoadsUnchanged() {
     String sealed = secretCipher.encrypt("pre-sealed-0001");
@@ -274,8 +323,11 @@ class SecretsAtRestTest extends AbstractEngineIntegrationTest {
 
     // An edit between admission and claim: a global reference written straight into the script
     // is read at claim (the accepted drift).
-    AbstractParam region = declared("restRegion", "text", null, "region-at-claim");
-    parameterService.update(region);
+    parameterService.patch(
+        "restRegion",
+        tools.jackson.databind.json.JsonMapper.builder()
+            .build()
+            .readTree("{\"value\":\"region-at-claim\"}"));
 
     String agent =
         dispatcherService.register(

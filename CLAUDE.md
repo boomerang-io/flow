@@ -136,7 +136,7 @@ Every API error is `io.boomerang.common.error.RestErrorResponse`:
   "message": "Invalid query filters(status) have been provided.", "status": "400 BAD_REQUEST" }
 ```
 
-Codes: `io.boomerang.error.BoomerangError`; messages: `messages.properties`.
+Codes: `io.boomerang.common.error.BoomerangError`; messages: `messages.properties`.
 
 ## Where the work is
 

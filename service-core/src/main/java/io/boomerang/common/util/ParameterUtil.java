@@ -5,9 +5,62 @@ import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.model.*;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ParameterUtil {
+
+  /** The body of a {@code $(...)} reference: the one pattern references are discovered with. */
+  public static final Pattern REFERENCE_PATTERN = Pattern.compile("(?<=\\$\\().+?(?=\\))");
+
+  // The scopes a $(<scope>.params.<name>) reference may name.
+  private static final List<String> REFERENCE_SCOPES =
+      List.of(
+          "global",
+          ParamLayers.WORKSPACE_SCOPE,
+          ParamLayers.DEPRECATED_WORKSPACE_SCOPE,
+          "workflow",
+          "context");
+
+  /** Whether a scope is one a {@code $(<scope>.params.<name>)} reference may name, in any case. */
+  public static boolean isReferenceScope(String scope) {
+    return REFERENCE_SCOPES.stream().anyMatch(s -> s.equalsIgnoreCase(scope));
+  }
+
+  /**
+   * Whether a value is a String whose whole content, ignoring surrounding whitespace, is one
+   * {@code $(...)} - "$(params.config)" and nothing else, whatever the body.
+   */
+  public static boolean isSingleReference(Object value) {
+    if (!(value instanceof String string)) {
+      return false;
+    }
+    String trimmed = string.trim();
+    Matcher matcher = REFERENCE_PATTERN.matcher(trimmed);
+    return matcher.find()
+        && matcher.start() == 2
+        && matcher.end() == trimmed.length() - 1
+        && !matcher.find();
+  }
+
+  /**
+   * Whether a value is exactly one Flow reference - {@code $(params.x)}, {@code
+   * $(<scope>.params.x)} or {@code $(tasks.t.results.r)}, each with an optional path - and not
+   * shell text such as {@code $(date)}. A lone reference carries no secret's text.
+   */
+  public static boolean isSingleFlowReference(Object value) {
+    if (!isSingleReference(value)) {
+      return false;
+    }
+    String body = ((String) value).trim();
+    String[] parts = body.substring(2, body.length() - 1).split("\\.");
+    return (parts.length >= 2 && "params".equalsIgnoreCase(parts[0]))
+        || (parts.length >= 3 && "params".equalsIgnoreCase(parts[1]) && isReferenceScope(parts[0]))
+        || (parts.length >= 4
+            && "tasks".equalsIgnoreCase(parts[0])
+            && "results".equalsIgnoreCase(parts[2]));
+  }
 
   /*
    * Add a parameter to an existing Run Parameter list
@@ -174,6 +227,30 @@ public class ParameterUtil {
    *
    * @return the parameter list
    */
+  /**
+   * The params of a run request - a submit, a start, a retry - that set a value: one sent with no
+   * value, or as the redaction marker for a secret (by its own type or the one it overrides),
+   * leaves the declared value, or the stored one, in place. A blank sets the value empty.
+   */
+  public static List<RunParam> suppliedParams(List<RunParam> current, List<RunParam> request) {
+    if (request == null) {
+      return new LinkedList<>();
+    }
+    return request.stream()
+        .filter(p -> p.getName() != null && p.getValue() != null)
+        .filter(
+            p ->
+                !DataAdapterUtil.REDACTED.equals(p.getValue())
+                    || !(ParamType.secret.equals(p.getType())
+                        || (current != null
+                            && current.stream()
+                                .anyMatch(
+                                    c ->
+                                        p.getName().equalsIgnoreCase(c.getName())
+                                            && ParamType.secret.equals(c.getType())))))
+        .collect(Collectors.toCollection(LinkedList::new));
+  }
+
   public static List<RunParam> addUniqueParams(
       List<RunParam> origParameterList, List<RunParam> newParameterList) {
     newParameterList.stream()

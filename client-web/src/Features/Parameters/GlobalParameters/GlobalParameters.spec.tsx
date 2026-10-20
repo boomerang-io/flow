@@ -43,6 +43,38 @@ describe("GlobalParameters --- action", () => {
     expect(result).toEqual({ intent: "delete", label: "test global label" });
   });
 
+  test("updates a parameter by a merge patch addressed by name", async () => {
+    let sent: { url: string; method: string; contentType: string | null; body: unknown } | undefined;
+    server.use(
+      http.patch(serviceUrl.getGlobalParameter({ name: ":name" }), async ({ request }) => {
+        sent = {
+          url: new URL(request.url).pathname,
+          method: request.method,
+          contentType: request.headers.get("content-type"),
+          body: await request.json(),
+        };
+        return HttpResponse.json({ name: "test-global-key", label: "Renamed" });
+      }),
+    );
+    const request = new Request("http://localhost/admin/parameters", {
+      method: "post",
+      body: new URLSearchParams({
+        intent: "update",
+        name: "test-global-key",
+        label: "Renamed",
+        parameter: JSON.stringify({ label: "Renamed" }),
+      }),
+    });
+
+    const result = await action({ request });
+
+    expect(result).toEqual({ intent: "update", label: "Renamed" });
+    expect(sent?.method).toBe("PATCH");
+    expect(sent?.url).toMatch(/\/parameters\/test-global-key$/);
+    expect(sent?.contentType).toContain("application/merge-patch+json");
+    expect(sent?.body).toEqual({ label: "Renamed" });
+  });
+
   test("surfaces a failed create/update without throwing", async () => {
     const request = new Request("http://localhost/admin/parameters", {
       method: "post",

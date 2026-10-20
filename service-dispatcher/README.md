@@ -6,7 +6,7 @@ renews leases and reports how each ended; this service supplies the Kubernetes w
 (`io.boomerang.dispatcher.TaskService`) and `WorkflowHandler` (`io.boomerang.dispatcher.WorkflowService`). It calls
 the engine at `flow.engine.url`, `http://${flow.engine.service.host}` by default.
 
-It executes template, script, custom and ai tasks in a Kubernetes cluster using the
+It executes template, script, custom, ai, upload-artifact and download-artifact tasks in a Kubernetes cluster using the
 [Fabric8 Kubernetes Java Client](https://github.com/fabric8io/kubernetes-client). The per-task runtime sits behind
 the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher.executor`:
 
@@ -18,15 +18,17 @@ the `io.boomerang.executor.TaskExecutor` SPI, selected at startup by `dispatcher
 ## Task types and the `ai` type
 
 `flow.dispatcher.task-types` is the list this deployment registers with the engine at startup; the
-engine hands it claims for those types only. It defaults to `template,custom,script,ai`, so a
-single-dispatcher install runs AI tasks out of the box. `generic` is dispatchable but not registered
+engine hands it claims for those types only. It defaults to
+`template,custom,script,ai,uploadartifact,downloadartifact`, so a single-dispatcher install runs AI and
+artifact tasks out of the box. `generic` is dispatchable but not registered
 by default — add it explicitly to a deployment that should run it:
 
 | Type | Image and command | Register with |
 | ---- | ----------------- | ------------- |
 | `template`, `custom`, `script` | Authored on the task or workflow node | Default |
-| `generic` | Authored | `flow.dispatcher.task-types=template,custom,script,generic` |
+| `generic` | Authored | Add it to the list: `flow.dispatcher.task-types=template,custom,script,ai,uploadartifact,downloadartifact,generic` |
 | `ai` | Declared on the catalogue revision (`boomerangio/task-ai`, command `prompt` or `agent`); the image must be under `flow.dispatcher.ai.image-prefixes` | Default |
+| `uploadartifact`, `downloadartifact` | The worker image `flow.dispatcher.artifact.image` (`boomerangio/task-flow`) with the arguments `artifact upload` or `artifact download`; the engine fills their link params | Default |
 
 An `ai` task's author never builds a container: the catalogue revision declares the image and
 command, and `TaskImageResolver` (`io.boomerang.executor.TaskImageResolver`) hands them to the

@@ -106,6 +106,39 @@ class ForeachChildRunTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void eachItemsChildAlsoReceivesAParamTheNodeForwards() {
+    String childWorkflowId =
+        createWorkflow(
+            "child-forwarded",
+            List.of(node("work", TaskType.template, echoTaskRef, "start", null)),
+            "work",
+            ExecutionCondition.success,
+            List.of(param("samples", "text")));
+    WorkflowTask child = runWorkflowNode(childWorkflowId, true);
+    child.getParams().add(new RunParam("samples", "batch $(params.batch)"));
+    WorkflowTaskForeach foreach = new WorkflowTaskForeach();
+    foreach.setItems(ITEMS);
+    child.setForeach(foreach);
+    AbstractParam batch = param("batch", "text");
+    batch.setDefaultValue("b-7");
+    String parentRunId =
+        submit(
+            createWorkflow(
+                "parent-forwarded", List.of(child), "child", ExecutionCondition.always,
+                List.of(batch)));
+
+    List<TaskRunEntity> items = awaitItemsParked(parentRunId);
+
+    assertEquals(ITEMS.size(), items.size());
+    for (int index = 0; index < ITEMS.size(); index++) {
+      WorkflowRunEntity childRun = childRunOf(items.get(index));
+      assertEquals(ITEMS.get(index), paramValue(childRun, "item"));
+      assertEquals(String.valueOf(index), paramValue(childRun, "index"));
+      assertEquals("batch b-7", paramValue(childRun, "samples"));
+    }
+  }
+
+  @Test
   void aWaitedForeachCollectsTheChildrensResultsInItemOrder() {
     String childWorkflowId = createLeafWorkflow("child-collect");
     String parentRunId = submit(createForeachParent("parent-collect", childWorkflowId, true));
@@ -368,10 +401,20 @@ class ForeachChildRunTest extends AbstractEngineIntegrationTest {
    */
   private String createWorkflow(
       String name, List<WorkflowTask> middle, String last, ExecutionCondition endCondition) {
+    return createWorkflow(name, middle, last, endCondition, List.of());
+  }
+
+  private String createWorkflow(
+      String name,
+      List<WorkflowTask> middle,
+      String last,
+      ExecutionCondition endCondition,
+      List<AbstractParam> params) {
     WorkflowTask end = node("end", TaskType.end, null, last, null);
     end.getDependencies().get(0).setExecutionCondition(endCondition);
     Workflow workflow = new Workflow();
     workflow.setName(name + "-" + System.nanoTime());
+    workflow.setParams(new LinkedList<>(params));
     List<WorkflowTask> tasks = new LinkedList<>();
     tasks.add(node("start", TaskType.start, null, null, null));
     tasks.addAll(middle);

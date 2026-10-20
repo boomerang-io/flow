@@ -142,7 +142,7 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
         DataAdapterUtil.REDACTED,
         paramValue(publicTask.getParams(), "token"),
         "the resolved token must not survive into a consumer-facing model");
-    assertEquals("", paramValue(publicRun.getParams(), "aiToken"));
+    assertEquals(DataAdapterUtil.REDACTED, paramValue(publicRun.getParams(), "aiToken"));
 
     // End with the six declared results; the graph advance finishes the run.
     taskRunService.start(taskRunId, Optional.empty());

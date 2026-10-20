@@ -242,12 +242,13 @@ public final class Dispatcher implements AutoCloseable {
       return;
     }
     for (Pool pool : pools) {
+      InFlightTasks inFlight = pool.inFlight();
       TaskRunner runner =
           new TaskRunner(
               client,
               this::id,
               pool.handler(),
-              pool.inFlight(),
+              inFlight,
               running,
               task -> task.getType() != null && taskTypes.contains(task.getType().name()),
               task -> new ArtifactTransfer(artifactHttp, task),
@@ -255,12 +256,30 @@ public final class Dispatcher implements AutoCloseable {
               work,
               endBackoff,
               () -> abandoned);
-      pollers.add(
-          new QueuePoller<TaskRun>(
+      // Only the work poll claims tasks, so the cap holds. While the pool is full a poll that
+      // claims none keeps terminate orders coming; a slot that frees during its 30 s hold starts
+      // the work poll at once, alongside it.
+      QueuePoller<TaskRun> workPoll =
+          new QueuePoller<>(
               pool.name(),
-              () -> client.pollTasks(id, pool.inFlight().free(), pool.filter()),
+              () -> client.pollTasks(id, inFlight.free(), pool.filter()),
               runner::accept,
-              idlePollSpacing));
+              idlePollSpacing,
+              () -> !inFlight.isFull());
+      QueuePoller<TaskRun> fullPoll =
+          new QueuePoller<>(
+              pool.name() + "-full",
+              () -> client.pollTasks(id, 0, pool.filter()),
+              runner::accept,
+              idlePollSpacing,
+              inFlight::isFull);
+      inFlight.onChange(
+          () -> {
+            workPoll.wake();
+            fullPoll.wake();
+          });
+      pollers.add(workPoll);
+      pollers.add(fullPoll);
     }
     if (workflowHandler != null) {
       WorkflowRunner runner = new WorkflowRunner(client, workflowHandler, work);
@@ -415,7 +434,11 @@ public final class Dispatcher implements AutoCloseable {
       return this;
     }
 
-    /** How often to renew leases; zero or null sends no heartbeat. */
+    /**
+     * How often to renew leases. The engine sets a 90 s lease at claim, so it MUST stay well under
+     * that; zero or null sends no heartbeat, and the engine then requeues every claim once its
+     * first lease lapses.
+     */
     public Builder heartbeatInterval(Duration heartbeatInterval) {
       this.heartbeatInterval = heartbeatInterval;
       return this;

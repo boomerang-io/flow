@@ -252,6 +252,69 @@ class UnresolvedReferenceAdmissionTest extends AbstractEngineIntegrationTest {
         "echo $(params.nothing)", parameterManager.fillSpec(currentRun(), after).getScript());
   }
 
+  // $(params.x) reads the nearest layer, which for a task param x is x itself.
+  @Test
+  void aTaskParamReferencingItselfFailsTheTask() {
+    wfRun.setParams(new LinkedList<>(List.of(param("analysisId", "abc"))));
+    workflowRunRepository.save(wfRun);
+    TaskRunEntity task = deployTask(List.of(param("analysisId", "$(params.analysisId)")));
+    taskRunRepository.save(task);
+
+    TaskRunEntity after = queueAndAwaitCompleted(task.getId());
+
+    assertEquals(RunStatus.failed, after.getStatus());
+    assertEquals("ParamUnresolved", after.getStatusReason());
+    assertEquals(
+        "Task 'deploy': param 'analysisId' references $(params.analysisId): refers to itself; use"
+            + " $(workflow.params.analysisId) for the workflow's param",
+        after.getStatusMessage());
+  }
+
+  @Test
+  void taskParamsReferencingEachOtherFailTheTask() {
+    TaskRunEntity task = deployTask(List.of(param("x", "$(params.y)-a"), param("y", "$(params.X)")));
+    taskRunRepository.save(task);
+
+    TaskRunEntity after = queueAndAwaitCompleted(task.getId());
+
+    assertEquals(RunStatus.failed, after.getStatus());
+    assertEquals("ParamUnresolved", after.getStatusReason());
+    assertEquals(
+        "Task 'deploy': param 'x' references $(params.y): params 'x' and 'y' reference each other"
+            + " in a cycle; param 'y' references $(params.X): params 'y' and 'x' reference each"
+            + " other in a cycle",
+        after.getStatusMessage());
+  }
+
+  @Test
+  void theWorkflowScopeReachesPastATaskParamOfTheSameName() {
+    wfRun.setParams(new LinkedList<>(List.of(param("analysisId", "abc"))));
+    workflowRunRepository.save(wfRun);
+    TaskRunEntity task =
+        deployTask(
+            List.of(
+                param("analysisId", "$(workflow.params.analysisId)"),
+                param("label", "$(params.analysisId)-v")));
+    taskRunRepository.save(task);
+
+    TaskRunEntity after = queueAndAwaitAdmitted(task.getId());
+    assertEquals("abc", after.getParams().get(0).getValue());
+    assertEquals("abc-v", after.getParams().get(1).getValue());
+  }
+
+  // Reference text inside a supplied value is a value, so it closes no cycle.
+  @Test
+  void aSuppliedValueThatLooksLikeASelfReferenceIsInsertedAsWritten() {
+    wfRun.setTrigger(TriggerEnum.webhook.getTrigger());
+    wfRun.setParams(new LinkedList<>(List.of(param("payload", "$(params.p)"))));
+    workflowRunRepository.save(wfRun);
+    TaskRunEntity task = deployTask(List.of(param("p", "$(params.payload)")));
+    taskRunRepository.save(task);
+
+    TaskRunEntity after = queueAndAwaitAdmitted(task.getId());
+    assertEquals("$(params.p)", after.getParams().get(0).getValue());
+  }
+
   private TaskRunEntity deployTask(List<RunParam> params) {
     TaskRunEntity task =
         savedTaskRun(

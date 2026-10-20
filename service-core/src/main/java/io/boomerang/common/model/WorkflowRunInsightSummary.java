@@ -25,6 +25,8 @@ public class WorkflowRunInsightSummary {
   private List<Day> daily = new LinkedList<>();
   /** One row per workflow that ran in the period, worst success rate first. */
   private List<WorkflowRow> workflows = new LinkedList<>();
+  /** Model usage over the period's runs. */
+  private WorkflowRunInsightUsage usage = new WorkflowRunInsightUsage();
 
   @Data
   public static class Totals {

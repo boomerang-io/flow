@@ -694,7 +694,10 @@ public class ArtifactService {
         false);
   }
 
-  /** The run's workspace quotas, or null when quotas are not enforced or no workspace owns it. */
+  /**
+   * The run's workspace artifact quota, or null when quotas are not enforced or no workspace owns
+   * it. Read without a caller identity: the dispatcher's poll and end calls act for no user.
+   */
   private CurrentQuotas quotasFor(String workflowRunId) {
     if (!workflowService.quotasEnforced()) {
       return null;
@@ -705,10 +708,7 @@ public class ArtifactService {
     if (workspaceRef == null || workspaceRef.isBlank()) {
       return null;
     }
-    return workspaceService
-        .getObject()
-        .getCurrentQuotas(
-            relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef));
+    return workspaceService.getObject().getArtifactStorageQuota(workspaceRef);
   }
 
   private static String requiredName(List<RunParam> params) {

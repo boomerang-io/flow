@@ -12,6 +12,7 @@ import io.boomerang.core.enums.TokenTypePrefix;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
@@ -21,6 +22,7 @@ import jakarta.servlet.Filter;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,8 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   @Autowired private WebApplicationContext context;
 
   @Autowired private TokenService tokenService;
+
+  @Autowired private IdentityService identityService;
 
   @Autowired
   @Qualifier("springSecurityFilterChain")
@@ -188,6 +192,35 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
             put("/dispatcher/v1/taskrun/any-run-id/end")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
         .andExpect(status().is(not(401)));
+  }
+
+  @Test
+  void aDispatcherRouteRunsAsTheDispatchersOwnTokenAndTheIdentityEndsWithTheRequest()
+      throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+    AtomicReference<Token> seen = new AtomicReference<>();
+    MockMvc capturing =
+        MockMvcBuilders.webAppContextSetup(context)
+            .addFilters(
+                springSecurityFilterChain,
+                (request, response, chain) -> {
+                  seen.set(identityService.getCurrentIdentity());
+                  chain.doFilter(request, response);
+                })
+            .build();
+
+    capturing
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
+
+    assertThat(seen.get()).isNotNull();
+    assertThat(seen.get().getId()).isEqualTo(tokenService.get(raw).getId());
+    assertThat(seen.get().getActorKind()).isEqualTo(TokenActorKind.SERVICE);
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 
   @Test

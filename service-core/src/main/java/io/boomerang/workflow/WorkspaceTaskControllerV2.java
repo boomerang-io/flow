@@ -3,6 +3,8 @@ package io.boomerang.workflow;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -161,6 +163,11 @@ public class WorkspaceTaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "task",
+      resourceId = "#task?.getName()",
+      workspaceId = "#workspace")
   @Operation(
       summary = "Create a new Task",
       description =
@@ -187,6 +194,11 @@ public class WorkspaceTaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
+  @Audited(
+      action = AuditAction.CREATE,
+      resourceType = "task",
+      resourceId = "#tektonTask?.getMetadata()?.getName()",
+      workspaceId = "#workspace")
   @Operation(
       summary = "Create a new Task Template using Tekton Task YAML",
       description =
@@ -213,6 +225,11 @@ public class WorkspaceTaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "task",
+      resourceId = "#name",
+      workspaceId = "#workspace")
   @Operation(
       summary = "Update, replace, or create new, Task",
       description =
@@ -244,6 +261,11 @@ public class WorkspaceTaskControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "task",
+      resourceId = "#name",
+      workspaceId = "#workspace")
   @Operation(
       summary = "Update, replace, or create new using Tekton Task YAML",
       description =

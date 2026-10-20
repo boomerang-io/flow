@@ -46,6 +46,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.slf4j.helpers.MessageFormatter;
 
 /*
  * Handles CRUD of TaskRuns
@@ -60,6 +61,11 @@ public class TaskRunService {
   // The most bytes of a finished log a dispatcher may store for a task; see storeLog.
   @Value("${flow.engine.task.log.max-bytes:10485760}")
   private int logMaxBytes;
+
+  // Lease length set at claim and renewed by each heartbeat - see the property's own comment in
+  // application.properties for the floor and why it must stay there.
+  @Value("${flow.dispatcher.lease-ms:90000}")
+  private long leaseMillis;
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
@@ -285,8 +291,9 @@ public class TaskRunService {
   // Claim Compare-And-Set: re-checks full eligibility between page and claim; racing claimants
   // cannot both win. Bakes the task's real deadline (claimedAt + effectiveTimeout + grace) in the
   // same write, computed once here from the pre-claim document - the same RunTimeouts helper
-  // tryStartExecution uses, so the two cannot drift. A dispatcher that dies before reporting the
-  // start is still caught by the same timeout sweep that reaps a stalled execution.
+  // tryStartExecution uses, so the two cannot drift. The same write sets the first lease, so a
+  // claim its dispatcher never heartbeats - one lost in a crash and restart under the same
+  // dispatcher id - is reaped once the lease lapses.
   // Returns the pre-image, or null when another claimant won.
   public TaskRunEntity tryClaim(String id, String claimedBy) {
     Date now = new Date();
@@ -308,11 +315,13 @@ public class TaskRunService {
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
     Date timeoutAt = RunTimeouts.deadline(now, current.getTimeout());
+    Date leaseExpiresAt = new Date(now.getTime() + leaseMillis);
     Update update =
         new Update()
             .set("phase", RunPhase.queued)
             .set("claim.by", claimedBy)
             .set("claim.at", now)
+            .set("claim.leaseExpiresAt", leaseExpiresAt)
             .inc("claim.seq", 1)
             .unset("retry.after");
     if (timeoutAt != null) {
@@ -326,6 +335,7 @@ public class TaskRunService {
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
       preImage.setClaim(claimApplied(preImage.getClaim(), claimedBy, now));
+      preImage.getClaim().setLeaseExpiresAt(leaseExpiresAt);
       preImage.setTimeoutAt(timeoutAt);
     }
     return preImage;
@@ -578,9 +588,27 @@ public class TaskRunService {
     return mongoTemplate.exists(query, TaskRunEntity.class);
   }
 
+  // Completion Compare-And-Set for a TaskRun that will not run - its run is gone or already
+  // completed - with its status and a formatted message, so its end is published like any other.
+  public TaskRunEntity tryComplete(
+      TaskRunEntity taskRun, RunStatus status, String message, Object... messageArgs) {
+    long duration =
+        (taskRun.getStartTime() != null)
+            ? new Date().getTime() - taskRun.getStartTime().getTime()
+            : 0;
+    return tryComplete(
+        taskRun.getId(),
+        Optional.of(status),
+        Optional.of(MessageFormatter.arrayFormat(message, messageArgs).getMessage()),
+        duration,
+        Optional.empty(),
+        Optional.empty());
+  }
+
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
-  // set only when provided; claimant identity enforced as fencing when provided. Returns the
-  // pre-image, or null when already completed - a terminal status is never overwritten.
+  // set only when provided; claimant identity enforced as fencing when provided. The deadline and
+  // the lease go with it, so the timeout and lease sweeps' sparse indexes hold only live work.
+  // Returns the pre-image, or null when already completed - a terminal status is never overwritten.
   public TaskRunEntity tryComplete(
       String id,
       Optional<RunStatus> status,
@@ -599,7 +627,8 @@ public class TaskRunService {
         new Update()
             .set("phase", RunPhase.completed)
             .set("duration", duration)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
     TaskRunEntity preImage =
@@ -624,10 +653,10 @@ public class TaskRunService {
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
-  // Renew the lease on the ids this dispatcher still owns, fenced on claim.by so ids the caller
-  // does not own are silently skipped. A dispatcher's first heartbeat for a TaskRun CREATES its
-  // lease - tryClaim never sets one - opting the dispatcher into lease-based reaping.
-  public long renewLeases(List<String> ids, String by, Date until) {
+  // Renew the lease on the ids this dispatcher still owns, one lease length from now, fenced on
+  // claim.by so ids the caller does not own are silently skipped.
+  public long renewLeases(List<String> ids, String by) {
+    Date until = new Date(System.currentTimeMillis() + leaseMillis);
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -640,8 +669,8 @@ public class TaskRunService {
     return mongoTemplate.updateMulti(query, update, TaskRunEntity.class).getModifiedCount();
   }
 
-  // Return the page of TaskRuns whose lease has expired - a dispatcher that heartbeated at least
-  // once and then went quiet without deregistering (reapClaimsFromGoneDispatchers only catches a
+  // Return the page of TaskRuns whose lease has expired - a dispatcher that stopped heartbeating a
+  // claim without its registration going stale (reapClaimsFromGoneDispatchers only catches a
   // dispatcher whose registration itself is gone/stale). Oldest lease first.
   public List<TaskRunEntity> findLeaseExpired(int limit) {
     Criteria criteria =
@@ -698,7 +727,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", "DeadlineExceeded")
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -721,7 +751,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", statusReason)
-            .unset("timeoutAt");
+            .unset("timeoutAt")
+            .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
         findAndModifyPreImage(Query.query(criteria), update);
     if (preImage != null) {
@@ -923,6 +954,7 @@ public class TaskRunService {
         new TaskRunTransition(
             preImage.getId(),
             preImage.getWorkflowRunRef(),
+            preImage.getType(),
             preImage.getStatus(),
             preImage.getPhase(),
             toStatus,
@@ -1119,29 +1151,35 @@ public class TaskRunService {
     }
   }
 
-  // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no
-  // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
-  // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
-  // the same claim is not distinguished from its earlier self.
+  // Wire-level fence, the same rule TaskExecutionService.claimantIsValid applies after it: a
+  // request that names its dispatcher must match claim.by, and an unfinished TaskRun with no
+  // claimant - its reaped claim released by a termination hand-off - has none to match. Refused
+  // before anything is written. A request with no dispatcherRef is the legacy protocol and passes
+  // unfenced. claim.seq is not on the wire, so a dispatcher that lost and re-won the same claim is
+  // not distinguished from its earlier self.
   public static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
-    if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
+    String current = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
+    if (claimedBy.isEmpty()
+        || (current == null && RunPhase.completed.equals(taskRun.getPhase()))) {
       return;
     }
-    if (!claimedBy.get().equals(taskRun.getClaim().getBy())) {
+    if (!claimedBy.get().equals(current)) {
       LOGGER.error(
           "[{}] Rejecting request from superseded claimant {}. Current claim is {} (seq {}).",
           taskRun.getId(),
           claimedBy.get(),
-          taskRun.getClaim().getBy(),
-          taskRun.getClaim().getSeq());
+          current,
+          (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null);
       throw new BoomerangException(BoomerangError.TASKRUN_CLAIM_SUPERSEDED);
     }
   }
 
   /**
-   * The task's raw log, unscrubbed - the workspace-scoped route scrubs it. The stored copy a
-   * dispatcher uploaded is preferred: it outlives the dispatcher's runtime object and needs no
-   * dispatcher to be up. Without one, the live read from the claim's dispatcher.
+   * The task's raw log, unscrubbed - the workspace-scoped route scrubs it. While the task runs it
+   * is the live read from the claim's dispatcher; a copy stored during this attempt answers only
+   * when that dispatcher has no live route or its route is unavailable. Once the task has ended,
+   * the stored copy is the whole log, outlives the dispatcher's runtime object and needs no
+   * dispatcher to be up; without one, the live read.
    */
   public StreamingResponseBody streamLog(String taskRunId) {
     if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
@@ -1154,15 +1192,35 @@ public class TaskRunService {
             .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
     ArtifactService artifacts = artifactService.getObject();
     Optional<ArtifactEntity> stored = artifacts.taskLog(taskRun);
-    if (stored.isPresent()) {
-      return outputStream -> {
-        try (InputStream in = artifacts.openLog(stored.get())) {
-          in.transferTo(outputStream);
-          outputStream.flush();
-        }
-      };
+    if (!RunPhase.completed.equals(taskRun.getPhase())) {
+      StreamingResponseBody thisAttempt =
+          stored
+              .filter(log -> storedThisAttempt(log, taskRun))
+              .map(log -> storedLog(artifacts, log))
+              .orElse(null);
+      return logClient.streamLog(taskRun, thisAttempt);
     }
-    return logClient.streamLog(taskRun);
+    return stored
+        .map(log -> storedLog(artifacts, log))
+        .orElseGet(() -> logClient.streamLog(taskRun));
+  }
+
+  // A running task's stored copy is a snapshot of this attempt only when it was stored after the
+  // current claim was made; an earlier attempt's log - a requeued task's - is not this run of it.
+  private static boolean storedThisAttempt(ArtifactEntity log, TaskRunEntity taskRun) {
+    Date claimedAt = (taskRun.getClaim() != null) ? taskRun.getClaim().getAt() : null;
+    return claimedAt != null
+        && log.getCreationDate() != null
+        && !log.getCreationDate().before(claimedAt);
+  }
+
+  private static StreamingResponseBody storedLog(ArtifactService artifacts, ArtifactEntity log) {
+    return outputStream -> {
+      try (InputStream in = artifacts.openLog(log)) {
+        in.transferTo(outputStream);
+        outputStream.flush();
+      }
+    };
   }
 
   /**

@@ -17,6 +17,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.model.ParamSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
@@ -29,7 +30,10 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.workflow.model.Action;
+import io.boomerang.workflow.model.CanvasNodePosition;
+import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.workflow.tekton.TektonTask;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.LinkedList;
@@ -49,8 +53,8 @@ import tools.jackson.databind.json.JsonMapper;
  * Secrets are hidden on every API read of a definition - a catalogue task's password default, a
  * Workflow's password default and a task node's secret value - and kept when a client sends the
  * hidden read back. Each read is checked on its whole serialised form, not one field, and each
- * keep against the stored revision and the values a run then receives. The canvas reads are out
- * of scope and covered by {@link SecretsAtRestTest}.
+ * keep against the stored revision and the values a run then receives. The canvas read and save,
+ * which the editor and the run page use, are held to the same rule.
  */
 class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
 
@@ -89,13 +93,13 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
         "task-default-0001");
     assertHidden(taskService.getAsTektonGlobal(name, Optional.empty()), "task-default-0001");
 
-    // Applying the hidden read back - the marker, then a blank - keeps the stored default.
+    // Applying the hidden read back - the marker, then no value - keeps the stored default.
     read.setDescription("edited");
     assertHidden(taskService.applyGlobal(name, read, false), "task-default-0001");
     assertEquals("task-default-0001", storedDefault(name));
-    Task blank = taskService.getGlobal(name, Optional.empty());
-    declared(blank, "registryToken").setDefaultValue("");
-    taskService.applyGlobal(name, blank, false);
+    Task omitted = taskService.getGlobal(name, Optional.empty());
+    declared(omitted, "registryToken").setDefaultValue(null);
+    taskService.applyGlobal(name, omitted, false);
     assertEquals("task-default-0001", storedDefault(name));
     // The Tekton YAML round trip keeps it too.
     taskService.applyAsTektonGlobal(name, taskService.getAsTektonGlobal(name, Optional.empty()), false);
@@ -112,6 +116,14 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     workflowService.create(SYSTEM, linearWorkflow(workflow, name, null));
     String wfRunId = submitAndAdmit(workflow);
     assertEquals("task-default-0002", taskParam(wfRunId, "registryToken"));
+
+    // A blank clears it, and a cleared default reads as nothing.
+    Task cleared = taskService.getGlobal(name, Optional.empty());
+    declared(cleared, "registryToken").setDefaultValue("");
+    taskService.applyGlobal(name, cleared, false);
+    assertEquals("", storedDefault(name));
+    assertEquals(
+        null, declared(taskService.getGlobal(name, Optional.empty()), "registryToken").getDefaultValue());
   }
 
   @Test
@@ -133,6 +145,34 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     assertEquals("ws-task-default-1", storedDefault(RelationshipType.TEAMTASK, name));
   }
 
+  @Test
+  void aTaskYamlCarriesItsDefaultsAndDescriptionsAndRoundTripsUnchanged() {
+    String name = unique("yaml-defaults");
+    Task created = secretTask(name, "yaml-default-0001");
+    declared(created, "region").setDescription("Where the cluster runs");
+    declared(created, "registryToken").setDescription("Pushes the image");
+    taskService.createGlobal(created);
+
+    TektonTask yaml = taskService.getAsTektonGlobal(name, Optional.empty());
+    ParamSpec region = specParam(yaml, "region");
+    assertEquals("eu-west-1", region.getDefaultValue(), "a plain default is carried");
+    assertEquals("Where the cluster runs", region.getDescription());
+    assertEquals("Pushes the image", specParam(yaml, "registryToken").getDescription());
+    assertEquals(DataAdapterUtil.REDACTED, specParam(yaml, "registryToken").getDefaultValue());
+    assertHidden(yaml, "yaml-default-0001");
+
+    // Applying the YAML as read changes nothing: the plain default and descriptions stay, and the
+    // hidden secret keeps the stored value.
+    Task before = taskService.getGlobal(name, Optional.empty());
+    taskService.applyAsTektonGlobal(name, yaml, false);
+    Task after = taskService.getGlobal(name, Optional.empty());
+    assertEquals("yaml-default-0001", storedDefault(name));
+    assertThat(after.getSpec().getParams())
+        .usingRecursiveFieldByFieldElementComparatorOnFields(
+            "name", "type", "label", "defaultValue", "description")
+        .containsExactlyElementsOf(before.getSpec().getParams());
+  }
+
   // ── workflows ────────────────────────────────────────────────────────────────────────────────
 
   @Test
@@ -145,7 +185,7 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
 
     Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
     assertHidden(read, "wf-default-0001", "node-token-0001");
-    assertEquals("", read.getParams().get(0).getDefaultValue(), "the run form's blank convention");
+    assertEquals(DataAdapterUtil.REDACTED, read.getParams().get(0).getDefaultValue());
     assertEquals(DataAdapterUtil.REDACTED, nodeParam(read, "registryToken").getValue());
     assertHidden(
         workflowService.query(
@@ -183,10 +223,52 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     WorkflowRevisionEntity copied = latestRevision(duplicate.getName());
     assertEquals("wf-default-0001", copied.getParams().get(0).getDefaultValue());
     assertEquals("node-token-0001", nodeValue(copied, "registryToken"));
+
+    // A blank clears both: the default is stored empty and the node keeps an explicit empty value.
+    Workflow clearing = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    clearing.getParams().get(0).setDefaultValue("");
+    nodeParam(clearing, "registryToken").setValue("");
+    workflowService.apply(SYSTEM, clearing, false);
+    WorkflowRevisionEntity cleared = latestRevision(name);
+    assertEquals("", cleared.getParams().get(0).getDefaultValue());
+    assertEquals("", nodeValue(cleared, "registryToken"));
+  }
+
+  // The canvas read is hidden like get, whoever reads it, and saving it back untouched - what the
+  // editor does with a field nobody edited - keeps both stored values.
+  @Test
+  void theCanvasReadIsHiddenAndAnUntouchedCanvasSaveKeepsTheSecrets() {
+    String task = unique("read-mask-canvas-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0001"));
+    String name = unique("read-mask-canvas-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, "node-token-0001"));
+
+    WorkflowCanvas canvas = workflowService.composeGet(SYSTEM, name, Optional.empty());
+    assertHidden(canvas, "wf-default-0001", "node-token-0001");
+    assertEquals(DataAdapterUtil.REDACTED, canvas.getConfig().get(0).getDefaultValue());
+    assertEquals(DataAdapterUtil.REDACTED, canvasParam(canvas, "registryToken").getValue());
+
+    // A workflow saved through the API has no layout; the editor always sends one.
+    canvas.getNodes().stream()
+        .filter(n -> n.getPosition() == null)
+        .forEach(
+            n -> {
+              CanvasNodePosition position = new CanvasNodePosition();
+              position.setX(0);
+              position.setY(0);
+              n.setPosition(position);
+            });
+    assertHidden(workflowService.composeApply(SYSTEM, canvas, false), "wf-default-0001", "node-token-0001");
+
+    WorkflowRevisionEntity latest = latestRevision(name);
+    assertEquals(2, latest.getVersion());
+    assertEquals("wf-default-0001", latest.getParams().get(0).getDefaultValue());
+    assertEquals("node-token-0001", nodeValue(latest, "registryToken"));
+    assertEquals("node-token-0001", taskParam(submitAndAdmit(name), "registryToken"));
   }
 
   // An import of an exported Workflow into a new one has nothing stored to keep: the hidden
-  // workflow default is saved blank and the marked node value is dropped, so the task's own
+  // workflow default is saved with no value and the marked node value is dropped, so the task's own
   // default applies on a run rather than the marker.
   @Test
   void aHiddenValueWithNothingStoredIsNeverSavedAsTheSecret() {
@@ -198,10 +280,91 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
     workflowService.create(SYSTEM, imported);
 
     WorkflowRevisionEntity stored = latestRevision(name);
-    assertEquals("", stored.getParams().get(0).getDefaultValue());
+    assertEquals(null, stored.getParams().get(0).getDefaultValue());
     assertThat(node(stored).getParams()).noneMatch(p -> "registryToken".equals(p.getName()));
     String wfRunId = submitAndAdmit(name);
     assertEquals("import-default-01", taskParam(wfRunId, "registryToken"));
+  }
+
+  // A run form left blank sends no value; a client that echoes a read sends the marker. Either
+  // leaves the declared secret default in place, and a blank runs with an empty value.
+  @Test
+  void aRunRequestSendingNoValueOrTheMarkerForASecretUsesItsDefaultAndABlankSetsItEmpty() {
+    String task = unique("run-request-task");
+    taskService.createGlobal(secretTask(task, "run-default-01"));
+    String name = unique("run-request-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, null));
+
+    assertEquals("wf-default-0001", submittedParam(name, null));
+    assertEquals("wf-default-0001", submittedParam(name, DataAdapterUtil.REDACTED));
+    assertEquals("", submittedParam(name, ""));
+    assertEquals("run-value-01", submittedParam(name, "run-value-01"));
+  }
+
+  private Object submittedParam(String workflowName, Object sent) {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setParams(new LinkedList<>(List.of(new RunParam("dbPassword", sent))));
+    String wfRunId = workflowService.submit(SYSTEM, workflowName, request, false).getId();
+    return workflowRunRepository.findById(wfRunId).orElseThrow().getParams().stream()
+        .filter(p -> "dbPassword".equals(p.getName()))
+        .findFirst()
+        .orElseThrow()
+        .getValue();
+  }
+
+  // ── values that are only a reference ─────────────────────────────────────────────────────────
+
+  @Test
+  void aCatalogueDefaultThatIsOnlyAReferenceReadsAsWrittenAndOneInsideTextStaysHidden() {
+    String lone = unique("read-ref-task");
+    taskService.createGlobal(secretTask(lone, "$(global.params.registryToken)"));
+    assertEquals(
+        "$(global.params.registryToken)",
+        declared(taskService.getGlobal(lone, Optional.empty()), "registryToken").getDefaultValue());
+
+    String wrapped = unique("read-ref-wrapped-task");
+    taskService.createGlobal(secretTask(wrapped, "Bearer $(params.token)"));
+    assertEquals(
+        DataAdapterUtil.REDACTED,
+        declared(taskService.getGlobal(wrapped, Optional.empty()), "registryToken").getDefaultValue());
+  }
+
+  @Test
+  void aNodeSecretThatIsOnlyAReferenceReadsAsWrittenRoundTripsAndResolvesHidden() throws Exception {
+    String task = unique("read-ref-node-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0002"));
+    String name = unique("read-ref-wf");
+    Workflow definition = linearWorkflow(name, task, "$(workflow.params.dbPassword)");
+    workflowService.create(SYSTEM, definition);
+
+    Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    RunParam token = nodeParam(read, "registryToken");
+    assertEquals("$(workflow.params.dbPassword)", token.getValue());
+    assertEquals(ParamType.secret, token.getType(), "the node param stays secret-typed");
+    assertHidden(read, "wf-default-0001");
+
+    // The read applied back stores the reference as sent.
+    read.setDescription("edited");
+    workflowService.apply(SYSTEM, read, false);
+    assertEquals("$(workflow.params.dbPassword)", nodeValue(latestRevision(name), "registryToken"));
+
+    // A run resolves it, and the resolved value is hidden on the run read.
+    String wfRunId = submitAndAdmit(name);
+    assertEquals("wf-default-0001", taskParam(wfRunId, "registryToken"));
+    assertThat(
+            MAPPER.writeValueAsString(workflowRunService.get(SYSTEM, wfRunId, true).getBody()))
+        .doesNotContain("wf-default-0001");
+  }
+
+  @Test
+  void aNodeSecretWithTextAroundAReferenceStaysHidden() {
+    String task = unique("read-ref-text-task");
+    taskService.createGlobal(secretTask(task, "tmpl-default-0003"));
+    String name = unique("read-ref-text-wf");
+    workflowService.create(SYSTEM, linearWorkflow(name, task, "Bearer $(workflow.params.dbPassword)"));
+
+    Workflow read = workflowService.get(SYSTEM, name, Optional.empty(), true);
+    assertEquals(DataAdapterUtil.REDACTED, nodeParam(read, "registryToken").getValue());
   }
 
   // ── run requests ─────────────────────────────────────────────────────────────────────────────
@@ -283,6 +446,13 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
       throw new AssertionError(e);
     }
     assertThat(json).doesNotContain(secrets);
+  }
+
+  private static ParamSpec specParam(TektonTask yaml, String name) {
+    return yaml.getSpec().getParams().stream()
+        .filter(p -> name.equals(p.getName()))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no spec param named " + name));
   }
 
   private static String unique(String prefix) {
@@ -404,6 +574,19 @@ class SecretDefinitionReadTest extends AbstractEngineIntegrationTest {
         .filter(t -> "work".equals(t.getName()))
         .findFirst()
         .orElseThrow()
+        .getParams()
+        .stream()
+        .filter(p -> param.equals(p.getName()))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static RunParam canvasParam(WorkflowCanvas canvas, String param) {
+    return canvas.getNodes().stream()
+        .filter(n -> n.getData() != null && "work".equals(n.getData().getName()))
+        .findFirst()
+        .orElseThrow()
+        .getData()
         .getParams()
         .stream()
         .filter(p -> param.equals(p.getName()))
