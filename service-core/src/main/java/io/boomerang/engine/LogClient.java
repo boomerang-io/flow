@@ -13,6 +13,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,9 +32,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  * Reads a task's live log from the dispatcher holding its claim, at the URL the dispatcher said at
  * registration ({@code logsUrl}) and with the bearer it said to present ({@code logsToken}). This is
  * the only call the engine makes to a dispatcher. A task whose dispatcher registered no URL, or
- * that has no claim, is answered with a message rather than an error: its stored log, when a
- * dispatcher uploaded one, was served before this client is reached ({@link
- * TaskRunService#streamLog}).
+ * that has no claim, is answered with the caller's fallback - the task's stored log, when one
+ * counts ({@link TaskRunService#streamLog}) - or else with a message rather than an error.
  */
 @Service
 public class LogClient {
@@ -79,16 +79,28 @@ public class LogClient {
   }
 
   public StreamingResponseBody streamLog(TaskRunEntity task) {
+    return streamLog(task, null);
+  }
+
+  /**
+   * Stream the task's live log, answering with {@code fallback} instead when its dispatcher has no
+   * live route, or the route fails before the dispatcher answers. A stream that fails part way
+   * through is not restarted from the fallback, so a reader never sees a log twice.
+   */
+  public StreamingResponseBody streamLog(TaskRunEntity task, StreamingResponseBody fallback) {
     Optional<LogSource> resolved = resolve(task);
     if (resolved.isEmpty()) {
-      LOGGER.info("TaskRun[{}] has no log source.", task.getId());
-      return outputStream -> {
-        outputStream.write(NO_SOURCE_MESSAGE.getBytes(StandardCharsets.UTF_8));
-        outputStream.flush();
-      };
+      LOGGER.info("TaskRun[{}] has no live log source.", task.getId());
+      return (fallback != null)
+          ? fallback
+          : outputStream -> {
+            outputStream.write(NO_SOURCE_MESSAGE.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+          };
     }
     LogSource source = resolved.get();
     return outputStream -> {
+      AtomicBoolean answered = new AtomicBoolean();
       RequestCallback requestCallback =
           request -> {
             request
@@ -100,6 +112,7 @@ public class LogClient {
           };
       ResponseExtractor<Void> responseExtractor =
           response -> {
+            answered.set(true);
             copyAsWritten(response.getBody(), outputStream);
             return null;
           };
@@ -113,6 +126,14 @@ public class LogClient {
           LOGGER.info("TaskRun[{}] log stream went idle; ending it for the reader.", task.getId());
           outputStream.write(IDLE_MESSAGE.getBytes(StandardCharsets.UTF_8));
           outputStream.flush();
+          return;
+        }
+        if (!answered.get() && fallback != null) {
+          LOGGER.info(
+              "TaskRun[{}] live log route unavailable ({}); serving the stored log.",
+              task.getId(),
+              ex.toString());
+          fallback.writeTo(outputStream);
           return;
         }
         LOGGER.error(ex.toString());

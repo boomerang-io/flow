@@ -1153,9 +1153,11 @@ public class TaskRunService {
   }
 
   /**
-   * The task's raw log, unscrubbed - the workspace-scoped route scrubs it. The stored copy a
-   * dispatcher uploaded is preferred: it outlives the dispatcher's runtime object and needs no
-   * dispatcher to be up. Without one, the live read from the claim's dispatcher.
+   * The task's raw log, unscrubbed - the workspace-scoped route scrubs it. While the task runs it
+   * is the live read from the claim's dispatcher; a copy stored during this attempt answers only
+   * when that dispatcher has no live route or its route is unavailable. Once the task has ended,
+   * the stored copy is the whole log, outlives the dispatcher's runtime object and needs no
+   * dispatcher to be up; without one, the live read.
    */
   public StreamingResponseBody streamLog(String taskRunId) {
     if (Objects.isNull(taskRunId) || taskRunId.isBlank()) {
@@ -1168,15 +1170,35 @@ public class TaskRunService {
             .orElseThrow(() -> new BoomerangException(BoomerangError.TASKRUN_INVALID_REF));
     ArtifactService artifacts = artifactService.getObject();
     Optional<ArtifactEntity> stored = artifacts.taskLog(taskRun);
-    if (stored.isPresent()) {
-      return outputStream -> {
-        try (InputStream in = artifacts.openLog(stored.get())) {
-          in.transferTo(outputStream);
-          outputStream.flush();
-        }
-      };
+    if (!RunPhase.completed.equals(taskRun.getPhase())) {
+      StreamingResponseBody thisAttempt =
+          stored
+              .filter(log -> storedThisAttempt(log, taskRun))
+              .map(log -> storedLog(artifacts, log))
+              .orElse(null);
+      return logClient.streamLog(taskRun, thisAttempt);
     }
-    return logClient.streamLog(taskRun);
+    return stored
+        .map(log -> storedLog(artifacts, log))
+        .orElseGet(() -> logClient.streamLog(taskRun));
+  }
+
+  // A running task's stored copy is a snapshot of this attempt only when it was stored after the
+  // current claim was made; an earlier attempt's log - a requeued task's - is not this run of it.
+  private static boolean storedThisAttempt(ArtifactEntity log, TaskRunEntity taskRun) {
+    Date claimedAt = (taskRun.getClaim() != null) ? taskRun.getClaim().getAt() : null;
+    return claimedAt != null
+        && log.getCreationDate() != null
+        && !log.getCreationDate().before(claimedAt);
+  }
+
+  private static StreamingResponseBody storedLog(ArtifactService artifacts, ArtifactEntity log) {
+    return outputStream -> {
+      try (InputStream in = artifacts.openLog(log)) {
+        in.transferTo(outputStream);
+        outputStream.flush();
+      }
+    };
   }
 
   /**
