@@ -64,6 +64,7 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -1033,25 +1034,41 @@ public class WorkflowRunService {
         wfRunEntity.setTrigger(TriggerEnum.retry.getTrigger());
       }
       workflowRunRepository.save(wfRunEntity);
-      if (plan != null) {
-        carryOver(plan.carried(), wfRunEntity.getId());
-      }
+      // A retry that cannot be put in place leaves nothing behind: the clone, its copies and its
+      // node are discarded, the origin is untouched, and the caller gets a coded error.
+      try {
+        if (plan != null) {
+          carryOver(plan.carried(), wfRunEntity.getId());
+        }
 
-      // Recorded before the clone is queued, so it never executes as reachable-but-unowned
-      // (visible in /query via its Workflow yet denied on GET /{id}).
-      if (owner != null) {
-        relationshipService.createNodeAndEdge(
-            RelationshipType.WORKSPACE,
-            owner,
-            RelationshipLabel.HAS_WORKFLOWRUN,
-            RelationshipType.WORKFLOWRUN,
-            wfRunEntity.getId(),
-            wfRunEntity.getId(),
-            Optional.empty(),
-            Optional.empty());
-      }
+        // Recorded before the clone is queued, so it never executes as reachable-but-unowned
+        // (visible in /query via its Workflow yet denied on GET /{id}).
+        if (owner != null) {
+          relationshipService.createNodeAndEdge(
+              RelationshipType.WORKSPACE,
+              owner,
+              RelationshipLabel.HAS_WORKFLOWRUN,
+              RelationshipType.WORKFLOWRUN,
+              wfRunEntity.getId(),
+              wfRunEntity.getId(),
+              Optional.empty(),
+              Optional.empty());
+        }
 
-      workflowExecutionService.queue(wfRunEntity.getId());
+        workflowExecutionService.queue(wfRunEntity.getId());
+      } catch (RuntimeException e) {
+        LOGGER.error("[{}] Retry of {} could not be put in place.", wfRunEntity.getId(), workflowRunId, e);
+        discard(wfRunEntity.getId());
+        throw (e instanceof BoomerangException boomerang)
+            ? boomerang
+            : new BoomerangException(
+                e,
+                1000,
+                "WORKFLOW_RUNTIME_EXCEPTION",
+                "[{0}] Failed to retry the run: the new run could not be put in place.",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                workflowRunId);
+      }
 
       // A scoped retry taken while the origin still runs - the usual case when a run sits at a
       // review gate and a stage is redone - cancels the origin once the new run is in place. A
@@ -1114,14 +1131,21 @@ public class WorkflowRunService {
         taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(origin.getId()).stream()
             .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
 
-    // Everything that did not succeed re-runs in every scope; named tasks are added to that.
+    // Everything that neither succeeded nor was skipped re-runs with its descendants in every
+    // scope; named tasks are added to that. A skipped task is not carried over either: it is
+    // planned afresh, so one the run never reached runs, and one a condition skipped decides again.
     Set<String> seed = new HashSet<>();
     for (WorkflowTask task : revision.getTasks()) {
-      if (!isCarriable(runsByName.get(task.getName()))) {
+      TaskRunEntity taskRun = runsByName.get(task.getName());
+      if (!isCarriable(taskRun)
+          && !(taskRun != null && RunStatus.skipped.equals(taskRun.getStatus()))) {
         seed.add(task.getName());
       }
     }
-    if (scope == RetryScope.failed && seed.isEmpty()) {
+    // A succeeded run's skipped tasks were all decided by conditions, so there is nothing to redo.
+    if (scope == RetryScope.failed
+        && seed.isEmpty()
+        && RunStatus.succeeded.equals(origin.getStatus())) {
       throw retryInvalid("No task of this run failed.");
     }
     for (String name : nodes) {
@@ -1139,8 +1163,9 @@ public class WorkflowRunService {
 
     List<TaskRunEntity> carried = new LinkedList<>();
     for (WorkflowTask task : revision.getTasks()) {
-      if (!rerun.contains(task.getName())) {
-        carried.add(runsByName.get(task.getName()));
+      TaskRunEntity taskRun = runsByName.get(task.getName());
+      if (!rerun.contains(task.getName()) && isCarriable(taskRun)) {
+        carried.add(taskRun);
       }
     }
     // A run result written by a set-property task that re-runs is written again; the rest stay.
@@ -1165,12 +1190,17 @@ public class WorkflowRunService {
         !RunPhase.completed.equals(origin.getPhase()));
   }
 
-  // A task run is carried over only when it finished well; absent, failed, cancelled, timed out,
-  // or still in flight all re-run.
+  // A task run is carried over only when it succeeded; skipped, absent, failed, cancelled, timed
+  // out, or still in flight are all planned afresh.
   private static boolean isCarriable(TaskRunEntity taskRun) {
-    return taskRun != null
-        && (RunStatus.succeeded.equals(taskRun.getStatus())
-            || RunStatus.skipped.equals(taskRun.getStatus()));
+    return taskRun != null && RunStatus.succeeded.equals(taskRun.getStatus());
+  }
+
+  // What a retry wrote before it failed: the clone, its task-run copies and its node.
+  private void discard(String wfRunId) {
+    taskRunRepository.deleteByWorkflowRunRef(wfRunId);
+    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKFLOWRUN, wfRunId);
+    workflowRunRepository.deleteById(wfRunId);
   }
 
   // Every task reachable from the seed over the given edges, the seed included.

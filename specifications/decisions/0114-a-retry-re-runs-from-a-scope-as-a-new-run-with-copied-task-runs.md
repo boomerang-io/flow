@@ -21,16 +21,16 @@ split evenly between a new run that reuses results and mutating the run in place
 ## Decision
 
 C. The retry body carries `scope` (`all`, `failed`, `nodes`) as a closed enum so a task named `failed` is never
-read as a mode, `nodes`, and param and label overrides. Everything that did not succeed re-runs in every scope;
-`nodes` adds the named tasks and their descendants. The rest is copied with results and a `reusedFromRef`, with
-claim, deadline, retry and wait state dropped, before the clone is queued; `DAGUtility.createTaskList` adopts the
-copies unchanged. Lineage stays `initiatedByRef` = the origin run. A scoped retry of an active origin cancels the
-origin after the new run is written, as Temporal's reset terminates the original. The origin's revision is the one re-run.
+read as a mode, `nodes`, and param and label overrides. What neither succeeded nor was skipped re-runs in every
+scope; `nodes` adds the named tasks and their descendants. Succeeded task runs outside that are copied with results
+and a `reusedFromRef`, with claim, deadline, retry and wait state dropped, before the clone is queued;
+`DAGUtility.createTaskList` adopts the copies; a skipped one is planned afresh, since the run may never have
+reached it. Lineage stays `initiatedByRef` = the origin. A scoped retry of an active origin cancels it after the new
+run is written, as Temporal's reset terminates the original. The origin's revision is the one re-run.
 
 ## Consequences
 
-- A carried-over task run's log is streamed from the origin (`streamTaskRunLog`); retention and purge-by-run must
-  hold a run while a newer run's task runs point at it.
+- A copied task run's log streams from the origin (`streamTaskRunLog`); retention must hold a run its copies use.
 - Workspace files are not carried over: the new run gets an empty volume. Files a retry may split from their reader
   travel as workflow-scoped artifacts and the dialog warns; handing a retry the origin's volume waits for a need.
 - A for-each parent re-runs whole: a retry resolves its items again, so copies reused by position could be wrong.
