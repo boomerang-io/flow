@@ -1128,21 +1128,25 @@ public class TaskRunService {
     }
   }
 
-  // Wire-level fence: a request that names its dispatcher must match claim.by. A request with no
-  // dispatcherRef is the legacy protocol and passes unfenced (TaskExecutionService applies the
-  // same rule on its entry). claim.seq is not on the wire, so a dispatcher that lost and re-won
-  // the same claim is not distinguished from its earlier self.
+  // Wire-level fence, the same rule TaskExecutionService.claimantIsValid applies after it: a
+  // request that names its dispatcher must match claim.by, and an unfinished TaskRun with no
+  // claimant - its reaped claim released by a termination hand-off - has none to match. Refused
+  // before anything is written. A request with no dispatcherRef is the legacy protocol and passes
+  // unfenced. claim.seq is not on the wire, so a dispatcher that lost and re-won the same claim is
+  // not distinguished from its earlier self.
   public static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
-    if (claimedBy.isEmpty() || taskRun.getClaim() == null || taskRun.getClaim().getBy() == null) {
+    String current = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
+    if (claimedBy.isEmpty()
+        || (current == null && RunPhase.completed.equals(taskRun.getPhase()))) {
       return;
     }
-    if (!claimedBy.get().equals(taskRun.getClaim().getBy())) {
+    if (!claimedBy.get().equals(current)) {
       LOGGER.error(
           "[{}] Rejecting request from superseded claimant {}. Current claim is {} (seq {}).",
           taskRun.getId(),
           claimedBy.get(),
-          taskRun.getClaim().getBy(),
-          taskRun.getClaim().getSeq());
+          current,
+          (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null);
       throw new BoomerangException(BoomerangError.TASKRUN_CLAIM_SUPERSEDED);
     }
   }
