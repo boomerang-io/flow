@@ -54,12 +54,12 @@ describe("workspaceLayout loader --- Node SSR", () => {
     expect((await runLoader("nope")).status).toBe("notFound");
   });
 
-  it("maps the real backend's invalid-ref shape (400 TEAM_INVALID_REF) to notFound", async () => {
-    // service-core's WorkspaceService.get throws TEAM_INVALID_REF for an unknown slug, which
+  it("maps the real backend's invalid-ref shape (400 WORKSPACE_INVALID_REF) to notFound", async () => {
+    // service-core's WorkspaceService.get throws WORKSPACE_INVALID_REF for an unknown slug, which
     // RestErrorResponse serialises as 400 BAD_REQUEST - not 404 (the MSW handler's shape).
     server.use(
       http.get(`${INTERNAL_ORIGIN}/api/workspace/nope`, () =>
-        HttpResponse.json({ code: 1101, reason: "TEAM_INVALID_REF", status: "400 BAD_REQUEST" }, { status: 400 }),
+        HttpResponse.json({ code: 1101, reason: "WORKSPACE_INVALID_REF", status: "400 BAD_REQUEST" }, { status: 400 }),
       ),
     );
 

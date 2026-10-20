@@ -150,7 +150,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
             () -> workflowRunService.retry(OTHER_WORKSPACE, wfRunId),
             "an unresolvable owner must surface as a mapped domain error, not IllegalArgumentException");
     assertEquals(
-        "TEAM_INVALID_REF", ex.getReason(), "the failure must name the unresolvable workspace");
+        "WORKSPACE_INVALID_REF", ex.getReason(), "the failure must name the unresolvable workspace");
 
     assertEquals(
         List.of(wfRunId),
@@ -208,7 +208,7 @@ class WorkflowRunRetryOwnerTest extends AbstractEngineIntegrationTest {
 
   /**
    * The deliberate asymmetry with the scoped path: a user retry of an unowned run refuses
-   * (TEAM_INVALID_REF, nothing created - the test above this one), but the engine's auto-retry
+   * (WORKSPACE_INVALID_REF, nothing created - the test above this one), but the engine's auto-retry
    * must never fail a run's recovery over graph bookkeeping, so an unresolvable owner logs and
    * creates the clone ownerless - exactly what the engine path produced before for EVERY retry.
    */

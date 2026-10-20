@@ -165,14 +165,14 @@ class WorkflowRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   @Test
   void anUnreachableWorkspaceIs404FromQueryAndAnswersZeroFromCount() {
     // The caller has no path to FOREIGN_WORKSPACE. That is an unresolvable workspace reference,
-    // so query answers the same 404 the rest of the product uses for one (TEAM_INVALID_REF) -
+    // so query answers the same 404 the rest of the product uses for one (WORKSPACE_INVALID_REF) -
     // not a run reference error, since no run was named.
     BoomerangException ex =
         assertThrows(
             BoomerangException.class,
             () -> queryWorkspace(FOREIGN_WORKSPACE),
             "query must refuse a workspace the caller cannot reach");
-    assertEquals(BoomerangError.TEAM_INVALID_REF.getReason(), ex.getReason());
+    assertEquals(BoomerangError.WORKSPACE_INVALID_REF.getReason(), ex.getReason());
 
     // count deliberately does NOT throw on the same input - it answers zero.
     assertEquals(

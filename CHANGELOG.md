@@ -102,6 +102,13 @@ tag's release notes.
   `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef` and
   `reusedFromRef`, and every workflow-run field but `id`, `status`, `phase`, `workflowRef`, `labels` and
   `workspace`; it reads them from the run through `/api/v2` instead.
+- **The last "team" names on the API say "workspace".** `GET /api/v2/profile` returns the user's workspaces as
+  `workspaces` (was `teams`), and the error reasons `TEAM_INVALID_REF`, `TEAM_INVALID_REQ`, `TEAM_NON_UNIQUE_NAME`,
+  `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
+  `WORKSPACE_NON_UNIQUE_NAME`, `WORKSPACE_INVALID_USER_ROLE` and `WORKFLOW_WORKSPACE_INACTIVE`, with the same codes.
+  A client that matched a reason or read `teams` moves with them. On the first start, change unit
+  `_0027__RenameWorkspaceTaskNodes` moves a workspace's own task nodes in the relationship graph from type
+  `teamtask` to `workspacetask`; only a database a 5.0 beta created holds any.
 
 ### Added
 

@@ -128,7 +128,7 @@ of its group, never written back as nothing (`:183`).
 `rel_nodes` and `rel_edges` are plain documents; the authorization reference describes the walk over them.
 | Collection | Document | Notes |
 | --- | --- | --- |
-| `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`service-core/src/main/java/io/boomerang/core/entity/RelationshipNodeEntity.java:38`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `teamtask`, `task`. |
+| `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`service-core/src/main/java/io/boomerang/core/entity/RelationshipNodeEntity.java:38`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue). |
 | `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from`/`to` are node ids; `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup` (`RelationshipEdgeEntity.java:26-31`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
@@ -267,6 +267,7 @@ a release ships the chain, changes are appended as new units.
 | `_0024__SeedAiImageInputRevisions` | all | Inserts revision 2 of `ai-prompt` and `ai-agent` (image input, task-ai 2.1.0) where an install holds the task but not that revision; revision 1 is never touched, and a task the install does not hold gets nothing. An empty database already has both revisions from `_0017` |
 | `_0025__ClearCompletedTaskLeases` | all | Unsets `claim.leaseExpiresAt` on completed task runs, which kept it before completion cleared it; a live claim's lease is untouched. Empty and v3 databases have none |
 | `_0026__SeedAiWorkflowTemplate` | all | Inserts the `summarise-a-web-page-with-ai` template (by name and version) on a database seeded before it joined the seed; an empty database already has it from `_0020` |
+| `_0027__RenameWorkspaceTaskNodes` | all | Moves each `teamtask` node to `workspacetask` under its new `_id` and re-points the edges naming it; only a database that ran a v5 beta holds one |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3

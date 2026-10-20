@@ -84,7 +84,7 @@ class ScheduleWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   void anUnreachableWorkspaceIs404() {
     BoomerangException ex =
         assertThrows(BoomerangException.class, () -> query(FOREIGN_WORKSPACE));
-    assertEquals(BoomerangError.TEAM_INVALID_REF.getReason(), ex.getReason());
+    assertEquals(BoomerangError.WORKSPACE_INVALID_REF.getReason(), ex.getReason());
   }
 
   private Page<WorkflowSchedule> query(String workspace) {

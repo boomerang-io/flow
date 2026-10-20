@@ -73,9 +73,9 @@ import org.springframework.stereotype.Service;
  * <p>It has three entry shapes over the same operations:
  *
  * <ul>
- *   <li><b>Workspace-scoped</b> ({@code get(team, name, ...)}, {@code create(team, ...)}, ...) - the
+ *   <li><b>Workspace-scoped</b> ({@code get(workspace, name, ...)}, {@code create(workspace, ...)}, ...) - the
  *       {@code /api/v2/workspace/&#123;workspace&#125;/task} surface. Each one resolves the slug
- *       through {@link RelationshipService#filter} anchored on {@code TEAMTASK} within the named
+ *       through {@link RelationshipService#filter} anchored on {@code WORKSPACETASK} within the named
  *       workspace, so an unreachable Task is indistinguishable from a missing one.
  *   <li><b>Global-scoped</b> ({@code getGlobal}, {@code createGlobal}, ...) - the {@code
  *       /api/v2/task} catalogue surface. Same shape, but the filter anchors on {@code TASK} with no
@@ -138,7 +138,7 @@ public class TaskService {
 
   // ── Workspace- and global-scoped operations (the /api/v2 surface) ──────────
   //
-  // A catalogue task is either a workspace's own (a TEAMTASK node under the workspace) or global (a
+  // A catalogue task is either a workspace's own (a WORKSPACETASK node under the workspace) or global (a
   // TASK node under root). Each public pair below resolves the name in its scope and shares one body.
 
   // The scope a name resolves in: a workspace, or global when the workspace is null.
@@ -146,20 +146,20 @@ public class TaskService {
     static final Scope GLOBAL = new Scope(null);
 
     RelationshipType nodeType() {
-      return (workspace != null) ? RelationshipType.TEAMTASK : RelationshipType.TASK;
+      return (workspace != null) ? RelationshipType.WORKSPACETASK : RelationshipType.TASK;
     }
   }
 
   // The refs of the scope's tasks with the given names, or of all of them.
   private List<String> refsIn(Scope scope, Optional<List<String>> names) {
     return (scope.workspace() != null)
-        ? relationshipService.refsInWorkspace(RelationshipType.TEAMTASK, scope.workspace(), names)
+        ? relationshipService.refsInWorkspace(RelationshipType.WORKSPACETASK, scope.workspace(), names)
         : relationshipService.filter(
             RelationshipType.TASK, names, Optional.empty(), Optional.empty(), false);
   }
 
   /*
-   * Retrieve a TEAMTASK by team, name and optional version. If no version specified, will retrieve the latest.
+   * Retrieve a workspace task by workspace, name and optional version. If no version specified, will retrieve the latest.
    */
   public Task get(String workspace, String name, Optional<Integer> version) {
     return getIn(new Scope(workspace), name, version);
@@ -216,7 +216,7 @@ public class TaskService {
   }
 
   /*
-   * Query for TEAMTASKS.
+   * Query for a workspace's tasks.
    */
   public TaskResponsePage query(
       String queryTeam,
@@ -544,7 +544,7 @@ public class TaskService {
   }
 
   /*
-   * Deletes a TeamTask - team is required as you cannot delete a global template (only make
+   * Deletes a workspace task - the workspace is required as you cannot delete a global template (only make
    * inactive)
    */
   public void delete(String workspace, String name) {
@@ -623,12 +623,12 @@ public class TaskService {
       return slugs;
     }
     Map<String, RelationshipNodeEntity> nodes =
-        relationshipService.nodesByRef(missing, RelationshipType.TASK, RelationshipType.TEAMTASK);
+        relationshipService.nodesByRef(missing, RelationshipType.TASK, RelationshipType.WORKSPACETASK);
     Map<String, RelationshipNodeEntity> workspaces =
         relationshipService.parentsByLabel(
             RelationshipLabel.HAS_TASK,
             nodes.values().stream()
-                .filter(node -> RelationshipType.TEAMTASK.getLabel().equals(node.getType()))
+                .filter(node -> RelationshipType.WORKSPACETASK.getLabel().equals(node.getType()))
                 .map(RelationshipNodeEntity::getId)
                 .toList());
     nodes.forEach(

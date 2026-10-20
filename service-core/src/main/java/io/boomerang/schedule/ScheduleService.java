@@ -154,7 +154,7 @@ public class ScheduleService {
     // list (new, emptied, or a workflows= filter matching none) is an empty page.
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     return Page.empty(PageRequest.of(page, limit, sort));
   }

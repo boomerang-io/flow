@@ -58,7 +58,7 @@ class DispatcherClaimFilterTest extends AbstractEngineIntegrationTest {
     taskIds.forEach(
         id -> {
           relationshipService.removeNodeAndEdgeByRef(RelationshipType.TASK, id);
-          relationshipService.removeNodeAndEdgeByRef(RelationshipType.TEAMTASK, id);
+          relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKSPACETASK, id);
           taskRepository.deleteById(id);
         });
     workspaces.forEach(
@@ -90,7 +90,7 @@ class DispatcherClaimFilterTest extends AbstractEngineIntegrationTest {
         RelationshipType.WORKSPACE,
         workspace,
         RelationshipLabel.HAS_TASK,
-        RelationshipType.TEAMTASK,
+        RelationshipType.WORKSPACETASK,
         id,
         slug,
         Optional.empty(),

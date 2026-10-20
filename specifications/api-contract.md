@@ -94,7 +94,7 @@ Every API error, including authentication failures, is a `RestErrorResponse`
 | `cause` | Present only when the exception has a cause (`:49-51`) |
 
 A `*_INVALID_REF*` code answers `404` and means the resource the request path addresses does not exist; blank,
-missing or unusable input answers `400` under the matching `*_INVALID_REQ` code (`TEAM_INVALID_REQ`,
+missing or unusable input answers `400` under the matching `*_INVALID_REQ` code (`WORKSPACE_INVALID_REQ`,
 `WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ`, `WORKFLOWRUN_INVALID_REQ`, `TASKRUN_INVALID_REQ`,
 `SCHEDULE_INVALID_REQ`). A reference that fails to resolve *inside a body* stays `400` — the route exists and the
 payload is wrong — which is why a workflow node naming a Task that does not exist is `WORKFLOW_INVALID_TASK_REF` on

@@ -56,7 +56,7 @@ class ProfileControllerV2Test {
 
     assertThat(profile).isNotNull();
     assertThat(profile.getId()).isNull();
-    assertThat(profile.getTeams()).isEmpty();
+    assertThat(profile.getWorkspaces()).isEmpty();
     assertThat(profile.getPermissions()).isEmpty();
   }
 }

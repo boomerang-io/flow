@@ -297,7 +297,7 @@ public class WorkflowRunService {
       // same answer insight and count already give for the same input.
       if (!relationshipService.check(
           RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
-        throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.ASC), "creationDate"));
       Pageable pageable =
@@ -520,13 +520,13 @@ public class WorkflowRunService {
    * owner, because a global-scope token passes {@link RelationshipService#check} for any workspace
    * (RelationshipService:417-419) - which is precisely how such a caller reaches a graph-orphaned
    * run - and adopting it is the wrong-owner bug this resolution exists to fix. So this refuses
-   * with the mapped {@link BoomerangError#TEAM_INVALID_REF} (404) the rest of the product already
+   * with the mapped {@link BoomerangError#WORKSPACE_INVALID_REF} (404) the rest of the product already
    * uses for an unresolvable workspace, rather than minting a run no workspace owns.
    */
   private String owningWorkspace(String workflowRunId) {
     String workspace = owningWorkspaceOrNull(workflowRunId);
     if (workspace == null) {
-      throw new BoomerangException(BoomerangError.TEAM_INVALID_REF);
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     return workspace;
   }

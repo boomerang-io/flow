@@ -9,12 +9,10 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workspace.model.UserProfile;
-import io.boomerang.workspace.model.WorkspaceSummary;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,9 +62,9 @@ public class ProfileControllerV2 {
   public UserProfile getProfile() {
     UserEntity baseEntity = userService.getCurrentProfileEntity();
     UserProfile profile = new UserProfile(baseEntity);
-    Map<String, String> teamRefsAndRoles = userService.getWorkspaceRefsAndRolesForUser(profile.getId());
-    List<WorkspaceSummary> teams = workspaceService.getWorkspaceMembershipSummary(teamRefsAndRoles);
-    profile.setTeams(teams);
+    Map<String, String> workspaceRefsAndRoles =
+        userService.getWorkspaceRefsAndRolesForUser(profile.getId());
+    profile.setWorkspaces(workspaceService.getWorkspaceMembershipSummary(workspaceRefsAndRoles));
     profile.setPermissions(tokenService.resolvePermissionsForUser(baseEntity));
     return profile;
   }

@@ -124,7 +124,7 @@ public class ClaimFilterService {
             .stream()
             .map(edge -> edge.getString("to"))
             .toList();
-    return children.isEmpty() ? List.of() : nodeRefs(RelationshipType.TEAMTASK, children, slug);
+    return children.isEmpty() ? List.of() : nodeRefs(RelationshipType.WORKSPACETASK, children, slug);
   }
 
   // The refs of the nodes of one type, among the given ids when any, whose slug matches.
