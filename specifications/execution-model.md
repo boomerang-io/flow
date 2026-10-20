@@ -36,10 +36,12 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   (`TaskRunService.java:275-316`). A null result means another dispatcher won; the loser skips the candidate.
 - `claim.seq` is never cleared and fences stale claimants. The dispatcher names itself on every `start` and `end`
   (`dispatcherRef` on `TaskRunStartRequest`/`TaskRunEndRequest`, the value the engine wrote to `claim.by`;
-  `dispatcher-sdk/.../dispatcher/sdk/TaskRunner.java:157-206`). A request whose `dispatcherRef` does not match `claim.by` is
-  rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged (`TaskRunService.rejectSupersededClaimant`,
-  called at `:755` and `:792`), and the claimant is re-checked on the handler's entry (`claimantIsValid`,
-  `engine/TaskExecutionService.java:546-570`). A request with no identity is accepted as the legacy protocol.
+  `dispatcher-sdk/.../dispatcher/sdk/TaskRunner.java:157-206`). A request whose `dispatcherRef` does not match `claim.by`
+  is rejected with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged, and so is one for an unfinished task run
+  with no `claim.by` at all - a reaped claim that a termination hand-off released, so a late end changes nothing
+  and the task runs again once its backoff passes (`TaskRunService.rejectSupersededClaimant` `:1137-1152`, called at
+  `:960`, `:997` and `:1191`). The claimant is re-checked on the handler's entry by the same rule (`claimantIsValid`,
+  `engine/TaskExecutionService.java:893-919`). A request with no identity is accepted as the legacy protocol.
   `claim.seq` is not on the wire, so a dispatcher that lost and re-won the same claim is not distinguished from
   its earlier self.
 - `claim.leaseExpiresAt` on `RunClaim` (`service-core/.../model/RunClaim.java:21`, indexed by

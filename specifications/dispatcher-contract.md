@@ -176,7 +176,8 @@ MAY run the task: the end is still fenced on the claim. The engine moves the tas
 
 - `status` is `succeeded`, `failed` or `invalid`; anything else is `400 TASKRUN_INVALID_END_STATUS` (`:967`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes
-  nothing (`:1054-1066`).
+  nothing, including an end that arrives after the engine reaped the claim and released it for another attempt
+  (`:1137-1152`).
 - `results` carries only the result names the task's definition declares; the caps below bound its size.
 - `statusReason` is a closed set (`service-core/.../model/TaskRunEndRequest.java`). Two of them mean the task
   never started, and the engine requeues it instead of failing it — with backoff, on the same budget of three
