@@ -124,6 +124,9 @@ tag's release notes.
 
 ### Changed
 
+- A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
+  code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
+  actor, where it named `system`.
 - A followed task log that has written nothing for 10 minutes ends with a line saying the view stopped following,
   instead of the connection dropping mid-log; open the log again to keep following. No new property: the two-hour
   async request timeout applies only to the streamed routes, both task logs and artifact downloads.

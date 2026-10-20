@@ -3,14 +3,19 @@ package io.boomerang.dispatcher;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.enums.TokenTypePrefix;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -29,11 +34,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * TokenTypePrefix#isFlowToken}) runs BEFORE any Mongo lookup, so a bearer that isn't even shaped
  * like a Flow token never hits the database. A shaped-but-unknown/expired/wrong-kind token is
  * looked up once ({@link TokenService#validateActorToken}) and rejected. On success, {@code
- * lastUsedAt} is stamped (throttled — see {@link TokenService#touchLastUsed}).
+ * lastUsedAt} is stamped (throttled — see {@link TokenService#touchLastUsed}) and the token becomes
+ * the request's identity - the one the same bearer carries on {@code /api/v2} - so code a
+ * dispatcher route reaches reads its caller like any other route's code does. The chain's {@code
+ * SecurityContextHolderFilter} clears it when the request ends.
  *
  * <p><b>Dev/test escape hatch:</b> {@code flow.dispatcher.auth.enabled} (default {@code true}) —
- * setting it {@code false} makes the filter a complete no-op, exactly like the interim filter's
- * old blank-token permit path. This replaces the old {@code flow.dispatcher.token} shared-secret
+ * setting it {@code false} checks nothing, and the request acts as the synthetic {@link
+ * UnauthenticatedGlobalToken} a security-off request has. This replaces the old {@code
+ * flow.dispatcher.token} shared-secret
  * property, which no longer exists: {@code service-dispatcher}'s configured bearer value
  * ({@code flow.engine.dispatcher.token}) is unchanged code-wise, it just now needs to hold a real
  * minted token instead of an arbitrary shared string.
@@ -54,8 +63,9 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    // Dev/test escape hatch: permit, do nothing.
+    // Dev/test escape hatch: nothing identifies the caller, so it acts as the system.
     if (!authEnabled) {
+      setIdentity(new UnauthenticatedGlobalToken());
       filterChain.doFilter(request, response);
       return;
     }
@@ -76,6 +86,16 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
       return;
     }
     tokenService.touchLastUsed(token.get());
+    Token identity = new Token(token.get());
+    identity.setValid(true);
+    setIdentity(identity);
     filterChain.doFilter(request, response);
+  }
+
+  private static void setIdentity(Token identity) {
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(identity.getPrincipal(), null, List.of());
+    authentication.setDetails(identity);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 }
