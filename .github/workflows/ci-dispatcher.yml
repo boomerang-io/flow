@@ -11,12 +11,14 @@ on:
       - 'service-dispatcher/**'
       - 'dispatcher-sdk/**'
       - 'contracts/**'
+      - 'pom.xml'
       - '.github/workflows/ci-dispatcher.yml'
   pull_request:
     paths:
       - 'service-dispatcher/**'
       - 'dispatcher-sdk/**'
       - 'contracts/**'
+      - 'pom.xml'
       - '.github/workflows/ci-dispatcher.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,13 +35,9 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
-          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-          settings-path: ${{ github.workspace }} # location for the settings.xml file
       - name: Maven Package
-        env:
-          GITHUB_TOKEN: ${{ github.token }} # GITHUB_TOKEN is the default env for the password
         run: |
-          mvn clean test --projects service-dispatcher --also-make --batch-mode -s settings.xml
+          mvn clean test --projects service-dispatcher --also-make --batch-mode
       - name: Slack
         uses: 8398a7/action-slack@v3
         if: ${{ always() }}
