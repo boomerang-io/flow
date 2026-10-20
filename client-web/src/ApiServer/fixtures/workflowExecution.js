@@ -13,7 +13,7 @@ const workflowExecution = {
     },
     {
       key: "requesterEmail",
-      value: "mdroy@us.ibm.com",
+      value: "mdroy@example.com",
     },
     {
       key: "purpose",

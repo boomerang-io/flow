@@ -1,5 +1,5 @@
-// A tiny in-memory store the MSW handlers mutate (create/update/delete), seeded from the same
-// fixtures the Mirage server (src/ApiServer/fixtures) already uses. Kept intentionally simple -
+// A tiny in-memory store the MSW handlers mutate (create/update/delete), seeded from the
+// fixtures in src/ApiServer/fixtures. Kept intentionally simple -
 // this is a test double, not a relational engine - handlers look records up by id/name within a
 // single collection; there's no cross-collection referential integrity.
 //

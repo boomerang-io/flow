@@ -75,10 +75,10 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
                 y="0px"
               >
                 <title>
-                  User icon for trbula@us.ibm.com
+                  User icon for trbula@example.com
                 </title>
                 <desc>
-                  Avatar for trbula@us.ibm.com
+                  Avatar for trbula@example.com
                 </desc>
                 <g>
                   <path
@@ -102,7 +102,7 @@ exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`]
               <span
                 class="_email_b9e313"
               >
-                trbula@us.ibm.com
+                trbula@example.com
               </span>
             </div>
           </div>

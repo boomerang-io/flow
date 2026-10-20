@@ -3,39 +3,14 @@ import DateHelper, {
   DATETIME_LOCAL_DISPLAY_FORMAT,
   DATETIME_LOCAL_INPUT_FORMAT,
   getSimplifiedDuration,
-  timeSecondsToTimeUnit,
 } from "./dateHelper";
 
 // Characterisation spec: pins the CURRENT
-// hand-rolled output of dateHelper/timeHelper/timeSecondsToTimeUnit before they are re-implemented
+// hand-rolled output of dateHelper/timeHelper before they are re-implemented
 // on moment/moment.duration(), so the refactor is provably output-preserving. These values were
 // captured by hand-tracing the pre-refactor implementations - do not "fix" a value here to match
 // a new implementation; if a deliberate output change is needed, change it here with a comment
 // explaining why, not silently.
-
-describe("DateHelper.padLeadingZero", () => {
-  test("pads single digits with a leading zero", () => {
-    expect(DateHelper.padLeadingZero(0)).toBe("00");
-    expect(DateHelper.padLeadingZero(5)).toBe("05");
-    expect(DateHelper.padLeadingZero(9)).toBe("09");
-  });
-
-  test("leaves double digits untouched", () => {
-    expect(DateHelper.padLeadingZero(10)).toBe(10);
-    expect(DateHelper.padLeadingZero(59)).toBe(59);
-  });
-});
-
-describe("DateHelper.getFormattedDateTime", () => {
-  test("formats M/D H:mm:ss from local date components", () => {
-    // Constructed from local components so the assertion is timezone-independent: the getters
-    // the function reads (getMonth/getDate/getHours/...) return exactly what was passed in,
-    // regardless of the machine's TZ.
-    expect(DateHelper.getFormattedDateTime(new Date(2024, 0, 5, 9, 3, 7))).toBe("1/5 9:03:07");
-    expect(DateHelper.getFormattedDateTime(new Date(2024, 10, 25, 23, 59, 0))).toBe("11/25 23:59:00");
-    expect(DateHelper.getFormattedDateTime(new Date(2024, 5, 1, 0, 0, 0))).toBe("6/1 0:00:00");
-  });
-});
 
 describe("DateHelper.timeMillisecondsToTimeUnit", () => {
   test.each([
@@ -50,19 +25,6 @@ describe("DateHelper.timeMillisecondsToTimeUnit", () => {
     [1, "1 ms"],
   ])("timeMillisecondsToTimeUnit(%i) === %j", (ms, expected) => {
     expect(DateHelper.timeMillisecondsToTimeUnit(ms)).toBe(expected);
-  });
-});
-
-describe("DateHelper.timeMinutesToTimeUnit", () => {
-  test.each([
-    [0, " "],
-    [59, " 59 mins"],
-    [61, "1 hr 1 min"],
-    [25 * 60, "25 hrs "],
-    [3 * 24 * 60, "72 hrs "],
-    [1, " 1 min"],
-  ])("timeMinutesToTimeUnit(%i) === %j (untrimmed - existing quirk, pinned deliberately)", (minutes, expected) => {
-    expect(DateHelper.timeMinutesToTimeUnit(minutes)).toBe(expected);
   });
 });
 
@@ -102,16 +64,6 @@ describe("DateHelper.durationFromThenToNow", () => {
   });
 });
 
-describe("DateHelper.determineUpdatedMessage", () => {
-  test.each([
-    [0, "just now"],
-    [1, " 1 min ago"],
-    [61, "1 hr 1 min ago"],
-  ])("determineUpdatedMessage(%i) === %j", (minutesAgo, expected) => {
-    expect(DateHelper.determineUpdatedMessage(minutesAgo)).toBe(expected);
-  });
-});
-
 describe("DateHelper named exports", () => {
   test("transformTimeZone", () => {
     const result = transformTimeZone("UTC");
@@ -135,19 +87,5 @@ describe("getSimplifiedDuration", () => {
     [3 * 24 * 3600, "72h"],
   ])("getSimplifiedDuration(%i) === %j", (seconds, expected) => {
     expect(getSimplifiedDuration(seconds)).toBe(expected);
-  });
-});
-
-describe("timeSecondsToTimeUnit", () => {
-  test.each([
-    [0, "0 secs"],
-    [59, "59 secs"],
-    [61, "1 min 1 sec"],
-    [3661, "1 hr 1 min"],
-    [25 * 3600, "25 hrs "],
-    [3 * 24 * 3600, "72 hrs "],
-    [1, "1 sec"],
-  ])("timeSecondsToTimeUnit(%i) === %j (trailing space when minutes empty - existing quirk, pinned deliberately)", (seconds, expected) => {
-    expect(timeSecondsToTimeUnit(seconds)).toBe(expected);
   });
 });

@@ -365,7 +365,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   <span
                     class="_email_96c623"
                   >
-                    trbula@us.ibm.com
+                    trbula@example.com
                   </span>
                 </td>
                 <td>
@@ -417,7 +417,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   <span
                     class="_email_96c623"
                   >
-                    mdroy@us.ibm.com
+                    mdroy@example.com
                   </span>
                 </td>
                 <td>
@@ -469,7 +469,7 @@ exports[`Users --- Snapshot Test > Capturing Snapshot of Users 1`] = `
                   <span
                     class="_email_96c623"
                   >
-                    test@ibm.com
+                    test@example.com
                   </span>
                 </td>
                 <td>

@@ -30,7 +30,7 @@ const approvals = {
       actioners: [
         {
           approverId: "59aebd0c7424530fce952fff",
-          approverEmail: "panda@ibm.com",
+          approverEmail: "panda@example.com",
           approverName: "Panda",
           comments: "I can't in good conscience approve this.",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -56,7 +56,7 @@ const approvals = {
       actioners: [
         {
           approverId: "59aebd0c7424530fce952fff",
-          approverEmail: "panda@ibm.com",
+          approverEmail: "panda@example.com",
           approverName: "Panda",
           comments: "I can't in good conscience approve this.",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -64,7 +64,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fee",
-          approverEmail: "puppy@ibm.com",
+          approverEmail: "puppy@example.com",
           approverName: "Puppy",
           comments: "This looks good for me.",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -72,7 +72,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fle",
-          approverEmail: "super.monkey@ibm.com",
+          approverEmail: "super.monkey@example.com",
           approverName: "Monkey",
           comments:
             "ook, hoo hoo hoo hoo, oo oo oo, ooooooo hooooooo ook ook hoohooo ooo, oo, ooo oo oo oo, hoooo hooooo oooooo hoo oook oko ook ook oook hooo ooo oo o oo ooo",
@@ -81,7 +81,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fpe",
-          approverEmail: "kitten@ibm.com",
+          approverEmail: "kitten@example.com",
           approverName: "Kitten",
           comments: "meow",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -89,7 +89,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fpe",
-          approverEmail: "manager@ibm.com",
+          approverEmail: "manager@example.com",
           approverName: "Manager",
           comments: "Monkey and Kitten, language!",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -115,7 +115,7 @@ const approvals = {
       actioners: [
         {
           approverId: "59aebd0c7424530fce952fff",
-          approverEmail: "panda@ibm.com",
+          approverEmail: "panda@example.com",
           approverName: "Panda",
           comments: "I can't in good conscience approve this.",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -123,7 +123,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fee",
-          approverEmail: "puppy@ibm.com",
+          approverEmail: "puppy@example.com",
           approverName: "Puppy",
           comments: "Cool",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -131,7 +131,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fpe",
-          approverEmail: "kitten@ibm.com",
+          approverEmail: "kitten@example.com",
           approverName: "Kitten",
           comments: "Purrrfect",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -158,7 +158,7 @@ const approvals = {
       actioners: [
         {
           approverId: "59aebd0c7424530fce952fde",
-          approverEmail: "trbula@us.ibm.com",
+          approverEmail: "trbula@example.com",
           approverName: "Timothy Bula",
           comments: null,
           date: "2021-09-15T18:49:13.831+00:00",
@@ -166,7 +166,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fff",
-          approverEmail: "panda@ibm.com",
+          approverEmail: "panda@example.com",
           approverName: "Panda",
           comments: "Nice!",
           date: "2021-09-15T18:49:13.831+00:00",
@@ -174,7 +174,7 @@ const approvals = {
         },
         {
           approverId: "59aebd0c7424530fce952fee",
-          approverEmail: "puppy@ibm.com",
+          approverEmail: "puppy@example.com",
           approverName: "Puppy",
           comments: "Woof!",
           date: "2021-09-15T18:49:13.831+00:00",

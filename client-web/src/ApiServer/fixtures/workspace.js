@@ -35,7 +35,7 @@ const workspace = {
         },
         {
           id: "61d5db083aa9034ded32cae7",
-          email: "boomrng@us.ibm.com",
+          email: "boomrng@example.com",
           name: "Boomerang Joe",
           role: "Owner"
         },
@@ -73,7 +73,7 @@ const workspace = {
             "approvers": [
                 {
                     "id": "61d5db083aa9034ded32cae7",
-                    "email": "boomrng@us.ibm.com",
+                    "email": "boomrng@example.com",
                     "name": "Boomerang Joe",
                     "role": null
                 },

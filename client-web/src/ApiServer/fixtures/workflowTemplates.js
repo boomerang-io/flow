@@ -263,7 +263,7 @@ const workflowTemplates = {
             },
             {
               name: "from",
-              value: "from@ibm.com",
+              value: "from@example.com",
             },
             {
               name: "bodyContent",
@@ -272,7 +272,7 @@ const workflowTemplates = {
             },
             {
               name: "to",
-              value: "to@ibm.com",
+              value: "to@example.com",
             },
             {
               name: "contentType",
@@ -342,7 +342,7 @@ const workflowTemplates = {
             },
             {
               name: "from",
-              value: "from@ibm.com",
+              value: "from@example.com",
             },
             {
               name: "bodyContent",
@@ -351,7 +351,7 @@ const workflowTemplates = {
             },
             {
               name: "to",
-              value: "to@ibm.com",
+              value: "to@example.com",
             },
             {
               name: "contentType",
