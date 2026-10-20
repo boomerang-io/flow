@@ -352,11 +352,6 @@ public class UserService {
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
 
-    // TODO figure out a Ref search for querying users - lock to admin for now.
-    // List<String> userRefs = relationshipService.getFilteredRefs(Optional.empty(),
-    // Optional.empty(),
-    // Optional.of(RelationshipType.MEMBEROF), Optional.of(RelationshipRef.TEAM), queryIds);
-
     Query query =
         new Query(
             new QueryCriteria()
@@ -378,43 +373,6 @@ public class UserService {
 
     return pages;
   }
-
-  /*
-   * Create User
-   *
-   * TODO: determine if needed
-   */
-  //  public User create(UserRequest request) {
-  //    if (externalUserUrl.isBlank()
-  //        && request != null
-  //        && request.getEmail() != null
-  //        && this.userRepository.countByEmailAndStatus(
-  //                normaliseEmail(request.getEmail()), UserStatus.active)
-  //            == 0) {
-  //      // Create User (UserEntity is defaulted on new)
-  //      UserEntity userEntity = new UserEntity();
-  //      userEntity.setEmail(normaliseEmail(request.getEmail()));
-  //      if (request.getName() != null && !request.getName().isBlank()) {
-  //        userEntity.setName(request.getName());
-  //      }
-  //      if (request.getDisplayName() != null && !request.getDisplayName().isBlank()) {
-  //        userEntity.setDisplayName(request.getDisplayName());
-  //      }
-  //      if (request.getType() != null) {
-  //        userEntity.setType(request.getType());
-  //      }
-  //      if (request.getLabels() != null) {
-  //        userEntity.setLabels(request.getLabels());
-  //      }
-  //      userEntity.getSettings().setHasConsented(true);
-  //      userEntity = this.userRepository.save(userEntity);
-  //
-  //      return new User(userEntity);
-  //    } else {
-  //      // TODO throw exception
-  //      return null;
-  //    }
-  //  }
 
   /*
    * Update User
