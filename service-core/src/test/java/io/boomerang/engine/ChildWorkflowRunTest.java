@@ -116,7 +116,7 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aParamTheChildDeclaresIsForwardedResolved() {
+  void onlyTheParamsTheNodePassesReachTheChildResolved() {
     String childWorkflowId =
         createWorkflow(
             "child-forwarded-param",
@@ -156,6 +156,8 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
             .findFirst()
             .orElseThrow()
             .getValue());
+    // The parent run's own param is not handed down; the node passed only greeting.
+    assertTrue(childRun.getParams().stream().noneMatch(p -> "who".equals(p.getName())));
   }
 
   @Test
