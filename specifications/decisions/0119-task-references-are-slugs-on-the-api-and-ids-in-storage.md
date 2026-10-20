@@ -20,7 +20,7 @@ A `flow.uniquenames.enabled` switch that made the name the stored key had shippe
 ## Decision
 
 C. `TaskService.slugsByRef` turns ids into slug forms in one node read and one parent read for any batch, cached
-for 30 seconds, and `refsBySlug` turns slug forms back into ids on save (`workflow/TaskService.java:707,752`).
+for 30 seconds, and `refsBySlug` turns slug forms back into ids on save (`workflow/TaskService.java:707,659`).
 Workflow reads and saves, run reads, insight rows, status events and the dispatcher's poll, start and end answers
 all go through them, and the claim filter takes the same form (`dispatcher/ClaimFilterService.java:89`). The
 switch is removed and a task is always found by id. Nothing stored changes, which decided it.

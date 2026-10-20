@@ -95,13 +95,13 @@ and 'y' reference each other in a cycle` (`ParameterManager.java:173`, `:636`).
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold
 to `PARAM_NAMES` (`service-core/.../ParameterUtil.java:83-89`). `item` and `index` are reserved on a for-each task:
 the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on save
-with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1843-1880`). Matching is case-insensitive everywhere:
+with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1723-1760`). Matching is case-insensitive everywhere:
 `$(params.myparam)` resolves a param declared `MyParam` (`ParameterManager.java:864`), and the node-value
 merge keeps the declared casing (`ParameterUtil.java:57-65`). An empty or absent value is valid and survives save unchanged — emptiness can be meaningful, and a
 substitution can resolve to empty; a task that requires a value fails its own run with a message naming the
 parameter (`engine/TaskExecutionService.java`, `runWorkflow`). The safety pair is rejection at save: names that
 are case or separator variants of each other (`my-key`, `MY_KEY`) fail with `PARAM_NAME_COLLISION` (code 1209,
-`BoomerangError.java:50`) at workflow save (`workflow/WorkflowService.java:1597-1603`) and task save
+`BoomerangError.java:50`) at workflow save (`workflow/WorkflowService.java:1477-1483`) and task save
 (`workflow/TaskService.java:366-374`); the dispatcher repeats the check at dispatch (`KubeHelperService.java:123-132`).
 
 ## Sensitive parameters
@@ -156,21 +156,21 @@ write lists none (`core/audit/SecretChangeHolder.java:63`, collected around each
 A stored value is matched by param name in any case, a node's by node name and then param name, and a
 setting's by key; a workspace PATCH replaces a case variant rather than adding a second entry. A node secret
 left with no value is dropped from the node so the task's default applies
-(`workflow/WorkflowService.java:1763`). A run request - submit, start, retry - follows the same rule against the
+(`workflow/WorkflowService.java:1643`). A run request - submit, start, retry - follows the same rule against the
 declared defaults or the stored run: a param sent with no value, or as `*****` for a secret, leaves the value in
 place and `""` sets it empty (`ParameterUtil.suppliedParams`, `ParameterUtil.java:215`, called at
-`WorkflowService.java:2075` and `WorkflowRunService.java:966,1140`); the engine's own merge of node values over
+`WorkflowService.java:1955` and `WorkflowRunService.java:940,1032`); the engine's own merge of node values over
 task specs is separate and unchanged.
 
 | Read | Filter |
 | --- | --- |
-| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:185-209`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:574`, `WorkflowRunService.java:215`); start and retry requests reject a non-string secret with 1217 like submit |
+| Workspace-scoped run `get` and `query` | Type, name join and value scrub (`workflow/WorkflowRunService.java:183-207`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`WorkflowService.java:543`, `WorkflowRunService.java:213`); start and retry requests reject a non-string secret with 1217 like submit |
 | `full` status events | Type, then a value scrub of the run's own secret values from results, status message, annotations and spec (`event/model/RunStatusSummary.java:53,63`) |
-| Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:470-505`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
-| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:171`, `workspace/WorkspaceService.java:881`) |
+| Task log stream; manual action instructions | Value scrub (`WorkflowRunService.java:445-480`; `ActionService.java:266`, which keeps the instructions' text and hides only the secret) |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:171`, `workspace/WorkspaceService.java:793-794`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:210`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:310`, canvas `:846`, `:865`). Duplicate copies the unfiltered workflow |
+| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`WorkflowService.java:283`, canvas `:821`, `:840`). Duplicate copies the unfiltered workflow |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:252`); `internalGet`, which fires the run, is not filtered |
 | Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:149`) |
 
@@ -197,7 +197,7 @@ is blanked by name but not value-scrubbed, which would mangle unrelated text (de
 
 The union also holds the current values of the run workspace's password-typed **global and workspace**
 parameters (`workflow/ParamLayerService.java:173`, read uncached once per workspace per response;
-`WorkflowRunService.java:192,489`), which no definition declares yet substitution writes into task params,
+`WorkflowRunService.java:190,452`), which no definition declares yet substitution writes into task params,
 scripts and results. A run that used a value since rotated keeps showing it.
 
 Downward, the dispatcher reads `type` (`dispatcher-sdk/.../model/RunParam.java`, `contracts/dispatcher-v1.yaml`)

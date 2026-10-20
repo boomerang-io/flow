@@ -24,7 +24,7 @@ B. `$(params.x)` resolves over a case-insensitive view of the parameter layers
 case-insensitive with the declared casing winning
 (`service-core/src/main/java/io/boomerang/common/util/ParameterUtil.java:57-65`), and names that fold to the
 same env var fail with `PARAM_NAME_COLLISION` at workflow save
-(`service-core/.../workflow/WorkflowService.java:1597-1603`) and task save (`workflow/TaskService.java:366-374`).
+(`service-core/.../workflow/WorkflowService.java:1477-1483`) and task save (`workflow/TaskService.java:366-374`).
 GitHub Actions is the one mainstream system with a folded env channel, and it pairs insensitivity with a
 uniqueness rule for exactly this reason.
 

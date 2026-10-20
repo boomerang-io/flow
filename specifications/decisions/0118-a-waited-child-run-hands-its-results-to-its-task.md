@@ -22,7 +22,7 @@ embedding products looped inside one task instead of composing workflows.
 C. When a waited child ends `succeeded`, `ChildWorkflowRunListener.endWaitingParentTask` ends the task through
 the ordinary end with the child run's results beside the `workflowRunRef` it already holds
 (`engine/ChildWorkflowRunListener.java:93-126`); a failed child copies nothing and fails the task as before.
-A `runworkflow` task may now carry the for-each setting (`workflow/WorkflowService.java:133-143`): each item
+A `runworkflow` task may now carry the for-each setting (`workflow/WorkflowService.java:130-140`): each item
 submits one child with the task's own params, so `item` and `index`
 reach the child (`engine/TaskExecutionService.childParams`), and the parent collects each result its items
 produced into an array in item order, since a run-workflow task declares none of its own

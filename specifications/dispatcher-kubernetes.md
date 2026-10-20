@@ -71,7 +71,7 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 (`dispatcher/TaskService.java:96-98`), falls back to `kube.task.timeout` (60 minutes, `:66-68`) whenever the
 TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per the TaskRun's
 `spec.deletion` (`:61-63,102-105,129-131`). The engine always sets it from the admin "Deletion Policy"
-(`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:691-694`,
+(`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:627-629`,
 `engine/DAGUtility.java:290-298`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
 (`kube/KubeLogService.java:54-63`) and go with it. The delete runs off the dispatch thread, through a self proxy to
 an `@Async` method, after a one-second grace (`:39,142-151`).
@@ -198,7 +198,7 @@ hold the claim, so under `Never` it stays `Terminating` until retention removes 
 `size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a workspace enters the engine (`service-core/.../model/WorkflowWorkspace.java` `settle`), because a Kubernetes Quantity would read it as bytes. On save, create and update alike, a blank
 size takes the `max.workspace.storage` quota value and a blank mount path becomes `/workspace`; a size above the
 quota is refused with `QUOTA_EXCEEDED` when quotas are enforced, and the same check runs when a run is submitted
-with its own workspace (`workflow/WorkflowService.java:499-515,956-990`,
+with its own workspace (`workflow/WorkflowService.java:466-481`, `workflow/QuotaService.java:350-360`,
 `service-core/.../util/StorageQuantityUtil.java:13`). Class and access mode default to `kube.workspace.storage.*`
 (1Gi, `ReadWriteMany`; `dispatcher/WorkspaceService.java:55-57`); a blank class leaves `storageClassName` unset so
 the cluster default applies, because an empty string disables dynamic provisioning (`KubeServiceImpl.java:127`).
@@ -209,7 +209,7 @@ error while creating it surfaces as one provisioning failure (`dispatcher/Worksp
 A workflow upgraded from v3 keeps its mount path, written explicitly as `/workspace/workflowrun` when v3 had none
 (`migration/_0010__V3MigrateWorkflows.java:225`), so its tasks need no change. One that declared v3's Workflow
 storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on its revision and is refused at submit
-with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1955`).
+with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1835`).
 
 ## Isolation and placement
 

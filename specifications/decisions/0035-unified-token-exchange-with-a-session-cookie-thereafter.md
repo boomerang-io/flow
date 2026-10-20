@@ -33,4 +33,4 @@ point: after the exchange, every caller is a `session` token.
 
 - A single trusted issuer is configured; widening to an allowlist is a new decision.
 - Existing header, query-parameter and Basic paths are unchanged, so scripts and webhooks behind a proxy see no difference.
-- The per-request session mint on the proxy path is bounded by a 60-second reuse window (`core/TokenService.java:71,576-580`), which also bounds how long a deactivated user keeps authenticating on that path.
+- The per-request session mint on the proxy path is bounded by a 60-second reuse window (`core/TokenService.java:71,564-568`), which also bounds how long a deactivated user keeps authenticating on that path.

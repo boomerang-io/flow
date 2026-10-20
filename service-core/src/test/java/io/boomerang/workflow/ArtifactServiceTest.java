@@ -82,6 +82,7 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   private static final String QUOTA_FEATURE = "workspaceQuotas";
 
   @Autowired private ArtifactService artifactService;
+  @Autowired private QuotaService quotaService;
   @Autowired private ArtifactRepository artifactRepository;
   @Autowired private InMemoryArtifactStore store;
   @Autowired private WorkflowService workflowService;
@@ -283,7 +284,7 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     expired.setStatus(ArtifactStatus.expired);
     artifactRepository.save(expired);
 
-    assertThat(artifactService.storedBytes(List.of(workflowRef))).isEqualTo(10);
+    assertThat(quotaService.current(workspace).getCurrentArtifactStorage()).isEqualTo(10);
   }
 
   @Test
@@ -613,7 +614,7 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     assertThat(store.objects).containsKey(log.getStorageKey());
 
     assertThat(artifactService.listForRun(workspace, run)).isEmpty();
-    assertThat(artifactService.storedBytes(List.of(workflowRef))).isZero();
+    assertThat(quotaService.current(workspace).getCurrentArtifactStorage()).isZero();
     assertThat(
             artifactService
                 .query(workspace, Optional.empty(), Optional.empty(), Optional.empty(), 0, 10)

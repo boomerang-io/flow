@@ -147,7 +147,7 @@ public class AuditQueryService {
   /**
    * Total a workspace's runs and their durations over a time window from the run events, so runs
    * of since-deleted Workflows still count - the run-duration figures in {@code
-   * WorkspaceService.setCurrentQuotas}. Each run counts once, with the duration its latest event in
+   * QuotaService.current}. Each run counts once, with the duration its latest event in
    * the window carries. One aggregation over the {@code workspace_time} index.
    */
   public RunTotals runTotals(String workspaceId, Date from, Date to) {
@@ -176,7 +176,7 @@ public class AuditQueryService {
 
   /**
    * Count run-creation events for one workspace in a time window — the monthly quota counter in
-   * {@code WorkspaceService.setCurrentQuotas}. Served by the {@code workspace_time} index.
+   * {@code QuotaService.current}. Served by the {@code workspace_time} index.
    */
   public long countRunsCreated(String workspaceId, Date from, Date to) {
     Query query =

@@ -49,9 +49,6 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
-import io.boomerang.workspace.WorkspaceService;
-import io.boomerang.workspace.model.CurrentQuotas;
-import io.boomerang.workspace.model.Quotas;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -110,9 +107,9 @@ import tools.jackson.databind.ObjectMapper;
  * the workspace resolution and the operation live together instead of being split across a service
  * boundary that only existed because the engine used to be a separate deployable.
  *
- * <p>workspace.WorkspaceService and schedule.ScheduleService are held as ObjectProvider, not as
- * fields: both take this service back in their own constructors, and Optional would resolve eagerly
- * and close the cycle at construction time.
+ * <p>schedule.ScheduleService is held as an ObjectProvider, not as a field: it takes this service
+ * back in its own constructor, and Optional would resolve eagerly and close the cycle at
+ * construction time.
  *
  * <p>TODO: migrate Triggers to an alternative workflow_triggers collection and use Relationships to
  * adjust.
@@ -158,7 +155,7 @@ public class WorkflowService {
   private final SettingsService settingsService;
   private final ActionRepository actionRepository;
   private final TokenService tokenService;
-  private final ObjectProvider<WorkspaceService> workspaceService;
+  private final QuotaService quotaService;
   private final RunTimeoutPolicy runTimeoutPolicy;
   private final ObjectMapper objectMapper;
   private final ParamLayerCache paramLayerCache;
@@ -182,7 +179,7 @@ public class WorkflowService {
       SettingsService settingsService,
       ActionRepository actionRepository,
       TokenService tokenService,
-      ObjectProvider<WorkspaceService> workspaceService,
+      QuotaService quotaService,
       RunTimeoutPolicy runTimeoutPolicy,
       ObjectMapper objectMapper,
       ParamLayerCache paramLayerCache) {
@@ -198,7 +195,7 @@ public class WorkflowService {
     this.settingsService = settingsService;
     this.actionRepository = actionRepository;
     this.tokenService = tokenService;
-    this.workspaceService = workspaceService;
+    this.quotaService = quotaService;
     this.runTimeoutPolicy = runTimeoutPolicy;
     this.objectMapper = objectMapper;
     this.paramLayerCache = paramLayerCache;
@@ -208,16 +205,6 @@ public class WorkflowService {
   //
   // Every method here performs the SAME relationship call the deleted
   // api.WorkspaceWorkflowService performed, then does the work inline.
-
-  /*
-   * Whether quota limits are enforced: the stored "workspaceQuotas" feature setting is the one
-   * switch.
-   */
-  boolean quotasEnforced() {
-    return settingsService
-        .getSettingConfig(FEATURES_SETTINGS_KEY, FEATURES_WORKSPACE_QUOTA)
-        .getBooleanValue();
-  }
 
   /*
    * The workspace that owns a Workflow, or null when the relationship graph records none. The
@@ -240,20 +227,6 @@ public class WorkflowService {
       LOGGER.warn("[{}] Owning workspace {} has no relationship node.", workflowId, ref);
       return null;
     }
-  }
-
-  /*
-   * The ceiling for a WorkflowRun's timeout, in minutes: the workspace's max run duration (its own
-   * quota if stored, else the platform default in the "quotas" settings document).
-   *
-   * 0 is no ceiling: a workspace whose stored quota is 0 (unlimited), or a Workflow no workspace
-   * owns - only the floor and the platform default constrain those runs.
-   */
-  public long maxWorkflowDuration(String team) {
-    if (team == null) {
-      return 0;
-    }
-    return workspaceService.getObject().getWorkflowMaxDurationForTeam(team).longValue();
   }
 
   /*
@@ -436,7 +409,7 @@ public class WorkflowService {
     }
 
     // Check creation quotas
-    canCreateWithQuotas(team);
+    quotaService.assertCanCreateWorkflow(team);
 
     // Default Triggers
     validateTriggerDefaults(request);
@@ -495,14 +468,10 @@ public class WorkflowService {
     if (workspace == null) {
       return;
     }
-    String maxStorageSizeQuota =
-        this.settingsService
-            .getSettingConfig(
-                WorkspaceService.QUOTAS_SETTINGS_KEY, WorkspaceService.QUOTA_MAX_WORKSPACE_STORAGE)
-            .getValue();
+    String maxStorageSizeQuota = quotaService.defaultWorkspaceStorage();
     if (workspace.getSize() == null || workspace.getSize().isBlank()) {
       workspace.setSize(maxStorageSizeQuota);
-    } else if (quotasEnforced()
+    } else if (quotaService.enforced()
         && StorageQuantityUtil.toGi(workspace.getSize())
             > StorageQuantityUtil.toGi(maxStorageSizeQuota)) {
       throw new BoomerangException(
@@ -642,7 +611,7 @@ public class WorkflowService {
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
     // Check Quotas - Throws Exception
-    assertRunQuotas(team, Optional.ofNullable(request.getWorkspace()));
+    quotaService.assertRunQuotas(team, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -685,10 +654,16 @@ public class WorkflowService {
     // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
     // are re-read (now including this run), and a run that pushed a count over its limit is
     // discarded - simultaneous submits cannot each slip past the pre-admission count above.
-    boolean enforceQuotas = quotasEnforced();
+    boolean enforceQuotas = quotaService.enforced();
     WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
     if (enforceQuotas) {
-      guardQuotasAfterAdmission(team, wfRun.getId());
+      try {
+        quotaService.assertAdmittedRunWithinQuotas(team);
+      } catch (BoomerangException overQuota) {
+        // The run pushed a count over its limit: it removes itself, so it uses no quota.
+        discardRun(wfRun.getId());
+        throw overQuota;
+      }
     }
 
     // Creates relationship with owning team
@@ -911,101 +886,6 @@ public class WorkflowService {
       } else if (currentSchedulerEnabled == false && requestSchedulerEnabled == true) {
         schedules.enableAllTriggerSchedules(team, request.getId());
       }
-    }
-  }
-
-  /*
-   * Check if the Workspace Quotas allow a Workflow to be created. A quota of 0 is unlimited and
-   * is not checked (Quotas.limited), here and in every run check below.
-   */
-  private void canCreateWithQuotas(String team) {
-    if (quotasEnforced()) {
-      CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
-      LOGGER.debug("Quotas: {}", quotas.toString());
-      if (Quotas.limited(quotas.getMaxWorkflowCount())
-          && quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED,
-            "Number of Workflows",
-            quotas.getCurrentWorkflowCount(),
-            quotas.getMaxWorkflowCount());
-      }
-    }
-  }
-
-  /**
-   * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for:
-   * concurrent runs, runs this month, and the size of any Workspace it asks for. Public because a
-   * retry is a new run and has to clear the same limits a submit does - WorkflowRunService.retry
-   * calls this before it saves the clone.
-   */
-  public void assertRunQuotas(String team, Optional<WorkflowWorkspace> workspace) {
-    if (quotasEnforced()) {
-      CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
-      LOGGER.debug("Quotas: {}", quotas.toString());
-      // The run being submitted is not counted yet, so at-the-limit already means it would
-      // exceed the limit.
-      if (Quotas.limited(quotas.getMaxConcurrentRuns())
-          && quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED,
-            "Concurrent runs (executions)",
-            quotas.getCurrentConcurrentRuns(),
-            quotas.getMaxConcurrentRuns());
-      } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
-          && quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED,
-            "Number of runs (executions)",
-            quotas.getCurrentRuns(),
-            quotas.getMaxWorkflowRunMonthly());
-      } else if (workspace.isPresent()) {
-        checkWorkspaceStorageQuota(workspace.get(), quotas);
-      }
-    }
-  }
-
-  /*
-   * Refuses a workspace on a run submission whose requested size is over the workspace storage
-   * quota. The size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi - the same rule
-   * applyWorkspaceDefaults applies at save. A workspace naming no size takes the quota default
-   * and cannot breach it.
-   */
-  private void checkWorkspaceStorageQuota(WorkflowWorkspace workspace, CurrentQuotas quotas) {
-    Integer maxSizeGi = quotas.getMaxWorkspaceStorage();
-    String size = workspace.getSize();
-    if (Quotas.limited(maxSizeGi)
-        && size != null
-        && !size.isBlank()
-        && StorageQuantityUtil.toGi(size) > maxSizeGi) {
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED, "Requested Workspace size", size, maxSizeGi);
-    }
-  }
-
-  /*
-   * Re-checks the run quotas after a WorkflowRun has been admitted. The counts now include the
-   * run itself, so a burst of simultaneous submits cannot each pass the pre-admission count:
-   * every run that pushed a count over its limit removes itself and its submit fails.
-   */
-  private void guardQuotasAfterAdmission(String team, String workflowRunId) {
-    CurrentQuotas quotas = workspaceService.getObject().getCurrentQuotas(team);
-    if (Quotas.limited(quotas.getMaxConcurrentRuns())
-        && quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
-      discardRun(workflowRunId);
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED,
-          "Concurrent runs (executions)",
-          quotas.getCurrentConcurrentRuns(),
-          quotas.getMaxConcurrentRuns());
-    } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
-        && quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
-      discardRun(workflowRunId);
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED,
-          "Number of runs (executions)",
-          quotas.getCurrentRuns(),
-          quotas.getMaxWorkflowRunMonthly());
     }
   }
 
@@ -1973,7 +1853,7 @@ public class WorkflowService {
             request.getTimeout(),
             wfRevision.getTimeout(),
             wfRevision.getTasks(),
-            maxWorkflowDuration(owningWorkspaceOrNull(workflowId))));
+            quotaService.maxRunDuration(owningWorkspaceOrNull(workflowId))));
     if (!Objects.isNull(wfRevision.getRetries()) && wfRevision.getRetries() != 0) {
       wfRunEntity.setRetries(wfRevision.getRetries());
     }

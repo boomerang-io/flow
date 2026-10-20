@@ -41,7 +41,7 @@ so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
 A workspace's five quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`, `maxWorkspaceStorage`,
 `maxConcurrentRuns`, `maxWorkflowRunDuration`; `workspace/model/Quotas.java`) each have three stored states: absent
 inherits the platform default from the `quotas` settings document when the workspace is read
-(`workspace/WorkspaceService.java` `setCustomQuotas`), `0` is unlimited (`Quotas.limited`, the one resolver every
+(`workflow/QuotaService.java` `overlay` `:136`), `0` is unlimited (`Quotas.limited`, the one resolver every
 check calls), and a positive number is the limit. A stored `0` survives the merge as `0`. A workspace patch merges
 quotas field by field onto what is stored (`WorkspaceService.java` `patch`), so a request that carries one quota leaves
 the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only way back to absent. The v3 migration drops a v3
@@ -85,11 +85,11 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 `boomerang.io/*` keys written to stored documents (`grep -rn '"boomerang.io/' service-core/src/main`):
 | Key | Written on | By | Read by the engine? |
 | --- | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs, task runs | `WorkflowService.java:1484,1676,1789`, `TaskService.java:646,713`, `DAGUtility.java:152-153` | No |
-| `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1132` | No |
-| `workspace-name` | workflow run at submit; copied to task runs | `WorkflowService.java:640`, `DAGUtility.java:157-159` | Yes — `TaskExecutionService.java:743` |
-| `task-timeout`, `task-default-image`, `task-deletion` | workflow run at submit (workspace executor settings) | `WorkflowService.java:623-629` | Yes — `DAGUtility.java:195-244` |
-| `global-params`, `context-params`, `workspace-params` | No longer written; runs created earlier still carry them, stripped from read payloads and from a child run's request | `WorkflowRunService.java:1152`, `WorkflowService.java:700` | No — the layers are read from their stores (`ParameterManager.java:247`) |
+| `generation`, `kind` | workflows, tasks, workflow runs, task runs | `WorkflowService.java:1364,1507,1620`, `TaskService.java:646,620`, `DAGUtility.java:152-153` | No |
+| `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1012` | No |
+| `workspace-name` | workflow run at submit; copied to task runs | `WorkflowService.java:609`, `DAGUtility.java:157-159` | Yes — `TaskExecutionService.java:743` |
+| `task-timeout`, `task-default-image`, `task-deletion` | workflow run at submit (workspace executor settings) | `WorkflowService.java:592-598` | Yes — `DAGUtility.java:195-244` |
+| `global-params`, `context-params`, `workspace-params` | No longer written; runs created earlier still carry them, stripped from read payloads and from a child run's request | `WorkflowRunService.java:1126`, `WorkflowService.java:675` | No — the layers are read from their stores (`ParameterManager.java:247`) |
 | `status` | task run, by the inbound-event handler (escaped key) | `TaskRunService.java:350-363` | Yes — `TaskExecutionService.java:882` |
 
 Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` exist only in Tekton YAML exports
@@ -184,8 +184,8 @@ scope `log`. A second upload for the same task run replaces the first, file and 
 
 | Status | Written when | File |
 | --- | --- | --- |
-| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams` `:209`; `dispatcher/DispatcherService.java` `fillArtifactLink` `:229`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`:283`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
-| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:307`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1012`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:355`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams` `:206`; `dispatcher/DispatcherService.java` `fillArtifactLink` `:286`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:275-279`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:303`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1116`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:363`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`:456`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
 A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:134`) or its run's
@@ -194,7 +194,7 @@ retention purge. Finished runs are kept for the `retention.days` key of the `wor
 (`WorkflowRetentionService.runRetentionDays` `:170`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `purgeExpiredRuns` `:94`, run hourly by the watcher) pages runs in phase `completed` created before the cutoff, oldest first, on the
 `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first,
-`workflow/ArtifactService.java` `deleteForRun` `:625`), actions, task runs, relationship node and finally the run
+`workflow/ArtifactService.java` `deleteForRun` `:590`), actions, task runs, relationship node and finally the run
 document. A run another run still names in `initiatedByRef` (a retry's origin, a child's parent) is kept until
 that run is gone, so a carried-over task run never outlives the one it stands for; a settings document built
 before the key existed reads as 365 until it is rebuilt. Workflow-scoped artifacts and audit events are never

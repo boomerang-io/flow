@@ -74,7 +74,7 @@ are recorded by the engine, and only `workflowrun` `CREATE` events count toward 
 retired and only `/api/v2/workspace/{workspace}` is registered
 (`core/security/EngineWorkspaceInterceptorConfiguration.java:12-13`). `TaskRun` is the one run resource with no
 workspace segment; `GET /api/v2/taskrun/{id}/log` is authorised through the owning `WorkflowRun` instead
-(`workflow/WorkflowRunService.java:325-335`).
+(`workflow/WorkflowRunService.java:323-333`).
 
 ## Error response
 
@@ -141,7 +141,7 @@ entities are separate classes and MUST NOT be returned from a controller.
 | Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApproved`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
 | Lineage is public: `trigger`, `initiatedByRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run, whose `GET /taskrun/{id}/log` streams the origin task run's log | `WorkflowRun.java:64-72`; `TaskRun.java:55-59`; `WorkflowRunService.java` `streamTaskRunLog` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `WorkflowRunRetryRequest.java`; `WorkspaceWorkflowRunControllerV2.java` `retry` |
-| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,752`; `WorkflowRunService.java:175`; `WorkflowService.java:1283,1351`; `WorkflowRunInsightService.java:130` |
+| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,659`; `WorkflowRunService.java:173`; `WorkflowService.java:1163,1195`; `WorkflowRunInsightService.java:130` |
 | Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `service-core/.../enums/RunStatus.java` |
 | **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models because a dispatcher branches on it: the SDK reads it to tell an order to run from an order to terminate. `queued` is now the only position `status` cannot express, so it is the whole remaining reason the field is exposed | `TaskRun.java:19-23`; `dispatcher/DispatcherControllerV1.java:77,97,126`; `dispatcher-sdk/.../model/TaskRun.java:47-59`; tripwire `PublicRunModelSerialisationTest.java:117-129`, phase set pinned at `:137-141` |
@@ -292,7 +292,7 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 
 | Call | Effect |
 | --- | --- |
-| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:544-553`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1907-1908`). Not found: created (`:584-586`). Labels and annotations are merged. |
+| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:513-522`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1787-1788`). Not found: created (`:553-555`). Labels and annotations are merged. |
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1908`) and replaces labels and annotations. Runs already made from that version then show the new definition. |
 | `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted (`:774-787`); the watcher then hard-deletes its runs, task runs, artifacts, versions and schedules (see `execution-model.md`). Only audit records remain: the monthly run quota still counts the old runs, Insights does not (it reads retained runs, see below). |
 
@@ -305,7 +305,7 @@ saved and not returned, so the create and update responses show exactly what was
 that compares the response with what it sent sees a dropped field.
 
 Triggers follow the same rule as labels: a trigger the update leaves out, or a missing `triggers` block, keeps its
-stored value (`workflow/WorkflowService.java:559-564`). Only a trigger the request sends changes, and turning
+stored value (`workflow/WorkflowService.java:528-533`). Only a trigger the request sends changes, and turning
 `schedule` off moves the workflow's schedules to `trigger_disabled` (`:933-948`). Every read fills a trigger the
 stored workflow lacks with its default, manual on and the rest off, so responses, exports and editors always carry
 all five (`workflow/ConvertUtil.java:26-48`).
@@ -333,9 +333,9 @@ missing member and a `null` member cannot be told apart.
 | Aspect | Rule | Where |
 | --- | --- | --- |
 | Label keys | Free-form strings, MAY carry a `prefix/name` form; the server does not validate them | `common/model/Workflow.java:52`, `WorkflowRun.java:41` |
-| Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:503-518` |
-| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; `boomerang.io/*-params` are stripped from run responses | `WorkflowService.java:1672-1673,1136`; `TaskService.java:646-647`; `WorkflowRunService.java:976-978` |
-| Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1640-1652` |
+| Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:478-493` |
+| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; `boomerang.io/*-params` are stripped from run responses | `WorkflowService.java:1552-1553,980`; `TaskService.java:646-647`; `WorkflowRunService.java:950-952` |
+| Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1520-1532` |
 
 ## Parameter model
 
@@ -364,7 +364,7 @@ task, `$(tasks.<name>.results.<result>)` is a JSON array in item order with `nul
 Saving refuses, with `WORKFLOW_INVALID_TASK_FOREACH` (1213), items that are neither an array nor one reference, a
 literal array longer than `max.foreach.items`, a task type a dispatcher does not run (including `start` and `end`),
 and a task whose template declares `item` or `index`; it refuses a task name ending in `[<digits>]` with
-`WORKFLOW_INVALID_TASK_NAME` (1214), since that suffix marks items (`workflow/WorkflowService.java:1693-1701`,
+`WORKFLOW_INVALID_TASK_NAME` (1214), since that suffix marks items (`workflow/WorkflowService.java:1573-1581`,
 `:1700-1708`, `:1789-1826`).
 
 There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in the webapp's canvas
@@ -389,8 +389,8 @@ Browser routes are keyed by workspace — `/:workspace/...` (`client-web/src/Con
 ## Open contract decisions
 
 - Label update semantics differ by resource: `PATCH /workspace/{workspace}` replaces the map
-  (`WorkspaceService.java:284-285`); `PUT /workflow` merges unless `replace=true`
-  (`WorkflowService.java:1640-1645`). One rule is still to be chosen.
+  (`WorkspaceService.java:262-263`); `PUT /workflow` merges unless `replace=true`
+  (`WorkflowService.java:1520-1525`). One rule is still to be chosen.
 - Whether to strip `phase` from the public models (a dispatcher-only wire model or a `@JsonView`), and whether the
   invariant narrows to `WorkflowRun` only — the webapp reads `TaskRun.phase`.
 - boomerang-io/flow#328: move list endpoints to Spring Data `Pageable` (`order` → `sort=field,dir`).

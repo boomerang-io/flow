@@ -135,6 +135,8 @@ tag's release notes.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
   is still published to GitHub Packages.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
+- `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
+  running whenever the engine watcher was on.
 
 - A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
   the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the

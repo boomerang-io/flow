@@ -20,10 +20,10 @@ the Workflow.
 
 ## Decision
 
-Option C. `WorkspaceService.setCurrentQuotas` sets the monthly counter to the maximum of the
+Option C. `workflow/QuotaService.current` sets the monthly counter to the maximum of the
 month's `{workspaceId, action=CREATE, resourceType=workflowrun}` audit events
 (`core/audit/AuditQueryService.countRunsCreated`, served by the `workspace_time` index) and the
-month's live run documents (`workflow/WorkflowRunService.countForQuota`). The live count covers
+month's live run documents (`QuotaService.countRuns`). The live count covers
 the async-audit race; the audit count covers deletion. The concurrent counter stays purely live —
 it measures what is running now, which deletion legitimately reduces. TaskRun transitions are not
 audited at all: their volume would dwarf the trail and no consumer (quota or insights) reads them.

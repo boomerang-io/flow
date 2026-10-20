@@ -4,9 +4,7 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
-import io.boomerang.core.SettingsService;
 import io.boomerang.engine.EngineConstants;
-import io.boomerang.workspace.WorkspaceService;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
@@ -50,10 +48,10 @@ public class RunTimeoutPolicy {
   private static final String SOURCE_DEFAULT = "default run timeout";
   private static final String SOURCE_QUOTA = "workspace maximum run duration";
 
-  private final SettingsService settingsService;
+  private final QuotaService quotaService;
 
-  public RunTimeoutPolicy(SettingsService settingsService) {
-    this.settingsService = settingsService;
+  public RunTimeoutPolicy(QuotaService quotaService) {
+    this.quotaService = quotaService;
   }
 
   /**
@@ -165,15 +163,10 @@ public class RunTimeoutPolicy {
       return ceiling;
     }
     try {
-      return Long.parseLong(
-          settingsService
-              .getSettingConfig(
-                  WorkspaceService.QUOTAS_SETTINGS_KEY,
-                  WorkspaceService.QUOTA_MAX_WORKFLOWRUN_DURATION)
-              .getValue());
+      return quotaService.defaultMaxRunDuration();
     } catch (RuntimeException e) {
       LOGGER.warn("No {} quota settings; a run with no declared timeout stays unguarded.",
-          WorkspaceService.QUOTAS_SETTINGS_KEY);
+          QuotaService.QUOTAS_SETTINGS_KEY);
       return 0;
     }
   }

@@ -138,7 +138,7 @@ only for a workspace or global parameter deleted since; the task then ends `fail
 with reason `DispatchPrepareFailed`, logged with its id and the cause, and the other tasks claimed in the same poll
 are still handed out, so no claim stays with a dispatcher that never hears of it (`DispatcherService.prepare`
 `:404`). Preparing a task does not depend on who calls: an artifact task's storage quota is read from its run's
-workspace (`workspace/WorkspaceService.getArtifactStorageQuota` `:773`). The termination order, the start and end
+workspace (`workflow/QuotaService.artifactStorage` `:256`). The termination order, the start and end
 answers and every consumer read carry the stored spec. The TaskRun's params are the task's declared params merged
 with the values authored on the workflow node (`engine/DAGUtility.java:180`). A `custom` task takes its runtime from
 its own params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue
@@ -217,7 +217,7 @@ heartbeats no longer list the claims it lost.
 ## Logs
 
 A task's log is read through core alone — `GET /api/v2/taskrun/{id}/log`, which authorizes the reader and scrubs the
-run's secrets (`workflow/WorkflowRunService.java:464-500`) — from one of three sources (`engine/TaskRunService.java`
+run's secrets (`workflow/WorkflowRunService.java:439-475`) — from one of three sources (`engine/TaskRunService.java`
 `streamLog` `:1139-1161`, `engine/LogClient.java` `streamLog` `:90`):
 
 | Source | When |
@@ -278,7 +278,7 @@ MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
 `accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
-submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1970`). Which
+submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1850`). Which
 tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's workspace
 unless its node says `workspace: false` (`engine/DAGUtility.java:226-237`); the canvas offers no way to set that, so
 the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath` settled to the

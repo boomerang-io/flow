@@ -24,7 +24,7 @@ The monthly run quota reads the same audit events and must keep counting deleted
 B. `WorkflowRunInsightService` (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunInsightService.java`)
 computes the page's statistics from projected run and task-run records, and the page subtitle states that deleted
 workflows are not included. The quotas total runs from the audit trail (`AuditQueryService.runTotals`) for
-`WorkspaceService.setCurrentQuotas`.
+`workflow/QuotaService.current`.
 Comparable products (GitHub Actions, GitLab CI, AWS Step Functions) draw the same line: analytics over retained
 executions, metering counters written at event time.
 

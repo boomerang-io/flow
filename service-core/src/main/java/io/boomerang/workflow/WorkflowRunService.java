@@ -106,9 +106,7 @@ public class WorkflowRunService {
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
-  // @Lazy for the same reason as TaskExecutionService above: WorkflowService holds this service,
-  // so an eager injection closes the cycle at construction time.
-  private final WorkflowService workflowService;
+  private final QuotaService quotaService;
   private final ParamLayerService paramLayerService;
 
   public WorkflowRunService(
@@ -126,7 +124,7 @@ public class WorkflowRunService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       ObjectMapper objectMapper,
-      @Lazy WorkflowService workflowService,
+      QuotaService quotaService,
       ParamLayerService paramLayerService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -142,7 +140,7 @@ public class WorkflowRunService {
     this.relationshipService = relationshipService;
     this.mongoTemplate = mongoTemplate;
     this.objectMapper = objectMapper;
-    this.workflowService = workflowService;
+    this.quotaService = quotaService;
     this.paramLayerService = paramLayerService;
   }
 
@@ -341,29 +339,6 @@ public class WorkflowRunService {
     List<String> wfRefs =
         relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     return count(from.map(Date::new), to.map(Date::new), queryLabels, Optional.of(wfRefs));
-  }
-
-  /**
-   * Count runs matching the given Workflows with a single server-side count - no documents are
-   * fetched and nothing is grouped in memory. Serves the quota counters in {@code
-   * WorkspaceService.setCurrentQuotas}: the monthly counter passes the calendar-month {@code
-   * creationDate} window with no statuses, the concurrent counter passes the non-terminal statuses
-   * with no window.
-   */
-  public long countForQuota(
-      List<String> workflowRefs,
-      Optional<Date> from,
-      Optional<Date> to,
-      Optional<Set<RunStatus>> statuses) {
-    Query query =
-        new Query(
-            new QueryCriteria()
-                .in("workflowRef", workflowRefs)
-                .between("creationDate", from, to)
-                .in("status", statuses)
-                .build());
-    LOGGER.debug("Quota count query: {}", query);
-    return mongoTemplate.count(query, WorkflowRunEntity.class);
   }
 
   /*
@@ -903,9 +878,8 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
-        workflowService.assertRunQuotas(
-            ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
-        long ceiling = workflowService.maxWorkflowDuration(ownerName);
+        quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
+        long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
             && (wfRunEntity.getTimeout() == null
                 || wfRunEntity.getTimeout() == 0

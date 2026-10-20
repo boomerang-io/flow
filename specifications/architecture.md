@@ -28,7 +28,7 @@ a deployment is used. There is no separate engine image (`.github/workflows/ci-r
 | Property (`application.properties`) | Default | `true` | `false` |
 | --- | --- | --- | --- |
 | `flow.security.enabled` (`:14`) | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
-| `flow.workspace.single` (`:18`) | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `TEAM_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-44`, registered on `/api/v2/workspace/{workspace}` and `/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `TEAM_INVALID_REQ` (`workspace/WorkspaceService.java:189,355`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.workspace.single` (`:18`) | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `TEAM_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-44`, registered on `/api/v2/workspace/{workspace}` and `/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `TEAM_INVALID_REQ` (`workspace/WorkspaceService.java:163,331`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
 | `flow.dispatcher.auth.enabled` (`:38`) | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind (`DispatcherAuthFilter`), independent of `flow.security.enabled`. | No dispatcher authentication; local development only. |
 | `flow.queue.enabled` (`:60`) | `true` | Dispatchers claim task runs. | Claiming stops; sweeps keep running (`execution-model.md`). |
 
@@ -40,9 +40,9 @@ Two shapes are the worked examples:
 | An embedded engine | `flow.security.enabled=false`, `flow.workspace.single=true` | Headless execution inside another product that owns identity and tenancy. The webapp runs unchanged against it; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 
 Quotas are not a deployment property: the stored `features.workspaceQuotas` setting is the only switch
-(`workflow/WorkflowService.java:214-218`). The `system` workspace is seeded with its four limits at `0`, which is
+(`workflow/QuotaService.java:91-96`). The `system` workspace is seeded with its four limits at `0`, which is
 unlimited, and no run duration of its own, so its runs inherit the platform default ceiling from the `quotas` settings
-(`service-core/src/main/resources/seed/workspace.json`, `workspace/WorkspaceService.java` `getWorkflowMaxDurationForTeam`;
+(`service-core/src/main/resources/seed/workspace.json`, `workflow/QuotaService.java` `maxRunDuration` `:175-186`;
 decision 0111). Deployment shape is `flow.<subsystem>.<switch>`
 properties; runtime product toggles are `features.<name>` stored settings; a switch lives in exactly one tier
 (decision 0109).
@@ -64,26 +64,29 @@ webapp's startup loader never requests `GET /internal/v1/auth/config` (`client-w
 
 ## Feature packages inside `service-core`
 
-`service-core` is one Maven module with eight flat feature packages under `io.boomerang` plus `config`
-(the OpenAPI configuration) and `common.model` (four paging response types). Boundaries are a convention: there is
-no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews enforce the direction below.
+`service-core` is one Maven module with eight flat feature packages under `io.boomerang`, plus `common` (the domain
+model: entities, public models, enums, errors and utilities, no beans) and `migration` (the change units). Boundaries
+are a convention: there is no Spring Modulith and no ArchUnit rule; a package is a directory, and reviews enforce the
+direction below.
 
-| Package | Owns | Imports from (verified by grep over `^import io.boomerang.*`) |
+| Package | Owns | Imports from, besides `common` (verified by grep over `^import io.boomerang.*`) |
 | --- | --- | --- |
-| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `AuthCriteriaAuthorizationManager`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`. | nothing above it — zero upward imports |
-| `workspace` | Workspaces, quotas (`FlowQuotaProperties`), the audit-trail insights roll-up the quotas read (`InsightsService`), the Insights controller, profile. | `core`, `workflow` |
-| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), the run statistics the Insights page shows (`WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` |
-| `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:16-16`) |
+| `core` | Users, tokens, roles, settings, audit, the relationship graph (`RelationshipService`), security (filters, `AuthCriteriaAuthorizationManager`, `@AuthCriteria`), the shared `RestConfig`/`MongoConfiguration`, the OpenAPI configuration, the one `@EnableScheduling` (`core/config/SchedulingConfiguration.java`). | three entity imports in one class (below) |
+| `workspace` | Workspaces, members, approver groups, the workspace and profile routes; its quota routes read through `workflow/QuotaService`. | `core`, `workflow` |
+| `workflow` | Workflow/revision definitions, task catalogue, read-only workflow templates, parameters, actions (approvals), artifacts, quotas (`QuotaService`), run retention and the deleted-workflow prune (`WorkflowRetentionService`), the Insights page and its statistics (`WorkspaceInsightsControllerV2`, `WorkflowRunInsightService`), the workspace-scoped v2 controllers (`WorkspaceWorkflowControllerV2`, `WorkspaceWorkflowRunControllerV2`, …), Tekton YAML conversion. | `core`, `engine`, `event`, `schedule`, `workspace` (entities, models and repositories only) |
+| `engine` | Execution: `WorkflowExecutionService`, `TaskExecutionService`, `TaskRunService`, `DAGUtility`, `WorkflowRunStateHelper`, `WorkflowWatcher`, `LogClient`. | `core`, `workflow`, `dispatcher` (the `dispatchers` repository, `engine/WorkflowWatcher.java:17-18`) |
 | `dispatcher` | The worker registry and the v1 wire: `DispatcherControllerV1`, `DispatcherService`, `DispatcherAuthFilter`, `DispatcherSecurityConfiguration`. | `core`, `engine`, `workflow` |
-| `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `workflow` |
+| `schedule` | Cron schedules and their firing: `ScheduleService`, `ScheduleWatcher`, `ScheduleJob`. | `core`, `engine` (`EngineConstants`), `workflow` |
 | `event` | Webhook and CloudEvent ingress (`WebhookEventControllerV2`), the transactional outbox (`CloudEventsBridge`, `OutboxDispatcher`), the event sink. | `core`, `engine`, `integrations`, `workflow` |
 | `integrations` | GitHub App and Slack. | `core`, `workflow` |
 
-Rules that follow from the table: `core` MUST NOT import any feature package (`core/audit/AuditInterceptor.java:98`
-records the one place this bit); the engine MUST NOT call the platform side synchronously — it publishes
-Spring `ApplicationEvent`s that other packages listen to (`ScheduleRequested` handled by
-`schedule/ScheduleEventListener.java:26-27`; `ChildWorkflowRunCreated` handled by
-`core/RelationshipEventListener.java:36-37`). Controllers live in the package of the service they inject.
+Rules that follow from the table: `core` MUST NOT import any feature package; the one exception is the save hook that
+seals secret values, which names the three entities it seals (`core/config/SecretValueMongoListener.java:11-13`;
+decision 0002). The engine MUST NOT call the platform side synchronously — it publishes Spring `ApplicationEvent`s
+that other packages listen to (`ScheduleRequested` handled by `schedule/ScheduleEventListener.java:26-27`;
+`ChildWorkflowRunCreated` handled by `core/RelationshipEventListener.java:36-37`); the transition records those
+listeners and the audit and outbox bridges read live in `common/model`. Controllers live in the package of the
+service they inject.
 
 ## How a workflow run moves through the system
 
@@ -92,7 +95,7 @@ Each arrow is a direct in-process call unless marked. Every state change is a co
 
 | Step | Class → class | Where |
 | --- | --- | --- |
-| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submit` → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:252-264`, `workflow/WorkflowService.java:1713,1792`, `workflow/WorkflowRunService.java:748-750` |
+| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submit` → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:252-264`, `workflow/WorkflowService.java:1593,1623`, `workflow/WorkflowRunService.java:723-725` |
 | 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`) or a webhook/CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:143`, `schedule/ScheduleJob.java:77`, `event/WebhookEventControllerV2.java:72,210`, `event/WebhookEventService.java:108` |
 | 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which builds the task list from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:61-81`, `engine/WorkflowRunStateHelper.java:96` |
 | 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending`/`queued`, builds the graph, and executes the DAG on `asyncWorkflowExecutor` | `engine/WorkflowExecutionService.java:100-124` |
