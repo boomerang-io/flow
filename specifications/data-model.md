@@ -77,7 +77,7 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
 | Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
-`claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion, abandon (a timeout included) and requeue (`tryComplete` `:490-556`, `tryAbandon` `:632`, requeue `:674`), so the sparse `lease_sweep` index holds only live claims;
+`claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion and requeue (`tryComplete`, requeue), so the sparse `lease_sweep` index holds only live claims. An abandon (a timeout included) keeps it until the completion lands, so an end lost after the abandon is reaped again;
 crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:45-51`) and `ControlStateFieldsTest`
 (`retry-of`, `retry-count`, `timeout-cause` are never written as annotations).

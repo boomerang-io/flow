@@ -646,8 +646,8 @@ public class TaskRunService {
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
             .set("statusReason", statusReason)
-            .unset("timeoutAt")
-            .unset("claim.leaseExpiresAt");
+            .unset("timeoutAt");
+    // The lease stays until the completion lands, so a lost end is reaped and ended again.
     return cas(Query.query(criteria), update, RunStatus.timedout, null);
   }
 
