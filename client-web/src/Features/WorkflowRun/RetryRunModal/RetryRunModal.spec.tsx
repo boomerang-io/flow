@@ -1,6 +1,7 @@
 import React from "react";
 import { Route } from "react-router-dom";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import { renderWithContext } from "Utils/testing/render";
@@ -127,6 +128,38 @@ describe("RetryRunModal", () => {
     // The multi-select shows a count of selected tasks; one preselected task enables the submit.
     expect(screen.getByText("Tasks to retry from")).toBeInTheDocument();
     expect(screen.getByTestId("retry-run-submit")).toBeEnabled();
+  });
+
+  it("warns that workspace files are not carried over when retrying from failed tasks", async () => {
+    renderModal({
+      status: RunStatus.Failed,
+      tasks: [taskRun("start", RunStatus.Succeeded, "start"), taskRun("parse", RunStatus.Failed)],
+      workspace: { size: "1Gi", mountPath: "/workspace" },
+    });
+
+    await userEvent.click(await screen.findByLabelText("The tasks that did not succeed, and everything after them"));
+
+    expect(await screen.findByText("Workspace files are not carried over.")).toBeInTheDocument();
+  });
+
+  it("warns that workspace files are not carried over when retrying from selected tasks", async () => {
+    renderModal({ workspace: { size: "1Gi", mountPath: "/workspace" } }, ["chair"]);
+
+    expect(await screen.findByText("Workspace files are not carried over.")).toBeInTheDocument();
+  });
+
+  it("does not warn about workspace files when re-running everything", async () => {
+    renderModal({ workspace: { size: "1Gi", mountPath: "/workspace" } });
+
+    expect(await screen.findByLabelText("Everything, from the start")).toBeChecked();
+    expect(screen.queryByText("Workspace files are not carried over.")).not.toBeInTheDocument();
+  });
+
+  it("does not warn about workspace files when the run has no workspace", async () => {
+    renderModal({}, ["chair"]);
+
+    expect(await screen.findByLabelText("Selected tasks, and everything after them")).toBeChecked();
+    expect(screen.queryByText("Workspace files are not carried over.")).not.toBeInTheDocument();
   });
 
   it("says an active origin will be cancelled", async () => {
