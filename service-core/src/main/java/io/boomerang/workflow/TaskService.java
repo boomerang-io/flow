@@ -237,7 +237,7 @@ public class TaskService {
             Optional.of(List.of(queryTeam)),
             false);
     LOGGER.debug("Task Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new TaskResponsePage();
     }
     return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);
@@ -258,7 +258,7 @@ public class TaskService {
         relationshipService.filter(
             RelationshipType.TASK, queryNames, Optional.empty(), Optional.empty(), false);
     LOGGER.debug("Global Task Refs: {}", refs.toString());
-    if (refs == null || refs.size() == 0) {
+    if (refs.isEmpty()) {
       return new TaskResponsePage();
     }
     return internalQuery(queryLimit, queryPage, querySort, queryLabels, queryStatus, refs);

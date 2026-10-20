@@ -336,7 +336,12 @@ public class DispatcherService {
     }
     agentRepository.updateLastConnected(agentId, new Date());
     DispatcherEntity entity = agentRepository.findTaskTypesByAgentId(agentId);
-    if (entity != null && entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
+    if (entity == null) {
+      // Deregistered since the check above.
+      LOGGER.error("Agent {} not registered", agentId);
+      throw new IllegalArgumentException("Agent ID does not exist or is not registered.");
+    }
+    if (entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
       LOGGER.warn("Agent {} has no task types defined. Returning 204.", agentId);
       return ResponseEntity.noContent().build();
     }

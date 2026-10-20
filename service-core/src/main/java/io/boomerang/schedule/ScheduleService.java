@@ -205,7 +205,7 @@ public class ScheduleService {
         Map.of(),
         SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
     storeCronAsUnix(scheduleEntity);
-    Boolean enableJob = false;
+    boolean enableJob = false;
     if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
         && workflow != null
         && workflow.getTriggers().getSchedule().getEnabled()) {
@@ -392,7 +392,7 @@ public class ScheduleService {
          * Complex Status checking to determine what can and can't be enabled, incl date in the past check
          */
         WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
-        Boolean enableJob = true;
+        boolean enableJob = true;
         if (!previousStatus.equals(newStatus)) {
           if (WorkflowScheduleStatus.active.equals(previousStatus)
               && WorkflowScheduleStatus.inactive.equals(newStatus)) {

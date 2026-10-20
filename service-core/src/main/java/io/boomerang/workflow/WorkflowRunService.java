@@ -742,15 +742,9 @@ public class WorkflowRunService {
     List<WorkflowRunEntity> entities = mongoTemplate.find(query, WorkflowRunEntity.class);
 
     // Collect the Stats
-    Long totalDuration = 0L;
-    Long duration;
-
+    long totalDuration = 0;
     for (WorkflowRunEntity entity : entities) {
-      duration = entity.getDuration();
-      if (duration != null) {
-        totalDuration += duration;
-      }
-      // addActivityDetail(executions, activity);
+      totalDuration += entity.getDuration();
     }
 
     WorkflowRunInsight wfRunInsight = new WorkflowRunInsight();
