@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.common.entity.TaskRunEntity;
@@ -578,7 +579,7 @@ public class WorkflowWatcher {
               taskRun,
               MessageFormatter.format("The claimant {} is no longer registered.", dispatcherRef)
                   .getMessage(),
-              "DispatcherGone");
+              StatusReason.DISPATCHER_GONE);
         },
         (taskRun, ex) ->
             LOGGER.error(
@@ -602,7 +603,7 @@ public class WorkflowWatcher {
                         "The claimant {}'s lease expired.",
                         taskRun.getClaim() != null ? taskRun.getClaim().getBy() : null)
                     .getMessage(),
-                "LeaseExpired"),
+                StatusReason.LEASE_EXPIRED),
         (taskRun, ex) ->
             LOGGER.error("[{}] Lease-expiry reap failed: {}", taskRun.getId(), ex.getMessage()));
   }

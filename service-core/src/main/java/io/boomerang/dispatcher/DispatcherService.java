@@ -18,6 +18,7 @@ import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkspaceReleaseQuery;
 import io.boomerang.common.model.WorkspaceReleaseResponse;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.engine.ParameterManager;
@@ -287,7 +288,7 @@ public class DispatcherService {
       if (artifactService.fillLinkParams(taskRun) == ArtifactService.LinkOutcome.NOT_FOUND) {
         TaskRunEndRequest notFound = new TaskRunEndRequest();
         notFound.setStatus(RunStatus.succeeded);
-        notFound.setStatusReason("ArtifactNotFound");
+        notFound.setStatusReason(StatusReason.ARTIFACT_NOT_FOUND);
         notFound.setStatusMessage(
             "No artifact of that name is available; the download is optional.");
         notFound.setResults(List.of(new RunResult(ArtifactService.FOUND_RESULT, "false")));
@@ -298,7 +299,7 @@ public class DispatcherService {
     } catch (BoomerangException e) {
       TaskRunEndRequest refused = new TaskRunEndRequest();
       refused.setStatus(RunStatus.failed);
-      refused.setStatusReason("ArtifactRefused");
+      refused.setStatusReason(StatusReason.ARTIFACT_REFUSED);
       refused.setStatusMessage(artifactService.refusalMessage(e));
       taskRunService.end(taskRun.getId(), Optional.of(refused));
       return false;
@@ -419,7 +420,7 @@ public class DispatcherService {
       LOGGER.error("[{}] The claimed task could not be prepared for hand-out", claimed.getId(), e);
       TaskRunEndRequest failed = new TaskRunEndRequest();
       failed.setStatus(RunStatus.failed);
-      failed.setStatusReason("DispatchPrepareFailed");
+      failed.setStatusReason(StatusReason.DISPATCH_PREPARE_FAILED);
       failed.setStatusMessage("The task could not be prepared for its dispatcher: " + e.getMessage());
       taskRunService.end(claimed.getId(), Optional.of(failed));
       return null;
@@ -446,7 +447,7 @@ public class DispatcherService {
       LOGGER.error("[{}] The task's spec could not be filled in: {}", claimed.getId(), e.getMessage());
       TaskRunEndRequest failed = new TaskRunEndRequest();
       failed.setStatus(RunStatus.failed);
-      failed.setStatusReason("SpecFillFailed");
+      failed.setStatusReason(StatusReason.SPEC_FILL_FAILED);
       failed.setStatusMessage("The task's spec references could not be filled in at claim.");
       taskRunService.end(claimed.getId(), Optional.of(failed));
       return false;

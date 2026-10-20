@@ -10,6 +10,7 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.config.SecretValueMongoListener;
@@ -68,13 +69,6 @@ public class TaskRunService {
 
   // How far back the terminal termination page looks. See findClaimableForTermination.
   private static final long TERMINATION_LOOKBACK_MILLIS = 7L * 24 * 60 * 60 * 1000;
-
-  // Reasons a dispatcher gives when it could not START a task: the cluster refused it on quota,
-  // its pod never left Pending, or the runtime or a gateway behind it refused it for rate. Nothing
-  // ran, so the task is handed back for another attempt on any dispatcher, on the same budget as a
-  // timed-out claimant, and fails only once that is spent.
-  private static final Set<String> RETRYABLE_END_REASONS =
-      Set.of("ExceededQuota", "StartTimeout", "RateLimited");
 
   private final TaskExecutionService taskExecutionService;
   private final LogClient logClient;
@@ -708,7 +702,7 @@ public class TaskRunService {
         new Update()
             .set("status", RunStatus.timedout)
             .set("statusMessage", statusMessage)
-            .set("statusReason", "DeadlineExceeded")
+            .set("statusReason", StatusReason.DEADLINE_EXCEEDED)
             .unset("timeoutAt")
             .unset("claim.leaseExpiresAt");
     TaskRunEntity preImage =
@@ -1047,7 +1041,7 @@ public class TaskRunService {
                     + " bytes, exceeding the "
                     + resultsMaxBytes
                     + " byte cap. Pass large outputs by reference (workspace path or URI).");
-            taskRunEntity.setStatusReason("ResultsTooLarge");
+            taskRunEntity.setStatusReason(StatusReason.RESULTS_TOO_LARGE);
           }
           completeArtifactUpload(taskRunEntity);
           reportArtifactFound(taskRunEntity);
@@ -1067,13 +1061,15 @@ public class TaskRunService {
 
   /**
    * Requeue a task its dispatcher could not start, while its retry budget lasts, through the same
-   * fenced transition a timed-out claimant takes. Return false when the end must go ahead instead:
-   * any other reason, a type the engine does not requeue, a spent budget, or a lost race.
+   * fenced transition a timed-out claimant takes: the cluster refused it on quota, its pod never
+   * left Pending, or the runtime or a gateway behind it refused it for rate. Nothing ran, so it is
+   * handed back for another attempt on any dispatcher. Return false when the end must go ahead
+   * instead: any other reason, a type the engine does not requeue, a spent budget, or a lost race.
    */
   private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
     if (!RunStatus.failed.equals(request.getStatus())
         || request.getStatusReason() == null
-        || !RETRYABLE_END_REASONS.contains(request.getStatusReason())) {
+        || !StatusReason.REQUEUEABLE.contains(request.getStatusReason())) {
       return false;
     }
     int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
@@ -1109,7 +1105,7 @@ public class TaskRunService {
       artifacts.completeUpload(taskRunEntity);
     } catch (BoomerangException e) {
       taskRunEntity.setStatus(RunStatus.failed);
-      taskRunEntity.setStatusReason("ArtifactRefused");
+      taskRunEntity.setStatusReason(StatusReason.ARTIFACT_REFUSED);
       taskRunEntity.setStatusMessage(artifacts.refusalMessage(e));
     }
   }

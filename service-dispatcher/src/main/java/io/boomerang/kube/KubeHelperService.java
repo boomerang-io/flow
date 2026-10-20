@@ -3,6 +3,7 @@ package io.boomerang.kube;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
 import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
+import io.boomerang.dispatcher.sdk.StatusReason;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.executor.PodStart;
@@ -516,14 +517,14 @@ public class KubeHelperService {
 
   private String reasonFromContainerState(ContainerState state) {
     if (state.getTerminated() != null && "OOMKilled".equals(state.getTerminated().getReason())) {
-      return "OOMKilled";
+      return StatusReason.OOM_KILLED;
     }
     if (state.getWaiting() != null) {
       String reason = state.getWaiting().getReason();
       if ("ImagePullBackOff".equals(reason)
           || "ErrImagePull".equals(reason)
           || "InvalidImageName".equals(reason)) {
-        return "ImagePull";
+        return StatusReason.IMAGE_PULL;
       }
     }
     return null;

@@ -1,5 +1,6 @@
 package io.boomerang.executor;
 
+import io.boomerang.dispatcher.sdk.StatusReason;
 import io.boomerang.error.TaskExecutionException;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,14 +53,14 @@ public class PodStartWatch {
       failingSince = (failingSince == null) ? now : failingSince;
       if (!now.isBefore(failingSince.plus(failureGrace))) {
         return new TaskExecutionException(
-            imageFailure ? "ImagePull" : "DispatchError", reason + " - " + pod.message());
+            imageFailure ? StatusReason.IMAGE_PULL : StatusReason.DISPATCH_ERROR, reason + " - " + pod.message());
       }
     } else {
       failingSince = null;
     }
     if (!startDeadline.isZero() && !now.isBefore(createdAt.plus(startDeadline))) {
       return new TaskExecutionException(
-          "StartTimeout",
+          StatusReason.START_TIMEOUT,
           "StartTimeout - The Task did not start within "
               + startDeadline.toMinutes()
               + " minutes: "

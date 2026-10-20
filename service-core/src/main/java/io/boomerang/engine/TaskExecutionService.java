@@ -15,6 +15,7 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.common.model.ChildWorkflowRunCreated;
 import io.boomerang.common.model.ScheduleRequested;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -87,19 +88,13 @@ public class TaskExecutionService {
   public static final String WORKFLOWRUN_SETTINGS_KEY = "workflowrun";
   static final String MAX_NESTING_DEPTH = "max.nesting.depth";
   static final int DEFAULT_MAX_NESTING_DEPTH = 5;
-  static final String NESTING_DEPTH_EXCEEDED = "NestingDepthExceeded";
 
   // The foreach item cap, read from the same settings document, and the typed causes a foreach
   // task fails with. The cap is public because saving a workflow checks a literal item array
   // against it too.
   public static final String MAX_FOREACH_ITEMS = "max.foreach.items";
   public static final int DEFAULT_MAX_FOREACH_ITEMS = 256;
-  static final String FOREACH_ITEMS_INVALID = "ForeachItemsInvalid";
-  static final String FOREACH_TOO_MANY_ITEMS = "ForeachTooManyItems";
-  static final String ITEM_FAILED = "ItemFailed";
-  static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
   // The typed cause a task fails with at admission when a Flow reference does not resolve.
-  static final String PARAM_UNRESOLVED = "ParamUnresolved";
   // MongoDB's codes for a document that grows past its 16 MB limit: BSONObjectTooLarge, and an
   // update whose resulting document is too large.
   private static final Set<Integer> DOCUMENT_TOO_LARGE_CODES = Set.of(10334, 17419);
@@ -205,7 +200,7 @@ public class TaskExecutionService {
           paramManager.resolveParamLayers(wfRunEntity.get(), Optional.of(taskExecution));
       if (!unresolved.isEmpty()) {
         String message = ParameterManager.unresolvedMessage(taskExecution.getName(), unresolved);
-        if (taskRunService.tryReject(taskExecutionId, RunStatus.failed, PARAM_UNRESOLVED, message)
+        if (taskRunService.tryReject(taskExecutionId, RunStatus.failed, StatusReason.PARAM_UNRESOLVED, message)
             == null) {
           LOGGER.info("[{}] TaskRun already admitted or started. Not failing.", taskExecutionId);
           return;
@@ -637,10 +632,10 @@ public class TaskExecutionService {
     String reason = null;
     String message = null;
     if (items == null) {
-      reason = FOREACH_ITEMS_INVALID;
+      reason = StatusReason.FOREACH_ITEMS_INVALID;
       message = "The for-each items did not resolve to a JSON array.";
     } else if (items.size() > cap) {
-      reason = FOREACH_TOO_MANY_ITEMS;
+      reason = StatusReason.FOREACH_TOO_MANY_ITEMS;
       message =
           "The for-each items resolved to " + items.size() + " items, over the cap of " + cap + ".";
     }
@@ -779,7 +774,7 @@ public class TaskExecutionService {
           (failed == 0
               ? "All " + items.size() + " items succeeded."
               : failed + " of " + items.size() + " items did not succeed."),
-          (failed == 0 ? null : ITEM_FAILED),
+          (failed == 0 ? null : StatusReason.ITEM_FAILED),
           results);
     } catch (RuntimeException ex) {
       if (!isDocumentTooLarge(ex)) {
@@ -793,7 +788,7 @@ public class TaskExecutionService {
               + " (workspace path or URI).";
       LOGGER.error("[{}] {}", parentRef, message);
       taskRunService.tryRecordForeachOutcome(
-          parentRef, RunStatus.failed, message, RESULTS_TOO_LARGE, null);
+          parentRef, RunStatus.failed, message, StatusReason.RESULTS_TOO_LARGE, null);
     }
     self.end(parentRef);
   }
@@ -1095,7 +1090,7 @@ public class TaskExecutionService {
           "Child workflow nesting depth of "
               + cap
               + " reached; the child workflow was not submitted.");
-      taskExecution.setStatusReason(NESTING_DEPTH_EXCEEDED);
+      taskExecution.setStatusReason(StatusReason.NESTING_DEPTH_EXCEEDED);
       taskExecution.setStatus(RunStatus.failed);
       return true;
     }

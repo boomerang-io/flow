@@ -90,7 +90,7 @@ public final class ArtifactTransfer {
       put(Files.size(file), contentType, out -> Files.copy(file, out));
     } catch (IOException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "Artifact upload failed: " + e.getMessage(), e);
+          StatusReason.DISPATCH_ERROR, "Artifact upload failed: " + e.getMessage(), e);
     }
   }
 
@@ -117,7 +117,7 @@ public final class ArtifactTransfer {
       return Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
     } catch (IOException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "Artifact download failed: " + e.getMessage(), e);
+          StatusReason.DISPATCH_ERROR, "Artifact download failed: " + e.getMessage(), e);
     } finally {
       deleteQuietly(temp);
     }
@@ -147,14 +147,14 @@ public final class ArtifactTransfer {
           .toBodilessEntity();
     } catch (RestClientResponseException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR,
+          StatusReason.DISPATCH_ERROR,
           "Artifact upload failed with status "
               + e.getStatusCode().value()
               + ": "
               + truncated(e.getResponseBodyAsString()));
     } catch (RestClientException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "Artifact upload failed: " + e.getMessage(), e);
+          StatusReason.DISPATCH_ERROR, "Artifact upload failed: " + e.getMessage(), e);
     }
   }
 
@@ -164,7 +164,7 @@ public final class ArtifactTransfer {
     Map<String, String> headers = headers();
     if (sha256() == null || sha256().isBlank()) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "The parameter 'sha256' is not defined or empty");
+          StatusReason.DISPATCH_ERROR, "The parameter 'sha256' is not defined or empty");
     }
     try {
       return http.get()
@@ -174,7 +174,7 @@ public final class ArtifactTransfer {
               (request, response) -> {
                 if (!response.getStatusCode().is2xxSuccessful()) {
                   throw new TaskFailure(
-                      TaskFailure.DISPATCH_ERROR,
+                      StatusReason.DISPATCH_ERROR,
                       "Artifact download failed with status "
                           + response.getStatusCode().value()
                           + ": "
@@ -188,7 +188,7 @@ public final class ArtifactTransfer {
               });
     } catch (RestClientException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "Artifact download failed: " + e.getMessage(), e);
+          StatusReason.DISPATCH_ERROR, "Artifact download failed: " + e.getMessage(), e);
     }
   }
 
@@ -196,7 +196,7 @@ public final class ArtifactTransfer {
     String expected = sha256().toLowerCase(Locale.ROOT);
     if (!expected.equals(actual)) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR,
+          StatusReason.DISPATCH_ERROR,
           "SHA-256 mismatch: expected " + expected + ", got " + actual);
     }
   }
@@ -205,7 +205,7 @@ public final class ArtifactTransfer {
     String url = param("url");
     if (url == null || url.isBlank()) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "The parameter 'url' is not defined or empty");
+          StatusReason.DISPATCH_ERROR, "The parameter 'url' is not defined or empty");
     }
     // A URI, never a template: the link is signed and must reach the store byte for byte.
     return URI.create(url);
@@ -224,7 +224,7 @@ public final class ArtifactTransfer {
                   : WireFormat.JSON.readValue(value.toString(), HEADERS);
     } catch (JacksonException | IllegalArgumentException e) {
       throw new TaskFailure(
-          TaskFailure.DISPATCH_ERROR, "The parameter 'headers' is not a JSON object");
+          StatusReason.DISPATCH_ERROR, "The parameter 'headers' is not a JSON object");
     }
     Map<String, String> headers = new LinkedHashMap<>();
     parsed.forEach((name, header) -> headers.put(name, String.valueOf(header)));

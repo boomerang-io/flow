@@ -6,6 +6,7 @@ import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
 import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
+import io.boomerang.dispatcher.sdk.StatusReason;
 import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
@@ -399,7 +400,7 @@ public class KubeJobsExecutor implements TaskExecutor {
       while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
         if (Instant.now().isAfter(deadline)) {
           throw new TaskExecutionException(
-              "DeadlineExceeded", "JobTimeout - Job timed out while waiting for completion.");
+              StatusReason.DEADLINE_EXCEEDED, "JobTimeout - Job timed out while waiting for completion.");
         }
         // The watch is the fast path; this poll is the reconcile that catches whatever the watch
         // missed - a dropped connection, or a state transition that happened before the watch was
@@ -461,19 +462,19 @@ public class KubeJobsExecutor implements TaskExecutor {
     String detail = helperKubeService.failureDetail(client, taskLabels);
     String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason)) {
-      return new TaskExecutionException("DeadlineExceeded", results, text);
+      return new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, results, text);
     }
     if ("JobDeleted".equals(reason)) {
-      return new TaskExecutionException("JobDeleted", results, text);
+      return new TaskExecutionException(StatusReason.JOB_DELETED, results, text);
     }
     String podReason = helperKubeService.getPodFailureReason(client, taskLabels);
-    if ("OOMKilled".equals(podReason)) {
-      return new TaskExecutionException("OOMKilled", results, text);
+    if (StatusReason.OOM_KILLED.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.OOM_KILLED, results, text);
     }
-    if ("ImagePull".equals(podReason)) {
-      return new TaskExecutionException("ImagePull", results, text);
+    if (StatusReason.IMAGE_PULL.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.IMAGE_PULL, results, text);
     }
-    return new TaskExecutionException("JobFailed", results, text);
+    return new TaskExecutionException(StatusReason.JOB_FAILED, results, text);
   }
 
   /**
@@ -496,14 +497,14 @@ public class KubeJobsExecutor implements TaskExecutor {
   private List<RunResult> readResults(Map<String, String> taskLabels, List<RunResult> declaredResults) {
     String message = getTerminationMessage(taskLabels);
     if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
-      throw new TaskExecutionException("ResultsTooLarge", RESULTS_TOO_LARGE_MESSAGE);
+      throw new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, RESULTS_TOO_LARGE_MESSAGE);
     }
     Optional<List<RunResult>> parsed = TerminationMessageParser.parse(message, declaredResults);
     if (parsed.isPresent()) {
       return parsed.get();
     }
     if (message.length() >= TERMINATION_MESSAGE_MAX_BYTES) {
-      throw new TaskExecutionException("ResultsTooLarge", RESULTS_TOO_LARGE_MESSAGE);
+      throw new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, RESULTS_TOO_LARGE_MESSAGE);
     }
     LOGGER.warn(
         "Termination message is not a Result Parameter payload ({} bytes); no Results recorded.",
