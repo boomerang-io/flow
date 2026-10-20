@@ -142,6 +142,9 @@ tag's release notes.
 
 ### Changed
 
+- The run annotations the engine decides on (`boomerang.io/*`: the owning workspace and the task defaults) are the
+  server's. A submit or start request that sends one has it dropped, and a retry is given them from the task
+  settings and its workspace as they stand now, so a retry of a run migrated from v3 gets the default image.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
   is still published to GitHub Packages.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.

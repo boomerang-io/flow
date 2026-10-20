@@ -732,7 +732,10 @@ public class WorkflowRunService {
       if (optRunRequest.isPresent()) {
         logPayload(optRunRequest.get());
         wfRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
-        wfRunEntity.getAnnotations().putAll(optRunRequest.get().getAnnotations());
+        // A start never sets the annotations the engine decides on; only the server stamps those.
+        optRunRequest.get().getAnnotations().entrySet().stream()
+            .filter(e -> !e.getKey().startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX))
+            .forEach(e -> wfRunEntity.getAnnotations().put(e.getKey(), e.getValue()));
         wfRunEntity.setParams(
             ParameterUtil.addUniqueParams(
                 wfRunEntity.getParams(),
@@ -878,6 +881,13 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
+        // The task defaults and workspace are stamped as they stand now, like the ceiling below:
+        // an origin migrated from v3 carries none, and a retry must not inherit stale ones.
+        wfRunEntity
+            .getAnnotations()
+            .keySet()
+            .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
+        wfRunEntity.getAnnotations().putAll(paramLayerService.executionAnnotations(ownerName));
         quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
         long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
