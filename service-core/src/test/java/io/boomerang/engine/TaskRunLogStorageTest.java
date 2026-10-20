@@ -130,6 +130,9 @@ class TaskRunLogStorageTest extends AbstractEngineIntegrationTest {
     dispatcherRoute.start();
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId("trlog-live-" + System.nanoTime());
+    // Name and host are the registration's unique key, so each test's dispatcher needs its own.
+    dispatcher.setName(dispatcher.getId());
+    dispatcher.setHost("trlog");
     dispatcher.setLogsUrl(
         "http://127.0.0.1:" + dispatcherRoute.getAddress().getPort() + "/logs/stream");
     dispatcherRepository.save(dispatcher);
