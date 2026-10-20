@@ -155,19 +155,10 @@ public class WorkflowExecutionService {
     cancelPendingAndRunningTasks(workflowExecution);
   }
 
+  // The timeout off the caller's thread: timeoutWorkflow's one Compare-And-Set decides it.
   @Async("asyncWorkflowExecutor")
   public void timeout(String wfRunId, String statusMessage) {
-    // Re-read at entry so the transition acts on fresh state, not a caller's snapshot.
-    WorkflowRunEntity workflowExecution = workflowRunRepository.findById(wfRunId).orElse(null);
-    if (workflowExecution == null) {
-      LOGGER.error("[{}] Unable to find WorkflowRun to timeout.", wfRunId);
-      return;
-    }
-    if (RunStatus.timedout.equals(workflowExecution.getStatus())
-        || (!Objects.isNull(workflowExecution.getTimeout())
-            && workflowExecution.getTimeout() != 0)) {
-      timeoutWorkflow(workflowExecution.getId(), statusMessage);
-    }
+    timeoutWorkflow(wfRunId, statusMessage);
   }
 
   private Supplier<Boolean> executeWorkflowAsync(
@@ -273,7 +264,9 @@ public class WorkflowExecutionService {
     }
   }
 
-  private void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
+  // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
+  // running and queued ones are ended, pending ones queued so the admission gate skips them.
+  void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
     // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
     // stored set is the graph; the revision is only needed to materialise a task that does not
     // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
@@ -293,7 +286,7 @@ public class WorkflowExecutionService {
         tasks.stream()
             .filter(t -> RunPhase.running.equals(t.getPhase()) || RunPhase.queued.equals(t.getPhase()))
             .toList();
-    LOGGER.info("Timeout - # of Running/Queued Tasks: " + inFlightTasks.size());
+    LOGGER.info("[{}] Ending {} running or queued TaskRuns.", wfRunEntity.getId(), inFlightTasks.size());
     if (inFlightTasks.size() > 0) {
       inFlightTasks.forEach(
           t -> {
@@ -304,7 +297,7 @@ public class WorkflowExecutionService {
     // trapped by queue task before task order is checked
     List<TaskRunEntity> pendingTasks =
         tasks.stream().filter(t -> RunPhase.pending.equals(t.getPhase())).toList();
-    LOGGER.info("Timeout - # of Pending Tasks: " + pendingTasks.size());
+    LOGGER.info("[{}] Skipping {} pending TaskRuns.", wfRunEntity.getId(), pendingTasks.size());
     if (pendingTasks.size() > 0) {
       pendingTasks.forEach(
           t -> {

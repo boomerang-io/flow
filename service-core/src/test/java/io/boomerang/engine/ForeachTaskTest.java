@@ -39,6 +39,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -251,9 +252,9 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   }
 
   /*
-   * A lost end after the outcome is recorded: the parent holds a terminal status in the running
-   * phase. The recovery ends it, and a second pass is a no-op, so the task after it runs exactly
-   * once - one approval record.
+   * A parent an earlier engine left with its outcome recorded but never ended: a terminal status in
+   * the running phase. The recovery ends it, and a second pass is a no-op, so the task after it
+   * runs exactly once - one approval record.
    */
   @Test
   void recoveryEndsAParentWhoseOutcomeIsRecordedButWasNeverEnded() {
@@ -263,12 +264,13 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     TaskRunEntity parent = savedCrashedParent(wfRun, List.of("x"));
     TaskRunEntity gate = savedGateAfterParent(wfRun);
     savedItem(parent, 0, RunStatus.succeeded, RunPhase.completed, "found-x");
-    taskRunService.tryRecordForeachOutcome(
-        parent.getId(),
-        RunStatus.succeeded,
-        "All 1 items succeeded.",
-        null,
-        List.of(new RunResult("found", List.of("found-x"))));
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(parent.getId())),
+        new Update()
+            .set("status", RunStatus.succeeded)
+            .set("statusMessage", "All 1 items succeeded.")
+            .set("results", List.of(new RunResult("found", List.of("found-x")))),
+        TaskRunEntity.class);
 
     workflowWatcher.recoverForeachTasks();
     workflowWatcher.recoverForeachTasks();

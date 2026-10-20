@@ -89,9 +89,8 @@ public class WorkflowRunStateHelper {
             .set("claim.by", claimedBy)
             .set("claim.at", now)
             .inc("claim.seq", 1);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
+    WorkflowRunEntity preImage = cas(query, update, null, RunPhase.queued);
     if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.queued);
       // Return the pre-image with the claim transition applied - the caller ships this to the
       // agent, so it must reflect the post-claim phase and owner, not the stale pre-claim values.
       preImage.setPhase(RunPhase.queued);
@@ -127,11 +126,7 @@ public class WorkflowRunStateHelper {
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");
-    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
-    if (preImage != null) {
-      publish(preImage, preImage.getStatus(), RunPhase.pending);
-    }
-    return preImage;
+    return cas(provisionClaimed(id, observedSeq), update, null, RunPhase.pending);
   }
 
   // Fail a run whose provisioning attempts are spent, fenced like the release.
@@ -142,11 +137,7 @@ public class WorkflowRunStateHelper {
             .set("phase", RunPhase.completed)
             .set("statusMessage", statusMessage)
             .set("duration", 0L);
-    WorkflowRunEntity preImage = findAndModifyPreImage(provisionClaimed(id, observedSeq), update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.failed, RunPhase.completed);
-    }
-    return preImage;
+    return cas(provisionClaimed(id, observedSeq), update, RunStatus.failed, RunPhase.completed);
   }
 
   private static Query provisionClaimed(String id, long observedSeq) {
@@ -171,11 +162,7 @@ public class WorkflowRunStateHelper {
                 .and("phase")
                 .is(RunPhase.pending));
     Update update = new Update().set("status", RunStatus.ready).set("params", secretValues.sealRunParams(resolvedParams));
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.ready, preImage.getPhase());
-    }
-    return preImage;
+    return cas(query, update, RunStatus.ready, null);
   }
 
   public WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes) {
@@ -195,11 +182,10 @@ public class WorkflowRunStateHelper {
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     }
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
+    WorkflowRunEntity preImage = cas(query, update, RunStatus.running, RunPhase.running);
     if (preImage == null) {
       return null;
     }
-    publish(preImage, RunStatus.running, RunPhase.running);
     // Return the pre-image with the transition applied - the caller executes on the new state.
     preImage.setStatus(RunStatus.running);
     preImage.setPhase(RunPhase.running);
@@ -226,21 +212,7 @@ public class WorkflowRunStateHelper {
     if (statusMessage != null) {
       update.set("statusMessage", statusMessage);
     }
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, status, RunPhase.completed);
-    }
-    return preImage;
-  }
-
-  public WorkflowRunEntity tryMarkTimedOut(String id) {
-    Query query = Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
-    Update update = new Update().set("status", RunStatus.timedout);
-    WorkflowRunEntity preImage = findAndModifyPreImage(query, update);
-    if (preImage != null) {
-      publish(preImage, RunStatus.timedout, preImage.getPhase());
-    }
-    return preImage;
+    return cas(query, update, status, RunPhase.completed);
   }
 
   // Pause Compare-And-Set: a running, not-yet-paused run gains the flag. Returns whether this
@@ -398,10 +370,19 @@ public class WorkflowRunStateHelper {
   }
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
-  // matches, returning the pre-image (null = another caller won, so the caller does nothing).
-  private WorkflowRunEntity findAndModifyPreImage(Query query, Update update) {
-    return mongoTemplate.findAndModify(
-        query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+  // matches and publish the transition. Returns the pre-image, or null when another caller won, so
+  // the caller does nothing. A null target status or phase is the pre-image's, unchanged.
+  private WorkflowRunEntity cas(Query query, Update update, RunStatus toStatus, RunPhase toPhase) {
+    WorkflowRunEntity preImage =
+        mongoTemplate.findAndModify(
+            query, update, FindAndModifyOptions.options().returnNew(false), WorkflowRunEntity.class);
+    if (preImage != null) {
+      publish(
+          preImage,
+          (toStatus != null) ? toStatus : preImage.getStatus(),
+          (toPhase != null) ? toPhase : preImage.getPhase());
+    }
+    return preImage;
   }
 
   private void publish(WorkflowRunEntity preImage, RunStatus toStatus, RunPhase toPhase) {

@@ -78,6 +78,7 @@ public class WorkflowWatcher {
   private final WorkflowRepository workflowRepository;
   private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskExecutionService taskExecutionService;
+  private final WorkflowExecutionService workflowExecutionService;
   private final WorkflowRunService workflowRunService;
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final ActionRepository actionRepository;
@@ -104,6 +105,7 @@ public class WorkflowWatcher {
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
       TaskExecutionService taskExecutionService,
+      WorkflowExecutionService workflowExecutionService,
       WorkflowRunService workflowRunService,
       WorkflowRunStateHelper workflowRunStateHelper,
       ActionRepository actionRepository,
@@ -115,6 +117,7 @@ public class WorkflowWatcher {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskExecutionService = taskExecutionService;
+    this.workflowExecutionService = workflowExecutionService;
     this.workflowRunService = workflowRunService;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.actionRepository = actionRepository;
@@ -202,28 +205,15 @@ public class WorkflowWatcher {
   public void reapTaskTimeouts() {
     SweepRunner.forEachIsolated(
         taskRunService.findReapable(new Date(), PAGE_SIZE),
-        taskRun -> {
-          Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
-          int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
-          if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
-            if (taskRunService.tryRequeue(
-                    taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
-                != null) {
-              LOGGER.info(
-                  "[{}] TaskRun timed out. Requeued as attempt {}.", taskRun.getId(), attempts + 1);
-            }
-          } else if (taskRunService.tryTimeout(
-                  taskRun.getId(),
-                  observedSeq,
-                  MessageFormatter.format(
-                          "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
-                          taskRun.getTimeout())
-                      .getMessage())
-              != null) {
-            LOGGER.info("[{}] TaskRun timed out. Retry budget exhausted.", taskRun.getId());
-            taskExecutionService.end(taskRun.getId());
-          }
-        },
+        taskRun ->
+            requeueOrAbandon(
+                taskRun,
+                MessageFormatter.format(
+                        "The TaskRun exceeded the timeout. Timeout was set to {} minutes",
+                        taskRun.getTimeout())
+                    .getMessage(),
+                StatusReason.DEADLINE_EXCEEDED,
+                true),
         (taskRun, ex) ->
             LOGGER.error("[{}] Task timeout reap failed: {}", taskRun.getId(), ex.getMessage()));
   }
@@ -381,26 +371,11 @@ public class WorkflowWatcher {
                 "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
                 wfRun.getId(),
                 wfRun.getWorkflowRevisionRef());
-            windDownTasks(wfRun.getId());
+            workflowExecutionService.cancelPendingAndRunningTasks(wfRun);
           }
         },
         (wfRun, ex) ->
             LOGGER.error("[{}] Missing-revision reap failed: {}", wfRun.getId(), ex.getMessage()));
-  }
-
-  // Wind down the stored TaskRuns of a run just completed here: a pending one is queued so the
-  // admission gate skips it, anything else is ended - both settle against the completed run.
-  private void windDownTasks(String wfRunId) {
-    taskRunService
-        .findNonTerminalByWorkflowRunRef(wfRunId)
-        .forEach(
-            t -> {
-              if (RunPhase.pending.equals(t.getPhase())) {
-                taskExecutionService.queue(t.getId());
-              } else {
-                taskExecutionService.end(t.getId());
-              }
-            });
   }
 
   /**
@@ -434,7 +409,7 @@ public class WorkflowWatcher {
                 "[{}] Workspace provisioning did not complete after {} attempts. Run failed.",
                 wfRun.getId(),
                 attempts);
-            windDownTasks(wfRun.getId());
+            workflowExecutionService.cancelPendingAndRunningTasks(wfRun);
           }
         },
         (wfRun, ex) ->
@@ -460,7 +435,8 @@ public class WorkflowWatcher {
               taskRun,
               MessageFormatter.format("The claimant {} is no longer registered.", dispatcherRef)
                   .getMessage(),
-              StatusReason.DISPATCHER_GONE);
+              StatusReason.DISPATCHER_GONE,
+              false);
         },
         (taskRun, ex) ->
             LOGGER.error(
@@ -484,16 +460,20 @@ public class WorkflowWatcher {
                         "The claimant {}'s lease expired.",
                         taskRun.getClaim() != null ? taskRun.getClaim().getBy() : null)
                     .getMessage(),
-                StatusReason.LEASE_EXPIRED),
+                StatusReason.LEASE_EXPIRED,
+                false),
         (taskRun, ex) ->
             LOGGER.error("[{}] Lease-expiry reap failed: {}", taskRun.getId(), ex.getMessage()));
   }
 
-  // Shared crash-recovery treatment for a TaskRun whose claimant is confirmed gone (dispatcher
-  // deregistered/stale, or its lease lapsed): a requeueable task with retry budget left is
-  // requeued for another attempt; otherwise it is abandoned (terminal timedout) and driven
-  // through the normal end path. statusReason records which of the two triggered the reap.
-  private void requeueOrAbandon(TaskRunEntity taskRun, String statusMessage, String statusReason) {
+  // Shared treatment for a TaskRun past its deadline or whose claimant is confirmed gone
+  // (dispatcher deregistered/stale, or its lease lapsed): a requeueable task with retry budget left
+  // is requeued for another attempt; otherwise it is abandoned (terminal timedout) and driven
+  // through the normal end path. statusReason records which reap triggered it; pastDeadline makes
+  // the abandon hold only while timeoutAt has elapsed. Both transitions are fenced on the observed
+  // claim seq, so a claim racing the reap wins.
+  private void requeueOrAbandon(
+      TaskRunEntity taskRun, String statusMessage, String statusReason, boolean pastDeadline) {
     Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
     int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
     if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
@@ -503,7 +483,8 @@ public class WorkflowWatcher {
         LOGGER.info(
             "[{}] {} Requeued as attempt {}.", taskRun.getId(), statusMessage, attempts + 1);
       }
-    } else if (taskRunService.tryAbandon(taskRun.getId(), observedSeq, statusMessage, statusReason)
+    } else if (taskRunService.tryAbandon(
+            taskRun.getId(), observedSeq, statusMessage, statusReason, pastDeadline)
         != null) {
       LOGGER.info("[{}] {} Retry budget exhausted.", taskRun.getId(), statusMessage);
       taskExecutionService.end(taskRun.getId());
