@@ -22,7 +22,7 @@ task runs only by name, within one workflow (`WorkflowRunInsightService.workflow
 A, with percentiles computed in Java by the nearest-rank method the summary already uses
 (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunInsightService.java:636`). One aggregation streams a
 small document per counted task run, with its labels and the usage results an `ai` task reports, on the
-`workflowRunRef`-first index (`:375`), and rows, buckets, spans and usage are tallied as it streams (`:187`). Model
+`workflowRunRef`-first index (`:375`), and rows, buckets, spans and usage are tallied as it streams (`:188`). Model
 and agent are labels the server sets (decision 0131). The webapp reads the route only once a grouping is chosen.
 
 ## Consequences
