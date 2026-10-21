@@ -121,7 +121,7 @@ public class WorkflowExecutionService {
           wfRunEntity.getPhase(),
           RunPhase.pending + " or " + RunPhase.queued);
     }
-    final List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.getId());
+    final List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunEntity.getId());
     final TaskRunEntity start = dagUtility.getTaskByType(tasks, TaskType.start);
     final TaskRunEntity end = dagUtility.getTaskByType(tasks, TaskType.end);
     final Graph<String, DefaultEdge> graph = dagUtility.createGraph(tasks);

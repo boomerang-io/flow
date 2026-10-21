@@ -121,10 +121,23 @@ public class DAGUtility {
     return GraphProcessor.createGraph(vertices, edgeList);
   }
 
-  // The graph's vertices only: a foreach task's items are never vertices, its parent stands for
-  // them.
-  public List<TaskRunEntity> retrieveTaskList(String wfRunId) {
-    return taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(wfRunId);
+  /**
+   * Return the run's graph: its TaskRuns without a parent, holding only the fields the graph reads.
+   * A foreach task's items are never vertices, its parent stands for them. Status is read live when
+   * the graph is walked. The result is never saved - a save would drop every field left out.
+   */
+  public List<TaskRunEntity> retrieveGraph(String wfRunId) {
+    Query query =
+        Query.query(Criteria.where("workflowRunRef").is(wfRunId).and("parentRef").is(null));
+    query
+        .fields()
+        .include("name")
+        .include("type")
+        .include("dependencies")
+        .include("phase")
+        .include("foreach")
+        .include("workflowRunRef");
+    return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
   // TODO: determine a better way to handle the start and end task without saving them as a
@@ -137,7 +150,7 @@ public class DAGUtility {
     // One fetch of the run's existing TaskRuns keyed by name - the (workflowRunRef, name) unique
     // index guarantees one per name, so no per-task find-first query is needed.
     final Map<String, TaskRunEntity> existingByName =
-        retrieveTaskList(wfRunEntity.getId()).stream()
+        taskRunRepository.findByWorkflowRunRefAndParentRefIsNull(wfRunEntity.getId()).stream()
             .collect(Collectors.toMap(TaskRunEntity::getName, t -> t, (a, b) -> a));
     for (final WorkflowTask wfRevisionTask : wfRevisionEntity.getTasks()) {
       TaskRunEntity existingTaskRunEntity = existingByName.get(wfRevisionTask.getName());

@@ -46,6 +46,8 @@ class TaskOutcomeCompletionTest extends AbstractEngineIntegrationTest {
     assertEquals(RunPhase.completed, after.getPhase());
     List<TaskRunTransition> transitions = transitionsOf(task.getId());
     assertEquals(1, transitions.size(), "one transition for the skip");
+    assertEquals(task.getWorkflowRunRef(), transitions.get(0).workflowRunRef());
+    assertEquals(TaskType.template, transitions.get(0).type());
     assertEquals(RunStatus.notstarted, transitions.get(0).fromStatus());
     assertEquals(RunPhase.pending, transitions.get(0).fromPhase());
     assertEquals(RunStatus.skipped, transitions.get(0).toStatus());

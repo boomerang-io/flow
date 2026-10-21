@@ -72,7 +72,7 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per the TaskRun's
 `spec.deletion` (`:61-63,102-105,129-131`). The engine always sets it from the admin "Deletion Policy"
 (`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:627-629`,
-`engine/DAGUtility.java:290-298`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
+`engine/DAGUtility.java:305`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
 (`kube/KubeLogService.java:54-63`) and go with it. The delete runs off the dispatch thread, through a self proxy to
 an `@Async` method, after a one-second grace (`:39,142-151`).
 
@@ -88,7 +88,7 @@ warns and the next tick asks again.
 
 The timeout the TaskRun arrives with is settled by the engine, not here: it is the smallest of the platform
 setting, the task's own declared timeout, and the run's timeout, with 0 meaning unguarded
-(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:220-241`). The seed ships the
+(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:233-254`). The seed ships the
 platform setting (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting
 is an optional operator ceiling for capping one pod inside a long-running graph; a TaskRun that reaches the
 dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.
