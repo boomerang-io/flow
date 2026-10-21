@@ -45,7 +45,7 @@ beforeEach(() => {
 // the loader that fetches the workspace record, with one child route per tab. Members stays the
 // index route at the bare `/:workspace/manage` path.
 // The Manage tabs' write controls are gated on the caller's own `workspace/write` grant for THIS
-// workspace (WorkspaceDetailed.tsx), not on a feature flag alone - since decision 0031 a caller
+// workspace (WorkspaceDetailed.tsx), not on a feature flag alone - a caller
 // without it gets a real 403 from every endpoint those controls post to. The shared `profile`
 // fixture predates resolved permissions and carries none, so each render says which grant the
 // signed-in user holds; `platformAdmin` is what the pre-existing tests below assume (an admin's

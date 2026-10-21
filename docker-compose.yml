@@ -175,7 +175,7 @@ services:
     # and a restart covers a start before service-core is up.
     restart: unless-stopped
     healthcheck:
-      # The image has no shell or wget (decision 0108); the probe is the compiled docker/health/Health.java.
+      # The image has no shell or wget; the probe is the compiled docker/health/Health.java.
       test: ["CMD", "java", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7702/health"]
       interval: 10s
       timeout: 5s
@@ -220,7 +220,7 @@ services:
       seaweedfs-init:
         condition: service_completed_successfully
     healthcheck:
-      # The image has no shell or wget (decision 0108); the probe is the compiled docker/health/Health.java.
+      # The image has no shell or wget; the probe is the compiled docker/health/Health.java.
       test: ["CMD", "java", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7700/health"]
       interval: 5s
       timeout: 5s

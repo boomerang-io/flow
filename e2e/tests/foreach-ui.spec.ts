@@ -3,7 +3,7 @@ import { APP_BASENAME, createWorkspace, uniqueName } from "../support/api";
 import { createWorkflowFromSpec, describe, result, submitAndStart, task, waitForRun } from "../support/dispatcher";
 
 /*
- * The For each journey in the editor (decision 0083): the palette's "For each" entry, the
+ * The For each journey in the editor: the palette's "For each" entry, the
  * "Repeat a task for each item" dialog, the task form's Parameters | Configure tabs, the canvas
  * badge surviving a save and reload (the backend's canvas conversion carries foreach both ways),
  * and the run view grouping items under their task. Gated like the other dispatcher suites.

@@ -62,7 +62,7 @@ receives `ai` claims and nothing else, so every pod it creates is the AI worker 
 configured endpoint. Run it in a namespace whose egress policy allows that endpoint and nothing
 else, and set the general deployment to `template,custom,script` (dropping `ai`): no other task type
 can then reach the AI network path, and no AI task can run outside it. This is the same shape as the
-isolation tier (decision 0042) — one property per deployment, a second deployment for a second
+isolation tier — one property per deployment, a second deployment for a second
 zone — and needs no per-task field or routing rule, because the engine already routes claims by
 registered task type.
 
@@ -86,7 +86,7 @@ at all — never an empty quantity, never a zero limit — so a deployment can r
 limit, or with nothing at all, in which case the container carries no resources block. CPU ships blank on purpose:
 a CPU limit throttles a task rather than failing it, so an operator opts in.
 
-Sizing is per deployment, not per task — the same shape as the isolation tier (decision 0042). A workload that
+Sizing is per deployment, not per task — the same shape as the isolation tier. A workload that
 needs a bigger container runs a second dispatcher deployment with its own task types.
 
 A memory-backed `/data` (`kube.task.storage.data.memory` plus the task's `worker.storage.data.memory` param) is a

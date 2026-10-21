@@ -153,7 +153,7 @@ function WorkspaceDetailedContainer() {
 
   // The write controls on these tabs all post to endpoints guarded by `workspace/write` scoped to
   // this workspace (WorkspaceControllerV2's PATCH and the members/approvers/quotas/parameters
-  // mappings). Since decision 0031 a caller without that grant gets a real 403, so a reader-role
+  // mappings). A caller without that grant gets a real 403, so a reader-role
   // member must see the tabs read-only rather than be shown controls that fail on submit. The
   // feature flag and the workspace status stay as they were - they say whether workspace
   // management is switched on at all and whether this workspace is editable; the grant says
