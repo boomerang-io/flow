@@ -238,8 +238,8 @@ public class ParameterManager {
     if (optTaskRun.isPresent()) {
       optTaskRun.get().setParams(runParams);
       // The spec is checked now, against the params just resolved, so a reference that would not
-      // fill in at claim fails the task here instead.
-      fillSpec(wfRun, optTaskRun.get(), unresolved);
+      // fill in at claim fails the task here instead. It shares the params' upstream lookups.
+      fillSpec(wfRun, optTaskRun.get(), unresolved, upstream);
     } else {
       wfRun.setParams(runParams);
     }
@@ -296,7 +296,7 @@ public class ParameterManager {
    */
   public TaskRunSpec fillSpec(WorkflowRunEntity wfRun, TaskRunEntity taskRun) {
     Map<String, Set<String>> unresolved = new LinkedHashMap<>();
-    TaskRunSpec filled = fillSpec(wfRun, taskRun, unresolved);
+    TaskRunSpec filled = fillSpec(wfRun, taskRun, unresolved, new Upstream());
     if (!nonEmpty(unresolved).isEmpty()) {
       throw new IllegalStateException(unresolvedMessage(taskRun.getName(), unresolved));
     }
@@ -304,7 +304,10 @@ public class ParameterManager {
   }
 
   private TaskRunSpec fillSpec(
-      WorkflowRunEntity wfRun, TaskRunEntity taskRun, Map<String, Set<String>> unresolved) {
+      WorkflowRunEntity wfRun,
+      TaskRunEntity taskRun,
+      Map<String, Set<String>> unresolved,
+      Upstream upstream) {
     TaskRunSpec filled = copySpec(taskRun.getSpec());
     if (filled == null) {
       return null;
@@ -314,7 +317,7 @@ public class ParameterManager {
         filled,
         wfRun.getId(),
         new Layers(layers.paramLayers(), layers.suppliedParams(), true, layers.revision()),
-        new Upstream(),
+        upstream,
         unresolved);
     return filled;
   }

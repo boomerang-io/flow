@@ -936,30 +936,20 @@ public class TaskService {
     if (wanted.isEmpty()) {
       return Map.of();
     }
+    // The revisions hang off the TaskEntity id, which is the taskRef itself, and are deleted before
+    // their task (delete), so a revision found here belongs to a task that exists.
     Set<String> taskRefs = wanted.stream().map(TaskRef::ref).collect(Collectors.toSet());
-    // The revisions hang off the TaskEntity id, which is the taskRef itself.
-    Map<String, String> parentRefByTaskRef =
-        taskRepository.findAllById(taskRefs).stream()
-            .collect(Collectors.toMap(TaskEntity::getId, TaskEntity::getId, (a, b) -> a));
-    if (parentRefByTaskRef.isEmpty()) {
-      return Map.of();
-    }
     Map<String, TaskRevisionEntity> revisions =
         taskRevisionRepository
             .findByParentRefInAndVersionIn(
-                Set.copyOf(parentRefByTaskRef.values()),
-                wanted.stream().map(TaskRef::version).collect(Collectors.toSet()))
+                taskRefs, wanted.stream().map(TaskRef::version).collect(Collectors.toSet()))
             .stream()
             .collect(
                 Collectors.toMap(
                     r -> revisionKey(r.getParentRef(), r.getVersion()), r -> r, (a, b) -> a));
     Map<TaskRef, TaskSpec> specs = new HashMap<>();
     for (TaskRef ref : wanted) {
-      String parentRef = parentRefByTaskRef.get(ref.ref());
-      if (parentRef == null) {
-        continue;
-      }
-      TaskRevisionEntity revision = revisions.get(revisionKey(parentRef, ref.version()));
+      TaskRevisionEntity revision = revisions.get(revisionKey(ref.ref(), ref.version()));
       if (revision != null && revision.getSpec() != null) {
         specs.put(ref, revision.getSpec());
       }
