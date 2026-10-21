@@ -15,6 +15,8 @@ import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.DatabaseCommands;
@@ -24,6 +26,7 @@ import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,8 +35,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The database commands each dispatcher request makes on the request's own thread, for one task
- * taken through claim, start, heartbeat and end - the cost the dispatcher integration puts on
- * MongoDB. Work a request hands to another thread (the execute after a start, the queueing after
+ * taken through claim, start, heartbeat and a mid-graph end - the cost the dispatcher integration
+ * puts on MongoDB. Work a request hands to another thread (the execute after a start, the queueing after
  * an end) is not counted. A change to these paths updates the expected lists here, so every saving
  * - or regression - is visible in review.
  */
@@ -49,14 +52,24 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
   @Autowired private ParamLayerService paramLayerService;
 
   @Test
-  void oneTaskThroughClaimStartHeartbeatAndEnd() {
+  void aTaskThroughClaimStartHeartbeatAndAMidGraphEnd() {
     setFeatureSetting("workspaceQuotas", false);
     seedGlobalTask(TASK_SLUG);
     WorkspaceRequest workspace = new WorkspaceRequest();
     workspace.setName("db-commands-ws");
     workspace.setDisplayName("db-commands-ws");
     workspaceService.create(workspace);
-    Workflow workflow = runnableWorkflow("db-commands-wf", TASK_SLUG);
+    // Two tasks, so the measured end is mid-graph: ending the last task would also complete the
+    // run on the request thread, and what that does depends on state other tests leave behind.
+    Workflow workflow = new Workflow();
+    workflow.setName("db-commands-wf");
+    workflow.setTasks(
+        new LinkedList<>(
+            List.of(
+                node("start", TaskType.start, null, null),
+                node("work", TaskType.template, TASK_SLUG, "start"),
+                node("next", TaskType.template, TASK_SLUG, "work"),
+                node("end", TaskType.end, null, "next"))));
     workflow.getLabels().put(LABEL, "yes");
     workflowService.create("db-commands-ws", workflow);
     WorkflowSubmitRequest submit = new WorkflowSubmitRequest();
@@ -110,6 +123,15 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
         "end", DatabaseCommands.record(() -> taskRunService.end(taskRunId, Optional.of(end))));
     awaitEngine("the task to be completed")
         .until(() -> RunPhase.completed.equals(current(taskRunId).getPhase()));
+    // The next task is queued off the request thread; let it land so it does not run into the next
+    // test.
+    awaitEngine("the next task to be ready")
+        .until(
+            () ->
+                taskRunRepository
+                    .findFirstByNameAndWorkflowRunRef("next", run.getId())
+                    .map(t -> RunStatus.ready.equals(t.getStatus()))
+                    .orElse(false));
 
     recorded.forEach(
         (operation, r) ->
@@ -123,6 +145,19 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
                 EXPECTED.get(operation),
                 r.names().stream().map(name -> name.replace(" flowtest_", " ")).toList(),
                 operation));
+  }
+
+  private static WorkflowTask node(String name, TaskType type, String taskRef, String dependsOn) {
+    WorkflowTask task = new WorkflowTask();
+    task.setName(name);
+    task.setType(type);
+    task.setTaskRef(taskRef);
+    if (dependsOn != null) {
+      WorkflowTaskDependency dependency = new WorkflowTaskDependency();
+      dependency.setTaskRef(dependsOn);
+      task.setDependencies(new LinkedList<>(List.of(dependency)));
+    }
+    return task;
   }
 
   private TaskRunEntity current(String id) {
@@ -154,14 +189,5 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
               "findAndModify task_runs",
               "find workflow_runs",
               "find task_runs",
-              "findAndModify task_runs",
-              "find task_runs",
-              "find workflow_runs",
-              "findAndModify workflow_runs",
-              "find settings",
-              "find rel_edges",
-              "find workflow_runs",
-              "find settings",
-              "find workflow_runs",
               "aggregate task_runs"));
 }
