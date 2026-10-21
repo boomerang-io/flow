@@ -102,6 +102,10 @@ tag's release notes.
   `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef` and
   `reusedFromRef`, and every workflow-run field but `id`, `status`, `phase`, `workflowRef`, `labels` and
   `workspace`; it reads them from the run through `/api/v2` instead.
+- **The first start rebuilds the task-run claim index.** Change unit `_0029__ClaimIndexKeysTheClaimant` adds
+  `claim.by` to `task_runs.claim_page`, so a dispatcher poll's termination check reads only the task runs a
+  dispatcher still holds instead of every cancelled or timed-out task run of the last seven days. The rebuild runs
+  before `service-core` serves and takes time in proportion to `task_runs`.
 - **Stop every `service-core` replica before starting this version.** Change unit
   `_0028__RunSettingsOutOfAnnotations` removes the `boomerang.io/*` annotations the engine used to read from runs and
   task runs, moves an early event's status to a typed field, and re-keys held task locks by workspace id. A replica

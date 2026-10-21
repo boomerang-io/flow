@@ -586,6 +586,32 @@ class MigrationChainTest {
   }
 
   /**
+   * A database that built the claim index before claim.by joined it has it re-keyed; the next run
+   * finds the new keys and changes nothing.
+   */
+  @Test
+  void anOldClaimIndexIsReKeyedWithTheClaimant() {
+    MongoDatabase db = migrate("claim-index-keys");
+    MongoCollection<Document> taskRuns = collection(db, "task_runs");
+    taskRuns.dropIndex("claim_page");
+    taskRuns.createIndex(
+        new Document("type", 1).append("status", 1).append("phase", 1).append("creationDate", 1),
+        new IndexOptions().name("claim_page"));
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0029__ClaimIndexKeysTheClaimant().execute(db, environment);
+    new _0029__ClaimIndexKeysTheClaimant().execute(db, environment);
+
+    Document claimPage =
+        taskRuns.listIndexes().into(new ArrayList<>()).stream()
+            .filter(index -> "claim_page".equals(index.getString("name")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(claimPage.get("key", Document.class).keySet())
+        .containsExactly("type", "status", "phase", "claim.by", "creationDate");
+  }
+
+  /**
    * The engine's run annotations go - a user's stay - a pre-approved TaskRun keeps its status as
    * the typed field, and a held lock keyed by a workspace's name is re-keyed by its id; a second
    * run changes nothing.

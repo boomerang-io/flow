@@ -1,14 +1,17 @@
 package io.boomerang.engine;
 import io.boomerang.core.config.SecretValueMongoListener;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.WorkflowRunTransition;
-import java.util.Date;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -309,19 +312,55 @@ public class WorkflowRunStateHelper {
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
-  public List<WorkflowRunEntity> findRunningStartedBefore(Date startedBefore, int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.running)
-                    .and("startTime")
-                    .lte(startedBefore)
-                    .and("pauseRequestedAt")
-                    .exists(false))
-            .with(Sort.by(Sort.Direction.ASC, "startTime"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  public List<WorkflowRunEntity> findRunningStartedBefore(
+      Date startedBefore, int limit, SweepCursor cursor) {
+    Criteria candidates =
+        Criteria.where("phase")
+            .is(RunPhase.running)
+            .and("startTime")
+            .lte(startedBefore)
+            .and("pauseRequestedAt")
+            .exists(false);
+    return cursor.read(
+        candidates,
+        limit,
+        query -> {
+          query.fields().include("_id").include("startTime");
+          return mongoTemplate.find(query, WorkflowRunEntity.class);
+        },
+        WorkflowRunEntity::getStartTime,
+        WorkflowRunEntity::getId);
+  }
+
+  // The runs among the given ones whose pause is requested - one read for a page of runs.
+  public Set<String> pausedAmong(Collection<String> ids) {
+    return idsMatching(Criteria.where("_id").in(ids).and("pauseRequestedAt").exists(true));
+  }
+
+  // The runs among the given ones still in flight - one read for a page of runs.
+  public Set<String> inFlightAmong(Collection<String> ids) {
+    return idsMatching(
+        Criteria.where("_id")
+            .in(ids)
+            .and("phase")
+            .in(RunPhase.pending, RunPhase.queued, RunPhase.running));
+  }
+
+  private Set<String> idsMatching(Criteria criteria) {
+    Query query = Query.query(criteria).maxTimeMsec(5000);
+    query.fields().include("_id");
+    return mongoTemplate.find(query, WorkflowRunEntity.class).stream()
+        .map(WorkflowRunEntity::getId)
+        .collect(Collectors.toSet());
+  }
+
+  // The revisions among the given refs that exist, read by id only.
+  public Set<String> existingRevisions(Collection<String> revisionRefs) {
+    Query query = Query.query(Criteria.where("_id").in(revisionRefs)).maxTimeMsec(5000);
+    query.fields().include("_id");
+    return mongoTemplate.find(query, WorkflowRevisionEntity.class).stream()
+        .map(WorkflowRevisionEntity::getId)
+        .collect(Collectors.toSet());
   }
 
   // Return the page of in-flight WorkflowRuns, oldest first - the orphan backstop checks each

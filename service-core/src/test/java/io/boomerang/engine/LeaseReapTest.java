@@ -106,6 +106,55 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
     assertEquals("dispatcher-b", untouched.getClaim().getBy());
   }
 
+  // The sweep pages only the claims of dispatchers that are gone, so a page's worth of live claims,
+  // older than it, cannot keep a gone dispatcher's claim from being reaped.
+  @Test
+  void aGoneDispatchersClaimBehindAPageOfLiveClaimsIsReaped() {
+    String live =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "lease-live-page", "lease-live-page.local", List.of("template")));
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("lease-live-page-wf", RunStatus.running, RunPhase.running);
+    Date older = new Date(System.currentTimeMillis() - 10 * 60 * 1000);
+    for (int i = 0; i < 55; i++) {
+      String id = claimedTaskRun(wfRun, "live-" + i, live);
+      mongoTemplate.updateFirst(
+          Query.query(Criteria.where("_id").is(id)),
+          new Update().set("claim.at", older),
+          TaskRunEntity.class);
+    }
+    String gone = claimedTaskRun(wfRun, "gone", "lease-gone-dispatcher-never-registered");
+    dispatcherService.heartbeat(live, List.of());
+
+    watcher.reapClaimsFromGoneDispatchers();
+
+    TaskRunEntity reaped = taskRunRepository.findById(gone).orElseThrow();
+    assertEquals(RunStatus.waiting, reaped.getStatus(), "the gone dispatcher's claim is requeued");
+    assertEquals(RunPhase.pending, reaped.getPhase());
+    assertEquals(
+        live,
+        taskRunRepository
+            .findFirstByNameAndWorkflowRunRef("live-0", wfRun.getId())
+            .orElseThrow()
+            .getClaim()
+            .getBy(),
+        "a live dispatcher's claim is untouched");
+  }
+
+  private String claimedTaskRun(WorkflowRunEntity wfRun, String name, String dispatcherId) {
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            name,
+            TaskType.template,
+            RunStatus.ready,
+            RunPhase.pending,
+            wfRun.getWorkflowRef(),
+            wfRun.getId());
+    taskRunService.tryClaim(taskRun.getId(), dispatcherId);
+    return taskRun.getId();
+  }
+
   @Test
   void aClaimTheRestartedDispatcherNoLongerReportsIsReapedOnceItsClaimTimeLeaseLapses() {
     DispatcherRegistrationRequest registration =

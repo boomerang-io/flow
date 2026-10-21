@@ -52,11 +52,13 @@ public class _0021__Indexes {
 
   static final List<Index> INVENTORY =
       List.of(
-          // Claiming, the watcher sweeps and one task run per DAG node.
+          // Claiming, the watcher sweeps and one task run per DAG node. claim.by sits before
+          // creationDate so the termination check reads only the task runs a dispatcher still
+          // holds; a claimable task run has none, which the index stores as null.
           new Index(
               "task_runs",
               "claim_page",
-              keys("type", "status", "phase", "creationDate"),
+              keys("type", "status", "phase", "claim.by", "creationDate"),
               new IndexOptions()),
           new Index("task_runs", "run_tasks", keys("workflowRunRef", "status", "name"), new IndexOptions()),
           new Index("task_runs", "lease_sweep", keys("claim.leaseExpiresAt"), sparse()),

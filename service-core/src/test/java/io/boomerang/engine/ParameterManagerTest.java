@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -350,6 +351,28 @@ class ParameterManagerTest {
     assertEquals("eu fv", taskValue(task, "ok"));
     assertEquals("[][][]", taskValue(task, "empty"));
     assertEquals("$(params.nocfg.zone)", taskValue(task, "bad"));
+  }
+
+  // At admission the spec check shares the params' upstream lookups: a task result referenced in
+  // both is read once, and its task's declared results once.
+  @Test
+  void admissionLooksUpAnUpstreamTaskOnceForParamsAndSpec() {
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setTasks(List.of(node("build-a", "builder"), node("say", "echoer")));
+    when(paramLayerService.getRevision("rev1")).thenReturn(revision);
+    when(taskService.getSpecs(any())).thenReturn(Map.of());
+    stubTaskRun("build-a", "builder", RunStatus.succeeded, new RunResult("url", "https://a"));
+    WorkflowRunEntity run = run();
+    run.setWorkflowRevisionRef("rev1");
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("target", "$(tasks.build-a.results.url)")));
+    task.getSpec().setScript("#!/bin/sh\ncurl $(tasks.build-a.results.url)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("https://a", taskValue(task, "target"));
+    verify(taskRunRepository, times(1)).findFirstByNameAndWorkflowRunRef(eq("build-a"), eq(WF));
+    verify(taskService, times(1)).getSpecs(any());
   }
 
   // $(tasks.t.results.r) is declared when t is a task in the run's workflow revision and r is a

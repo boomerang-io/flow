@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -44,6 +46,7 @@ import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.schema.JsonSchemaObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -110,6 +113,10 @@ public class TaskRunService {
 
   // The same page, narrowed to a dispatcher poll's task and workflow filters.
   public List<TaskRunEntity> findClaimable(ClaimFilter filter, int limit) {
+    return mongoTemplate.find(claimableQuery(filter, limit), TaskRunEntity.class);
+  }
+
+  static Query claimableQuery(ClaimFilter filter, int limit) {
     Criteria criteria =
         narrowed(
             Criteria.where("status")
@@ -132,7 +139,7 @@ public class TaskRunService {
     // changes a TaskRun's timeout between its creation and its claim - and tryClaim transitions by
     // id.
     query.fields().include("_id").include("timeout");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+    return query;
   }
 
   // Return the page of TaskRuns whose executor-side work (a Tekton TaskRun and its pod) is still
@@ -155,42 +162,53 @@ public class TaskRunService {
   // The same pages, narrowed to a dispatcher poll's task and workflow filters, so a filtered
   // dispatcher is told to terminate exactly the work it could have claimed.
   public List<TaskRunEntity> findClaimableForTermination(ClaimFilter filter, int limit) {
-    List<TaskRunEntity> candidates =
-        new ArrayList<>(
-            findOwnedResidue(
-                filter,
-                limit,
-                Criteria.where("phase")
-                    .is(RunPhase.completed)
-                    .and("status")
-                    .in(RunStatus.cancelled, RunStatus.timedout)
-                    // Bound the terminal page to recent history: without it every poll walks the
-                    // whole completed cancelled/timedout bucket, which only ever grows, to apply
-                    // the claim.by filter. creationDate is the index's last key behind three
-                    // equalities, so this is a real index bound and not a residual filter. A pod
-                    // older than the window outlived any plausible engine outage and is gone with
-                    // its cluster.
-                    .and("creationDate")
-                    .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))));
-    candidates.addAll(
-        findOwnedResidue(
-            filter,
-            limit,
-            Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
+    List<TaskRunEntity> candidates = new ArrayList<>();
+    for (Query page : terminationQueries(filter, limit)) {
+      candidates.addAll(mongoTemplate.find(page, TaskRunEntity.class));
+    }
     return candidates;
   }
 
+  static List<Query> terminationQueries(ClaimFilter filter, int limit) {
+    return List.of(
+        ownedResidue(
+            filter,
+            limit,
+            Criteria.where("phase")
+                .is(RunPhase.completed)
+                .and("status")
+                .in(RunStatus.cancelled, RunStatus.timedout)
+                // Bound the terminal page to recent history: a task run held since before the
+                // window outlived any plausible engine outage, and its pod is gone with its
+                // cluster. creationDate is claim_page's last key, so the bound is checked on index
+                // keys, not documents.
+                .and("creationDate")
+                .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))),
+        ownedResidue(
+            filter,
+            limit,
+            Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
+  }
+
   // One indexed termination page: the given status/phase shape, restricted to the agent's task
-  // types and filters and to runs a dispatcher still owns, oldest first.
-  private List<TaskRunEntity> findOwnedResidue(ClaimFilter filter, int limit, Criteria shape) {
+  // types and filters and to runs a dispatcher still owns, oldest first. "Still owns" is asked as a
+  // string claimant - a released claim is unset, never null - which claim_page bounds, so only held
+  // task runs are read.
+  private static Query ownedResidue(ClaimFilter filter, int limit, Criteria shape) {
     Query query =
         Query.query(
-                narrowed(shape.and("type").in(filter.types()).and("claim.by").exists(true), filter))
+                narrowed(
+                    shape
+                        .and("type")
+                        .in(filter.types())
+                        .and("claim.by")
+                        .type(JsonSchemaObject.Type.STRING),
+                    filter))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
-    // The claim page only needs the id - tryClaimForTermination re-reads and transitions by id.
+    // The page only needs the id - tryClaimForTermination re-reads and transitions by id.
     query.fields().include("_id");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+    return query;
   }
 
   // A poll's task and workflow filters apply after the index has picked the ready (or owned) runs
@@ -436,20 +454,29 @@ public class TaskRunService {
   // candidates for recovering a fan-out or a parent completion that a crash cut short. Matched by
   // phase alone: a parent whose outcome is recorded but whose end was lost keeps a terminal status
   // in the running phase.
-  public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.running)
-                    .and("foreach")
-                    .exists(true)
-                    .and("startTime")
-                    .lte(startedBefore))
-            .with(Sort.by(Sort.Direction.ASC, "startTime"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    query.fields().include("_id").include("status").include("workflowRunRef");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+  public List<TaskRunEntity> findRunningForeachParents(
+      Date startedBefore, int limit, SweepCursor cursor) {
+    Criteria candidates =
+        Criteria.where("phase")
+            .is(RunPhase.running)
+            .and("foreach")
+            .exists(true)
+            .and("startTime")
+            .lte(startedBefore);
+    return cursor.read(
+        candidates,
+        limit,
+        query -> {
+          query
+              .fields()
+              .include("_id")
+              .include("status")
+              .include("workflowRunRef")
+              .include("startTime");
+          return mongoTemplate.find(query, TaskRunEntity.class);
+        },
+        TaskRunEntity::getStartTime,
+        TaskRunEntity::getId);
   }
 
   // Whether every item of a foreach parent is completed and all the expected items exist - an
@@ -614,15 +641,36 @@ public class TaskRunService {
   // Return the page of currently-claimed TaskRuns, oldest claim first - the orphan backstop
   // checks each against dispatcher liveness directly, since a claimant that has disappeared is
   // invisible to the deadline-driven timeout reap until (or unless) its deadline arrives.
-  public List<TaskRunEntity> findClaimed(int limit) {
+  public List<TaskRunEntity> findClaimedByOthers(Collection<String> liveDispatchers, int limit) {
     Criteria criteria =
-        Criteria.where("phase").in(RunPhase.queued, RunPhase.running).and("claim.by").exists(true);
+        Criteria.where("phase")
+            .in(RunPhase.queued, RunPhase.running)
+            .and("claim.by")
+            .exists(true)
+            .nin(liveDispatchers);
     Query query =
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "claim.at"))
             .limit(limit)
             .maxTimeMsec(5000);
+    // What the requeue or abandon reads: the claim it fences on, the retry budget and the type.
+    query.fields().include("_id").include("claim").include("retry").include("type");
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // The runs among the given ones that have a TaskRun in flight, by the same rule as
+  // existsInFlightByWorkflowRunRef - one read for a page of runs.
+  public Set<String> runsWithTasksInFlight(Collection<String> workflowRunRefs) {
+    Query query =
+        Query.query(
+                Criteria.where("workflowRunRef")
+                    .in(workflowRunRefs)
+                    .orOperator(
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return new HashSet<>(
+        mongoTemplate.findDistinct(query, "workflowRunRef", TaskRunEntity.class, String.class));
   }
 
   // Abandon Compare-And-Set: a queued/running TaskRun becomes timed out with the message and typed
