@@ -20,7 +20,7 @@ public class WorkflowRunInsightWorkflowDetail {
   /** Start time minus creation time, over runs that started. */
   private long p50QueueWait;
   private long p95QueueWait;
-  /** Runs that were retried at least once. */
+  /** Runs that are a retry of an earlier run, by hand or automatic. */
   private long retriedRuns;
   /** One row per task name, in the order a typical run reaches them (first creation). */
   private List<TaskRow> tasks = new LinkedList<>();

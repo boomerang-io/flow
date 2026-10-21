@@ -93,6 +93,12 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
     WorkflowRunEntity fast = completedRun(workflowRef, RunStatus.succeeded, 1_000);
     WorkflowRunEntity slow = completedRun(workflowRef, RunStatus.succeeded, 9_000);
     WorkflowRunEntity broken = completedRun(workflowRef, RunStatus.failed, 500);
+    // Two runs allow retries and one run is a retry: only the retry counts as retried.
+    fast.setRetries(2L);
+    broken.setRetries(2L);
+    slow.setTrigger("retry");
+    slow.setInitiatedByRef(broken.getId());
+    workflowRunRepository.saveAll(List.of(fast, slow, broken));
     workTask(workflowRef, fast.getId(), RunStatus.succeeded, 800, null);
     workTask(workflowRef, slow.getId(), RunStatus.succeeded, 8_800, null);
     workTask(workflowRef, broken.getId(), RunStatus.failed, 400, "exit code 2");
@@ -127,6 +133,7 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
 
     assertThat(detail.getWorkflowRef()).isEqualTo(workflowRef);
     assertThat(detail.getRuns()).isEqualTo(3);
+    assertThat(detail.getRetriedRuns()).isEqualTo(1);
     // start and end nodes carry no work, so the one row is the work task.
     assertThat(detail.getTasks()).hasSize(1);
     assertThat(detail.getTasks().get(0).getName()).isEqualTo("work");

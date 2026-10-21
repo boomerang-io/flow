@@ -201,6 +201,8 @@ tag's release notes.
   Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
   overflows. The insights response drops `medianDuration`, which was also the mean; `totalDuration` and
   `totalRuns` give it.
+- A workflow's Insights `retriedRuns` counts the runs that are a retry of an earlier run, by hand or automatic. It
+  counted the runs whose workflow allowed retries, whether or not any happened.
 - A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
   branches, so the tasks after it are skipped and the run carries on. It used to fail the run with a null-value
   error when the next task was queued.

@@ -10,6 +10,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowRunInsightSummary;
@@ -158,8 +159,8 @@ public class WorkflowRunInsightService {
     List<Long> waits = queueWaits(runs);
     detail.setP50QueueWait(percentile(waits, 0.5));
     detail.setP95QueueWait(percentile(waits, 0.95));
-    detail.setRetriedRuns(
-        runs.stream().filter(run -> run.getRetries() != null && run.getRetries() > 0).count());
+    String retry = TriggerEnum.retry.getTrigger();
+    detail.setRetriedRuns(runs.stream().filter(run -> retry.equals(run.getTrigger())).count());
     List<TaskRow> rows = slugTaskRefs(taskRows(taskRuns));
     rows.forEach(
         row -> {
@@ -302,7 +303,6 @@ public class WorkflowRunInsightService {
             "status",
             "phase",
             "trigger",
-            "retries",
             "timeout",
             "statusMessage",
             "workflowRef");

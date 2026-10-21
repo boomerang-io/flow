@@ -84,7 +84,7 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
           </ul>
         )}
         <p className={styles.panelNote}>
-          {detail.retriedRuns > 0 ? `${detail.retriedRuns} of ${detail.runs} runs were retried. ` : ""}
+          {detail.retriedRuns > 0 ? `${detail.retriedRuns} of ${detail.runs} runs were retries. ` : ""}
           Queue wait p95 {formatDuration(detail.p95QueueWait)}.
         </p>
       </section>
