@@ -1,36 +1,40 @@
-# 0040 — Parameters reach a task by engine-side substitution and environment variables
+# 0040 — Parameters reach a task by engine substitution and environment variables, within engine-enforced caps
 
-**Status:** accepted · **Date:** 2026-08-22
+**Status:** accepted · **Date:** 2026-08-25
 
 ## Context
 
-A task container must receive its parameters the same way on Tekton, Kubernetes Jobs and any later
-executor, and a plain vendor image (`curl`, `alpine`) must be able to use them without a Flow library. Until
-this decision the engine substituted `$(params.x)` only inside the task's own param values, Tekton's
-controller substituted the script and arguments, and a per-task ConfigMap projected `/params/<name>` files —
-so the Jobs executor received unsubstituted scripts and a plain image had no usable channel.
+A task must receive its parameters the same way on Tekton, Kubernetes Jobs and any later executor, and a plain
+vendor image (`curl`, `alpine`) must use them without a Flow library. Each substrate has its own hard limit (128 KiB
+per environment string, a 4096-byte termination message), so without a Flow cap an oversize task fails differently.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. `/params/<name>` files from a projected ConfigMap | The task uses the Flow task library | A plain image never reads `/params`; 1 MiB ConfigMap ceiling; one extra object per task |
-| B. One `PARAMS` env var holding the whole map as JSON | Only the catalogue reads params | A plain image cannot parse JSON from an env var; 128 KiB single-string ceiling; no secret story |
-| C. One `PARAM_<NAME>` env var per param plus `PARAM_NAMES` | Any image, Flow-aware or not | Names are folded to `[A-Z0-9_]`, so a manifest is needed to round-trip the original names |
-| D. Engine-side substitution of `$(params.x)` into script, command, arguments and envs | Any image and any executor | The substituted text is visible in the pod spec |
+| Delivery: `/params/<name>` files from a projected ConfigMap | Every task uses the Flow task library | A plain image never reads them; one extra object per task |
+| Delivery: one `PARAMS` variable holding the map as JSON | Only the catalogue reads params | A plain image cannot parse it |
+| Delivery: a `PARAM_<NAME>` variable per param plus `PARAM_NAMES`, and engine substitution of `$(params.x)` into script, command, arguments and envs | Any image, any executor | Names fold to `[A-Z0-9_]`; substituted text is visible in the pod spec |
+| Caps: each substrate's own limit | One executor | A different failure per executor, some of them silent truncation |
+| Caps: each executor checks before submit | The dispatcher owns the contract | Duplicated logic; the task is already claimed when it fails |
+| Caps: the engine checks params at admission and results at end | Any number of executors | Two values to tune per install |
 
 ## Decision
 
-C and D together are the contract; A and B were removed. The engine resolves references into the TaskRun's
-params and spec fields before admission (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:111,121-136`)
-and persists the resolved copy with the admission compare-and-set
-(`engine/TaskExecutionService.java:176`). The dispatcher exports `PARAM_<NAME>` and `PARAM_NAMES`, with
-explicit task env vars winning on collision (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:103-141`).
-Universality decided it: a non-Flow image understands only its command line and its environment.
+Per-param variables with engine substitution, and engine caps. The engine resolves a task's params before admission
+and fills the spec's references into the copy a dispatcher receives at claim
+(`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:146-247,297-323`). The dispatcher exports
+`PARAM_<NAME>` and `PARAM_NAMES`, task-defined variables winning on a clash
+(`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:124-163`). Resolved params over
+`flow.engine.task.params.max-bytes` (16384) end the task `invalid` before it is claimable
+(`engine/TaskExecutionService.java:211-226`); results over `flow.engine.task.results.max-bytes` (1048576, a storage
+guard) end it `failed` with `ResultsTooLarge` and are not stored (`engine/TaskRunService.java:1037-1051`). A non-Flow
+image understands only its command line and its environment, and one engine message reads the same everywhere.
 
 ## Consequences
 
-- Every executor delivers identical inputs; the Jobs executor needs no substitution of its own.
-- Structured or large inputs belong on a workspace mount, with the param carrying the path.
-- The task library moved from `/params` files to the environment (`@boomerang-io/task-core`).
-- Folded names can collide (`my-key` and `MY_KEY`); decision 0044 rejects such names at save.
+- Every executor delivers identical inputs; none substitutes on its own. Beneath the engine guard each dispatcher
+  applies its substrate's limit with the same reason, on Kubernetes the 4096-byte termination message
+  (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:497-508`).
+- Structured or large inputs and outputs travel by reference: a workspace path or an artifact (decision 0067).
+- Folded names can collide (`my-key`, `MY_KEY`); decision 0044 rejects them at save.

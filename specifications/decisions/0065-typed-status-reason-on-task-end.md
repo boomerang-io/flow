@@ -4,30 +4,37 @@
 
 ## Context
 
-The dispatcher reported a failure as free text (`"<reason> - <message>"`), so nothing downstream could tell an
-out-of-memory kill from an image-pull failure from a non-zero exit without parsing strings. The typed-fields rule
-(decision 0020) requires anything the engine may decide on to be a field, and every comparable system studied —
-Code Engine, Tekton, Google Cloud Batch, Trigger.dev — carries a closed reason vocabulary.
+Free text such as `"<reason> - <message>"` cannot tell an out-of-memory kill from an image-pull failure or a non-zero
+exit without parsing strings. Anything the engine may decide on must be a typed field (decision 0020), and every
+comparable system studied (Code Engine, Tekton, Google Cloud Batch, Trigger.dev) carries a closed reason vocabulary.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. A retry-policy class on the wire (`generic`, `ratelimit`, `terminal`) | retry classes are being built | a derived classification with no consumer; the earlier plan that never shipped |
-| B. The observed cause as `statusReason`, a closed string set paired with `status` and `statusMessage` | the cause must be recorded now, policy may follow later | a new field on the end request and the run record |
+| A. A retry-policy class on the wire (`generic`, `ratelimit`, `terminal`) | Retry classes are being built | A derived classification with no consumer |
+| B. The observed cause as `statusReason`, a closed string set beside `status` and `statusMessage` | The cause must be recorded, and policy may follow | One field on the end request and the task run |
 
 ## Decision
 
-Option B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason`
-(`service-core/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java`); the closed set is `DeadlineExceeded`,
-`JobDeleted`, `JobFailed`, `OOMKilled`, `ImagePull`, `AdmissionDenied`, `ResultsTooLarge`, `DispatchError`,
-`DispatcherGone`, `LeaseExpired`. The dispatcher maps Job and TaskRun condition reasons and the pod's container
-status onto it in `TaskExecutionException` (`service-dispatcher/src/main/java/io/boomerang/error/TaskExecutionException.java`);
-the engine sets it on deadline reaps, abandons and oversize results. The name pairs with `status`/`statusMessage`
-rather than introducing a second vocabulary; a retry-policy class, if ever built, is derived from it.
+B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason` (`service-core/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java:30`,
+`common/model/TaskRun.java:47`, `common/entity/TaskRunEntity.java:49`). The closed set lives in one class
+(`common/model/StatusReason.java:11-45`): a dispatcher sends `DispatchError`, `DeadlineExceeded`, `JobFailed`,
+`JobDeleted`, `OOMKilled`, `ImagePull`, `ImageNotAllowed`, `AdmissionDenied` or `ResultsTooLarge`, or, for a task that
+never started, `ExceededQuota`, `StartTimeout` or `RateLimited`; the engine writes `DispatcherGone`, `LeaseExpired` and
+`DeadlineExceeded` on its reaps (`engine/WorkflowWatcher.java:228`, `:467`, `:492`) and its own causes for refused
+specs, parameters, artifacts, for-each items and child runs. The `StatusReason` in `dispatcher-sdk` is a subset, checked by its tests
+(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/StatusReason.java:8-47`), and Flow's Kubernetes dispatcher maps
+Job and TaskRun conditions and the pod's container state onto it (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:458-478`,
+`kube/TektonServiceImpl.java:541-565`).
+A reason the engine does not know is recorded as an ordinary failure. The name pairs with `status` and `statusMessage`
+rather than starting a second vocabulary, and policy derives from it.
 
 ## Consequences
 
-- Operators and the UI can filter failures by cause; an opt-in "retry only these reasons" policy becomes possible
-  without a further wire change.
-- Cancel and delete failures carry no reason yet; add values only when something consumes them.
+- The one policy built on it is the requeue of a task that never started: `StartTimeout`, `ExceededQuota` and
+  `RateLimited` (`common/model/StatusReason.java:44-45`, `engine/TaskRunService.java:1088-1111`); any further retry policy derives
+  from it without a wire change.
+- Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:347`,
+  `event/model/RunStatusSummary.java:88-99`).
+- Cancel and delete carry no reason; add values only when something consumes them.

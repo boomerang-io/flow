@@ -1,33 +1,36 @@
-# 0021 — Versioned documents use the subset pattern (parent plus revision documents)
+# 0021 — Versioned documents use the subset pattern: a parent plus one revision document per version
 
 **Status:** accepted · **Date:** 2026-08-14
 
 ## Context
 
-Workflows and tasks are versioned, and a workflow commonly reaches 25 versions while a task reaches 10 or more.
-Earlier releases mixed two shapes: tasks embedded a `revisions[]` array on one document, while workflows kept a
-separate revisions collection. Both leaked the storage shape into the user-facing model.
+Workflows and tasks are versioned: every save that is not a replace adds a version. The stable fields (name, status,
+labels) belong to the definition, while the body (tasks, params, spec) belongs to one version, and the storage shape
+must not leak into the public model.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. One document with an embedded `revisions[]` array | A handful of versions | Documents grow without bound and cannot be paged or queried per version |
-| B. One document per version, repeating the common fields | Versions are fully independent | No single home for status and other stable fields; every save duplicates them |
-| C. Subset pattern: a parent with the stable fields and one child per version, joined on read | Stable fields change rarely and versions are appended | One extra read per lookup; the join lives in the domain service |
+| A. One document with an embedded `revisions[]` array | A handful of versions | The document grows without bound; versions cannot be paged or queried |
+| B. One document per version, repeating the stable fields | Versions are fully independent | No single home for status; every save duplicates the stable fields |
+| C. A parent with the stable fields and one child per version, joined on read | Stable fields change rarely and versions are appended | Two reads per lookup; the join lives in the domain service |
 
 ## Decision
 
-Option C. `WorkflowEntity` → `workflows` plus `WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` →
-`workflow_revisions` (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRevisionEntity.java:24-35`);
-`TaskEntity` → `tasks` plus `TaskRevisionEntity{parentRef, version, spec, …}` → `task_revisions`
-(`TaskRevisionEntity.java:23-34`). The domain services perform the join
-(`service-core/src/main/java/io/boomerang/workflow/TaskService.java:647-656`). A new version is always a new child
-insert, so the parent is never rewritten for it and per-version queries stay small.
+Option C. `WorkflowEntity` in `workflows`
+(`service-core/src/main/java/io/boomerang/common/entity/WorkflowEntity.java:18-30`) pairs with
+`WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` in `workflow_revisions`
+(`common/entity/WorkflowRevisionEntity.java:21-37`); `TaskEntity` in `tasks` pairs with `TaskRevisionEntity{parentRef,
+version, spec, …}` in `task_revisions` (`common/entity/TaskRevisionEntity.java:23-34`). The domain services join them
+(`workflow/WorkflowService.java:1203-1219`, `workflow/TaskService.java:581-599`). A new version inserts a child; a
+replace rewrites the latest child in place (`WorkflowService.java:1733-1747`, `TaskService.java:804-827`).
 
 ## Consequences
 
-- Versions are pageable and indexable on `(parent, version)`; the index inventory creates
-  `workflow_ref_version` and `parent_ref_version` (`service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:97-108`).
-- Every read of a definition is two lookups; deleting a parent MUST also delete its revisions.
-- `workflow_templates` is the one collection still carrying `version` on a single document.
+- Versions are pageable and indexed on parent and version: `workflow_ref_version` and `parent_ref_version`
+  (`migration/_0021__Indexes.java:99-110`).
+- Every definition read is two lookups, and deleting a parent MUST delete its revisions (`TaskService.java:985-986`,
+  `workflow/WorkflowRetentionService.java:153-155`).
+- `workflow_templates` is the one collection that keeps `version` on a single document
+  (`common/entity/WorkflowTemplateEntity.java:30`).

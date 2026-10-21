@@ -4,34 +4,27 @@
 
 ## Context
 
-`POST .../workflow/{name}/submit` defaulted to `start=false`, so a submit only created a parked run. Every
-caller that meant "run now" had to remember `start=true`, and three forgot: the web app's Run it, the
-run-workflow task's child submission, and fired schedules — all silently masked while dispatchers started
-parked runs by accident, and all broken the moment that accident was removed. Comparable systems run by
-default and make deferral the explicit act (Tekton starts a PipelineRun unless `spec.status:
-PipelineRunPending` is set; Cloud Run's `jobs execute` runs; Temporal's start starts, with `startDelay` as
-the opt-out).
+A submit either starts a run or parks it for a later `PUT .../workflowrun/{id}/start`. Nearly every caller means "run
+now": the web app's Run, a run-workflow task's child, a fired schedule, a webhook. Comparable systems run by default
+and make deferral the explicit act (Tekton's `PipelineRunPending`, Temporal's `startDelay`).
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. Keep `start=false` as the default | a submit is a staging step | every "run now" caller must remember the flag; three already forgot |
-| B. Default `start=true`; `?start=false` parks | submit means run, as callers and peers expect | an API caller that relied on the old default to stage runs now starts them |
+| A. `start=false` by default | A submit is a staging step | Every "run now" caller must remember the flag, and one that forgets leaves a parked run nothing starts |
+| B. `start=true` by default; `?start=false` parks | Submit means run, as callers and peers expect | An API caller that stages runs must ask for it |
 
 ## Decision
 
-Option B. The submit route defaults `start` to true
-(`service-core/src/main/java/io/boomerang/workflow/WorkspaceWorkflowControllerV2.java`, the `start`
-request parameter); fired schedules submit with start=true (`schedule/ScheduleJob.java`). The start=true
-semantics are unchanged: a run without workspaces starts at once, a run with workspaces waits for the
-dispatcher to provision and start it (decision 0067), and `?start=false` still parks a run for a later
-`PUT /workflowrun/{id}/start`.
+B. `POST .../workflow/{name}/submit` defaults `start` to true (`workflow/WorkspaceWorkflowControllerV2.java:306-312`).
+Internal callers start too: a run-workflow task's child (`engine/TaskExecutionService.java:1173`), a fired schedule
+(`schedule/ScheduleJob.java:76`), and webhook and event triggers through `flow.workflowrun.auto-start-on-submit`, true
+by default (`service-core/src/main/resources/application.properties:38`, `event/WebhookEventService.java:56-57`).
+Starting means one thing everywhere: a run without a workspace starts at once, and a run with one stays pending until
+the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:792-808`, decision 0067).
 
 ## Consequences
 
-- Submitting from any client runs the workflow without a flag; staging a run is a deliberate
-  `?start=false`.
-- An integration that depended on the old default for staging MUST add `?start=false`.
-- The webhook and event triggers follow the same default: `flow.workflowrun.auto-start-on-submit` defaults
-  to true, with false as the explicit parking opt-out.
+- Submitting from any client runs the workflow without a flag; staging a run is a deliberate `?start=false`.
+- An integration that stages runs MUST pass `?start=false`; trigger-created runs park only when the property is false.
