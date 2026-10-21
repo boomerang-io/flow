@@ -86,8 +86,6 @@ public class ParameterManager {
           TriggerEnum.github.getTrigger(),
           TriggerEnum.task.getTrigger(),
           TriggerEnum.retry.getTrigger());
-  private static final String WORKSPACE_NAME_ANNOTATION = "boomerang.io/workspace-name";
-
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskRunRepository taskRunRepository;
   private final ObjectMapper objectMapper;
@@ -514,18 +512,16 @@ public class ParameterManager {
 
   /*
    * Build all parameter layers as an object of Maps. The global, workspace and context layers are
-   * read from their stores now (ParamLayerService), against the run's workspace, its workflow and
-   * the revision it runs; the run, task and per-run context keys are added here.
+   * read from their stores now (ParamLayerService), against the run's workflow - whose owner is the
+   * run's workspace - and the revision it runs; the run, task and per-run context keys are added
+   * here.
    *
    * If you only pass it the Workflow Run Entity, it won't add the Task Run Params to the map
    */
   private Layers buildParameterLayering(
       WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
-    Object workspace = wfRun.getAnnotations().get(WORKSPACE_NAME_ANNOTATION);
     WorkflowRevisionEntity revision = paramLayerService.getRevision(wfRun.getWorkflowRevisionRef());
-    ParamLayers paramLayers =
-        paramLayerService.buildParamLayers(
-            workspace != null ? workspace.toString() : null, wfRun.getWorkflowRef(), revision);
+    ParamLayers paramLayers = paramLayerService.buildParamLayers(wfRun.getWorkflowRef(), revision);
 
     // Override particular context Parameters. Additional Context Params come from the Workflow
     // service.

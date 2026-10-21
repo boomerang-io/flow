@@ -49,8 +49,7 @@ class WorkflowRunLifecycleTest extends AbstractEngineIntegrationTest {
 
   @Test
   void submittedRunCompletesThroughAgentCallbacks() {
-    // Task template. The explicit image avoids DAGUtility.createTaskList's
-    // task-default-image annotation fallback, which NPEs when the annotation is absent.
+    // Task template.
     Task template = new Task();
     template.setName("lifecycle-echo");
     template.setType(TaskType.template);

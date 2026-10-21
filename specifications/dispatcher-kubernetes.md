@@ -87,8 +87,8 @@ is older than the TTL (`TaskRuntimeReconciler.java:96`), and logs one `held/dele
 warns and the next tick asks again.
 
 The timeout the TaskRun arrives with is settled by the engine, not here: it is the smallest of the platform
-setting stamped as `boomerang.io/task-timeout`, the task's own declared timeout, and the run's timeout, with 0
-meaning unguarded (`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:193-219`). The seed ships the
+setting, the task's own declared timeout, and the run's timeout, with 0 meaning unguarded
+(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:220-241`). The seed ships the
 platform setting (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting
 is an optional operator ceiling for capping one pod inside a long-running graph; a TaskRun that reaches the
 dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.

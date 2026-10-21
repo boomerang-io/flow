@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.entity.WorkflowEntity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.boomerang.common.model.AbstractParam;
@@ -65,7 +66,7 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
 
     AbstractParam inMemory = unfilteredGlobal("defGlobalToken");
     assertThat(inMemory.getDefaultValue()).isEqualTo("glob-def-0001");
-    ParamLayers layers = paramLayerService.buildParamLayers(null, (String) null, null);
+    ParamLayers layers = paramLayerService.buildParamLayers(null, (WorkflowEntity) null, null);
     assertThat(layers.getGlobalParams()).containsEntry("defGlobalToken", "glob-val-0001");
   }
 
@@ -141,7 +142,8 @@ class SecretParameterDefaultTest extends AbstractEngineIntegrationTest {
 
     WorkspaceEntity inMemory = workspaceRepository.findByNameIgnoreCase(name).orElseThrow();
     assertThat(named(inMemory.getParameters(), "wsDbPass").getDefaultValue()).isEqualTo("ws-def-0001");
-    ParamLayers layers = paramLayerService.buildParamLayers(name, (String) null, null);
+    ParamLayers layers =
+        paramLayerService.buildParamLayers(inMemory.getId(), (WorkflowEntity) null, null);
     assertThat(layers.getWorkspaceParams()).containsEntry("wsDbPass", "ws-val-0001");
   }
 

@@ -67,7 +67,7 @@ class ParameterManagerTest {
     taskRunRepository = mock(TaskRunRepository.class);
     paramLayerService = mock(ParamLayerService.class);
     taskService = mock(TaskService.class);
-    when(paramLayerService.buildParamLayers(any(), any(), any()))
+    when(paramLayerService.buildParamLayers(any(), any()))
         .thenAnswer(
             invocation -> {
               ParamLayers layers = new ParamLayers();
@@ -675,23 +675,22 @@ class ParameterManagerTest {
 
   // ── layers read from their stores; values supplied or produced are inserted as written ─────────
 
-  // The layers come from ParamLayerService for the run's workspace, its workflow and the revision it
-  // runs - nothing is read from the run's annotations.
+  // The layers come from ParamLayerService for the run's workflow - whose owner is the run's
+  // workspace - and the revision it runs; nothing is read from the run's annotations.
   @Test
-  void readsTheLayersForTheRunsWorkspaceWorkflowAndRevision() {
+  void readsTheLayersForTheRunsWorkflowAndRevision() {
     WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
     when(paramLayerService.getRevision("rev-ref")).thenReturn(revision);
     WorkflowRunEntity run = run(str("ref", "$(workspace.params.w1)"));
     run.setWorkflowRef("wf-ref");
     run.setWorkflowRevisionRef("rev-ref");
-    run.getAnnotations().put("boomerang.io/workspace-name", "cheer");
     run.getAnnotations().put("boomerang.io/workspace-params", Map.of("w1", "stale snapshot"));
     workspaceStore.put("w1", "current");
 
     parameterManager.resolveParamLayers(run, Optional.empty());
 
     assertEquals("current", resolved(run, "ref"));
-    verify(paramLayerService).buildParamLayers(eq("cheer"), eq("wf-ref"), eq(revision));
+    verify(paramLayerService).buildParamLayers(eq("wf-ref"), eq(revision));
   }
 
   // A value a task produced is inserted as written: a reference inside it is not expanded, so a

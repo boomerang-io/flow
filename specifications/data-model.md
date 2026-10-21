@@ -12,7 +12,7 @@ Every collection is named `<prefix>_<name>`; the prefix comes from `flow.mongo.c
 `service-core/src/main/java/io/boomerang/core/config/MongoConfiguration.java:16-27` (a blank prefix gives the
 bare name); the change units apply the same rule through `migration/CollectionNames.java:15-32`, built from the same
 property (`CollectionNames.java:26-28`). Map keys containing `.` are stored with `#` (`MongoConfiguration.java:37`),
-so the annotation `boomerang.io/status` is on disk as `boomerang#io/status`.
+so the annotation `boomerang.io/position` is on disk as `boomerang#io/position`.
 
 ## Collections
 | Collection | Holds | Entity (owner package) |
@@ -75,22 +75,30 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `TaskRunEntity.java:72`, `service-core/.../model/WorkflowTaskForeach.java` |
 | Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (task runs only; a closed string set of causes such as `OOMKilled`, `DeadlineExceeded`, `LeaseExpired`), `statusOverride` | `WorkflowRunEntity.java:41-44`, `TaskRunEntity.java:54` |
 | User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
-| Annotations | `annotations: Map<String,Object>` in the `boomerang.io/*` namespace | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
+| Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `TaskRunEntity.java:51`, `engine/TaskRunService.java:362` |
+| Annotations | `annotations: Map<String,Object>`: user metadata, and the `boomerang.io/*` keys below; the engine decides from none of them | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
 `claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion and requeue (`tryComplete`, requeue), so the sparse `lease_sweep` index holds only live claims. An abandon (a timeout included) keeps it until the completion lands, so an end lost after the abandon is reaped again;
 crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control field serialises,
 `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:45-51`) and `ControlStateFieldsTest`
 (`retry-of`, `retry-count`, `timeout-cause` are never written as annotations).
 
-`boomerang.io/*` keys written to stored documents (`grep -rn '"boomerang.io/' service-core/src/main`):
-| Key | Written on | By | Read by the engine? |
-| --- | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs, task runs | `WorkflowService.java:1364,1507,1620`, `TaskService.java:646,620`, `DAGUtility.java:152-153` | No |
-| `position` | each task in a workflow revision (canvas coordinates) | `WorkflowService.java:1012` | No |
-| `workspace-name` | workflow run at submit; copied to task runs | `WorkflowService.java:609`, `DAGUtility.java:157-159` | Yes — `TaskExecutionService.java:743` |
-| `task-timeout`, `task-default-image`, `task-deletion` | workflow run at submit (workspace executor settings) | `WorkflowService.java:592-598` | Yes — `DAGUtility.java:195-244` |
-| `global-params`, `context-params`, `workspace-params` | No longer written; runs created earlier still carry them, stripped from read payloads and from a child run's request | `WorkflowRunService.java:1126`, `WorkflowService.java:675` | No — the layers are read from their stores (`ParameterManager.java:247`) |
-| `status` | task run, by the inbound-event handler (escaped key) | `TaskRunService.java:350-363` | Yes — `TaskExecutionService.java:882` |
+`boomerang.io/*` keys written to stored documents (`grep -rn '"boomerang.io/' service-core/src/main`); the engine
+reads none of them:
+| Key | Written on | By |
+| --- | --- | --- |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1330,1725,1871`, `workflow/TaskService.java:709,797` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1055` |
+
+A run annotation under `boomerang.io/` is reserved: a submit or start that sends one has it dropped
+(`workflow/WorkflowService.java:629`, `workflow/WorkflowRunService.java:735`). What the engine once read from run
+annotations comes from the run's workflow and the settings instead:
+
+| Decision | Source |
+| --- | --- |
+| The run's workspace: its parameter layer, its secret values, the task lock scope | The workspace that owns the run's workflow in the relationship graph (`workspace --hasWorkflow--> workflow`), held by id so a rename does not move it, and cached per workflow (`workflow/ParamLayerService.java:91`, `core/ParamLayerCache.java:92`) |
+| A task run's per-task timeout ceiling, default image and pod deletion policy | The `task` settings, read once when the run's task runs are created at queue, onto the task run's own `timeout`, `spec.image` and `spec.deletion` (`engine/DAGUtility.java:71-84,230,263,292`) |
+| The status an early event gave a wait-for-event task | `preApprovedStatus` on the task run (above) |
 
 Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` exist only in Tekton YAML exports
 (`workflow/tekton/TektonConverter.java:46-51`); `product`, `tier`, `*-ref`, `selector` are Kubernetes
@@ -118,8 +126,8 @@ on the claim payload only. Values stored before encryption load as they are and 
 there is no migration. A Slack integration stored before its tokens were encrypted keeps its plaintext tokens until
 it is next saved, which re-linking Slack does; that is by decision, with no migration to encrypt them sooner. Not
 encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`), task `results`, and the
-`global-params`/`workspace-params` annotations that runs created before the layers were read from their stores still
-carry. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java` with the same cipher;
+`global-params`/`workspace-params` annotations that runs created before the layers were read from their stores
+carried, which `_0028__RunSettingsOutOfAnnotations` removes. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java` with the same cipher;
 the settings API reads it by the one secret rule - `*****` when set, nothing when unset (`:171`) - and engine and
 integration reads get plaintext. A stored value that will not decrypt is kept as stored, on load and on the next save
 of its group, never written back as nothing (`:183`).
@@ -268,6 +276,7 @@ a release ships the chain, changes are appended as new units.
 | `_0025__ClearCompletedTaskLeases` | all | Unsets `claim.leaseExpiresAt` on completed task runs, which kept it before completion cleared it; a live claim's lease is untouched. Empty and v3 databases have none |
 | `_0026__SeedAiWorkflowTemplate` | all | Inserts the `summarise-a-web-page-with-ai` template (by name and version) on a database seeded before it joined the seed; an empty database already has it from `_0020` |
 | `_0027__RenameWorkspaceTaskNodes` | all | Moves each `teamtask` node to `workspacetask` under its new `_id` and re-points the edges naming it; only a database that ran a v5 beta holds one |
+| `_0028__RunSettingsOutOfAnnotations` | all | Removes the engine's `boomerang.io/*` run annotations (`workspace-name`, `task-*`, `*-params`) from runs and the workspace name from task runs; moves a pre-approved task run's `preApproved` flag and `status` annotation to `preApprovedStatus`; re-keys a held task lock from `<workspace name>:<key>` to `<workspace id>:<key>` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `teams` → `quotas`) and rebuilds it from the seed under the stored id. Each entry takes the value stored under its key or an earlier key (`github.pem` → `github.jwt`, the v3
@@ -278,4 +287,4 @@ Defaults and workflow storage documents (keys `users` and `workflow`) are remove
 (`_0016__BuildSettingsFromSeed.java:49-95`).
 
 ## Not built
-The engine-read `task-*`, `*-params`, `workspace-name` and `status` annotations are planned to move to typed fields; nothing enforces the `<prefix>/<name>` label convention in code.
+Nothing enforces the `<prefix>/<name>` label convention in code.

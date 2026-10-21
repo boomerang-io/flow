@@ -313,7 +313,7 @@ Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boome
 migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json`, inserting only
 what is absent, so a task or revision added to the seed after a release needs a change unit of its own to reach an
 existing database (`data-model.md`, "Migrations", lists each one). A `template` or `script` task without an
-explicit image inherits the run's `boomerang.io/task-default-image` value (`DAGUtility.java:209-215`). The
+explicit image takes the `task` settings' `default.image` when its task run is created (`DAGUtility.java:263`). The
 engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`); the run each starts or
 schedules gets only its node's other params.

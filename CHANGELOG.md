@@ -102,6 +102,10 @@ tag's release notes.
   `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef` and
   `reusedFromRef`, and every workflow-run field but `id`, `status`, `phase`, `workflowRef`, `labels` and
   `workspace`; it reads them from the run through `/api/v2` instead.
+- **Stop every `service-core` replica before starting this version.** Change unit
+  `_0028__RunSettingsOutOfAnnotations` removes the `boomerang.io/*` annotations the engine used to read from runs and
+  task runs, moves an early event's status to a typed field, and re-keys held task locks by workspace id. A replica
+  of an earlier version still running would read runs whose annotations have gone.
 - **The last "team" names on the API say "workspace".** `GET /api/v2/profile` returns the user's workspaces as
   `workspaces` (was `teams`), and the error reasons `TEAM_INVALID_REF`, `TEAM_INVALID_REQ`, `TEAM_NON_UNIQUE_NAME`,
   `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
@@ -152,9 +156,11 @@ tag's release notes.
 
 ### Changed
 
-- The run annotations the engine decides on (`boomerang.io/*`: the owning workspace and the task defaults) are the
-  server's. A submit or start request that sends one has it dropped, and a retry is given them from the task
-  settings and its workspace as they stand now, so a retry of a run migrated from v3 gets the default image.
+- A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
+  secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
+  ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
+  them as they stand then. A run's only `boomerang.io/*` annotations are `generation` and `kind`; a submit or start
+  that sends one has it dropped.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
   is still published to GitHub Packages.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.

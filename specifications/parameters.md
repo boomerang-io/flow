@@ -11,7 +11,8 @@ The global, workspace and workflow-context values are not copied onto the run. `
 from their stores each time it resolves (`engine/ParameterManager.java:527`, through
 `workflow/ParamLayerService.java:119`): at run start for the run's params (`engine/WorkflowExecutionService.java:70`),
 at each task's admission (`TaskExecutionService.java:204`), at its claim for the spec, and for a for-each task's
-items at fan-out (`:337`). It reads them for the run's workspace (`boomerang.io/workspace-name`), and takes the
+items at fan-out (`:337`). It reads them for the run's workspace - the workspace that owns the run's workflow in the
+relationship graph, by id, so a rename does not move it (`workflow/ParamLayerService.java:91`) - and takes the
 workflow context - name, display name, id, version and workflow tokens - from the run's workflow and the revision
 it runs, so a version saved mid-run does not change it. The layers and the revision are served from a per-instance
 cache for 10 seconds (`core/ParamLayerCache.java`, `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks

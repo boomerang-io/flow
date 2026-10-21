@@ -4,6 +4,7 @@ import static io.cloudevents.core.CloudEventUtils.mapData;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.enums.ParamType;
@@ -42,6 +43,7 @@ import org.springframework.stereotype.Service;
 public class WebhookEventService {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final JsonMapper JSON = JsonMapper.builder().build();
 
   // io.cloudevents:cloudevents-json-jackson's PojoCloudEventDataMapper.from(...) only offers
   // Jackson 2 overloads (com.fasterxml.jackson.databind.ObjectMapper /
@@ -194,7 +196,11 @@ public class WebhookEventService {
     eventId.ifPresent(request::setId);
     request.setTopic(topic);
     request.setStatus(RunStatus.getRunStatus(status));
-    payload.ifPresent(data -> request.setResults(List.of(new RunResult("data", (Object) data))));
+    // Stored as plain maps and lists: a JSON node would be written with its class and could not be
+    // read back.
+    payload.ifPresent(
+        data ->
+            request.setResults(List.of(new RunResult("data", JSON.convertValue(data, Object.class)))));
     workflowRunService.event(workflowRunId, request);
   }
 

@@ -586,6 +586,74 @@ class MigrationChainTest {
   }
 
   /**
+   * The engine's run annotations go - a user's stay - a pre-approved TaskRun keeps its status as
+   * the typed field, and a held lock keyed by a workspace's name is re-keyed by its id; a second
+   * run changes nothing.
+   */
+  @Test
+  void runAnnotationsMoveOutAndLocksAreKeyedByWorkspaceId() {
+    MongoDatabase db = migrate("run-settings-out-of-annotations");
+    MongoCollection<Document> runs = collection(db, "workflow_runs");
+    MongoCollection<Document> taskRuns = collection(db, "task_runs");
+    MongoCollection<Document> locks = collection(db, "task_locks");
+    ObjectId workspaceId = new ObjectId();
+    collection(db, "workspaces").insertOne(new Document("_id", workspaceId).append("name", "payments"));
+    runs.insertOne(
+        new Document("_id", "run-1")
+            .append(
+                "annotations",
+                new Document("boomerang#io/workspace-name", "payments")
+                    .append("boomerang#io/task-timeout", "30")
+                    .append("boomerang#io/task-default-image", "img")
+                    .append("boomerang#io/task-deletion", "Never")
+                    .append("boomerang#io/global-params", new Document())
+                    .append("example#com/note", "kept")));
+    taskRuns.insertOne(
+        new Document("_id", "early-failed")
+            .append("workflowRunRef", "run-1")
+            .append("name", "early-failed")
+            .append("preApproved", true)
+            .append("annotations", new Document("boomerang#io/status", "failed")));
+    taskRuns.insertOne(
+        new Document("_id", "early-default")
+            .append("workflowRunRef", "run-1")
+            .append("name", "early-default")
+            .append("preApproved", true));
+    taskRuns.insertOne(
+        new Document("_id", "plain")
+            .append("workflowRunRef", "run-1")
+            .append("name", "plain")
+            .append("preApproved", false)
+            .append(
+                "annotations",
+                new Document("boomerang#io/workspace-name", "payments")
+                    .append("boomerang#io/position", new Document("x", 1))));
+    locks.insertOne(new Document("_id", "payments:deploy").append("holder", "t1"));
+    locks.insertOne(new Document("_id", "renamed-away:deploy").append("holder", "t2"));
+    locks.insertOne(new Document("_id", "bare-key").append("holder", "t3"));
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0028__RunSettingsOutOfAnnotations().execute(db, environment);
+    new _0028__RunSettingsOutOfAnnotations().execute(db, environment);
+
+    assertThat(runs.find(Filters.eq("_id", "run-1")).first().get("annotations", Document.class))
+        .containsOnlyKeys("example#com/note");
+    Document failed = taskRuns.find(Filters.eq("_id", "early-failed")).first();
+    assertThat(failed).containsEntry("preApprovedStatus", "failed").doesNotContainKey("preApproved");
+    assertThat(failed.get("annotations", Document.class)).doesNotContainKey("boomerang#io/status");
+    assertThat(taskRuns.find(Filters.eq("_id", "early-default")).first())
+        .containsEntry("preApprovedStatus", "succeeded");
+    Document plain = taskRuns.find(Filters.eq("_id", "plain")).first();
+    assertThat(plain).doesNotContainKey("preApproved").doesNotContainKey("preApprovedStatus");
+    assertThat(plain.get("annotations", Document.class)).containsOnlyKeys("boomerang#io/position");
+    assertThat(locks.find().map(lock -> lock.getString("_id")).into(new ArrayList<>()))
+        .containsExactlyInAnyOrder(
+            workspaceId.toHexString() + ":deploy", "renamed-away:deploy", "bare-key");
+    assertThat(locks.find(Filters.eq("_id", workspaceId.toHexString() + ":deploy")).first())
+        .containsEntry("holder", "t1");
+  }
+
+  /**
    * A workspace's own task node written as {@code teamtask} moves to {@code workspacetask} under its
    * new id, with its fields kept and its edge re-pointed; other nodes and edges are untouched, and a
    * second run changes nothing.

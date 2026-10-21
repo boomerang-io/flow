@@ -139,7 +139,7 @@ entities are separate classes and MUST NOT be returned from a controller. The di
 | Rule | Where |
 | --- | --- |
 | No execution-state field is serialised: `claim`, `timeoutAt`, `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `agentRef`, `dispatcherRef` exist on the entities only | `WorkflowRunEntity.java:53,59,64,77`; `TaskRunEntity.java:53-55,65,71,75,81`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:55-95` |
-| Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApproved`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
+| Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApprovedStatus`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
 | Lineage is public: `trigger`, `initiatedByRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run, whose `GET /taskrun/{id}/log` streams the origin task run's log | `WorkflowRun.java:64-72`; `TaskRun.java:55-59`; `WorkflowRunService.java` `streamTaskRunLog` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `WorkflowRunRetryRequest.java`; `WorkspaceWorkflowRunControllerV2.java` `retry` |
 | A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,659`; `WorkflowRunService.java:173`; `WorkflowService.java:1163,1195`; `WorkflowRunInsightService.java:130` |
@@ -335,7 +335,7 @@ missing member and a `null` member cannot be told apart.
 | --- | --- | --- |
 | Label keys | Free-form strings, MAY carry a `prefix/name` form; the server does not validate them | `common/model/Workflow.java:52`, `WorkflowRun.java:41` |
 | Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:478-493` |
-| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; `boomerang.io/*-params` are stripped from run responses | `WorkflowService.java:1552-1553,980`; `TaskService.java:646-647`; `WorkflowRunService.java:950-952` |
+| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; a run annotation under `boomerang.io/` that a submit or start sends is dropped. A run's only ones are `generation` and `kind`: its workspace and task defaults are not annotations | `WorkflowService.java:629,1055,1330,1871`; `TaskService.java:709,797`; `WorkflowRunService.java:735` |
 | Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1520-1532` |
 
 ## Parameter model

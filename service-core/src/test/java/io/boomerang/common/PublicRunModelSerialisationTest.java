@@ -64,7 +64,7 @@ class PublicRunModelSerialisationTest {
           "agentRef",
           "dispatcherRef",
           "dependencies",
-          "preApproved",
+          "preApprovedStatus",
           "decisionValue");
 
   private static ObjectNode serialise(Object model) {
