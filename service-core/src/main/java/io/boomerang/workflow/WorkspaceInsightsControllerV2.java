@@ -46,7 +46,7 @@ public class WorkspaceInsightsControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INSIGHTS,
-      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session})
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Summarise a workspace's runs over a period",
       description =
@@ -84,7 +84,7 @@ public class WorkspaceInsightsControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INSIGHTS,
-      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session})
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Detail one workflow's runs over a period",
       description =
@@ -115,7 +115,7 @@ public class WorkspaceInsightsControllerV2 {
   @AuthCriteria(
       action = PermissionAction.READ,
       resource = PermissionResource.INSIGHTS,
-      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session})
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
       summary = "Group a workspace's task runs over a period",
       description =

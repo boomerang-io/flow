@@ -7,11 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.boomerang.core.TokenService;
 import io.boomerang.core.entity.TokenEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.servlet.Filter;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -139,5 +143,32 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
     mockMvc
         .perform(get(WORKSPACE_QUERY).header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
         .andExpect(status().isOk());
+  }
+
+  /** A global token reads a workspace's Insights, as it reads its runs and task runs. */
+  @Test
+  void theRegisteredTokenReadsAWorkspacesInsights() throws Exception {
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, "system")) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.ROOT,
+          "root",
+          RelationshipLabel.CONTAINS,
+          RelationshipType.WORKSPACE,
+          "system",
+          "system",
+          Optional.empty(),
+          Optional.empty());
+    }
+    bootstrapToken(FIRST).register();
+    SecurityContextHolder.clearContext();
+
+    for (String route :
+        List.of(
+            "/api/v2/workspace/system/insights",
+            "/api/v2/workspace/system/insights/tasks?groupBy=label:boomerang.io/item")) {
+      mockMvc
+          .perform(get(route).header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
+          .andExpect(status().isOk());
+    }
   }
 }
