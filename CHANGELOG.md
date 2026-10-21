@@ -180,6 +180,9 @@ tag's release notes.
   that sends one has it dropped.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
   is still published to GitHub Packages.
+- Spring Boot 4.1.1, with Tomcat 11.0.27, Jackson 2.21.8 and 3.1.8 and commons-io 2.22.0 ahead of it, and the
+  latest chiseled JRE base image, for the critical and high CVEs fixed since 4.1.0. The webapp image has no npm or
+  corepack: the server runs on node alone.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
 - `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
   running whenever the engine watcher was on.

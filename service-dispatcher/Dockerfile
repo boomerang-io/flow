@@ -25,7 +25,7 @@ COPY docker/health/Health.java docker/health/
 RUN javac -d /build/health docker/health/Health.java
 
 # Ubuntu's chiseled JRE, pinned by digest - see service-core/Dockerfile for why and how to refresh.
-FROM ubuntu/jre:25-26.04_edge@sha256:c462b20df5b43f5dc6e3496da092623d4113cd07edca484abb5ad5679b78499d
+FROM ubuntu/jre:25-26.04_edge@sha256:db40b3d2cd6ca6c88caede7aa01126540ba9bb71fcee2626c464ba42f3c00385
 ENV BMRG_HOME=/opt/boomerang
 WORKDIR $BMRG_HOME
 

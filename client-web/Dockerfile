@@ -59,9 +59,14 @@ COPY --from=serve-deps /src/package.json ./package.json
 COPY --from=serve-deps /src/node_modules ./node_modules
 COPY --from=build /src/build ./build
 
+# The server runs on node alone, so the image's bundled npm and corepack, which carry their own
+# vulnerable packages, are removed, and Alpine's packages take their latest fixes.
 # OpenShift requires a numeric, arbitrarily-assigned UID in group 0 rather than a named user -
 # chgrp/chmod g=u makes that arbitrary UID as capable as the intended one.
-RUN chgrp -R 0 $BMRG_HOME \
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    && chgrp -R 0 $BMRG_HOME \
     && chmod -R g=u $BMRG_HOME
 USER 2000
 
