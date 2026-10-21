@@ -23,7 +23,7 @@ C. The dispatcher fails an image it cannot pull, or a container it cannot create
 `kube.timeout.startFailureGraceSeconds` (60), and reports a pod still Pending after `kube.timeout.startMinutes`
 (15) as `StartTimeout`, deleting the runtime object either way (`service-dispatcher/.../executor/PodStartWatch.java`).
 A quota refusal at create is `ExceededQuota` (`dispatcher/TaskService.java:90`). The engine requeues those two
-on a timed-out claimant's budget (`service-core/.../engine/TaskRunService.java:977`). Before creating anything
+on a timed-out claimant's budget (`service-core/.../engine/TaskRunService.java:980`). Before creating anything
 the dispatcher reads the engine's `start` answer and skips a task already finished (`client/EngineClient.java:123`).
 
 ## Consequences

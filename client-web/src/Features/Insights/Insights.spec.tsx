@@ -334,11 +334,11 @@ describe("Insights --- task runs", () => {
         return HttpResponse.json(fixtures.insightsTasks);
       }),
     );
-    renderInsights(`/${WORKSPACE}/insights?taskGroupBy=param:model&taskBucket=day&labels=team=a`);
+    renderInsights(`/${WORKSPACE}/insights?taskGroupBy=label:boomerang.io/model&taskBucket=day&labels=team=a`);
 
     const rows = await screen.findAllByTestId("insights-task-group");
     expect(requested).toHaveLength(1);
-    expect(requested[0].searchParams.get("groupBy")).toBe("param:model");
+    expect(requested[0].searchParams.get("groupBy")).toBe("label:boomerang.io/model");
     expect(requested[0].searchParams.get("bucket")).toBe("day");
     expect(requested[0].searchParams.get("slowest")).toBe("10");
     expect(requested[0].searchParams.get("labels")).toBe("team=a");
@@ -346,6 +346,10 @@ describe("Insights --- task runs", () => {
     expect(rows[0]).toHaveTextContent("2019-12-30");
     expect(rows[0]).toHaveTextContent("openai/gpt-4o-mini");
     expect(rows[0]).toHaveTextContent("42");
+    // The ai task runs' usage: tokens and cost.
+    expect(rows[0]).toHaveTextContent("96,600");
+    expect(rows[0]).toHaveTextContent("$0.0315");
+    expect(screen.getByRole("combobox", { name: /Group by/i })).toHaveTextContent("Model");
     // A task run with no value for the grouping is its own row.
     expect(rows[1]).toHaveTextContent("(none)");
     const slowest = screen.getByTestId("insights-slowest-tasks");
@@ -368,19 +372,31 @@ describe("Insights --- task runs", () => {
     );
   });
 
-  test("a param grouping waits for the param's name", async () => {
+  test("the model grouping is the server's model label", async () => {
     const { history } = renderInsights();
     await screen.findByTestId("completed-insights");
 
     userEvent.click(screen.getByRole("combobox", { name: /Group by/i }));
-    userEvent.click(await screen.findByRole("option", { name: "Param" }));
-    expect(history.location.search).toBe("");
-    userEvent.type(await screen.findByLabelText("Param name"), "model{enter}");
+    userEvent.click(await screen.findByRole("option", { name: "Model" }));
 
     await waitFor(() =>
       expect(history.location.search).toBe(
-        "?" + queryString.stringify({ taskGroupBy: "param:model" }, queryStringOptions),
+        "?" + queryString.stringify({ taskGroupBy: "label:boomerang.io/model" }, queryStringOptions),
       ),
+    );
+  });
+
+  test("a label grouping waits for the label's key", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Group by/i }));
+    userEvent.click(await screen.findByRole("option", { name: "Label" }));
+    expect(history.location.search).toBe("");
+    userEvent.type(await screen.findByLabelText("Label key"), "team{enter}");
+
+    await waitFor(() =>
+      expect(history.location.search).toBe("?" + queryString.stringify({ taskGroupBy: "label:team" }, queryStringOptions)),
     );
   });
 });

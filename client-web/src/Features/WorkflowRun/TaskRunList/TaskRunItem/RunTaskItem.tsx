@@ -31,6 +31,11 @@ function taskRunDuration(taskRun: TaskRun) {
     : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
 }
 
+// The attempt, shown only once the task was requeued: a first attempt is the ordinary case.
+function laterAttempt(taskRun: TaskRun) {
+  return taskRun.attempt && taskRun.attempt > 1 ? taskRun.attempt : undefined;
+}
+
 type Props = {
   taskRun: TaskRun;
   workflowRun: WorkflowRun;
@@ -80,6 +85,7 @@ function RunTaskItem({
   const isSlim = taskRun.type === NodeType.Start || taskRun.type === NodeType.End;
 
   const calculatedDuration = taskRunDuration(taskRun);
+  const attempt = laterAttempt(taskRun);
 
   return (
     <li
@@ -121,7 +127,7 @@ function RunTaskItem({
         </section>
       )}
       {!isSlim && (
-        // One line, the values in primary text: "Started at 04:25:37 PM in 6 secs".
+        // One line, the values in primary text: "Started at 04:25:37 PM in 6 secs, attempt 2".
         <p className={styles.timeLine} data-testid="taskitem-time">
           {taskRun.startTime ? (
             <>
@@ -135,6 +141,11 @@ function RunTaskItem({
             </>
           ) : (
             "Not started"
+          )}
+          {attempt && (
+            <>
+              , attempt <span className={styles.timeValue}>{attempt}</span>
+            </>
           )}
         </p>
       )}
@@ -299,11 +310,13 @@ function itemValue(item: TaskRun) {
 }
 
 // One item of a for-each task: its index, the item it ran for, its own status and - once it
-// fails - why, its duration, and its own log (logs are per task run id, so items need nothing new).
+// fails - why, its duration and a later attempt, and its own log (logs are per task run id, so
+// items need nothing new).
 function ForeachItemRow({ item, parentName }: { item: TaskRun; parentName: string }) {
   const Icon = executionStatusIcon[item.status];
   const value = itemValue(item);
   const isFailed = itemFailedStatuses.includes(item.status);
+  const attempt = laterAttempt(item);
   return (
     <li className={styles.item} data-testid="foreach-item">
       <div className={styles.itemHeader}>
@@ -322,7 +335,10 @@ function ForeachItemRow({ item, parentName }: { item: TaskRun; parentName: strin
         </p>
       ) : null}
       <div className={styles.itemFooter}>
-        <time className={styles.itemDuration}>{taskRunDuration(item)}</time>
+        <p className={styles.itemDuration}>
+          <time>{taskRunDuration(item)}</time>
+          {attempt && <span data-testid="foreach-item-attempt">, attempt {attempt}</span>}
+        </p>
         {hasLog(item) && <TaskExecutionLog taskrunId={item.id} taskName={item.name} />}
       </div>
     </li>

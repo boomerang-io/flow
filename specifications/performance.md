@@ -11,12 +11,12 @@ instance. Correctness rests on three primitives, all in the live path:
 
 | Primitive | Where | What it guarantees |
 | --- | --- | --- |
-| Claim CAS (`findAndModify` on `_id` + full eligibility) | `service-core/src/main/java/io/boomerang/engine/TaskRunService.java:225-263` | One dispatcher owns a TaskRun; losers get `null` and skip. `claim.seq` is incremented per claim and checked on start/end writes (`:421`), so a stale claimant cannot write results. |
-| Status-CAS transitions (`tryTransition`, `tryComplete`, `tryRequeue`) | `TaskRunService.java:541-583`, `engine/WorkflowRunStateHelper.java` | Concurrent advance from two instances converges: the second CAS finds the state already changed and performs no side effects. |
+| Claim CAS (`findAndModify` on `_id` + full eligibility) | `service-core/src/main/java/io/boomerang/engine/TaskRunService.java:226-264` | One dispatcher owns a TaskRun; losers get `null` and skip. `claim.seq` is incremented per claim and checked on start/end writes (`:424`), so a stale claimant cannot write results. |
+| Status-CAS transitions (`tryTransition`, `tryComplete`, `tryRequeue`) | `TaskRunService.java:544-586`, `engine/WorkflowRunStateHelper.java` | Concurrent advance from two instances converges: the second CAS finds the state already changed and performs no side effects. |
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:32-37` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
 Crash recovery is the lease the claim sets 90 s ahead and each 30 s heartbeat renews
-(`TaskRunService.java:316`, `:616`; served by the sparse `lease_sweep` index, `_0021__Indexes.java:62`, which holds
+(`TaskRunService.java:317`, `:619`; served by the sparse `lease_sweep` index, `_0021__Indexes.java:62`, which holds
 only live claims because completion clears the lease, `:613`), the absolute
 `timeoutAt` written at claim = now + timeout + 5 s grace (`engine/RunTimeouts.java:14-17`), and the gone-dispatcher
 sweep below.
@@ -33,7 +33,7 @@ Without the parameter cache each resolution reads the revision, the workflow, th
 parameters, the workspace and the workflow's tokens: six reads per task admission and per for-each item. With it,
 the tasks of every run of one revision in one workspace admitted within 10 s share those six. Every global
 parameter, workspace, setting, workflow and revision write calls `evictAll` (`ParameterService.java:73,96,111`,
-`WorkspaceService.java:218,312,592`, `SettingsService.java:137`, `WorkflowService.java:1501,1748`); token writes do
+`WorkspaceService.java:218,312,592`, `SettingsService.java:137`, `WorkflowService.java:1503,1750`); token writes do
 not, because the scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s.
 Redaction reads secured values uncached (`ParamLayerService.java:173`).
 
@@ -41,7 +41,7 @@ Redaction reads secured values uncached (`ParamLayerService.java:173`).
 
 The claim page is oldest-first with backoff exclusion inside the query, so a retried task cannot
 starve fresh work and a burst of one workflow's tasks cannot jump the queue.
-`findClaimable` (`TaskRunService.java:90-112`) selects `status=ready`, `phase=pending`, `type` in the
+`findClaimable` (`TaskRunService.java:91-113`) selects `status=ready`, `phase=pending`, `type` in the
 dispatcher's registered types, `claim.by` absent, and `retry.after` absent or elapsed, sorted by
 `creationDate`, projected to `_id` only, then claims each candidate by CAS (page-then-CAS,
 `dispatcher/DispatcherService.java:301-316`). Backoff is one generic class: 10 s base, doubling per
@@ -72,7 +72,7 @@ Indexes come only from the change unit `_0021__Indexes`; entity annotations are 
 | --- | --- | --- | --- |
 | `claim_page` | `task_runs {type, status, phase, claim.by, creationDate}` | `service-core/src/main/java/io/boomerang/migration/_0021__Indexes.java:58-62` | `findClaimable` page and its sort (a claimable task run has no `claim.by`, which the index holds as null); the two termination pages, which ask for a string `claim.by` and so read only held task runs: 3 documents for 3 held among 2,003 cancelled, where the earlier keys read all 2,003 (`ClaimIndexQueryPlanTest`) |
 | `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `_0021__Indexes.java:63-67` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
-| `run_tasks` | `task_runs {workflowRunRef, status, name}` | `_0021__Indexes.java:61` | A run's task runs; the Insights task-run read and its one `usage` aggregation per response, matched on the counted runs' ids with `type` and `foreach` as residual filters (`workflow/WorkflowRunInsightService.java:294`) |
+| `run_tasks` | `task_runs {workflowRunRef, status, name}` | `_0021__Indexes.java:61` | A run's task runs; the Insights task-run read and its one `usage` aggregation per response, matched on the counted runs' ids with `type` and `foreach` as residual filters (`workflow/WorkflowRunInsightService.java:450`) |
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `_0021__Indexes.java:60-61` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
 | `claim_page`, `timeout_sweep`, `paused_lookup` | `workflow_runs {status, phase, creationDate}`, `{timeoutAt}`, `{pauseRequestedAt}` | `_0021__Indexes.java:71-74` | Run provision claim page and `recoverStaleProvisionClaims`; `reapWorkflowTimeouts` |
 | `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase` | `workflow_runs {phase, creationDate}`, `{phase, startTime}`, `{workflowRef, phase}` | `_0021__Indexes.java:75-78` | Teardown claim page (1/s per dispatcher), `recoverStalledRuns`, `cancelDeletedWorkflowRuns`; the retention page of `purgeExpiredRuns` (`{phase, creationDate}`), with its lineage check on `initiated_by_phase` |
@@ -85,7 +85,7 @@ Indexes come only from the change unit `_0021__Indexes`; entity annotations are 
 
 Every sweep runs on every instance with a random start offset; correctness never depends on ticks not
 colliding. Each paged query carries `maxTimeMsec(5000)` so a slow database cannot hang the sweeper
-(`TaskRunService.java:447,468`; `WorkflowRunStateHelper.java:267-304`).
+(`TaskRunService.java:450,471`; `WorkflowRunStateHelper.java:267-304`).
 
 | Sweeper | Property (default) | Start jitter | Page | Notes |
 | --- | --- | --- | --- | --- |
@@ -170,9 +170,9 @@ default (`seed/workspace.json`).
 | Quota (settings key, `QuotaService.java:53-59`) | Enforced at | Code |
 | --- | --- | --- |
 | `max.workflow.count` | Workflow create | `WorkflowService.java:412`, `QuotaService.java:274-287` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created | `WorkflowService.java:614`, `WorkflowRunService.java:881`, `QuotaService.java:294-318` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created | `WorkflowService.java:614`, `WorkflowRunService.java:973`, `QuotaService.java:294-318` |
 | `max.workspace.storage` | Workflow save (create and update) and run submit (workspace size ≤ quota in Gi, else `QUOTA_EXCEEDED`) | `WorkflowService.java:466-481`, `QuotaService.java:350-360` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java` `defaultTimeout`) | `WorkflowService.java:1856`, `WorkflowRunService.java:882`, `QuotaService.java:175-186` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java` `defaultTimeout`) | `WorkflowService.java:1858`, `WorkflowRunService.java:974`, `QuotaService.java:175-186` |
 | `max.artifact.storage` | Artifact upload, at hand-out and at completion | `ArtifactService.java:255-262,322-331,656-667`, `QuotaService.java:256-269` |
 
 The two run counters come from different sources (decision 0019), both counted in `QuotaService.current`
@@ -185,7 +185,7 @@ live run documents (the `workflow_ref_creation` index). The max is deliberate �
 async best-effort, so a just-admitted run may not be audited yet (the live count covers that
 race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
 Submit re-checks the same counters after admitting the run, so a burst cannot over-fill a limit
-(`QuotaService.assertAdmittedRunWithinQuotas` `:325-342`, called from `WorkflowService.java:657-667`, which discards
+(`QuotaService.assertAdmittedRunWithinQuotas` `:325-342`, called from `WorkflowService.java:659-669`, which discards
 the run it refuses). Audit retention is floored at 60 days so the month window always holds
 (`core/audit/AuditRetentionService.java`).
 
@@ -196,7 +196,7 @@ Two byte caps bound what the engine stores (`application.properties:187-188`): r
 claimable (`engine/TaskExecutionService.java:200-214`) — and results ≤
 `flow.engine.task.results.max-bytes` (1 MB) at end, a storage guard behind each dispatcher's own limit
 (4096 bytes, Kubernetes' termination message) — oversize fails the task and keeps the prior results
-(`TaskRunService.java:49-50,909-919`). Large values pass by reference (a workspace path or a URI).
+(`TaskRunService.java:50-51,912-922`). Large values pass by reference (a workspace path or a URI).
 
 ## Storage
 
@@ -237,14 +237,14 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 
 | Not built | What exists instead | Reopen when |
 | --- | --- | --- |
-| Per-class or per-type concurrency caps | `findClaimable` filters only by task type (`TaskRunService.java:73-88`) | Load testing shows one task type starving others or overrunning the cluster |
+| Per-class or per-type concurrency caps | `findClaimable` filters only by task type (`TaskRunService.java:74-89`) | Load testing shows one task type starving others or overrunning the cluster |
 | A per-task resource request or limit | Six deployment-wide `kube.resource.*` values sized by the operator and applied to every task container this dispatcher runs (`executor/TaskResourceResolver.java`), the same per-deployment shape as the isolation tier (decision 0042) | A deployment genuinely needs mixed sizing behind one dispatcher, rather than a second dispatcher deployment with its own task types |
 | Per-class kill switches | One global `flow.queue.enabled` that stops claiming only | An incident needs one class stopped while others run |
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Retry rate-limit and deterministic-terminal classes | One `Backoff`; `retry` carries only `after`/`count`; a dispatcher-reported failure is not retried | A runtime that returns typed rate-limit signals is integrated |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`kube/TektonServiceImpl.java`, `executor/JobWatcher.java`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
 | An event-driven dispatcher poll | A 30 s long poll that re-checks every 1 s (`dispatcher/DispatcherService.java:49-50`); the dispatcher reconnects at once | A measured idle-query cost at the dispatcher count in use, or a workload that needs task-to-task hops well under 1 s |
-| Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`TaskRunService.java:215-225`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
+| Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`TaskRunService.java:216-226`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
 | A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 
 ## Also worth knowing
@@ -252,6 +252,6 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 - Sent outbox rows expire after 7 days; `task_locks` documents expire on their own index — both built by `_0021__Indexes`.
 - Sweeps page 50 documents at a time; the dispatcher claims 20 per poll.
 - A run's graph is read about twice per task, at its queue and at its end, projected to the seven fields the graph
-  walk reads (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:129-141`); a completion returns only the fields
-  its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:887-891`). An end therefore
+  walk reads (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:130-142`); a completion returns only the fields
+  its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:890-894`). An end therefore
   reads no other task run's params, spec or results (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`).

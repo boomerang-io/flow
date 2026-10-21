@@ -101,4 +101,6 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0125 | [A child run receives only the params its node passes](0125-a-child-run-receives-only-the-params-its-node-passes.md) | accepted | 2026-10-20 |
 | 0127 | [The dispatcher wire carries its own run models](0127-the-dispatcher-wire-carries-its-own-run-models.md) | accepted | 2026-10-20 |
 | 0128 | [A run's workspace is its workflow's owner, and task defaults land on the task run](0128-a-runs-workspace-is-its-workflows-owner.md) | accepted | 2026-10-21 |
-| 0129 | [Insights group task runs on one route, with exact percentiles](0129-insights-group-task-runs-on-one-route.md) | accepted | 2026-10-21 |
+| 0129 | [Insights group task runs on one route, by fields Flow owns and by labels](0129-insights-group-task-runs-on-one-route.md) | accepted | 2026-10-21 |
+| 0130 | [Task runs are queried across runs, as slim rows](0130-task-runs-are-queried-across-runs.md) | accepted | 2026-10-21 |
+| 0131 | [The server labels an AI task's model and a for-each child's item](0131-the-server-labels-a-model-and-a-childs-item.md) | accepted | 2026-10-21 |

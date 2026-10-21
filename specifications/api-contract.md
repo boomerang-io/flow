@@ -13,7 +13,7 @@ everything else is global.
 
 | Scope | Prefix | Controllers (`service-core/src/main/java/io/boomerang/...`) |
 | --- | --- | --- |
-| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workflow/WorkspaceInsightsControllerV2.java:29` |
+| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:35`, `workflow/WorkspaceWorkflowRunControllerV2.java:31`, `workflow/WorkspaceTaskRunControllerV2.java:24`, `workflow/WorkspaceTaskControllerV2.java:30`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:37`, `workflow/WorkspaceInsightsControllerV2.java:29` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]` (list, stream, delete; the uploading run serves its workflow-scoped artifacts too), `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` (list largest first, filtered by `statuses`, `scope` (`run`, `workflow`) and `workflow` (a workflow name); delete); every artifact carries `scope`; an expired or replaced artifact answers `410` | `workflow/WorkspaceArtifactControllerV2.java:42,165-182` |
 | Workspace collection | `/api/v2/workspace` | `workspace/WorkspaceControllerV2.java:38` |
 | Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/ProfileControllerV2.java:40`, `core/TokenControllerV2.java:32`, `workflow/TaskControllerV2.java:29`, `workflow/TaskRunControllerV2.java:23`, `workflow/ParameterControllerV2.java:24`, `workflow/WorkflowTemplateControllerV2.java:30`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
@@ -61,20 +61,18 @@ an insert-only collection. Sorting is by `time` only — there is no `sort` para
 minus the CloudEvents envelope (`type`, `source`, `subject`) and the TTL anchor `createdAt`; `payload` is passed
 through as captured and holds request discriminators only, never content.
 
-Audited at the `WRITE` level: creating, updating and applying workspaces (with their parameters), workflows (with
-compose, duplicate and submit), global parameters, admin settings, catalogue tasks (JSON and Tekton YAML, global and
-workspace routes) and schedules, and creating a token. Audited at `DESTRUCTIVE`: deleting a workspace, workflow,
-global or workspace parameter, schedule or artifact, and revoking a token; a catalogue task delete is not audited. A
-write that changes a secret adds `payload.detail`, `{"secretsChanged": ["<name>"], "secretsCleared": ["<name>"]}`,
-naming the secrets and never their values (`parameters.md`, "Sensitive parameters"). Run admission and completion
-are recorded by the engine, and only `workflowrun` `CREATE` events count toward the monthly run quota
-(`core/audit/AuditQueryService.java:179`).
+`WRITE` level: creating, updating and applying workspaces and their parameters, workflows (compose, duplicate and
+submit too), global parameters, admin settings, catalogue tasks and schedules, and creating a token. `DESTRUCTIVE`:
+deleting a workspace, workflow, parameter, schedule or artifact, and revoking a token; a catalogue task delete is not
+audited. A write that changes a secret adds `payload.detail` (`secretsChanged`, `secretsCleared`), naming secrets,
+never values. The engine records run admission and completion; only `workflowrun` `CREATE` events count toward the
+monthly run quota (`core/audit/AuditQueryService.java:179`).
 
 `{workspace}` is the workspace **name**, not its id. There is no `/api/v2/team/{team}` alias: the former alias was
 retired and only `/api/v2/workspace/{workspace}` is registered
-(`core/security/EngineWorkspaceInterceptorConfiguration.java:12-13`). `TaskRun` is the one run resource with no
-workspace segment; `GET /api/v2/taskrun/{id}/log` is authorised through the owning `WorkflowRun` instead
-(`workflow/WorkflowRunService.java:323-333`).
+(`core/security/EngineWorkspaceInterceptorConfiguration.java:12-13`). `GET /api/v2/taskrun/{id}/log` has no
+workspace segment and is authorised through the owning `WorkflowRun` instead (`WorkflowRunService.java`
+`streamTaskRunLog`).
 
 ## Error response
 
@@ -93,15 +91,13 @@ Every API error, including authentication failures, is a `RestErrorResponse`
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:12`); an explicit exception message wins (`RestExceptionHandler.java:49-58`) |
 | `cause` | Present only when the exception has a cause (`:49-51`) |
 
-A `*_INVALID_REF*` code answers `404` and means the resource the request path addresses does not exist; blank,
-missing or unusable input answers `400` under the matching `*_INVALID_REQ` code (`WORKSPACE_INVALID_REQ`,
-`WORKFLOW_INVALID_REQ`, `TASK_INVALID_REQ`, `PARAMS_INVALID_REQ`, `WORKFLOWRUN_INVALID_REQ`, `TASKRUN_INVALID_REQ`,
-`SCHEDULE_INVALID_REQ`). A reference that fails to resolve *inside a body* stays `400` — the route exists and the
-payload is wrong — which is why a workflow node naming a Task that does not exist is `WORKFLOW_INVALID_TASK_REF` on
-`400`, and a node carrying no task reference at all is `WORKFLOW_MISSING_TASK_REF` on `400` at both save and submit.
-Decision 0080 states the rule. `TASK_INVALID_NAME` (`1403`, `400`) means the supplied name is blank or breaks the
-slug rules and nothing else: every scoped Task lookup, changelog and delete answers `TASK_INVALID_REFERENCE`
-(`1401`, `404`) when the named Task does not exist or the caller cannot reach it (`workflow/TaskService.java`).
+A `*_INVALID_REF*` code answers `404`: the resource the request path addresses does not exist. Blank, missing or
+unusable input answers `400` under the matching `*_INVALID_REQ` code. A reference that fails to resolve *inside a
+body* stays `400`, since the route exists and the payload is wrong: a node naming a missing Task is
+`WORKFLOW_INVALID_TASK_REF`, and one with no task reference `WORKFLOW_MISSING_TASK_REF`, at save and submit (decision
+0080). `TASK_INVALID_NAME` (`1403`, `400`) means only that the name is blank or breaks the slug rules; a scoped Task
+lookup, changelog or delete of a Task that does not exist or that the caller cannot reach is `TASK_INVALID_REFERENCE`
+(`1401`, `404`; `workflow/TaskService.java`).
 
 ## Pagination and sorting
 
@@ -142,13 +138,13 @@ entities are separate classes and MUST NOT be returned from a controller. The di
 | Also entity-only: `statusOverride`, `retryCount` (workflow run); `preApprovedStatus`, `decisionValue`, `dependencies` (task run) | `WorkflowRunEntity.java:43,77`; `TaskRunEntity.java:53-55` |
 | Lineage is public: `trigger`, `initiatedByRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run, whose `GET /taskrun/{id}/log` streams the origin task run's log | `WorkflowRun.java:64-72`; `TaskRun.java:55-59`; `WorkflowRunService.java` `streamTaskRunLog` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `WorkflowRunRetryRequest.java`; `WorkspaceWorkflowRunControllerV2.java` `retry` |
-| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,659`; `WorkflowRunService.java:173`; `WorkflowService.java:1163,1195`; `WorkflowRunInsightService.java:130` |
+| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on a run's task runs, on a workflow's nodes and on insight task rows, translated in one batch per response; a workflow saved with a slug form naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`; the stored value is the task's id (decision 0119) | `workflow/TaskService.java:707,659`; `WorkflowRunService.java:175`; `WorkflowService.java:1165,1197`; `WorkflowRunInsightService.java:263` |
+| A task a dispatcher has claimed shows `attempt`: 1, plus one per requeue for any cause (a never-started end reason, a lost lease, a dispatcher gone stale, a missed deadline), so a requeued task waiting out its backoff already shows the next one. It is derived from the hidden retry count, which stays on the entity; an approval, a wait or a task a scoped retry reused has none | `TaskRun.java:60-70`; test `PublicRunModelSerialisationTest.aClaimedTaskExposesItsAttemptButNotItsRetryState` |
 | Pause is exposed as the derived boolean `paused`, never the timestamp | `WorkflowRun.java:52-54`; test `:85-92` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `service-core/.../enums/RunStatus.java` |
 | **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models: the webapp reads `TaskRun.phase` and the list routes filter on it. A dispatcher no longer reads it here, as the dispatcher wire's models carry their own. `queued` is the only position `status` cannot express | `TaskRun.java:19-23`; tripwire `PublicRunModelSerialisationTest.java:150-163`, phase set pinned at `:170-175` |
 
-`TaskRun` is `@JsonInclude(NON_NULL)`, so a null field is absent rather than `null`
-(`PublicRunModelSerialisationTest.java:97-99`).
+`TaskRun` is `@JsonInclude(NON_NULL)`: a null field is absent, not `null`.
 
 A for-each task appears in a run's task list as one parent `TaskRun` under the task's name plus one item `TaskRun`
 per element, named `<name>[<index>]` and carrying `parentRef` (the parent's `id`) and `index` (from 0); both fields
@@ -157,6 +153,19 @@ The parent's `foreach` setting and resolved item array stay on the entity; items
 (`PublicRunModelSerialisationTest.aForeachItemExposesItsParentAndIndexButNoExecutionState`). The parent's
 `statusReason` is `ItemFailed`, `ForeachItemsInvalid`, `ForeachTooManyItems`, or `ResultsTooLarge` when its combined
 results exceed MongoDB's 16 MB document limit, when it fails for a for-each cause (`TaskRunEndRequest.java:22-28`).
+
+### Querying task runs across runs
+
+`GET …/workspace/{workspace}/taskrun/query` (`workflow/WorkspaceTaskRunControllerV2.java:37`,
+`WorkflowRunService.java:326`) pages task runs as the run query pages runs, with its filters applied to the task run
+(`fromDate`/`toDate` on its creation), plus `tasks`: node names, each matching its for-each items too. It needs the
+task-run read permission and `labels` or `workflowruns`, the two ways task runs are indexed (`run_tasks`,
+`label_wildcard`; `migration/_0021__Indexes.java:63,75`); without either it is `400 QUERY_INVALID_FILTERS`. A task
+run carries its run's labels and a run-workflow child its parent's (`engine/DAGUtility.java:195-200`,
+`engine/TaskExecutionService.java:1153-1166`), so one label finds a run's task runs and its children's. Scoping is
+the run query's (`:383`). A row is the public `TaskRun` without `params`, `results`, `spec`, `annotations` or
+`statusMessage`, which can carry a secret value, so no row needs scrubbing (`:410`); its end is `startTime` plus
+`duration`. Rows sort by creation, then id, so pages stay stable.
 
 ## Insights
 
@@ -170,34 +179,29 @@ and are not counted; the monthly quotas total runs from the audit trail instead
 | --- | --- |
 | `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first; `usage` over the period's runs. `workflows` takes names or ids. |
 | `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on an `ai` task's row (null otherwise), queue-wait percentiles, `retriedRuns`, up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run, and `usage` over the workflow's runs. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
-| `GET …/insights/tasks?fromDate&toDate&workflows&labels&tasks&types&groupBy&bucket&spanBy&slowest&params` | `WorkflowRunInsightTasks` (`workflow/WorkflowRunInsightService.java:188`): the completed, not skipped task runs of the period's runs (a for-each task's items, under its name; the task itself is left out), one row per `groupBy` value (`task`, `type`, `workflow`, `param:<name>` or `label:<key>` of the run; one row when absent; a `secret` param is never a key) and, with `bucket`, per UTC hour, day or month of the task run's start. Each row: task runs, succeeded, failed (failed, timed out, invalid), cancelled, and mean, p50, p95 and max duration over succeeded ones. `spanBy=label:<key>` adds, per row, the count and p50/p95/max of each label value's first start to last end across runs. `slowest` (up to 100) lists the slowest with the named non-secret `params`. Rows are by bucket, then most task runs; past 1,000, `truncated`. An unknown `groupBy`, `bucket`, `spanBy` or a `slowest` over 100 is `400 QUERY_INVALID_FILTERS`. |
+| `GET …/insights/tasks?fromDate&toDate&workflows&labels&tasks&types&groupBy&bucket&spanBy&slowest` | `WorkflowRunInsightTasks` (`workflow/WorkflowRunInsightService.java:187`): the completed, not skipped task runs of the period's runs (a for-each task's items, under its name; the task itself is left out), one row per `groupBy` value (`task`, `type`, `workflow` or `label:<key>`, a label of the task run, the server's `boomerang.io/model` and `boomerang.io/item` included; one row when absent) and, with `bucket`, per UTC hour, day or month of the task run's start. Each row: task runs, succeeded, failed (failed, timed out, invalid), cancelled, and mean, p50, p95 and max duration over succeeded ones; a row with `ai` task runs also carries `usage`'s sums for them. `spanBy=label:<key>` adds, per row, the count and p50/p95/max of each run label value's first start to last end across runs. `slowest` (up to 100) lists the slowest task runs. Rows are by bucket, then most task runs; past 1,000, `truncated`. An unknown `groupBy`, `bucket`, `spanBy` or a `slowest` over 100 is `400 QUERY_INVALID_FILTERS`. |
 
-`labels` is the list filter described under "Pagination and sorting", read by the same builder
-(`common/util/QueryCriteria.java`). It narrows both periods of the summary.
+`usage` (`service-core/…/model/WorkflowRunInsightUsage.java`) sums the results the counted runs' `ai` task runs
+reported: `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`
+and `cost`, and the same per `model` result in `byModel`, most tokens first (`WorkflowRunInsightService.java:450`;
+the task view reads the same results, `:514`). An empty or non-numeric result adds nothing, so `cost` stays `null`
+when no task reported one; it is the endpoint's own figure, summed as reported. A for-each parent holds its items'
+results as arrays and is left out; its items count, under its name.
 
-`usage` (`service-core/…/model/WorkflowRunInsightUsage.java`) sums the results the `ai` task runs of the counted
-runs reported: `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`,
-`cachedPromptTokens` and `cost`, and the same sums per `model` result in `byModel`, most tokens first
-(`workflow/WorkflowRunInsightService.java:294` `aiUsage`). A result that is empty or not a number adds nothing, so a
-task that did not report `cost` leaves it `null`; `cost` is the endpoint's own figure in its own currency and is
-summed as reported. A for-each parent holds its items' results as arrays and is left out; its items count, under the
-parent's name on the detail's task rows. A task that is not an `ai` task never counts.
-
-Durations and waits are milliseconds; a percentile over no runs is `0`. Both reads are projections of the fields the
-statistics need, scoped to the workspace's workflows through the relationship graph like every other run query; the
-task-run reads and aggregations go through the `workflowRunRef`-first `task_runs` indexes using the runs already
-fetched, and the task view streams one small document per task run (`:383`), so no new index exists for any.
+`labels` is the list filter under "Pagination and sorting"; it narrows both periods of the summary. Durations and
+waits are milliseconds; a percentile over no runs is `0`. Every read projects the fields its statistics need, scoped
+to the workspace's workflows like every run query; task runs are read on the `workflowRunRef`-first `task_runs`
+indexes from the runs already fetched, and the task view streams one small document per task run (`:375`).
 
 ## YAML content negotiation
 
-Task definitions are also served and accepted as `application/x-yaml`, chosen by the `Accept` and `Content-Type`
-headers on the same paths as JSON (`workflow/TaskControllerV2.java:61,152,194,239-240`;
-`workflow/WorkspaceTaskControllerV2.java:71,184,241,301-302`). The converter is a Jackson `YAMLMapper` with
-`LITERAL_BLOCK_STYLE` enabled, so multi-line strings such as `spec.script` are emitted as `|` blocks
-(`workflow/config/YamlJacksonHttpMessageConverter.java:11-15`). With no `Accept` header the JSON handler wins
-(`workflow/config/YamlConfiguration.java:16-23`). The YAML is a Tekton task: each param's default and description
-ride on `spec.params`, and the `boomerang.io/params` annotation carries the rest of its fields, so a YAML read
-applied back unchanged leaves the task as it was (`workflow/tekton/TektonConverter.java:33-44`).
+Task definitions are also served and accepted as `application/x-yaml`, by `Accept` and `Content-Type` on the JSON
+paths (`workflow/TaskControllerV2.java:61,152,194,239-240`; `workflow/WorkspaceTaskControllerV2.java:71,184,241,301-302`),
+through a Jackson `YAMLMapper` that writes multi-line strings such as `spec.script` as `|` blocks
+(`workflow/config/YamlJacksonHttpMessageConverter.java:11-15`); with no `Accept` header JSON wins
+(`workflow/config/YamlConfiguration.java:16-23`). The YAML is a Tekton task whose `boomerang.io/params` annotation
+carries each param's other fields, so a read applied back unchanged leaves the task as it was
+(`workflow/tekton/TektonConverter.java:33-44`).
 
 ## Webhook and event endpoints
 
@@ -238,7 +242,7 @@ stands when the event is sent (`event/OutboxDispatcher.java:97-115`). A redelive
 consumer MAY drop an `id` it has already handled (`source` plus `id` is unique). A task event is sent for every task
 the run executes; the graph's start and end nodes send none, and the run's own event reports its end
 (`event/CloudEventsBridge.java:35-36`). A skipped task, or one admission refuses, completes in one write and sends
-one event; a run timeout sends one (`engine/TaskRunService.java:533`, `WorkflowExecutionService.java:221`).
+one event; a run timeout sends one (`engine/TaskRunService.java:536`, `WorkflowExecutionService.java:221`).
 
 | Envelope field | Value |
 | --- | --- |
@@ -294,7 +298,7 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 
 | Call | Effect |
 | --- | --- |
-| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:513-522`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1787-1788`). Not found: created (`:553-555`). Labels and annotations are merged. |
+| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:513-522`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1789-1790`). Not found: created (`:553-555`). Labels and annotations are merged. |
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1908`) and replaces labels and annotations. Runs already made from that version then show the new definition. |
 | `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted (`:774-787`); the watcher then hard-deletes its runs, task runs, artifacts, versions and schedules (see `execution-model.md`). Only audit records remain: the monthly run quota still counts the old runs, Insights does not (it reads retained runs, see below). |
 
@@ -329,15 +333,17 @@ missing member and a `null` member cannot be told apart.
 
 ## Labels and annotations
 
-`labels` are a client-owned `Map<String,String>`; `annotations` are a `Map<String,Object>` in which keys prefixed
-`boomerang.io/` are reserved for the server.
+`labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>`; in both, keys prefixed `boomerang.io/`
+are reserved for the server, and every other key is the client's.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |
 | Label keys | Free-form strings, MAY carry a `prefix/name` form; the server does not validate them | `common/model/Workflow.java:52`, `WorkflowRun.java:41` |
-| Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:478-493` |
-| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; a run annotation under `boomerang.io/` that a submit or start sends is dropped. A run's only ones are `generation` and `kind`: its workspace and task defaults are not annotations | `WorkflowService.java:629,1055,1330,1871`; `TaskService.java:709,797`; `WorkflowRunService.java:735` |
-| Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1520-1532` |
+| Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:567-582` |
+| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; a run annotation under `boomerang.io/` that a submit or start sends is dropped. A run's only ones are `generation` and `kind`: its workspace and task defaults are not annotations | `WorkflowService.java:630,1057,1332,1873`; `TaskService.java:709,797`; `WorkflowRunService.java:827` |
+| Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1522-1534` |
+| Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on a child run a for-each run-workflow task started, and so on its task runs: the item, when it is text that carries no secret value. The engine never reads either to decide anything; they exist to filter and group on | `common/model/ServerLabel.java`; `engine/TaskExecutionService.java:230-238,1153-1166`; `engine/ParameterManager.java:354` |
+| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit and start, on retry, from the workflow's own labels when a run copies them, and from a node's or task's labels when a task run copies them | `WorkflowService.java:631,1817`; `WorkflowRunService.java:825,1006`; `engine/DAGUtility.java:196-199` |
 
 ## Parameter model
 
@@ -358,41 +364,36 @@ carries the real value (`parameters.md`, "Sensitive parameters"; decision 0122).
 | `WorkflowTask.params`, `WorkflowRun.params`, `TaskRun.params` | values | `RunParam` (`WorkflowTask.java:43`, `WorkflowRun.java:65`, `TaskRun.java:39`) |
 | `WorkflowCanvas.config` (webapp type only) | editor-only view of the same definitions | `client-web/src/Types/index.tsx:348` |
 
-A workflow task (and the canvas node's `data`) MAY carry `foreach: { "items": … }`, where `items` is a JSON array
-literal or one whole-value reference such as `"$(tasks.stage.results.batches)"` (`WorkflowTask.java:50`,
-`workflow/model/CanvasNodeData.java:21`). Each item receives two extra `RunParam`s, `item` (the element, an object
-or array when it is one) and `index`, so `$(params.item)` and `$(params.index)` resolve inside the task. After the
-task, `$(tasks.<name>.results.<result>)` is a JSON array in item order with `null` for an item that did not succeed.
-Saving refuses, with `WORKFLOW_INVALID_TASK_FOREACH` (1213), items that are neither an array nor one reference, a
-literal array longer than `max.foreach.items`, a task type a dispatcher does not run (including `start` and `end`),
-and a task whose template declares `item` or `index`; it refuses a task name ending in `[<digits>]` with
-`WORKFLOW_INVALID_TASK_NAME` (1214), since that suffix marks items (`workflow/WorkflowService.java:1573-1581`,
-`:1700-1708`, `:1789-1826`).
+A workflow task (and the canvas node's `data`) MAY carry `foreach: { "items": … }`: a JSON array literal or one
+whole-value reference such as `"$(tasks.stage.results.batches)"` (`WorkflowTask.java:50`,
+`workflow/model/CanvasNodeData.java:21`). Each item gets the `RunParam`s `item` (the element) and `index`; after the
+task, `$(tasks.<name>.results.<result>)` is a JSON array in item order, `null` for an item that did not succeed. Save
+refuses with `WORKFLOW_INVALID_TASK_FOREACH` (1213) items that are neither an array nor one reference, a literal array
+over `max.foreach.items`, a type no dispatcher runs (`start` and `end` included) and a template declaring `item` or
+`index`, and with `WORKFLOW_INVALID_TASK_NAME` (1214) a name ending in `[<digits>]`, which marks items
+(`workflow/WorkflowService.java:1573-1581`, `:1700-1708`, `:1789-1826`).
 
-There is no `config` field on the backend `Task` or `Workflow` model; the word survives only in the webapp's canvas
-type and in `DataAdapterUtil.filterRunParamValueByFieldType`'s parameter name
-(`service-core/.../util/DataAdapterUtil.java:243-244`). boomerang-io/flow#377 tracks unifying the two.
+The backend `Task` and `Workflow` have no `config` field; the word survives in the webapp's canvas type and a
+parameter name (`DataAdapterUtil.java:243-244`); boomerang-io/flow#377 tracks unifying the two.
 
 ## How the webapp calls the API
 
-The browser never calls `/api/*`; every request is made server-side by a React Router `loader`/`action` through
-`serverFetch`, which targets `CORE_SERVICE_INTERNAL_ORIGIN`, forwards the inbound session `Cookie`, and rewrites
-`/api/...` to `/api/v2/...` (`client-web/src/Config/serverFetch.ts:24,64-72`). Binary or streamed reads (task YAML,
-run logs, workflow export) go through the webapp's own `/res/*` resource routes
-(`client-web/src/Config/resourceRoutes.ts:19-39`). `PRODUCT_SERVICE_ENV_URL` (default `/api`, injected into
-`window._SERVER_DATA` in production) is used only for URLs the UI displays, such as the copyable webhook trigger URL
-(`client-web/src/Config/servicesConfig.ts:18-24`). In `docker-compose.yml` the webapp's SSR server on `:3000` is the
-single browser-facing origin and `service-core` on `:7700` stays reachable for integrations, the dispatcher and
-direct API use (`docker-compose.yml:3-8,166-176`); there is no separate gateway.
+The browser never calls `/api/*`: a React Router `loader`/`action` calls it server-side through `serverFetch`, which
+targets `CORE_SERVICE_INTERNAL_ORIGIN`, forwards the session `Cookie` and rewrites `/api/...` to `/api/v2/...`
+(`client-web/src/Config/serverFetch.ts:24,64-72`). Binary or streamed reads go through the webapp's `/res/*` routes
+(`client-web/src/Config/resourceRoutes.ts:19-39`). `PRODUCT_SERVICE_ENV_URL` (default `/api`) only builds URLs the UI
+displays, such as the webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-24`). The webapp's server on
+`:3000` is the one browser-facing origin; `service-core` on `:7700` stays reachable for integrations, the dispatcher
+and direct API use (`docker-compose.yml:3-8,166-176`).
 
-Browser routes are keyed by workspace — `/:workspace/...` (`client-web/src/Config/appConfig.ts:80-134`) — and v4's
-`/:team/...` URLs are not redirected, so bookmarks and pasted links from v4 break at this major.
+Browser routes are keyed by workspace, `/:workspace/...` (`client-web/src/Config/appConfig.ts:80-134`); v4's
+`/:team/...` links are not redirected.
 
 ## Open contract decisions
 
 - Label update semantics differ by resource: `PATCH /workspace/{workspace}` replaces the map
   (`WorkspaceService.java:262-263`); `PUT /workflow` merges unless `replace=true`
-  (`WorkflowService.java:1520-1525`). One rule is still to be chosen.
+  (`WorkflowService.java:1522-1527`). One rule is still to be chosen.
 - Whether to strip `phase` from the public models, now that the dispatcher wire has its own, and whether the
   invariant narrows to `WorkflowRun` only — the webapp reads `TaskRun.phase`.
 - boomerang-io/flow#328: move list endpoints to Spring Data `Pageable` (`order` → `sort=field,dir`).

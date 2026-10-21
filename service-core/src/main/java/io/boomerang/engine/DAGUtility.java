@@ -5,6 +5,7 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
@@ -191,9 +192,11 @@ public class DAGUtility {
               "[{}] Found Task: {} @ {}", wfRunEntity.getId(), task.getName(), task.getVersion());
 
           // Stack the labels based on label propagation
-          // Task Template -> Workflow Task -> Run
-          taskRunEntity.getLabels().putAll(task.getLabels());
-          taskRunEntity.getLabels().putAll(wfRevisionTask.getLabels());
+          // Task Template -> Workflow Task -> Run. Only the run's may carry the server's labels.
+          taskRunEntity.getLabels().putAll(ServerLabel.withoutServerLabels(task.getLabels()));
+          taskRunEntity
+              .getLabels()
+              .putAll(ServerLabel.withoutServerLabels(wfRevisionTask.getLabels()));
           taskRunEntity.getLabels().putAll(wfRunEntity.getLabels());
 
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NodeType, PASSWORD_CONSTANT } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
@@ -153,5 +153,40 @@ describe("TaskItem --- Retry from", () => {
     renderWithRouter(<TaskItem {...props} taskRun={{ ...taskRun, reusedFromRef: "5c36289096052900012cc800" }} />);
 
     expect(screen.getByText("Reused")).toBeInTheDocument();
+  });
+});
+
+describe("TaskItem --- Attempt", () => {
+  it("adds a requeued task's attempt to its time line", () => {
+    renderWithRouter(<TaskItem {...props} taskRun={{ ...taskRun, attempt: 3 }} />);
+
+    expect(screen.getByTestId("taskitem-time")).toHaveTextContent(/^Started at .+ in .+, attempt 3$/);
+  });
+
+  it("shows no attempt for a first attempt or a task no dispatcher claimed", () => {
+    const { unmount } = renderWithRouter(<TaskItem {...props} taskRun={{ ...taskRun, attempt: 1 }} />);
+    expect(screen.getByTestId("taskitem-time")).not.toHaveTextContent("attempt");
+    unmount();
+
+    renderWithRouter(<TaskItem {...props} />);
+    expect(screen.getByTestId("taskitem-time")).not.toHaveTextContent("attempt");
+  });
+
+  it("adds a requeued item's attempt beside its duration", async () => {
+    const items = [0, 1].map((index) => ({
+      ...taskRun,
+      id: `item-${index}`,
+      name: `${taskRun.name}[${index}]`,
+      parentRef: taskRun.id,
+      index,
+      attempt: index + 1,
+    }));
+    renderWithRouter(<TaskItem {...props} items={items} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Show items" }));
+
+    const [first, second] = screen.getAllByTestId("foreach-item");
+    expect(within(first).queryByTestId("foreach-item-attempt")).not.toBeInTheDocument();
+    expect(within(second).getByTestId("foreach-item-attempt")).toHaveTextContent("attempt 2");
   });
 });

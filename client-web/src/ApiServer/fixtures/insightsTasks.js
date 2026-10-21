@@ -1,9 +1,9 @@
-// GET /workspace/{workspace}/insights/tasks?groupBy=param:model&bucket=day&slowest=10 - the period's
-// ai task runs per model and day, over the same period as fixtures/insights.js.
+// GET /workspace/{workspace}/insights/tasks?groupBy=label:boomerang.io/model&bucket=day&slowest=10 -
+// the period's ai task runs per model and day, over the same period as fixtures/insights.js.
 const insightsTasks = {
   from: "2019-10-03T00:00:00.000+00:00",
   to: "2020-01-01T00:00:00.000+00:00",
-  groupBy: "param:model",
+  groupBy: "label:boomerang.io/model",
   bucket: "day",
   truncated: false,
   rows: [
@@ -18,6 +18,11 @@ const insightsTasks = {
       p50Duration: 8000,
       p95Duration: 21000,
       maxDuration: 64000,
+      aiTaskRuns: 42,
+      promptTokens: 84000,
+      completionTokens: 12600,
+      totalTokens: 96600,
+      cost: 0.0315,
     },
     {
       key: null,
@@ -41,7 +46,6 @@ const insightsTasks = {
       status: "succeeded",
       startTime: "2019-12-30T10:00:00.000+00:00",
       duration: 64000,
-      params: {},
     },
   ],
 };

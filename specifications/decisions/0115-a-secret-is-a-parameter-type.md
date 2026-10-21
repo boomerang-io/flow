@@ -21,7 +21,7 @@ all, and the dispatcher could not tell a secret from any other param when per-ta
 
 C. `ParamType.secret` (`service-core/src/main/java/io/boomerang/common/enums/ParamType.java:15`), derived
 from the `password` field (`ParameterUtil.getRunParamType`), sent directly on a run request, or acquired
-by a string that substitutes in a secret (`engine/ParameterManager.java:541`). Consumer reads redact by
+by a string that substitutes in a secret (`engine/ParameterManager.java:555`). Consumer reads redact by
 type (`DataAdapterUtil.filterWorkflowRunValueByFieldType(run, ParamType)`). The type already lives on the
 param, so this is the only option with one source of truth. The `password` field keeps its name - renaming
 it would be a migration for a synonym.

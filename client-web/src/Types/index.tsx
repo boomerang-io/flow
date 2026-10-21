@@ -873,6 +873,15 @@ export interface InsightsTaskGroup {
   p50Span?: number;
   p95Span?: number;
   maxSpan?: number;
+  /** With ai task runs: how many, and the usage they reported, summed. */
+  aiTaskRuns?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedPromptTokens?: number;
+  /** Absent when no ai task run of the group reported a cost. */
+  cost?: number;
 }
 
 export interface InsightsSlowTaskRun {
@@ -883,7 +892,6 @@ export interface InsightsSlowTaskRun {
   status: string;
   startTime?: string;
   duration: number;
-  params: Record<string, unknown>;
 }
 
 export interface InsightsTasks {
@@ -1063,6 +1071,8 @@ export interface TaskRun {
   index?: number;
   /** Set on a task run a scoped retry carried over instead of executing: the origin task run it stands for. */
   reusedFromRef?: string;
+  /** The attempt a dispatcher holds or last held: 1, plus one per requeue. Absent when no dispatcher claimed it. */
+  attempt?: number;
 }
 
 /** What a retry re-runs: the whole graph, the tasks that did not succeed and after, or named tasks and after. */

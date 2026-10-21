@@ -25,7 +25,7 @@ admission compare-and-set; an oversize task is invalidated with `PARAMS_TOO_LARG
 claimable (`service-core/src/main/java/io/boomerang/engine/TaskExecutionService.java:207-212`). Reported
 results are compared with `flow.engine.task.results.max-bytes` (1048576, a storage guard) in
 `TaskRunService.end`; an oversize task ends `failed` with `RESULTS_TOO_LARGE`, `statusReason=ResultsTooLarge`,
-and the results are not persisted (`engine/TaskRunService.java:57-58,983-992`). Beneath the guard each
+and the results are not persisted (`engine/TaskRunService.java:58-59,986-995`). Beneath the guard each
 dispatcher applies its own substrate limit and reports the same reason: on Kubernetes the 4096-byte
 termination message (`service-dispatcher/src/main/java/io/boomerang/kube/KubeServiceImpl.java:253`). One
 clear engine message on every executor is the reason.

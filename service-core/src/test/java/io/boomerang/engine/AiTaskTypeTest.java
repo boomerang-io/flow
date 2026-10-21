@@ -14,6 +14,7 @@ import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
@@ -98,6 +99,10 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
             });
     String taskRunId =
         taskRunRepository.findFirstByNameAndWorkflowRunRef("ask", wfRunId).orElseThrow().getId();
+    // Admission labels an ai task run with the model its resolved model param asks for.
+    assertEquals(
+        "test-model",
+        taskRunRepository.findById(taskRunId).orElseThrow().getLabels().get(ServerLabel.MODEL));
 
     // Claiming is by the dispatcher's registered types and nothing else: the ai page holds it,
     // the template page never sees it. Read-only, so no other test's queue is disturbed.

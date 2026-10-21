@@ -16,6 +16,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
@@ -29,8 +30,10 @@ import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,6 +104,59 @@ class ForeachChildRunTest extends AbstractEngineIntegrationTest {
       assertNull(paramValue(child, "workflowRef"));
       assertNull(paramValue(child, "wait"));
     }
+  }
+
+  @Test
+  void eachItemsChildIsLabelledWithItsItemAndKeepsTheParentsOtherLabels() {
+    String childWorkflowId = createLeafWorkflow("child-labelled");
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    // The parent carries a label of its own and the server's item label, as a parent that is
+    // itself a for-each child would.
+    request.setLabels(new HashMap<>(Map.of("team", "a", ServerLabel.ITEM, "parent-item")));
+    String parentRunId =
+        workflowService
+            .submit(createForeachParent("parent-labelled", childWorkflowId, true), request, true)
+            .getId();
+
+    List<TaskRunEntity> items = awaitItemsParked(parentRunId);
+
+    for (int index = 0; index < ITEMS.size(); index++) {
+      Object item = ITEMS.get(index);
+      WorkflowRunEntity child = childRunOf(items.get(index));
+      assertEquals(Map.of("team", "a", ServerLabel.ITEM, item), child.getLabels());
+      awaitEngine("the child's task runs carry its item")
+          .untilAsserted(
+              () ->
+                  assertEquals(
+                      item,
+                      taskRunRepository
+                          .findFirstByNameAndWorkflowRunRef("work", child.getId())
+                          .orElseThrow()
+                          .getLabels()
+                          .get(ServerLabel.ITEM)));
+    }
+  }
+
+  @Test
+  void aChildIsNotLabelledWithAnItemThatCarriesASecret() {
+    String childWorkflowId = createLeafWorkflow("child-secret-item");
+    WorkflowTask child = runWorkflowNode(childWorkflowId, true);
+    WorkflowTaskForeach foreach = new WorkflowTaskForeach();
+    foreach.setItems(List.of("alpha", "key-$(params.token)", "gamma"));
+    child.setForeach(foreach);
+    AbstractParam token = param("token", "password");
+    token.setDefaultValue("s3cr3t-value");
+    String parentRunId =
+        submit(
+            createWorkflow(
+                "parent-secret-item", List.of(child), "child", ExecutionCondition.always,
+                List.of(token)));
+
+    List<TaskRunEntity> items = awaitItemsParked(parentRunId);
+
+    assertEquals("alpha", childRunOf(items.get(0)).getLabels().get(ServerLabel.ITEM));
+    assertNull(childRunOf(items.get(1)).getLabels().get(ServerLabel.ITEM));
+    assertEquals("gamma", childRunOf(items.get(2)).getLabels().get(ServerLabel.ITEM));
   }
 
   @Test

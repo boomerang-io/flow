@@ -19,7 +19,7 @@ dispatcher.
 
 ## Decision
 
-Option C. `WorkflowRunService.run` skips the direct start when the run has a workspace and logs why (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:709-714`);
+Option C. `WorkflowRunService.run` skips the direct start when the run has a workspace and logs why (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:798-803`);
 `WorkflowRunStateHelper.findClaimableForProvision` and `tryClaimForProvision` require `workspace` to exist (`engine/WorkflowRunStateHelper.java:48-78`),
 keyed by the run id (decision 0104). The
 dispatcher provisions the claim and calls `PUT /dispatcher/v1/workflowrun/{id}/start` (`contracts/dispatcher-v1.yaml:37`).

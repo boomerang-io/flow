@@ -622,11 +622,13 @@ public class WorkflowService {
       request.setDebug(Boolean.valueOf(enableDebug));
       LOGGER.info("Setting debug = " + enableDebug);
     }
-    // The boomerang.io/ annotation prefix is reserved for the server: any a client sent are dropped.
+    // The boomerang.io/ annotation and label prefixes are reserved for the server: any annotation
+    // or label a client sent under them is dropped.
     request
         .getAnnotations()
         .keySet()
         .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
+    request.setLabels(ServerLabel.withoutServerLabels(request.getLabels()));
 
     // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
     // are re-read (now including this run), and a run that pushed a count over its limit is
@@ -1812,7 +1814,7 @@ public class WorkflowService {
     wfRunEntity.setWorkflowVersion(wfRevision.getVersion());
     wfRunEntity.setCreationDate(new Date());
     wfRunEntity.setStatus(RunStatus.notstarted);
-    wfRunEntity.getLabels().putAll(workflow.getLabels());
+    wfRunEntity.getLabels().putAll(ServerLabel.withoutServerLabels(workflow.getLabels()));
     wfRunEntity.setParams(ParameterUtil.abstractParamToRunParam(wfRevision.getParams()));
 
     // The run takes the revision's workspace; a request carrying one overrides it, settled the

@@ -57,10 +57,16 @@ public class TaskRun {
   // Set on a TaskRun a scoped retry carried over instead of executing: the origin TaskRun it
   // stands for, whose log and action records it shares.
   private String reusedFromRef;
+  // The attempt a dispatcher holds, last held or is handed next: 1, plus one per requeue. Absent
+  // on a task no dispatcher has claimed - an approval, a wait, a task a scoped retry reused.
+  private Integer attempt;
 
   public TaskRun() {}
 
   public TaskRun(TaskRunEntity entity) {
     BeanUtils.copyProperties(entity, this);
+    if (entity.getClaim() != null) {
+      this.attempt = ((entity.getRetry() != null) ? entity.getRetry().getCount() : 0) + 1;
+    }
   }
 }

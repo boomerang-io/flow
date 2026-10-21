@@ -348,6 +348,20 @@ public class ParameterManager {
   }
 
   /*
+   * Whether the text carries the value of a secret in the TaskRun's parameter layers - a global,
+   * workspace, workflow or task param typed secret - so it must never be shown as a label.
+   */
+  public boolean carriesSecret(WorkflowRunEntity wfRun, TaskRunEntity taskRun, String text) {
+    Layers layers = buildParameterLayering(wfRun, Optional.of(taskRun));
+    Map<String, Object> values = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    values.putAll(layers.paramLayers().getFlatMap());
+    return secretReferenceKeys(wfRun, Optional.of(taskRun), layers.paramLayers()).stream()
+        .map(values::get)
+        .filter(value -> value != null && !value.toString().isEmpty())
+        .anyMatch(value -> text.contains(value.toString()));
+  }
+
+  /*
    * Resolve one value against the TaskRun's parameter layers, as an object-typed param resolves: a
    * value that is exactly one reference becomes the referenced value itself (a result array stays
    * an array), and references inside a structure are substituted into its string leaves.

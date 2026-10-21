@@ -120,11 +120,11 @@ public class WorkspaceInsightsControllerV2 {
       summary = "Group a workspace's task runs over a period",
       description =
           "Counts and duration statistics (mean, p50, p95, max over succeeded task runs) per"
-              + " group and, optionally, per hour, day or month; the wall clock of the runs sharing"
-              + " a label; and the slowest task runs. A task run counts once it completed, unless"
-              + " it was skipped, and a for-each task counts its items under its own name."
-              + " Computed from the runs the workspace still holds; the period defaults to the last"
-              + " 90 days.")
+              + " group and, optionally, per hour, day or month, with the usage its ai task runs"
+              + " reported; the wall clock of the runs sharing a label; and the slowest task runs."
+              + " A task run counts once it completed, unless it was skipped, and a for-each task"
+              + " counts its items under its own name. Computed from the runs the workspace still"
+              + " holds; the period defaults to the last 90 days.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -147,8 +147,9 @@ public class WorkspaceInsightsControllerV2 {
       @Parameter(
               name = "groupBy",
               description =
-                  "task, type, workflow, param:<name> or label:<key>; one row when absent.",
-              example = "param:model")
+                  "task, type, workflow or label:<key> (a task run's label, such as the server's"
+                      + " boomerang.io/model or boomerang.io/item); one row when absent.",
+              example = "label:boomerang.io/model")
           @RequestParam
           Optional<String> groupBy,
       @Parameter(name = "bucket", description = "hour, day or month (UTC), by task run start.")
@@ -163,12 +164,7 @@ public class WorkspaceInsightsControllerV2 {
           Optional<String> spanBy,
       @Parameter(name = "slowest", description = "How many slowest task runs to list, up to 100.")
           @RequestParam(defaultValue = "0")
-          int slowest,
-      @Parameter(
-              name = "params",
-              description = "Params whose values each slow task run shows; a secret one never.")
-          @RequestParam
-          Optional<List<String>> params) {
+          int slowest) {
     Date to = toDate.map(Date::new).orElseGet(Date::new);
     Date from = fromDate.map(Date::new).orElse(new Date(to.getTime() - DEFAULT_PERIOD.toMillis()));
     return workflowRunInsightService.tasks(
@@ -182,7 +178,6 @@ public class WorkspaceInsightsControllerV2 {
         groupBy,
         bucket,
         spanBy,
-        slowest,
-        params);
+        slowest);
   }
 }

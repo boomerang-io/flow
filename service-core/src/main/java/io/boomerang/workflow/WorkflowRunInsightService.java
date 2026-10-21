@@ -7,7 +7,6 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.newA
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -179,11 +178,11 @@ public class WorkflowRunInsightService {
   /**
    * Group the task runs of the workspace's runs created in {@code [from, to)} by one key and,
    * optionally, by time. {@code workflows} and {@code labels} narrow the runs, {@code tasks} (node
-   * names) and {@code types} the task runs. {@code groupBy} is task, type, workflow, param:<name>
-   * or label:<key>; {@code bucket} is hour, day or month, by each task run's start; {@code spanBy}
-   * (label:<key>) measures, per row, the first start to the last end of the task runs of the runs
-   * sharing each value of that label. {@code slowest} lists that many of the slowest task runs,
-   * each with the values of {@code params}.
+   * names) and {@code types} the task runs. {@code groupBy} is task, type, workflow or label:<key>,
+   * a label of the task run - its run's, its node's, its task's or the server's; {@code bucket} is
+   * hour, day or month, by each task run's start; {@code spanBy} (label:<key>) measures, per row,
+   * the first start to the last end of the task runs of the runs sharing each value of that run
+   * label. {@code slowest} lists that many of the slowest task runs.
    */
   public WorkflowRunInsightTasks tasks(
       String workspace,
@@ -196,8 +195,7 @@ public class WorkflowRunInsightService {
       Optional<String> groupBy,
       Optional<String> bucket,
       Optional<String> spanBy,
-      int slowest,
-      Optional<List<String>> params) {
+      int slowest) {
     Grouping grouping = groupBy.map(Grouping::of).orElse(Grouping.NONE);
     ChronoUnit unit = bucket.map(WorkflowRunInsightService::bucketUnit).orElse(null);
     String spanLabel = spanBy.map(value -> labelKey("spanBy", value)).orElse(null);
@@ -217,25 +215,19 @@ public class WorkflowRunInsightService {
             ? workflowNames(
                 runs.values().stream().map(WorkflowRunEntity::getWorkflowRef).distinct().toList())
             : Map.of();
-    List<String> shown = (slowest > 0) ? params.orElse(List.of()) : List.of();
-    List<String> paramNames = new ArrayList<>(shown);
-    if ("param".equals(grouping.kind())) {
-      paramNames.add(grouping.name());
-    }
 
     Map<TallyKey, RowTally> tallies = new LinkedHashMap<>();
     PriorityQueue<Document> slowestFirst =
         new PriorityQueue<>(Comparator.comparingLong(WorkflowRunInsightService::durationOf));
-    try (Stream<Document> samples = taskRunSamples(runs.keySet(), tasks, types, paramNames)) {
+    try (Stream<Document> samples = taskRunSamples(runs.keySet(), tasks, types)) {
       samples.forEach(
           sample -> {
             WorkflowRunEntity run = runs.get(sample.getString("workflowRunRef"));
-            Map<String, Object> values = paramValues(sample);
             Date start = sample.getDate("startTime");
             Date when = (start != null) ? start : sample.getDate("creationDate");
             TallyKey key =
                 new TallyKey(
-                    grouping.keyOf(sample, values, run, workflowNames),
+                    grouping.keyOf(sample, run, workflowNames),
                     (unit != null && when != null) ? bucketStart(when, unit) : null);
             tallies
                 .computeIfAbsent(key, created -> new RowTally(spanLabel != null))
@@ -261,7 +253,7 @@ public class WorkflowRunInsightService {
       insight.setSlowest(
           slowestFirst.stream()
               .sorted(Comparator.comparingLong(WorkflowRunInsightService::durationOf).reversed())
-              .map(sample -> slowTaskRun(sample, runs, shown))
+              .map(sample -> slowTaskRun(sample, runs))
               .collect(toList()));
     }
     return insight;
@@ -377,14 +369,13 @@ public class WorkflowRunInsightService {
   /**
    * Stream one small document per counted task run of the given runs, on the {@code run_tasks}
    * index ({@code workflowRunRef} first): a completed task run that was not skipped, a for-each
-   * task's items rather than the task itself, with its node name and only the named params, a
-   * secret one never.
+   * task's items rather than the task itself, with its node name, its labels and the usage results
+   * an ai task reports.
    */
   private Stream<Document> taskRunSamples(
       Collection<String> workflowRunRefs,
       Optional<List<String>> tasks,
-      Optional<List<String>> types,
-      List<String> paramNames) {
+      Optional<List<String>> types) {
     if (workflowRunRefs.isEmpty()) {
       return Stream.empty();
     }
@@ -407,21 +398,9 @@ public class WorkflowRunInsightService {
             .append("startTime", 1)
             .append("creationDate", 1)
             .append("duration", 1)
-            .append("workflowRunRef", 1);
-    if (!paramNames.isEmpty()) {
-      Document named =
-          new Document(
-              "$and",
-              List.of(
-                  new Document("$in", List.of("$$this.name", paramNames)),
-                  new Document("$ne", List.of("$$this.type", ParamType.secret.name()))));
-      fields.append(
-          "params",
-          new Document(
-              "$filter",
-              new Document("input", new Document("$ifNull", List.of("$params", List.of())))
-                  .append("cond", named)));
-    }
+            .append("workflowRunRef", 1)
+            .append("labels", 1);
+    usageFields(fields);
     List<AggregationOperation> stages = new ArrayList<>();
     stages.add(match(counted));
     stages.add(context -> new Document("$project", fields));
@@ -473,17 +452,7 @@ public class WorkflowRunInsightService {
     if (workflowRunRefs.isEmpty()) {
       return new AiUsage(usage, Map.of());
     }
-    Document perTaskRun = new Document("model", result("model"));
-    for (String name : USAGE_RESULTS) {
-      perTaskRun.append(
-          name,
-          new Document(
-              "$convert",
-              new Document("input", result(name))
-                  .append("to", "double")
-                  .append("onError", null)
-                  .append("onNull", null)));
-    }
+    Document perTaskRun = usageFields(new Document("model", result("model")));
     perTaskRun.append("taskName", taskName());
     Document facets =
         new Document("total", List.of(new Document("$group", sums(null))))
@@ -539,6 +508,21 @@ public class WorkflowRunInsightService {
       byTask.put(String.valueOf(group.get("_id")), Sums.of(group));
     }
     return new AiUsage(usage, byTask);
+  }
+
+  // Each usage result an ai task reports, read as a number: an empty or non-numeric value is null.
+  private static Document usageFields(Document fields) {
+    for (String name : USAGE_RESULTS) {
+      fields.append(
+          name,
+          new Document(
+              "$convert",
+              new Document("input", result(name))
+                  .append("to", "double")
+                  .append("onError", null)
+                  .append("onNull", null)));
+    }
+    return fields;
   }
 
   // The task run's node name: an item is named `<parent>[<index>]`, so the suffix is stripped and
@@ -827,27 +811,20 @@ public class WorkflowRunInsightService {
 
   // ── Task-run grouping ───────────────────────────────────────────────────
 
-  /** What a task run is grouped by: task, type, workflow, param or label, with its name. */
+  /** What a task run is grouped by: task, type, workflow or label, with the label's key. */
   private record Grouping(String kind, String name) {
     static final Grouping NONE = new Grouping(null, null);
 
     static Grouping of(String groupBy) {
       return switch (groupBy) {
         case "task", "type", "workflow" -> new Grouping(groupBy, null);
-        default ->
-            (groupBy.startsWith("param:") && groupBy.length() > "param:".length())
-                ? new Grouping("param", groupBy.substring("param:".length()))
-                : new Grouping("label", labelKey("groupBy", groupBy));
+        default -> new Grouping("label", labelKey("groupBy", groupBy));
       };
     }
 
     // The task run's value for this grouping; null when it has none, and for every task run when
     // ungrouped.
-    String keyOf(
-        Document sample,
-        Map<String, Object> params,
-        WorkflowRunEntity run,
-        Map<String, String> workflowNames) {
+    String keyOf(Document sample, WorkflowRunEntity run, Map<String, String> workflowNames) {
       if (kind == null) {
         return null;
       }
@@ -855,10 +832,15 @@ public class WorkflowRunInsightService {
         case "task" -> sample.getString("taskName");
         case "type" -> sample.getString("type");
         case "workflow" -> workflowNames.getOrDefault(run.getWorkflowRef(), run.getWorkflowRef());
-        case "param" -> keyText(params.get(name));
-        default -> run.getLabels().get(name);
+        default -> labelOf(sample, name);
       };
     }
+  }
+
+  // A label of the sample's task run. A dot in a key is stored as # (MongoConfiguration).
+  private static String labelOf(Document sample, String key) {
+    Document labels = sample.get("labels", Document.class);
+    return (labels != null) ? labels.getString(key.replace(".", "#")) : null;
   }
 
   /** A row: the grouping's value and the bucket's start, either null. */
@@ -874,6 +856,9 @@ public class WorkflowRunInsightService {
     private final List<Long> durations = new ArrayList<>();
     // Per value of the spanBy label: the first start and the last end.
     private final Map<String, long[]> spans = new HashMap<>();
+    private long aiTaskRuns;
+    private long costReported;
+    private final Map<String, Double> usage = new HashMap<>();
 
     RowTally(boolean spanning) {
       this.spanning = spanning;
@@ -889,6 +874,17 @@ public class WorkflowRunInsightService {
         failed++;
       } else if (status == RunStatus.cancelled) {
         cancelled++;
+      }
+      if (TaskType.ai.name().equals(sample.getString("type"))) {
+        aiTaskRuns++;
+        for (String name : USAGE_RESULTS) {
+          if (sample.get(name) instanceof Number value) {
+            usage.merge(name, value.doubleValue(), Double::sum);
+          }
+        }
+        if (sample.get("cost") instanceof Number) {
+          costReported++;
+        }
       }
       Date start = sample.getDate("startTime");
       if (spanValue != null && start != null) {
@@ -920,11 +916,24 @@ public class WorkflowRunInsightService {
         row.setP95Span(percentile(lengths, 0.95));
         row.setMaxSpan(lengths.stream().mapToLong(Long::longValue).max().orElse(0));
       }
+      if (aiTaskRuns > 0) {
+        row.setAiTaskRuns(aiTaskRuns);
+        row.setPromptTokens(tokens("promptTokens"));
+        row.setCompletionTokens(tokens("completionTokens"));
+        row.setTotalTokens(tokens("totalTokens"));
+        row.setReasoningTokens(tokens("reasoningTokens"));
+        row.setCachedPromptTokens(tokens("cachedPromptTokens"));
+        row.setCost((costReported > 0) ? usage.get("cost") : null);
+      }
       return row;
+    }
+
+    private long tokens(String name) {
+      return Math.round(usage.getOrDefault(name, 0d));
     }
   }
 
-  // label:<key> names a run label; anything else is refused as the named filter.
+  // label:<key> names a label; anything else is refused as the named filter.
   private static String labelKey(String filter, String value) {
     if (!value.startsWith("label:") || value.length() == "label:".length()) {
       throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, filter);
@@ -955,26 +964,7 @@ public class WorkflowRunInsightService {
     return (sample.get("duration") instanceof Number duration) ? duration.longValue() : 0;
   }
 
-  // The sample's params by name: only those asked for, and never a secret one.
-  private static Map<String, Object> paramValues(Document sample) {
-    Map<String, Object> values = new LinkedHashMap<>();
-    List<Document> params = sample.getList("params", Document.class);
-    if (params != null) {
-      params.forEach(param -> values.putIfAbsent(param.getString("name"), param.get("value")));
-    }
-    return values;
-  }
-
-  // A param value as a group key: text as it is, an object as its JSON.
-  private static String keyText(Object value) {
-    if (value == null) {
-      return null;
-    }
-    return (value instanceof Document document) ? document.toJson() : String.valueOf(value);
-  }
-
-  private static SlowTaskRun slowTaskRun(
-      Document sample, Map<String, WorkflowRunEntity> runs, List<String> shown) {
+  private static SlowTaskRun slowTaskRun(Document sample, Map<String, WorkflowRunEntity> runs) {
     SlowTaskRun slow = new SlowTaskRun();
     slow.setTaskRunRef(String.valueOf(sample.get("_id")));
     slow.setWorkflowRunRef(sample.getString("workflowRunRef"));
@@ -983,10 +973,6 @@ public class WorkflowRunInsightService {
     slow.setStatus(sample.getString("status"));
     slow.setStartTime(sample.getDate("startTime"));
     slow.setDuration(durationOf(sample));
-    Map<String, Object> values = paramValues(sample);
-    shown.stream()
-        .filter(values::containsKey)
-        .forEach(name -> slow.getParams().put(name, values.get(name)));
     return slow;
   }
 

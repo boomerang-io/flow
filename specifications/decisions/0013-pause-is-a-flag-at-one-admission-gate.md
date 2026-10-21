@@ -22,7 +22,7 @@ Option C. `pauseRequestedAt` is a timestamp on `WorkflowRunEntity` (`service-cor
 set and cleared by CAS (`service-core/src/main/java/io/boomerang/engine/WorkflowRunStateHelper.java:229-252`). The single
 gate is `TaskExecutionService.queue`, which returns before admission when the run is paused
 (`engine/TaskExecutionService.java:136-140`). Resume clears the flag and calls `advance`, which re-queues whatever
-the gate held back (`workflow/WorkflowRunService.java:823-830`). One gate is enough because every path that creates
+the gate held back (`workflow/WorkflowRunService.java:915-922`). One gate is enough because every path that creates
 new work passes through `queue`.
 
 ## Consequences
