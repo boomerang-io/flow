@@ -183,6 +183,8 @@ tag's release notes.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
 - `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
   running whenever the engine watcher was on.
+- A global token, the bootstrap token included, reads a workspace's Insights, as it reads its runs and task runs.
+  The three Insights routes refused it with `401 AUTH_REQUIRED`.
 
 - A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
   the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
