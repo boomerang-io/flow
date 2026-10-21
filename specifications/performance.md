@@ -251,3 +251,7 @@ speculation (decisions 0060, 0061). The laptop baseline above is not that test.
 
 - Sent outbox rows expire after 7 days; `task_locks` documents expire on their own index — both built by `_0021__Indexes`.
 - Sweeps page 50 documents at a time; the dispatcher claims 20 per poll.
+- A run's graph is read about twice per task, at its queue and at its end, projected to the seven fields the graph
+  walk reads (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:129-141`); a completion returns only the fields
+  its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:887-891`). An end therefore
+  reads no other task run's params, spec or results (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`).

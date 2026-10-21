@@ -356,7 +356,8 @@ public class TaskRunService {
   // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params -
   // their values frozen here, secret values encrypted - in the same guarded write. The spec is not
   // written: it keeps its $(...) references, filled in when a dispatcher claims the task
-  // (ParameterManager.fillSpec). Returns the pre-image, or null when already admitted.
+  // (ParameterManager.fillSpec). Returns the pre-image's transition fields, or null when already
+  // admitted.
   public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
     Query query =
         Query.query(
@@ -370,7 +371,7 @@ public class TaskRunService {
         new Update()
             .set("status", RunStatus.ready)
             .set("params", secretValues.sealRunParams(resolvedParams));
-    return cas(query, update, RunStatus.ready, null);
+    return transition(query, update, RunStatus.ready, null);
   }
 
   // Field-scoped event delivery: records the delivered status as the TaskRun's pre-approved status
@@ -431,7 +432,8 @@ public class TaskRunService {
   // start time, recording the resolved item array (null when it failed to resolve) in the same
   // guarded write. The parent never passes through ready, so it is never claimable, and it carries
   // no claim and no timeoutAt, so no lease, orphan or timeout sweep ever reaps it - its items carry
-  // the timeouts. Returns the pre-image, or null when another caller already fanned it out.
+  // the timeouts. Returns the pre-image's transition fields, or null when another caller already
+  // fanned it out.
   public TaskRunEntity tryStartForeach(String id, Date startTime, List<Object> items) {
     Query query =
         Query.query(
@@ -447,7 +449,7 @@ public class TaskRunService {
             .set("phase", RunPhase.running)
             .set("startTime", startTime)
             .set("foreach.items", items);
-    return cas(query, update, RunStatus.running, RunPhase.running);
+    return transition(query, update, RunStatus.running, RunPhase.running);
   }
 
   // Return the page of foreach parents in the running phase since before the given time - the
@@ -533,7 +535,8 @@ public class TaskRunService {
   // Completion Compare-And-Set: any non-completed phase becomes completed; status/statusMessage
   // set only when provided; claimant identity enforced as fencing when provided. The deadline and
   // the lease go with it, so the timeout and lease sweeps' sparse indexes hold only live work.
-  // Returns the pre-image, or null when already completed - a terminal status is never overwritten.
+  // Returns the pre-image's transition fields, or null when already completed - a terminal status
+  // is never overwritten.
   public TaskRunEntity tryComplete(
       String id,
       Optional<RunStatus> status,
@@ -551,13 +554,14 @@ public class TaskRunService {
     Update update = completion(duration);
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
-    return cas(Query.query(criteria), update, status.orElse(null), RunPhase.completed);
+    return transition(Query.query(criteria), update, status.orElse(null), RunPhase.completed);
   }
 
   // Completion Compare-And-Set carrying the outcome the engine decided, so the TaskRun ends in this
   // one write: from one of the outcome's expected statuses it completes with the outcome's status
-  // and, where set, its reason, message, results and decision value. Returns the pre-image, or null
-  // when the TaskRun has moved on - completed, timed out, requeued - and the caller does nothing.
+  // and, where set, its reason, message, results and decision value. Returns the pre-image's
+  // transition fields, or null when the TaskRun has moved on - completed, timed out, requeued - and
+  // the caller does nothing.
   public TaskRunEntity tryComplete(String id, TaskOutcome outcome, long duration) {
     Criteria criteria =
         Criteria.where("_id")
@@ -579,7 +583,7 @@ public class TaskRunService {
     if (outcome.decisionValue() != null) {
       update.set("decisionValue", outcome.decisionValue());
     }
-    return cas(Query.query(criteria), update, outcome.status(), RunPhase.completed);
+    return transition(Query.query(criteria), update, outcome.status(), RunPhase.completed);
   }
 
   // What every completion writes: the phase and duration, and the end of the deadline and lease.
@@ -676,8 +680,8 @@ public class TaskRunService {
   // Abandon Compare-And-Set: a queued/running TaskRun becomes timed out with the message and typed
   // reason in one write, deadline and lease cleared, fenced on the observed claim seq - for a
   // deadline reap (pastDeadline: only once timeoutAt has elapsed) and for a claimant confirmed gone
-  // ahead of, or without, its own deadline. Returns the pre-image, or null when fenced out or
-  // already transitioned.
+  // ahead of, or without, its own deadline. Returns the pre-image's transition fields, or null when
+  // fenced out or already transitioned.
   public TaskRunEntity tryAbandon(
       String id,
       Long observedClaimSeq,
@@ -697,13 +701,13 @@ public class TaskRunService {
             .set("statusReason", statusReason)
             .unset("timeoutAt");
     // The lease stays until the completion lands, so a lost end is reaped and ended again.
-    return cas(Query.query(criteria), update, RunStatus.timedout, null);
+    return transition(Query.query(criteria), update, RunStatus.timedout, null);
   }
 
   // Requeue Compare-And-Set: writes the retry block, drops the baked deadline and parks the SAME
   // TaskRun for another attempt - Tekton's model, one record per node with an attempt counter, not
   // a second TaskRun per attempt (which the node_uniqueness index forbids anyway). Fenced on the
-  // observed claim seq. Returns the pre-image, or null when fenced/already gone.
+  // observed claim seq. Returns the pre-image's transition fields, or null when fenced/already gone.
   //
   // Two landing states, because the attempt that timed out may have left a pod behind:
   //
@@ -764,7 +768,7 @@ public class TaskRunService {
     } else {
       update.unset("claim.by").unset("claim.at");
     }
-    return cas(Query.query(criteria), update, toStatus, RunPhase.pending);
+    return transition(Query.query(criteria), update, toStatus, RunPhase.pending);
   }
 
   // Whether the run has any in-flight TaskRun: claimed/executing (phase queued/running) or
@@ -877,9 +881,19 @@ public class TaskRunService {
         : criteria.and("claim.seq").exists(false);
   }
 
+  // A Compare-And-Set whose caller only needs to know it won: the pre-image holds only what the
+  // transition publishes - id, run, type, status and phase - so a completion does not read back the
+  // params, spec and results it carries.
+  private TaskRunEntity transition(
+      Query query, Update update, RunStatus toStatus, RunPhase toPhase) {
+    query.fields().include("workflowRunRef").include("type").include("status").include("phase");
+    return cas(query, update, toStatus, toPhase);
+  }
+
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
-  // matches and publish the transition. Returns the pre-image, or null when another caller won, so
-  // the caller does nothing. A null target status or phase is the pre-image's, unchanged.
+  // matches and publish the transition. Returns the whole pre-image, for a caller that hands it on,
+  // or null when another caller won, so the caller does nothing. A null target status or phase is
+  // the pre-image's, unchanged.
   private TaskRunEntity cas(Query query, Update update, RunStatus toStatus, RunPhase toPhase) {
     TaskRunEntity preImage =
         mongoTemplate.findAndModify(

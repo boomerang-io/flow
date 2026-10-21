@@ -70,7 +70,10 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
 
 Every state change is a single-document compare-and-set (CAS): a `findAndModify` whose query names the expected
 prior state and whose update applies the new one, publishing the transition and returning the pre-image or null
-(`TaskRunService.cas` `:834`, `WorkflowRunStateHelper.cas` `:375`). There are no distributed locks, no `@Version` fields and no leader election.
+(`TaskRunService.cas` `:897`, `WorkflowRunStateHelper.cas` `:429`). A task-run caller that only checks it won gets
+the pre-image's id, run, type, status and phase, the fields the transition publishes (`TaskRunService.transition`
+`:887-891`); claim, termination claim and execution start hand the whole document on. There are no distributed
+locks, no `@Version` fields and no leader election.
 Only the CAS winner performs side effects; a loser logs and returns, so N instances and overlapping sweeps are safe.
 
 A run without a workspace submitted with `start=true` is started by the engine at once; a run that declares
@@ -122,7 +125,7 @@ it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fe
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.tryAbandon` `:632`, `tryRequeue` `:674`). A task's budget, in
 minutes, is the smallest of three ceilings — the `task` settings' `default.timeout`, read when the run's task runs
 are created, the task's own declared timeout, and the run's timeout — with 0 at any step meaning unguarded
-(`engine/DAGUtility.java:220-241`). The run is a ceiling because of decision 0014: a guard must cover the work
+(`engine/DAGUtility.java:233-254`). The run is a ceiling because of decision 0014: a guard must cover the work
 beneath it, so a task can never outlive the run containing it. By default a task simply inherits its run's
 timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
 (`workflow/WorkflowService.java:623-637`), and the per-task ceiling is an optional operator control for capping a
@@ -344,10 +347,10 @@ itself stops at the cap, so a broken lineage cannot make it unbounded.
 A task with `foreach` set runs once per item of a JSON array, in parallel, in the same run; the setting is on the
 task, not a task type, and only the types a dispatcher runs (`template`, `script`, `custom`, `ai`, `generic`, the
 two artifact types) and `runworkflow` may carry it — never `start` or `end`, which saving refuses
-(`workflow/WorkflowService.java:130-140`, `:1748-1756`; `engine/DAGUtility.java:146`). A for-each `runworkflow`
+(`workflow/WorkflowService.java:130-140`, `:1748-1756`; `engine/DAGUtility.java:188`). A for-each `runworkflow`
 task submits one child run per item ("Child workflows"). The graph still sees one task run per node:
-`retrieveTaskList` returns only task runs without a `parentRef` (`engine/DAGUtility.java:107`), so items are never
-vertices.
+`DAGUtility.retrieveGraph` reads only task runs without a `parentRef` (`engine/DAGUtility.java:129-141`), so items
+are never vertices.
 
 | Step | What happens | Where |
 | --- | --- | --- |

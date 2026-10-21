@@ -183,7 +183,7 @@ public class TaskExecutionService {
     boolean canRunTask =
         taskExecution.getParentRef() != null
             || dagUtility.canRunTask(
-                dagUtility.retrieveTaskList(wfRunEntity.get().getId()), taskExecution);
+                dagUtility.retrieveGraph(wfRunEntity.get().getId()), taskExecution);
     LOGGER.debug("[{}] Can run task? {}", taskExecutionId, canRunTask);
 
     if (canRunTask) {
@@ -600,7 +600,7 @@ public class TaskExecutionService {
 
     // Winner-only graph advance. No workflow-level lock: admission and completion
     // Compare-And-Set transitions make a duplicate or concurrent advance a no-op.
-    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunEntity.getId());
+    List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunEntity.getId());
     boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, taskExecution);
     LOGGER.debug("[{}] Finished all TaskRuns? {}", taskExecutionId, finishedAllDependencies);
 
@@ -629,7 +629,7 @@ public class TaskExecutionService {
     if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
       return;
     }
-    List<TaskRunEntity> tasks = dagUtility.retrieveTaskList(wfRunId);
+    List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunId);
     for (TaskRunEntity completed :
         tasks.stream()
             .filter(

@@ -144,9 +144,9 @@ are still handed out, so no claim stays with a dispatcher that never hears of it
 `:404`). Preparing a task does not depend on who calls: an artifact task's storage quota is read from its run's
 workspace (`workflow/QuotaService.artifactStorage` `:256`). The termination order, the start and end
 answers and every consumer read carry the stored spec. The TaskRun's params are the task's declared params merged
-with the values authored on the workflow node (`engine/DAGUtility.java:180`). A `custom` task takes its runtime from
+with the values authored on the workflow node (`engine/DAGUtility.java:218-221`). A `custom` task takes its runtime from
 its own params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue
-entry, which declares no image (`DAGUtility.java:335`). A secret-typed one is copied as its reference
+entry, which declares no image (`DAGUtility.java:348`). A secret-typed one is copied as its reference
 `$(params.<name>)`, filled in at claim, so a secret `command` or `arguments` arrives as one element (`:367`).
 
 An item of a for-each task is an ordinary TaskRun to the dispatcher, claimed by `id` and run like any other of its
@@ -282,7 +282,7 @@ Shared storage is one workspace per run: a workflow declares a single `workspace
 `accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
 submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1850`). Which
 tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's workspace
-unless its node says `workspace: false` (`engine/DAGUtility.java:226-237`); the canvas offers no way to set that, so
+unless its node says `workspace: false` (`engine/DAGUtility.java:259-267`); the canvas offers no way to set that, so
 the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath` settled to the
 declared path or `/workspace`, so nothing later in the run changes it.
 
@@ -297,7 +297,7 @@ dispatcher: admission leaves them for a claim instead of executing them
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:435-442`) |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:455-458`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |
@@ -313,7 +313,7 @@ Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boome
 migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json`, inserting only
 what is absent, so a task or revision added to the seed after a release needs a change unit of its own to reach an
 existing database (`data-model.md`, "Migrations", lists each one). A `template` or `script` task without an
-explicit image takes the `task` settings' `default.image` when its task run is created (`DAGUtility.java:263`). The
+explicit image takes the `task` settings' `default.image` when its task run is created (`DAGUtility.java:276`). The
 engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`); the run each starts or
 schedules gets only its node's other params.
@@ -321,7 +321,7 @@ schedules gets only its node's other params.
 A workflow node's `taskVersion` is pinned when the workflow is saved: `WorkflowService.createWorkflowRevisionEntity`
 resolves each node through `TaskService.retrieveAndValidateTask` and stamps the version it asked for, or the
 catalogue's latest when it asked for none; at run time `DAGUtility.createTaskList` resolves the same way and records
-it on the TaskRun (`engine/DAGUtility.java:140-142`), so a stored node with no version still resolves latest. A new
+it on the TaskRun (`engine/DAGUtility.java:189`), so a stored node with no version still resolves latest. A new
 Task version therefore changes nothing for workflows already saved, and a run is reproducible from its revision.
 Saving the workflow again with the node's `taskVersion` set, or omitted for latest, moves it forward; the editor
 prompts "New version available" per node from the `upgradesAvailable` flag `WorkflowService.areTaskUpgradesAvailable`
