@@ -134,6 +134,8 @@ export const serviceUrl = {
       `${BASE_URL}/workspace/${workspace}/insights${query ? "?" + query : ""}`,
     getInsightsWorkflow: ({ workspace, workflow, query }: WorkspaceArg & WorkflowArg & Partial<QueryArg>) =>
       `${BASE_URL}/workspace/${workspace}/insights/workflow/${workflow}${query ? "?" + query : ""}`,
+    getInsightsTasks: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
+      `${BASE_URL}/workspace/${workspace}/insights/tasks${query ? "?" + query : ""}`,
     action: {
       getActionsSummary: ({ workspace, query }: WorkspaceArg & Partial<QueryArg>) =>
         `${BASE_URL}/workspace/${workspace}/action/summary${query ? "?" + query : ""}`,

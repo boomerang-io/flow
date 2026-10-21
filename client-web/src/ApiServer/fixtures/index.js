@@ -12,6 +12,7 @@ export { default as changelogs } from "./changelogs";
 export { default as featureFlags } from "./featureFlags";
 export { default as insights } from "./insights";
 export { default as insightsWorkflow } from "./insightsWorkflow";
+export { default as insightsTasks } from "./insightsTasks";
 export { default as integrations } from "./integrations";
 export { default as installations } from "./installations";
 export { default as workspaces } from "./workspaces";

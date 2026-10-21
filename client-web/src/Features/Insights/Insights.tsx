@@ -19,11 +19,20 @@ import { statusOptions } from "Constants/filterOptions";
 import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import type { FlowWorkspace, InsightsSummary, InsightsWorkflowDetail, MultiSelectItem, MultiSelectItems, Workflow } from "Types";
+import type {
+  FlowWorkspace,
+  InsightsSummary,
+  InsightsTasks,
+  InsightsWorkflowDetail,
+  MultiSelectItem,
+  MultiSelectItems,
+  Workflow,
+} from "Types";
 import DurationSpread from "./DurationSpread";
 import { parseLabels } from "./format";
 import HeadlineTiles from "./HeadlineTiles";
 import RunsPerDayChart from "./RunsPerDayChart";
+import TaskBreakdown, { TaskView } from "./TaskBreakdown";
 import UsagePanel from "./UsagePanel";
 import WorkflowDetail from "./WorkflowDetail";
 import WorkflowTable from "./WorkflowTable";
@@ -76,7 +85,21 @@ type LoaderData = {
   errorLoadingDetail: boolean;
   workflowOptions: Array<Workflow>;
   errorLoadingWorkflows: boolean;
+  /** The task runs grouped as `?taskGroupBy=`/`?taskSpanBy=` ask; read only once one is set. */
+  tasks: InsightsTasks | null;
+  errorLoadingTasks: boolean;
 };
+
+// How many of the slowest task runs the task view lists.
+const SLOWEST_TASK_RUNS = 10;
+
+function taskView(search: Record<string, unknown>): TaskView {
+  return {
+    groupBy: asString(search.taskGroupBy as string | Array<string> | null),
+    bucket: asString(search.taskBucket as string | Array<string> | null),
+    spanBy: asString(search.taskSpanBy as string | Array<string> | null),
+  };
+}
 
 function asString(value: string | Array<string> | null | undefined): string | null {
   const first = Array.isArray(value) ? value[0] : value;
@@ -94,6 +117,7 @@ export async function loader({
   request: Request;
 }): Promise<LoaderData> {
   const workspace = String(params.workspace);
+  const search = queryString.parse(new URL(request.url).search, queryStringOptions);
   const {
     statuses,
     workflows,
@@ -102,8 +126,9 @@ export async function loader({
     workflow,
     fromDate = defaultFromDate(),
     toDate = defaultToDate(),
-  } = queryString.parse(new URL(request.url).search, queryStringOptions);
+  } = search;
   const selected = asString(workflow as string | Array<string> | null);
+  const view = taskView(search);
 
   // One wave: the summary, the workflow filter options and the selected workflow's detail are
   // independent reads, and a loader blocks first paint. `allSettled` keeps each failure its own.
@@ -114,11 +139,28 @@ export async function loader({
     queryStringOptions,
   );
   const detailQuery = queryString.stringify({ labels, fromDate, toDate }, queryStringOptions);
-  const [summaryResult, workflowsResult, detailResult] = await Promise.allSettled([
+  // The task view takes the workflow, label and date filters; status and trigger narrow runs only.
+  const tasksQuery = queryString.stringify(
+    {
+      workflows,
+      labels,
+      fromDate,
+      toDate,
+      groupBy: view.groupBy,
+      bucket: view.bucket,
+      spanBy: view.spanBy,
+      slowest: SLOWEST_TASK_RUNS,
+    },
+    queryStringOptions,
+  );
+  const [summaryResult, workflowsResult, detailResult, tasksResult] = await Promise.allSettled([
     api.get(serviceUrl.workspace.getInsights({ workspace, query: summaryQuery })),
     api.get(serviceUrl.workspace.workflow.getWorkflows({ workspace })),
     selected
       ? api.get(serviceUrl.workspace.getInsightsWorkflow({ workspace, workflow: selected, query: detailQuery }))
+      : Promise.resolve(null),
+    view.groupBy || view.spanBy
+      ? api.get(serviceUrl.workspace.getInsightsTasks({ workspace, query: tasksQuery }))
       : Promise.resolve(null),
   ]);
 
@@ -129,6 +171,8 @@ export async function loader({
     errorLoadingDetail: detailResult.status === "rejected",
     workflowOptions: workflowsResult.status === "fulfilled" ? workflowsResult.value.data.content : [],
     errorLoadingWorkflows: workflowsResult.status === "rejected",
+    tasks: tasksResult.status === "fulfilled" && tasksResult.value ? tasksResult.value.data : null,
+    errorLoadingTasks: tasksResult.status === "rejected",
   };
 }
 
@@ -136,8 +180,16 @@ export default function Insights() {
   const { workspace } = useWorkspaceContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const { summary, errorLoadingInsights, detail, errorLoadingDetail, workflowOptions, errorLoadingWorkflows } =
-    useLoaderData() as LoaderData;
+  const {
+    summary,
+    errorLoadingInsights,
+    detail,
+    errorLoadingDetail,
+    workflowOptions,
+    errorLoadingWorkflows,
+    tasks,
+    errorLoadingTasks,
+  } = useLoaderData() as LoaderData;
   const search = queryString.parse(location.search, queryStringOptions);
   const compare = search.compare !== "off";
   const selected = asString(search.workflow as string | Array<string> | null);
@@ -181,6 +233,13 @@ export default function Insights() {
           <p className={styles.noRuns}>The detail for {selected} could not be loaded.</p>
         ) : null}
         <DurationSpread rows={summary.workflows} />
+        <TaskBreakdown
+          workspace={workspace.name}
+          view={taskView(search)}
+          tasks={tasks}
+          error={errorLoadingTasks}
+          update={(params) => updateHistorySearch({ ...search, ...params })}
+        />
       </div>
     );
   }
