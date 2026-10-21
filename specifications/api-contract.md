@@ -335,7 +335,7 @@ missing member and a `null` member cannot be told apart.
 | --- | --- | --- |
 | Label keys | Free-form strings, MAY carry a `prefix/name` form; the server does not validate them | `common/model/Workflow.java:52`, `WorkflowRun.java:41` |
 | Label filter | `?labels=key%3Dvalue,...` — each entry is URL-decoded and split on `=`; dots in keys are stored as `#` | `WorkspaceWorkflowRunControllerV2.java:66-70`; `WorkflowRunService.java:478-493` |
-| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; a run annotation under `boomerang.io/` that a submit or start sends is dropped. A run carries none: its workspace and task defaults are not annotations | `WorkflowService.java:629,1055,1330`; `TaskService.java:709,797`; `WorkflowRunService.java:735` |
+| Reserved annotations | `boomerang.io/generation`, `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is the canvas position of a task; a run annotation under `boomerang.io/` that a submit or start sends is dropped. A run's only ones are `generation` and `kind`: its workspace and task defaults are not annotations | `WorkflowService.java:629,1055,1330,1871`; `TaskService.java:709,797`; `WorkflowRunService.java:735` |
 | Client annotations | Any key outside `boomerang.io/` MAY be set; on update, annotations and labels are merged unless `replace=true` | `WorkflowService.java:1520-1532` |
 
 ## Parameter model

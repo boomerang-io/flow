@@ -159,8 +159,8 @@ tag's release notes.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
-  them as they stand then. Runs carry no `boomerang.io/*` annotations; a submit or start that sends one has it
-  dropped.
+  them as they stand then. A run's only `boomerang.io/*` annotations are `generation` and `kind`; a submit or start
+  that sends one has it dropped.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
   is still published to GitHub Packages.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.

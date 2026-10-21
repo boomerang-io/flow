@@ -34,5 +34,6 @@ resolved value (`engine/DAGUtility.java:71-84`). An early event's status is `pre
 - A rename keeps a run in flight on its workspace's parameters and lock scope.
 - The task settings apply as they stand when the run is queued, not when it was submitted; a run submitted without
   starting takes them at start.
-- Run annotations hold user metadata only; `boomerang.io/` stays reserved, and a client's keys under it are dropped.
+- Run annotations hold user metadata and the run's `generation` and `kind` markers; `boomerang.io/` stays reserved,
+  and a client's keys under it are dropped.
 - Revisit if a run ever needs a workspace other than its workflow's.

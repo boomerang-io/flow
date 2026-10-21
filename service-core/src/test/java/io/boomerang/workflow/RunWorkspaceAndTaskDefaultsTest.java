@@ -23,6 +23,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * A run's workspace is its workflow's owner in the relationship graph, and a TaskRun takes the
  * task settings when its task sets none - nothing the engine decides on is read from, or written
- * to, a run annotation. The {@code boomerang.io/} annotation prefix stays reserved for the server.
+ * to, a run annotation. The {@code boomerang.io/} annotation prefix stays reserved for the server,
+ * which writes only a run's {@code generation} and {@code kind} markers there.
  */
 class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
 
@@ -58,7 +61,7 @@ class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aSubmitAndAStartStampNoServerAnnotationsAndDropAClientsOnes() {
+  void aSubmitAndAStartStampNoEngineAnnotationsAndDropAClientsOnes() {
     Workspace workspace = createWorkspace("run-defaults-submit");
     createWorkspace("run-defaults-submit-other");
     workflowService.create(workspace.getName(), runnableWorkflow("run-defaults-submit-wf", TASK_SLUG));
@@ -76,9 +79,13 @@ class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
 
     Map<String, Object> annotations =
         workflowRunRepository.findById(run.getId()).orElseThrow().getAnnotations();
-    assertTrue(
-        annotations.keySet().stream().noneMatch(key -> key.startsWith("boomerang.io/")),
-        "no boomerang.io/ annotation is stamped or kept; got " + annotations);
+    // Only the run's generation and kind markers, which nothing decides from, are the server's.
+    assertEquals(
+        Set.of("boomerang.io/generation", "boomerang.io/kind"),
+        annotations.keySet().stream()
+            .filter(key -> key.startsWith("boomerang.io/"))
+            .collect(Collectors.toSet()),
+        "no engine annotation is stamped and a client's are dropped; got " + annotations);
     assertEquals("kept", annotations.get("example.com/note"));
     assertEquals("kept", annotations.get("example.com/started"));
   }
@@ -131,8 +138,8 @@ class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
         TaskDeletion.getDeletion(taskSetting("deletion.policy")), work.getSpec().getDeletion());
     assertTrue(
         work.getAnnotations() == null
-            || work.getAnnotations().keySet().stream().noneMatch(k -> k.startsWith("boomerang.io/")),
-        "a TaskRun carries no boomerang.io/ annotation; got " + work.getAnnotations());
+            || !work.getAnnotations().containsKey("boomerang.io/workspace-name"),
+        "a TaskRun carries no workspace name; got " + work.getAnnotations());
   }
 
   private String taskSetting(String key) {

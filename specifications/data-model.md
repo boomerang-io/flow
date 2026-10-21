@@ -87,7 +87,7 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 reads none of them:
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks | `workflow/WorkflowService.java:1330,1725`, `workflow/TaskService.java:709,797` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1330,1725,1871`, `workflow/TaskService.java:709,797` |
 | `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1055` |
 
 A run annotation under `boomerang.io/` is reserved: a submit or start that sends one has it dropped
