@@ -263,9 +263,12 @@ public class WorkflowRunStateHelper {
   // Work resumed: clears the wait and moves the deadline forward by the time spent waiting. A
   // no-op on a run that is not waiting, so every "a task is executing" path may call it.
   public boolean tryResumeWaiting(String id) {
-    WorkflowRunEntity run = mongoTemplate.findById(id, WorkflowRunEntity.class);
+    // Reads only a waiting run, and only the three fields the resume uses: on most calls the run is
+    // not waiting and nothing comes back.
+    Query query = Query.query(Criteria.where("_id").is(id).and("waitingSince").exists(true));
+    query.fields().include("waitingSince").include("pauseRequestedAt").include("timeoutAt");
+    WorkflowRunEntity run = mongoTemplate.findOne(query, WorkflowRunEntity.class);
     return run != null
-        && run.getWaitingSince() != null
         && tryClearStop(run, "waitingSince", run.getWaitingSince(), run.getPauseRequestedAt());
   }
 

@@ -40,6 +40,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -127,8 +128,10 @@ public class TaskRunService {
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
-    // The claim page only needs the id - tryClaim re-reads and transitions by id.
-    query.fields().include("_id");
+    // The claim page carries the id and the timeout the claim stamps its deadline from - nothing
+    // changes a TaskRun's timeout between its creation and its claim - and tryClaim transitions by
+    // id.
+    query.fields().include("_id").include("timeout");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
@@ -285,11 +288,15 @@ public class TaskRunService {
   // dispatcher id - is reaped once the lease lapses.
   // Returns the pre-image, or null when another claimant won.
   public TaskRunEntity tryClaim(String id, String claimedBy) {
+    Query timeoutOnly = Query.query(Criteria.where("_id").is(id));
+    timeoutOnly.fields().include("timeout");
+    TaskRunEntity current = mongoTemplate.findOne(timeoutOnly, TaskRunEntity.class);
+    return (current != null) ? tryClaim(id, current.getTimeout(), claimedBy) : null;
+  }
+
+  // The claim, given the timeout the claim page read with the id.
+  public TaskRunEntity tryClaim(String id, Long timeout, String claimedBy) {
     Date now = new Date();
-    TaskRunEntity current = taskRunRepository.findById(id).orElse(null);
-    if (current == null) {
-      return null;
-    }
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -303,7 +310,7 @@ public class TaskRunService {
                 .orOperator(
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
-    Date timeoutAt = RunTimeouts.deadline(now, current.getTimeout());
+    Date timeoutAt = RunTimeouts.deadline(now, timeout);
     Date leaseExpiresAt = new Date(now.getTime() + leaseMillis);
     Update update =
         new Update()
@@ -872,20 +879,36 @@ public class TaskRunService {
         rejectSupersededClaimant(taskRunEntity, claimedBy);
         // Add values from Run Request
         if (optRunRequest.isPresent()) {
-          taskRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
-          taskRunEntity.getAnnotations().putAll(optRunRequest.get().getAnnotations());
-          taskRunEntity.setParams(
-              ParameterUtil.addUniqueParams(
-                  taskRunEntity.getParams(), optRunRequest.get().getParams()));
-          if (!Objects.isNull(optRunRequest.get().getTimeout())
-              && optRunRequest.get().getTimeout() != 0) {
-            taskRunEntity.setTimeout(optRunRequest.get().getTimeout());
+          TaskRunStartRequest request = optRunRequest.get();
+          List<String> fields = new ArrayList<>();
+          if (request.getLabels() != null && !request.getLabels().isEmpty()) {
+            taskRunEntity.getLabels().putAll(request.getLabels());
+            fields.add("labels");
           }
-          // Persist the request merge for the handler to re-read. The handler only acts on a
-          // pending or queued TaskRun, so any other phase keeps its record untouched.
-          if (RunPhase.pending.equals(taskRunEntity.getPhase())
-              || RunPhase.queued.equals(taskRunEntity.getPhase())) {
-            taskRunRepository.save(taskRunEntity);
+          if (request.getAnnotations() != null && !request.getAnnotations().isEmpty()) {
+            taskRunEntity.getAnnotations().putAll(request.getAnnotations());
+            fields.add("annotations");
+          }
+          if (request.getParams() != null && !request.getParams().isEmpty()) {
+            // Sealed here: a field write never reaches the listener that encrypts on save.
+            taskRunEntity.setParams(
+                secretValues.sealRunParams(
+                    ParameterUtil.addUniqueParams(taskRunEntity.getParams(), request.getParams())));
+            fields.add("params");
+          }
+          if (!Objects.isNull(request.getTimeout()) && request.getTimeout() != 0) {
+            taskRunEntity.setTimeout(request.getTimeout());
+            fields.add("timeout");
+          }
+          // Persist the request merge for the handler to re-read, field by field: a whole-document
+          // save would write back the phase, status and claim read above, undoing a cancel or a
+          // reap that landed meanwhile. Only a TaskRun still waiting to run, and still held by the
+          // dispatcher that sent the request, takes it.
+          if (!fields.isEmpty()) {
+            mongoTemplate.updateFirst(
+                heldInPhase(taskRunId, claimedBy, RunPhase.pending, RunPhase.queued),
+                fieldsAsSaved(taskRunEntity, fields),
+                TaskRunEntity.class);
           }
         }
         taskExecutionService.start(taskRunId, claimedBy, Optional.empty());
@@ -958,11 +981,24 @@ public class TaskRunService {
           }
           completeArtifactUpload(taskRunEntity);
           reportArtifactFound(taskRunEntity);
-        }
-        // Persist the request merge for the handler to re-read. The handler ignores an end
-        // request for a completed TaskRun, so a terminal record stays untouched.
-        if (!RunPhase.completed.equals(taskRunEntity.getPhase())) {
-          taskRunRepository.save(taskRunEntity);
+          // Persist the request merge for the handler to re-read, field by field: a whole-document
+          // save would write back the phase and claim read above - before the artifact check, which
+          // takes time - undoing a cancel or a timeout that completed the TaskRun meanwhile. Only an
+          // unfinished TaskRun still held by the dispatcher that sent the request takes it; the
+          // handler ignores an end for a completed one.
+          List<String> fields =
+              new ArrayList<>(List.of("labels", "annotations", "results", "status"));
+          if (taskRunEntity.getStatusMessage() != null) {
+            fields.add("statusMessage");
+          }
+          if (taskRunEntity.getStatusReason() != null) {
+            fields.add("statusReason");
+          }
+          mongoTemplate.updateFirst(
+              heldInPhase(
+                  taskRunId, claimedBy, RunPhase.pending, RunPhase.queued, RunPhase.running),
+              fieldsAsSaved(taskRunEntity, fields),
+              TaskRunEntity.class);
         }
         taskExecutionService.end(taskRunId, claimedBy, Optional.empty());
         TaskRun taskRun = new TaskRun(taskRunEntity);
@@ -1039,6 +1075,26 @@ public class TaskRunService {
           ResultUtil.addUniqueResults(
               results, List.of(new RunResult(ArtifactService.FOUND_RESULT, "true"))));
     }
+  }
+
+  // Sets the named fields to the values a save of the TaskRun would store: the same converter writes
+  // them, so map keys are escaped and values converted exactly as on a whole-document save.
+  private Update fieldsAsSaved(TaskRunEntity taskRun, List<String> fields) {
+    Document saved = new Document();
+    mongoTemplate.getConverter().write(taskRun, saved);
+    Update update = new Update();
+    fields.forEach(field -> update.set(field, saved.get(field)));
+    return update;
+  }
+
+  // A TaskRun in one of the given phases and, when the request names its dispatcher, still held by
+  // it - the condition a dispatcher's start or end writes its fields under.
+  private static Query heldInPhase(String id, Optional<String> claimedBy, RunPhase... phases) {
+    Criteria criteria = Criteria.where("_id").is(id).and("phase").in((Object[]) phases);
+    if (claimedBy.isPresent()) {
+      criteria = criteria.and("claim.by").is(claimedBy.get());
+    }
+    return Query.query(criteria);
   }
 
   // Wire-level fence, the same rule TaskExecutionService.claimantIsValid applies after it: a

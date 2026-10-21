@@ -1,7 +1,9 @@
 package io.boomerang.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -23,6 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 /**
  * The token lookup cache in front of {@code TokenRepository.findByToken}: the authentication
@@ -161,7 +165,10 @@ class TokenServiceLookupCacheTest {
     tokenService.touchLastUsed(stored);
     assertThat(tokenService.validate(RAW)).isTrue();
 
-    verify(tokenRepository).save(stored);
+    verify(mongoTemplate)
+        .updateFirst(
+            any(Query.class), any(Update.class), eq(TokenEntity.class));
+    verify(tokenRepository, never()).save(stored);
     verify(tokenRepository, times(1)).findByToken(hash);
   }
 

@@ -43,7 +43,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -445,7 +447,12 @@ public class TokenService {
       return;
     }
     token.setLastUsedAt(now);
-    tokenRepository.save(token);
+    // One field, never the whole document: the token may be a cached copy, and saving it whole
+    // would bring back a token deleted on another instance since it was cached.
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(token.getId())),
+        new Update().set("lastUsedAt", now),
+        TokenEntity.class);
   }
 
   public boolean delete(String id) {

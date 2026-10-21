@@ -28,6 +28,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -43,6 +46,7 @@ class DispatcherQueuePrepareFailureTest {
 
   private final DispatcherRepository dispatcherRepository = mock(DispatcherRepository.class);
   private final TaskRunService taskRunService = mock(TaskRunService.class);
+  private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
   private final ArtifactService artifactService = mock(ArtifactService.class);
 
   private final DispatcherService dispatcherService =
@@ -50,7 +54,7 @@ class DispatcherQueuePrepareFailureTest {
           dispatcherRepository,
           mock(WorkflowRunStateHelper.class),
           taskRunService,
-          mock(MongoTemplate.class),
+          mongoTemplate,
           artifactService,
           new ClaimFilterService(mock(MongoTemplate.class)),
           mock(io.boomerang.engine.ParameterManager.class),
@@ -63,12 +67,16 @@ class DispatcherQueuePrepareFailureTest {
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.uploadartifact));
-    when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
+    when(mongoTemplate.findAndModify(
+            any(Query.class),
+            any(Update.class),
+            any(FindAndModifyOptions.class),
+            eq(DispatcherEntity.class)))
+        .thenReturn(dispatcher);
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(upload("broken"), upload("fine")), List.of());
-    when(taskRunService.tryClaim("broken", AGENT)).thenReturn(upload("broken"));
-    when(taskRunService.tryClaim("fine", AGENT)).thenReturn(upload("fine"));
+    when(taskRunService.tryClaim(eq("broken"), any(), eq(AGENT))).thenReturn(upload("broken"));
+    when(taskRunService.tryClaim(eq("fine"), any(), eq(AGENT))).thenReturn(upload("fine"));
     when(artifactService.fillLinkParams(taskRun("broken")))
         .thenThrow(new NullPointerException("identity is null"));
     when(artifactService.fillLinkParams(taskRun("fine"))).thenReturn(LinkOutcome.FILLED);

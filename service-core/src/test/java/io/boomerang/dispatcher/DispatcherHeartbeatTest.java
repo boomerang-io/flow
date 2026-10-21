@@ -56,6 +56,29 @@ class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aPollFromAnUnknownAgentIsRejected() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> dispatcherService.getTaskQueue("no-such-agent", 1, null, null, null));
+    assertThrows(
+        IllegalArgumentException.class, () -> dispatcherService.getWorkflowQueue("no-such-agent"));
+  }
+
+  // A type wildcard that matches none of the agent's types leaves nothing to claim, so the poll
+  // answers at once - after marking the agent connected.
+  @Test
+  void aTaskPollRefreshesTheAgentsLastConnectedDate() {
+    String agent = registerAgent("poll-liveness");
+    dispatcherRepository.save(
+        withLastConnected(dispatcherRepository.findById(agent).orElseThrow(), new Date(0)));
+
+    dispatcherService.getTaskQueue(agent, 1, "nothing-matches*", null, null);
+
+    Date after = dispatcherRepository.findById(agent).orElseThrow().getLastConnectedDate();
+    assertTrue(after.getTime() > 0, "a task poll must refresh lastConnectedDate");
+  }
+
+  @Test
   void heartbeatRefreshesTheAgentsLastConnectedDate() {
     String agent = registerAgent("heartbeat-liveness");
     Date before = dispatcherRepository.findById(agent).orElseThrow().getLastConnectedDate();

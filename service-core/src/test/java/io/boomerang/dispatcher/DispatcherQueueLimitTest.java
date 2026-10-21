@@ -24,6 +24,9 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -39,13 +42,14 @@ class DispatcherQueueLimitTest {
 
   private final DispatcherRepository dispatcherRepository = mock(DispatcherRepository.class);
   private final TaskRunService taskRunService = mock(TaskRunService.class);
+  private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
 
   private final DispatcherService dispatcherService =
       new DispatcherService(
           dispatcherRepository,
           mock(WorkflowRunStateHelper.class),
           taskRunService,
-          mock(MongoTemplate.class),
+          mongoTemplate,
           mock(ArtifactService.class),
           new ClaimFilterService(mock(MongoTemplate.class)),
           mock(io.boomerang.engine.ParameterManager.class),
@@ -58,12 +62,16 @@ class DispatcherQueueLimitTest {
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(TYPES);
-    when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
+    when(mongoTemplate.findAndModify(
+            any(Query.class),
+            any(Update.class),
+            any(FindAndModifyOptions.class),
+            eq(DispatcherEntity.class)))
+        .thenReturn(dispatcher);
     // One claimable run, so a poll answers at once instead of holding for its window.
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(taskRun("ready")));
-    when(taskRunService.tryClaim("ready", AGENT)).thenReturn(taskRun("ready"));
+    when(taskRunService.tryClaim(eq("ready"), any(), eq(AGENT))).thenReturn(taskRun("ready"));
   }
 
   private static TaskRunEntity taskRun(String id) {
