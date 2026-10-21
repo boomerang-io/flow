@@ -21,6 +21,7 @@ import io.boomerang.engine.model.WorkflowRunEventRequest;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -72,7 +73,7 @@ class StaleSnapshotSaveTest extends AbstractSpiedEngineIntegrationTest {
     // caller's entry read and its skip-path save.
     doAnswer(
             invocation -> {
-              taskRunService.tryAdmit(joinId, List.of());
+              taskRunService.tryAdmit(joinId, List.of(), Map.of());
               taskRunService.tryStartExecution(joinId, new Date(), 0L);
               return false;
             })

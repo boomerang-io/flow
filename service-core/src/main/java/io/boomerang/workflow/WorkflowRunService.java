@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,6 +64,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -288,23 +290,11 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
 
-    List<String> wfRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
+    List<String> wfRefs = workflowsInWorkspace(queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
-      // No reachable Workflow. A workspace the caller cannot reach (or that does not exist) is a
-      // 404 like every other unresolvable workspace reference; a reachable workspace with nothing
-      // to list - new, emptied, or a workflows= filter that matches none - is an empty page, the
-      // same answer insight and count already give for the same input.
-      if (!relationshipService.check(
-          RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
-        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
-      }
       Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.ASC), "creationDate"));
-      Pageable pageable =
-          queryLimit.isPresent()
-              ? PageRequest.of(queryPage.orElse(0), queryLimit.get(), sort)
-              : Pageable.unpaged();
-      return new WorkflowRunResponsePage(List.of(), pageable, 0);
+      return new WorkflowRunResponsePage(
+          List.of(), emptyPage(queryLimit, queryPage, sort), 0);
     }
     // The run-id filter is applied on top of the workspace's workflows, so a caller cannot reach
     // a run outside the workspace by naming its id.
@@ -325,6 +315,105 @@ public class WorkflowRunService {
     page.getContent().forEach(run -> filterSensitiveValues(run, securedByWorkflow));
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
+  }
+
+  /**
+   * Query the task runs of the workspace's runs, across runs: by label (a run's labels are on
+   * each of its task runs, and a child run has its parent's) or by run, then by workflow, task
+   * name, status, phase and creation date. A task name also matches its for-each items. Each row
+   * leaves out what can carry a secret value; {@code get} returns the whole task run.
+   */
+  public TaskRunResponsePage queryTaskRuns(
+      String workspace,
+      Optional<Long> fromDate,
+      Optional<Long> toDate,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> queryOrder,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryPhase,
+      Optional<List<String>> queryWorkflowRuns,
+      Optional<List<String>> queryWorkflows,
+      Optional<List<String>> queryTasks) {
+    // Task runs are indexed by run and by label, not by workflow, so a query needs one of the two.
+    if (queryLabels.filter(labels -> !labels.isEmpty()).isEmpty()
+        && queryWorkflowRuns.filter(runs -> !runs.isEmpty()).isEmpty()) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels,workflowruns");
+    }
+    Direction direction = queryOrder.orElse(Direction.ASC);
+    // Task runs of one run share a creation time, so the id breaks the tie and pages stay stable.
+    Sort sort = Sort.by(new Order(direction, "creationDate"), new Order(direction, "_id"));
+    List<String> wfRefs = workflowsInWorkspace(workspace, queryWorkflows);
+    if (wfRefs.isEmpty()) {
+      return new TaskRunResponsePage(List.of(), emptyPage(queryLimit, queryPage, sort), 0);
+    }
+    QueryCriteria criteria =
+        new QueryCriteria()
+            .between("creationDate", fromDate.map(Date::new), toDate.map(Date::new))
+            .labels(queryLabels)
+            .in("status", RunStatus.class, queryStatus, "status")
+            .in("phase", RunPhase.class, queryPhase, "phase")
+            .in("workflowRunRef", queryWorkflowRuns)
+            .in("workflowRef", wfRefs);
+    queryTasks.ifPresent(tasks -> criteria.add(taskNames(tasks)));
+    Query query = new Query(criteria.build());
+    query
+        .fields()
+        .include("type", "name", "labels", "creationDate", "startTime", "duration", "status")
+        .include("phase", "statusReason", "taskRef", "workflowRef", "workflowRunRef", "parentRef")
+        .include("index", "reusedFromRef", "claim", "retry");
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
+    List<TaskRun> rows =
+        mongoTemplate.find(query, TaskRunEntity.class).stream()
+            .map(WorkflowRunService::listed)
+            .collect(Collectors.toList());
+    slugTaskRefs(rows);
+    Page<TaskRun> page =
+        PagingUtil.page(rows, pageable, mongoTemplate, query, TaskRunEntity.class);
+    return new TaskRunResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
+  }
+
+  /**
+   * The ids of the workspace's workflows, narrowed by {@code workflows} when given. A workspace
+   * the caller cannot reach (or that does not exist) is a 404 like every other unresolvable
+   * workspace reference; a reachable one with nothing to list - new, emptied, or a filter that
+   * matches none - answers no ids, so its query is an empty page, as insight and count answer.
+   */
+  private List<String> workflowsInWorkspace(String workspace, Optional<List<String>> workflows) {
+    List<String> wfRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, workflows);
+    if (wfRefs.isEmpty()
+        && !relationshipService.check(
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+    }
+    return wfRefs;
+  }
+
+  /** The page an empty answer reports: the requested shape, so a caller pages on unchanged. */
+  private static Pageable emptyPage(
+      Optional<Integer> queryLimit, Optional<Integer> queryPage, Sort sort) {
+    return (queryLimit.isPresent())
+        ? PageRequest.of(queryPage.orElse(0), queryLimit.get(), sort)
+        : Pageable.unpaged();
+  }
+
+  // A task name matches its node and the node's for-each items, stored as name[0], name[1], ...
+  private static Criteria taskNames(List<String> tasks) {
+    String names = tasks.stream().map(Pattern::quote).collect(Collectors.joining("|"));
+    return Criteria.where("name").regex("^(?:" + names + ")(?:\\[[0-9]+\\])?$");
+  }
+
+  // A listed task run leaves out its params, results, spec and annotations, as the projection
+  // leaves out its message: the parts that can carry a secret value, so a row needs no scrub.
+  private static TaskRun listed(TaskRunEntity entity) {
+    TaskRun taskRun = new TaskRun(entity);
+    taskRun.setParams(null);
+    taskRun.setResults(null);
+    taskRun.setSpec(null);
+    taskRun.setAnnotations(null);
+    return taskRun;
   }
 
   /*
@@ -729,8 +818,11 @@ public class WorkflowRunService {
       // Add values from Run Request
       if (optRunRequest.isPresent()) {
         logPayload(optRunRequest.get());
-        wfRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
-        // The boomerang.io/ annotation prefix is reserved for the server: a start never sets one.
+        // The boomerang.io/ label and annotation prefixes are reserved for the server: a start
+        // never sets one.
+        wfRunEntity
+            .getLabels()
+            .putAll(ServerLabel.withoutServerLabels(optRunRequest.get().getLabels()));
         optRunRequest.get().getAnnotations().entrySet().stream()
             .filter(e -> !e.getKey().startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX))
             .forEach(e -> wfRunEntity.getAnnotations().put(e.getKey(), e.getValue()));
@@ -911,7 +1003,7 @@ public class WorkflowRunService {
           wfRunEntity.getParams(),
           ParameterUtil.suppliedParams(wfRunEntity.getParams(), request.getParams()));
       WorkflowService.rejectNonStringSecrets(wfRunEntity.getParams());
-      wfRunEntity.getLabels().putAll(request.getLabels());
+      wfRunEntity.getLabels().putAll(ServerLabel.withoutServerLabels(request.getLabels()));
       // Lineage on typed fields: initiatedByRef points at the first origin (preserved across
       // chained retries), trigger marks this run as a retry.
       if (!TriggerEnum.retry.getTrigger().equals(wfRunEntity.getTrigger())) {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.model.RunClaim;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowTaskForeach;
@@ -115,6 +116,27 @@ class PublicRunModelSerialisationTest {
     assertThat(json.propertyNames())
         .doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE)
         .doesNotContain("foreach");
+  }
+
+  /**
+   * A task a dispatcher has claimed shows its attempt - 1, plus one per requeue - derived from
+   * the retry state, which stays on the entity. A task no dispatcher claimed has no attempt.
+   */
+  @Test
+  void aClaimedTaskExposesItsAttemptButNotItsRetryState() {
+    TaskRunEntity requeued = new TaskRunEntity();
+    RunClaim claim = new RunClaim();
+    claim.setSeq(2L);
+    requeued.setClaim(claim);
+    RunRetry retry = new RunRetry();
+    retry.setCount(1);
+    requeued.setRetry(retry);
+
+    ObjectNode json = serialise(new TaskRun(requeued));
+
+    assertThat(json.get("attempt").asInt()).isEqualTo(2);
+    assertThat(json.propertyNames()).doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE);
+    assertThat(serialise(new TaskRun(new TaskRunEntity())).has("attempt")).isFalse();
   }
 
   @Test

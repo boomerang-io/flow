@@ -3,17 +3,15 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.Date;
-import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import lombok.Data;
 
 /**
  * A workspace's task runs over a period, grouped by one key and optionally by time, computed from
  * the runs it still holds. A task run counts once it completed, unless it was skipped; a for-each
  * task counts its items, under its own name. Durations are milliseconds over succeeded task runs; a
- * statistic over none is 0.
+ * statistic over none is 0. A row with ai task runs also sums the usage they reported.
  */
 @Data
 @JsonInclude(Include.NON_NULL)
@@ -21,7 +19,7 @@ public class WorkflowRunInsightTasks {
 
   private Date from;
   private Date to;
-  /** The grouping asked for, as given: task, type, workflow, param:<name> or label:<key>. */
+  /** The grouping asked for, as given: task, type, workflow or label:<key>. */
   private String groupBy;
   /** hour, day or month (UTC), when the rows are also grouped by time. */
   private String bucket;
@@ -56,6 +54,15 @@ public class WorkflowRunInsightTasks {
     private Long p50Span;
     private Long p95Span;
     private Long maxSpan;
+    /** With ai task runs: how many, and the usage results they reported, summed. */
+    private Long aiTaskRuns;
+    private Long promptTokens;
+    private Long completionTokens;
+    private Long totalTokens;
+    private Long reasoningTokens;
+    private Long cachedPromptTokens;
+    /** Absent when no ai task run of the row reported a cost. */
+    private Double cost;
   }
 
   @Data
@@ -68,7 +75,5 @@ public class WorkflowRunInsightTasks {
     private String status;
     private Date startTime;
     private long duration;
-    /** The values of the params asked for; a secret param is never included. */
-    private Map<String, Object> params = new LinkedHashMap<>();
   }
 }

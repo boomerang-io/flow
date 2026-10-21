@@ -61,7 +61,7 @@ class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aSubmitAndAStartStampNoEngineAnnotationsAndDropAClientsOnes() {
+  void aSubmitAndAStartStampNoEngineAnnotationsAndDropAClientsOnesAndItsServerLabels() {
     Workspace workspace = createWorkspace("run-defaults-submit");
     createWorkspace("run-defaults-submit-other");
     workflowService.create(workspace.getName(), runnableWorkflow("run-defaults-submit-wf", TASK_SLUG));
@@ -69,16 +69,21 @@ class RunWorkspaceAndTaskDefaultsTest extends AbstractEngineIntegrationTest {
     request.getAnnotations().put("boomerang.io/workspace-name", "run-defaults-submit-other");
     request.getAnnotations().put("boomerang.io/task-timeout", "99999");
     request.getAnnotations().put("example.com/note", "kept");
+    request.getLabels().put("boomerang.io/item", "forged");
+    request.getLabels().put("team", "kept");
 
     WorkflowRun run =
         workflowService.submit(workspace.getName(), "run-defaults-submit-wf", request, false);
     WorkflowRunRequest start = new WorkflowRunRequest();
     start.getAnnotations().put("boomerang.io/workspace-name", "run-defaults-submit-other");
     start.getAnnotations().put("example.com/started", "kept");
+    start.getLabels().put("boomerang.io/model", "forged");
     workflowRunService.start(run.getId(), Optional.of(start));
 
-    Map<String, Object> annotations =
-        workflowRunRepository.findById(run.getId()).orElseThrow().getAnnotations();
+    WorkflowRunEntity stored = workflowRunRepository.findById(run.getId()).orElseThrow();
+    // A label under the server's prefix is the server's alone: a client's is dropped.
+    assertEquals(Map.of("team", "kept"), stored.getLabels());
+    Map<String, Object> annotations = stored.getAnnotations();
     // Only the run's generation and kind markers, which nothing decides from, are the server's.
     assertEquals(
         Set.of("boomerang.io/generation", "boomerang.io/kind"),

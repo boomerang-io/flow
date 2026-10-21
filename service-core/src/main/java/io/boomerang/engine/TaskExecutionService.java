@@ -225,11 +225,25 @@ public class TaskExecutionService {
         return;
       }
 
+      // An ai task run is labelled with the model its resolved model param asks for, unless that
+      // param is a secret.
+      if (TaskType.ai.equals(taskExecution.getType())) {
+        taskExecution.getParams().stream()
+            .filter(p -> "model".equalsIgnoreCase(p.getName()))
+            .filter(p -> !ParamType.secret.equals(p.getType()))
+            .map(RunParam::getValue)
+            .filter(value -> value instanceof String text && !text.isEmpty())
+            .findFirst()
+            .ifPresent(value -> taskExecution.getLabels().put(ServerLabel.MODEL, (String) value));
+      }
+
       // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
-      // params in the same guarded write. A duplicate queue of the same TaskRun (e.g. a join
-      // queued by both parents) loses here and performs no side effects. The spec is not passed:
-      // it is stored with its references and filled in when a dispatcher claims the task.
-      if (taskRunService.tryAdmit(taskExecutionId, taskExecution.getParams()) == null) {
+      // params and the labels in the same guarded write. A duplicate queue of the same TaskRun
+      // (e.g. a join queued by both parents) loses here and performs no side effects. The spec is
+      // not passed: it is stored with its references and filled in when a dispatcher claims it.
+      if (taskRunService.tryAdmit(
+              taskExecutionId, taskExecution.getParams(), taskExecution.getLabels())
+          == null) {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }
@@ -1137,7 +1151,19 @@ public class TaskExecutionService {
       // The child's own Workflow declares its workspace; the parent's is not handed down.
       request.setTimeout(wfRunEntity.getTimeout());
       request.setRetries(wfRunEntity.getRetries());
-      request.setLabels(wfRunEntity.getLabels());
+      // The child takes the parent run's labels, not the server's. A for-each item's child is
+      // labelled with its item, when that is text that carries no secret.
+      Map<String, String> labels = ServerLabel.withoutServerLabels(wfRunEntity.getLabels());
+      Object item =
+          (taskExecution.getParentRef() != null)
+              ? ParameterUtil.getValue(taskExecution.getParams(), "item")
+              : null;
+      if (item instanceof String text
+          && !text.isEmpty()
+          && !paramManager.carriesSecret(wfRunEntity, taskExecution, text)) {
+        labels.put(ServerLabel.ITEM, text);
+      }
+      request.setLabels(labels);
       request.setDebug(wfRunEntity.getDebug());
       // TODO figure out how to set version
       //        request.setWorkflowVersion();

@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -354,11 +355,12 @@ public class TaskRunService {
   }
 
   // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved params -
-  // their values frozen here, secret values encrypted - in the same guarded write. The spec is not
-  // written: it keeps its $(...) references, filled in when a dispatcher claims the task
-  // (ParameterManager.fillSpec). Returns the pre-image's transition fields, or null when already
-  // admitted.
-  public TaskRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
+  // their values frozen here, secret values encrypted - and the labels, with any the server set at
+  // admission, in the same guarded write. The spec is not written: it keeps its $(...) references,
+  // filled in when a dispatcher claims the task (ParameterManager.fillSpec). Returns the
+  // pre-image's transition fields, or null when already admitted.
+  public TaskRunEntity tryAdmit(
+      String id, List<RunParam> resolvedParams, Map<String, String> labels) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -370,7 +372,8 @@ public class TaskRunService {
     Update update =
         new Update()
             .set("status", RunStatus.ready)
-            .set("params", secretValues.sealRunParams(resolvedParams));
+            .set("params", secretValues.sealRunParams(resolvedParams))
+            .set("labels", labels);
     return transition(query, update, RunStatus.ready, null);
   }
 

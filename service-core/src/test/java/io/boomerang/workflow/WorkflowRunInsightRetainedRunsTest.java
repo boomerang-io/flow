@@ -2,20 +2,18 @@ package io.boomerang.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRunInsightSummary;
 import io.boomerang.common.model.WorkflowRunInsightSummary.WorkflowRow;
@@ -278,24 +276,35 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void taskRunsGroupByAParamWithCountsAndDurationsOverSucceeded() {
-    Workflow workflow = createdWorkflow("insight-tasks-param-");
+  void taskRunsGroupByTheModelLabelWithCountsDurationsAndUsage() {
+    Workflow workflow = createdWorkflow("insight-tasks-model-");
     String workflowRef = refOf(workflow);
     String run = completedRun(workflowRef, RunStatus.succeeded, 1_000).getId();
-    timedTask(workflowRef, run, "draft", TaskType.ai, RunStatus.succeeded, 100, null, model("m1"));
-    timedTask(workflowRef, run, "review", TaskType.ai, RunStatus.succeeded, 300, null, model("m1"));
-    timedTask(workflowRef, run, "check", TaskType.ai, RunStatus.failed, 900, null, model("m1"));
-    timedTask(workflowRef, run, "draft2", TaskType.ai, RunStatus.succeeded, 200, null, model("m2"));
+    Map<String, String> none = Map.of();
+    RunStatus succeeded = RunStatus.succeeded;
+    modelTask(workflowRef, run, "draft", succeeded, 100, "m1", reported("10", "15", "0.5"));
+    modelTask(workflowRef, run, "review", succeeded, 300, "m1", reported("20", "25", "1.5"));
+    modelTask(workflowRef, run, "check", RunStatus.failed, 900, "m1", none);
+    modelTask(workflowRef, run, "draft2", succeeded, 200, "m2", Map.of("totalTokens", "7"));
     // Skipped, in flight or not an ai task: none of them counts.
-    timedTask(workflowRef, run, "skip", TaskType.ai, RunStatus.skipped, 0, null, model("m1"));
-    TaskRunEntity running =
-        timedTask(workflowRef, run, "live", TaskType.ai, RunStatus.running, 0, null, model("m1"));
+    modelTask(workflowRef, run, "skip", RunStatus.skipped, 0, "m1", none);
+    TaskRunEntity running = modelTask(workflowRef, run, "live", RunStatus.running, 0, "m1", none);
     running.setPhase(RunPhase.running);
     taskRunRepository.save(running);
-    timedTask(workflowRef, run, "work", TaskType.template, RunStatus.succeeded, 50, null, model("m1"));
+    TaskRunEntity work =
+        timedTask(workflowRef, run, "work", TaskType.template, RunStatus.succeeded, 50, null);
+    work.getLabels().put(ServerLabel.MODEL, "m1");
+    taskRunRepository.save(work);
 
     WorkflowRunInsightTasks insight =
-        tasks(workflow, Optional.empty(), Optional.of(List.of("ai")), "param:model", null, null, 0);
+        tasks(
+            workflow,
+            Optional.empty(),
+            Optional.of(List.of("ai")),
+            "label:" + ServerLabel.MODEL,
+            null,
+            null,
+            0);
 
     assertThat(insight.getRows()).extracting(Row::getKey).containsExactly("m1", "m2");
     Row m1 = insight.getRows().get(0);
@@ -306,7 +315,14 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
     assertThat(m1.getP50Duration()).isEqualTo(100);
     assertThat(m1.getP95Duration()).isEqualTo(300);
     assertThat(m1.getMaxDuration()).isEqualTo(300);
-    assertThat(insight.getRows().get(1).getTaskRuns()).isEqualTo(1);
+    assertThat(m1.getAiTaskRuns()).isEqualTo(3);
+    assertThat(m1.getPromptTokens()).isEqualTo(30);
+    assertThat(m1.getTotalTokens()).isEqualTo(40);
+    assertThat(m1.getCost()).isEqualTo(2.0, within(1e-9));
+    Row m2 = insight.getRows().get(1);
+    assertThat(m2.getTaskRuns()).isEqualTo(1);
+    assertThat(m2.getTotalTokens()).isEqualTo(7);
+    assertThat(m2.getCost()).as("no task run of the row reported a cost").isNull();
     assertThat(insight.getSlowest()).isNull();
   }
 
@@ -378,43 +394,41 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void theSlowestShowTheParamsAskedForAndASecretParamIsNeverShownOrAKey() {
+  void theSlowestListTheLongestTaskRunsFirstAndAnItemLabelGroupsAChildsTaskRuns() {
     Workflow workflow = createdWorkflow("insight-tasks-slowest-");
     String workflowRef = refOf(workflow);
     for (long duration : List.of(100L, 700L, 400L)) {
-      timedTask(
-          workflowRef,
-          completedRun(workflowRef, RunStatus.succeeded, 1_000).getId(),
-          "parse",
-          TaskType.template,
-          RunStatus.succeeded,
-          duration,
-          null,
-          new RunParam("fileId", "file-" + duration),
-          new RunParam("apiKey", "s3cr3t-" + duration, ParamType.secret));
+      TaskRunEntity parse =
+          timedTask(
+              workflowRef,
+              completedRun(workflowRef, RunStatus.succeeded, 1_000).getId(),
+              "parse",
+              TaskType.template,
+              RunStatus.succeeded,
+              duration,
+              null);
+      // As a for-each run-workflow child's task runs carry their item.
+      parse.getLabels().put(ServerLabel.ITEM, (duration > 200) ? "agent-a" : "agent-b");
+      taskRunRepository.save(parse);
     }
 
     WorkflowRunInsightTasks insight =
-        insightService.tasks(
-            SYSTEM_WORKSPACE,
-            new Date(System.currentTimeMillis() - 60_000),
-            new Date(System.currentTimeMillis() + 60_000),
-            Optional.of(List.of(workflow.getName())),
-            Optional.empty(),
+        tasks(
+            workflow,
             Optional.of(List.of("parse")),
             Optional.empty(),
-            Optional.of("param:apiKey"),
-            Optional.empty(),
-            Optional.empty(),
-            2,
-            Optional.of(List.of("fileId", "apiKey")));
+            "label:" + ServerLabel.ITEM,
+            null,
+            null,
+            2);
 
     assertThat(insight.getSlowest())
         .extracting(SlowTaskRun::getDuration)
         .containsExactly(700L, 400L);
-    assertThat(insight.getSlowest().get(0).getParams()).containsExactly(entry("fileId", "file-700"));
     assertThat(insight.getSlowest().get(0).getWorkflowRef()).isEqualTo(workflowRef);
-    assertThat(insight.getRows()).extracting(Row::getKey).containsExactly((String) null);
+    assertThat(insight.getRows())
+        .extracting(Row::getKey, Row::getTaskRuns, Row::getMaxDuration)
+        .containsExactly(tuple("agent-a", 2L, 700L), tuple("agent-b", 1L, 100L));
   }
 
   @Test
@@ -424,7 +438,7 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
     for (Runnable call :
         List.<Runnable>of(
             () -> tasks(workflow, Optional.empty(), Optional.empty(), "owner", null, null, 0),
-            () -> tasks(workflow, Optional.empty(), Optional.empty(), "param:", null, null, 0),
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), "param:model", null, null, 0),
             () -> tasks(workflow, Optional.empty(), Optional.empty(), null, "week", null, 0),
             () -> tasks(workflow, Optional.empty(), Optional.empty(), null, null, "param:x", 0),
             () -> tasks(workflow, Optional.empty(), Optional.empty(), null, null, null, 101))) {
@@ -455,8 +469,7 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
         Optional.ofNullable(groupBy),
         Optional.ofNullable(bucket),
         Optional.ofNullable(spanBy),
-        slowest,
-        Optional.empty());
+        slowest);
   }
 
   private TaskRunEntity timedTask(
@@ -466,13 +479,11 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
       TaskType type,
       RunStatus status,
       long duration,
-      Date startTime,
-      RunParam... params) {
+      Date startTime) {
     TaskRunEntity task =
         savedTaskRun(name, type, status, RunPhase.completed, workflowRef, workflowRunRef);
     task.setDuration(duration);
     task.setStartTime(startTime);
-    task.setParams(new ArrayList<>(List.of(params)));
     return taskRunRepository.save(task);
   }
 
@@ -492,8 +503,25 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
     return Date.from(Instant.parse(instant));
   }
 
-  private static RunParam model(String model) {
-    return new RunParam("model", model);
+  // The usage results an ai task reports: prompt and total tokens, and a cost.
+  private static Map<String, String> reported(String prompt, String total, String cost) {
+    return Map.of("promptTokens", prompt, "totalTokens", total, "cost", cost);
+  }
+
+  // An ai task run as admission leaves it: labelled with its model, reporting these results.
+  private TaskRunEntity modelTask(
+      String workflowRef,
+      String workflowRunRef,
+      String name,
+      RunStatus status,
+      long duration,
+      String model,
+      Map<String, String> results) {
+    TaskRunEntity task =
+        timedTask(workflowRef, workflowRunRef, name, TaskType.ai, status, duration, null);
+    task.getLabels().put(ServerLabel.MODEL, model);
+    task.setResults(results(results));
+    return taskRunRepository.save(task);
   }
 
   private Workflow createdWorkflow(String prefix) {
