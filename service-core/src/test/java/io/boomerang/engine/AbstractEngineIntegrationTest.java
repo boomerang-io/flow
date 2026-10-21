@@ -78,6 +78,7 @@ public abstract class AbstractEngineIntegrationTest {
   @Autowired protected SettingsRepository settingsRepository;
   @Autowired protected TaskService taskService;
   @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private WorkflowWatcher workflowWatcher;
 
   /**
    * Starts every test with an empty claim queue. The database is shared and a dispatcher poll
@@ -85,6 +86,12 @@ public abstract class AbstractEngineIntegrationTest {
    * the ones a test creates and polls for. They end as cancelled, which no poll, sweep or
    * termination claim picks up.
    */
+  // Each test's sweeps start from the oldest candidate, as a single sweep did before the cursors.
+  @BeforeEach
+  void resetSweepCursors() {
+    workflowWatcher.resetSweepCursors();
+  }
+
   @BeforeEach
   void cancelTasksEarlierTestsLeftReady() {
     mongoTemplate.updateMulti(

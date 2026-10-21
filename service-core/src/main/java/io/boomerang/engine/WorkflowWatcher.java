@@ -4,6 +4,7 @@ import io.boomerang.common.model.StatusReason;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRetentionService;
 import io.boomerang.workflow.WorkflowRunService;
+import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -17,13 +18,12 @@ import io.boomerang.common.util.SweepRunner;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
-import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Duration;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -32,8 +32,8 @@ import org.slf4j.helpers.MessageFormatter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -76,7 +76,6 @@ public class WorkflowWatcher {
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
-  private final WorkflowRevisionRepository workflowRevisionRepository;
   private final TaskExecutionService taskExecutionService;
   private final WorkflowExecutionService workflowExecutionService;
   private final WorkflowRunService workflowRunService;
@@ -85,6 +84,13 @@ public class WorkflowWatcher {
   private final DispatcherRepository dispatcherRepository;
   private final ArtifactService artifactService;
   private final WorkflowRetentionService workflowRetentionService;
+  private final MongoTemplate mongoTemplate;
+
+  // Where the sweeps that page oldest first resume, so candidates they leave alone cannot hide the
+  // ones behind them.
+  private final SweepCursor stalledRuns = new SweepCursor("startTime");
+  private final SweepCursor foreachParents = new SweepCursor("startTime");
+  private final SweepCursor strayActions = new SweepCursor("creationDate");
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -103,7 +109,6 @@ public class WorkflowWatcher {
       TaskRunService taskRunService,
       WorkflowRunRepository workflowRunRepository,
       WorkflowRepository workflowRepository,
-      WorkflowRevisionRepository workflowRevisionRepository,
       TaskExecutionService taskExecutionService,
       WorkflowExecutionService workflowExecutionService,
       WorkflowRunService workflowRunService,
@@ -111,11 +116,11 @@ public class WorkflowWatcher {
       ActionRepository actionRepository,
       DispatcherRepository dispatcherRepository,
       ArtifactService artifactService,
-      WorkflowRetentionService workflowRetentionService) {
+      WorkflowRetentionService workflowRetentionService,
+      MongoTemplate mongoTemplate) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
-    this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskExecutionService = taskExecutionService;
     this.workflowExecutionService = workflowExecutionService;
     this.workflowRunService = workflowRunService;
@@ -124,6 +129,14 @@ public class WorkflowWatcher {
     this.dispatcherRepository = dispatcherRepository;
     this.artifactService = artifactService;
     this.workflowRetentionService = workflowRetentionService;
+    this.mongoTemplate = mongoTemplate;
+  }
+
+  /** Start every cursored sweep's next page from its oldest candidate. */
+  public void resetSweepCursors() {
+    stalledRuns.reset();
+    foreachParents.reset();
+    strayActions.reset();
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -234,10 +247,18 @@ public class WorkflowWatcher {
    */
   public void recoverStalledRuns() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
+    List<WorkflowRunEntity> page =
+        workflowRunStateHelper.findRunningStartedBefore(startedBefore, PAGE_SIZE, stalledRuns);
+    if (page.isEmpty()) {
+      return;
+    }
+    Set<String> inFlight =
+        taskRunService.runsWithTasksInFlight(
+            page.stream().map(WorkflowRunEntity::getId).toList());
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findRunningStartedBefore(startedBefore, PAGE_SIZE),
+        page,
         wfRun -> {
-          if (!taskRunService.existsInFlightByWorkflowRunRef(wfRun.getId())) {
+          if (!inFlight.contains(wfRun.getId())) {
             LOGGER.info(
                 "[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
                 wfRun.getId());
@@ -259,8 +280,18 @@ public class WorkflowWatcher {
    */
   public void recoverForeachTasks() {
     Date startedBefore = new Date(System.currentTimeMillis() - STALL_GRACE_MILLIS);
+    List<TaskRunEntity> page =
+        taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE, foreachParents);
+    if (page.isEmpty()) {
+      return;
+    }
+    // A paused run's pending items are held by the pause gate; fanning out would only queue each
+    // one to be refused again. Resume re-runs the fan-out through advance.
+    Set<String> paused =
+        workflowRunStateHelper.pausedAmong(
+            page.stream().map(TaskRunEntity::getWorkflowRunRef).distinct().toList());
     SweepRunner.forEachIsolated(
-        taskRunService.findRunningForeachParents(startedBefore, PAGE_SIZE),
+        page,
         parent -> {
           if (!RunStatus.running.equals(parent.getStatus())) {
             LOGGER.info(
@@ -268,7 +299,7 @@ public class WorkflowWatcher {
                 parent.getId());
             taskExecutionService.end(parent.getId(), Optional.empty(), Optional.empty());
           } else if (!taskRunService.existsInFlightItem(parent.getId())
-              && !isRunPaused(parent.getWorkflowRunRef())) {
+              && !paused.contains(parent.getWorkflowRunRef())) {
             LOGGER.info(
                 "[{}] Running foreach TaskRun has no item in flight. Recovering its fan-out.",
                 parent.getId());
@@ -277,12 +308,6 @@ public class WorkflowWatcher {
         },
         (parent, ex) ->
             LOGGER.error("[{}] Foreach recovery failed: {}", parent.getId(), ex.getMessage()));
-  }
-
-  // A paused run's pending items are held by the pause gate; fanning out would only queue each one
-  // to be refused again. Resume re-runs the fan-out through advance.
-  private boolean isRunPaused(String wfRunRef) {
-    return workflowRunRepository.findById(wfRunRef).map(WorkflowRunEntity::isPaused).orElse(false);
   }
 
   /**
@@ -347,8 +372,7 @@ public class WorkflowWatcher {
     if (referenced.isEmpty()) {
       return;
     }
-    Set<String> existing = new HashSet<>();
-    workflowRevisionRepository.findAllById(referenced).forEach(r -> existing.add(r.getId()));
+    Set<String> existing = workflowRunStateHelper.existingRevisions(referenced);
     List<String> missing = referenced.stream().filter(ref -> !existing.contains(ref)).toList();
     if (missing.isEmpty()) {
       return;
@@ -424,13 +448,18 @@ public class WorkflowWatcher {
    * otherwise it is abandoned and driven through the normal end path.
    */
   public void reapClaimsFromGoneDispatchers() {
+    // The live dispatchers are read once, and only the claims the others hold are paged: claims of
+    // live dispatchers never fill the page ahead of a gone one's.
+    List<String> live =
+        dispatcherRepository
+            .findConnectedSince(new Date(System.currentTimeMillis() - DISPATCHER_STALE_MILLIS))
+            .stream()
+            .map(DispatcherEntity::getId)
+            .toList();
     SweepRunner.forEachIsolated(
-        taskRunService.findClaimed(PAGE_SIZE),
+        taskRunService.findClaimedByOthers(live, PAGE_SIZE),
         taskRun -> {
-          String dispatcherRef = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
-          if (dispatcherRef == null || isDispatcherLive(dispatcherRef)) {
-            return;
-          }
+          String dispatcherRef = taskRun.getClaim().getBy();
           requeueOrAbandon(
               taskRun,
               MessageFormatter.format("The claimant {} is no longer registered.", dispatcherRef)
@@ -491,15 +520,6 @@ public class WorkflowWatcher {
     }
   }
 
-  private boolean isDispatcherLive(String dispatcherRef) {
-    Optional<DispatcherEntity> dispatcher = dispatcherRepository.findById(dispatcherRef);
-    if (dispatcher.isEmpty() || dispatcher.get().getLastConnectedDate() == null) {
-      return false;
-    }
-    return dispatcher.get().getLastConnectedDate().getTime()
-        > System.currentTimeMillis() - DISPATCHER_STALE_MILLIS;
-  }
-
   /**
    * Close Actions left open (submitted) by a WorkflowRun that has already gone terminal. The
    * normal execution loop only ever resolves an Action by ending its TaskRun, which cannot
@@ -507,13 +527,33 @@ public class WorkflowWatcher {
    * a cancel or timeout that raced ahead of the user's response.
    */
   public void closeStrayActions() {
+    List<ActionEntity> page =
+        strayActions.read(
+            Criteria.where("status").is(ActionStatus.submitted),
+            PAGE_SIZE,
+            query -> {
+              query.fields().include("_id").include("workflowRunRef").include("creationDate");
+              return mongoTemplate.find(query, ActionEntity.class);
+            },
+            ActionEntity::getCreationDate,
+            ActionEntity::getId);
+    if (page.isEmpty()) {
+      return;
+    }
+    Set<String> inFlight =
+        workflowRunStateHelper.inFlightAmong(
+            page.stream()
+                .map(ActionEntity::getWorkflowRunRef)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList());
     SweepRunner.forEachIsolated(
-        actionRepository.findByStatusOrderByCreationDateAsc(
-            ActionStatus.submitted, PageRequest.of(0, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "creationDate"))),
+        page,
         action -> {
-          WorkflowRunEntity wfRun =
-              workflowRunRepository.findById(action.getWorkflowRunRef()).orElse(null);
-          if (wfRun != null && IN_FLIGHT_PHASES.contains(wfRun.getPhase())) {
+          // A run that is gone or terminal leaves its open Action stray; one with no run ref
+          // was never a run's, and is left alone.
+          if (action.getWorkflowRunRef() == null
+              || inFlight.contains(action.getWorkflowRunRef())) {
             return;
           }
           if (actionRepository.updateStatusByIdAndStatus(

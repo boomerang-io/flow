@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -452,20 +454,29 @@ public class TaskRunService {
   // candidates for recovering a fan-out or a parent completion that a crash cut short. Matched by
   // phase alone: a parent whose outcome is recorded but whose end was lost keeps a terminal status
   // in the running phase.
-  public List<TaskRunEntity> findRunningForeachParents(Date startedBefore, int limit) {
-    Query query =
-        Query.query(
-                Criteria.where("phase")
-                    .is(RunPhase.running)
-                    .and("foreach")
-                    .exists(true)
-                    .and("startTime")
-                    .lte(startedBefore))
-            .with(Sort.by(Sort.Direction.ASC, "startTime"))
-            .limit(limit)
-            .maxTimeMsec(5000);
-    query.fields().include("_id").include("status").include("workflowRunRef");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+  public List<TaskRunEntity> findRunningForeachParents(
+      Date startedBefore, int limit, SweepCursor cursor) {
+    Criteria candidates =
+        Criteria.where("phase")
+            .is(RunPhase.running)
+            .and("foreach")
+            .exists(true)
+            .and("startTime")
+            .lte(startedBefore);
+    return cursor.read(
+        candidates,
+        limit,
+        query -> {
+          query
+              .fields()
+              .include("_id")
+              .include("status")
+              .include("workflowRunRef")
+              .include("startTime");
+          return mongoTemplate.find(query, TaskRunEntity.class);
+        },
+        TaskRunEntity::getStartTime,
+        TaskRunEntity::getId);
   }
 
   // Whether every item of a foreach parent is completed and all the expected items exist - an
@@ -630,15 +641,36 @@ public class TaskRunService {
   // Return the page of currently-claimed TaskRuns, oldest claim first - the orphan backstop
   // checks each against dispatcher liveness directly, since a claimant that has disappeared is
   // invisible to the deadline-driven timeout reap until (or unless) its deadline arrives.
-  public List<TaskRunEntity> findClaimed(int limit) {
+  public List<TaskRunEntity> findClaimedByOthers(Collection<String> liveDispatchers, int limit) {
     Criteria criteria =
-        Criteria.where("phase").in(RunPhase.queued, RunPhase.running).and("claim.by").exists(true);
+        Criteria.where("phase")
+            .in(RunPhase.queued, RunPhase.running)
+            .and("claim.by")
+            .exists(true)
+            .nin(liveDispatchers);
     Query query =
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "claim.at"))
             .limit(limit)
             .maxTimeMsec(5000);
+    // What the requeue or abandon reads: the claim it fences on, the retry budget and the type.
+    query.fields().include("_id").include("claim").include("retry").include("type");
     return mongoTemplate.find(query, TaskRunEntity.class);
+  }
+
+  // The runs among the given ones that have a TaskRun in flight, by the same rule as
+  // existsInFlightByWorkflowRunRef - one read for a page of runs.
+  public Set<String> runsWithTasksInFlight(Collection<String> workflowRunRefs) {
+    Query query =
+        Query.query(
+                Criteria.where("workflowRunRef")
+                    .in(workflowRunRefs)
+                    .orOperator(
+                        Criteria.where("phase").in(RunPhase.queued, RunPhase.running),
+                        Criteria.where("status").in(RunStatus.ready, RunStatus.waiting)))
+            .maxTimeMsec(5000);
+    return new HashSet<>(
+        mongoTemplate.findDistinct(query, "workflowRunRef", TaskRunEntity.class, String.class));
   }
 
   // Abandon Compare-And-Set: a queued/running TaskRun becomes timed out with the message and typed
