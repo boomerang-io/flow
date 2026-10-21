@@ -10,6 +10,8 @@ import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.core.SettingsService;
+import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
@@ -18,7 +20,6 @@ import io.boomerang.engine.ResultUtil;
 import io.boomerang.workflow.TaskService;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -49,14 +50,37 @@ public class DAGUtility {
   private final TaskRunRepository taskRunRepository;
   private final TaskService taskService;
   private final MongoTemplate mongoTemplate;
+  private final SettingsService settingsService;
 
   public DAGUtility(
       TaskRunRepository taskRunRepository,
       TaskService taskService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      SettingsService settingsService) {
     this.taskRunRepository = taskRunRepository;
     this.taskService = taskService;
     this.mongoTemplate = mongoTemplate;
+    this.settingsService = settingsService;
+  }
+
+  /**
+   * The operator's task settings a new TaskRun takes when its task sets none: the per-task timeout
+   * ceiling in minutes (0, or blank, for none - the seed ships 0 so a task inherits its run's
+   * timeout), the image for a task that names none, and the pod deletion policy.
+   */
+  private record TaskDefaults(long timeout, String image, TaskDeletion deletion) {}
+
+  private TaskDefaults taskDefaults() {
+    Map<String, String> task =
+        settingsService.getSettingByKey("task").getConfig().stream()
+            .filter(config -> config.getValue() != null)
+            .collect(Collectors.toMap(SettingConfig::getKey, SettingConfig::getValue, (a, b) -> a));
+    String timeout = task.get("default.timeout");
+    String deletion = task.get("deletion.policy");
+    return new TaskDefaults(
+        (timeout != null && !timeout.isBlank()) ? Long.parseLong(timeout) : 0L,
+        task.get("default.image"),
+        (deletion != null) ? TaskDeletion.getDeletion(deletion) : TaskDeletion.Never);
   }
 
   public boolean validateWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
@@ -108,6 +132,8 @@ public class DAGUtility {
   public List<TaskRunEntity> createTaskList(
       WorkflowRevisionEntity wfRevisionEntity, WorkflowRunEntity wfRunEntity) {
     final List<TaskRunEntity> taskList = new LinkedList<>();
+    // Read once, and only when a TaskRun is created: a run's TaskRuns are all created at queue.
+    TaskDefaults defaults = null;
     // One fetch of the run's existing TaskRuns keyed by name - the (workflowRunRef, name) unique
     // index guarantees one per name, so no per-task find-first query is needed.
     final Map<String, TaskRunEntity> existingByName =
@@ -140,6 +166,9 @@ public class DAGUtility {
         if (!TaskType.start.equals(wfRevisionTask.getType())
             && !TaskType.end.equals(wfRevisionTask.getType())) {
 
+          if (defaults == null) {
+            defaults = taskDefaults();
+          }
           Task task = taskService.retrieveAndValidateTask(wfRevisionTask);
           taskRunEntity.setTaskRef(wfRevisionTask.getTaskRef());
           // Only a task that runs can run for each item; start and end never carry the setting.
@@ -154,16 +183,6 @@ public class DAGUtility {
           taskRunEntity.getLabels().putAll(wfRevisionTask.getLabels());
           taskRunEntity.getLabels().putAll(wfRunEntity.getLabels());
 
-          // The run's workspace name is carried onto the task run.
-          Map<String, Object> annotations = new HashMap<>();
-          if (wfRunEntity.getAnnotations() != null
-              && !wfRunEntity.getAnnotations().isEmpty()
-              && wfRunEntity.getAnnotations().containsKey("boomerang.io/workspace-name")) {
-            annotations.put(
-                "boomerang.io/workspace-name",
-                wfRunEntity.getAnnotations().get("boomerang.io/workspace-name"));
-          }
-          taskRunEntity.getAnnotations().putAll(annotations);
 
           // Set Task RunResults
           taskRunEntity.setResults(ResultUtil.resultSpecToRunResult(task.getSpec().getResults()));
@@ -199,7 +218,7 @@ public class DAGUtility {
               wfRunEntity.getId(),
               ParameterUtil.runParamNames(taskRunEntity.getParams()));
           // Timeout, in minutes, is the smallest of three ceilings, in this order:
-          //   1. the platform default (the boomerang.io/task-timeout annotation),
+          //   1. the platform default (the task settings' default.timeout),
           //   2. the task's own declared timeout, when set and not greater,
           //   3. the run's own timeout, when set and not greater.
           // 0 at any step means "unguarded" and imposes no ceiling; a task ends up at 0 only when
@@ -208,12 +227,7 @@ public class DAGUtility {
           // run watcher reaps a healthy task at the run deadline while that task still believes it
           // has budget left — and on a fresh install it would, because the seeded per-task ceiling
           // is a per-pod limit, not a budget each task is entitled to spend.
-          long timeout =
-              wfRunEntity.getAnnotations() != null
-                      && wfRunEntity.getAnnotations().get("boomerang.io/task-timeout") != null
-                  ? Long.parseLong(
-                      wfRunEntity.getAnnotations().get("boomerang.io/task-timeout").toString())
-                  : 0L;
+          long timeout = defaults.timeout();
           if (wfRevisionTask.getTimeout() != null
               && wfRevisionTask.getTimeout() > 0
               && (timeout <= 0 || wfRevisionTask.getTimeout() < timeout)) {
@@ -246,10 +260,7 @@ public class DAGUtility {
             taskRunEntity.getSpec().setImage(task.getSpec().getImage());
           } else if (TaskType.template.equals(wfRevisionTask.getType())
               || TaskType.script.equals(wfRevisionTask.getType())) {
-            taskRunEntity
-                .getSpec()
-                .setImage(
-                    wfRunEntity.getAnnotations().get("boomerang.io/task-default-image").toString());
+            taskRunEntity.getSpec().setImage(defaults.image());
           }
           if (!Objects.isNull(task.getSpec().getCommand())) {
             taskRunEntity.getSpec().setCommand(task.getSpec().getCommand());
@@ -278,15 +289,7 @@ public class DAGUtility {
           if (TaskType.custom.equals(wfRevisionTask.getType())) {
             applyCustomTaskSpecFromParams(taskRunEntity);
           }
-          TaskDeletion taskDeletion = TaskDeletion.Never;
-          if (wfRunEntity.getAnnotations() != null
-              && !wfRunEntity.getAnnotations().isEmpty()
-              && wfRunEntity.getAnnotations().containsKey("boomerang.io/task-deletion")) {
-            taskDeletion =
-                TaskDeletion.getDeletion(
-                    wfRunEntity.getAnnotations().get("boomerang.io/task-deletion").toString());
-          }
-          taskRunEntity.getSpec().setDeletion(taskDeletion);
+          taskRunEntity.getSpec().setDeletion(defaults.deletion());
           if (!Objects.isNull(wfRunEntity.getDebug())) {
             taskRunEntity.getSpec().setDebug(wfRunEntity.getDebug());
           }

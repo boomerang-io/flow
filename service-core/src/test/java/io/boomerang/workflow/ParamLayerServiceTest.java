@@ -12,8 +12,11 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ParamLayers;
 import io.boomerang.core.ParamLayerCache;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
@@ -35,6 +38,7 @@ class ParamLayerServiceTest {
   private final WorkflowRepository workflowRepository = mock(WorkflowRepository.class);
   private final WorkflowRevisionRepository workflowRevisionRepository =
       mock(WorkflowRevisionRepository.class);
+  private final RelationshipService relationshipService = mock(RelationshipService.class);
   private final ParamLayerService service = service(Duration.ofSeconds(10));
 
   private ParamLayerService service(Duration ttl) {
@@ -45,7 +49,8 @@ class ParamLayerServiceTest {
         tokenRepository,
         workflowRepository,
         workflowRevisionRepository,
-        new ParamLayerCache(true, ttl, 1000));
+        new ParamLayerCache(true, ttl, 1000),
+        relationshipService);
   }
 
   private static SettingConfig on(String key) {
@@ -73,11 +78,19 @@ class ParamLayerServiceTest {
     return param;
   }
 
-  private void workspace(String name, AbstractParam... params) {
+  private void workspace(String id, AbstractParam... params) {
     WorkspaceEntity workspace = new WorkspaceEntity();
-    workspace.setName(name);
+    workspace.setId(id);
+    workspace.setName(id + "-name");
     workspace.setParameters(List.of(params));
-    when(workspaceRepository.findByNameIgnoreCase(name)).thenReturn(Optional.of(workspace));
+    when(workspaceRepository.findById(id)).thenReturn(Optional.of(workspace));
+  }
+
+  // The relationship graph records the workspace as the workflow's owner, by the workspace's id.
+  private void owns(String workspaceId, String workflowRef) {
+    when(relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef))
+        .thenReturn(workspaceId);
   }
 
   // Secured values are scrubbed everywhere they occur - the log stream replaces every occurrence -
@@ -91,9 +104,14 @@ class ParamLayerServiceTest {
                 param("empty", "password", ""),
                 param("short", "password", "abc"),
                 param("registry", "text", "ghcr.io")));
-    workspace("cheer", param("githubToken", "password", "ws-secret-22"), param("branch", "text", "main"));
+    workspace("ws-cheer", param("githubToken", "password", "ws-secret-22"), param("branch", "text", "main"));
+    owns("ws-cheer", "wf-1");
+    when(relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, "wf-unowned"))
+        .thenReturn("");
 
-    assertThat(service.securedValues("cheer")).containsExactlyInAnyOrder("glob-secret-1", "ws-secret-22");
+    assertThat(service.securedValues("wf-1")).containsExactlyInAnyOrder("glob-secret-1", "ws-secret-22");
+    assertThat(service.securedValues("wf-unowned")).containsExactly("glob-secret-1");
     assertThat(service.securedValues(null)).containsExactly("glob-secret-1");
   }
 
@@ -102,7 +120,7 @@ class ParamLayerServiceTest {
   @Test
   void buildsTheLayersForAWorkspaceWithContextFromTheRevision() {
     when(parameterService.getAllUnfiltered()).thenReturn(List.of(param("g1", "text", "GV")));
-    workspace("cheer", param("w1", "text", "WV"));
+    workspace("ws-cheer", param("w1", "text", "WV"));
     WorkflowEntity workflow = new WorkflowEntity();
     workflow.setId("wf-1");
     workflow.setName("version-analysis");
@@ -110,7 +128,7 @@ class ParamLayerServiceTest {
     WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
     revision.setVersion(3);
 
-    ParamLayers layers = service.buildParamLayers("cheer", workflow, revision);
+    ParamLayers layers = service.buildParamLayers("ws-cheer", workflow, revision);
 
     assertThat(layers.getGlobalParams()).containsEntry("g1", "GV");
     assertThat(layers.getWorkspaceParams()).containsEntry("w1", "WV");
@@ -122,9 +140,13 @@ class ParamLayerServiceTest {
   }
 
   private WorkflowRevisionEntity revision(String id) {
+    return revision(id, "wf-1");
+  }
+
+  private WorkflowRevisionEntity revision(String id, String workflowRef) {
     WorkflowEntity workflow = new WorkflowEntity();
-    workflow.setId("wf-1");
-    when(workflowRepository.findById("wf-1")).thenReturn(Optional.of(workflow));
+    workflow.setId(workflowRef);
+    when(workflowRepository.findById(workflowRef)).thenReturn(Optional.of(workflow));
     WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
     revision.setId(id);
     revision.setVersion(1);
@@ -136,7 +158,7 @@ class ParamLayerServiceTest {
   void readsTheFeatureSwitchesOncePerBuild() {
     when(parameterService.getAllUnfiltered()).thenReturn(List.of());
 
-    service.buildParamLayers("cheer", "wf-1", revision("rev-1"));
+    service.buildParamLayers("wf-1", revision("rev-1"));
 
     verify(settingsService, times(1)).getSettingByKey("features");
   }
@@ -146,16 +168,17 @@ class ParamLayerServiceTest {
   @Test
   void servesTheLayersFromTheCacheAsSeparateCopies() {
     when(parameterService.getAllUnfiltered()).thenReturn(List.of(param("g1", "text", "GV")));
-    workspace("cheer", param("w1", "text", "WV"));
+    workspace("ws-cheer", param("w1", "text", "WV"));
+    owns("ws-cheer", "wf-1");
     WorkflowRevisionEntity revision = revision("rev-1");
 
-    ParamLayers first = service.buildParamLayers("cheer", "wf-1", revision);
+    ParamLayers first = service.buildParamLayers("wf-1", revision);
     first.getContextParams().put("workflowrun-ref", "run-1");
     first.getGlobalParams().put("g1", "changed by a caller");
-    ParamLayers second = service.buildParamLayers("cheer", "wf-1", revision);
+    ParamLayers second = service.buildParamLayers("wf-1", revision);
 
     verify(parameterService, times(1)).getAllUnfiltered();
-    verify(workspaceRepository, times(1)).findByNameIgnoreCase("cheer");
+    verify(workspaceRepository, times(1)).findById("ws-cheer");
     verify(workflowRepository, times(1)).findById("wf-1");
     assertThat(second.getGlobalParams()).containsEntry("g1", "GV");
     assertThat(second.getContextParams()).containsEntry("workflowrun-ref", "");
@@ -173,31 +196,64 @@ class ParamLayerServiceTest {
             tokenRepository,
             workflowRepository,
             workflowRevisionRepository,
-            cache);
+            cache,
+            relationshipService);
     when(parameterService.getAllUnfiltered())
         .thenReturn(List.of(param("g1", "text", "before")))
         .thenReturn(List.of(param("g1", "text", "after")));
     WorkflowRevisionEntity revision = revision("rev-1");
 
-    cached.buildParamLayers("cheer", "wf-1", revision);
+    cached.buildParamLayers("wf-1", revision);
     cache.evictAll();
 
-    assertThat(cached.buildParamLayers("cheer", "wf-1", revision).getGlobalParams())
+    assertThat(cached.buildParamLayers("wf-1", revision).getGlobalParams())
         .containsEntry("g1", "after");
   }
 
-  // Layers are cached per workspace and revision: another workspace reads its own values.
+  // Layers are cached per workflow and revision: a workflow another workspace owns reads that
+  // workspace's values.
   @Test
-  void cachesTheLayersPerWorkspaceAndRevision() {
+  void cachesTheLayersPerWorkflowAndRevision() {
     when(parameterService.getAllUnfiltered()).thenReturn(List.of());
-    workspace("cheer", param("w1", "text", "cheer value"));
-    workspace("other", param("w1", "text", "other value"));
-    WorkflowRevisionEntity revision = revision("rev-1");
+    workspace("ws-cheer", param("w1", "text", "cheer value"));
+    workspace("ws-other", param("w1", "text", "other value"));
+    owns("ws-cheer", "wf-1");
+    owns("ws-other", "wf-2");
 
-    service.buildParamLayers("cheer", "wf-1", revision);
+    service.buildParamLayers("wf-1", revision("rev-1"));
 
-    assertThat(service.buildParamLayers("other", "wf-1", revision).getWorkspaceParams())
+    assertThat(service.buildParamLayers("wf-2", revision("rev-2", "wf-2")).getWorkspaceParams())
         .containsEntry("w1", "other value");
+  }
+
+  // A workflow's owner is read once and kept: it never changes, and a rename does not touch the id.
+  // A workflow no workspace owns gets no workspace layer, and is asked again next time.
+  @Test
+  void readsAWorkflowsOwnerOnceAndAnUnownedOneEachTime() {
+    owns("ws-cheer", "wf-1");
+    ParamLayerCache cache = new ParamLayerCache(true, Duration.ofSeconds(10), 1000);
+    ParamLayerService cached =
+        new ParamLayerService(
+            settingsService,
+            workspaceRepository,
+            parameterService,
+            tokenRepository,
+            workflowRepository,
+            workflowRevisionRepository,
+            cache,
+            relationshipService);
+
+    assertThat(cached.owningWorkspace("wf-1")).isEqualTo("ws-cheer");
+    cache.evictAll();
+    assertThat(cached.owningWorkspace("wf-1")).isEqualTo("ws-cheer");
+    assertThat(cached.owningWorkspace("wf-unowned")).isNull();
+    assertThat(cached.owningWorkspace("wf-unowned")).isNull();
+    assertThat(cached.owningWorkspace(null)).isNull();
+
+    verify(relationshipService, times(1))
+        .getParentByLabel(RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, "wf-1");
+    verify(relationshipService, times(2))
+        .getParentByLabel(RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, "wf-unowned");
   }
 
   // A TTL of zero turns the cache off: every build reads the stores.
@@ -208,8 +264,8 @@ class ParamLayerServiceTest {
     WorkflowRevisionEntity revision = revision("rev-1");
     when(workflowRevisionRepository.findById("rev-1")).thenReturn(Optional.of(revision));
 
-    uncached.buildParamLayers("cheer", "wf-1", revision);
-    uncached.buildParamLayers("cheer", "wf-1", revision);
+    uncached.buildParamLayers("wf-1", revision);
+    uncached.buildParamLayers("wf-1", revision);
     uncached.getRevision("rev-1");
     uncached.getRevision("rev-1");
 

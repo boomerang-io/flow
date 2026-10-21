@@ -35,6 +35,8 @@ public class ParamLayerCache {
   private final boolean enabled;
   private final Cache<String, Layers> layers;
   private final Cache<String, WorkflowRevisionEntity> revisions;
+  // A workflow never changes workspace, so its owner is kept until the cache is full.
+  private final Cache<String, String> owners;
 
   public ParamLayerCache(
       @Value("${flow.parameters.layer-cache.enabled:true}") boolean enabled,
@@ -43,6 +45,7 @@ public class ParamLayerCache {
     this.enabled = enabled && !ttl.isZero();
     this.layers = Caffeine.newBuilder().expireAfterWrite(ttl).maximumSize(maxSize).build();
     this.revisions = Caffeine.newBuilder().expireAfterWrite(ttl).maximumSize(maxSize).build();
+    this.owners = Caffeine.newBuilder().maximumSize(maxSize).build();
   }
 
   /**
@@ -80,6 +83,14 @@ public class ParamLayerCache {
    */
   public WorkflowRevisionEntity revision(String id, Function<String, WorkflowRevisionEntity> read) {
     return (enabled ? revisions.get(id, read) : read.apply(id));
+  }
+
+  /**
+   * Return the id of the workspace that owns the workflow, reading it on a miss; null when none
+   * does. A null answer is not kept.
+   */
+  public String owner(String workflowRef, Function<String, String> read) {
+    return (enabled ? owners.get(workflowRef, read) : read.apply(workflowRef));
   }
 
   /** Forget every entry - called on each write to a store the layers are read from. */

@@ -47,7 +47,8 @@ public class TaskRunEntity {
   private String statusMessage;
 
   private String statusReason;
-  @JsonIgnore private boolean preApproved;
+  // The status an event delivered before its wait task was ready; the wait ends with it.
+  @JsonIgnore private RunStatus preApprovedStatus;
   @JsonIgnore private String decisionValue;
   @JsonIgnore private List<WorkflowTaskDependency> dependencies;
   private String taskRef;

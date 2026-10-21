@@ -1043,18 +1043,15 @@ public class TaskExecutionService {
   }
 
   // The lock key scoped by workspace so the same user key never collides across workspaces. The
-  // scope is the team-name annotation (a param-context annotation retired in a later cleanup).
-  private String scopedLockKey(TaskRunEntity taskExecution) {
+  // scope is the id of the workspace that owns the run's workflow, so a rename keeps it.
+  String scopedLockKey(TaskRunEntity taskExecution) {
     List<RunParam> params = taskExecution.getParams();
     if (!ParameterUtil.containsName(params, "key")) {
       return null;
     }
     String key = ParameterUtil.getValue(params, "key").toString();
-    if (taskExecution.getAnnotations() != null
-        && taskExecution.getAnnotations().containsKey("boomerang.io/workspace-name")) {
-      return taskExecution.getAnnotations().get("boomerang.io/workspace-name").toString() + ":" + key;
-    }
-    return key;
+    String workspace = paramLayerService.owningWorkspace(taskExecution.getWorkflowRef());
+    return (workspace != null) ? workspace + ":" + key : key;
   }
 
   /*
@@ -1326,24 +1323,17 @@ public class TaskExecutionService {
     LOGGER.debug(
         "[{}] Processing Wait for Event task: {}", taskExecution.getId(), taskExecution.getName());
     // Field-scoped arm, then re-read: an event that arrived since execute()'s entry read has
-    // already set preApproved/status/results through applyEventDelivery and must not be lost.
+    // already set preApprovedStatus and results through applyEventDelivery and must not be lost.
     if (!taskRunService.tryArmWait(taskExecution.getId())) {
       LOGGER.debug("[{}] Eventwait no longer running; not armed.", taskExecution.getId());
     }
     TaskRunEntity armed = taskRunRepository.findById(taskExecution.getId()).orElse(taskExecution);
     taskExecution.setStatus(RunStatus.waiting);
-    taskExecution.setPreApproved(armed.isPreApproved());
-    taskExecution.setAnnotations(armed.getAnnotations());
+    taskExecution.setPreApprovedStatus(armed.getPreApprovedStatus());
     taskExecution.setResults(armed.getResults());
 
-    if (taskExecution.isPreApproved()) {
-      if (taskExecution.getAnnotations().get("boomerang.io/status") != null) {
-        taskExecution.setStatus(
-            RunStatus.getRunStatus(
-                (String) taskExecution.getAnnotations().get("boomerang.io/status")));
-      } else {
-        taskExecution.setStatus(RunStatus.succeeded);
-      }
+    if (taskExecution.getPreApprovedStatus() != null) {
+      taskExecution.setStatus(taskExecution.getPreApprovedStatus());
       LOGGER.debug(
           "[{}]  Wait for Task is already approved, with status: {}.",
           taskExecution.getId(),

@@ -622,13 +622,11 @@ public class WorkflowService {
       request.setDebug(Boolean.valueOf(enableDebug));
       LOGGER.info("Setting debug = " + enableDebug);
     }
-    // The annotations the engine decides on are the server's: any a client sent are dropped, then
-    // the run is given its own from the task settings and this workspace.
+    // The boomerang.io/ annotation prefix is reserved for the server: any a client sent are dropped.
     request
         .getAnnotations()
         .keySet()
         .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
-    request.getAnnotations().putAll(paramLayerService.executionAnnotations(workspace));
 
     // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
     // are re-read (now including this run), and a run that pushed a count over its limit is

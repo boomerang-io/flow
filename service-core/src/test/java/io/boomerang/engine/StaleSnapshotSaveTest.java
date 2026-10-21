@@ -2,7 +2,6 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -234,13 +233,8 @@ class StaleSnapshotSaveTest extends AbstractSpiedEngineIntegrationTest {
    * {@code WorkflowRunService.event}'s non-waiting branch mutated a TaskRun it had read from the
    * {@code findByWorkflowRunRef} page earlier in the method and saved the WHOLE document back, so a
    * Compare-And-Set that landed in between — here the execution-entry transition to {@code
-   * running} — was silently rolled back. The delivery is now three field-scoped operators.
-   *
-   * <p>Also pins the Mongo escaping of the {@code boomerang.io/status} annotation key: {@code
-   * MongoConfiguration.setMapKeyDotReplacement("#")} escapes dots in map keys on a whole-document
-   * write and unescapes them on read, but does NOT rewrite an {@code Update}'s field paths — so the
-   * update writes {@code annotations.boomerang#io/status} itself. An unescaped path would create a
-   * nested {@code boomerang} sub-document that {@code processWaitForEventTask} would never find.
+   * running} — was silently rolled back. The delivery is now field-scoped operators: the
+   * pre-approved status and the results, with nothing written to the annotations.
    */
   @Test
   void eventDeliveryMustNotRollBackConcurrentTaskRunWrites() {
@@ -292,32 +286,27 @@ class StaleSnapshotSaveTest extends AbstractSpiedEngineIntegrationTest {
     assertEquals(RunPhase.running, after.getPhase(), "the started phase must not be rolled back");
     assertNotNull(after.getStartTime(), "the start time written by tryStartExecution was lost");
 
-    // The delivery itself must still have landed, on all three fields.
-    assertTrue(after.isPreApproved(), "the delivery must still mark the TaskRun pre-approved");
+    // The delivery itself must still have landed: the pre-approved status and the result.
     assertEquals(
-        RunStatus.succeeded.getStatus(),
-        after.getAnnotations().get("boomerang.io/status"),
-        "the delivered status annotation must read back under its unescaped key");
+        RunStatus.succeeded,
+        after.getPreApprovedStatus(),
+        "the delivery must still record the TaskRun's pre-approved status");
     assertEquals(
         1,
         after.getResults().stream().filter(r -> "data".equals(r.getName())).count(),
         "the delivered result must still be appended; got " + after.getResults());
 
-    // The stored document, unmapped: the key is escaped, and nothing was written as a nested path.
+    // The stored document, unmapped: a typed field, and nothing written to the annotations.
     Document stored =
         mongoTemplate.execute(
             TaskRunEntity.class,
             collection -> collection.find(new Document("workflowRunRef", wfRunId)).first());
     assertNotNull(stored, "the TaskRun document should exist");
+    assertEquals(RunStatus.succeeded.getStatus(), stored.getString("preApprovedStatus"));
     Document annotations = stored.get("annotations", Document.class);
-    assertEquals(
-        RunStatus.succeeded.getStatus(),
-        annotations.getString("boomerang#io/status"),
-        "the annotation key must be stored dot-escaped; got " + annotations);
-    assertFalse(
-        annotations.containsKey("boomerang"),
-        "an unescaped update path would nest the key under a 'boomerang' sub-document; got "
-            + annotations);
+    assertTrue(
+        annotations == null || annotations.isEmpty(),
+        "the delivery must write no annotation; got " + annotations);
   }
 
   private TaskRunEntity current(String id) {

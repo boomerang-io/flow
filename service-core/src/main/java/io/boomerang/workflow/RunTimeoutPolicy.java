@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
  *
  * <p>A timeout of 0 means unguarded, and an unguarded run can never fire beneath a task, so it is
  * exempt from the floor. Only the task's own declared timeout counts toward the floor; the
- * operator's {@code boomerang.io/task-timeout} default is a ceiling on every task rather than a
+ * operator's task {@code default.timeout} setting is a ceiling on every task rather than a
  * budget any one task claims, so a workflow that declares nothing has a floor of 0.
  */
 @Service

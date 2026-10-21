@@ -348,26 +348,20 @@ public class TaskRunService {
     return cas(query, update, RunStatus.ready, null);
   }
 
-  // Field-scoped event delivery: records the delivered status annotation, marks the TaskRun
-  // pre-approved and appends the event's results - and touches nothing else. Not a
+  // Field-scoped event delivery: records the delivered status as the TaskRun's pre-approved status
+  // (succeeded when the event names none) and appends the event's results - and touches nothing
+  // else. Not a
   // Compare-And-Set: an inbound event is applied to whatever state the TaskRun is in, exactly as
   // before. What changed is the WRITE: the caller used to mutate the TaskRun it had read from a
   // findByWorkflowRunRef page and save the whole document back, so any claim/phase/status/
   // timeoutAt a concurrent Compare-And-Set had committed in between was silently rolled back.
-  //
-  // The annotation key is written ESCAPED - "boomerang#io/status", not "boomerang.io/status".
-  // MongoConfiguration.setMapKeyDotReplacement("#") escapes dots in map keys when the converter
-  // writes a whole Map, and unescapes them on read, but it does NOT rewrite the field paths of an
-  // Update: an unescaped "annotations.boomerang.io/status" would be read by Mongo as a path and
-  // create a nested annotations -> boomerang -> "io/status" document that
-  // TaskExecutionService.processWaitForEventTask would never find.
   //
   // Results are merged by name, the same rule end() applies (ResultUtil.addUniqueResults): a
   // redelivered event with the same keys converges on one element per key instead of appending
   // duplicates - see EventDeliveryIdempotencyTest.
   public void applyEventDelivery(String id, RunStatus status, List<RunResult> results) {
     Update update =
-        new Update().set("annotations.boomerang#io/status", status).set("preApproved", true);
+        new Update().set("preApprovedStatus", (status != null) ? status : RunStatus.succeeded);
     mongoTemplate.updateFirst(
         Query.query(Criteria.where("_id").is(id)), update, TaskRunEntity.class);
     if (results != null) {

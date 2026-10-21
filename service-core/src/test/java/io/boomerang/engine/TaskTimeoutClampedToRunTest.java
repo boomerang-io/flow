@@ -12,17 +12,15 @@ import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * A task's effective timeout is the smallest of three ceilings, all in minutes: the platform
- * setting stamped as {@code boomerang.io/task-timeout}, the task's own declared timeout, and the
- * run's timeout. 0 anywhere means "unguarded" and imposes no ceiling.
+ * A task's effective timeout is the smallest of three ceilings, all in minutes: the task settings'
+ * {@code default.timeout}, the task's own declared timeout, and the run's timeout. 0 anywhere means
+ * "unguarded" and imposes no ceiling.
  *
  * <p>The run is the third ceiling because of decision 0063: a guard must cover the work beneath
  * it, so a task must never outlive the run containing it - otherwise the watcher's run reap kills
@@ -87,19 +85,17 @@ class TaskTimeoutClampedToRunTest extends AbstractEngineIntegrationTest {
   }
 
   /**
-   * Builds a one-task workflow, materialises its TaskRuns against a run entity carrying the given
-   * platform annotation and run timeout, and returns the task's resolved timeout.
+   * Builds a one-task workflow, materialises its TaskRuns against a run with the given timeout while
+   * the task settings carry the given platform default, and returns the task's resolved timeout.
    *
-   * @param platformDefault stamped as {@code boomerang.io/task-timeout}; null stamps no annotation,
-   *     which is what {@code WorkflowService.internalSubmit} now does for a 0 or blank setting
+   * @param platformDefault the task settings' {@code default.timeout}; null leaves it blank, which
+   *     means no ceiling, as 0 does
    * @param declaredTimeout the Workflow Task's own timeout; null declares none
    * @param runTimeout the run's timeout; 0 means unguarded
    */
   private long materialise(
       String name, Long platformDefault, Long declaredTimeout, long runTimeout) {
 
-    // An explicit image keeps createTaskList off the task-default-image annotation fallback,
-    // which is absent on a run entity built here.
     Task template = new Task();
     template.setName(name + "-task");
     template.setType(TaskType.template);
@@ -127,13 +123,16 @@ class TaskTimeoutClampedToRunTest extends AbstractEngineIntegrationTest {
     run.setWorkflowRef(workflowId);
     run.setWorkflowRevisionRef(revision.getId());
     run.setTimeout(runTimeout);
-    Map<String, Object> annotations = new HashMap<>();
-    if (platformDefault != null) {
-      annotations.put("boomerang.io/task-timeout", platformDefault.toString());
-    }
-    run.setAnnotations(annotations);
 
-    List<TaskRunEntity> tasks = dagUtility.createTaskList(revision, run);
+    String previous =
+        setSettingValue(
+            "task", "default.timeout", (platformDefault != null) ? platformDefault.toString() : "");
+    List<TaskRunEntity> tasks;
+    try {
+      tasks = dagUtility.createTaskList(revision, run);
+    } finally {
+      setSettingValue("task", "default.timeout", previous);
+    }
     return tasks.stream()
         .filter(t -> "work".equals(t.getName()))
         .findFirst()

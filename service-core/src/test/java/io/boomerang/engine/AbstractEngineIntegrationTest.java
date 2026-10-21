@@ -156,6 +156,20 @@ public abstract class AbstractEngineIntegrationTest {
     settingsRepository.save(settings);
   }
 
+  /**
+   * Sets the value of one existing entry in a settings group and returns the value it replaced, so
+   * a test can restore the shared document when it is done.
+   */
+  protected String setSettingValue(String group, String key, String value) {
+    SettingEntity settings = settingsRepository.findOneByKey(group);
+    SettingConfig entry =
+        settings.getConfig().stream().filter(c -> key.equals(c.getKey())).findFirst().orElseThrow();
+    String previous = entry.getValue();
+    entry.setValue(value);
+    settingsRepository.save(settings);
+    return previous;
+  }
+
   private static SettingConfig settingConfig(String key, String type, String value) {
     SettingConfig config = new SettingConfig();
     config.setKey(key);

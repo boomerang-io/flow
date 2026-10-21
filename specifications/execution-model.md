@@ -120,9 +120,9 @@ timers; the sweeps above are the only reaper. A crashed dispatcher, a dead execu
 the same path: the claimed task's lease lapses (90 s after its claim or its last heartbeat), or its dispatcher goes stale (60 s), or
 it reaches `timeoutAt`, and it is requeued or timed out. Both reap writes are fenced on the
 observed `claim.seq`, so a claim that races the reap wins (`TaskRunService.tryAbandon` `:632`, `tryRequeue` `:674`). A task's budget, in
-minutes, is the smallest of three ceilings — the platform setting stamped as the run's `boomerang.io/task-timeout`
-annotation, the task's own declared timeout, and the run's timeout — with 0 at any step meaning unguarded
-(`engine/DAGUtility.java:193-219`). The run is a ceiling because of decision 0014: a guard must cover the work
+minutes, is the smallest of three ceilings — the `task` settings' `default.timeout`, read when the run's task runs
+are created, the task's own declared timeout, and the run's timeout — with 0 at any step meaning unguarded
+(`engine/DAGUtility.java:220-241`). The run is a ceiling because of decision 0014: a guard must cover the work
 beneath it, so a task can never outlive the run containing it. By default a task simply inherits its run's
 timeout: the seed ships `task`/`default.timeout` at 0, so no annotation is stamped at all
 (`workflow/WorkflowService.java:623-637`), and the per-task ceiling is an optional operator control for capping a
@@ -365,7 +365,7 @@ no task can collide with another task's item, while other brackets (`Deploy [pro
 
 ## Task locks
 
-The `acquirelock`/`releaselock` task types use the `task_locks` collection: one document per workspace-scoped key with `holder`, `expiresAt` and a
+The `acquirelock`/`releaselock` task types use the `task_locks` collection: one document per key, `<workspace id>:<key>` with the id of the workspace that owns the run's workflow (`TaskExecutionService.scopedLockKey`), with `holder`, `expiresAt` and a
 TTL index (`engine/entity/TaskLockEntity.java:9-24`). Acquire is an upsert that matches only an unheld or expired key; a `DuplicateKeyException`
 means "held" (`TaskExecutionService.java:694-723`). A task that cannot acquire parks as `waiting` for 5 s and the watcher re-attempts it
 (`:58`, `:669-673`). Release deletes only when this task is the holder (`:728-732`).

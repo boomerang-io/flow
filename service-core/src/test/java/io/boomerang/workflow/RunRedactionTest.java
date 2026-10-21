@@ -23,6 +23,8 @@ import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractSpiedEngineIntegrationTest;
 import io.boomerang.workflow.repository.TaskRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
@@ -265,12 +267,22 @@ class RunRedactionTest extends AbstractSpiedEngineIntegrationTest {
     WorkspaceEntity workspace = new WorkspaceEntity();
     workspace.setName("redaction-workspace");
     workspace.setParameters(List.of(secured));
-    workspaceRepository.save(workspace);
+    workspace = workspaceRepository.save(workspace);
+    // The run's workspace is its workflow's owner in the relationship graph.
+    relationshipService.createNode(
+        RelationshipType.WORKSPACE, workspace.getId(), workspace.getName(), Optional.empty());
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        workspace.getId(),
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        "redaction-ws-wf",
+        "redaction-ws-wf",
+        Optional.empty(),
+        Optional.empty());
 
     WorkflowRunEntity run =
         savedWorkflowRun("redaction-ws-wf", RunStatus.succeeded, RunPhase.completed);
-    run.getAnnotations().put("boomerang.io/workspace-name", "redaction-workspace");
-    workflowRunRepository.save(run);
     TaskRunEntity task =
         savedTaskRun(
             "calls-github",

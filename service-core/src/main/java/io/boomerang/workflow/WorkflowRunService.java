@@ -192,9 +192,9 @@ public class WorkflowRunService {
    * under another name, so the scrub cannot be per task. The values of the run workspace's
    * password-typed global and workspace parameters join the union: no definition above declares
    * them, yet substitution writes them into task params, scripts and results. Those are read once
-   * per workspace per response (securedByWorkspace). Mutates the response model only.
+   * per workflow per response (securedByWorkflow). Mutates the response model only.
    */
-  void filterSensitiveValues(WorkflowRun wfRun, Map<String, Set<String>> securedByWorkspace) {
+  void filterSensitiveValues(WorkflowRun wfRun, Map<String, Set<String>> securedByWorkflow) {
     if (wfRun == null) {
       return;
     }
@@ -203,7 +203,7 @@ public class WorkflowRunService {
     // The secret-typed params come first of all - their values are scrubbed from free text too.
     Set<String> secrets = new HashSet<>(DataAdapterUtil.sensitiveValues(wfRun, ParamType.secret));
     secrets.addAll(filterTaskDeclaredSensitiveValues(wfRun.getTasks()));
-    secrets.addAll(securedLayerValues(wfRun.getAnnotations(), securedByWorkspace));
+    secrets.addAll(securedLayerValues(wfRun.getWorkflowRef(), securedByWorkflow));
     if (wfRun.getWorkflowRevisionRef() != null) {
       workflowRevisionRepository
           .findById(wfRun.getWorkflowRevisionRef())
@@ -321,8 +321,8 @@ public class WorkflowRunService {
             queryWorkflowRuns,
             Optional.of(wfRefs),
             queryTriggers);
-    Map<String, Set<String>> securedByWorkspace = new HashMap<>();
-    page.getContent().forEach(run -> filterSensitiveValues(run, securedByWorkspace));
+    Map<String, Set<String>> securedByWorkflow = new HashMap<>();
+    page.getContent().forEach(run -> filterSensitiveValues(run, securedByWorkflow));
     return new WorkflowRunResponsePage(
         page.getContent(), page.getPageable(), page.getTotalElements());
   }
@@ -477,7 +477,7 @@ public class WorkflowRunService {
             run -> {
               // The run's own secret-typed params, which need no definition to be recognised.
               secrets.addAll(DataAdapterUtil.sensitiveValues(run.getParams(), ParamType.secret));
-              secrets.addAll(securedLayerValues(run.getAnnotations(), new HashMap<>()));
+              secrets.addAll(securedLayerValues(run.getWorkflowRef(), new HashMap<>()));
               Optional.ofNullable(run.getWorkflowRevisionRef())
                   .flatMap(workflowRevisionRepository::findById)
                   .ifPresent(
@@ -498,15 +498,13 @@ public class WorkflowRunService {
 
   /*
    * The values of the password-typed global and workspace parameters a run's values were resolved
-   * from - its workspace is the one the engine resolved against (boomerang.io/workspace-name).
-   * Cached per workspace for the response being filtered.
+   * from - its workspace is the one that owns its workflow, as the engine resolved. Cached per
+   * workflow for the response being filtered.
    */
   private Set<String> securedLayerValues(
-      Map<String, Object> annotations, Map<String, Set<String>> securedByWorkspace) {
-    Object workspace = annotations != null ? annotations.get("boomerang.io/workspace-name") : null;
-    String key = workspace != null ? workspace.toString() : "";
-    return securedByWorkspace.computeIfAbsent(
-        key, name -> paramLayerService.securedValues(name.isEmpty() ? null : name));
+      String workflowRef, Map<String, Set<String>> securedByWorkflow) {
+    return securedByWorkflow.computeIfAbsent(
+        String.valueOf(workflowRef), ref -> paramLayerService.securedValues(workflowRef));
   }
 
   /**
@@ -732,7 +730,7 @@ public class WorkflowRunService {
       if (optRunRequest.isPresent()) {
         logPayload(optRunRequest.get());
         wfRunEntity.getLabels().putAll(optRunRequest.get().getLabels());
-        // A start never sets the annotations the engine decides on; only the server stamps those.
+        // The boomerang.io/ annotation prefix is reserved for the server: a start never sets one.
         optRunRequest.get().getAnnotations().entrySet().stream()
             .filter(e -> !e.getKey().startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX))
             .forEach(e -> wfRunEntity.getAnnotations().put(e.getKey(), e.getValue()));
@@ -881,13 +879,6 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
-        // The task defaults and workspace are stamped as they stand now, like the ceiling below:
-        // an origin migrated from v3 carries none, and a retry must not inherit stale ones.
-        wfRunEntity
-            .getAnnotations()
-            .keySet()
-            .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
-        wfRunEntity.getAnnotations().putAll(paramLayerService.executionAnnotations(ownerName));
         quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
         long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
@@ -1172,7 +1163,7 @@ public class WorkflowRunService {
     copy.setPhase(origin.getPhase());
     copy.setStatusMessage(origin.getStatusMessage());
     copy.setStatusReason(origin.getStatusReason());
-    copy.setPreApproved(origin.isPreApproved());
+    copy.setPreApprovedStatus(origin.getPreApprovedStatus());
     copy.setDecisionValue(origin.getDecisionValue());
     copy.setDependencies(origin.getDependencies());
     copy.setTaskRef(origin.getTaskRef());
@@ -1209,8 +1200,6 @@ public class WorkflowRunService {
       wfRun.setWorkflowName(optWorkflow.get().getName());
       wfRun.setWorkflowDisplayName(optWorkflow.get().getDisplayName());
     }
-    // Runs created before the parameter layers were read from their stores still carry them.
-    wfRun.getAnnotations().keySet().removeAll(ParamLayerService.LEGACY_RUN_ANNOTATIONS);
   }
 
   /*

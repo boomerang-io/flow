@@ -7,8 +7,11 @@ import io.boomerang.common.model.ParamLayers;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.core.ParamLayerCache;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.entity.TokenEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.enums.AuthScope;
@@ -17,7 +20,6 @@ import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,18 +41,8 @@ public class ParamLayerService {
   private static final String[] reserved = {"system", "workflow", "global", "team", "workflow"};
 
   /**
-   * The run annotations that carried the global, workspace and context layers before they were
-   * read from their stores. Runs created earlier still hold them; reads strip them.
-   */
-  public static final Set<String> LEGACY_RUN_ANNOTATIONS =
-      Set.of(
-          "boomerang.io/global-params",
-          "boomerang.io/workspace-params",
-          "boomerang.io/context-params");
-
-  /**
-   * The prefix of the run annotations the engine reads to decide - task defaults and the owning
-   * workspace. Only the server writes them: a client's submit or start never sets one.
+   * The run annotation prefix reserved for the server: a client's submit or start never sets one.
+   * The engine decides from typed fields and the relationship graph, never from an annotation.
    */
   public static final String SERVER_ANNOTATION_PREFIX = "boomerang.io/";
 
@@ -71,6 +63,7 @@ public class ParamLayerService {
   private WorkflowRepository workflowRepository;
   private WorkflowRevisionRepository workflowRevisionRepository;
   private ParamLayerCache paramLayerCache;
+  private RelationshipService relationshipService;
 
   public ParamLayerService(
       SettingsService settingsService,
@@ -79,7 +72,8 @@ public class ParamLayerService {
       TokenRepository tokenRepository,
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
-      ParamLayerCache paramLayerCache) {
+      ParamLayerCache paramLayerCache,
+      RelationshipService relationshipService) {
     this.settingsService = settingsService;
     this.workspaceRepository = workspaceRepository;
     this.parameterService = parameterService;
@@ -87,12 +81,31 @@ public class ParamLayerService {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.paramLayerCache = paramLayerCache;
+    this.relationshipService = relationshipService;
+  }
+
+  /**
+   * The id of the workspace that owns the workflow - the workspace a run of it belongs to - or null
+   * when the relationship graph records none. Held by id, so a renamed workspace is still found.
+   */
+  public String owningWorkspace(String workflowRef) {
+    if (workflowRef == null) {
+      return null;
+    }
+    return paramLayerCache.owner(
+        workflowRef,
+        ref -> {
+          String owner =
+              relationshipService.getParentByLabel(
+                  RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, ref);
+          return (owner != null && !owner.isBlank()) ? owner : null;
+        });
   }
 
   /*
    * Used by the /available-params endpoint to retrieve all param keys workflow and above in stack
    */
-  public List<String> buildParamKeys(String teamId, Workflow workflow) {
+  public List<String> buildParamKeys(String workspace, Workflow workflow) {
     ParamLayers paramLayers = new ParamLayers();
     Map<String, Object> globalParams = paramLayers.getGlobalParams();
     Map<String, Object> workspaceParams = paramLayers.getWorkspaceParams();
@@ -105,7 +118,8 @@ public class ParamLayerService {
     }
     // Set Workspace Params
     if (enabled(features, "workspaceParameters")) {
-      buildWorkspaceParams(workspaceParams, new HashSet<>(), teamId);
+      buildWorkspaceParams(
+          workspaceParams, new HashSet<>(), workspaceRepository.findByNameIgnoreCase(workspace));
     }
     // Set the Keys from the Workflow - ignore values
     for (AbstractParam wfParam : workflow.getParams()) {
@@ -120,17 +134,16 @@ public class ParamLayerService {
    * The global, workspace and context layers for a run, read from their stores - nothing is copied
    * onto the run. The context's workflow name, ref and version come from the run's workflow and the
    * revision it runs, so a version saved mid-run does not change them. The engine adds the run, task
-   * and per-run context keys and resolves. Served from {@link ParamLayerCache}, so the tasks admitted
-   * within its TTL share one read of each store.
+   * and per-run context keys and resolves. The workspace layer is the workflow's owner's. Served
+   * from {@link ParamLayerCache}, so the tasks admitted within its TTL share one read of each store.
    */
-  public ParamLayers buildParamLayers(
-      String workspace, String workflowRef, WorkflowRevisionEntity revision) {
+  public ParamLayers buildParamLayers(String workflowRef, WorkflowRevisionEntity revision) {
     String revisionId = (revision != null ? revision.getId() : null);
     return paramLayerCache.layers(
-        workspace + "/" + workflowRef + "/" + revisionId,
+        workflowRef + "/" + revisionId,
         () ->
             buildParamLayers(
-                workspace,
+                owningWorkspace(workflowRef),
                 (workflowRef != null ? workflowRepository.findById(workflowRef).orElse(null) : null),
                 revision));
   }
@@ -143,12 +156,14 @@ public class ParamLayerService {
   }
 
   ParamLayers buildParamLayers(
-      String workspace, WorkflowEntity workflow, WorkflowRevisionEntity revision) {
+      String workspaceId, WorkflowEntity workflow, WorkflowRevisionEntity revision) {
     ParamLayers paramLayers = new ParamLayers();
     List<SettingConfig> features = features();
     if (enabled(features, "workspaceParameters")) {
       buildWorkspaceParams(
-          paramLayers.getWorkspaceParams(), paramLayers.getSecretWorkspaceParams(), workspace);
+          paramLayers.getWorkspaceParams(),
+          paramLayers.getSecretWorkspaceParams(),
+          workspace(workspaceId));
     }
     if (enabled(features, "globalParameters")) {
       buildGlobalParams(paramLayers.getGlobalParams(), paramLayers.getSecretGlobalParams());
@@ -173,25 +188,28 @@ public class ParamLayerService {
     return features.stream().anyMatch(config -> name.equals(config.getKey()) && config.getBooleanValue());
   }
 
+  // The workspace with this id; empty when there is none, or no id.
+  private Optional<WorkspaceEntity> workspace(String workspaceId) {
+    return (workspaceId != null ? workspaceRepository.findById(workspaceId) : Optional.empty());
+  }
+
   /**
    * The values of password-typed global and workspace parameters, which run reads and the log
-   * stream redact alongside the password-typed params a workflow or task declares.
+   * stream redact alongside the password-typed params a workflow or task declares. The workspace
+   * is the workflow's owner.
    */
-  public Set<String> securedValues(String workspace) {
+  public Set<String> securedValues(String workflowRef) {
     Set<String> secured = new HashSet<>();
     this.parameterService.getAllUnfiltered().stream()
         .filter(ParamLayerService::isSecured)
         .forEach(param -> secured.add(param.getValue().toString()));
-    if (workspace != null) {
-      workspaceRepository
-          .findByNameIgnoreCase(workspace)
-          .map(WorkspaceEntity::getParameters)
-          .ifPresent(
-              params ->
-                  params.stream()
-                      .filter(ParamLayerService::isSecured)
-                      .forEach(param -> secured.add(param.getValue().toString())));
-    }
+    workspace(owningWorkspace(workflowRef))
+        .map(WorkspaceEntity::getParameters)
+        .ifPresent(
+            params ->
+                params.stream()
+                    .filter(ParamLayerService::isSecured)
+                    .forEach(param -> secured.add(param.getValue().toString())));
     return secured;
   }
 
@@ -229,14 +247,11 @@ public class ParamLayerService {
    * Build up the Workspace Params - defaultValue is not used with Workspace Params and can be ignored.
    */
   private void buildWorkspaceParams(
-      Map<String, Object> workspaceParams, Set<String> secretNames, String workspace) {
-    // A missing workspace contributes no params rather than failing the whole layer build, and so
-    // does a run with no workspace at all: the derived query refuses a null name outright.
-    if (workspace == null || workspace.isBlank()) {
-      return;
-    }
-    Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
-    if (!optWorkspaceEntity.isPresent()) {
+      Map<String, Object> workspaceParams,
+      Set<String> secretNames,
+      Optional<WorkspaceEntity> optWorkspaceEntity) {
+    // A missing workspace contributes no params rather than failing the whole layer build.
+    if (optWorkspaceEntity.isEmpty()) {
       return;
     }
     WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
@@ -294,30 +309,5 @@ public class ParamLayerService {
         contextParams.put("tokens." + t.getName(), t.getToken());
       }
     }
-  }
-
-  /**
-   * The annotations a run is given from the task settings and its owning workspace, which the
-   * engine reads to decide: the task deletion policy and default image, the per-task timeout
-   * ceiling when one is set, and the workspace whose parameters and lock scope the run uses.
-   */
-  public Map<String, Object> executionAnnotations(String workspace) {
-    Map<String, Object> annotations = new HashMap<>();
-    annotations.put(
-        "boomerang.io/task-deletion",
-        settingsService.getSettingConfig("task", "deletion.policy").getValue());
-    annotations.put(
-        "boomerang.io/task-default-image",
-        settingsService.getSettingConfig("task", "default.image").getValue());
-    // The per-task ceiling is an optional operator control, not a budget every task is entitled
-    // to spend: the seed ships it at 0 so a task inherits its run's timeout. A blank value means
-    // the same as 0 - an install whose setting was cleared by hand or arrived blank from a v3
-    // migration stamps none rather than handing the engine a string it cannot parse.
-    String taskTimeout = settingsService.getSettingConfig("task", "default.timeout").getValue();
-    if (taskTimeout != null && !taskTimeout.isBlank()) {
-      annotations.put("boomerang.io/task-timeout", taskTimeout);
-    }
-    annotations.put("boomerang.io/workspace-name", workspace);
-    return annotations;
   }
 }

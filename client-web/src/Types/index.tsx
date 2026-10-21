@@ -953,7 +953,7 @@ export interface ConfigureWorkflowFormValues {
 }
 
 export interface WorkflowRun {
-  annotations: RunAnnototations;
+  annotations: Record<string, unknown>;
   awaitingApproval: boolean;
   creationDate: string;
   duration: number;
@@ -1066,14 +1066,6 @@ export interface Artifact {
   expirationDate?: string | null;
 }
 
-export interface RunAnnototations {
-  "boomerang.io/task-deletion": string;
-  "boomerang.io/task-default-image": string;
-  "boomerang.io/workspace-name": string;
-  "boomerang.io/kind": string;
-  "boomerang.io/generation": string;
-}
-
 // A run param's type. `secret` is a string whose value the server never returns: it arrives
 // as "*****". Absent means string.
 export type ParamType = "string" | "array" | "object" | "secret";
@@ -1086,7 +1078,6 @@ export interface Param {
 
 export interface TaskAnnotations {
   "boomerang.io/position": BoomerangIoPosition;
-  "boomerang.io/workspace-name"?: string;
   "boomerang.io/kind"?: string;
   "boomerang.io/generation"?: string;
 }

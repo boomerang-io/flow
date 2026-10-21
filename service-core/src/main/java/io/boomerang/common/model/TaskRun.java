@@ -19,7 +19,7 @@ import org.springframework.data.annotation.Id;
  * Public API model based on TaskRunEntity.
  *
  * Standalone POJO (no longer extends the entity) so the public contract is explicit and the
- * internal-only entity fields (claim, timeoutAt, retry, waitUntil, dependencies, preApproved,
+ * internal-only entity fields (claim, timeoutAt, retry, waitUntil, dependencies, preApprovedStatus,
  * decisionValue) never leak. Phase is retained for the webapp; a dispatcher gets DispatchTaskRun.
  */
 @Data

@@ -1,9 +1,17 @@
 package io.boomerang.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -50,5 +58,30 @@ class TaskLockTest extends AbstractEngineIntegrationTest {
     assertNotNull(
         taskExecutionService.tryAcquire("ws2:deploy", "task-b", "wf2", future()),
         "the workspace scope keeps identical user keys independent");
+  }
+
+  // The scope is the id of the workspace that owns the run's workflow, so a rename keeps it; a
+  // workflow no workspace owns locks the bare key.
+  @Test
+  void aLockIsScopedByTheIdOfTheWorkspaceThatOwnsTheWorkflow() {
+    String workspaceId = new ObjectId().toHexString();
+    relationshipService.createNode(
+        RelationshipType.WORKSPACE, workspaceId, "lock-scope-ws", Optional.empty());
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        workspaceId,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        "lock-scope-wf",
+        "lock-scope-wf",
+        Optional.empty(),
+        Optional.empty());
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(new RunParam("key", "deploy")));
+
+    task.setWorkflowRef("lock-scope-wf");
+    assertEquals(workspaceId + ":deploy", taskExecutionService.scopedLockKey(task));
+    task.setWorkflowRef("lock-scope-unowned-wf");
+    assertEquals("deploy", taskExecutionService.scopedLockKey(task));
   }
 }

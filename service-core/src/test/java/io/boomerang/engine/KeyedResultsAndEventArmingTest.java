@@ -1,7 +1,6 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 
@@ -69,9 +68,9 @@ class KeyedResultsAndEventArmingTest extends AbstractSpiedEngineIntegrationTest 
 
   /**
    * The event lands between execute()'s entry read and the arm - the seam a second instance's
-   * delivery crosses in production. Arming used to save the stale entity whole, reverting {@code
-   * preApproved}, the status annotation and the results, and the task then waited for an event
-   * that had already come and gone.
+   * delivery crosses in production. Arming used to save the stale entity whole, reverting the
+   * pre-approved status and the results, and the task then waited for an event that had already
+   * come and gone.
    */
   @Test
   void eventDeliveredWhileArmingIsHonouredNotLost() {
@@ -113,7 +112,10 @@ class KeyedResultsAndEventArmingTest extends AbstractSpiedEngineIntegrationTest 
               assertEquals(RunStatus.succeeded, after.getStatus());
             });
     TaskRunEntity after = current(taskRunId);
-    assertTrue(after.isPreApproved(), "the delivery's preApproved flag must survive arming");
+    assertEquals(
+        RunStatus.succeeded,
+        after.getPreApprovedStatus(),
+        "the delivery's pre-approved status must survive arming");
     assertEquals(
         1,
         after.getResults().stream().filter(r -> "data".equals(r.getName())).count(),
