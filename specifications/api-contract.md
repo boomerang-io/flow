@@ -160,8 +160,8 @@ results exceed MongoDB's 16 MB document limit, when it fails for a for-each caus
 
 ## Insights
 
-Two reads under `/api/v2/workspace/{workspace}/insights` (`workflow/WorkspaceInsightsControllerV2.java:44,82`),
-both computed from the WorkflowRuns and TaskRuns the workspace still holds
+Three reads under `/api/v2/workspace/{workspace}/insights` (`workflow/WorkspaceInsightsControllerV2.java:45,83,114`),
+all computed from the WorkflowRuns and TaskRuns the workspace still holds
 (`workflow/WorkflowRunInsightService.java`), never from the audit trail. A deleted workflow's runs are gone with it
 and are not counted; the monthly quotas total runs from the audit trail instead
 (`core/audit/AuditQueryService.java:153`, decision 0089). The period is `[fromDate, toDate)` in epoch milliseconds and defaults to the last 90 days.
@@ -170,6 +170,7 @@ and are not counted; the monthly quotas total runs from the audit trail instead
 | --- | --- |
 | `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`service-core/…/model/WorkflowRunInsightSummary.java`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that finished with an outcome; cancelled runs express none; `null` when nothing finished), p50 and p95 duration over succeeded runs, `maxDuration` over every completed run, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC calendar day with days without runs included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's `timeoutMinutes`, the last failure and its run, and the last seven days. Rows are worst success rate first; `usage` over the period's runs. `workflows` takes names or ids. |
 | `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail`: per task name (start and end nodes excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on an `ai` task's row (null otherwise), queue-wait percentiles, `retriedRuns`, up to ten `failures` grouped by terminal status, first failing task and its status message or reason, each with its count and newest run, and `usage` over the workflow's runs. A foreach's items stay behind their parent task run. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold. |
+| `GET …/insights/tasks?fromDate&toDate&workflows&labels&tasks&types&groupBy&bucket&spanBy&slowest&params` | `WorkflowRunInsightTasks` (`workflow/WorkflowRunInsightService.java:188`): the completed, not skipped task runs of the period's runs (a for-each task's items, under its name; the task itself is left out), one row per `groupBy` value (`task`, `type`, `workflow`, `param:<name>` or `label:<key>` of the run; one row when absent; a `secret` param is never a key) and, with `bucket`, per UTC hour, day or month of the task run's start. Each row: task runs, succeeded, failed (failed, timed out, invalid), cancelled, and mean, p50, p95 and max duration over succeeded ones. `spanBy=label:<key>` adds, per row, the count and p50/p95/max of each label value's first start to last end across runs. `slowest` (up to 100) lists the slowest with the named non-secret `params`. Rows are by bucket, then most task runs; past 1,000, `truncated`. An unknown `groupBy`, `bucket`, `spanBy` or a `slowest` over 100 is `400 QUERY_INVALID_FILTERS`. |
 
 `labels` is the list filter described under "Pagination and sorting", read by the same builder
 (`common/util/QueryCriteria.java`). It narrows both periods of the summary.
@@ -184,8 +185,8 @@ parent's name on the detail's task rows. A task that is not an `ai` task never c
 
 Durations and waits are milliseconds; a percentile over no runs is `0`. Both reads are projections of the fields the
 statistics need, scoped to the workspace's workflows through the relationship graph like every other run query; the
-task-run read and the one `usage` aggregation per response go through the `workflowRunRef`-first `task_runs` indexes
-using the runs already fetched, so no new index exists for either.
+task-run reads and aggregations go through the `workflowRunRef`-first `task_runs` indexes using the runs already
+fetched, and the task view streams one small document per task run (`:383`), so no new index exists for any.
 
 ## YAML content negotiation
 

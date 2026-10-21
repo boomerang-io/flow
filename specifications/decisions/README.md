@@ -101,3 +101,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0125 | [A child run receives only the params its node passes](0125-a-child-run-receives-only-the-params-its-node-passes.md) | accepted | 2026-10-20 |
 | 0127 | [The dispatcher wire carries its own run models](0127-the-dispatcher-wire-carries-its-own-run-models.md) | accepted | 2026-10-20 |
 | 0128 | [A run's workspace is its workflow's owner, and task defaults land on the task run](0128-a-runs-workspace-is-its-workflows-owner.md) | accepted | 2026-10-21 |
+| 0129 | [Insights group task runs on one route, with exact percentiles](0129-insights-group-task-runs-on-one-route.md) | accepted | 2026-10-21 |
