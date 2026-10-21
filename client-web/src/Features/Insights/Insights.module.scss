@@ -295,6 +295,26 @@
   min-width: 16rem;
 }
 
+// ── Task runs ──────────────────────────────────────────────────────────────
+
+.taskControls {
+  align-items: flex-end;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 1rem;
+
+  > * {
+    min-width: 12rem;
+  }
+}
+
+.panelSubtitle {
+  font-size: var(--cds-heading-01-font-size, 0.875rem);
+  font-weight: var(--cds-heading-01-font-weight, 600);
+  line-height: var(--cds-heading-01-line-height, 1.42857);
+  margin: 0.5rem 0 0;
+}
+
 .taskRow .bar {
   height: 0.75rem;
   width: 100%;

@@ -2,19 +2,26 @@ package io.boomerang.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.assertj.core.api.Assertions.within;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRunInsightSummary;
 import io.boomerang.common.model.WorkflowRunInsightSummary.WorkflowRow;
+import io.boomerang.common.model.WorkflowRunInsightTasks;
+import io.boomerang.common.model.WorkflowRunInsightTasks.Row;
+import io.boomerang.common.model.WorkflowRunInsightTasks.SlowTaskRun;
 import io.boomerang.common.model.WorkflowRunInsightUsage;
 import io.boomerang.common.model.WorkflowRunInsightUsage.ModelUsage;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail;
@@ -23,6 +30,7 @@ import io.boomerang.common.model.WorkflowTaskForeach;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -267,6 +275,225 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
                 .getByModel())
         .extracting(ModelUsage::getModel)
         .doesNotContain(foreignModel);
+  }
+
+  @Test
+  void taskRunsGroupByAParamWithCountsAndDurationsOverSucceeded() {
+    Workflow workflow = createdWorkflow("insight-tasks-param-");
+    String workflowRef = refOf(workflow);
+    String run = completedRun(workflowRef, RunStatus.succeeded, 1_000).getId();
+    timedTask(workflowRef, run, "draft", TaskType.ai, RunStatus.succeeded, 100, null, model("m1"));
+    timedTask(workflowRef, run, "review", TaskType.ai, RunStatus.succeeded, 300, null, model("m1"));
+    timedTask(workflowRef, run, "check", TaskType.ai, RunStatus.failed, 900, null, model("m1"));
+    timedTask(workflowRef, run, "draft2", TaskType.ai, RunStatus.succeeded, 200, null, model("m2"));
+    // Skipped, in flight or not an ai task: none of them counts.
+    timedTask(workflowRef, run, "skip", TaskType.ai, RunStatus.skipped, 0, null, model("m1"));
+    TaskRunEntity running =
+        timedTask(workflowRef, run, "live", TaskType.ai, RunStatus.running, 0, null, model("m1"));
+    running.setPhase(RunPhase.running);
+    taskRunRepository.save(running);
+    timedTask(workflowRef, run, "work", TaskType.template, RunStatus.succeeded, 50, null, model("m1"));
+
+    WorkflowRunInsightTasks insight =
+        tasks(workflow, Optional.empty(), Optional.of(List.of("ai")), "param:model", null, null, 0);
+
+    assertThat(insight.getRows()).extracting(Row::getKey).containsExactly("m1", "m2");
+    Row m1 = insight.getRows().get(0);
+    assertThat(m1.getTaskRuns()).isEqualTo(3);
+    assertThat(m1.getSucceeded()).isEqualTo(2);
+    assertThat(m1.getFailed()).isEqualTo(1);
+    assertThat(m1.getMeanDuration()).isEqualTo(200);
+    assertThat(m1.getP50Duration()).isEqualTo(100);
+    assertThat(m1.getP95Duration()).isEqualTo(300);
+    assertThat(m1.getMaxDuration()).isEqualTo(300);
+    assertThat(insight.getRows().get(1).getTaskRuns()).isEqualTo(1);
+    assertThat(insight.getSlowest()).isNull();
+  }
+
+  @Test
+  void taskRunsByTaskCountAForeachTasksItemsUnderItsNameAndNoStructuralNode() {
+    Workflow workflow = createdWorkflow("insight-tasks-task-");
+    String workflowRef = refOf(workflow);
+    String run = completedRun(workflowRef, RunStatus.succeeded, 1_000).getId();
+    workTask(workflowRef, run, RunStatus.succeeded, 400, null);
+    TaskRunEntity fan =
+        timedTask(workflowRef, run, "fan", TaskType.template, RunStatus.succeeded, 9_000, null);
+    fan.setForeach(new WorkflowTaskForeach());
+    taskRunRepository.save(fan);
+    for (int index = 0; index < 2; index++) {
+      TaskRunEntity item =
+          timedTask(
+              workflowRef, run, "fan[" + index + "]", TaskType.template, RunStatus.succeeded, 10, null);
+      item.setParentRef(fan.getId());
+      item.setIndex(index);
+      taskRunRepository.save(item);
+    }
+
+    WorkflowRunInsightTasks insight =
+        tasks(workflow, Optional.empty(), Optional.empty(), "task", null, null, 0);
+
+    assertThat(insight.getRows()).extracting(Row::getKey).containsExactly("fan", "work");
+    assertThat(insight.getRows().get(0).getTaskRuns()).isEqualTo(2);
+    assertThat(insight.getRows().get(0).getMaxDuration()).isEqualTo(10);
+    assertThat(insight.getRows().get(1).getTaskRuns()).isEqualTo(1);
+  }
+
+  @Test
+  void taskRunsBucketByTheirStartAndSpanTheRunsSharingALabel() {
+    Workflow workflow = createdWorkflow("insight-tasks-span-");
+    String workflowRef = refOf(workflow);
+    Date dayOne = at("2026-01-05T10:00:00Z");
+    Date dayTwo = at("2026-01-06T23:30:00Z");
+    // One attempt across two runs: its first task starts at dayOne, its last ends 5 s after dayTwo.
+    String parent = attemptRun(workflowRef, "a1");
+    String child = attemptRun(workflowRef, "a1");
+    startedTask(workflowRef, parent, "agent", dayOne, 1_000);
+    startedTask(workflowRef, child, "chair", dayTwo, 5_000);
+    // A second attempt of 2 s, and a run with no attempt label, which spans nothing.
+    String other = attemptRun(workflowRef, "a2");
+    startedTask(workflowRef, other, "agent", dayOne, 2_000);
+    String unlabelled = completedRun(workflowRef, RunStatus.succeeded, 1).getId();
+    startedTask(workflowRef, unlabelled, "agent", dayOne, 1);
+
+    WorkflowRunInsightTasks byDay =
+        tasks(workflow, Optional.empty(), Optional.empty(), "task", "day", null, 0);
+
+    assertThat(byDay.getRows())
+        .extracting(Row::getBucket, Row::getKey, Row::getTaskRuns)
+        .containsExactly(
+            tuple(at("2026-01-05T00:00:00Z"), "agent", 3L),
+            tuple(at("2026-01-06T00:00:00Z"), "chair", 1L));
+
+    WorkflowRunInsightTasks spans =
+        tasks(workflow, Optional.empty(), Optional.empty(), null, null, "label:attempt", 0);
+
+    assertThat(spans.getRows()).hasSize(1);
+    Row all = spans.getRows().get(0);
+    assertThat(all.getKey()).isNull();
+    assertThat(all.getTaskRuns()).isEqualTo(4);
+    assertThat(all.getSpans()).isEqualTo(2);
+    long attemptOne = dayTwo.getTime() + 5_000 - dayOne.getTime();
+    assertThat(all.getP50Span()).isEqualTo(2_000);
+    assertThat(all.getMaxSpan()).isEqualTo(attemptOne);
+  }
+
+  @Test
+  void theSlowestShowTheParamsAskedForAndASecretParamIsNeverShownOrAKey() {
+    Workflow workflow = createdWorkflow("insight-tasks-slowest-");
+    String workflowRef = refOf(workflow);
+    for (long duration : List.of(100L, 700L, 400L)) {
+      timedTask(
+          workflowRef,
+          completedRun(workflowRef, RunStatus.succeeded, 1_000).getId(),
+          "parse",
+          TaskType.template,
+          RunStatus.succeeded,
+          duration,
+          null,
+          new RunParam("fileId", "file-" + duration),
+          new RunParam("apiKey", "s3cr3t-" + duration, ParamType.secret));
+    }
+
+    WorkflowRunInsightTasks insight =
+        insightService.tasks(
+            SYSTEM_WORKSPACE,
+            new Date(System.currentTimeMillis() - 60_000),
+            new Date(System.currentTimeMillis() + 60_000),
+            Optional.of(List.of(workflow.getName())),
+            Optional.empty(),
+            Optional.of(List.of("parse")),
+            Optional.empty(),
+            Optional.of("param:apiKey"),
+            Optional.empty(),
+            Optional.empty(),
+            2,
+            Optional.of(List.of("fileId", "apiKey")));
+
+    assertThat(insight.getSlowest())
+        .extracting(SlowTaskRun::getDuration)
+        .containsExactly(700L, 400L);
+    assertThat(insight.getSlowest().get(0).getParams()).containsExactly(entry("fileId", "file-700"));
+    assertThat(insight.getSlowest().get(0).getWorkflowRef()).isEqualTo(workflowRef);
+    assertThat(insight.getRows()).extracting(Row::getKey).containsExactly((String) null);
+  }
+
+  @Test
+  void anUnknownGroupingBucketSpanOrSlowestCountIsRefused() {
+    Workflow workflow = createdWorkflow("insight-tasks-refused-");
+
+    for (Runnable call :
+        List.<Runnable>of(
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), "owner", null, null, 0),
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), "param:", null, null, 0),
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), null, "week", null, 0),
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), null, null, "param:x", 0),
+            () -> tasks(workflow, Optional.empty(), Optional.empty(), null, null, null, 101))) {
+      assertThatThrownBy(call::run)
+          .isInstanceOf(BoomerangException.class)
+          .extracting(ex -> ((BoomerangException) ex).getCode())
+          .isEqualTo(BoomerangError.QUERY_INVALID_FILTERS.getCode());
+    }
+  }
+
+  // The workflow's task runs of the last minute, as the route takes them.
+  private WorkflowRunInsightTasks tasks(
+      Workflow workflow,
+      Optional<List<String>> tasks,
+      Optional<List<String>> types,
+      String groupBy,
+      String bucket,
+      String spanBy,
+      int slowest) {
+    return insightService.tasks(
+        SYSTEM_WORKSPACE,
+        new Date(System.currentTimeMillis() - 60_000),
+        new Date(System.currentTimeMillis() + 60_000),
+        Optional.of(List.of(workflow.getName())),
+        Optional.empty(),
+        tasks,
+        types,
+        Optional.ofNullable(groupBy),
+        Optional.ofNullable(bucket),
+        Optional.ofNullable(spanBy),
+        slowest,
+        Optional.empty());
+  }
+
+  private TaskRunEntity timedTask(
+      String workflowRef,
+      String workflowRunRef,
+      String name,
+      TaskType type,
+      RunStatus status,
+      long duration,
+      Date startTime,
+      RunParam... params) {
+    TaskRunEntity task =
+        savedTaskRun(name, type, status, RunPhase.completed, workflowRef, workflowRunRef);
+    task.setDuration(duration);
+    task.setStartTime(startTime);
+    task.setParams(new ArrayList<>(List.of(params)));
+    return taskRunRepository.save(task);
+  }
+
+  private void startedTask(
+      String workflowRef, String workflowRunRef, String name, Date startTime, long duration) {
+    timedTask(
+        workflowRef, workflowRunRef, name, TaskType.template, RunStatus.succeeded, duration, startTime);
+  }
+
+  private String attemptRun(String workflowRef, String attempt) {
+    WorkflowRunEntity run = completedRun(workflowRef, RunStatus.succeeded, 1_000);
+    run.getLabels().put("attempt", attempt);
+    return workflowRunRepository.save(run).getId();
+  }
+
+  private static Date at(String instant) {
+    return Date.from(Instant.parse(instant));
+  }
+
+  private static RunParam model(String model) {
+    return new RunParam("model", model);
   }
 
   private Workflow createdWorkflow(String prefix) {

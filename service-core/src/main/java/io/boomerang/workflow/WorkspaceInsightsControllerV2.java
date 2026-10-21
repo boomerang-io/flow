@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowRunInsightSummary;
+import io.boomerang.common.model.WorkflowRunInsightTasks;
 import io.boomerang.common.model.WorkflowRunInsightWorkflowDetail;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
@@ -108,5 +109,80 @@ public class WorkspaceInsightsControllerV2 {
     Date to = toDate.map(Date::new).orElseGet(Date::new);
     Date from = fromDate.map(Date::new).orElse(new Date(to.getTime() - DEFAULT_PERIOD.toMillis()));
     return workflowRunInsightService.workflowDetail(workspace, workflow, from, to, labels);
+  }
+
+  @GetMapping(value = "/tasks")
+  @AuthCriteria(
+      action = PermissionAction.READ,
+      resource = PermissionResource.INSIGHTS,
+      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session})
+  @Operation(
+      summary = "Group a workspace's task runs over a period",
+      description =
+          "Counts and duration statistics (mean, p50, p95, max over succeeded task runs) per"
+              + " group and, optionally, per hour, day or month; the wall clock of the runs sharing"
+              + " a label; and the slowest task runs. A task run counts once it completed, unless"
+              + " it was skipped, and a for-each task counts its items under its own name."
+              + " Computed from the runs the workspace still holds; the period defaults to the last"
+              + " 90 days.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "404", description = "Not Found")
+      })
+  public WorkflowRunInsightTasks tasks(
+      @Parameter(name = "workspace", description = "Owning workspace name.", required = true)
+          @PathVariable
+          String workspace,
+      @RequestParam Optional<Long> fromDate,
+      @RequestParam Optional<Long> toDate,
+      @RequestParam Optional<List<String>> workflows,
+      @Parameter(name = "labels", description = LABELS_DESCRIPTION) @RequestParam
+          Optional<List<String>> labels,
+      @Parameter(name = "tasks", description = "Task node names to count.") @RequestParam
+          Optional<List<String>> tasks,
+      @Parameter(name = "types", description = "Task types to count, such as ai.") @RequestParam
+          Optional<List<String>> types,
+      @Parameter(
+              name = "groupBy",
+              description =
+                  "task, type, workflow, param:<name> or label:<key>; one row when absent.",
+              example = "param:model")
+          @RequestParam
+          Optional<String> groupBy,
+      @Parameter(name = "bucket", description = "hour, day or month (UTC), by task run start.")
+          @RequestParam
+          Optional<String> bucket,
+      @Parameter(
+              name = "spanBy",
+              description =
+                  "label:<key>: per row, the first start to the last end of the task runs of the"
+                      + " runs sharing each value of that run label.")
+          @RequestParam
+          Optional<String> spanBy,
+      @Parameter(name = "slowest", description = "How many slowest task runs to list, up to 100.")
+          @RequestParam(defaultValue = "0")
+          int slowest,
+      @Parameter(
+              name = "params",
+              description = "Params whose values each slow task run shows; a secret one never.")
+          @RequestParam
+          Optional<List<String>> params) {
+    Date to = toDate.map(Date::new).orElseGet(Date::new);
+    Date from = fromDate.map(Date::new).orElse(new Date(to.getTime() - DEFAULT_PERIOD.toMillis()));
+    return workflowRunInsightService.tasks(
+        workspace,
+        from,
+        to,
+        workflows,
+        labels,
+        tasks,
+        types,
+        groupBy,
+        bucket,
+        spanBy,
+        slowest,
+        params);
   }
 }

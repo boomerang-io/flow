@@ -120,6 +120,10 @@ tag's release notes.
 
 ### Added
 
+- Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
+  task, type, workflow, param or run label, optionally per hour, day or month, with mean, p50, p95 and max
+  duration, the wall clock of the runs sharing a label, and the slowest task runs. The Insights page shows it
+  under Task runs once a grouping is chosen.
 - The wait-for-event callback (`POST`/`GET /api/v2/callback`) takes an optional `eventId`. A repeat of the same
   callback for the same run is acknowledged and not applied again for 7 days; without one, each delivery is
   applied as before.

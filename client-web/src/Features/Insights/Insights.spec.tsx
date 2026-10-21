@@ -2,7 +2,7 @@ import { vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import queryString, { StringifyOptions } from "query-string";
 import { Route } from "react-router-dom";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as fixtures from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
@@ -307,5 +307,80 @@ describe("Insights --- loader", () => {
 
     expect(captured).toHaveLength(2);
     expect(captured[0]).not.toBe(captured[1]);
+  });
+});
+
+describe("Insights --- task runs", () => {
+  test("reads no task runs until a grouping is chosen", async () => {
+    let read = false;
+    server.use(
+      http.get(serviceUrl.workspace.getInsightsTasks({ workspace: ":workspace" }), () => {
+        read = true;
+        return HttpResponse.json(fixtures.insightsTasks);
+      }),
+    );
+    renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    expect(screen.getByText("Choose how to group the period's task runs.")).toBeInTheDocument();
+    expect(read).toBe(false);
+  });
+
+  test("groups as the URL asks and lists the slowest task runs with a link to their run", async () => {
+    const requested: Array<URL> = [];
+    server.use(
+      http.get(serviceUrl.workspace.getInsightsTasks({ workspace: ":workspace" }), ({ request }) => {
+        requested.push(new URL(request.url));
+        return HttpResponse.json(fixtures.insightsTasks);
+      }),
+    );
+    renderInsights(`/${WORKSPACE}/insights?taskGroupBy=param:model&taskBucket=day&labels=team=a`);
+
+    const rows = await screen.findAllByTestId("insights-task-group");
+    expect(requested).toHaveLength(1);
+    expect(requested[0].searchParams.get("groupBy")).toBe("param:model");
+    expect(requested[0].searchParams.get("bucket")).toBe("day");
+    expect(requested[0].searchParams.get("slowest")).toBe("10");
+    expect(requested[0].searchParams.get("labels")).toBe("team=a");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("2019-12-30");
+    expect(rows[0]).toHaveTextContent("openai/gpt-4o-mini");
+    expect(rows[0]).toHaveTextContent("42");
+    // A task run with no value for the grouping is its own row.
+    expect(rows[1]).toHaveTextContent("(none)");
+    const slowest = screen.getByTestId("insights-slowest-tasks");
+    expect(slowest).toHaveTextContent("summarise");
+    expect(within(slowest).getByRole("link")).toHaveAttribute(
+      "href",
+      expect.stringContaining("5d9e2ea2a1a6b10001e37d11"),
+    );
+  });
+
+  test("choosing a grouping puts it in the URL", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Group by/i }));
+    userEvent.click(await screen.findByRole("option", { name: "Task" }));
+
+    await waitFor(() =>
+      expect(history.location.search).toBe("?" + queryString.stringify({ taskGroupBy: "task" }, queryStringOptions)),
+    );
+  });
+
+  test("a param grouping waits for the param's name", async () => {
+    const { history } = renderInsights();
+    await screen.findByTestId("completed-insights");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Group by/i }));
+    userEvent.click(await screen.findByRole("option", { name: "Param" }));
+    expect(history.location.search).toBe("");
+    userEvent.type(await screen.findByLabelText("Param name"), "model{enter}");
+
+    await waitFor(() =>
+      expect(history.location.search).toBe(
+        "?" + queryString.stringify({ taskGroupBy: "param:model" }, queryStringOptions),
+      ),
+    );
   });
 });

@@ -854,6 +854,50 @@ export interface InsightsWorkflowDetail {
   usage?: InsightsUsage;
 }
 
+/** One group of task runs; durations are over its succeeded task runs, 0 over none. */
+export interface InsightsTaskGroup {
+  /** The group's value; null for task runs without one, and for every one when ungrouped. */
+  key: string | null;
+  /** The bucket's start (UTC), when grouped by time. */
+  bucket?: string;
+  taskRuns: number;
+  succeeded: number;
+  failed: number;
+  cancelled: number;
+  meanDuration: number;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  /** With spanBy: how many label values, and their first start to last end. */
+  spans?: number;
+  p50Span?: number;
+  p95Span?: number;
+  maxSpan?: number;
+}
+
+export interface InsightsSlowTaskRun {
+  taskRunRef: string;
+  workflowRunRef: string;
+  workflowRef: string;
+  name: string;
+  status: string;
+  startTime?: string;
+  duration: number;
+  params: Record<string, unknown>;
+}
+
+export interface InsightsTasks {
+  from: string;
+  to: string;
+  groupBy?: string;
+  bucket?: string;
+  spanBy?: string;
+  /** Rows past the cap were left out. */
+  truncated: boolean;
+  rows: Array<InsightsTaskGroup>;
+  slowest?: Array<InsightsSlowTaskRun>;
+}
+
 //Schedule types
 export type ScheduleStatus = "active" | "inactive" | "deleted" | "trigger_disabled" | "error" | "completed";
 export type ScheduleType = "runOnce" | "cron" | "advancedCron";
