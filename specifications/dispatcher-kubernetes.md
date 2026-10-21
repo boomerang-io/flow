@@ -71,8 +71,8 @@ provisions each claimed workflow run's volumes (`dispatcher/WorkflowService.java
 (`dispatcher/TaskService.java:96-98`), falls back to `kube.task.timeout` (60 minutes, `:66-68`) whenever the
 TaskRun carries no timeout or 0, runs `create` then `watch`, and deletes the runtime object per the TaskRun's
 `spec.deletion` (`:61-63,102-105,129-131`). The engine always sets it from the admin "Deletion Policy"
-(`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:627-629`,
-`engine/DAGUtility.java:305`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
+(`task`/`deletion.policy`: `Never` default, `OnSuccess`, `Always`; `workflow/WorkflowService.java:628-630`,
+`engine/DAGUtility.java:308`), so the fallback `kube.task.deletion` never applies. Logs are read from the pod
 (`kube/KubeLogService.java:54-63`) and go with it. The delete runs off the dispatch thread, through a self proxy to
 an `@Async` method, after a one-second grace (`:39,142-151`).
 
@@ -88,7 +88,7 @@ warns and the next tick asks again.
 
 The timeout the TaskRun arrives with is settled by the engine, not here: it is the smallest of the platform
 setting, the task's own declared timeout, and the run's timeout, with 0 meaning unguarded
-(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:233-254`). The seed ships the
+(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:236-257`). The seed ships the
 platform setting (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting
 is an optional operator ceiling for capping one pod inside a long-running graph; a TaskRun that reaches the
 dispatcher unguarded still gets `kube.task.timeout` as a per-pod backstop.
@@ -128,7 +128,7 @@ as the Jobs executor's `task` - until the pod leaves Pending (`kube/KubeHelperSe
 `executor/PodStartWatch.java`, `KubeJobsExecutor.java:440`, `TektonServiceImpl.java:527`). The engine requeues
 `ExceededQuota` and `StartTimeout` (and `RateLimited`, which this dispatcher never sends) on the same budget as a
 timed-out claimant: three more attempts with backoff, then the task fails with that reason
-(`engine/TaskRunService.java:1035`). Kubernetes 429, 5xx and network errors
+(`engine/TaskRunService.java:1038`). Kubernetes 429, 5xx and network errors
 are retried inside the Kubernetes client before any of this applies.
 
 ## What the container receives
@@ -144,7 +144,7 @@ environment variables (`kube/KubeHelperService.java:103-141`):
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
 | `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`, set by the executor that runs it: `4096` on Jobs (the termination message cap, `KubeJobsExecutor.TERMINATION_MESSAGE_MAX_BYTES`); `tekton.results.maxBytes` on Tekton (default `4096`, raised to the cluster's `max-result-size` under sidecar-logs). A task budgets against it rather than a constant of its own |
 | `DEBUG`, `CI=true`, `FLOW_VERSION`, proxy vars | Debug flag, CI marker, the dispatcher's `flow.version`, and the `HTTP_PROXY` family when `proxy.enable=true` |
-| `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`, `dispatcher-sdk/.../model/TaskRun.java:66`), on every task |
+| `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`, `dispatcher-sdk/.../model/TaskRun.java:72`), on every task |
 
 Explicitly declared task env vars win on a name collision (`KubeHelperService.java:137-139`). There is no
 `/params` file directory and no `PARAMS` JSON variable; large inputs belong on a workspace mount, with the
@@ -209,7 +209,7 @@ error while creating it surfaces as one provisioning failure (`dispatcher/Worksp
 A workflow upgraded from v3 keeps its mount path, written explicitly as `/workspace/workflowrun` when v3 had none
 (`migration/_0010__V3MigrateWorkflows.java:225`), so its tasks need no change. One that declared v3's Workflow
 storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on its revision and is refused at submit
-with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1835`).
+with `WORKFLOW_STORAGE_REMOVED` until it is saved again (`workflow/WorkflowService.java:1837`).
 
 ## Isolation and placement
 

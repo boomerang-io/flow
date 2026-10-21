@@ -21,13 +21,13 @@ enough to walk in both directions.
 Option B, on all four points. The child is submitted through
 `WorkflowService.submit(workflowId, request, start, initiatedByRef)` with `trigger = task` and the submitting
 TaskRun's id, so the lineage stays the typed pair decision 0020 chose. `wait=true` parks the task as `waiting`
-with no `waitUntil` (`TaskRunService.tryArmWait`, `service-core/src/main/java/io/boomerang/engine/TaskRunService.java:806`),
+with no `waitUntil` (`TaskRunService.tryArmWait`, `service-core/src/main/java/io/boomerang/engine/TaskRunService.java:809`),
 armed before the submit so a fast child cannot outrun it, and `ChildWorkflowRunListener` ends it from the
 `WorkflowRunTransition` event through `TaskRunService.end` — the dispatcher's own wire-level end, so its
 completion compare-and-set makes a redelivered event a no-op. The same listener cancels in-flight children of
 a cancelled or timed-out run, and the depth walk climbs `initiatedByRef` against the `workflowrun` setting
 `max.nesting.depth` (default 5) before any child is created
-(`engine/TaskExecutionService.java:1009-1084,1166-1184`, `engine/ChildWorkflowRunListener.java`).
+(`engine/TaskExecutionService.java:1023-1098,1192-1210`, `engine/ChildWorkflowRunListener.java`).
 
 ## Consequences
 

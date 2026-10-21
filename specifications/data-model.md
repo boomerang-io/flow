@@ -74,8 +74,8 @@ Anything the engine reads to decide, or queries on, MUST be a typed field; label
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `TaskRunEntity.java:68-69` |
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `TaskRunEntity.java:72`, `service-core/.../model/WorkflowTaskForeach.java` |
 | Status (typed, serialised) | `status` (closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (task runs only; a closed string set of causes such as `OOMKilled`, `DeadlineExceeded`, `LeaseExpired`), `statusOverride` | `WorkflowRunEntity.java:41-44`, `TaskRunEntity.java:54` |
-| User labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40` |
-| Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `TaskRunEntity.java:51`, `engine/TaskRunService.java:362` |
+| Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>`; queryable on every v2 list endpoint. Keys under `boomerang.io/` are the server's: `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission) and `boomerang.io/item` on a for-each run-workflow child (its text item), which its task runs inherit; a client's under that prefix are dropped. The engine decides from none of them | `WorkflowRunEntity.java:33`, `TaskRunEntity.java:40`, `common/model/ServerLabel.java` |
+| Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `TaskRunEntity.java:51`, `engine/TaskRunService.java:364` |
 | Annotations | `annotations: Map<String,Object>`: user metadata, and the `boomerang.io/*` keys below; the engine decides from none of them | `WorkflowRunEntity.java:34`, `TaskRunEntity.java:41` |
 
 `claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java`, `tryClaim`, `renewLeases`), and unset on completion and requeue (`tryComplete`, requeue), so the sparse `lease_sweep` index holds only live claims. An abandon (a timeout included) keeps it until the completion lands, so an end lost after the abandon is reaped again;
@@ -87,17 +87,17 @@ crash recovery keys on a lapsed lease, dispatcher staleness and `timeoutAt`. Two
 reads none of them:
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1330,1725,1871`, `workflow/TaskService.java:709,797` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1055` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1332,1727,1873`, `workflow/TaskService.java:709,797` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1057` |
 
 A run annotation under `boomerang.io/` is reserved: a submit or start that sends one has it dropped
-(`workflow/WorkflowService.java:629`, `workflow/WorkflowRunService.java:735`). What the engine once read from run
+(`workflow/WorkflowService.java:630`, `workflow/WorkflowRunService.java:827`). What the engine once read from run
 annotations comes from the run's workflow and the settings instead:
 
 | Decision | Source |
 | --- | --- |
 | The run's workspace: its parameter layer, its secret values, the task lock scope | The workspace that owns the run's workflow in the relationship graph (`workspace --hasWorkflow--> workflow`), held by id so a rename does not move it, and cached per workflow (`workflow/ParamLayerService.java:91`, `core/ParamLayerCache.java:92`) |
-| A task run's per-task timeout ceiling, default image and pod deletion policy | The `task` settings, read once when the run's task runs are created at queue, onto the task run's own `timeout`, `spec.image` and `spec.deletion` (`engine/DAGUtility.java:71-84,230,263,292`) |
+| A task run's per-task timeout ceiling, default image and pod deletion policy | The `task` settings, read once when the run's task runs are created at queue, onto the task run's own `timeout`, `spec.image` and `spec.deletion` (`engine/DAGUtility.java:72-85,233,266,295`) |
 | The status an early event gave a wait-for-event task | `preApprovedStatus` on the task run (above) |
 
 Not stored: `icon`, `params`, `category`, `displayName`, `version`, `verified` exist only in Tekton YAML exports
@@ -193,7 +193,7 @@ scope `log`. A second upload for the same task run replaces the first, file and 
 | Status | Written when | File |
 | --- | --- | --- |
 | `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java` `fillLinkParams` `:206`; `dispatcher/DispatcherService.java` `fillArtifactLink` `:286`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:275-279`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
-| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:303`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1116`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:363`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
+| `available` | the dispatcher ends the upload task succeeded: service-core reads the stored file for its size and SHA-256 and checks the limits (`completeUpload` `:303`, called from `engine/TaskRunService.java` `completeArtifactUpload` `:1119`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`replacePrevious` `:365`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`:456`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
 A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:134`) or its run's
@@ -288,4 +288,4 @@ Defaults and workflow storage documents (keys `users` and `workflow`) are remove
 (`_0016__BuildSettingsFromSeed.java:49-95`).
 
 ## Not built
-Nothing enforces the `<prefix>/<name>` label convention in code.
+Nothing enforces the `<prefix>/<name>` label convention in code, apart from reserving `boomerang.io/` for the server.

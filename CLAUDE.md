@@ -58,8 +58,9 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 
 ## Invariants — do not violate
 
-- Anything the engine reads to make a decision is a typed field, never a `boomerang.io/*` annotation; labels
-  are user metadata only.
+- Anything the engine reads to make a decision is a typed field, never a `boomerang.io/*` annotation or label;
+  labels are user metadata, except the server's under the reserved `boomerang.io/` prefix (`ServerLabel`), which
+  exist only to filter and group on.
 - `WorkflowRun` is the execution record; domain entities carry no execution state. Re-runs create a new run
   that points back to the original.
 - Transition handlers are idempotent: re-read state, compare-and-set, never create a step's task run when a
@@ -67,7 +68,7 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
 - `RunStatus` is a closed enum shared with the frontend — never add `PAUSED` or `SUPERSEDED`; pause is the
   `pauseRequestedAt` flag, enforced at the single admission gate in `TaskExecutionService.queue`.
 - No execution-state field (`claim`, `timeoutAt`, `retry`, `waitUntil`, `pauseRequestedAt`) appears in a public
-  model; pinned by `PublicRunModelSerialisationTest`. `phase` stays beside `status` on the public models because
+  model; pinned by `PublicRunModelSerialisationTest`. A task run's `attempt` is derived from `retry`, never it. `phase` stays beside `status` on the public models because
   the webapp reads it; the dispatcher wire has its own models (`dispatcher/model/`), which carry it.
 - The engine never calls the **platform** side (`core`, `workspace`, `schedule`, `integrations`) synchronously;
   it publishes `ApplicationEvent`s those packages listen to. `engine` ↔ `workflow` are the two halves of one

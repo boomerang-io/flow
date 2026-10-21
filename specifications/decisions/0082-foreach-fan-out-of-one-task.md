@@ -21,7 +21,7 @@ status, the run's workspace, and a result the next task can read.
 C, the shape of Tekton's matrix. `WorkflowTask.foreach` (`service-core/.../model/WorkflowTask.java:50`) holds an array
 literal or one reference. At admission the engine resolves it, moves the one graph vertex, the parent, to running
 through its own compare-and-set, and creates one ordinary claimable task run per element named `<name>[<index>]` with
-`parentRef` and `index` (`service-core/.../engine/TaskExecutionService.java:593-701`). An item's end completes the
+`parentRef` and `index` (`service-core/.../engine/TaskExecutionService.java:607-715`). An item's end completes the
 parent through the ordinary completion compare-and-set once every item is terminal, collecting each declared result
 into an array in item order (`:709-750`). It won because it reuses every existing mechanism: claiming, leases,
 timeouts, retry, pause and the graph advance see nothing new, and the unique `{workflowRunRef, name}` index needs no

@@ -133,7 +133,7 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 
 | What | When | Stored |
 | --- | --- | --- |
-| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:204`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:329`), secret values encrypted |
+| The TaskRun's own parameter values | At admission (`engine/ParameterManager.java:152`, `TaskExecutionService.java:204`) | Yes - frozen by the admission compare-and-set (`TaskRunService.java:330`), secret values encrypted |
 | `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`ParameterManager.fillSpec` `:287`, called from `dispatcher/DispatcherService.java:441`) | No - the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is ever written into a stored spec. Admission has checked every reference, so the fill-in fails
@@ -144,25 +144,25 @@ are still handed out, so no claim stays with a dispatcher that never hears of it
 `:404`). Preparing a task does not depend on who calls: an artifact task's storage quota is read from its run's
 workspace (`workflow/QuotaService.artifactStorage` `:256`). The termination order, the start and end
 answers and every consumer read carry the stored spec. The TaskRun's params are the task's declared params merged
-with the values authored on the workflow node (`engine/DAGUtility.java:218-221`). A `custom` task takes its runtime from
+with the values authored on the workflow node (`engine/DAGUtility.java:221-224`). A `custom` task takes its runtime from
 its own params - `image`, `command` and `arguments` (newline-split) and `shellScript` - not from the catalogue
-entry, which declares no image (`DAGUtility.java:348`). A secret-typed one is copied as its reference
+entry, which declares no image (`DAGUtility.java:351`). A secret-typed one is copied as its reference
 `$(params.<name>)`, filled in at claim, so a secret `command` or `arguments` arrives as one element (`:367`).
 
 An item of a for-each task is an ordinary TaskRun to the dispatcher, claimed by `id` and run like any other of its
 type. It carries the parent's params plus `item` (the element; an object or array arrives JSON-encoded) and `index`
 (its position from 0, as text), so `$(params.item)` resolves in the spec; its params resolve when the item is
-admitted and its spec when it is claimed, not when the parent fans out (`engine/TaskExecutionService.java:646-684`).
+admitted and its spec when it is claimed, not when the parent fans out (`engine/TaskExecutionService.java:660-698`).
 Every item mounts the run's workspace, as the parent does.
 
 A terminate order also arrives for a task the engine has requeued while a dispatcher may still hold its work
-(`engine/TaskRunService.java:238-262`); it releases the claim, so the next attempt can be claimed. A dispatcher with
+(`engine/TaskRunService.java:239-263`); it releases the claim, so the next attempt can be claimed. A dispatcher with
 nothing left to stop treats the order as done.
 
 ## Starting
 
 `PUT /taskrun/{id}/start` carries `dispatcherRef` (the registered id) and answers with the `DispatchTaskRun`
-(`engine/TaskRunService.java:867`). The dispatcher MUST NOT run the task when the answer's phase is `completed` — it
+(`engine/TaskRunService.java:870`). The dispatcher MUST NOT run the task when the answer's phase is `completed` — it
 was cancelled while being handed over — or when the engine answers 4xx. When the engine cannot be reached it MAY run
 the task: the end is still fenced on the claim. The engine moves the task to running asynchronously, so `queued` in
 the answer is normal.
@@ -170,7 +170,7 @@ the answer is normal.
 ## Ending
 
 `PUT /taskrun/{id}/end` carries `dispatcherRef`, `status`, `statusReason`, `statusMessage` and `results`
-(`engine/TaskRunService.java:903`).
+(`engine/TaskRunService.java:906`).
 
 - `status` is `succeeded`, `failed` or `invalid`; anything else is `400 TASKRUN_INVALID_END_STATUS` (`:967`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes
@@ -181,7 +181,7 @@ the answer is normal.
   ordinary failure. The SDK's `StatusReason` names the ones a dispatcher sends, a subset of the engine's that
   `StatusReasonTest` checks. Three of them mean the task never started, and the engine requeues it instead of
   failing it — with backoff, on the same budget of three more attempts as a timed-out claimant — and fails it with
-  that reason only once the budget is spent (`StatusReason.java:45`, `engine/TaskRunService.java:1069-1072`):
+  that reason only once the budget is spent (`StatusReason.java:45`, `engine/TaskRunService.java:1072-1075`):
 
 | Reason | Send when |
 | --- | --- |
@@ -197,7 +197,7 @@ task run toward MongoDB's 16 MB document limit.
 | Cap | Property (`service-core/.../application.properties:187-188`) | Where checked | Effect |
 | --- | --- | --- | --- |
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`TaskExecutionService.java:200-214`) | The task is invalidated with `PARAMS_TOO_LARGE` and never becomes claimable |
-| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:885-895`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
+| Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`TaskRunService.java:888-898`) | Status becomes `failed` with `RESULTS_TOO_LARGE` and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
 
 A for-each task's results are not checked again. Each item is capped where it returns its results, like any task;
 the parent's results are the per-item values collected into arrays by the engine
@@ -209,9 +209,9 @@ params cap at its own admission.
 ## Leases and heartbeat
 
 A claim carries a lease from the moment it is made: the claim sets it 90 s ahead (`flow.dispatcher.lease-ms`,
-`engine/TaskRunService.java:290`, `:316`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
+`engine/TaskRunService.java:291`, `:317`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
 working on, and the engine moves each owned one's lease 90 s ahead again (`dispatcher/DispatcherService.java:190`,
-`engine/TaskRunService.java:614`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
+`engine/TaskRunService.java:617`). A dispatcher MUST heartbeat every task it holds, from its claim until the engine
 has taken its end, at least every 30 s; a dispatcher that sends no heartbeat has every claim requeued 90 s after it
 was made. A lease that lapses, or a dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:74`),
 gets the task requeued or abandoned (`execution-model.md`). The lease is what catches a dispatcher that crashes and
@@ -220,7 +220,7 @@ comes back under the same id within that minute: it stays live, but its heartbea
 ## Logs
 
 A task's log is read through core alone — `GET /api/v2/taskrun/{id}/log`, which authorizes the reader and scrubs the
-run's secrets (`workflow/WorkflowRunService.java:439-475`) — from one of three sources (`engine/TaskRunService.java`
+run's secrets (`workflow/WorkflowRunService.java:528-564`) — from one of three sources (`engine/TaskRunService.java`
 `streamLog` `:1139-1161`, `engine/LogClient.java` `streamLog` `:90`):
 
 | Source | When |
@@ -230,7 +230,7 @@ run's secrets (`workflow/WorkflowRunService.java:439-475`) — from one of three
 | A message | Neither answers: a 200 whose body says no log is available. Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
 
 While the task runs, the live route answers; a log stored during this attempt, after the current claim was made
-(`TaskRunService.java:1165-1170`), answers instead when the claim's dispatcher registered no `logsUrl` or its route
+(`TaskRunService.java:1168-1173`), answers instead when the claim's dispatcher registered no `logsUrl` or its route
 fails before answering (`LogClient.java:131`). So snapshots uploaded mid-run never hide the live stream, a
 dispatcher without a live route still shows its latest snapshot, a requeued task never serves its earlier attempt's
 log, and a live stream that fails part way is not restarted from the stored copy. Once the task has ended, the
@@ -280,9 +280,9 @@ MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`, `className`,
 `accessMode`; `service-core/.../model/WorkflowWorkspace.java`), presence is the switch, and the run copies it at
-submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1850`). Which
+submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1852`). Which
 tasks mount it is decided once, when `DAGUtility` materialises the TaskRun: every task mounts the run's workspace
-unless its node says `workspace: false` (`engine/DAGUtility.java:259-267`); the canvas offers no way to set that, so
+unless its node says `workspace: false` (`engine/DAGUtility.java:262-270`); the canvas offers no way to set that, so
 the ordinary case is that every task mounts it. The TaskRun carries its own copy with `mountPath` settled to the
 declared path or `/workspace`, so nothing later in the run changes it.
 
@@ -290,19 +290,19 @@ declared path or `/workspace`, so nothing later in the run changes it.
 
 Only `template`, `custom`, `script`, `generic`, `ai`, `uploadartifact` and `downloadartifact` tasks go to a
 dispatcher: admission leaves them for a claim instead of executing them
-(`engine/TaskExecutionService.java:254-263`). Every other type runs inside the engine. `TaskType`
-(`service-core/.../enums/TaskType.java:15-61`) is dispatched in `TaskExecutionService.java:381-437`.
+(`engine/TaskExecutionService.java:268-277`). Every other type runs inside the engine. `TaskType`
+(`service-core/.../enums/TaskType.java:15-61`) is dispatched in `TaskExecutionService.java:395-451`.
 
 | Type | Behaviour |
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:455-458`) |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`DAGUtility.java:458-461`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run. Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (see `execution-model.md`) |
 | `runscheduledworkflow` | Schedule another workflow to run later, then end |
 | `setwfstatus`, `setwfproperty` | Write the run's status message or a workflow-scoped param, then end |
-| `approval`, `manual` | Create an action and wait for a person. An approval waits for `numberOfApprovals` approvers (`numberOfApprovers` is still read; `engine/TaskExecutionService.java:1383-1394`) and ends with `approvalStatus`, `approvalDate`, `approvalUserName`, `approvalUserEmail` and `approvalComments` from the action that decided it (`workflow/ActionService.java:200,216-238`); a manual task ends with none |
+| `approval`, `manual` | Create an action and wait for a person. An approval waits for `numberOfApprovals` approvers (`numberOfApprovers` is still read; `engine/TaskExecutionService.java:1409-1420`) and ends with `approvalStatus`, `approvalDate`, `approvalUserName`, `approvalUserEmail` and `approvalComments` from the action that decided it (`workflow/ActionService.java:200,216-238`); a manual task ends with none |
 | `eventwait` | Wait for a matching inbound event unless pre-approved |
 | `sleep` | Park as waiting; the watcher completes it after the duration |
 | `uploadartifact`, `downloadartifact` | Wait for a dispatcher, which runs the default worker's `artifact upload` / `artifact download` (`flow.dispatcher.artifact.image`). The engine fills the link params when it hands the task out, verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`data-model.md`) |
@@ -313,7 +313,7 @@ Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boome
 migrations seed 89 tasks and their revisions from `seed/tasks.json` and `seed/task-revisions.json`, inserting only
 what is absent, so a task or revision added to the seed after a release needs a change unit of its own to reach an
 existing database (`data-model.md`, "Migrations", lists each one). A `template` or `script` task without an
-explicit image takes the `task` settings' `default.image` when its task run is created (`DAGUtility.java:276`). The
+explicit image takes the `task` settings' `default.image` when its task run is created (`DAGUtility.java:279`). The
 engine-handled `run-workflow` and `run-scheduled-workflow` entries declare the params the engine reads
 (`workflowRef` and the boolean `wait`; plus `futureIn`, `futurePeriod`, `timezone`, `time`); the run each starts or
 schedules gets only its node's other params.
@@ -321,7 +321,7 @@ schedules gets only its node's other params.
 A workflow node's `taskVersion` is pinned when the workflow is saved: `WorkflowService.createWorkflowRevisionEntity`
 resolves each node through `TaskService.retrieveAndValidateTask` and stamps the version it asked for, or the
 catalogue's latest when it asked for none; at run time `DAGUtility.createTaskList` resolves the same way and records
-it on the TaskRun (`engine/DAGUtility.java:189`), so a stored node with no version still resolves latest. A new
+it on the TaskRun (`engine/DAGUtility.java:190`), so a stored node with no version still resolves latest. A new
 Task version therefore changes nothing for workflows already saved, and a run is reproducible from its revision.
 Saving the workflow again with the node's `taskVersion` set, or omitted for latest, moves it forward; the editor
 prompts "New version available" per node from the `upgradesAvailable` flag `WorkflowService.areTaskUpgradesAvailable`

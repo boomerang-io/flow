@@ -18,8 +18,8 @@ full materialisation of the DAG at queue time and a level-triggered advance from
 ## Decision
 
 Option B. `WorkflowRunService.retry` clones the run as a NEW workflow run with `trigger=retry` and
-`initiatedByRef` pointing at the origin (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:871-908`),
-so no second live generation of a node exists within one run. `TaskExecutionService.advance` (`engine/TaskExecutionService.java:498-512`)
+`initiatedByRef` pointing at the origin (`service-core/src/main/java/io/boomerang/workflow/WorkflowRunService.java:963-1000`),
+so no second live generation of a node exists within one run. `TaskExecutionService.advance` (`engine/TaskExecutionService.java:512-526`)
 re-applies the graph advance from persisted state and is what the watcher and resume call; there is no `reconcile()`
 entry point. No field named `supersededAt`, `supersededBy` or `attempt` exists on `TaskRunEntity`.
 

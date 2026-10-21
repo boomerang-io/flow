@@ -22,7 +22,7 @@ configure exporters to LangSmith, Langfuse, Phoenix or Opik by environment; n8n 
 ## Decision
 
 B. Every task run gets a W3C `traceparent` whose trace id is its run's id and whose parent id is its task
-run's (`dispatcher-sdk/.../model/TaskRun.java:66`, `dispatcher-contract.md`, "Trace context"). Flow's
+run's (`dispatcher-sdk/.../model/TaskRun.java:72`, `dispatcher-contract.md`, "Trace context"). Flow's
 Kubernetes dispatcher hands it to every pod as `TRACEPARENT` and, when configured, gives `ai` pods the OTLP
 exporter settings (`service-dispatcher/.../executor/TaskImageResolver.java:87-104`); task-ai and embedding
 dispatchers emit GenAI-convention spans under it. Derived from ids already on the wire, it changes no route.

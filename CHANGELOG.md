@@ -121,9 +121,18 @@ tag's release notes.
 ### Added
 
 - Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
-  task, type, workflow, param or run label, optionally per hour, day or month, with mean, p50, p95 and max
-  duration, the wall clock of the runs sharing a label, and the slowest task runs. The Insights page shows it
-  under Task runs once a grouping is chosen.
+  task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
+  tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The
+  Insights page shows it under Task runs once a grouping is chosen, with Model and For-each item groupings.
+- Task runs can be queried across runs: `GET /api/v2/workspace/{workspace}/taskrun/query` pages them by label or
+  run (one of the two is required), workflow, task name, status and date, as the run query pages runs. A row
+  leaves out params, results, spec, annotations and status message; read the run for those.
+- A task run shows `attempt` once a dispatcher has claimed it: 1, plus one per requeue. The run view shows it when a
+  task was requeued.
+- Server labels: an AI task run carries `boomerang.io/model`, the model its `model` param asked for, and a child
+  run a for-each run-workflow task started carries `boomerang.io/item`, its item, on the run and its task runs.
+  Labels under `boomerang.io/` are now reserved for the server, as annotations already were: a client's are
+  dropped on submit, start and retry.
 - The wait-for-event callback (`POST`/`GET /api/v2/callback`) takes an optional `eventId`. A repeat of the same
   callback for the same run is acknowledged and not applied again for 7 days; without one, each delivery is
   applied as before.

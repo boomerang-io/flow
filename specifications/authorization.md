@@ -174,7 +174,7 @@ action granularity is layer 1's job. A failed `check()` returns `false` and coun
 with `layer=relationship` (`:371-393`); callers typically raise `PERMISSION_DENIED`, which serialises as HTTP
 401 (`service-core/src/main/java/io/boomerang/common/error/BoomerangError.java:22`). Workspace-scoped routes pass the `{workspace}` path segment
 as an intermediate containment (for example `WorkflowRunService.requireWorkspaceRelationship`,
-`workflow/WorkflowRunService.java:400-411`). Because `global` returns before the walk, a global token's
+`workflow/WorkflowRunService.java:489-500`). Because `global` returns before the walk, a global token's
 requests ignore that path segment; the same caller could reach the object through its real workspace URL,
 so nothing extra is granted. `filter()` for `TASK` always anchors at `root` — the task catalogue is global (`:480-484`).
 
@@ -182,7 +182,7 @@ Ownership edges are written when a run is created: `WorkflowService.internalSubm
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
 workspace contains the workflow (`workflow/WorkflowService.java:530-541,592-600`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
-parent (`workflow/WorkflowRunService.java:369-375,801,834-843`); child runs get the edge from
+parent (`workflow/WorkflowRunService.java:458-464,893,926-935`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).
 
 ## Security off: the synthetic admin

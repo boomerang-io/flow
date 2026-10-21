@@ -33,7 +33,7 @@ inbound event with a small typed payload (their 4 KB cron cap against Flow's 16 
 
 | Code Engine | Flow | Position |
 | ----------- | ---- | -------- |
-| Retries failed instances by default (3 per index) | Never retries a dispatcher-reported failure: `TaskRunService.end` persists `failed` as terminal (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:730-733`); only timeouts, lost leases and gone dispatchers requeue | Keep Flow's default; `ContainerExitedCode1` is usually deterministic. `OOMKilled` and image-pull failures are the two classes worth an opt-in `retryOn` later. |
+| Retries failed instances by default (3 per index) | Never retries a dispatcher-reported failure: `TaskRunService.end` persists `failed` as terminal (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:733-736`); only timeouts, lost leases and gone dispatchers requeue | Keep Flow's default; `ContainerExitedCode1` is usually deterministic. `OOMKilled` and image-pull failures are the two classes worth an opt-in `retryOn` later. |
 | Indexed job: one run, N instances, per-index status, rerun failed indices | A for-each task: one item task run per element, each with its own typed status and reason, results collected into arrays of stable size in item order (`execution-model.md`, "For-each tasks") | Built. Rerunning only the failed indices is not; a re-run creates a new workflow run. |
 | Warm workers (fleets) keep the image and run tasks back-to-back | Pod per task | The strongest argument for a long-lived-worker executor whose `create` is "enqueue to a warm worker"; the fleet design is the reference when that executor is built. |
 | Per-workload identity via a projected token file | Tasks have no identity; only the dispatcher holds a token (`service-dispatcher/src/main/java/io/boomerang/config/RestConfig.java:51-54`) | When tasks call back into Flow (the artefact store), mint a per-TaskRun short-lived token and mount it as a file, never in `PARAM_*`. |
@@ -69,11 +69,11 @@ inputs to the propose/dispose node type, where an AI task may only append tasks 
 | ----------------------------- | ---------- | ---------------- |
 | Safe outputs = a schema-validated, count-limited menu applied by a separate privileged job; `staged` dry run; `noop` required | Nothing built; the admission chokepoint (`TaskExecutionService.queue`) and materialise-all exist to hang it on | The AI node emits `proposals[]` validated against the workflow's declared menu (`allowedTasks`, per-entry `max`, field allowlists); the engine appends the TaskRuns; `staged: true` records without appending; `noop` is a mandatory explicit outcome. Touches `DAGUtility`/`TaskExecutionService` and needs the data-model review. |
 | Input provenance decides what the agent may see (`min-integrity` by author role) | Trigger payloads (`POST /api/v2/webhook`, `/event`, `WebhookEventControllerV2.java:69-75, 207-241`) become params with no origin marker | An `origin` typed field on run params (`trigger`, `user`, `system`, `task-result`) so an AI node can be restricted to trusted origins. Needs the data-model review. |
-| Budgets at every scope: per run (`max-ai-credits`, `max-turns`), per workflow per 24 h, per user, per subject (`cooldown`), absolute deadline | Workspace quotas only (`Quotas.java:5-10`; concurrency enforced at `WorkflowService.java:880-886`) | Per-run cost/turn ceiling on the AI node, per-workflow rolling window, per-actor trigger rate, per-subject cooldown; spend stored as typed fields on the TaskRun result. Needs the data-model review. |
+| Budgets at every scope: per run (`max-ai-credits`, `max-turns`), per workflow per 24 h, per user, per subject (`cooldown`), absolute deadline | Workspace quotas only (`Quotas.java:5-10`; concurrency enforced at `WorkflowService.java:882-888`) | Per-run cost/turn ceiling on the AI node, per-workflow rolling window, per-actor trigger rate, per-subject cooldown; spend stored as typed fields on the TaskRun result. Needs the data-model review. |
 | Outcomes and cost per accepted outcome | `ActionService` computes an approval rate (`service-core/src/main/java/io/boomerang/workflow/ActionService.java:310-322`) | Each proposal records `disposition` (`appended`, `staged`, `rejected`, `approved`) and later the appended TaskRun's terminal status. |
 | Egress allowlists by named ecosystem, enforced by a per-agent proxy | No NetworkPolicy or egress proxy in either executor | `network.allowed: [ecosystems…, domains…]` on the task template, mapped to a NetworkPolicy (Jobs) or a proxy allowlist. |
 | Opt-outs require a written justification (`dangerously-disable-sandbox-agent: "<≥20 chars why>"`) | Opt-outs are bare properties (`flow.security.enabled=false`) | A required `reason` string in the audit log for an unrestricted AI menu or a task below the isolation floor. |
-| Lock-file drift is a security property | Runs pin `workflowRevisionRef` (`WorkflowRunEntity.java:46-48`, set `WorkflowService.java:1617-1619`) and revisions pin task versions (`WorkflowService.java:1430-1436`); a task with `taskVersion == null` resolves "latest" at run time (`TaskService.java:869-871`) | Near parity; resolve and write the version at revision save to close the null-version float. |
+| Lock-file drift is a security property | Runs pin `workflowRevisionRef` (`WorkflowRunEntity.java:46-48`, set `WorkflowService.java:1619-1621`) and revisions pin task versions (`WorkflowService.java:1432-1438`); a task with `taskVersion == null` resolves "latest" at run time (`TaskService.java:869-871`) | Near parity; resolve and write the version at revision save to close the null-version float. |
 
 | GitHub Agentic Workflows | Flow | Position |
 | ------------------------ | ---- | -------- |
@@ -96,9 +96,9 @@ workers claim tasks from task queues. Server MIT-licensed. Cloud bills per Actio
 | Concern | Temporal | Flow |
 | ------- | -------- | ---- |
 | Unit of truth | Event history (hard cap 51,200 events / 50 MB; `ContinueAsNew` to roll) | The materialised `TaskRun` row set; no replay, no history cap |
-| Claim | Long-poll `PollActivityTaskQueue`; sticky queue; per-worker slot limits | `findClaimable` oldest first on `creationDate`, filtered by registered type (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:73-87`); no slots |
+| Claim | Long-poll `PollActivityTaskQueue`; sticky queue; per-worker slot limits | `findClaimable` oldest first on `creationDate`, filtered by registered type (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:74-88`); no slots |
 | Activity retry | `RetryPolicy` 1 s × 2.0 up to 100×, attempts unbounded, `nonRetryableErrorTypes` | `Backoff` 10 s → 5 m, timeouts and lost leases only, ≤ 3 (`WorkflowWatcher.java:129-156`) |
-| Timeouts | Four typed: `ScheduleToStart`, `StartToClose`, `ScheduleToClose`, `Heartbeat` | One `timeoutAt` baked at claim (`TaskRunService.java:244, 259-261`); an unclaimed TaskRun has no deadline of its own |
+| Timeouts | Four typed: `ScheduleToStart`, `StartToClose`, `ScheduleToClose`, `Heartbeat` | One `timeoutAt` baked at claim (`TaskRunService.java:245, 260-262`); an unclaimed TaskRun has no deadline of its own |
 | Pause | Activity pause stops new retries; in-flight work finishes | `pauseRequestedAt` at the single admission gate — the same semantics |
 | Schedules | Overlap policy `Skip` / `BufferOne` / `BufferAll` / `CancelOther` / `TerminateOther` / `AllowAll`; catch-up window; jitter | `ScheduleWatcher.fireDueSchedules` computes the next occurrence from now, collapsing any backlog (`service-core/src/main/java/io/boomerang/schedule/ScheduleWatcher.java:114-131`) — an implicit `Skip` |
 | Priority / fairness | `priority_key` 1–5, `fairness_key` + weight; dispatch = tier → weighted round-robin → oldest first | None; one workspace's burst starves the rest |
@@ -126,10 +126,10 @@ heartbeat 30 s), append-only run snapshots in Postgres, payloads over 512 KB off
 | Fairness | Score combining message age, queue size and available capacity; random-weighted dequeue | Oldest first |
 | Concurrency | `queue.concurrencyLimit`, `concurrencyKey` = one queue copy per key value; `queues.pause()` | Workspace `maxConcurrentRuns` only |
 | Retry | `maxAttempts 3`, 1–10 s, factor 2; `AbortTaskRunError` stops retries; `retry.outOfMemory.machine` retries an out-of-memory run on a bigger machine | No failure retry |
-| Waits | `wait.createToken({ timeout, idempotencyKey })` → token with a completion `url`; `wait.completeToken` | `eventwait` + `/callback` (`WebhookEventControllerV2.java:136, 173`); `sleep` parks on `waitUntil` (`TaskExecutionService.java:624`, `WorkflowWatcher.java:188`) |
+| Waits | `wait.createToken({ timeout, idempotencyKey })` → token with a completion `url`; `wait.completeToken` | `eventwait` + `/callback` (`WebhookEventControllerV2.java:136, 173`); `sleep` parks on `waitUntil` (`TaskExecutionService.java:638`, `WorkflowWatcher.java:188`) |
 | Idempotency | `idempotencyKey` scope `run` / `attempt` / `global`, 30-day time-to-live, cleared on failure | Not built |
-| Versioning | A run is locked to a version; `triggerAndWait` children lock to the parent, `trigger()` children float | `workflowRevisionRef` pinned; the `runworkflow` child version is left unpinned (`TaskExecutionService.java:796-797`) — the same float |
-| Incident | 2025-09-26: 1.4 MB error payloads overloaded the run engine; the fix was a 16 KB error cap | Results capped at 4 KB (`TaskRunService.java:737-750`) — validated by their post-mortem |
+| Versioning | A run is locked to a version; `triggerAndWait` children lock to the parent, `trigger()` children float | `workflowRevisionRef` pinned; the `runworkflow` child version is left unpinned (`TaskExecutionService.java:810-811`) — the same float |
+| Incident | 2025-09-26: 1.4 MB error payloads overloaded the run engine; the fix was a 16 KB error cap | Results capped at 4 KB (`TaskRunService.java:740-753`) — validated by their post-mortem |
 
 **Adopt.** The fair-dequeue score is the concrete algorithm for the fairness half of the priority design. An opt-in
 `idempotencyKey` on `WorkflowRunRequest` with a unique sparse index on `{workflowRef, idempotencyKey}`, a time-to-live
@@ -181,10 +181,10 @@ with `FOR UPDATE SKIP LOCKED`, with lock contention "12+ seconds" (#2600) and de
 | Task runtime | Plugins are Java classes in the worker process (1,200+); scripts in a process, Docker or a pod (paid) | Container per task, no in-engine code execution; 87 catalogue tasks / 130 revisions seeded |
 | Crash recovery | Worker heartbeat + `worker-task-restart-strategy` (`AFTER_TERMINATION_GRACE_PERIOD` / `IMMEDIATELY` — "duplicate task executions may happen" / `NEVER`) | Batched lease heartbeat every 30 s, lease 90 s, `reapExpiredLeases`; gone-dispatcher sweep at 60 s; dispatcher reconcile loop every 30 s; the restart policy is fixed (requeue ≤ 3 for requeueable types, else time out) |
 | Retry | Per task `retry: { type, maxAttempts, maxDuration }`; flow-level `RETRY_FAILED_TASK` | Timeout/lease requeue ≤ 3, `Backoff` 10 s → 5 m; reported failures terminal |
-| Concurrency | Per flow `concurrency: { limit, behavior: QUEUE \| CANCEL \| FAIL }` | Per workspace `maxConcurrentRuns` only (`WorkflowService.java:880-886`) |
+| Concurrency | Per flow `concurrency: { limit, behavior: QUEUE \| CANCEL \| FAIL }` | Per workspace `maxConcurrentRuns` only (`WorkflowService.java:882-888`) |
 | Failure semantics | `allowFailure`, `errors` branch, `finally`, `afterExecution`; 13 states including `WARNING`, `RETRYING`, `PAUSED` | `executionCondition: always \| success \| failure` on edges (`ExecutionCondition.java:3-7`); `statusOverride`; no `finally`; closed 10-value `RunStatus` |
-| Control flow | `ForEach`, `ForEachItem`, `Dag`, `LoopUntil`, `If`/`Switch`, `Subflow` (`wait`, `transmitFailed`) | `decision` (regex edges, `DAGUtility.java:345-365`), edge conditions, `runworkflow` without `wait` (`TaskExecutionService.java:778-818`), `eventwait`, `sleep`, `approval`/`manual`, locks; no loop |
-| Pause / approval | `Pause` task: `pauseDuration`, `behavior: RESUME \| WARN \| CANCEL \| FAIL`; Human Tasks (paid) | `approval`/`manual` via `createActionTask` (`TaskExecutionService.java:900`) with group approval; run-level pause as an admission gate; no timeout-behaviour enum |
+| Control flow | `ForEach`, `ForEachItem`, `Dag`, `LoopUntil`, `If`/`Switch`, `Subflow` (`wait`, `transmitFailed`) | `decision` (regex edges, `DAGUtility.java:348-368`), edge conditions, `runworkflow` without `wait` (`TaskExecutionService.java:792-832`), `eventwait`, `sleep`, `approval`/`manual`, locks; no loop |
+| Pause / approval | `Pause` task: `pauseDuration`, `behavior: RESUME \| WARN \| CANCEL \| FAIL`; Human Tasks (paid) | `approval`/`manual` via `createActionTask` (`TaskExecutionService.java:914`) with group approval; run-level pause as an admission gate; no timeout-behaviour enum |
 | Replay | Re-run from any task run, optionally on the latest revision | Retry = a new run (two-pointer); in-place partial re-run deliberately not built |
 | Kubernetes runner (paid) | `resources`, `podSpec` overlays; `waitUntilRunning` `PT10M` / `waitUntilCompletion` `PT1H` split | `KubeJobsExecutor`: one deadline plus a watch grace |
 | Payload limits | Context ~1 MB; oversized contexts crashed webserver and executor (#4631); large data by reference | 16 KB / 4 KB caps — the same lesson, tighter; artefact store deferred |
@@ -221,7 +221,7 @@ vulnerability CVE-2025-68613 (more than 14,000 exposed instances) and a sandbox 
 | ------- | --- | ---- |
 | Claim | Bull lease `QUEUE_WORKER_LOCK_DURATION=60000` renewed every 10 s; the leader marks dangling executions `crashed` | `findAndModify` claim; batched lease heartbeat every 30 s, lease 90 s, no leader |
 | Concurrency | Per worker 10; no per-workflow limit (requested since 2024) | Workspace cap; no per-workflow limit either |
-| Retry | Node `retryOnFail`, `maxTries` 3, `onError: stopWorkflow \| continueRegularOutput \| continueErrorOutput`; execution retry re-runs the whole execution with `retryOf` | Two-pointer `initiatedByRef` + `trigger=retry` (`WorkflowRunService.java:902-909`) |
+| Retry | Node `retryOnFail`, `maxTries` 3, `onError: stopWorkflow \| continueRegularOutput \| continueErrorOutput`; execution retry re-runs the whole execution with `retryOf` | Two-pointer `initiatedByRef` + `trigger=retry` (`WorkflowRunService.java:994-1001`) |
 | Retention | `EXECUTIONS_DATA_PRUNE=true`, `MAX_AGE=336` h; annotated executions are never pruned | Finished runs are purged after the `workflowrun`/`retention.days` setting (365 days, floored at 60), keeping any run another run still points at; a deleted workflow's documents are pruned once its runs finish (`workflow/WorkflowRetentionService.java:94`, `:134`); time-to-live only on outbox/inbox/locks (`_0018__EventAndLockIndexes.java:53, 71, 96`) |
 | Schedule (2.36) | Durable scheduler: runs stored in the database, one instance claims each run, no leader, `N8N_SCHEDULER_MISFIRE_GRACE=60` s, three misfire policies | `ScheduleWatcher`: the same claim-based, leaderless design (`ScheduleWatcher.java:26-31, 124`); misfire policy implicit |
 | Versioning | "Save as draft, Publish"; named versions; visual diff | Revisions with changelog; every save is live |
@@ -236,7 +236,7 @@ the dispatcher protocol.
 
 **Conflicts.** Whole-workflow-on-one-worker with in-memory item arrays is the opposite of materialise-all with
 per-task claims. The security record is the positioning point: an in-process runtime with expression injection is
-the attack surface; Flow's `decision` regex evaluation (`DAGUtility.java:403`) runs no user code.
+the attack surface; Flow's `decision` regex evaluation (`DAGUtility.java:406`) runs no user code.
 
 ## Langflow
 
@@ -343,7 +343,7 @@ pull-based and separate from its control plane; none pushes. What they have that
 | Filter | State | Evidence |
 | ------ | ----- | -------- |
 | By task type | Present — registration carries `taskTypes`, the claim query filters on them | `DispatcherService.java:261-331`; `TaskRunService.findClaimable:97-119` |
-| By task or workflow, per poll | Present — optional `type`, `task` and `workflowLabel` filters, resolved to typed refs; an unfiltered dispatcher still competes for filtered work | `dispatcher/ClaimFilterService.java`; `TaskRunService.java:175-184` |
+| By task or workflow, per poll | Present — optional `type`, `task` and `workflowLabel` filters, resolved to typed refs; an unfiltered dispatcher still competes for filtered work | `dispatcher/ClaimFilterService.java`; `TaskRunService.java:176-185` |
 | By dispatcher capability (zone, cluster) | Absent — a dispatcher declares nothing about where it runs | `findClaimable` has no capability criterion |
 | Run → dispatcher affinity | Absent, and a latent multi-cluster bug: the run-scoped volume is created in whichever cluster claimed `workflowrun/start`, but each TaskRun is claimed independently, so a dispatcher in another cluster can claim a task whose workspace it cannot mount | `WorkspaceService.java:38-84`; `findClaimable` |
 
