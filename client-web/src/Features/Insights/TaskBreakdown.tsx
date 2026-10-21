@@ -8,16 +8,29 @@ import { formatDuration } from "Utils/dateHelper";
 import type { InsightsTasks } from "Types";
 import styles from "./Insights.module.scss";
 
-type Option = { id: string; label: string };
+type Option = { id: string; label: string; groupBy?: string };
 
-// The API's groupBy forms; a param or a label also needs its name.
+// The server's labels: on an ai task run its model, on a for-each child run's task runs its item.
+const MODEL_LABEL = "label:boomerang.io/model";
+const ITEM_LABEL = "label:boomerang.io/item";
+
+// The API's groupBy forms, keyed by option; a label of your own also needs its key.
 const groupOptions: Array<Option> = [
-  { id: "task", label: "Task" },
-  { id: "type", label: "Task type" },
-  { id: "workflow", label: "Workflow" },
-  { id: "param", label: "Param" },
-  { id: "label", label: "Run label" },
+  { id: "task", label: "Task", groupBy: "task" },
+  { id: "type", label: "Task type", groupBy: "type" },
+  { id: "workflow", label: "Workflow", groupBy: "workflow" },
+  { id: "model", label: "Model", groupBy: MODEL_LABEL },
+  { id: "item", label: "For-each item", groupBy: ITEM_LABEL },
+  { id: "label", label: "Label" },
 ];
+
+// The option a groupBy value shows as: a fixed one, else a label of your own.
+function optionOf(groupBy: string | null) {
+  if (!groupBy) {
+    return "";
+  }
+  return groupOptions.find((option) => option.groupBy === groupBy)?.id ?? "label";
+}
 
 const bucketOptions: Array<Option> = [
   { id: "", label: "Whole period" },
@@ -28,9 +41,11 @@ const bucketOptions: Array<Option> = [
 
 const bucketFormat: Record<string, string> = { hour: "YYYY-MM-DD HH:00", day: "YYYY-MM-DD", month: "YYYY-MM" };
 
+const costFormat = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 });
+
 /** The task-view params the page keeps in its URL. */
 export interface TaskView {
-  /** As the API takes it: task, type, workflow, param:<name> or label:<key>. */
+  /** As the API takes it: task, type, workflow or label:<key>. */
   groupBy: string | null;
   bucket: string | null;
   /** The run label whose values each measure a wall clock. */
@@ -74,21 +89,19 @@ function NameInput(props: { id: string; labelText: string; value: string; apply:
  * hour, day or month, with the slowest of them. Read only once a grouping is chosen.
  */
 export default function TaskBreakdown({ workspace, view, tasks, error, update }: TaskBreakdownProps) {
-  const [groupKind, ...rest] = (view.groupBy ?? "").split(":");
-  const groupName = rest.join(":");
-  // A param or a label picked before its name is typed stays local until the name is applied.
+  const groupKind = optionOf(view.groupBy);
+  const labelKey = groupKind === "label" ? (view.groupBy ?? "").replace(/^label:/, "") : "";
+  // A label picked before its key is typed stays local until the key is applied.
   const [kind, setKind] = React.useState(groupKind);
   React.useEffect(() => setKind(groupKind), [groupKind]);
-  const named = kind === "param" || kind === "label";
   const spanKey = view.spanBy?.replace(/^label:/, "") ?? "";
-  const keyHeader =
-    groupKind === "param" || groupKind === "label" ? groupName : groupOptions.find((option) => option.id === groupKind)?.label;
+  const keyHeader = groupKind === "label" ? labelKey : groupOptions.find((option) => option.id === groupKind)?.label;
+  const hasUsage = Boolean(tasks?.rows.some((row) => row.aiTaskRuns));
 
   function chooseGroup({ selectedItem }: { selectedItem: Option | null }) {
-    const id = selectedItem?.id ?? "";
-    setKind(id);
-    if (id && id !== "param" && id !== "label") {
-      update({ taskGroupBy: id });
+    setKind(selectedItem?.id ?? "");
+    if (selectedItem?.groupBy) {
+      update({ taskGroupBy: selectedItem.groupBy });
     }
   }
 
@@ -120,6 +133,12 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
                   <TableHeader>Span p95</TableHeader>
                 </>
               ) : null}
+              {hasUsage ? (
+                <>
+                  <TableHeader className={styles.numeric}>Tokens</TableHeader>
+                  <TableHeader className={styles.numeric}>Cost</TableHeader>
+                </>
+              ) : null}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -142,6 +161,14 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
                     <TableCell className={styles.numeric}>{row.spans ?? 0}</TableCell>
                     <TableCell>{formatDuration(row.p50Span ?? 0)}</TableCell>
                     <TableCell>{formatDuration(row.p95Span ?? 0)}</TableCell>
+                  </>
+                ) : null}
+                {hasUsage ? (
+                  <>
+                    <TableCell className={styles.numeric}>{row.totalTokens?.toLocaleString() ?? ""}</TableCell>
+                    <TableCell className={styles.numeric}>
+                      {row.cost !== undefined ? costFormat.format(row.cost) : ""}
+                    </TableCell>
                   </>
                 ) : null}
               </TableRow>
@@ -181,7 +208,8 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
           Task runs
         </h2>
         <span className={styles.panelHint}>
-          Durations over succeeded task runs · a for-each task counts its items · workflow, label and date filters apply
+          Durations over succeeded task runs · tokens and cost over ai task runs · a for-each task counts its items ·
+          workflow, label and date filters apply
         </span>
       </div>
       <div className={styles.taskControls}>
@@ -194,13 +222,13 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
           selectedItem={groupOptions.find((option) => option.id === kind) ?? null}
           onChange={chooseGroup}
         />
-        {named ? (
+        {kind === "label" ? (
           <NameInput
-            key={kind}
+            key={labelKey}
             id="insights-tasks-group-name"
-            labelText={kind === "param" ? "Param name" : "Label key"}
-            value={kind === groupKind ? groupName : ""}
-            apply={(name) => update({ taskGroupBy: name ? `${kind}:${name}` : undefined })}
+            labelText="Label key"
+            value={labelKey}
+            apply={(key) => update({ taskGroupBy: key ? `label:${key}` : undefined })}
           />
         ) : null}
         <Dropdown
