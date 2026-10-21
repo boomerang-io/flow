@@ -290,6 +290,10 @@ only document where this repo diverges from defaults.)
   `io.boomerang.migration`.
 - Agent sees `NoClassDefFoundError` for a class that exists while every Spring context fails
   to load → another build recompiled `target/` under the run; re-run in a worktree of your own.
+- Agent adds a condition with `criteria.and("x").is(y);` as a statement, or inside
+  `ifPresent` → in Spring Data MongoDB 5 `Criteria.and` adds to a **copy** of the chain, so the
+  condition is silently dropped. Assign it back (`criteria = criteria.and("x").is(y)`) or keep
+  the whole condition one chained expression.
 - Agent asserts a library/framework incompatibility from jar metadata or docs → **check
   the reference repos first** (ARCHIE at `~/Workspaces/tlawrie/asdr`, CHEER at
   `~/Workspaces/cheerdev/cheer.dev`) — a working deployment beats inferred metadata

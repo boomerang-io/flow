@@ -549,8 +549,13 @@ public class TaskRunService {
             .is(id)
             .and("phase")
             .in(RunPhase.pending, RunPhase.queued, RunPhase.running);
-    claimedBy.ifPresent(by -> criteria.and("claim.by").is(by));
-    claimSeq.ifPresent(seq -> criteria.and("claim.seq").is(seq));
+    // Criteria.and adds to a copy of the chain, so each fence is assigned back.
+    if (claimedBy.isPresent()) {
+      criteria = criteria.and("claim.by").is(claimedBy.get());
+    }
+    if (claimSeq.isPresent()) {
+      criteria = criteria.and("claim.seq").is(claimSeq.get());
+    }
     Update update = completion(duration);
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));

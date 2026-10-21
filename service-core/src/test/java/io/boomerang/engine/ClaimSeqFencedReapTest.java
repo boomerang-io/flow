@@ -11,11 +11,13 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunClaim;
 import java.util.Date;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
  * The reaps are fenced on the claim seq they observed: a reap that read the claim before it moved on
- * - re-claimed, or requeued by another reaper - changes nothing, so the newer claim wins.
+ * - re-claimed, or requeued by another reaper - changes nothing, so the newer claim wins. A
+ * completion that names its claimant is fenced the same way, on the claimant and its seq.
  */
 class ClaimSeqFencedReapTest extends AbstractEngineIntegrationTest {
 
@@ -65,6 +67,26 @@ class ClaimSeqFencedReapTest extends AbstractEngineIntegrationTest {
     assertNull(taskRunService.tryAbandon(id, STALE_SEQ, "timed out", "DeadlineExceeded", true));
     assertUntouched(id);
     assertNotNull(taskRunService.tryAbandon(id, CURRENT_SEQ, "timed out", "DeadlineExceeded", true));
+  }
+
+  @Test
+  void aCompletionForAnotherClaimantOrAnOlderClaimChangesNothing() {
+    String id = claimedTask("fence-complete");
+
+    assertNull(complete(id, "another-dispatcher", null));
+    assertNull(complete(id, "fenced-dispatcher", STALE_SEQ));
+    assertUntouched(id);
+    assertNotNull(complete(id, "fenced-dispatcher", CURRENT_SEQ));
+  }
+
+  private TaskRunEntity complete(String id, String claimedBy, Long claimSeq) {
+    return taskRunService.tryComplete(
+        id,
+        Optional.of(RunStatus.succeeded),
+        Optional.empty(),
+        0,
+        Optional.of(claimedBy),
+        Optional.ofNullable(claimSeq));
   }
 
   @Test
