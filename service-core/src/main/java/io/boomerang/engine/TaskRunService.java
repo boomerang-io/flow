@@ -44,6 +44,7 @@ import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.schema.JsonSchemaObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -110,6 +111,10 @@ public class TaskRunService {
 
   // The same page, narrowed to a dispatcher poll's task and workflow filters.
   public List<TaskRunEntity> findClaimable(ClaimFilter filter, int limit) {
+    return mongoTemplate.find(claimableQuery(filter, limit), TaskRunEntity.class);
+  }
+
+  static Query claimableQuery(ClaimFilter filter, int limit) {
     Criteria criteria =
         narrowed(
             Criteria.where("status")
@@ -132,7 +137,7 @@ public class TaskRunService {
     // changes a TaskRun's timeout between its creation and its claim - and tryClaim transitions by
     // id.
     query.fields().include("_id").include("timeout");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+    return query;
   }
 
   // Return the page of TaskRuns whose executor-side work (a Tekton TaskRun and its pod) is still
@@ -155,42 +160,53 @@ public class TaskRunService {
   // The same pages, narrowed to a dispatcher poll's task and workflow filters, so a filtered
   // dispatcher is told to terminate exactly the work it could have claimed.
   public List<TaskRunEntity> findClaimableForTermination(ClaimFilter filter, int limit) {
-    List<TaskRunEntity> candidates =
-        new ArrayList<>(
-            findOwnedResidue(
-                filter,
-                limit,
-                Criteria.where("phase")
-                    .is(RunPhase.completed)
-                    .and("status")
-                    .in(RunStatus.cancelled, RunStatus.timedout)
-                    // Bound the terminal page to recent history: without it every poll walks the
-                    // whole completed cancelled/timedout bucket, which only ever grows, to apply
-                    // the claim.by filter. creationDate is the index's last key behind three
-                    // equalities, so this is a real index bound and not a residual filter. A pod
-                    // older than the window outlived any plausible engine outage and is gone with
-                    // its cluster.
-                    .and("creationDate")
-                    .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))));
-    candidates.addAll(
-        findOwnedResidue(
-            filter,
-            limit,
-            Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
+    List<TaskRunEntity> candidates = new ArrayList<>();
+    for (Query page : terminationQueries(filter, limit)) {
+      candidates.addAll(mongoTemplate.find(page, TaskRunEntity.class));
+    }
     return candidates;
   }
 
+  static List<Query> terminationQueries(ClaimFilter filter, int limit) {
+    return List.of(
+        ownedResidue(
+            filter,
+            limit,
+            Criteria.where("phase")
+                .is(RunPhase.completed)
+                .and("status")
+                .in(RunStatus.cancelled, RunStatus.timedout)
+                // Bound the terminal page to recent history: a task run held since before the
+                // window outlived any plausible engine outage, and its pod is gone with its
+                // cluster. creationDate is claim_page's last key, so the bound is checked on index
+                // keys, not documents.
+                .and("creationDate")
+                .gte(new Date(System.currentTimeMillis() - TERMINATION_LOOKBACK_MILLIS))),
+        ownedResidue(
+            filter,
+            limit,
+            Criteria.where("phase").is(RunPhase.pending).and("status").is(RunStatus.waiting)));
+  }
+
   // One indexed termination page: the given status/phase shape, restricted to the agent's task
-  // types and filters and to runs a dispatcher still owns, oldest first.
-  private List<TaskRunEntity> findOwnedResidue(ClaimFilter filter, int limit, Criteria shape) {
+  // types and filters and to runs a dispatcher still owns, oldest first. "Still owns" is asked as a
+  // string claimant - a released claim is unset, never null - which claim_page bounds, so only held
+  // task runs are read.
+  private static Query ownedResidue(ClaimFilter filter, int limit, Criteria shape) {
     Query query =
         Query.query(
-                narrowed(shape.and("type").in(filter.types()).and("claim.by").exists(true), filter))
+                narrowed(
+                    shape
+                        .and("type")
+                        .in(filter.types())
+                        .and("claim.by")
+                        .type(JsonSchemaObject.Type.STRING),
+                    filter))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
-    // The claim page only needs the id - tryClaimForTermination re-reads and transitions by id.
+    // The page only needs the id - tryClaimForTermination re-reads and transitions by id.
     query.fields().include("_id");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+    return query;
   }
 
   // A poll's task and workflow filters apply after the index has picked the ready (or owned) runs
