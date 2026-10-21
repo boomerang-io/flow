@@ -63,7 +63,7 @@ class AiTaskTypeTest extends AbstractEngineIntegrationTest {
 
     // A workflow-level password param, referenced by the node: the shape the engine substitutes
     // and the shape the sensitive-value filter recognises (the revision's param spec is the type
-    // authority - decision 0043). It carries a different name from the node param that references
+    // authority). It carries a different name from the node param that references
     // it, because the task's own params are the innermost layer - $(params.token) inside a param
     // named token would resolve against itself.
     Workflow workflow = new Workflow();

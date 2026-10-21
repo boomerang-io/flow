@@ -10,7 +10,7 @@ import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatus, S
  * counts, the actions waiting on a person, the latest runs, and the next scheduled run. None of
  * that exists as one endpoint, and the profile's per-workspace `insights` (workflow and member
  * counts) are computed inside the bootstrap that every route pays for - so the rollup is NOT added
- * there (see specifications/decisions/0088-home-rollup-fans-out-per-workspace.md). Instead this
+ * there. Instead this
  * loader fans out to the four existing per-workspace reads, all in one wave, and merges.
  *
  * Two waves, not one: the workspace list has to come first (a route loader cannot read the root

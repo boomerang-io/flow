@@ -21,7 +21,7 @@ export type WorkflowTaskSpec = {
   // Absent or true mounts the run's workspace; false opts this task out.
   workspace?: boolean;
   dependencies?: TaskDependency[];
-  // Run the task once per item: a JSON array literal or one reference (decision 0082).
+  // Run the task once per item: a JSON array literal or one reference.
   foreach?: { items: unknown };
 };
 export type WorkflowSpec = {

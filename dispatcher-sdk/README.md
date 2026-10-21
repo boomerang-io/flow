@@ -70,7 +70,7 @@ the engine takes it; the task stays in flight, its lease renewed, until then.
 The contract is the boundary, not the process. A dispatcher is its own deployable only when a boundary
 separates it from the engine: credentials the engine must not hold, a different network zone, isolation of
 untrusted content, or placement on infrastructure the engine cannot reach. Otherwise it is embedded
-(`specifications/dispatcher-contract.md`, "Topologies"; decision 0105).
+(`specifications/dispatcher-contract.md`, "Topologies").
 
 ### A worker on infrastructure of its own
 

@@ -150,7 +150,7 @@ test.describe("dispatcher on kubernetes", () => {
   });
 
   test("a task with an empty parameter value runs and sees it as empty", async ({ request }) => {
-    // Emptiness is a valid, meaningful value (decision 0068): the save keeps it, and the
+    // Emptiness is a valid, meaningful value: the save keeps it, and the
     // container receives the declared parameter (PARAM_PATH) set to the empty string.
     const { run: r } = await run(request, {
       tasks: [

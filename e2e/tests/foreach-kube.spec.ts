@@ -16,7 +16,7 @@ import {
 } from "../support/dispatcher";
 
 /*
- * For-each tasks (a `foreach` setting on a workflow task, decision 0082) end to end: the engine
+ * For-each tasks (a `foreach` setting on a workflow task) end to end: the engine
  * fans one task out into one ordinary claimable task run per item, a REAL dispatcher runs each
  * item as its own Kubernetes Job, and the parent collects each declared result into an array in
  * item order. Gated exactly like dispatcher-kube.spec.ts: E2E_DISPATCHER=true against the stack's

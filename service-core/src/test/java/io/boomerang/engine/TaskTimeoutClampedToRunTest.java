@@ -22,7 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * {@code default.timeout}, the task's own declared timeout, and the run's timeout. 0 anywhere means
  * "unguarded" and imposes no ceiling.
  *
- * <p>The run is the third ceiling because of decision 0063: a guard must cover the work beneath
+ * <p>The run is the third ceiling because a guard must cover the work beneath
  * it, so a task must never outlive the run containing it - otherwise the watcher's run reap kills
  * a task that still believes it has budget left.
  *
@@ -63,7 +63,7 @@ class TaskTimeoutClampedToRunTest extends AbstractEngineIntegrationTest {
   }
 
   /**
-   * The case decision 0063 forbids: a task declaring 45 inside a 30-minute run. The run is the
+   * The case the run ceiling forbids: a task declaring 45 inside a 30-minute run. The run is the
    * ceiling, so the task gets 30 and the run reap can never fire under a task that still has
    * budget.
    */

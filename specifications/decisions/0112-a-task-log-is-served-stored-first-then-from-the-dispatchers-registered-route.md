@@ -1,40 +1,40 @@
-# 0112 — A task log is served from its stored copy first, then from the route its dispatcher registered
+# 0112 — A task log is served from its stored copy or from the route its dispatcher registered
 
 **Status:** accepted · **Date:** 2026-10-15
 
 ## Context
 
-The engine read every task log from one configured dispatcher URL, with no authentication, from a pod deleted
-after seven days. With several dispatcher shapes (decision 0105), some with no HTTP surface and some gone before
-anyone reads, that path serves one of them. IBM reads logs from Loki behind the dispatcher's log route and must keep doing so.
+Dispatchers come in several shapes (decision 0102): some have no HTTP surface, some are gone before anyone reads a
+log, and a pod log disappears with the pod. One operator reads logs from Loki behind the dispatcher's log route, which
+knows the pod labels and filters, and must keep doing so.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. Route by the claim: core looks up the claim's dispatcher and calls its host | Several Kubernetes dispatchers | Still unauthenticated; nothing for an in-process or short-lived dispatcher; the log dies with the pod |
-| B. Dispatchers push logs to core; core reads a log backend itself for the rest | Every shape, once core knows each backend | Core would need the pod labels and Loki filters only the dispatcher has |
-| C. Two optional contract pieces: a dispatcher registers where its live logs are read and the bearer to present, and may upload the finished log, which core stores and serves first | Every shape; Loki stays behind the dispatcher that knows the labels | Stored logs need the artifact store; a live read still crosses two services |
+| A. Core calls the host of the dispatcher holding the claim | Several Kubernetes dispatchers | Unauthenticated; nothing for an in-process or short-lived dispatcher; the log dies with the pod |
+| B. Dispatchers push every log; core reads a log backend itself for the rest | Core knows each backend | Core would need the pod labels and Loki filters only the dispatcher has |
+| C. Two optional contract pieces: a registered live-log route and bearer, and an upload of the finished log that core stores | Every shape; Loki stays behind the dispatcher | Stored logs need the artifact store; a live read still crosses two services |
 
 ## Decision
 
-C. At registration a dispatcher sends `logsUrl` and `logsToken`; before its end it may `PUT
-/dispatcher/v1/taskrun/{id}/log`, fenced on the claim and capped by `flow.engine.task.log.max-bytes`
-(`dispatcher/DispatcherControllerV1.java`, `engine/TaskRunService.java` `storeLog`). Core stores the log as a
-log-scoped artifact of the run (`workflow/ArtifactService.java` `storeTaskLog`) and serves a task's log from
-the first of: the stored copy, the registered route with the registered bearer, a message
-(`engine/TaskRunService.java` `streamLog`, `engine/LogClient.java` `resolve`); the configured dispatcher URL
-core used to hold is gone, so nothing on core names a dispatcher. Core stays the only
-reader the webapp talks to, so authorization and secret scrubbing stay in one place. Flow's Kubernetes
-dispatcher generates the bearer at every start, accepts nothing else on its log route
-(`service-dispatcher/.../dispatcher/LogAuthFilter.java`), and uploads each finished pod log
-(`dispatcher/TaskService.java`).
+C. A dispatcher registers `logsUrl` and `logsToken` (`dispatcher/DispatcherService.java:152-153`) and may
+`PUT /dispatcher/v1/taskrun/{id}/log`, fenced on the claim and capped by `flow.engine.task.log.max-bytes`, 10 MiB
+(`dispatcher/DispatcherControllerV1.java:223-258`, `engine/TaskRunService.java:1246-1262`). Core stores it as a
+`log`-scoped artifact of the run (`workflow/ArtifactService.java:395-421`). A finished task's log comes from the stored
+copy, else the registered route with its bearer, else a message; a running task's comes from the route, else a copy
+stored during this attempt (`engine/TaskRunService.java:1200-1222`, `engine/LogClient.java:63-79`). Core stays the
+only reader the webapp talks to, so authorization and secret scrubbing stay in one place. Flow's Kubernetes dispatcher
+generates its bearer at every start (`service-dispatcher/.../config/DispatcherConfig.java:57`), accepts nothing else
+on its log route (`service-dispatcher/.../dispatcher/LogAuthFilter.java:17-24`), and uploads each finished pod log
+(`service-dispatcher/.../dispatcher/TaskService.java:176-186`).
 
 ## Consequences
 
-- A finished log outlives the pod and needs no dispatcher up, where core has an artifact store; without one
-  the live path serves as before, and a dispatcher that is told so stops uploading.
-- A core older than this change cannot read a newer dispatcher's logs during a version skew: the route now
-  refuses an unauthenticated read. One tag ships both images.
-- `log` is a third artifact scope: unlisted, uncounted toward storage, unreadable through the artifact
-  routes, with its own switch and retention in the Artifacts settings and the artifacts' expiry sweep.
+- A finished log outlives the pod and needs no dispatcher up, where core has an artifact store; without one, the
+  software development kit stops uploading for the dispatcher's life
+  (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/LogUploader.java:49-55`).
+- A core that sends no bearer cannot read a dispatcher's live logs, as the route refuses an unauthenticated read; one
+  product tag ships both images.
+- A stored log is unlisted, uncounted toward storage and unreadable through the artifact routes, with its own switch
+  and retention in the Artifacts settings (`logs.enabled`, `logs.retention.days`).

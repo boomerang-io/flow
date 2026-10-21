@@ -4,37 +4,36 @@
 
 ## Context
 
-Calling a language model is now an ordinary step in an automation, but Flow had no way to express one: an author
-had to build and publish a container that held an API token, parsed a prompt and wrote results. The call is the
-same everywhere (endpoint, model, prompt, token), so the work is declaring it, not packaging it: where does it run?
+Calling a language model is an ordinary step in an automation, and the call is the same everywhere: endpoint, model,
+prompt, token. Without a declared type an author builds and publishes a container that holds a token, parses a prompt
+and writes results. The question is where the call runs.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| A. The dispatcher makes the HTTP call itself (n8n, Langflow, Dify) | One node type, no extra image, results immediately | Untrusted prompt content and a customer API token share the dispatcher process; an AI call blocks a dispatcher thread for minutes; egress from the dispatcher pod |
-| B. The author builds a container (Argo Workflows, Tekton) | The team already ships images | Every author reimplements the same call; the token handling is theirs to get wrong; nothing to render in the canvas |
-| C. A declared type whose image the platform resolves (Kubeflow) | The call is uniform and the platform owns the runtime | One more image to build and version; the type must join the dispatched set everywhere it is enumerated |
+| A. The dispatcher makes the HTTP call itself (n8n, Langflow, Dify) | One node type, no extra image | Untrusted prompt content and a customer token share the dispatcher process; a call blocks a dispatcher thread for minutes |
+| B. The author builds a container (Argo Workflows, Tekton) | The team already ships images | Every author reimplements the call and its token handling; nothing for the canvas to render |
+| C. A declared type whose image the platform publishes (Kubeflow) | The call is uniform and the platform owns the runtime | One more image to build and version; the type joins the dispatched set everywhere it is listed |
 
 ## Decision
 
-C. `ai` joins `template`, `custom`, `script` and `generic` as a dispatched type
-(`engine/TaskExecutionService.java:252,387`); the dispatcher runs the image and command the `ai` revision declares,
-like any other type, and each seeded revision (`ai-prompt`, `ai-agent`) pins its exact `boomerangio/task-ai` tag, released
-from `boomerang-io/tasks`, not a product image (decision 0006 stands;
-`service-dispatcher/.../executor/TaskImageResolver.java:125-143`). Two things
-decided it: untrusted prompt content must not be parsed in the same process that holds the dispatcher's engine
-credential, and a dispatcher registered with `taskTypes=[ai]` is by itself the egress zone — one deployment, one
-network policy, no new concept (decision 0042). The zone holds because a declared image must be under an allowed
-prefix (`flow.dispatcher.ai.image-prefixes`, default the Boomerang worker); any other is refused at dispatch.
+C. `ai` is dispatched like `template`, `custom`, `script` and `generic` (`engine/TaskExecutionService.java:252-258`); the
+dispatcher runs the image and command the revision declares and never a script
+(`service-dispatcher/.../executor/TaskImageResolver.java:124-151`). The seeded `ai-prompt` and `ai-agent` revisions pin
+exact `boomerangio/task-ai` tags, released from `boomerang-io/tasks` rather than with the product
+(`service-core/src/main/resources/seed/task-revisions.json`). Two things decided it: untrusted prompt content must not
+be parsed in the process that holds the dispatcher's engine credential, and a dispatcher registered for `ai` alone is
+by itself the egress zone (decision 0042). The zone holds because a declared image must start with
+`flow.dispatcher.ai.image-prefixes`, default `boomerangio/task-ai`, or the task is refused before anything is created
+(`TaskImageResolver.java:71-77`, `service-dispatcher/.../dispatcher/TaskService.java:127-132`).
 
 ## Consequences
 
-- An author declares eleven params and gets a model call; the canvas renders them from the seeded revision.
-- `token` is password-typed, so it is blanked and scrubbed upward when declared as a workflow param and
-  referenced from the node — a literal typed into the node is not, because the filter's type authority is the
-  workflow revision's param spec (decision 0043, true of all 84 catalogue password params). Downward it reaches
-  the pod as a plain `PARAM_TOKEN` variable; per-task secrets would close both, revisit when a customer needs it.
-- `output` is an ordinary result under the results caps (decision 0041; 4 KB on Kubernetes), so a long response
-  fails the task with `RESULTS_TOO_LARGE`. A long response belongs in an artifact (decision 0085), not in a raised cap.
-- Token usage is six flat results, not an entity field: a platform meters by summing `totalTokens` over task runs.
+- An author fills the revision's params (20 on `ai-prompt`, 29 on `ai-agent`) and the canvas renders them. The
+  dispatcher may supply the endpoint and token itself (`OPENAI_BASE_URL`, `OPENAI_API_KEY`; `TaskImageResolver.java:87-110`).
+- `token` is password-typed, so a value on the node or a workflow param is stamped secret, encrypted at rest and masked
+  on reads (decision 0043, `workflow/WorkflowService.java:1596-1602`); it reaches the pod as a plain `PARAM_TOKEN`.
+- `output` is an ordinary result under the results caps (4 KB on Kubernetes), so a long response fails with
+  `RESULTS_TOO_LARGE`; it belongs in an artifact (decision 0067). Usage is flat results (`promptTokens` to `cost`)
+  that a platform meters by summing over task runs.

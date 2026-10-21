@@ -6,7 +6,7 @@ import java.time.Duration;
 
 /**
  * Container health probe for the Java images, which run on a chiseled JRE with no shell, curl or
- * wget (decision 0108): exits 0 when the URL answers with a 2xx, 1 otherwise. Compiled in each
+ * wget: exits 0 when the URL answers with a 2xx, 1 otherwise. Compiled in each
  * image's build stage and copied beside the jar; docker-compose.yml's healthchecks run it as
  * {@code java -cp /opt/boomerang Health http://localhost:7700/health}. Kubernetes probes are HTTP
  * from the kubelet and need nothing in the container.
