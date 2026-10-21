@@ -145,12 +145,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
               "find task_runs",
               "find task_runs"),
           "start",
-          List.of(
-              "find task_runs",
-              "update task_runs",
-              "find task_runs",
-              "find workflow_runs",
-              "find task_runs"),
+          List.of("find task_runs", "find task_runs", "find workflow_runs", "find task_runs"),
           "heartbeat",
           List.of(
               "aggregate dispatchers",
