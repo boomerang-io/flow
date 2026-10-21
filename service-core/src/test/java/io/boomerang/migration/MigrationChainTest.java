@@ -610,11 +610,19 @@ class MigrationChainTest {
                     .append("example#com/note", "kept")));
     taskRuns.insertOne(
         new Document("_id", "early-failed")
+            .append("workflowRunRef", "run-1")
+            .append("name", "early-failed")
             .append("preApproved", true)
             .append("annotations", new Document("boomerang#io/status", "failed")));
-    taskRuns.insertOne(new Document("_id", "early-default").append("preApproved", true));
+    taskRuns.insertOne(
+        new Document("_id", "early-default")
+            .append("workflowRunRef", "run-1")
+            .append("name", "early-default")
+            .append("preApproved", true));
     taskRuns.insertOne(
         new Document("_id", "plain")
+            .append("workflowRunRef", "run-1")
+            .append("name", "plain")
             .append("preApproved", false)
             .append(
                 "annotations",
