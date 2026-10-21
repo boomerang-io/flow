@@ -128,8 +128,10 @@ public class TaskRunService {
         Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit);
-    // The claim page only needs the id - tryClaim re-reads and transitions by id.
-    query.fields().include("_id");
+    // The claim page carries the id and the timeout the claim stamps its deadline from - nothing
+    // changes a TaskRun's timeout between its creation and its claim - and tryClaim transitions by
+    // id.
+    query.fields().include("_id").include("timeout");
     return mongoTemplate.find(query, TaskRunEntity.class);
   }
 
@@ -286,11 +288,15 @@ public class TaskRunService {
   // dispatcher id - is reaped once the lease lapses.
   // Returns the pre-image, or null when another claimant won.
   public TaskRunEntity tryClaim(String id, String claimedBy) {
+    Query timeoutOnly = Query.query(Criteria.where("_id").is(id));
+    timeoutOnly.fields().include("timeout");
+    TaskRunEntity current = mongoTemplate.findOne(timeoutOnly, TaskRunEntity.class);
+    return (current != null) ? tryClaim(id, current.getTimeout(), claimedBy) : null;
+  }
+
+  // The claim, given the timeout the claim page read with the id.
+  public TaskRunEntity tryClaim(String id, Long timeout, String claimedBy) {
     Date now = new Date();
-    TaskRunEntity current = taskRunRepository.findById(id).orElse(null);
-    if (current == null) {
-      return null;
-    }
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -304,7 +310,7 @@ public class TaskRunService {
                 .orOperator(
                     Criteria.where("retry.after").exists(false),
                     Criteria.where("retry.after").lte(now)));
-    Date timeoutAt = RunTimeouts.deadline(now, current.getTimeout());
+    Date timeoutAt = RunTimeouts.deadline(now, timeout);
     Date leaseExpiresAt = new Date(now.getTime() + leaseMillis);
     Update update =
         new Update()

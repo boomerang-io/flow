@@ -177,6 +177,29 @@ public class DispatcherService {
     }
   }
 
+  // Marks the dispatcher connected now and reads its task types, in one round trip; null when it is
+  // not registered.
+  private DispatcherEntity connect(String dispatcherId) {
+    Query query = Query.query(Criteria.where("_id").is(dispatcherId));
+    query.fields().include("taskTypes");
+    return mongoTemplate.findAndModify(
+        query,
+        new Update().set("lastConnectedDate", new Date()),
+        FindAndModifyOptions.options().returnNew(true),
+        DispatcherEntity.class);
+  }
+
+  // Marks the dispatcher connected now, in one round trip; false when it is not registered.
+  private boolean markConnected(String dispatcherId) {
+    return mongoTemplate
+            .updateFirst(
+                Query.query(Criteria.where("_id").is(dispatcherId)),
+                new Update().set("lastConnectedDate", new Date()),
+                DispatcherEntity.class)
+            .getMatchedCount()
+        > 0;
+  }
+
   /**
    * Renews the lease for the TaskRun ids this dispatcher's executor threads are still working on,
    * and refreshes its liveness timestamp. The claim sets the first lease ({@link
@@ -188,11 +211,10 @@ public class DispatcherService {
    * @return the number of leases actually renewed
    */
   public long heartbeat(String dispatcherId, List<String> ids) {
-    if (!dispatcherRepository.existsById(dispatcherId)) {
+    if (!markConnected(dispatcherId)) {
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
       throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
-    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
     if (ids == null || ids.isEmpty()) {
       return 0;
     }
@@ -219,11 +241,10 @@ public class DispatcherService {
       return ResponseEntity.noContent().build();
     }
     // Validate the Dispatcher
-    if (!dispatcherRepository.existsById(dispatcherId)) {
+    if (!markConnected(dispatcherId)) {
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
       throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
-    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
     // TODO add in future filtering of workflows based on labels or a setting
 
     // Long poll logic
@@ -321,14 +342,8 @@ public class DispatcherService {
       return ResponseEntity.noContent().build();
     }
     // Validate the Dispatcher
-    if (!dispatcherRepository.existsById(dispatcherId)) {
-      LOGGER.error("Dispatcher {} not registered", dispatcherId);
-      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
-    }
-    dispatcherRepository.updateLastConnected(dispatcherId, new Date());
-    DispatcherEntity entity = dispatcherRepository.findTaskTypesByDispatcherId(dispatcherId);
+    DispatcherEntity entity = connect(dispatcherId);
     if (entity == null) {
-      // Deregistered since the check above.
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
       throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
     }
@@ -363,7 +378,8 @@ public class DispatcherService {
             (executionPage > 0)
                 ? taskRunService.findClaimable(filter, executionPage)
                 : List.<TaskRunEntity>of()) {
-          TaskRunEntity claimed = taskRunService.tryClaim(candidate.getId(), dispatcherId);
+          TaskRunEntity claimed =
+              taskRunService.tryClaim(candidate.getId(), candidate.getTimeout(), dispatcherId);
           if (claimed != null) {
             TaskRun taskRun = prepare(claimed);
             if (taskRun != null) {

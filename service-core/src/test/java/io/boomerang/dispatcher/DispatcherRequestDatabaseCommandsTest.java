@@ -135,10 +135,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
       Map.of(
           "poll that claims one task",
           List.of(
-              "aggregate dispatchers",
-              "update dispatchers",
-              "find dispatchers",
-              "find task_runs",
+              "findAndModify dispatchers",
               "find task_runs",
               "findAndModify task_runs",
               "find workflow_runs",
@@ -147,10 +144,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
           "start",
           List.of("find task_runs", "find task_runs", "find workflow_runs", "find task_runs"),
           "heartbeat",
-          List.of(
-              "aggregate dispatchers",
-              "update dispatchers",
-              "update task_runs"),
+          List.of("update dispatchers", "update task_runs"),
           "end",
           List.of(
               "find task_runs",

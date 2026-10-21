@@ -1,5 +1,6 @@
 package io.boomerang.dispatcher;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -25,6 +26,9 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,13 +44,14 @@ class DispatcherQueueErrorPathTest {
 
   private final DispatcherRepository dispatcherRepository = mock(DispatcherRepository.class);
   private final TaskRunService taskRunService = mock(TaskRunService.class);
+  private final MongoTemplate mongoTemplate = mock(MongoTemplate.class);
 
   private final DispatcherService dispatcherService =
       new DispatcherService(
           dispatcherRepository,
           mock(WorkflowRunStateHelper.class),
           taskRunService,
-          mock(MongoTemplate.class),
+          mongoTemplate,
           mock(ArtifactService.class),
           new ClaimFilterService(mock(MongoTemplate.class)),
           mock(io.boomerang.engine.ParameterManager.class),
@@ -59,8 +64,12 @@ class DispatcherQueueErrorPathTest {
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.template));
-    when(dispatcherRepository.existsById(AGENT)).thenReturn(true);
-    when(dispatcherRepository.findTaskTypesByDispatcherId(AGENT)).thenReturn(dispatcher);
+    when(mongoTemplate.findAndModify(
+            any(Query.class),
+            any(Update.class),
+            any(FindAndModifyOptions.class),
+            eq(DispatcherEntity.class)))
+        .thenReturn(dispatcher);
   }
 
   private static TaskRunEntity taskRun(String id) {
@@ -74,8 +83,8 @@ class DispatcherQueueErrorPathTest {
   void runsClaimedBeforeAnErrorAreStillHandedOut() {
     when(taskRunService.findClaimable(any(ClaimFilter.class), anyInt()))
         .thenReturn(List.of(taskRun("claimed"), taskRun("failing")));
-    when(taskRunService.tryClaim("claimed", AGENT)).thenReturn(taskRun("claimed"));
-    when(taskRunService.tryClaim("failing", AGENT))
+    when(taskRunService.tryClaim(eq("claimed"), any(), eq(AGENT))).thenReturn(taskRun("claimed"));
+    when(taskRunService.tryClaim(eq("failing"), any(), eq(AGENT)))
         .thenThrow(new IllegalStateException("claim write failed"));
 
     ResponseEntity<List<TaskRun>> response = dispatcherService.getTaskQueue(AGENT, null, null, null, null);
