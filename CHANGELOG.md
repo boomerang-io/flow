@@ -275,3 +275,10 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
+  `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
+  Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
+  the unused `/api/v2/extensions/slack/install` permit entry is gone.
