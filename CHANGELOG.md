@@ -171,25 +171,6 @@ tag's release notes.
 - `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
   constants are the same values.
 
-### Fixed
-
-- A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
-  ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher
-  starts it.
-- A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
-- A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
-  up to the platform default, matching what the workspace may run.
-- An approval or manual task that a run cancel or a task timeout completed while its action was being created
-  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
-- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
-  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
-  workspace and left its own scheduler token in place.
-- A task attempt retried after an earlier attempt was cancelled or failed with its TaskRun or Job left in place
-  (deletion policy `Never`, or `OnSuccess` after a failure) no longer ends at once with the earlier attempt's
-  result, and no longer reports the earlier attempt's pod as its own start failure, failure detail or log: each
-  executor watches the object its attempt created or adopted, reads only that object's pod (the stored and live
-  logs included), adopts only an object still running, and on Tekton a cancel reaches every attempt still running.
-
 ### Changed
 
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
@@ -207,7 +188,6 @@ tag's release notes.
   running whenever the engine watcher was on.
 - A global token, the bootstrap token included, reads a workspace's Insights, as it reads its runs and task runs.
   The three Insights routes refused it with `401 AUTH_REQUIRED`.
-
 - A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
   the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
   parent waiting on it, and such a run is audited and counted against quota.
@@ -296,12 +276,28 @@ tag's release notes.
   rest of the poll is still handed out.
 - The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
-- A dispatcher's start or end for an attempt the engine has already requeued is refused with
-  `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
-  the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
 
 ### Fixed
 
+- A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
+  ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher
+  starts it.
+- A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
+- A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
+  up to the platform default, matching what the workspace may run.
+- An approval or manual task that a run cancel or a task timeout completed while its action was being created
+  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
+- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
+  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
+  workspace and left its own scheduler token in place.
+- A task attempt retried after an earlier attempt was cancelled or failed with its TaskRun or Job left in place
+  (deletion policy `Never`, or `OnSuccess` after a failure) no longer ends at once with the earlier attempt's
+  result, and no longer reports the earlier attempt's pod as its own start failure, failure detail or log: each
+  executor watches the object its attempt created or adopted, reads only that object's pod (the stored and live
+  logs included), adopts only an object still running, and on Tekton a cancel reaches every attempt still running.
+- A dispatcher's start or end for an attempt the engine has already requeued is refused with
+  `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
+  the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
 - Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
   `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
   Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
