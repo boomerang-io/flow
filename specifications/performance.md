@@ -60,15 +60,18 @@ queues behind older work and ahead of newer work like any other burst. Each item
 (`engine/TaskRunService.java:489-504`).
 
 Dispatchers long-poll for 30 s, re-querying every `flow.dispatcher.poll.recheck-ms` (1000 by default, never under
-100) with a page of 20 (`dispatcher/DispatcherService.java:55-72`, `:486-488`), and reconnect as soon as a poll returns
+100) with a page of 20 (`dispatcher/DispatcherService.java:55-73`, `:444-446`), and reconnect as soon as a poll returns
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.java:104-123`). Each connected dispatcher
 therefore costs about 4 indexed queries per re-check when idle (the task claim page, the two termination pages and
 the run provision page), all on `claim_page`, and one request every 30 s per queue; a dispatcher's idle queries per
 second scale with its pools × 1000 / the interval. Admitting a task, or submitting a run with a workspace to start,
-wakes every poll held on that engine instance, which re-runs its filter query at once
+wakes every poll held on that engine instance, which re-runs its claim page at once
 (`dispatcher/PollWakeups.java:24-55`, `engine/TaskExecutionService.java:254`, `workflow/WorkflowRunService.java:815`,
-`dispatcher/DispatcherService.java:494-497`): a few indexed queries per admission, none while nothing is admitted,
-and a hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
+`dispatcher/DispatcherService.java:509-517`): one indexed query per held poll per admission, none while nothing is
+admitted. The two termination pages run on a task poll's first look and then once per re-check interval, never on
+a wake (`:384-425`): a held task poll's three looks - entry, a wake, the timed re-check - cost 3, 1 and 3 claim-page
+finds (`DispatcherRequestDatabaseCommandsTest`), 7 where every look cost 3, and a termination still reaches the
+dispatcher within one interval. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
 the interval. Measured by an embedder on one engine and one in-process dispatcher, the same 41-hop scenario before
 and after: the hop from a task's end to the next task's start fell from 0.88 s median and 1.03 s p90 to 0.05–0.11 s
 median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval bounds the wait for a task that becomes claimable without an admission

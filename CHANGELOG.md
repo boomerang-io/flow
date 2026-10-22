@@ -310,6 +310,10 @@ tag's release notes.
   database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
   chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
   once, without a second asynchronous hop.
+- A held task poll woken by an admission runs its claimable page alone; the two termination pages run on the
+  poll's first look and then once per re-check interval, as they did on every look before. An admission costs one
+  indexed query per held task poll instead of three, and a termination order still reaches the dispatcher within
+  one interval.
 
 ### Fixed
 
@@ -366,3 +370,7 @@ tag's release notes.
 - A dispatcher SDK task terminated while the engine was answering its start no longer runs: the runner registers the
   task's context before the start call, so a terminate order arriving in that window is seen and the handler is
   never called. Before, the task ran to completion and its end was refused.
+- A task's log is no longer lost when its periodic upload and its final upload overlap. The dispatcher SDK no longer
+  interrupts a periodic upload in flight when the handler returns; it finishes first and the final log is the last
+  one stored. The engine's log store replaces the record an overlapping upload stored instead of answering 500 on
+  the run-and-name unique index.

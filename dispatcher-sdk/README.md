@@ -156,7 +156,8 @@ Three optional pieces, independent of each other:
   logs the task's log: while the handler runs, its thread carries the task-run id in the SLF4J MDC as
   `taskRunId`; your log framework feeds the capture with each event's tag; the SDK uploads the capture when
   the handler returns (replacing anything the handler uploaded itself) and every 30 s while it runs
-  (`.logUploadInterval(Duration.ZERO)` for only at the end). Each task keeps its first 64 KB and last 64 KB
+  (`.logUploadInterval(Duration.ZERO)` for only at the end); a periodic upload still in flight when the
+  handler returns finishes before the final one. Each task keeps its first 64 KB and last 64 KB
   (`new TaskLogCapture(headBytes, tailBytes)` to change them) with one line between saying how many bytes
   were dropped. Needs `org.slf4j:slf4j-api` on your class path. Feeding it:
   - logback: `TaskLogAppender.attach(taskLogs)` (package `io.boomerang.dispatcher.sdk.logback`, needs

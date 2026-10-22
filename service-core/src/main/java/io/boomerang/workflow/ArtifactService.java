@@ -402,10 +402,32 @@ public class ArtifactService {
     String name = logName(taskRun.getId());
     Date now = new Date();
     int retentionDays = logRetentionDays();
-    ArtifactEntity artifact =
-        artifactRepository
-            .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)
-            .orElseGet(ArtifactEntity::new);
+    // Two uploads of the same log can overlap (a periodic one and the final one); each replaces
+    // the stored copy whole, so the one that loses the insert takes over the other's record.
+    for (int attempt = 0; ; attempt++) {
+      ArtifactEntity artifact =
+          artifactRepository
+              .findByWorkflowRunRefAndName(taskRun.getWorkflowRunRef(), name)
+              .orElseGet(ArtifactEntity::new);
+      try {
+        storeTaskLog(store, artifact, taskRun, name, content, now, retentionDays);
+        return;
+      } catch (DuplicateKeyException e) {
+        if (attempt == 1) {
+          throw e;
+        }
+      }
+    }
+  }
+
+  private void storeTaskLog(
+      ArtifactStore store,
+      ArtifactEntity artifact,
+      TaskRunEntity taskRun,
+      String name,
+      byte[] content,
+      Date now,
+      int retentionDays) {
     artifact.setName(name);
     artifact.setWorkflowRef(taskRun.getWorkflowRef());
     artifact.setWorkflowRunRef(taskRun.getWorkflowRunRef());
