@@ -279,7 +279,7 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 | --- | --- |
 | `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:490-497`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:1737-1740`). Not found: created (`:528-531`). Labels and annotations are merged (`:1695-1708`) |
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1742-1744`) and replaces labels and annotations. Runs already made from that version then show the new definition |
-| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`:691-708,1935-1947`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:134-157`). The monthly run quota still counts the old runs; Insights does not |
+| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`:691-708,1935-1947`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:137-160`). The monthly run quota still counts the old runs; Insights does not |
 
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the
 call when nothing changed, for example by storing a hash of the definition in its own annotation. A top-level field

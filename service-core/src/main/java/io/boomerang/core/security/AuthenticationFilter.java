@@ -348,6 +348,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         || path.startsWith("/health")
         || path.startsWith("/api/docs")
         || path.equals(SecurityConfiguration.GITHUB_CALLBACK)
-        || path.equals(SecurityConfiguration.AUTH_CONFIG);
+        || path.equals(SecurityConfiguration.AUTH_CONFIG)
+        || SecurityConfiguration.SLACK_ROUTES.contains(path);
   }
 }
