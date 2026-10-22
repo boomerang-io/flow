@@ -40,7 +40,8 @@ import org.springframework.web.client.RestClientException;
  *       is never mistaken for a lost task and run again.
  *   <li>An order to terminate ({@code completed}, {@code cancelled} or {@code timedout}) signals
  *       the running task's context and calls the handler's cancel. No end is reported for it, nor
- *       for a task whose context was signalled.
+ *       for a task whose context was signalled. The context is registered before the start call,
+ *       so an order arriving while the engine answers the start stops the task before it runs.
  *   <li>A task interrupted because the dispatcher stopped past its drain timeout reports nothing
  *       either: its lease lapses and the engine hands it out again.
  *   <li>A claim is taken into flight and handed off as one step against {@link #stop}: once the
@@ -177,14 +178,20 @@ final class TaskRunner {
   void run(TaskRun task) {
     String id = task.getId();
     try {
-      if (!start(task)) {
-        return;
-      }
+      // Registered before the start call so a terminate order arriving while the engine answers
+      // finds the context and the task never runs; the start may refuse it, so removed on that.
       TaskContext context =
           new TaskContext(task, dispatcherId.get(), artifacts.apply(task), logs);
       running.put(id, context);
       TaskRunEndRequest end;
       try {
+        if (!start(task)) {
+          return;
+        }
+        if (context.isCancelled()) {
+          LOGGER.info("TaskRun (" + id + ") was terminated as it started. Not running it.");
+          return;
+        }
         LOGGER.info("TaskRun (" + id + ") running.");
         end = handle(task, context);
       } finally {

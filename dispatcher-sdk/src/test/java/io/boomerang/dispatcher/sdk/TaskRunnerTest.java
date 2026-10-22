@@ -537,6 +537,40 @@ class TaskRunnerTest {
   }
 
   @Test
+  void aTerminateOrderArrivingDuringTheStartCallStopsTheTaskBeforeItRuns() throws Exception {
+    // The engine answers the start only after the terminate order has been delivered.
+    CountDownLatch starting = new CountDownLatch(1);
+    CountDownLatch terminated = new CountDownLatch(1);
+    engine.startAnswers.add(
+        () -> {
+          starting.countDown();
+          try {
+            terminated.await(10, TimeUnit.SECONDS);
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+          return answer(RunPhase.running, RunStatus.running);
+        });
+    AtomicBoolean ran = new AtomicBoolean();
+    TaskRunner runner =
+        runner(
+            (task, context) -> {
+              ran.set(true);
+              return TaskResult.empty();
+            },
+            virtualThreads);
+
+    runner.accept(runOrder());
+    assertThat(starting.await(10, TimeUnit.SECONDS)).isTrue();
+    runner.accept(taskRun(TaskType.template, RunPhase.completed, RunStatus.cancelled));
+    terminated.countDown();
+
+    awaitEmpty();
+    assertThat(ran).isFalse();
+    assertThat(engine.endsOf("task-1")).isEmpty();
+  }
+
+  @Test
   void aTerminateOrderForWorkNotRunningHereStillReachesTheHandler() {
     AtomicReference<TaskRun> cancelled = new AtomicReference<>();
     TaskRunner runner =
