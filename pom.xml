@@ -10,6 +10,7 @@
         <module>service-core</module>
         <module>dispatcher-sdk</module>
         <module>service-dispatcher</module>
+        <module>flow-sdk</module>
     </modules>
 
     <parent>

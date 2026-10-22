@@ -1,0 +1,45 @@
+name: CI SDK
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the workflow on push (branch and tag) or pull request events
+  # flow-sdk depends on no other module; its contract test reads contracts/api-v2.yaml.
+  push:
+    branches:
+      - main
+    paths:
+      - 'flow-sdk/**'
+      - 'contracts/api-v2.yaml'
+      - 'pom.xml'
+      - '.github/workflows/ci-sdk.yml'
+  pull_request:
+    paths:
+      - 'flow-sdk/**'
+      - 'contracts/api-v2.yaml'
+      - 'pom.xml'
+      - '.github/workflows/ci-sdk.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Java and Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Maven Test
+        run: |
+          mvn clean test --projects flow-sdk --batch-mode
+      - name: Slack
+        if: ${{ always() }}
+        uses: ./.github/actions/slack
+        with:
+          status: ${{ job.status }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+# Publishing lives in ci-release.yml, triggered by the product tag. This workflow tests the library.

@@ -11,13 +11,14 @@ the nearest equivalent before writing.
 
 ## Modules and package layout
 
-Three Maven modules under the parent `pom.xml`:
+Four Maven modules under the parent `pom.xml`:
 
 | Module | Package roots (`io.boomerang.*`) | Role |
 | --- | --- | --- |
 | `service-core` | `core`, `workspace`, `workflow`, `engine`, `dispatcher`, `schedule`, `event`, `integrations`, `migration`, `common`, `config` | The product: v2 REST API, authentication and authorization, workspaces, definitions, the DAG engine, the dispatcher-facing v1 API, the database migrations. |
 | `dispatcher-sdk` | `dispatcher` | The dispatcher protocol as a library, published as `io.boomerang:dispatcher-sdk`. Depends on spring-web and Jackson only, never on `service-core`; owns its wire models. |
 | `service-dispatcher` | `dispatcher`, `executor`, `kube`, `config`, `error` | Flow's Kubernetes dispatcher, built on the SDK: Tekton (default) or plain Jobs. |
+| `flow-sdk` | `flow.sdk` | The public API as a library, published as `io.boomerang:flow-sdk`. Depends on spring-web and Jackson only, never on `service-core`; owns its wire models (records) and checks them against `contracts/api-v2.yaml`. |
 
 Within a feature package, code is grouped by role: `entity/`, `model/`, `repository/`, then the
 service and controller classes at the package root. Follow the layout of the package you are
