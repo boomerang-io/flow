@@ -307,6 +307,10 @@ tag's release notes.
   database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
   chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
   once, without a second asynchronous hop.
+- A held task poll woken by an admission runs its claimable page alone; the two termination pages run on the
+  poll's first look and then once per re-check interval, as they did on every look before. An admission costs one
+  indexed query per held task poll instead of three, and a termination order still reaches the dispatcher within
+  one interval.
 
 ### Fixed
 

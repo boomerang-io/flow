@@ -47,9 +47,10 @@ filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polli
   (`engine/TaskExecutionService.java:247-254`), and so does a run submitted to start with a workspace once it is
   parked `ready`/`pending` for its provisioning claim (`workflow/WorkflowRunService.java:801-816`). Both held
   polls, task and workflow, read the count before each look and wait for it to change, so a signal that lands
-  during the look is not lost, and re-run their own filter query on a wake (`dispatcher/PollWakeups.java:24-55`,
-  `dispatcher/DispatcherService.java:265`, `:381`, `:494-497`). A for-each item admits through the same method, so
-  items wake polls too. Work that becomes claimable without an admission on that instance, a `retry.after` that
+  during the look is not lost, and re-run their own claim page on a wake (`dispatcher/PollWakeups.java:24-55`,
+  `dispatcher/DispatcherService.java:292`, `:384-388`, `:509-517`); the task poll's termination pages run on its
+  first look and then once per re-check interval, not on a wake (`:415-425`). A for-each item admits through
+  the same method, so items wake polls too. Work that becomes claimable without an admission on that instance, a `retry.after` that
   elapses or an admission on another instance, is found by the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`

@@ -25,14 +25,21 @@ import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -54,6 +61,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
   @Autowired private ClaimFilterService claimFilterService;
   @Autowired private ParamLayerService paramLayerService;
   @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private PollWakeups pollWakeups;
 
   @Test
   void aTaskThroughClaimStartHeartbeatAndAMidGraphEnd() {
@@ -100,6 +108,46 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
                 EXPECTED.get(operation),
                 r.names().stream().map(name -> name.replace(" flowtest_", " ")).toList(),
                 operation));
+  }
+
+  /**
+   * A held poll that finds nothing runs the claimable page and the two termination pages on its
+   * first look and on each timed re-check, and the claimable page alone on a look an admission
+   * woke: an admission costs one query per held poll, and a termination still reaches the
+   * dispatcher within one re-check interval (1 s here). Three looks are recorded: the first, the
+   * one a signal 0.2 s later wakes, and the timed re-check 1 s after that.
+   */
+  @Test
+  void aHeldPollWokenByAnAdmissionRunsTheClaimablePageAlone() throws Exception {
+    String label = idleWorkflowLabel("idle-poll");
+    String dispatcherId =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "idle-poll-dispatcher", "idle-poll.local", List.of("template")));
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<Recorded<ResponseEntity<List<TaskRun>>>> poll =
+          executor.submit(
+              () ->
+                  DatabaseCommands.record(
+                      () -> dispatcherService.getTaskQueue(dispatcherId, null, null, null, label)));
+      Thread.sleep(200);
+      pollWakeups.signal();
+      Thread.sleep(1400);
+      executor.shutdownNow();
+      Recorded<ResponseEntity<List<TaskRun>>> recorded = poll.get(2, TimeUnit.SECONDS);
+
+      List<String> names =
+          recorded.names().stream().map(name -> name.replace(" flowtest_", " ")).toList();
+      System.out.printf("DB COMMANDS | held poll, 3 looks | %s%n", names);
+      assertEquals(HttpStatus.NO_CONTENT, recorded.result().getStatusCode());
+      assertEquals(
+          7,
+          Collections.frequency(names, "find task_runs"),
+          "3 pages on the first look, 1 on the woken look, 3 on the timed re-check: " + names);
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   /**
@@ -238,6 +286,30 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
     paramLayerService.buildParamLayers(
         runEntity.getWorkflowRef(), paramLayerService.getRevision(runEntity.getWorkflowRevisionRef()));
     return new Ready(run.getId(), taskRunId, dispatcherId, label);
+  }
+
+  // A workflow carrying the label that is never submitted, so a poll filtered on the label matches
+  // a workflow and finds no task run, and holds; the filter is resolved once so the poll is warm.
+  private String idleWorkflowLabel(String name) {
+    setFeatureSetting("workspaceQuotas", false);
+    seedGlobalTask(TASK_SLUG);
+    WorkspaceRequest workspace = new WorkspaceRequest();
+    workspace.setName(name + "-ws");
+    workspace.setDisplayName(name + "-ws");
+    workspaceService.create(workspace);
+    Workflow workflow = new Workflow();
+    workflow.setName(name + "-wf");
+    workflow.setTasks(
+        new LinkedList<>(
+            List.of(
+                node("start", TaskType.start, null, null),
+                node("work", TaskType.template, TASK_SLUG, "start"),
+                node("end", TaskType.end, null, "work"))));
+    workflow.getLabels().put(name, "yes");
+    workflowService.create(name + "-ws", workflow);
+    String label = name + "=yes";
+    claimFilterService.resolve(List.of(TaskType.template), null, null, label);
+    return label;
   }
 
   // The end completes the task; the next task is queued off the request thread, so let it land
