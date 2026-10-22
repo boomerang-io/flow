@@ -296,6 +296,9 @@ tag's release notes.
   rest of the poll is still handed out.
 - The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
+- A dispatcher's start or end for an attempt the engine has already requeued is refused with
+  `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
+  the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
 
 ### Fixed
 

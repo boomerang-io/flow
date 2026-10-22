@@ -47,11 +47,13 @@ filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polli
 - `claim.seq` is never cleared. The dispatcher names itself as `dispatcherRef`, the value of `claim.by`, on every
   start and end (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/TaskRunner.java:162-187`). A start, end or
   log upload whose `dispatcherRef` does not match `claim.by` is refused with `409 TASKRUN_CLAIM_SUPERSEDED` before its
-  body is merged, and so is one for an unfinished task run whose reaped claim a termination hand-off released
-  (`engine/TaskRunService.java:1187-1202`, called at `:960`, `:1013`, `:1262`); the handler re-checks the claimant on
-  entry (`engine/TaskExecutionService.java:897-923`). A request with no `dispatcherRef` is accepted as the legacy
-  protocol. `claim.seq` is not on the wire, so a dispatcher that lost and re-won a claim is not told apart from its
-  earlier self.
+  body is merged, and so is one for an unfinished task run whose reaped claim a termination hand-off released, or
+  for a task in `pending` with its claim kept, which the engine has requeued: a dispatcher holds a task only in
+  `queued` or `running` (`engine/TaskRunService.java:1197-1212`, called at `:962`, `:1015`, `:1272`); the handler
+  re-checks the claimant on entry (`engine/TaskExecutionService.java:899-930`) and the start and end write their
+  fields only under that hold (`engine/TaskRunService.java:1177-1188`). A request with no `dispatcherRef` is
+  accepted as the legacy protocol. `claim.seq` is not on the wire, so a dispatcher that lost and re-won a claim is
+  not told apart from its earlier self.
 - `claim.leaseExpiresAt` (`common/model/RunClaim.java:21`) is the dispatcher's liveness signal. The claim sets it
   90 s ahead (`flow.dispatcher.lease-ms`, `engine/TaskRunService.java:73`, `:333`); each dispatcher sends one batched
   heartbeat every 30 s listing the task runs it still works on
@@ -218,9 +220,10 @@ new run, its copies and its node and answers with a coded error (`:1014-1048`, `
 
 A requeue of a claimed attempt parks the task `waiting/pending`, keeps `claim.by` (a pod may still be alive) and
 increments `claim.seq`; the next attempt cannot be claimed until a dispatcher's termination poll releases the claim
-and returns the task to `ready` in the same write (`engine/TaskRunService.java:715-780`, `:277-300`). An unclaimed
-attempt goes straight back to `ready/pending`. Because `claim.seq` is not on the wire, an end from the timed-out
-attempt's own dispatcher that arrives before the release still lands and completes the task (`:1067-1073`).
+and returns the task to `ready` in the same write (`engine/TaskRunService.java:716-782`, `:278-301`). An unclaimed
+attempt goes straight back to `ready/pending`. A start or end from the timed-out attempt's own dispatcher that
+arrives before the release is refused with `TASKRUN_CLAIM_SUPERSEDED`, as the task is `pending` with its claim kept,
+so the retry the requeue granted stands (`:1186-1201`, `engine/TaskExecutionService.java:899-930`).
 
 ## Pause
 

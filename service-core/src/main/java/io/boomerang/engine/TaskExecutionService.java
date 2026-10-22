@@ -891,8 +891,10 @@ public class TaskExecutionService {
   }
 
   /*
-   * Fencing: a request carrying claimant identity must match the current claim; a request with
-   * no identity is the legacy protocol and is accepted with a log line.
+   * Fencing: a request carrying claimant identity must match the current claim, and the claimant
+   * must still hold the task - in queued or running, never pending, where a kept claim marks an
+   * attempt the engine requeued; a request with no identity is the legacy protocol and is accepted
+   * with a log line.
    */
   private boolean claimantIsValid(
       TaskRunEntity taskExecution, Optional<String> claimedBy, Optional<Long> claimSeq) {
@@ -906,7 +908,12 @@ public class TaskExecutionService {
     }
     boolean valid =
         taskExecution.getClaim() != null
-            && claimedBy.map(by -> by.equals(taskExecution.getClaim().getBy())).orElse(true)
+            && claimedBy
+                .map(
+                    by ->
+                        by.equals(taskExecution.getClaim().getBy())
+                            && !RunPhase.pending.equals(taskExecution.getPhase()))
+                .orElse(true)
             && claimSeq
                 .map(seq -> seq.equals(taskExecution.getClaim().getSeq()))
                 .orElse(true);

@@ -14,8 +14,10 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.workflow.WorkflowRunService;
 import java.util.Date;
@@ -143,6 +145,75 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
     TaskRunEntity after = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunStatus.ready, after.getStatus());
     assertEquals(RunPhase.pending, after.getPhase());
+    assertEquals(null, after.getStatusMessage());
+  }
+
+  // The window before the termination hand-off: the engine has requeued the claimed attempt, so
+  // the task is parked waiting/pending with claim.by kept and its retry granted. The claimant's
+  // own end - its start timeout fired at the same bound as the engine's - must not spend it.
+  @Test
+  void aLateEndBeforeTheClaimIsReleasedIsRejectedAndKeepsTheRetry() {
+    String[] parked = parkedAttempt("parked-end");
+    TaskRunEndRequest endRequest = new TaskRunEndRequest();
+    endRequest.setStatus(RunStatus.failed);
+    endRequest.setStatusReason(StatusReason.START_TIMEOUT);
+    endRequest.setStatusMessage("pod never started");
+    endRequest.setDispatcherRef(parked[1]);
+
+    BoomerangException rejected =
+        assertThrows(
+            BoomerangException.class,
+            () -> taskRunService.end(parked[0], Optional.of(endRequest)));
+    assertEquals(BoomerangError.TASKRUN_CLAIM_SUPERSEDED.getCode(), rejected.getCode());
+    assertParked(parked[0], parked[1]);
+  }
+
+  @Test
+  void aLateStartBeforeTheClaimIsReleasedIsRejectedAndKeepsTheRetry() {
+    String[] parked = parkedAttempt("parked-start");
+    TaskRunStartRequest startRequest = new TaskRunStartRequest();
+    startRequest.setDispatcherRef(parked[1]);
+    startRequest.getLabels().put("example.com/late", "start");
+
+    BoomerangException rejected =
+        assertThrows(
+            BoomerangException.class,
+            () -> taskRunService.start(parked[0], Optional.of(startRequest)));
+    assertEquals(BoomerangError.TASKRUN_CLAIM_SUPERSEDED.getCode(), rejected.getCode());
+    assertParked(parked[0], parked[1]);
+    TaskRunEntity after = taskRunRepository.findById(parked[0]).orElseThrow();
+    assertEquals(null, after.getLabels().get("example.com/late"));
+  }
+
+  // A claimed attempt the engine requeued: waiting/pending, claim.by kept, one retry granted.
+  // Returns {taskRunId, dispatcher}.
+  private String[] parkedAttempt(String tag) {
+    WorkflowRunEntity wfRun = savedWorkflowRun(tag + "-wf", RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun(
+                tag + "-task",
+                TaskType.template,
+                RunStatus.ready,
+                RunPhase.pending,
+                wfRun.getWorkflowRef(),
+                wfRun.getId())
+            .getId();
+    String dispatcher = registerDispatcher(tag);
+    assertTrue(
+        containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
+    assertNotNull(
+        taskRunService.tryRequeue(
+            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1));
+    return new String[] {taskRunId, dispatcher};
+  }
+
+  private void assertParked(String taskRunId, String dispatcher) {
+    TaskRunEntity after = taskRunRepository.findById(taskRunId).orElseThrow();
+    assertEquals(RunStatus.waiting, after.getStatus());
+    assertEquals(RunPhase.pending, after.getPhase());
+    assertEquals(dispatcher, after.getClaim().getBy());
+    assertEquals(1, after.getRetry().getCount());
+    assertNotNull(after.getRetry().getAfter());
     assertEquals(null, after.getStatusMessage());
   }
 

@@ -178,8 +178,9 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 - `status` is `succeeded`, `failed` or `invalid`, and absent means `succeeded`; anything else is
   `400 TASKRUN_INVALID_END_STATUS` (`:1028-1036`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes nothing,
-  including an end that arrives after the engine reaped the claim and released it for another attempt
-  (`:1176-1191`). A request without `dispatcherRef` is not fenced, so a dispatcher MUST send it.
+  including an end that arrives after the engine requeued the attempt, whether or not the claim has been released
+  for another attempt yet: a dispatcher holds a task only in `queued` or `running` (`:1186-1201`). A request without
+  `dispatcherRef` is not fenced, so a dispatcher MUST send it.
 - `results` SHOULD carry only the result names the task declares; the engine merges what arrives by name, and the
   caps below bound its size.
 - `statusReason` is one of the engine's known reasons (`common/model/StatusReason.java`), of which the SDK's
