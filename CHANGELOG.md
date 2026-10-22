@@ -120,6 +120,11 @@ tag's release notes.
 
 ### Added
 
+- Admitting a task, or submitting a run with a workspace, wakes the dispatcher polls held on that engine instance,
+  so the work is claimed as soon as it is ready instead of at the poll's next re-check: a hop in a sequential chain
+  is now the end, the admission and the claim round trips, about 100–200 ms, whatever
+  `flow.dispatcher.poll.recheck-ms` is set to. The timed re-check still covers a task admitted on another replica
+  or a retry whose backoff elapses.
 - `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
   (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
   queries per dispatcher: its idle queries per second are its pools × 1000 / the value.

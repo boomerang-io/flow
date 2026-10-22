@@ -12,6 +12,7 @@ import io.boomerang.common.model.*;
 import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.SettingsService;
+import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.engine.entity.TaskLockEntity;
 import io.boomerang.common.model.ChildWorkflowRunCreated;
 import io.boomerang.common.model.ScheduleRequested;
@@ -128,6 +129,8 @@ public class TaskExecutionService {
   @Autowired private SettingsService settingsService;
 
   @Autowired private ParamLayerService paramLayerService;
+
+  @Autowired private PollWakeups pollWakeups;
 
   // Proxy to self so internal hand-offs go through the @Async proxy and hop threads.
   @Autowired @Lazy private TaskExecutionService self;
@@ -247,6 +250,8 @@ public class TaskExecutionService {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }
+      // The task is claimable: every poll held on this instance looks again now.
+      pollWakeups.signal();
 
       // Auto start System related tasks skipping the start checks
       if (!TaskType.template.equals(taskExecution.getType())
