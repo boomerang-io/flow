@@ -190,6 +190,10 @@ tag's release notes.
 - `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
   cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
   carried as `FlowApiException`. It depends on `spring-web` and Jackson only (`flow-sdk/README.md`).
+- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
+  cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
+  carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is published to GitHub
+  Packages by every product tag beside `dispatcher-sdk`, at the tag's version (`flow-sdk/README.md`).
 
 ### Changed
 

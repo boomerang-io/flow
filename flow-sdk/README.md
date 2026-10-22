@@ -26,6 +26,11 @@ the product's version. Reading GitHub Packages needs a token with `read:packages
 
 It depends on `spring-web` (for `RestClient`) and Jackson, and nothing else: no Spring Boot.
 
+Compatibility: the library's version is the server version it was built against, so pick the version of the
+server you run against. `/api/v2` is additive within 5.x - a newer server only gains routes and fields - so an
+older library keeps working against a newer server, and a field the server added reads as absent until you
+move up. A status, phase or task type the server added reads as `unknown`.
+
 ## Use it
 
 ```java

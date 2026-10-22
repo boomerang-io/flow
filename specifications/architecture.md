@@ -1,7 +1,7 @@
 # Architecture
 
-Boomerang Flow is one Maven monorepo of three Java modules (`pom.xml:9-13`) plus one pnpm web client, built
-into three product images and one published library that ship together under a single product version.
+Boomerang Flow is one Maven monorepo of four Java modules (`pom.xml:9-14`) plus one pnpm web client, built
+into three product images and two published libraries that ship together under a single product version.
 Workflows are directed acyclic graphs (DAGs) executed by `service-core`; the work for each task is carried
 out by a dispatcher, which is any process that implements the published contract (`dispatcher-contract.md`).
 `service-dispatcher` is the Kubernetes one. A dispatcher runs as its own process only where a boundary
@@ -12,7 +12,7 @@ out by a dispatcher, which is any process that implements the published contract
 | Module | Owns | Depends on |
 | --- | --- | --- |
 | `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, the GitHub and Slack integrations, and the database migrations it runs as it starts (`io.boomerang.migration`; see `data-model.md`). One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:37-45`. | — |
-| `dispatcher-sdk` | The dispatcher protocol as a software development kit (SDK): the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is the only module published, to GitHub Packages. | `spring-web` and Jackson only (`dispatcher-sdk/pom.xml:54-62`) |
+| `dispatcher-sdk` | The dispatcher protocol as a software development kit (SDK): the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is published to GitHub Packages beside `flow-sdk`. | `spring-web` and Jackson only (`dispatcher-sdk/pom.xml:54-62`) |
 | `flow-sdk` | The public API as a library (`io.boomerang:flow-sdk`, package `io.boomerang.flow.sdk`): `Flow` (`flow-sdk/src/main/java/io/boomerang/flow/sdk/Flow.java`) built from a base URL and a bearer token, or the host's `RestClient`; `Runs` (submit, get, cancel, retry, query, count), `TaskRuns` (query) and `Insights` (summary, tasks, workflow) with `RunQuery`, `TaskRunQuery` and `InsightsQuery` builders mapped to the routes' parameters; `Page<T>` with `content`, `total` and `next()`; its own wire models (records, no execution-state field) and `FlowApiException` carrying the server's `RestErrorResponse`. `ApiContractTest` (`flow-sdk/src/test/java/io/boomerang/flow/sdk/ApiContractTest.java`) round-trips every model it carries from `contracts/api-v2.yaml` and checks each builder sends exactly its route's parameters. Tested by `ci-sdk.yml`. | `spring-web` and Jackson only (`flow-sdk/pom.xml:46-53`) |
 | `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk` (`service-dispatcher/src/main/java/io/boomerang/config/DispatcherConfig.java:40-59`). Its task handler runs each task through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:12-28`) and its workflow handler provisions workspace volumes. `dispatcher.executor` selects `tekton` (the default, `TektonServiceImpl.java:57`) or `kube-jobs` (`KubeJobsExecutor.java:71`). A deployment has one `dispatcher.tasks.runtimeClassName` (`service-dispatcher/README.md:99-101`). | `dispatcher-sdk` (`service-dispatcher/pom.xml:30-34`) |
 | `io.boomerang.common` (a package in `service-core`) | `service-core`'s storage and API model: 10 entities in `common/entity` (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError` and `RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`, `ParameterUtil`, `DataAdapterUtil`). No beans, no repositories. The dispatcher wire has its own models in `dispatcher/model/`; `service-dispatcher` uses the SDK's. | — |
@@ -149,9 +149,13 @@ Task images are not product images: the catalogue images and the AI worker (`boo
 repository on their own version lines, and the dispatcher runs the image an `ai` revision declares, under an
 allowed prefix (`dispatcher-kubernetes.md`).
 
-The dispatcher SDK, `io.boomerang:dispatcher-sdk`, is published beside the images: the `publish-sdk` job sets
-its version from the same tag and deploys it to this repository's GitHub Packages Maven registry
-(`ci-release.yml:96-123`, `dispatcher-sdk/pom.xml:97-103`). No other module is published.
+Two libraries are published beside the images, `io.boomerang:dispatcher-sdk` and `io.boomerang:flow-sdk`:
+the `publish-sdk` job runs once per library, sets its version from the same tag and deploys it to this
+repository's GitHub Packages Maven registry (`ci-release.yml:96-127`, `dispatcher-sdk/pom.xml:97-103`,
+`flow-sdk/pom.xml:87-93`). A library's version is therefore the server version it was built against; an
+application picks the `flow-sdk` of the server it runs against, and a newer server still serves an older
+library because `/api/v2` only gains routes and fields within 5.x (`api-contract.md`). No other module is
+published.
 
 The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
 authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:86-87,143`);
