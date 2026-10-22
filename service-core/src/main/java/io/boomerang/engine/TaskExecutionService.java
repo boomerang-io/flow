@@ -720,11 +720,15 @@ public class TaskExecutionService {
     Map<Integer, TaskRunEntity> existing =
         taskRunRepository.findByParentRefOrderByIndexAsc(parentId).stream()
             .collect(Collectors.toMap(TaskRunEntity::getIndex, Function.identity(), (a, b) -> a));
+    WorkflowRunEntity wfRun =
+        workflowRunRepository.findById(parent.getWorkflowRunRef()).orElse(null);
     for (int index = 0; index < items.size(); index++) {
       TaskRunEntity item = existing.get(index);
       if (item == null) {
         try {
-          item = taskRunRepository.insert(newItem(parent, index, items.get(index)));
+          TaskRunEntity created = newItem(parent, index, items.get(index));
+          labelItem(created, wfRun, items.get(index));
+          item = taskRunRepository.insert(created);
         } catch (DuplicateKeyException created) {
           LOGGER.info("[{}] Item {} already created. Its creator queues it.", parentId, index);
           continue;
@@ -736,6 +740,17 @@ public class TaskExecutionService {
       }
     }
     completeParentIfItemsTerminal(parentId);
+  }
+
+  // A text item names its task run, as it names a run-workflow child, unless the item carries a
+  // secret value of the run's parameter layers; any other item leaves the task run unlabelled.
+  private void labelItem(TaskRunEntity item, WorkflowRunEntity wfRun, Object element) {
+    if (element instanceof String text
+        && !text.isEmpty()
+        && wfRun != null
+        && !paramManager.carriesSecret(wfRun, item, text)) {
+      item.getLabels().put(ServerLabel.ITEM, text);
+    }
   }
 
   /*

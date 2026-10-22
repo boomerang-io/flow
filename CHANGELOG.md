@@ -129,8 +129,9 @@ tag's release notes.
   leaves out params, results, spec, annotations and status message; read the run for those.
 - A task run shows `attempt` once a dispatcher has claimed it: 1, plus one per requeue. The run view shows it when a
   task was requeued.
-- Server labels: an AI task run carries `boomerang.io/model`, the model its `model` param asked for, and a child
-  run a for-each run-workflow task started carries `boomerang.io/item`, its item, on the run and its task runs.
+- Server labels: an AI task run carries `boomerang.io/model`, the model its `model` param asked for, and every
+  item task run of a for-each, and a child run a for-each run-workflow task started (on the run and its task runs),
+  carries `boomerang.io/item`, its item.
   Labels under `boomerang.io/` are now reserved for the server, as annotations already were: a client's are
   dropped on submit, start and retry.
 - The wait-for-event callback (`POST`/`GET /api/v2/callback`) takes an optional `eventId`. A repeat of the same

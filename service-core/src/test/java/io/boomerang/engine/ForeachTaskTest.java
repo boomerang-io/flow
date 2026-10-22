@@ -15,6 +15,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
@@ -114,6 +115,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
       assertEquals(index, item.getIndex());
       assertEquals(List.of("a", "b", "c").get(index), paramValue(item, "item"));
       assertEquals(String.valueOf(index), paramValue(item, "index"));
+      assertEquals(List.of("a", "b", "c").get(index), item.getLabels().get(ServerLabel.ITEM));
       assertEquals(TaskType.template, item.getType());
       assertTrue(item.getDependencies().isEmpty());
     }
