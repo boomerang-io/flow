@@ -2,6 +2,7 @@ package io.boomerang.engine.repository;
 
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import org.springframework.data.domain.Pageable;
@@ -24,8 +25,12 @@ public interface WorkflowRunRepository extends MongoRepository<WorkflowRunEntity
   List<WorkflowRunEntity> findByInitiatedByRefInAndPhaseIn(
       List<String> initiatedByRefs, List<RunPhase> phases);
 
-  // Whether any run still points at this one as its origin or parent. Served by the same index.
+  // Whether any run still points at this one as its retry origin. Served by the same index.
   boolean existsByInitiatedByRef(String initiatedByRef);
+
+  // Whether any run was submitted by one of these TaskRuns - a child of the run that owns them.
+  // Served by the same index.
+  boolean existsByInitiatedByRefIn(Collection<String> initiatedByRefs);
 
   // The retention page: finished runs created inside a window, oldest first. Served by the
   // {phase, creationDate} index; the lower bound is the cursor between pages.
