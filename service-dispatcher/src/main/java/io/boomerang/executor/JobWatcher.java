@@ -26,13 +26,17 @@ public class JobWatcher implements Watcher<Job> {
 
   private final CountDownLatch latch;
   private final Duration failedConditionGrace;
+  // The one Job this attempt created or adopted. Every attempt of a task carries the same
+  // labels, so an earlier attempt's finished Job shares the watch and must not end this one.
+  private final String name;
   private JobCondition condition;
   private volatile boolean watchLost;
   private Instant failedObservedAt;
 
-  public JobWatcher(CountDownLatch latch, Duration failedConditionGrace) {
+  public JobWatcher(CountDownLatch latch, Duration failedConditionGrace, String name) {
     this.latch = latch;
     this.failedConditionGrace = failedConditionGrace;
+    this.name = name;
   }
 
   public JobCondition getCondition() {
@@ -52,6 +56,9 @@ public class JobWatcher implements Watcher<Job> {
   @Override
   public void eventReceived(Action action, Job resource) {
     LOGGER.info("Watch event received {}: {}", action.name(), resource.getMetadata().getName());
+    if (!resource.getMetadata().getName().equals(name)) {
+      return;
+    }
     if (Action.DELETED.equals(action)) {
       markDeleted();
       return;
@@ -62,7 +69,7 @@ public class JobWatcher implements Watcher<Job> {
   /**
    * Evaluate a Job for a terminal state, counting the latch down when found. Safe to call
    * repeatedly on the same non-terminal Job, including from a reconcile poll of a listed Job
-   * rather than a watch event.
+   * rather than a watch event. A Job of another name is ignored.
    *
    * <p>A true {@code Failed}/{@code Complete} condition is checked first and always wins - it
    * carries the real reason ({@code DeadlineExceeded}, {@code BackoffLimitExceeded}, ...). Only
@@ -75,7 +82,7 @@ public class JobWatcher implements Watcher<Job> {
    */
   public void evaluate(Job job) {
     JobStatus status = job.getStatus();
-    if (status == null) {
+    if (!job.getMetadata().getName().equals(name) || status == null) {
       return;
     }
     if (status.getConditions() != null) {

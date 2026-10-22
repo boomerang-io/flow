@@ -275,3 +275,11 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- A task attempt retried after an earlier attempt was cancelled or failed with its TaskRun or Job left in place
+  (deletion policy `Never`, or `OnSuccess` after a failure) no longer ends at once with the earlier attempt's
+  result, and no longer reports the earlier attempt's pod as its own start failure, failure detail or log: each
+  executor watches the object its attempt created or adopted, reads only that object's pod (the stored and live
+  logs included), adopts only an object still running, and on Tekton a cancel reaches every attempt still running.

@@ -23,6 +23,8 @@ import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.kube.KubeLogService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -139,6 +141,10 @@ class TaskServiceHandlerTest {
     when(executor.watch(any(), any()))
         .thenReturn(List.of())
         .thenThrow(new TaskExecutionException("OOMKilled", "boom"));
+    // The executor's own pod, not whichever pod the task labels select, and the executor forgets
+    // the runtime object only once that log has been read.
+    when(executor.runtimePodSelector("task-1"))
+        .thenReturn(Optional.of(Map.of("job-name", "job-1")));
     TaskRun task = task(TaskType.template);
     task.setWorkflowRef("wf-1");
     task.setWorkflowRunRef("run-1");
@@ -146,7 +152,9 @@ class TaskServiceHandlerTest {
     storing.run(task, new TaskContext(task, "d-1", null));
     catchThrowableOfType(TaskFailure.class, () -> storing.run(task, new TaskContext(task, "d-1", null)));
 
-    verify(podLogs, times(2)).getPodLog("wf-1", "run-1", "task-1", null);
+    verify(podLogs, times(2))
+        .getPodLog("wf-1", "run-1", "task-1", null, Map.of("job-name", "job-1"));
+    verify(executor, times(2)).forgetRuntimeObject("task-1");
   }
 
   @Test
@@ -155,7 +163,7 @@ class TaskServiceHandlerTest {
     @SuppressWarnings("unchecked")
     ObjectProvider<KubeLogService> provider = mock(ObjectProvider.class);
     when(provider.getIfAvailable()).thenReturn(podLogs);
-    when(podLogs.getPodLog(any(), any(), any(), any()))
+    when(podLogs.getPodLog(any(), any(), any(), any(), any()))
         .thenThrow(new KubeRuntimeException("No logs found for Task"));
     TaskService storing = new TaskService(executor, imageResolver, provider);
     ReflectionTestUtils.setField(storing, "taskDeletion", TaskDeletion.Never);

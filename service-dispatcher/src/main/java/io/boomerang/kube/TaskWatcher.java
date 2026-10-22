@@ -16,12 +16,16 @@ public class TaskWatcher implements Watcher<TaskRun> {
   private static final Logger LOGGER = LogManager.getLogger(TaskWatcher.class);
 
   private final CountDownLatch latch;
+  // The one TaskRun this attempt created or adopted. Every attempt of a task carries the same
+  // labels, so an earlier attempt's finished TaskRun shares the watch and must not end this one.
+  private final String name;
   private Condition condition;
   private List<TaskRunResult> results = new ArrayList<>();
   private volatile boolean watchLost;
 
-  public TaskWatcher(CountDownLatch latch) {
+  public TaskWatcher(CountDownLatch latch, String name) {
     this.latch = latch;
+    this.name = name;
   }
 
   public Condition getCondition() {
@@ -52,7 +56,8 @@ public class TaskWatcher implements Watcher<TaskRun> {
    */
   public void eventReceived(Action action, TaskRun resource) {
     LOGGER.info("Watch event received {}: {}", action.name(), resource.getMetadata().getName());
-    if (resource.getStatus() == null
+    if (!resource.getMetadata().getName().equals(name)
+        || resource.getStatus() == null
         || resource.getStatus().getConditions() == null
         || resource.getStatus().getConditions().isEmpty()) {
       return;
@@ -90,10 +95,12 @@ public class TaskWatcher implements Watcher<TaskRun> {
   /**
    * Evaluate a TaskRun for a terminal {@code Succeeded} condition (True or False), counting the
    * latch down when found. Safe to call repeatedly on the same non-terminal TaskRun, including
-   * from a reconcile poll of a listed TaskRun rather than a watch event.
+   * from a reconcile poll of a listed TaskRun rather than a watch event. A TaskRun of another
+   * name is ignored.
    */
   public void evaluate(TaskRun resource) {
-    if (resource.getStatus() == null
+    if (!resource.getMetadata().getName().equals(name)
+        || resource.getStatus() == null
         || resource.getStatus().getConditions() == null
         || resource.getStatus().getConditions().isEmpty()) {
       return;

@@ -212,13 +212,20 @@ class KubeLogServiceStreamTest {
   }
 
   private Pod createPod(String taskRunRef, String phase) {
+    return createPod(taskRunRef, phase, Map.of());
+  }
+
+  // ownerLabels: what the pod's Job or TaskRun stamps on it, beside the task labels.
+  private Pod createPod(String taskRunRef, String phase, Map<String, String> ownerLabels) {
     PodStatus status = new PodStatus();
     status.setPhase(phase);
+    Map<String, String> labels = new HashMap<>(taskLabels(taskRunRef));
+    labels.putAll(ownerLabels);
     Pod pod =
         new PodBuilder()
             .withNewMetadata()
             .withGenerateName("pod-" + taskRunRef + "-")
-            .withLabels(new HashMap<>(taskLabels(taskRunRef)))
+            .withLabels(labels)
             .endMetadata()
             .withStatus(status)
             .build();
@@ -227,10 +234,46 @@ class KubeLogServiceStreamTest {
     return client.pods().resource(created).updateStatus();
   }
 
+  private void stubLog(Pod pod, String log) {
+    server
+        .expect()
+        .get()
+        .withPath(
+            "/api/v1/namespaces/"
+                + pod.getMetadata().getNamespace()
+                + "/pods/"
+                + pod.getMetadata().getName()
+                + "/log?pretty=true")
+        .andReturn(200, log)
+        .always();
+  }
+
+  @Test
+  public void testGetPodLogReadsTheSelectedAttemptsPodUnderSharedTaskLabels() {
+    // Every attempt of a task labels its pod the same way; the executor's selector names the
+    // attempt's own pod by the label its TaskRun or Job stamps on it.
+    String taskRunRef = "taskrun-retried";
+    Pod earlierAttempt =
+        createPod(taskRunRef, "Succeeded", Map.of("tekton.dev/taskRun", "attempt-1"));
+    Pod thisAttempt =
+        createPod(taskRunRef, "Succeeded", Map.of("tekton.dev/taskRun", "attempt-2"));
+    stubLog(earlierAttempt, "attempt 1 log");
+    stubLog(thisAttempt, "attempt 2 log");
+
+    assertEquals(
+        "attempt 1 log",
+        kubeLogService.getPodLog(
+            "wf-1", "wfr-1", taskRunRef, null, Map.of("tekton.dev/taskRun", "attempt-1")));
+    assertEquals(
+        "attempt 2 log",
+        kubeLogService.getPodLog(
+            "wf-1", "wfr-1", taskRunRef, null, Map.of("tekton.dev/taskRun", "attempt-2")));
+  }
+
   @Test
   public void testStreamPodLogWithNoPodEndsImmediatelyWithAMessage() throws Exception {
     StreamingResponseBody body =
-        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", "taskrun-no-pod", null);
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", "taskrun-no-pod", null, null);
 
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     body.writeTo(output); // must return promptly, not hang
@@ -257,7 +300,7 @@ class KubeLogServiceStreamTest {
         .once();
 
     StreamingResponseBody body =
-        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null);
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null, null);
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     body.writeTo(output);
 
@@ -270,7 +313,7 @@ class KubeLogServiceStreamTest {
     createPod(taskRunRef, "Running");
 
     StreamingResponseBody body =
-        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null);
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null, null);
     ByteArrayOutputStream output = new ByteArrayOutputStream();
 
     // The mock server's watchLog response ends on its own (unlike a real cluster, which would
@@ -294,7 +337,7 @@ class KubeLogServiceStreamTest {
         .once();
 
     StreamingResponseBody body =
-        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null);
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", taskRunRef, null, null);
     // The Pod leaves Pending (here straight to finished) while the stream is waiting for it.
     Thread finisher =
         new Thread(
@@ -325,7 +368,7 @@ class KubeLogServiceStreamTest {
     createPod("taskrun-stuck", "Pending");
 
     StreamingResponseBody body =
-        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", "taskrun-stuck", null);
+        kubeLogService.streamPodLog(null, "wf-1", "wfr-1", "taskrun-stuck", null, null);
     ByteArrayOutputStream output = new ByteArrayOutputStream();
     body.writeTo(output);
     kubeLogService.setPodStartWait(Duration.ofMinutes(5));

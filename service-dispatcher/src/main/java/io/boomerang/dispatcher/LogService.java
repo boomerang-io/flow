@@ -1,5 +1,6 @@
 package io.boomerang.dispatcher;
 
+import io.boomerang.executor.TaskExecutor;
 import io.boomerang.kube.KubeLogService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import jakarta.servlet.http.HttpServletResponse;
@@ -33,6 +34,9 @@ public class LogService {
 
   @Autowired private KubeLogService logKubeService;
 
+  // Knows the pod of a task it is running; a task run elsewhere is read by its labels.
+  @Autowired private TaskExecutor executor;
+
   @Value("${dispatcher.logging.host}")
   protected String lokiHost;
 
@@ -43,7 +47,13 @@ public class LogService {
       HttpServletResponse response, String workflowRef, String workflowRunRef, String taskRunRef) {
     try {
       if ("default".equals(loggingType)) {
-        return logKubeService.streamPodLog(response, workflowRef, workflowRunRef, taskRunRef, null);
+        return logKubeService.streamPodLog(
+            response,
+            workflowRef,
+            workflowRunRef,
+            taskRunRef,
+            null,
+            executor.runtimePodSelector(taskRunRef).orElse(null));
       } else if ("loki".equals(loggingType)) {
         return streamLogsFromLoki(workflowRef, taskRunRef);
       } else if ("elastic".equals(loggingType)) {
