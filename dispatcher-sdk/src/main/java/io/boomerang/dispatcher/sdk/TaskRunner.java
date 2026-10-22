@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -38,6 +39,8 @@ import org.springframework.web.client.RestClientException;
  *       for a task whose context was signalled.
  *   <li>A task interrupted because the dispatcher stopped past its drain timeout reports nothing
  *       either: its lease lapses and the engine hands it out again.
+ *   <li>A claim is taken into flight and handed off as one step against {@link #stop}: once the
+ *       dispatcher is stopping a claim is refused before it is taken, never dropped after.
  * </ul>
  */
 final class TaskRunner {
@@ -55,6 +58,11 @@ final class TaskRunner {
   private final Executor executor;
   private final Backoff endBackoff;
   private final BooleanSupplier abandoned;
+
+  // Read by every accept, written by stop: a claim either reaches the executor before the stop
+  // or is refused before it is taken into flight.
+  private final ReentrantReadWriteLock stopping = new ReentrantReadWriteLock();
+  private boolean stopped;
 
   /**
    * @param running the contexts of the tasks running in this dispatcher, shared by every runner so
@@ -92,19 +100,41 @@ final class TaskRunner {
 
   /** Take one claim off a poll. Returns at once; the work runs on a virtual thread. */
   void accept(TaskRun task) {
-    if (task.isRunOrder() && registered.test(task)) {
-      if (!inFlight.add(task.getId())) {
-        LOGGER.warn("TaskRun (" + task.getId() + ") is already in flight here. Ignoring the claim.");
-        return;
+    stopping.readLock().lock();
+    try {
+      if (stopped) {
+        LOGGER.warn("TaskRun (" + task.getId() + ") not taken: the dispatcher is stopping.");
+      } else if (task.isRunOrder() && registered.test(task)) {
+        if (!inFlight.add(task.getId())) {
+          LOGGER.warn(
+              "TaskRun (" + task.getId() + ") is already in flight here. Ignoring the claim.");
+          return;
+        }
+        execute(task, () -> run(task), () -> inFlight.remove(task.getId()));
+      } else if (task.isTerminateOrder()) {
+        execute(task, () -> terminate(task), () -> {});
+      } else {
+        LOGGER.info(
+            "Skipping "
+                + task
+                + ": neither an order to run a registered type nor an order to terminate.");
       }
-      execute(task, () -> run(task), () -> inFlight.remove(task.getId()));
-    } else if (task.isTerminateOrder()) {
-      execute(task, () -> terminate(task), () -> {});
-    } else {
-      LOGGER.info(
-          "Skipping "
-              + task
-              + ": neither an order to run a registered type nor an order to terminate.");
+    } finally {
+      stopping.readLock().unlock();
+    }
+  }
+
+  /**
+   * Refuse every claim from now on. A claim being taken as this is called is in flight and with
+   * the executor before this returns, so the executor can be shut down afterwards with no claim
+   * registered here and not taken.
+   */
+  void stop() {
+    stopping.writeLock().lock();
+    try {
+      stopped = true;
+    } finally {
+      stopping.writeLock().unlock();
     }
   }
 
@@ -112,7 +142,8 @@ final class TaskRunner {
     try {
       executor.execute(work);
     } catch (RuntimeException e) {
-      // The dispatcher is stopping: the claim lapses and the engine hands the task out again.
+      // The executor was shut down without a stop: the claim lapses and the engine hands the
+      // task out again.
       rejected.run();
       LOGGER.warn("TaskRun (" + task.getId() + ") not taken: " + e.getMessage());
     }

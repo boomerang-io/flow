@@ -75,6 +75,7 @@ public final class Dispatcher implements AutoCloseable {
   private final ExecutorService work =
       Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("dispatcher-work-", 0).factory());
   private final List<QueuePoller<?>> pollers = new ArrayList<>();
+  private final List<TaskRunner> runners = new ArrayList<>();
   private final LogUploader logs;
   private final Object registering = new Object();
 
@@ -124,9 +125,10 @@ public final class Dispatcher implements AutoCloseable {
   }
 
   /**
-   * Stop polling and wait up to the drain timeout for the tasks in flight to finish and report,
-   * renewing their leases meanwhile. A task still running after that is interrupted and reports
-   * nothing; its lease lapses and the engine hands it out again.
+   * Stop polling, refuse the claims still arriving, and wait up to the drain timeout for the
+   * tasks in flight to finish and report, renewing their leases meanwhile. A task still running
+   * after that is interrupted and reports nothing; its lease lapses and the engine hands it out
+   * again.
    */
   public void stop() {
     synchronized (this) {
@@ -138,6 +140,9 @@ public final class Dispatcher implements AutoCloseable {
         starter.interrupt();
       }
       pollers.forEach(QueuePoller::stop);
+      // Every claim a poll already took is with the executor once the runners have stopped, so
+      // the shutdown below leaves none registered and not taken.
+      runners.forEach(TaskRunner::stop);
     }
     work.shutdown();
     try {
@@ -295,6 +300,7 @@ public final class Dispatcher implements AutoCloseable {
               work,
               endBackoff,
               () -> abandoned);
+      runners.add(runner);
       // Only the work poll claims tasks, so the cap holds. While the pool is full a poll that
       // claims none keeps terminate orders coming; a slot that frees during its 30 s hold starts
       // the work poll at once, alongside it.

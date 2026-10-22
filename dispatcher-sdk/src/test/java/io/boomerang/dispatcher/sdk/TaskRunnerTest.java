@@ -14,8 +14,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +51,7 @@ class TaskRunnerTest {
     return runner(handler, Runnable::run);
   }
 
-  private TaskRunner runner(TaskHandler handler, java.util.concurrent.Executor executor) {
+  private TaskRunner runner(TaskHandler handler, Executor executor) {
     Set<String> registered = Set.of("template", "custom", "script", "ai");
     return new TaskRunner(
         engine,
@@ -427,11 +429,119 @@ class TaskRunnerTest {
     runner(
             (task, context) -> TaskResult.empty(),
             work -> {
-              throw new java.util.concurrent.RejectedExecutionException("stopping");
+              throw new RejectedExecutionException("stopping");
             })
         .accept(runOrder());
 
     assertThat(inFlight.size()).isZero();
+  }
+
+  @Test
+  void aClaimArrivingAfterTheStopIsRefusedBeforeItIsTaken() {
+    AtomicBoolean handedOff = new AtomicBoolean();
+    TaskRunner runner =
+        runner((task, context) -> TaskResult.empty(), work -> handedOff.set(true));
+    runner.stop();
+
+    runner.accept(runOrder());
+
+    assertThat(handedOff).isFalse();
+    assertThat(inFlight.size()).isZero();
+    assertThat(engine.starts).isEmpty();
+  }
+
+  // The stop lands in the gap between the claim entering flight and its hand-off: the claim is
+  // registered here, so it must reach its end rather than be dropped as not taken.
+  @Test
+  void aStopLandingBetweenRegistrationAndTheHandOffStillDrainsTheClaim() throws Exception {
+    DirectExecutor executor = new DirectExecutor();
+    AtomicReference<Thread> stopper = new AtomicReference<>();
+    TaskRunner runner = runner((task, context) -> TaskResult.empty(), executor);
+    inFlight.onChange(
+        () -> {
+          Thread stop = Thread.ofVirtual().unstarted(() -> stop(runner, executor));
+          if (stopper.compareAndSet(null, stop)) {
+            stop.start();
+            try {
+              // A stop that cannot land before the hand-off leaves the accept to carry on.
+              stopper.get().join(300);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+            }
+          }
+        });
+
+    runner.accept(runOrder());
+    stopper.get().join(5000);
+
+    assertThat(engine.endsOf("task-1")).hasSize(1);
+    assertThat(inFlight.size()).isZero();
+  }
+
+  @Test
+  void aClaimRacedAgainstTheStopIsDrainedOrRefusedBeforeItIsTaken() throws Exception {
+    AtomicBoolean registered = new AtomicBoolean();
+    inFlight.onChange(() -> registered.set(true));
+    for (int i = 0; i < 300; i++) {
+      String id = "task-" + i;
+      TaskRun claim = runOrder();
+      claim.setId(id);
+      DirectExecutor executor = new DirectExecutor();
+      TaskRunner runner = runner((task, context) -> TaskResult.empty(), executor);
+      registered.set(false);
+      CountDownLatch go = new CountDownLatch(1);
+      Thread accepting = Thread.ofVirtual().start(() -> {
+            await(go);
+            runner.accept(claim);
+          });
+      Thread stopping = Thread.ofVirtual().start(() -> {
+            await(go);
+            stop(runner, executor);
+          });
+
+      go.countDown();
+      accepting.join(5000);
+      stopping.join(5000);
+
+      assertThat(inFlight.size()).as(id).isZero();
+      if (registered.get()) {
+        assertThat(engine.endsOf(id)).as(id + " registered").hasSize(1);
+      } else {
+        assertThat(engine.starts).as(id + " refused").doesNotContain(id + ":d-1");
+      }
+    }
+  }
+
+  // What Dispatcher.stop does to a runner and the executor it shares.
+  private static void stop(TaskRunner runner, DirectExecutor executor) {
+    runner.stop();
+    executor.shutdown();
+  }
+
+  private static void await(CountDownLatch latch) {
+    try {
+      latch.await(10, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  /** Runs the work on the calling thread, and rejects it once shut down, as the real one does. */
+  private static final class DirectExecutor implements Executor {
+
+    private volatile boolean shutDown;
+
+    @Override
+    public void execute(Runnable work) {
+      if (shutDown) {
+        throw new RejectedExecutionException("stopping");
+      }
+      work.run();
+    }
+
+    void shutdown() {
+      shutDown = true;
+    }
   }
 
   private void awaitEmpty() throws InterruptedException {

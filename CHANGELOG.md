@@ -313,3 +313,6 @@ tag's release notes.
 - The stalled-run recovery re-advances a run only after two consecutive sweeps find no task in flight; a run caught
   in the instant between a task's end and the next admission was re-advanced on one sighting, with a "Task Status
   invalid" error for every completed task.
+- A dispatcher SDK stop that lands as a claim is being taken drains that claim to its end, or refuses it before it
+  enters flight; it used to drop a claim already in flight as "not taken", holding a claim it never reported on
+  until its lease lapsed.
