@@ -57,7 +57,7 @@ values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and `$(context.params.x)`
 so an edit since admission, or across a requeue, shows. Admission has checked every reference (below), so the
 fill-in fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
 `SpecFillFailed` (`dispatcher/DispatcherService.java:460-469`). The task run's params are the task's declared
-params merged with the values authored on the workflow node (`engine/DAGUtility.java:221-224`).
+params merged with the values authored on the workflow node (`engine/DAGUtility.java:273-276`).
 
 ## Substitution
 
@@ -134,7 +134,7 @@ and the container see the real value.
 
 | How a param becomes `secret` | Where |
 | --- | --- |
-| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1818`) and each task run (`engine/DAGUtility.java:223`) are built |
+| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1818`) and each task run (`engine/DAGUtility.java:275`) are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`common/util/ParameterUtil.java:130-140`) |
 | A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:1430,1600-1602` and `schedule/ScheduleService.java:228-231` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParamLayers` (`engine/ParameterManager.java:196-201`) |

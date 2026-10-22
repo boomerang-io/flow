@@ -77,9 +77,13 @@ task poll (`dispatcher/DispatcherService.java:350-353`).
 
 ## Polling
 
-Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work every
-second, and answers as soon as it has claimed something, or 204 when the window passes
-(`dispatcher/DispatcherService.java:55-57`, `:365-417`). One task answer claims at most 20 task runs to run and 40
+Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work whenever a
+task is admitted, or a run with a workspace is submitted to start, on the engine instance holding it and at least
+every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and answers as soon as it has
+claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:55-73`, `:380-429`,
+`:494-497`, `dispatcher/PollWakeups.java:24-55`). A task is therefore claimed about an end round trip, an admission
+and a claim round trip after its predecessor ends, not up to a re-check interval later; on a multi-instance engine a
+poll held on another instance than the one that admitted the task finds it within the interval. One task answer claims at most 20 task runs to run and 40
 termination orders; one workflow answer at most 20 runs. A dispatcher's client read timeout MUST exceed 30 s. It
 SHOULD poll again at once after a poll that returned runs or was held for its window, and SHOULD wait about 5 s after
 one that failed or was answered at once with nothing; claiming switched off (`flow.queue.enabled=false`) and a filter
@@ -152,7 +156,7 @@ with `DispatchPrepareFailed`, and the rest of the poll is still handed out, so n
 never hears of it (`:425-444`).
 
 The task run's params are the task's declared params merged with the values authored on the workflow node
-(`engine/DAGUtility.java:221-224`). A `custom` task takes its runtime from its own params (`image`, `command` and
+(`engine/DAGUtility.java:273-276`). A `custom` task takes its runtime from its own params (`image`, `command` and
 `arguments` split on newlines, and `shellScript`), not from the catalogue entry, which declares no image
 (`:350-377`); a secret-typed one is copied as its reference `$(params.<name>)`, filled in at claim, so a secret
 `command` or `arguments` arrives as one element (`:391-402`).
@@ -253,7 +257,8 @@ core's read gives up (`core/config/RestConfig.java:53`) and the stream ends with
 
 Flow stores no traces; a task and a dispatcher export their own OpenTelemetry spans to the operator's backend. So
 that every task of one run lands in one trace, a dispatcher SHOULD derive a W3C `traceparent` for each task run and
-hand it to the task as `TRACEPARENT`; an in-process handler uses it as the parent context of its spans.
+hand it to the task as `TRACEPARENT`; an in-process handler uses it as the parent context of its spans, which the
+SDK's runner does for it when the host gives the builder an `ObservationRegistry` ("SDK").
 
 The version is `00`; the trace id is `00000000` followed by the run's `workflowRunRef`, 32 lowercase hex; the parent id
 is the last 16 hex of the task run's `id`; the flags are `01` (sampled). A task run `6ad1bfa6cfefa66e88d5e2e0` of run
@@ -276,7 +281,7 @@ Shared storage is one workspace per run: a workflow declares a single `workspace
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
 at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1820-1826`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
-own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:259-271`).
+own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:311-323`).
 
 ## Task types
 
@@ -290,7 +295,7 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
 | `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:307-328`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`engine/TaskRunService.java:1117-1148`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
-| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:458-461`) |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:510-513`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run with the node's params other than `workflowRef` and `wait` (`engine/TaskExecutionService.java:1199-1209`). Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (`execution-model.md`, "Child workflows") |
 | `runscheduledworkflow`, `setwfstatus`, `setwfproperty` | Schedule another workflow to run later, or write the run's status message or a workflow-scoped param, then end |
@@ -305,10 +310,10 @@ migrations seed 89 tasks and their 134 revisions from `service-core/src/main/res
 unit (`migration/_0018__SeedArtifactTasks.java`). A seed inserts only what is absent, so a task or revision added to
 the seed later needs a change unit of its own to reach an existing database (`data-model.md`, "Migrations"). A
 `template` or `script` task without an image takes the `task` settings' `default.image` (seeded as
-`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:275-280`).
+`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:327-332`).
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1424-1425`), and the task run records it (`engine/DAGUtility.java:186-190`), so a new
+(`workflow/WorkflowService.java:1424-1425`), and the task run records it (`engine/DAGUtility.java:238-242`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks
@@ -347,7 +352,8 @@ backoff; no other error re-registers (`sdk/Dispatcher.java:211-240`).
 ## SDK
 
 `dispatcher-sdk` is this protocol as a Java library, so a dispatcher author writes only the work; Flow's Kubernetes
-dispatcher is built on it. It depends on `spring-web` and Jackson only, owns its wire models (`sdk/model/`; unknown
+dispatcher is built on it. It depends on `spring-web` and Jackson only (Micrometer Observation arrives with
+`spring-web`; SLF4J and logback are optional, for task log capture), owns its wire models (`sdk/model/`; unknown
 fields ignored, an unknown enum value read as `unknown`), and its `DispatcherContractTest` fails when anything in
 `contracts/dispatcher-v1.yaml` is neither modelled nor listed as deliberately not.
 
@@ -355,8 +361,9 @@ fields ignored, an unknown enum value read as `unknown`), and its `DispatcherCon
 | --- | --- |
 | `DispatcherClient` | One method per route over the host's `RestClient`, keeping its proxy, certificates and timeouts; the token on engine calls only (`sdk/DispatcherClient.java:56-64`) |
 | `Dispatcher` | Registration retried with backoff until the engine answers (`sdk/Dispatcher.java:242-277`), and again when a poll or heartbeat is answered `404 DISPATCHER_NOT_REGISTERED` (`:211-240`), with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool with the pacing above, `limit` set to the pool's free capacity on every poll, and optional filters, plus a `limit=0` poll while the pool is full (`sdk/Dispatcher.java:240-290`); the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s listing every task in flight; a stop that stops the polls, has every runner refuse the claims still arriving, then shuts the executor down and drains for 10 s (`sdk/Dispatcher.java:133-166`) |
-| `TaskRunner` | A claim taken into flight and handed to the executor as one step against the stop, under a read lock the stop takes for writing, so a claim is either drained or refused before it is taken, never registered and dropped (`sdk/TaskRunner.java:102-139`); the start answer honoured; the end retried with backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx other than 408 or 429, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`sdk/TaskRunner.java:194-257`) |
+| `TaskRunner` | A claim taken into flight and handed to the executor as one step against the stop, under a read lock the stop takes for writing, so a claim is either drained or refused before it is taken, never registered and dropped (`sdk/TaskRunner.java:102-139`); the start answer honoured; the end retried with backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx other than 408 or 429, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`sdk/TaskRunner.java:194-257`). Around every handler call (`:211-239`): an observation named `flow.task`, started before the handler and stopped after it with the handler's exception as its error, carrying the task-run id, task name and workflow run id as low-cardinality keys and the task's `traceparent` as a receiver carrier, so the registry's tracing handler parents it on the run's trace and the handler's own spans join it (`:244-254`); with no registry on the builder it is a no-op. With a `TaskLogCapture` on the builder, the handler's thread carries the task-run id in the SLF4J MDC under `taskRunId` for the handler's duration, and the captured log is uploaded through `LogUploader` as the handler returns, before the end is reported and replacing any log the handler uploaded itself (`:237`), and every `logUploadInterval` while it runs, 30 s by default, zero for only at the end (`:256-268`) |
 | `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` with one of `StatusReason`'s reasons (`TaskFailure.exceededQuota`, `startTimeout` and `rateLimited` for the requeued ones); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`sdk/LogUploader.java:41-67`) |
+| `TaskLogCapture` | One buffer per task run, fed by the host's log framework through `append(taskRunId, line)` with the id each event carries in its MDC (`sdk/TaskLogCapture.java:52-57`); the first `headBytes` and the last `tailBytes` are kept, 64 KB each by default, with one line between them saying how many bytes were dropped (`:96-120`); `snapshot(taskRunId)` is the log so far, for a host that serves a live log route. `logback.TaskLogAppender` is the adapter for logback: `attach(capture)` adds it to the root logger (`sdk/logback/TaskLogAppender.java:31-38`); a log4j2 host writes the equivalent three-line appender. SLF4J and logback are optional dependencies of the SDK, so a dispatcher that captures nothing carries neither |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim, the download verified against `sha256` (`sdk/ArtifactTransfer.java:83-131`) |
 
 It is the only Flow library published: to GitHub Packages as `io.boomerang:dispatcher-sdk`, versioned with the product

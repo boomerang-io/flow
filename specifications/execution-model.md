@@ -41,6 +41,16 @@ filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polli
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` among the dispatcher's types, no `claim.by` and
   `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any task or workflow filter the poll
   resolved (`engine/TaskRunService.java:120-144`, `:218-227`).
+- A poll that claimed nothing is held and looks again when work is admitted on its engine instance or when the
+  re-check interval passes, whichever is first. `PollWakeups` is one monitor per instance with a signal count:
+  `TaskExecutionService.queue` signals it once per successful `tryAdmit`
+  (`engine/TaskExecutionService.java:247-254`), and so does a run submitted to start with a workspace once it is
+  parked `ready`/`pending` for its provisioning claim (`workflow/WorkflowRunService.java:801-816`). Both held
+  polls, task and workflow, read the count before each look and wait for it to change, so a signal that lands
+  during the look is not lost, and re-run their own filter query on a wake (`dispatcher/PollWakeups.java:24-55`,
+  `dispatcher/DispatcherService.java:265`, `:381`, `:494-497`). A for-each item admits through the same method, so
+  items wake polls too. Work that becomes claimable without an admission on that instance, a `retry.after` that
+  elapses or an admission on another instance, is found by the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`
   (`engine/TaskRunService.java:317-355`). A null result means another dispatcher won; the loser skips the candidate.
@@ -115,7 +125,7 @@ each instance keeps its own cursors.
 | --- | --- | --- |
 | `reapTaskTimeouts` (`WorkflowWatcher.java:218`) | `queued`/`running` task runs past `timeoutAt` (`TaskRunService.java:607-618`) | requeue or abandon (`WorkflowWatcher.java:504-521`): a requeueable type with fewer than 3 requeues is requeued (`TaskRunService.java:735`); otherwise it is marked `timedout` with `DeadlineExceeded`, only while its deadline has passed (`TaskRunService.java:693-713`), and ended |
 | `reapWorkflowTimeouts` (`WorkflowWatcher.java:238`) | `pending` and `running` runs past `timeoutAt`, neither paused nor waiting (`WorkflowRunStateHelper.java:299-315`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:915`) |
-| `recoverStalledRuns` (`WorkflowWatcher.java:248`) | unpaused `running` runs started over 60 s ago (`WorkflowRunStateHelper.java:315-333`) with no task run in flight on two consecutive sweeps, checked for the page in one read (`TaskRunService.java:675-686`); one empty sighting is what a run between a task's end and the next admission looks like | re-drives the graph advance (`TaskExecutionService.java:641-661`) |
+| `recoverStalledRuns` (`WorkflowWatcher.java:248`) | unpaused `running` runs started over 60 s ago (`WorkflowRunStateHelper.java:315-333`) with no task run in flight on two consecutive sweeps, checked for the page in one read (`TaskRunService.java:675-686`); one empty sighting is what a run between a task's end and the next admission looks like | re-drives the graph advance (`TaskExecutionService.java:643-663`) |
 | `recoverForeachTasks` (`WorkflowWatcher.java:281`) | for-each parents in the `running` phase for over 60 s, whatever their status (`TaskRunService.java:462-485`) | ends a parent whose outcome is recorded; re-runs the idempotent fan-out (`TaskExecutionService.java:704-739`) for one with no item in flight (`TaskRunService.java:509-519`) in an unpaused run. A paused run is skipped, since the pause gate would refuse every item; resume re-runs the fan-out |
 | `resumeDueWaitingTasks` (`WorkflowWatcher.java:319`) | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:825-832`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:873-881`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1075-1100`) |
 | `cancelDeletedWorkflowRuns` (`WorkflowWatcher.java:336`) | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel |
@@ -236,17 +246,19 @@ method. Work already admitted, claimed or running continues and times out on its
 the time paused, as a wait does; a pause and a wait that overlap are counted once
 (`engine/WorkflowRunStateHelper.java:282-313`). Resume clears the flag and calls `advance`, which queues whatever the
 gate held back, including the unadmitted items of a running for-each task (`workflow/WorkflowRunService.java:885-900`,
-`engine/TaskExecutionService.java:641-661`). The stalled-run sweep and the for-each fan-out recovery skip a paused run.
+`engine/TaskExecutionService.java:643-663`). The stalled-run sweep and the for-each fan-out recovery skip a paused run.
 
 ## The graph advance
 
 The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity`
-(`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:146-327`), and advanced level-triggered from
-stored state. When a task completes, the completion winner reads the run's graph, queues every dependant whose
-dependencies are all `completed`, and finishes the run when the end node's dependencies are all done
-(`engine/TaskExecutionService.java:615-633`, `:1498-1579`). A dependency with no task run never counts as satisfied
-(`:1586-1598`). `advance` re-applies the same logic for every completed task and is safe to call at any time; the
-watcher, resume and a scoped retry's start use it (`:641-661`). Transition handlers follow four rules:
+(`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`), and advanced level-triggered from
+stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored
+`dependencies.taskRef`, and the tasks they depend on, never the run's whole graph (`DAGUtility.retrieveDependants`,
+`engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the
+run when the end node's dependencies are all done, reading the whole graph once there for the path check
+(`engine/TaskExecutionService.java:616-637`, `:1488-1608`). A dependency with no task run never counts as satisfied
+(`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe
+to call at any time; the watcher, resume and a scoped retry's start use it (`:643-663`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-148`).
 2. The handler MUST check the transition has not already happened (phase guards at `:153-156`, `:286-290`,
@@ -350,14 +362,14 @@ A task with `foreach` set runs once per item of an array, in parallel, in the sa
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow` may
 carry it; saving refuses it anywhere else, `start` and `end` included (`workflow/WorkflowService.java:128-137`,
 `:1414-1421`, `:1611-1619`). A for-each `runworkflow` task submits one child run per item. The graph still sees one
-task run per node: `DAGUtility.retrieveGraph` reads only task runs without a `parentRef`
-(`engine/DAGUtility.java:130-141`), so items are never vertices.
+task run per node: `DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef`
+(`engine/DAGUtility.java:131-181`), so items are never vertices.
 
 | Step | What happens | Where |
 | --- | --- | --- |
 | Fan-out | `queue` resolves `foreach.items` against the task's parameter layers, a literal array or one reference whose value is an array or text holding one, and checks the count against `workflowrun`/`max.foreach.items` (256). A compare-and-set moves the parent `notstarted/pending` → `running/running` and records the array. The parent never passes through `ready`, so it is never claimable, and it carries no claim and no `timeoutAt`, so no lease, orphan or deadline sweep reaps it | `TaskExecutionService.java:669-695`, `TaskRunService.java:440-456` |
 | Items | One task run per element, named `<name>[<index>]`, with `parentRef`, `index`, the parent's type, task, spec, workspace, declared results, timeout, labels and annotations, no dependencies, and the parent's params plus `item` and `index`. An item is inserted only when its name is free, so the `node_uniqueness` index makes a concurrent duplicate lose; each unadmitted item is then queued. Items skip the graph check but pass the pause gate, the params cap and admission, and are claimed, leased, timed out and retried like any task | `TaskExecutionService.java:704-783`, `:181-186` |
-| Parent completion | An item's end never advances the graph. After its own completion it asks whether any item is unfinished or missing, an `exists` and a `count`, and only when none is loads the items' `index`, `status` and `results`. The parent then ends with its outcome in the completion compare-and-set, guarded on `running`, so of any number of concurrent last-item enders exactly one completes it and advances the graph. A crash before that end leaves the parent running with every item terminal, which `recoverForeachTasks` completes | `TaskExecutionService.java:608-613`, `:792-837`, `TaskRunService.java:489-504` |
+| Parent completion | An item's end never advances the graph. After its own completion it asks whether any item is unfinished or missing, an `exists` and a `count`, and only when none is loads the items' `index`, `status` and `results`. The parent then ends with its outcome on the item's end thread, in the completion compare-and-set guarded on `running`, so of any number of concurrent last-item enders exactly one completes it, and that one admits the parent's dependants before the item's end returns: no second asynchronous hop sits between the last item and the next task. The fan-out of an empty array and the watcher's recovery complete the parent the same way, on their own thread. A crash before that end leaves the parent running with every item terminal, which `recoverForeachTasks` completes | `TaskExecutionService.java:608-614`, `:811-856`, `TaskRunService.java:489-504` |
 | Outcome | `succeeded` when every item succeeded, else `failed` with `ItemFailed` and "`<n>` of `<m>` items did not succeed." Each declared result, or for a task that declares none, such as `runworkflow`, each result its items produced in first-seen order, becomes an array in item order with `null` for an item that did not succeed. When MongoDB refuses the combined arrays as over its 16 MB document limit, the parent fails with `ResultsTooLarge` and no results. An empty array succeeds at once with empty arrays. Items that do not resolve to an array fail the task with `ForeachItemsInvalid`; more than the cap with `ForeachTooManyItems`, creating no item | `TaskExecutionService.java:478-489`, `:818-865`, `:676-693` |
 
 An item that times out is a task timeout: it times out the whole run, which cancels the parent and the remaining items

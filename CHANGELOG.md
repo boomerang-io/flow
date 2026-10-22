@@ -120,13 +120,19 @@ tag's release notes.
 
 ### Added
 
-- The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
-  `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
-  and models from the file at the tag they run.
-- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
-  cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
-  carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is published to GitHub
-  Packages by every product tag beside `dispatcher-sdk`, at the tag's version (`flow-sdk/README.md`).
+- Admitting a task, or submitting a run with a workspace, wakes the dispatcher polls held on that engine instance,
+  so the work is claimed as soon as it is ready instead of at the poll's next re-check: a hop in a sequential chain
+  is now the end, the admission and the claim round trips, about 100–200 ms, whatever
+  `flow.dispatcher.poll.recheck-ms` is set to. The timed re-check still covers a task admitted on another replica
+  or a retry whose backoff elapses.
+- `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
+  (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
+  queries per dispatcher: its idle queries per second are its pools × 1000 / the value.
+- The dispatcher SDK captures a task's log and opens its trace for an in-process dispatcher: with
+  `captureTaskLogs(new TaskLogCapture())` on the builder, the lines a handler logs (tagged `taskRunId` in the MDC,
+  the first and last 64 KB kept) are uploaded as the task log when it ends and every 30 s while it runs; with
+  `observationRegistry(registry)`, each handler runs under a `flow.task` observation carrying the task's
+  `traceparent`. Both are off by default; a logback appender is included, SLF4J and logback stay optional.
 - Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
   task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
   tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The
@@ -178,9 +184,22 @@ tag's release notes.
   next major version.
 - `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
   constants are the same values.
+- The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
+  `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
+  and models from the file at the tag they run.
+- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
+  cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
+  carried as `FlowApiException`. It depends on `spring-web` and Jackson only (`flow-sdk/README.md`).
+- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
+  cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
+  carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is published to GitHub
+  Packages by every product tag beside `dispatcher-sdk`, at the tag's version (`flow-sdk/README.md`).
 
 ### Changed
 
+- The task edit modal keeps its description to one line and moves the task name and the tabs into its header, and
+  lists a task's declared results on a Results tab instead of as tags under the parameters, so the fields get the
+  height.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
@@ -284,6 +303,10 @@ tag's release notes.
   rest of the poll is still handed out.
 - The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
+- A task's end reads only the tasks that depend on it and what those depend on, not the run's whole graph, so the
+  database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
+  chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
+  once, without a second asynchronous hop.
 
 ### Fixed
 

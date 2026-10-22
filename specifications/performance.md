@@ -59,13 +59,20 @@ queues behind older work and ahead of newer work like any other burst. Each item
 `exists` and a `count` and loads no item; only the last end loads the items, projected
 (`engine/TaskRunService.java:489-504`).
 
-Dispatchers long-poll for 30 s, re-querying every 1 s with a page of 20 (`dispatcher/DispatcherService.java:55-57`),
-and reconnect as soon as a poll returns
+Dispatchers long-poll for 30 s, re-querying every `flow.dispatcher.poll.recheck-ms` (1000 by default, never under
+100) with a page of 20 (`dispatcher/DispatcherService.java:55-72`, `:486-488`), and reconnect as soon as a poll returns
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.java:104-123`). Each connected dispatcher
-therefore costs about 4 indexed queries per second when idle (the task claim page, the two termination pages and
-the run provision page) and one request every 30 s per queue. A newly ready task waits at most about 1 s for a
-connected dispatcher with a free slot, including a slot that frees while the engine holds a full dispatcher's
-`limit=0` poll. A dispatcher holds at most `flow.dispatcher.task.max-in-flight` tasks (25,
+therefore costs about 4 indexed queries per re-check when idle (the task claim page, the two termination pages and
+the run provision page), all on `claim_page`, and one request every 30 s per queue; a dispatcher's idle queries per
+second scale with its pools × 1000 / the interval. Admitting a task, or submitting a run with a workspace to start,
+wakes every poll held on that engine instance, which re-runs its filter query at once
+(`dispatcher/PollWakeups.java:24-55`, `engine/TaskExecutionService.java:254`, `workflow/WorkflowRunService.java:815`,
+`dispatcher/DispatcherService.java:494-497`): a few indexed queries per admission, none while nothing is admitted,
+and a hop in a sequential chain costs the end round trip, the admission and the claim round trip, about 100–200 ms,
+independent of the interval. The interval bounds the wait for a task that becomes claimable without an admission
+on the polled instance: a `retry.after` that elapses, an admission on another replica, or a slot that frees while
+the engine holds a full dispatcher's `limit=0` poll. A multi-replica engine whose chains hop often can trade queries
+for that latency: one dispatcher with seven pools at 200 ms costs 35 queries/s instead of 7. A dispatcher holds at most `flow.dispatcher.task.max-in-flight` tasks (25,
 `service-dispatcher/src/main/resources/application.properties:96`), a Pending pod and a retried end report
 included, and each poll claims no more than its free slots, so under a backlog the work it cannot run stays
 claimable by other dispatchers (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/InFlightTasks.java:29-33`,
@@ -264,7 +271,7 @@ speculation. The laptop baseline above is not that test.
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Per-class retry policies (a rate-limit backoff, failures known to be final) | One `Backoff` for every requeue; `retry` carries only `after` and `count`; a dispatcher's failure is requeued only for the three reasons that mean the task never started, `ExceededQuota`, `StartTimeout` and `RateLimited`, and every other failure ends the task (`common/model/StatusReason.java:45`, `engine/TaskRunService.java:1088-1111`) | A runtime whose rate-limit signal needs a different backoff from the shared one |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:455-473`, `service-dispatcher/src/main/java/io/boomerang/executor/JobWatcher.java:23-33`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
-| An event-driven dispatcher poll | A 30 s long poll that re-checks every 1 s (`dispatcher/DispatcherService.java:55-56`); the dispatcher reconnects at once | A measured idle-query cost at the dispatcher count in use, or a workload that needs task-to-task hops well under 1 s |
+| A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by admissions on its own instance (`dispatcher/PollWakeups.java:24-55`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:70-73`, `:494-497`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`engine/TaskRunService.java:215-227`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
 | A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` (15, `service-dispatcher/src/main/resources/application.properties:37`) is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 
@@ -272,7 +279,17 @@ speculation. The laptop baseline above is not that test.
 
 - Sent outbox rows and received inbox rows expire after 7 days; `task_locks` documents expire on their own index — all built by `_0021__Indexes` (`migration/_0021__Indexes.java:112-128`).
 - Sweeps page 50 documents at a time; the dispatcher claims at most 20 per poll.
-- A run's graph is read about twice per task, at its queue and at its end, projected to the seven fields the graph
-  walk reads (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:130-142`); a completion returns only the fields
-  its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:895-899`). An end therefore
-  reads no other task run's params, spec or results (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`).
+- A run's graph is read once per task, at its queue, projected to the six fields the graph walk reads
+  (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:131-136`), and once more when the run finishes. A task's end
+  reads only its dependants and the tasks they depend on, by the stored `dependencies.taskRef` under the `run_tasks`
+  index and by name under `node_uniqueness` (`DAGUtility.retrieveDependants`, `:145-181`): in a chain of 200 tasks
+  an end returns 4 task run documents where the graph read returned 202, and a wider fan-in costs one document per
+  neighbour, never per task in the run
+  (`DispatcherRequestDatabaseCommandsTest.anEndOfA200TaskRunReadsItsDependantsNotTheGraph`). A completion returns
+  only the fields its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:895-899`). An
+  end therefore reads no other task run's params, spec or results
+  (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`). `advance` and the watcher's recovery keep
+  the whole-graph read: they run rarely.
+- A for-each parent completes on its last item's end thread and its dependants are admitted from there
+  (`engine/TaskExecutionService.java:811-856`), so nothing but the admission hand-off sits between the last item
+  and the next task.

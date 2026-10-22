@@ -58,11 +58,13 @@ class DispatcherQueueErrorPathTest {
           new ClaimFilterService(mock(MongoTemplate.class)),
           mock(io.boomerang.engine.ParameterManager.class),
           mock(io.boomerang.engine.repository.WorkflowRunRepository.class),
-          mock(io.boomerang.workflow.TaskService.class));
+          mock(io.boomerang.workflow.TaskService.class),
+          new PollWakeups());
 
   @BeforeEach
   void setUp() {
     ReflectionTestUtils.setField(dispatcherService, "queueEnabled", true);
+    ReflectionTestUtils.setField(dispatcherService, "pollRecheckMs", 1000L);
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.template));
