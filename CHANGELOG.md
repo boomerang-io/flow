@@ -319,3 +319,6 @@ tag's release notes.
 - Workspace owners and editors can issue workflow tokens from a workflow's Configure › Tokens tab; it answered
   `TOKEN_ADMIN_REQUIRED` to every non-admin because the permission catalog was asked with the workflow, not the
   workspace, as principal.
+- A dispatcher SDK stop that lands as a claim is being taken drains that claim to its end, or refuses it before it
+  enters flight; it used to drop a claim already in flight as "not taken", holding a claim it never reported on
+  until its lease lapsed.
