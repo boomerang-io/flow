@@ -43,6 +43,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
@@ -50,6 +51,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -656,6 +661,46 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
         .isEqualTo(8L);
     assertThat(store.objects.get(log.getStorageKey()))
         .isEqualTo("retried\n".getBytes(StandardCharsets.UTF_8));
+  }
+
+  /**
+   * A periodic upload and the final one can overlap: both read no record and both insert. The one
+   * refused by the unique index takes over the other's record instead of failing, so the task's
+   * log is stored either way and one record is available.
+   */
+  @Test
+  void twoOverlappingUploadsOfATaskLogKeepOneRecord() throws Exception {
+    String run = uploadTask.getWorkflowRunRef();
+    String name = ArtifactService.logName(uploadTask.getId());
+    CountDownLatch bothRead = new CountDownLatch(2);
+    ExecutorService uploads = Executors.newFixedThreadPool(2);
+    try {
+      List<Future<?>> stores = new ArrayList<>();
+      for (String text : List.of("periodic\n", "periodic\nfinal\n")) {
+        stores.add(
+            uploads.submit(
+                () -> {
+                  // Both uploads look for the record before either saves one.
+                  assertThat(artifactRepository.findByWorkflowRunRefAndName(run, name)).isEmpty();
+                  bothRead.countDown();
+                  assertThat(bothRead.await(10, TimeUnit.SECONDS)).isTrue();
+                  artifactService.storeTaskLog(uploadTask, text.getBytes(StandardCharsets.UTF_8));
+                  return null;
+                }));
+      }
+      for (Future<?> store : stores) {
+        store.get(10, TimeUnit.SECONDS);
+      }
+    } finally {
+      uploads.shutdownNow();
+    }
+
+    assertThat(artifactRepository.findAll())
+        .filteredOn(a -> run.equals(a.getWorkflowRunRef()) && name.equals(a.getName()))
+        .hasSize(1);
+    ArtifactEntity log = artifactService.taskLog(uploadTask).orElseThrow();
+    assertThat(store.objects).containsKey(log.getStorageKey());
+    assertThat(log.getSize()).isIn(9L, 15L);
   }
 
   @Test
