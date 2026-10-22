@@ -313,3 +313,6 @@ tag's release notes.
 - The stalled-run recovery re-advances a run only after two consecutive sweeps find no task in flight; a run caught
   in the instant between a task's end and the next admission was re-advanced on one sighting, with a "Task Status
   invalid" error for every completed task.
+- Workspace owners and editors can issue workflow tokens from a workflow's Configure › Tokens tab; it answered
+  `TOKEN_ADMIN_REQUIRED` to every non-admin because the permission catalog was asked with the workflow, not the
+  workspace, as principal.

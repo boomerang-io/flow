@@ -205,6 +205,7 @@ export async function editorLoader({
     settle(api.get<any>(serviceUrl.getGitHubAppInstallationForWorkspace({ workspace }))),
     // Delegated rather than re-specified: workflowTokensLoader already owns the "which tokens
     // does the Configure > Tokens tab show" contract, and three other routes share the helper.
+    // `params` carries the `:workspace` segment it asks the permission catalog with.
     workflowRead.then((result) => workflowTokensLoader({ params, request, workflowId: valueOf(result)?.id })),
   ]);
 
