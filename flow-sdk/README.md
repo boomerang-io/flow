@@ -52,7 +52,7 @@ page.total();                                                   // every match, 
 page.next();                                                    // Optional<Page<WorkflowRun>>
 runs.count(RunQuery.all().label("team.io/batch", "b-7"));       // by status
 
-flow.taskRuns("my-workspace").query(TaskRunQuery.all().label("team.io/batch", "b-7").tasks("review"));
+flow.taskRuns("my-workspace").query(TaskRunQuery.all().label("team.io/batch", "b-7").tasks("review").foreach(false)); // foreach(false) leaves out for-each parents
 
 Insights insights = flow.insights("my-workspace");
 insights.summary(InsightsQuery.period(t0, t1));

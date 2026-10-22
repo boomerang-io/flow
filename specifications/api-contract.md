@@ -177,13 +177,15 @@ MongoDB's 16 MB document limit (`common/model/StatusReason.java:22,37-39`,
 
 `GET …/workspace/{workspace}/taskrun/query` (`workflow/WorkspaceTaskRunControllerV2.java:37`) pages task runs across
 runs with the run query's filters, applied to the task run, plus `tasks`: node names, each matching its for-each
-items too (`workflow/WorkflowRunService.java:326-406`). It needs `labels` or `workflowruns`, the two ways task runs
-are indexed (`migration/_0021__Indexes.java:63,75`), or it is `400 QUERY_INVALID_FILTERS`
-(`workflow/WorkflowRunService.java:339-343`). A task run carries its run's labels, and a run-workflow child its
-parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1154-1166`), so one label finds a run's
-task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`, `annotations` or
-`statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:363-365,410-417`). Rows
-sort by creation, then id, so pages stay stable (`:344-346`).
+items too, and `foreach`: `true` keeps for-each parents only, `false` leaves them out, absent lists both
+(`workflow/WorkflowRunService.java:325-426`, the parent being the task run carrying the foreach setting, `:368`). It
+needs `labels` or `workflowruns`, the two ways task runs are indexed (`migration/_0021__Indexes.java:63,75`), or it is
+`400 QUERY_INVALID_FILTERS` (`workflow/WorkflowRunService.java:347-350`). A task run carries its run's labels, and a
+run-workflow child its parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1154-1166`), so one
+label finds a run's task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`,
+`annotations` or `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:372-374,419-426`);
+a for-each parent's row carries `foreach: true` and never the setting's items (`common/model/TaskRun.java:59`). Rows
+sort by creation, then id, so pages stay stable (`:353`).
 
 ## Insights
 

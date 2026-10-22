@@ -102,6 +102,16 @@ public class WorkspaceTaskRunControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> tasks,
+      @Parameter(
+              name = "foreach",
+              description =
+                  "true lists for-each parents only, the task run that stands for a for-each"
+                      + " task's items and never runs itself; false leaves them out. Defaults to"
+                      + " both.",
+              example = "false",
+              required = false)
+          @RequestParam(required = false)
+          Optional<Boolean> foreach,
       @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
           @RequestParam(required = false)
           Optional<Integer> limit,
@@ -141,6 +151,7 @@ public class WorkspaceTaskRunControllerV2 {
         phase,
         workflowruns,
         workflows,
-        tasks);
+        tasks,
+        foreach);
   }
 }

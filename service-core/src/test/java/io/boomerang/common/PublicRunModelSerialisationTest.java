@@ -10,6 +10,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowTaskForeach;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -92,8 +93,8 @@ class PublicRunModelSerialisationTest {
 
   /**
    * An item of a foreach task is an ordinary claimed, leased, timed TaskRun: its execution state
-   * stays on the entity, while its parent and position are public. The parent's foreach setting,
-   * which holds the resolved item array, stays on the entity too.
+   * stays on the entity, while its parent and position are public. The parent is marked {@code
+   * foreach: true}; its foreach setting, which holds the resolved item array, stays on the entity.
    */
   @Test
   void aForeachItemExposesItsParentAndIndexButNoExecutionState() {
@@ -107,7 +108,6 @@ class PublicRunModelSerialisationTest {
     item.setClaim(claim);
     item.setTimeoutAt(new Date());
     item.setWaitUntil(new Date());
-    item.setForeach(new WorkflowTaskForeach());
 
     ObjectNode json = serialise(new TaskRun(item));
 
@@ -116,6 +116,18 @@ class PublicRunModelSerialisationTest {
     assertThat(json.propertyNames())
         .doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE)
         .doesNotContain("foreach");
+
+    TaskRunEntity parent = new TaskRunEntity();
+    parent.setName("locate");
+    WorkflowTaskForeach setting = new WorkflowTaskForeach();
+    setting.setItems(List.of("a", "b"));
+    parent.setForeach(setting);
+
+    ObjectNode parentJson = serialise(new TaskRun(parent));
+
+    assertThat(parentJson.get("foreach").isBoolean()).isTrue();
+    assertThat(parentJson.get("foreach").asBoolean()).isTrue();
+    assertThat(parentJson.toString()).doesNotContain("items");
   }
 
   /**

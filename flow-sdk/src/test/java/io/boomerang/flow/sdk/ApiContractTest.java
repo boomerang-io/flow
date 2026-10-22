@@ -131,6 +131,7 @@ class ApiContractTest {
             .runs("r")
             .workflows("w")
             .tasks("t")
+            .foreach(false)
             .from(SAMPLE_INSTANT)
             .to(SAMPLE_INSTANT)
             .page(0, 1)

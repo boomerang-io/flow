@@ -16,6 +16,7 @@ import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunResponsePage;
+import io.boomerang.common.model.WorkflowTaskForeach;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
@@ -181,10 +182,44 @@ class TaskRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
                     Optional.empty(),
                     Optional.of(List.of(runId)),
                     Optional.empty(),
-                    Optional.of(List.of("checklist")))
+                    Optional.of(List.of("checklist")),
+                    Optional.empty())
                 .getContent())
         .extracting(TaskRun::getName)
         .containsExactly("checklist[2]");
+  }
+
+  @Test
+  void aForeachParentIsMarkedAndTheForeachFilterKeepsOrLeavesOutParents() {
+    String runId = run(MY_WORKFLOW);
+    TaskRunEntity parent = taskRun(MY_WORKFLOW, runId, "locate", RunStatus.succeeded, version);
+    parent.setForeach(new WorkflowTaskForeach());
+    taskRunRepository.save(parent);
+    for (int index = 0; index < 2; index++) {
+      TaskRunEntity item =
+          taskRun(MY_WORKFLOW, runId, "locate[" + index + "]", RunStatus.succeeded, version);
+      item.setParentRef(parent.getId());
+      item.setIndex(index);
+      taskRunRepository.save(item);
+    }
+    taskRun(MY_WORKFLOW, runId, "publish", RunStatus.succeeded, version);
+
+    TaskRunResponsePage all = query(Optional.empty(), runId, null, Optional.empty());
+    assertThat(all.getTotalElements()).isEqualTo(4);
+    assertThat(all.getContent())
+        .filteredOn(row -> Boolean.TRUE.equals(row.getForeach()))
+        .extracting(TaskRun::getName)
+        .containsExactly("locate");
+
+    TaskRunResponsePage items = query(Optional.empty(), runId, null, Optional.of(false));
+    assertThat(items.getTotalElements()).isEqualTo(3);
+    assertThat(items.getContent())
+        .extracting(TaskRun::getName)
+        .containsExactlyInAnyOrder("locate[0]", "locate[1]", "publish");
+
+    assertThat(query(Optional.empty(), runId, "locate", Optional.of(true)).getContent())
+        .extracting(TaskRun::getName)
+        .containsExactly("locate");
   }
 
   @Test
@@ -208,6 +243,7 @@ class TaskRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
               Optional.empty(),
               Optional.empty(),
               Optional.of(List.of(runId)),
+              Optional.empty(),
               Optional.empty(),
               Optional.empty());
       assertThat(one.getTotalElements()).isEqualTo(3);
@@ -253,6 +289,7 @@ class TaskRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
+                    Optional.empty(),
                     Optional.empty()))
         .isInstanceOf(BoomerangException.class)
         .extracting(ex -> ((BoomerangException) ex).getReason())
@@ -261,6 +298,11 @@ class TaskRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
 
   // The member's own workspace, by label or by one run, optionally by one task name.
   private TaskRunResponsePage query(Optional<List<String>> labels, String runId, String task) {
+    return query(labels, runId, task, Optional.empty());
+  }
+
+  private TaskRunResponsePage query(
+      Optional<List<String>> labels, String runId, String task, Optional<Boolean> foreach) {
     return workflowRunService.queryTaskRuns(
         MY_WORKSPACE,
         Optional.empty(),
@@ -273,7 +315,8 @@ class TaskRunWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         Optional.empty(),
         Optional.ofNullable(runId).map(List::of),
         Optional.empty(),
-        Optional.ofNullable(task).map(List::of));
+        Optional.ofNullable(task).map(List::of),
+        foreach);
   }
 
   private String run(String workflowRef) {

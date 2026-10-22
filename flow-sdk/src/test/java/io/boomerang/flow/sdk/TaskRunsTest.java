@@ -34,7 +34,7 @@ class TaskRunsTest {
             requestTo(
                 TASK_RUNS
                     + "/query?labels=team.io%2Fbatch%3Db-7&statuses=failed&phase=completed"
-                    + "&workflowruns=r1&workflows=wf-1&tasks=review&tasks=publish"
+                    + "&workflowruns=r1&workflows=wf-1&tasks=review&tasks=publish&foreach=false"
                     + "&fromDate=1700000000000&toDate=1700003600000&page=1&limit=20&order=DESC"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(
@@ -61,6 +61,7 @@ class TaskRunsTest {
                     .runs("r1")
                     .workflows("wf-1")
                     .tasks("review", "publish")
+                    .foreach(false)
                     .from(Instant.ofEpochMilli(1700000000000L))
                     .to(Instant.ofEpochMilli(1700003600000L))
                     .page(1, 20)

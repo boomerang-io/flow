@@ -54,6 +54,9 @@ public class TaskRun {
   // Set only on an item of a foreach task: the parent TaskRun's id and the item's position from 0.
   private String parentRef;
   private Integer index;
+  // True on the parent of a foreach task, the run that stands for its items in the graph and never
+  // runs itself; absent on every other TaskRun. The setting and its items stay on the entity.
+  private Boolean foreach;
   // Set on a TaskRun a scoped retry carried over instead of executing: the origin TaskRun it
   // stands for, whose log and action records it shares.
   private String reusedFromRef;
@@ -65,6 +68,7 @@ public class TaskRun {
 
   public TaskRun(TaskRunEntity entity) {
     BeanUtils.copyProperties(entity, this);
+    this.foreach = (entity.getForeach() != null) ? Boolean.TRUE : null;
     if (entity.getClaim() != null) {
       this.attempt = ((entity.getRetry() != null) ? entity.getRetry().getCount() : 0) + 1;
     }
