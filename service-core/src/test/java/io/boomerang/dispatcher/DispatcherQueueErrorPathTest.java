@@ -63,6 +63,7 @@ class DispatcherQueueErrorPathTest {
   @BeforeEach
   void setUp() {
     ReflectionTestUtils.setField(dispatcherService, "queueEnabled", true);
+    ReflectionTestUtils.setField(dispatcherService, "pollRecheckMs", 1000L);
     DispatcherEntity dispatcher = new DispatcherEntity();
     dispatcher.setId(AGENT);
     dispatcher.setTaskTypes(List.of(TaskType.template));

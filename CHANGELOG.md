@@ -120,6 +120,9 @@ tag's release notes.
 
 ### Added
 
+- `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
+  (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
+  queries per dispatcher: its idle queries per second are its pools × 1000 / the value.
 - The dispatcher SDK captures a task's log and opens its trace for an in-process dispatcher: with
   `captureTaskLogs(new TaskLogCapture())` on the builder, the lines a handler logs (tagged `taskRunId` in the MDC,
   the first and last 64 KB kept) are uploaded as the task log when it ends and every 30 s while it runs; with
