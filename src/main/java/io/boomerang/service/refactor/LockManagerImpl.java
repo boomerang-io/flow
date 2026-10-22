@@ -41,8 +41,9 @@ public class LockManagerImpl implements LockManager {
   @Override
   public void acquireLock(Task taskExecution, String activityId) {
 
-
-    long timeout = 7200000L;	// 2 hours timeout default
+    long timeout = 3600000L;		// 1 hour timeout default
+    long expiration = 3600000L;	// 1 hour timeout expiration
+    
     String key = null;
 
     if (taskExecution != null) {
@@ -58,40 +59,52 @@ public class LockManagerImpl implements LockManager {
           timeout = Long.valueOf(timeoutStr) * 1000L;
         }
       }
+      LOGGER.info("Timeout: " + timeout);
+      
+      if (properties.get("expiration") != null) {
+        String expirationStr = properties.get("expiration");
+        if (!expirationStr.isBlank() && NumberUtils.isCreatable(expirationStr)) {
+        	expiration = Long.valueOf(expirationStr) * 1000L;
+        }
+      }
+      LOGGER.info("Expiration: " + expiration);
       
       if (properties.get("key") != null) {
         key = properties.get("key");
         ControllerRequestProperties propertiesList =
             propertyManager.buildRequestPropertyLayering(null, activityId, workflowId);
         key = propertyManager.replaceValueWithProperty(key, activityId, propertiesList);
-      }      
+      }
+      LOGGER.info("Key: " + key);
       
       if (key != null) {      	
         final String lockKey = key;
+        final long lockExpiration = expiration;
+        
         Supplier<String> supplier = () -> lockKey;
         String storeID = mongoConfiguration.fullCollectionName("tasks_locks");
         FlowMongoLock mongoLock = new FlowMongoLock(supplier, this.mongoTemplate);
-        String storeId = key;
+
         final List<String> keys = new LinkedList<>();
-        keys.add(storeId);
+        keys.add(lockKey);
               	
         RetryTemplate retryTemplate = getRetryTemplate(timeout);
         retryTemplate.execute(ctx -> {        	        	        	
 	        final boolean lockExists = mongoLock.exists(storeID, lockKey);	        
 	        if (lockExists) {
-	        	LOGGER.info("Lock not available for keys: " + keys + " in store: " + storeId);
+	        	LOGGER.info("Lock not available for key: " + lockKey + " in store: " + storeID);
 	          throw new LockNotAvailableException(
-	              String.format("Lock hasn't been released yet for: %s in store %s", keys, storeId));
+	              String.format("Lock hasn't been released yet for: %s in store: %s", lockKey, storeID));
 	        }
         	
-        	final String token = mongoLock.acquire(keys, storeID, 7200000L);	// 2 hours expiration        	
+        	final String token = mongoLock.acquire(keys, storeID, lockExpiration);        	
         	if (StringUtils.isEmpty(token)) {
-          	LOGGER.info("Lock not acquired for keys: " + keys + " in store: " + storeId);
+          	LOGGER.info("Lock not acquired for key: " + lockKey + " in store: " + storeID);
             throw new LockNotAvailableException(
-                String.format("Lock not acquired for keys %s in store %s", keys, storeId));          		
+                String.format("Lock not acquired for key: %s in store: %s", lockKey, storeID));          		
         	}
         	
-        	LOGGER.info("Lock acquired for keys: " + keys + " in store: " + storeId);
+        	LOGGER.info("Lock acquired for key: " + lockKey + " in store: " + storeID);
         	return true;
         });
       } else {
