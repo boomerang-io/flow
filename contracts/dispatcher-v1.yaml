@@ -34,6 +34,8 @@ paths:
           description: "No Content"
         "400":
           description: "Bad Request"
+        "404":
+          description: "The dispatcher id is not registered"
   /dispatcher/v1/workflowrun/{workflowRunId}/start:
     put:
       tags:
@@ -255,6 +257,14 @@ paths:
                 type: "array"
                 items:
                   $ref: "#/components/schemas/DispatchWorkflowRun"
+        "404":
+          description: "The dispatcher id is not registered"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/DispatchWorkflowRun"
   /dispatcher/v1/{id}/tasks:
     get:
       tags:
@@ -316,6 +326,14 @@ paths:
                   $ref: "#/components/schemas/DispatchTaskRun"
         "400":
           description: "Bad Request"
+          content:
+            '*/*':
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/DispatchTaskRun"
+        "404":
+          description: "The dispatcher id is not registered"
           content:
             '*/*':
               schema:

@@ -275,3 +275,10 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- A dispatcher whose registration the engine no longer holds (a database reset under a running dispatcher) is
+  answered `404 DISPATCHER_NOT_REGISTERED` on its polls and heartbeats instead of a 500, and the dispatcher SDK
+  registers again and carries on under the new id instead of failing every poll until restarted. A registration
+  without a host is `400 DISPATCHER_INVALID_REQ`.

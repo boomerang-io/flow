@@ -165,6 +165,52 @@ class DispatcherTest {
     await(() -> engine.workflowStarts.contains("wf-1"));
   }
 
+  // The engine's database was reset under a running dispatcher: its id is answered 404, so it
+  // registers again and the next poll goes out under the new id.
+  @Test
+  void aPollRefusedAsUnregisteredRegistersAgainAndPollsUnderTheNewId() throws Exception {
+    engine.registerAnswers.add(() -> "d-1");
+    engine.registerAnswers.add(() -> "d-2");
+    engine.taskPollRefusals.add(FakeEngine.refused(HttpStatus.NOT_FOUND));
+    dispatcher = builder().tasks(holding()).build();
+
+    dispatcher.start();
+
+    await(() -> engine.taskPollIds.contains("d-2"));
+    assertThat(dispatcher.id()).isEqualTo("d-2");
+    assertThat(engine.registrations).hasSize(2);
+    assertThat(engine.taskPollIds).startsWith("d-1", "d-2");
+  }
+
+  @Test
+  void aHeartbeatRefusedAsUnregisteredRegistersAgain() throws Exception {
+    engine.registerAnswers.add(() -> "d-1");
+    engine.registerAnswers.add(() -> "d-2");
+    engine.taskPolls.add(List.of(runOrder("task-1")));
+    engine.heartbeatRefusals.add(FakeEngine.refused(HttpStatus.NOT_FOUND));
+    dispatcher = builder().tasks(holding()).build();
+    dispatcher.start();
+    await(() -> dispatcher.inFlight().contains("task-1"));
+
+    dispatcher.beat();
+
+    assertThat(dispatcher.id()).isEqualTo("d-2");
+    assertThat(engine.heartbeats).hasSize(2);
+  }
+
+  @Test
+  void aPollRefusedForAnotherReasonKeepsTheRegistration() throws Exception {
+    engine.taskPollRefusals.add(FakeEngine.failing());
+    engine.taskPollRefusals.add(FakeEngine.refused(HttpStatus.UNAUTHORIZED));
+    dispatcher = builder().tasks(holding()).build();
+
+    dispatcher.start();
+
+    await(() -> engine.taskPollIds.size() >= 3);
+    assertThat(engine.registrations).hasSize(1);
+    assertThat(engine.taskPollIds).containsOnly("d-1");
+  }
+
   @Test
   void aDispatcherWithNothingInFlightSendsNoHeartbeat() throws Exception {
     dispatcher = builder().tasks(holding()).build();

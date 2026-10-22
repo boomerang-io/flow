@@ -90,7 +90,8 @@ public class DispatcherControllerV1 {
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "204", description = "No Items Found"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "404", description = "The dispatcher id is not registered")
       })
   public ResponseEntity<List<DispatchWorkflowRun>> dispatcherWorkflowQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
@@ -106,7 +107,8 @@ public class DispatcherControllerV1 {
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "204", description = "No Items Found"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "404", description = "The dispatcher id is not registered")
       })
   public ResponseEntity<List<DispatchTaskRun>> dispatcherTasksQueue(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
@@ -148,7 +150,8 @@ public class DispatcherControllerV1 {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "No Content"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "404", description = "The dispatcher id is not registered")
       })
   public void heartbeat(
       @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
