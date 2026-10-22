@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
@@ -722,11 +723,12 @@ public class TaskRunService {
   //   CLAIMED (an executor was handed this attempt) -> waiting/pending with the claim block KEPT.
   //   The surviving claim.by publishes the run on the dispatcher's termination page, and because
   //   findClaimable admits only ready/pending-with-no-claim, the node cannot start attempt N+1
-  //   while attempt N's pod is still alive. claim.seq increments: the requeue supersedes that
-  //   claimant, so a late report from it is fenced out even though its identity is still on the
-  //   record. The run stays NON-terminal throughout, so the DAG never sees the node finish and
-  //   the WorkflowRun keeps running (existsInFlightByWorkflowRunRef counts waiting as in flight,
-  //   so the stall recovery leaves it alone too).
+  //   while attempt N's pod is still alive. claim.seq increments, fencing the sweeps that observed
+  //   the older claim; it is not on the wire, so a late report from that claimant is refused on
+  //   claim.by and the phase: a dispatcher holds a task only in queued or running, and pending
+  //   with the claim kept is this parking. The run stays NON-terminal throughout, so the DAG
+  //   never sees the node finish and the WorkflowRun keeps running (existsInFlightByWorkflowRunRef
+  //   counts waiting as in flight, so the stall recovery leaves it alone too).
   //
   //   UNCLAIMED (nothing was ever provisioned) -> straight back to ready/pending, as before. There
   //   is no pod to terminate, so parking it would strand a node no agent would ever release.
@@ -771,7 +773,7 @@ public class TaskRunService {
             .unset("timeoutAt");
     if (claimed) {
       // The claim block survives as the pod-still-out-there marker; the seq bump supersedes the
-      // claimant that timed out.
+      // sweeps that observed the attempt that timed out.
       update.inc("claim.seq", 1);
     } else {
       update.unset("claim.by").unset("claim.at");
@@ -1158,28 +1160,36 @@ public class TaskRunService {
   }
 
   // A TaskRun in one of the given phases and, when the request names its dispatcher, still held by
-  // it - the condition a dispatcher's start or end writes its fields under.
+  // it - the condition a dispatcher's start or end writes its fields under. A dispatcher holds a
+  // task only in queued or running: pending with its claim kept is an attempt the engine requeued,
+  // so a request that names its dispatcher never writes there.
   private static Query heldInPhase(String id, Optional<String> claimedBy, RunPhase... phases) {
-    Criteria criteria = Criteria.where("_id").is(id).and("phase").in((Object[]) phases);
-    if (claimedBy.isPresent()) {
-      criteria = criteria.and("claim.by").is(claimedBy.get());
+    Criteria criteria = Criteria.where("_id").is(id);
+    if (claimedBy.isEmpty()) {
+      return Query.query(criteria.and("phase").in((Object[]) phases));
     }
-    return Query.query(criteria);
+    return Query.query(
+        criteria
+            .and("claim.by")
+            .is(claimedBy.get())
+            .and("phase")
+            .in(Arrays.stream(phases).filter(phase -> !RunPhase.pending.equals(phase)).toList()));
   }
 
   // Wire-level fence, the same rule TaskExecutionService.claimantIsValid applies after it: a
   // request that names its dispatcher must match claim.by, and an unfinished TaskRun with no
-  // claimant - its reaped claim released by a termination hand-off - has none to match. Refused
-  // before anything is written. A request with no dispatcherRef is the legacy protocol and passes
-  // unfenced. claim.seq is not on the wire, so a dispatcher that lost and re-won the same claim is
-  // not distinguished from its earlier self.
+  // claimant - its reaped claim released by a termination hand-off - has none to match. A task in
+  // pending with its claim kept is one the engine requeued, and its claimant is superseded until a
+  // termination hand-off releases it. Refused before anything is written. A request with no
+  // dispatcherRef is the legacy protocol and passes unfenced. claim.seq is not on the wire, so a
+  // dispatcher that lost and re-won the same claim is not distinguished from its earlier self.
   public static void rejectSupersededClaimant(TaskRunEntity taskRun, Optional<String> claimedBy) {
     String current = (taskRun.getClaim() != null) ? taskRun.getClaim().getBy() : null;
     if (claimedBy.isEmpty()
         || (current == null && RunPhase.completed.equals(taskRun.getPhase()))) {
       return;
     }
-    if (!claimedBy.get().equals(current)) {
+    if (!claimedBy.get().equals(current) || RunPhase.pending.equals(taskRun.getPhase())) {
       LOGGER.error(
           "[{}] Rejecting request from superseded claimant {}. Current claim is {} (seq {}).",
           taskRun.getId(),

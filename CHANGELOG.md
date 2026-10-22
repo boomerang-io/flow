@@ -275,3 +275,6 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+- A dispatcher's start or end for an attempt the engine has already requeued is refused with
+  `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
+  the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
