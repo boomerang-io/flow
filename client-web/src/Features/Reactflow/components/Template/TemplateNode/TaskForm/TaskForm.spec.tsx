@@ -37,7 +37,7 @@ describe("Task config form --- the seeded ai task", () => {
   it("renders every catalogue parameter by its label, with no task-specific code", () => {
     renderTaskForm();
 
-    expect(screen.getByLabelText("Task Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Task name")).toBeInTheDocument();
     expect(screen.getByLabelText("Endpoint")).toBeInTheDocument();
     expect(screen.getByLabelText("Model")).toBeInTheDocument();
     expect(screen.getByLabelText("Max Tokens")).toBeInTheDocument();
@@ -60,11 +60,15 @@ describe("Task config form --- the seeded ai task", () => {
     expect(screen.getByRole("spinbutton", { name: "Temperature" })).toHaveValue(0.7);
   });
 
-  it("lists the six results the task produces", () => {
+  it("lists the six results the task produces, by name and description, on the Results tab", () => {
     renderTaskForm();
 
-    for (const result of ["output", "promptTokens", "completionTokens", "totalTokens", "finishReason", "model"]) {
-      expect(screen.getByText(new RegExp(`^${result}:`))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Results" }));
+    const list = screen.getByRole("list", { name: "Results" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(6);
+    for (const result of task.spec.results!) {
+      expect(within(list).getByText(result.name)).toBeInTheDocument();
+      expect(within(list).getByText(result.description)).toBeInTheDocument();
     }
   });
 });
@@ -96,13 +100,17 @@ function renderTabbedTaskForm(overrides: Partial<React.ComponentProps<typeof Tas
 }
 
 describe("Task config form --- Parameters and Configure tabs", () => {
-  it("keeps Task Name above the tabs and opens on Parameters", () => {
+  it("keeps the task name above the tabs, editable, and opens on Parameters", () => {
     renderTabbedTaskForm();
 
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Parameters", "Configure"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Parameters", "Configure", "Results"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByLabelText("Task Name")).toBeVisible();
+    const name = screen.getByLabelText("Task name");
+    expect(name).toBeVisible();
+    expect(name.compareDocumentPosition(tabs[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(name, { target: { value: "Ask again" } });
+    expect(name).toHaveValue("Ask again");
     expect(screen.queryByText("Specifics")).not.toBeInTheDocument();
   });
 
@@ -137,7 +145,7 @@ describe("Task config form --- Parameters and Configure tabs", () => {
   it("rejects [ and ] in the task name, which name the items of a for-each task", async () => {
     renderTabbedTaskForm();
 
-    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ask the model[0]" } });
+    fireEvent.change(screen.getByLabelText("Task name"), { target: { value: "Ask the model[0]" } });
 
     expect(await screen.findByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
@@ -191,17 +199,31 @@ describe("Task config form --- Parameters and Configure tabs", () => {
 });
 
 describe("Task config form --- which task types can run for each item", () => {
-  it.each(["decision", "approval", "sleep", "runworkflow"])("shows a %s task's inputs with no tabs", (nodeType) => {
-    renderTabbedTaskForm({ nodeType });
+  // The same catalogue entry with nothing declared as a result.
+  const taskWithoutResults = { ...task, spec: { ...task.spec, results: [] } } as Task;
+
+  it.each(["decision", "approval", "sleep", "runworkflow"])(
+    "shows a %s task's name, then Parameters and Results with no Configure",
+    (nodeType) => {
+      renderTabbedTaskForm({ nodeType });
+
+      expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Parameters", "Results"]);
+      expect(screen.queryByText("Run for each item")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Task name")).toBeVisible();
+      expect(screen.getByLabelText("Model")).toBeVisible();
+    },
+  );
+
+  it("shows a task that can neither run for each item nor declares results as its name above its inputs", () => {
+    renderTabbedTaskForm({ nodeType: "approval", task: taskWithoutResults });
 
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
-    expect(screen.queryByText("Run for each item")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Task Name")).toBeVisible();
+    expect(screen.getByLabelText("Task name")).toBeVisible();
     expect(screen.getByLabelText("Model")).toBeVisible();
   });
 
   it.each(["template", "script", "custom", "ai", "generic"])("offers the Configure tab on a %s task", (nodeType) => {
-    renderTabbedTaskForm({ nodeType });
+    renderTabbedTaskForm({ nodeType, task: taskWithoutResults });
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Parameters", "Configure"]);
   });

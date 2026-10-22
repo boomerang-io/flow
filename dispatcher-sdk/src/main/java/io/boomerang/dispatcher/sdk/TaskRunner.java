@@ -6,6 +6,10 @@ import io.boomerang.dispatcher.sdk.model.RunStatus;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunEndRequest;
 import io.boomerang.dispatcher.sdk.model.TaskRunStartRequest;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.transport.Kind;
+import io.micrometer.observation.transport.ReceiverContext;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +45,16 @@ import org.springframework.web.client.RestClientException;
  *       either: its lease lapses and the engine hands it out again.
  *   <li>A claim is taken into flight and handed off as one step against {@link #stop}: once the
  *       dispatcher is stopping a claim is refused before it is taken, never dropped after.
+ *   <li>The handler runs inside an observation named {@value #OBSERVATION} carrying the task's
+ *       trace context, so its spans join the run's trace; a no-op without a registry. With a
+ *       {@link TaskLogCapture} the lines it logs are its task log, uploaded as it ends and every
+ *       upload interval while it runs.
  * </ul>
  */
 final class TaskRunner {
+
+  /** The name of the observation each task runs under. */
+  static final String OBSERVATION = "flow.task";
 
   private static final Log LOGGER = LogFactory.getLog(TaskRunner.class);
 
@@ -55,6 +66,9 @@ final class TaskRunner {
   private final Predicate<TaskRun> registered;
   private final Function<TaskRun, ArtifactTransfer> artifacts;
   private final LogUploader logs;
+  private final TaskLogCapture capture;
+  private final Duration logUploadInterval;
+  private final ObservationRegistry observations;
   private final Executor executor;
   private final Backoff endBackoff;
   private final BooleanSupplier abandoned;
@@ -70,6 +84,11 @@ final class TaskRunner {
    * @param registered whether a task run's type is one this dispatcher registered
    * @param logs stores a task's finished log with the engine, shared so that an engine with no
    *     store is asked once
+   * @param capture the buffer the handler's logged lines land in, or null to capture none
+   * @param logUploadInterval how often a captured log is uploaded while the task runs; zero for
+   *     only at the end
+   * @param observations where the task observation is registered; {@link
+   *     ObservationRegistry#NOOP} opens none
    * @param abandoned whether the dispatcher has stopped past its drain timeout and interrupted the
    *     tasks still running, which then report nothing
    */
@@ -82,6 +101,9 @@ final class TaskRunner {
       Predicate<TaskRun> registered,
       Function<TaskRun, ArtifactTransfer> artifacts,
       LogUploader logs,
+      TaskLogCapture capture,
+      Duration logUploadInterval,
+      ObservationRegistry observations,
       Executor executor,
       Backoff endBackoff,
       BooleanSupplier abandoned) {
@@ -93,6 +115,9 @@ final class TaskRunner {
     this.registered = registered;
     this.artifacts = artifacts;
     this.logs = logs;
+    this.capture = capture;
+    this.logUploadInterval = logUploadInterval;
+    this.observations = observations;
     this.executor = executor;
     this.endBackoff = endBackoff;
     this.abandoned = abandoned;
@@ -161,16 +186,7 @@ final class TaskRunner {
       TaskRunEndRequest end;
       try {
         LOGGER.info("TaskRun (" + id + ") running.");
-        end = succeeded(handler.run(task, context));
-      } catch (TaskFailure e) {
-        end = failed(e.getStatusReason(), e.getMessage(), e.getResults());
-      } catch (Exception e) {
-        LOGGER.error("TaskRun (" + id + ") handler failed.", e);
-        end =
-            failed(
-                StatusReason.DISPATCH_ERROR,
-                (e.getMessage() != null) ? e.getMessage() : e.toString(),
-                List.of());
+        end = handle(task, context);
       } finally {
         running.remove(id);
       }
@@ -188,6 +204,67 @@ final class TaskRunner {
     } finally {
       inFlight.remove(id);
     }
+  }
+
+  // The handler call, as the end it yields: under the task's observation and, when capture is
+  // on, tagged in the MDC with its log uploaded at the end and every interval while it runs.
+  private TaskRunEndRequest handle(TaskRun task, TaskContext context) {
+    String id = task.getId();
+    Observation observation = observe(task).start();
+    Thread uploads = null;
+    if (capture != null) {
+      capture.open(id);
+      uploads = reuploading(task);
+    }
+    try (Observation.Scope scope = observation.openScope()) {
+      return succeeded(handler.run(task, context));
+    } catch (TaskFailure e) {
+      observation.error(e);
+      return failed(e.getStatusReason(), e.getMessage(), e.getResults());
+    } catch (Exception e) {
+      observation.error(e);
+      LOGGER.error("TaskRun (" + id + ") handler failed.", e);
+      return failed(
+          StatusReason.DISPATCH_ERROR,
+          (e.getMessage() != null) ? e.getMessage() : e.toString(),
+          List.of());
+    } finally {
+      observation.stop();
+      if (capture != null) {
+        if (uploads != null) {
+          uploads.interrupt();
+        }
+        logs.upload(task, capture.close(id));
+      }
+    }
+  }
+
+  // The task observation, carrying the traceparent for the host's tracing handler to parent it
+  // on; a no-op without a registry.
+  private Observation observe(TaskRun task) {
+    ReceiverContext<Map<String, String>> context =
+        new ReceiverContext<>((carrier, key) -> carrier.get(key), Kind.CONSUMER);
+    String traceparent = task.traceparent();
+    context.setCarrier((traceparent != null) ? Map.of("traceparent", traceparent) : Map.of());
+    return Observation.createNotStarted(OBSERVATION, () -> context, observations)
+        .lowCardinalityKeyValue("flow.taskrun.id", String.valueOf(task.getId()))
+        .lowCardinalityKeyValue("flow.task.name", String.valueOf(task.getName()))
+        .lowCardinalityKeyValue("flow.workflowrun.id", String.valueOf(task.getWorkflowRunRef()));
+  }
+
+  // A long task's log is readable before it ends: the captured log so far, every interval.
+  private Thread reuploading(TaskRun task) {
+    if (!logUploadInterval.isPositive()) {
+      return null;
+    }
+    return Thread.ofVirtual()
+        .name("dispatcher-log-" + task.getId())
+        .start(
+            () -> {
+              while (Backoff.sleep(logUploadInterval)) {
+                logs.upload(task, capture.snapshot(task.getId()));
+              }
+            });
   }
 
   /** Tell the engine the task is starting; return whether to go ahead and run it. */
