@@ -84,7 +84,7 @@ export function foreachInitialValues(foreach?: WorkflowTaskForeach): ForeachForm
 }
 
 /**
- * The Task Name rule every task form and the "Repeat a task for each item" dialog share: required,
+ * The task name rule every task form and the "Repeat a task for each item" dialog share: required,
  * unique on the canvas, and not ending in `[<digits>]`, which names the items of a for-each task
  * (`<name>[<index>]`).
  */

@@ -25,6 +25,15 @@
   max-width: 60rem !important;
 }
 
+// The edit modal's subtitle: the add-ons ComposedModal renders it inside its own <p> and gives no
+// class hook, so the one-line clip is on the element the node passes as the subtitle.
+.modalSubtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .badgeContainer {
   background-color: var(--cds-ui-01);
   border: 1px solid var(--cds-text-02);

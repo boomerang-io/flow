@@ -179,6 +179,9 @@ tag's release notes.
 
 ### Changed
 
+- The task edit modal keeps its description to one line and moves the task name and the tabs into its header, and
+  lists a task's declared results on a Results tab instead of as tags under the parameters, so the fields get the
+  height.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes

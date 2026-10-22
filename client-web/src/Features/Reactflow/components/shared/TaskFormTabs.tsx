@@ -12,8 +12,10 @@ import {
   FOREACH_TASK_TYPES,
 } from "./foreach";
 
-// The input DynamicFormik renders above the tabs rather than inside them.
+// The input DynamicFormik renders in the header block rather than on a tab.
 const TASK_NAME_KEY = "taskName";
+
+type TaskResult = { name: string; description: string };
 
 interface TaskFormTabsProps {
   /** The rendered inputs DynamicFormik hands its children, each keyed by its input key. */
@@ -21,59 +23,92 @@ interface TaskFormTabsProps {
   formikProps: FormikProps<any>;
   /** The node type of the task being edited; only FOREACH_TASK_TYPES get the Configure tab. */
   taskType?: string;
+  /** The results the task declares, listed read-only on a Results tab; none means no tab. */
+  results?: Array<TaskResult>;
 }
 
 /**
- * The body of every task edit form: "Task Name" above two tabs, Parameters (the task's own
- * inputs and its results) and Configure (run the task for each item of a list). One Formik form
- * spans both tabs, so Apply saves both. A task type that cannot run for each item has nothing to
- * configure, so its form is the inputs alone, with no tab bar.
+ * The body of every task edit form. A header block carries the task name and the tab list, so
+ * the modal's own header, the name and the tabs read as one; the tab panel follows. The tabs
+ * are Parameters (the task's own inputs), Configure (run the task for each item of a list, for
+ * a type that can) and Results (what the task declares, when it declares any). One Formik form
+ * spans every tab, so Apply saves them all. A type with nothing to configure and no results
+ * has no tabs: the name alone sits above its inputs.
  */
-export default function TaskFormTabs({ inputs, formikProps, taskType }: TaskFormTabsProps) {
+export default function TaskFormTabs({ inputs, formikProps, taskType, results = [] }: TaskFormTabsProps) {
   const { errors, values } = formikProps;
-  if (!taskType || !FOREACH_TASK_TYPES.includes(taskType)) {
-    return <>{inputs}</>;
-  }
   const isNameInput = (input: React.ReactNode) => React.isValidElement(input) && input.key === TASK_NAME_KEY;
   const nameInputs = inputs.filter(isNameInput);
   const parameterInputs = inputs.filter((input) => !isNameInput(input));
+  const hasConfigure = Boolean(taskType) && FOREACH_TASK_TYPES.includes(taskType as string);
+  const hasResults = results.length > 0;
+
+  if (!hasConfigure && !hasResults) {
+    return (
+      <>
+        <div className={styles.header}>{nameInputs}</div>
+        <div className={styles.fields}>{parameterInputs}</div>
+      </>
+    );
+  }
 
   const errorKeys = Object.keys(errors).filter((key) => Boolean(errors[key]));
   const hasConfigureError = errorKeys.some((key) => FOREACH_KEYS.includes(key));
   const hasParametersError = errorKeys.some((key) => key !== TASK_NAME_KEY && !FOREACH_KEYS.includes(key));
   const isForeachEnabled = Boolean(values[FOREACH_ENABLED_KEY]);
 
+  // Carbon pairs tabs and panels by position, so both lists are built from one array with no gaps.
+  const tabs: Array<{ name: string; label: React.ReactNode; panel: React.ReactNode }> = [
+    {
+      name: "Parameters",
+      label: (
+        <span className={styles.tabLabel}>
+          Parameters
+          {hasParametersError ? <TabErrorIcon tabName="Parameters" /> : null}
+        </span>
+      ),
+      panel: parameterInputs,
+    },
+  ];
+  if (hasConfigure) {
+    tabs.push({
+      name: "Configure",
+      label: (
+        <span className={styles.tabLabel}>
+          Configure
+          {isForeachEnabled ? (
+            <Tag as="span" className={styles.tag} size="sm" type="purple">
+              For each
+            </Tag>
+          ) : null}
+          {hasConfigureError ? <TabErrorIcon tabName="Configure" /> : null}
+        </span>
+      ),
+      panel: <ForeachFields formikProps={formikProps} />,
+    });
+  }
+  if (hasResults) {
+    tabs.push({ name: "Results", label: "Results", panel: <ResultsList results={results} /> });
+  }
+
   return (
-    <>
-      {nameInputs}
-      <Tabs>
+    <Tabs>
+      <div className={styles.header}>
+        {nameInputs}
         <TabList aria-label="Task configuration" className={styles.tabList}>
-          <Tab>
-            <span className={styles.tabLabel}>
-              Parameters
-              {hasParametersError ? <TabErrorIcon tabName="Parameters" /> : null}
-            </span>
-          </Tab>
-          <Tab>
-            <span className={styles.tabLabel}>
-              Configure
-              {isForeachEnabled ? (
-                <Tag as="span" className={styles.tag} size="sm" type="purple">
-                  For each
-                </Tag>
-              ) : null}
-              {hasConfigureError ? <TabErrorIcon tabName="Configure" /> : null}
-            </span>
-          </Tab>
+          {tabs.map((tab) => (
+            <Tab key={tab.name}>{tab.label}</Tab>
+          ))}
         </TabList>
-        <TabPanels>
-          <TabPanel className={styles.tabPanel}>{parameterInputs}</TabPanel>
-          <TabPanel className={styles.tabPanel}>
-            <ForeachFields formikProps={formikProps} />
+      </div>
+      <TabPanels>
+        {tabs.map((tab) => (
+          <TabPanel key={tab.name} className={styles.tabPanel}>
+            {tab.panel}
           </TabPanel>
-        </TabPanels>
-      </Tabs>
-    </>
+        ))}
+      </TabPanels>
+    </Tabs>
   );
 }
 
@@ -85,6 +120,21 @@ function TabErrorIcon({ tabName }: { tabName: string }) {
       role="img"
       style={{ willChange: "auto" }}
     />
+  );
+}
+
+// The results a task declares are the template's, not the node's to edit: each is read as
+// `$(tasks.<name>.results.<result>)` by the tasks after it.
+function ResultsList({ results }: { results: Array<TaskResult> }) {
+  return (
+    <ul className={styles.results} aria-label="Results">
+      {results.map((result) => (
+        <li key={result.name} className={styles.result}>
+          <code className={styles.resultName}>{result.name}</code>
+          {result.description ? <p className={styles.resultDescription}>{result.description}</p> : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
