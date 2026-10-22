@@ -73,6 +73,27 @@ describe("TokenSection --- loader", () => {
     expect(result.tokenSection.catalog?.actions).toEqual(["read", "write", "delete", "action"]);
   });
 
+  // A workflow token's principal is the workflow id, and the `:workflow` segment is the name: the
+  // editor loader resolves the id from the compose and hands it over, and that is what the query
+  // must carry.
+  test("queries the tokens by the workflow id it is given, not the route segment", async () => {
+    let principals: string | null = null;
+    server.use(
+      http.get(serviceUrl.getTokens({ query: "" }), ({ request }) => {
+        principals = new URL(request.url).searchParams.get("principals");
+        return HttpResponse.json({ content: [] });
+      }),
+    );
+
+    await workflowTokensLoader({
+      params: { workflow: "test-workflow" },
+      request: new Request(`http://localhost${ROUTE}`),
+      workflowId: "64b8d5a5040e205ee3383ab1",
+    });
+
+    expect(principals).toBe("64b8d5a5040e205ee3383ab1");
+  });
+
   // The catalog and the token list are fetched with Promise.allSettled precisely so one failing
   // cannot blank out the other.
   test("still returns tokens when the catalog fetch fails", async () => {

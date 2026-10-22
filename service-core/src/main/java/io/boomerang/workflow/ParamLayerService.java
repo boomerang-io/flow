@@ -9,13 +9,9 @@ import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
-import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
-import io.boomerang.core.repository.TokenRepository;
-import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
@@ -59,7 +55,6 @@ public class ParamLayerService {
   private SettingsService settingsService;
   private WorkspaceRepository workspaceRepository;
   private ParameterService parameterService;
-  private TokenRepository tokenRepository;
   private WorkflowRepository workflowRepository;
   private WorkflowRevisionRepository workflowRevisionRepository;
   private ParamLayerCache paramLayerCache;
@@ -69,7 +64,6 @@ public class ParamLayerService {
       SettingsService settingsService,
       WorkspaceRepository workspaceRepository,
       ParameterService parameterService,
-      TokenRepository tokenRepository,
       WorkflowRepository workflowRepository,
       WorkflowRevisionRepository workflowRevisionRepository,
       ParamLayerCache paramLayerCache,
@@ -77,7 +71,6 @@ public class ParamLayerService {
     this.settingsService = settingsService;
     this.workspaceRepository = workspaceRepository;
     this.parameterService = parameterService;
-    this.tokenRepository = tokenRepository;
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.paramLayerCache = paramLayerCache;
@@ -298,16 +291,5 @@ public class ParamLayerService {
     contextParams.put("webhook-url", webhookUrl);
     contextParams.put("wfe-url", waitForEventUrl);
     contextParams.put("event-url", eventUrl);
-
-    // the retired `workflow` token class is now `key` + actorKind=WORKFLOW.
-    Optional<List<TokenEntity>> tokens =
-        tokenRepository.findByPrincipalAndTypeAndActorKind(
-            workflowId, AuthScope.key, TokenActorKind.WORKFLOW);
-    // Add Tokens
-    if (tokens.isPresent() && !tokens.isEmpty()) {
-      for (TokenEntity t : tokens.get()) {
-        contextParams.put("tokens." + t.getName(), t.getToken());
-      }
-    }
   }
 }

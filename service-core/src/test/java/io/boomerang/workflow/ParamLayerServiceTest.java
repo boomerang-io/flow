@@ -1,7 +1,6 @@
 package io.boomerang.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -18,7 +17,6 @@ import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.SettingConfig;
-import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
@@ -34,7 +32,6 @@ class ParamLayerServiceTest {
   private final SettingsService settingsService = mock(SettingsService.class);
   private final WorkspaceRepository workspaceRepository = mock(WorkspaceRepository.class);
   private final ParameterService parameterService = mock(ParameterService.class);
-  private final TokenRepository tokenRepository = mock(TokenRepository.class);
   private final WorkflowRepository workflowRepository = mock(WorkflowRepository.class);
   private final WorkflowRevisionRepository workflowRevisionRepository =
       mock(WorkflowRevisionRepository.class);
@@ -46,7 +43,6 @@ class ParamLayerServiceTest {
         settingsService,
         workspaceRepository,
         parameterService,
-        tokenRepository,
         workflowRepository,
         workflowRevisionRepository,
         new ParamLayerCache(true, ttl, 1000),
@@ -66,8 +62,6 @@ class ParamLayerServiceTest {
     SettingEntity features = new SettingEntity();
     features.setConfig(List.of(on("globalParameters"), on("workspaceParameters")));
     when(settingsService.getSettingByKey("features")).thenReturn(features);
-    when(tokenRepository.findByPrincipalAndTypeAndActorKind(any(), any(), any()))
-        .thenReturn(Optional.empty());
   }
 
   private static AbstractParam param(String name, String type, String value) {
@@ -193,8 +187,7 @@ class ParamLayerServiceTest {
             settingsService,
             workspaceRepository,
             parameterService,
-            tokenRepository,
-            workflowRepository,
+                workflowRepository,
             workflowRevisionRepository,
             cache,
             relationshipService);
@@ -237,8 +230,7 @@ class ParamLayerServiceTest {
             settingsService,
             workspaceRepository,
             parameterService,
-            tokenRepository,
-            workflowRepository,
+                workflowRepository,
             workflowRevisionRepository,
             cache,
             relationshipService);

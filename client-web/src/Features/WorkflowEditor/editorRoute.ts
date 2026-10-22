@@ -179,8 +179,13 @@ export async function editorLoader({
    * Configure.tsx renders on every tab (Editor.tsx mounts it unconditionally so its Formik state
    * survives tab switches), so its installation lookup is unconditional here too - matching the
    * `enabled: Boolean(params.workspace)` useQuery it replaces. The token section is fetched by
-   * the shared workflowTokensLoader, which is itself a parallel pair.
+   * the shared workflowTokensLoader, which is itself a parallel pair; it chains on the compose
+   * alone, because a workflow token's principal is the workflow id and the `:workflow` segment
+   * is the name.
    */
+  const workflowRead = settle(
+    api.get<WorkflowCanvas>(serviceUrl.workspace.workflow.getWorkflowCompose({ workspace, workflow, version })),
+  );
   const [
     workflowResult,
     workflowsResult,
@@ -191,7 +196,7 @@ export async function editorLoader({
     githubResult,
     tokenSectionResult,
   ] = await Promise.all([
-    settle(api.get<WorkflowCanvas>(serviceUrl.workspace.workflow.getWorkflowCompose({ workspace, workflow, version }))),
+    workflowRead,
     settle(api.get<PaginatedWorkflowResponse>(serviceUrl.workspace.workflow.getWorkflows({ workspace }))),
     settle(api.get<ChangeLog>(serviceUrl.workspace.workflow.getWorkflowChangelog({ workspace, workflow }))),
     settle(api.get<Array<string>>(serviceUrl.workspace.workflow.getAvailableParameters({ workspace, workflow }))),
@@ -200,7 +205,7 @@ export async function editorLoader({
     settle(api.get<any>(serviceUrl.getGitHubAppInstallationForWorkspace({ workspace }))),
     // Delegated rather than re-specified: workflowTokensLoader already owns the "which tokens
     // does the Configure > Tokens tab show" contract, and three other routes share the helper.
-    workflowTokensLoader({ params, request }),
+    workflowRead.then((result) => workflowTokensLoader({ params, request, workflowId: valueOf(result)?.id })),
   ]);
 
   const githubAppInstallation = valueOf<any>(githubResult) ?? null;

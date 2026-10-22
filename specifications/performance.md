@@ -33,8 +33,8 @@ instance that took it.
 | `core/ParamLayerCache.java` | Global, workspace and context parameter layers by workflow and revision; revisions by id | 10 s / 1,000 | A parameter, setting or revision edit reaches its task admissions within 10 s |
 
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
-features setting, the global parameters, the workspace and the workflow's tokens: six reads. With it, the tasks
-of every run of one revision admitted within 10 s share those six. A workflow's owning workspace is cached apart
+features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
+revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:212,311,566`,

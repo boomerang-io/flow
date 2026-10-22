@@ -181,6 +181,9 @@ tag's release notes.
   up to the platform default, matching what the workspace may run.
 - An approval or manual task that a run cancel or a task timeout completed while its action was being created
   stays completed; it used to flip back to waiting with its action left open for nobody to answer.
+- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
+  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
+  workspace and left its own scheduler token in place.
 
 ### Changed
 
@@ -286,6 +289,8 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+- The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
+  a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
 
 ### Fixed
 
