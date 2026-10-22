@@ -231,7 +231,10 @@ public class WorkflowWatcher {
             LOGGER.error("[{}] Task timeout reap failed: {}", taskRun.getId(), ex.getMessage()));
   }
 
-  /** Reap running WorkflowRuns past their durable {@code timeoutAt} deadline. */
+  /**
+   * Reap WorkflowRuns past their durable {@code timeoutAt} deadline: running ones, and pending
+   * ones still waiting for a dispatcher to provision their workspace.
+   */
   public void reapWorkflowTimeouts() {
     SweepRunner.forEachIsolated(
         workflowRunStateHelper.findTimedOut(new Date(), PAGE_SIZE),
