@@ -41,6 +41,16 @@ filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polli
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` among the dispatcher's types, no `claim.by` and
   `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any task or workflow filter the poll
   resolved (`engine/TaskRunService.java:120-144`, `:218-227`).
+- A poll that claimed nothing is held and looks again when work is admitted on its engine instance or when the
+  re-check interval passes, whichever is first. `PollWakeups` is one monitor per instance with a signal count:
+  `TaskExecutionService.queue` signals it once per successful `tryAdmit`
+  (`engine/TaskExecutionService.java:247-254`), and so does a run submitted to start with a workspace once it is
+  parked `ready`/`pending` for its provisioning claim (`workflow/WorkflowRunService.java:801-816`). Both held
+  polls, task and workflow, read the count before each look and wait for it to change, so a signal that lands
+  during the look is not lost, and re-run their own filter query on a wake (`dispatcher/PollWakeups.java:24-55`,
+  `dispatcher/DispatcherService.java:265`, `:381`, `:494-497`). A for-each item admits through the same method, so
+  items wake polls too. Work that becomes claimable without an admission on that instance, a `retry.after` that
+  elapses or an admission on another instance, is found by the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`
   (`engine/TaskRunService.java:317-355`). A null result means another dispatcher won; the loser skips the candidate.

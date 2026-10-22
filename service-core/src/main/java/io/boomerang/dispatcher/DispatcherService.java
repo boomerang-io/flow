@@ -28,6 +28,7 @@ import io.boomerang.engine.model.ClaimFilter;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.TaskService;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.LinkedList;
@@ -80,6 +81,7 @@ public class DispatcherService {
   private final ParameterManager parameterManager;
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskService taskService;
+  private final PollWakeups pollWakeups;
 
   public DispatcherService(
       DispatcherRepository dispatcherRepository,
@@ -90,7 +92,8 @@ public class DispatcherService {
       ClaimFilterService claimFilterService,
       ParameterManager parameterManager,
       WorkflowRunRepository workflowRunRepository,
-      TaskService taskService) {
+      TaskService taskService,
+      PollWakeups pollWakeups) {
     this.dispatcherRepository = dispatcherRepository;
     this.workflowRunStateHelper = workflowRunStateHelper;
     this.taskRunService = taskRunService;
@@ -100,6 +103,7 @@ public class DispatcherService {
     this.parameterManager = parameterManager;
     this.workflowRunRepository = workflowRunRepository;
     this.taskService = taskService;
+    this.pollWakeups = pollWakeups;
   }
 
   /** The start answer, with the task reference in its slug form. */
@@ -258,6 +262,7 @@ public class DispatcherService {
     Instant endTime = Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     while (Instant.now().isBefore(endTime)) {
+      long seen = pollWakeups.generation();
       LOGGER.debug("Checking queue for dispatcher: {}", dispatcherId);
       // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
       // provision and start. Runs claimed before an error are still handed out.
@@ -284,7 +289,7 @@ public class DispatcherService {
       if (!workflowRuns.isEmpty()) {
         return ResponseEntity.ok(workflowRuns);
       }
-      if (!pauseBeforeRecheck()) {
+      if (!pauseBeforeRecheck(seen)) {
         break;
       }
     }
@@ -373,6 +378,7 @@ public class DispatcherService {
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     while (Instant.now().isBefore(endTime)) {
+      long seen = pollWakeups.generation();
       LOGGER.debug(
           "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
@@ -416,7 +422,7 @@ public class DispatcherService {
         slugTaskRefs(taskRuns);
         return ResponseEntity.ok(taskRuns);
       }
-      if (!pauseBeforeRecheck()) {
+      if (!pauseBeforeRecheck(seen)) {
         break;
       }
     }
@@ -478,14 +484,17 @@ public class DispatcherService {
   }
 
   /**
-   * Wait one re-check interval ({@code flow.dispatcher.poll.recheck-ms}, never under the floor)
-   * before the poll looks again - after an error too, so a query that fails fast is not re-run in
-   * a tight loop for the rest of the window. Return false when the thread is interrupted, so the
-   * poll ends and the thread can stop.
+   * Wait for an admission on this instance to wake the poll - one since {@code seen}, the
+   * generation read before the look that found nothing, so a signal during that look counts - or
+   * one re-check interval ({@code flow.dispatcher.poll.recheck-ms}, never under the floor), before
+   * the poll looks again - after an error too, so a query that fails fast is not re-run in a tight
+   * loop for the rest of the window. Return false when the thread is interrupted, so the poll
+   * ends and the thread can stop.
    */
-  private boolean pauseBeforeRecheck() {
+  private boolean pauseBeforeRecheck(long seen) {
     try {
-      Thread.sleep(Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs));
+      pollWakeups.awaitChange(
+          seen, Duration.ofMillis(Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs)));
       return true;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
