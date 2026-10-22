@@ -31,8 +31,9 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import io.boomerang.controller.ActivityController;
+import io.boomerang.workflow.ActivityController;
+import io.boomerang.core.entity.UserEntity;
 import io.boomerang.misc.FlowTests;
-import io.boomerang.model.FlowActivity;
 import io.boomerang.model.ListActivityResponse;
 import io.boomerang.mongo.entity.FlowUserEntity;
 import io.boomerang.mongo.model.TaskStatus;
@@ -52,6 +53,7 @@ class ActivityControllerTests extends FlowTests {
 
   @Mock
   private UserIdentityService service;
+  @MockBean private IdentityService service;
 
   @Test
   void testGetFlowActivity() {
