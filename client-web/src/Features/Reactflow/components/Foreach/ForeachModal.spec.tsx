@@ -44,7 +44,7 @@ describe("Repeat a task for each item", () => {
     expect(offered).not.toContain("Set Workflow Result Status");
 
     fireEvent.click(screen.getByRole("option", { name: httpTask.displayName }));
-    expect(screen.getByLabelText("Task Name")).toHaveValue(httpTask.displayName);
+    expect(screen.getByLabelText("Task name")).toHaveValue(httpTask.displayName);
 
     const next = screen.getByRole("button", { name: "Next: task parameters" });
     fireEvent.change(screen.getByLabelText("Items"), { target: { value: "not a list" } });
@@ -53,10 +53,10 @@ describe("Repeat a task for each item", () => {
     await waitFor(() => expect(next).toBeEnabled());
 
     // [ and ] name the items of a for-each task, so a task name cannot use them.
-    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Call[0]" } });
+    fireEvent.change(screen.getByLabelText("Task name"), { target: { value: "Call[0]" } });
     expect(await screen.findByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeInTheDocument();
     expect(next).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: httpTask.displayName } });
+    fireEvent.change(screen.getByLabelText("Task name"), { target: { value: httpTask.displayName } });
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
 

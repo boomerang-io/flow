@@ -118,7 +118,7 @@ export default function ForeachModal(props: ForeachModalProps) {
                 <TextInput
                   id="taskName"
                   name="taskName"
-                  labelText="Task Name"
+                  labelText="Task name"
                   placeholder="Enter a task name"
                   invalid={Boolean(errors.taskName) && Boolean(touched.taskName)}
                   invalidText={errors.taskName}

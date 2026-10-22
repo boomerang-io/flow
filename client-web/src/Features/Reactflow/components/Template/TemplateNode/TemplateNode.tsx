@@ -110,7 +110,12 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
         }}
         modalHeaderProps={{
           title: `Edit ${taskTemplate.displayName}`,
-          subtitle: taskTemplate.description || "Configure the task",
+          // One line, clipped, with the whole description on hover: the fields get the height.
+          subtitle: (
+            <span className={styles.modalSubtitle} title={taskTemplate.description || "Configure the task"}>
+              {taskTemplate.description || "Configure the task"}
+            </span>
+          ),
         }}
         modalTrigger={({ openModal }) => <WorkflowEditButton className={styles.editButton} onClick={openModal} />}
       >
