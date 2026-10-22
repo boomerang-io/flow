@@ -18,6 +18,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.workflow.model.Artifact;
 import io.boomerang.workflow.repository.ArtifactRepository;
 import io.boomerang.workspace.model.CurrentQuotas;
+import io.boomerang.workspace.model.Quotas;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -254,6 +255,7 @@ public class ArtifactService {
     }
     CurrentQuotas quotas = quotasFor(task.getWorkflowRunRef());
     if (quotas != null
+        && Quotas.limited(quotas.getMaxArtifactStorage())
         && quotas.getCurrentArtifactStorage() >= quotas.getMaxArtifactStorage() * GIB) {
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED,
@@ -321,6 +323,7 @@ public class ArtifactService {
     }
     CurrentQuotas quotas = quotasFor(taskRun.getWorkflowRunRef());
     if (quotas != null
+        && Quotas.limited(quotas.getMaxArtifactStorage())
         && quotas.getCurrentArtifactStorage() + stored.size()
             > quotas.getMaxArtifactStorage() * GIB) {
       discard(store, artifact);
@@ -651,7 +654,8 @@ public class ArtifactService {
 
   /**
    * The run's workspace artifact quota, or null when quotas are not enforced or no workspace owns
-   * it. Read without a caller identity: the dispatcher's poll and end calls act for no user.
+   * it. A quota of 0 is unlimited and the callers skip the check ({@link Quotas#limited}). Read
+   * without a caller identity: the dispatcher's poll and end calls act for no user.
    */
   private CurrentQuotas quotasFor(String workflowRunId) {
     if (!quotaService.enforced()) {
