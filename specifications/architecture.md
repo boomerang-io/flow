@@ -155,7 +155,7 @@ its version from the same tag and deploys it to this repository's GitHub Package
 The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
 authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:86-87,143`);
 core runs the dispatcher's `/dispatcher/**` filter chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`)
-and the product chain second (`core/security/SecurityConfiguration.java:79-80`).
+and the product chain second (`core/security/SecurityConfiguration.java:89-90`).
 
 ## Local stack
 

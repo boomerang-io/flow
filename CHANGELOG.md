@@ -278,3 +278,12 @@ tag's release notes.
 - A dispatcher's start or end for an attempt the engine has already requeued is refused with
   `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
   the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
+
+### Fixed
+
+- Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
+  `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
+  Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
+  the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
+  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.

@@ -3,11 +3,14 @@ package io.boomerang.core.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -15,8 +18,13 @@ import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.Filter;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,12 +52,17 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
   private static final String AUTH_CONFIG = "/internal/v1/auth/config";
   // Where it was served before the sign-in routes left the public API prefix.
   private static final String FORMER_AUTH_CONFIG = "/api/v2/auth/config";
-  // Exempt from a permission rule, but not on the permit list.
+  // Exempt from a permission rule, and on the permit list: the handler checks Slack's signature.
   private static final String SLACK_EVENTS = "/api/v2/integration/slack/events";
+  // Exempt from a permission rule, but not on the permit list: it checks nothing itself.
+  private static final String SLACK_INSTALL = "/api/v2/integration/slack/install";
+  private static final String SLACK_SIGNING_SECRET = "endpoint-authorization-signing-secret";
 
   @Autowired private WebApplicationContext context;
 
   @Autowired private TokenService tokenService;
+
+  @Autowired private SettingsService settingsService;
 
   @Autowired private MeterRegistry meterRegistry;
 
@@ -141,15 +154,65 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
     SecurityContextHolder.clearContext();
 
     // @AuthExempt lifts the permission rule only: whether a request must sign in is decided by
-    // path, and the Slack routes stay behind it while their signature check is not wired.
+    // path, and the install redirect carries no check of its own, so it stays behind it.
+    mockMvc
+        .perform(get(SLACK_INSTALL).servletPath(SLACK_INSTALL))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.reason").value("AUTH_REQUIRED"));
+  }
+
+  @Test
+  void anUnsignedSlackRequestIsRefusedByTheHandler() throws Exception {
+    SecurityContextHolder.clearContext();
+    setSlackSigningSecret(SLACK_SIGNING_SECRET);
+
+    // Past the filter and the permit list, so the 401 is the handler's own signature refusal,
+    // which carries no body - the filter's would be the structured AUTH_REQUIRED.
     mockMvc
         .perform(
             post(SLACK_EVENTS)
                 .servletPath(SLACK_EVENTS)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"challenge\":\"unsigned\"}"))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.reason").value("AUTH_REQUIRED"));
+        .andExpect(header().doesNotExist(HttpHeaders.WWW_AUTHENTICATE))
+        .andExpect(content().string(""));
+  }
+
+  @Test
+  void aSignedSlackRequestReachesTheHandler() throws Exception {
+    SecurityContextHolder.clearContext();
+    setSlackSigningSecret(SLACK_SIGNING_SECRET);
+    String body = "{\"challenge\":\"signed\"}";
+    String timestamp = Long.toString(Instant.now().getEpochSecond());
+
+    mockMvc
+        .perform(
+            post(SLACK_EVENTS)
+                .servletPath(SLACK_EVENTS)
+                .header("x-slack-request-timestamp", timestamp)
+                .header("x-slack-signature", slackSignature(timestamp, body))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(content().string("\"signed\""));
+  }
+
+  private void setSlackSigningSecret(String secret) {
+    SettingEntity integration = settingsService.getSettingByKey("integration");
+    integration.getConfig().stream()
+        .filter(config -> "slack.signingSecret".equals(config.getKey()))
+        .forEach(config -> config.setValue(secret));
+    settingsService.updateSetting(integration);
+  }
+
+  // v0= + hex HMAC-SHA256 of v0:{timestamp}:{body}, as Slack signs a request.
+  private static String slackSignature(String timestamp, String body) throws Exception {
+    Mac mac = Mac.getInstance("HmacSHA256");
+    byte[] secret = SLACK_SIGNING_SECRET.getBytes(StandardCharsets.UTF_8);
+    mac.init(new SecretKeySpec(secret, "HmacSHA256"));
+    byte[] signed = ("v0:" + timestamp + ":" + body).getBytes(StandardCharsets.UTF_8);
+    return "v0=" + HexFormat.of().formatHex(mac.doFinal(signed));
   }
 
   /**
