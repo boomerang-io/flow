@@ -29,8 +29,9 @@ import org.springframework.beans.factory.annotation.Autowired;
  * WorkflowService.applyWorkspaceDefaults settles a Workflow's workspace on every save, create and
  * update alike: an authored workspace survives intact, a blank size takes the storage quota, a
  * blank mountPath takes the default, the size is never stripped of its Kubernetes unit, a legacy
- * bare-number size is read as Gi, and - with quotas enforced - a size over the owning workspace's
- * storage quota is refused, where a quota of 0 is unlimited. A revision carrying the v3
+ * bare-number size is read as Gi, and - with quotas enforced - the owning workspace's storage
+ * quota lowers a blank size and refuses a size over it, where a quota of 0 is unlimited. A
+ * revision carrying the v3
  * workflow-storage marker cannot be run until it is saved again.
  */
 class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
@@ -81,6 +82,29 @@ class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
     // seed/settings.json sets max.workspace.storage to 2Gi.
     assertEquals("2Gi", created.getWorkspace().getSize());
     assertEquals(WorkflowWorkspace.DEFAULT_MOUNT_PATH, created.getWorkspace().getMountPath());
+  }
+
+  @Test
+  void aBlankSizeIsLoweredToTheWorkspaceQuotaWhenEnforced() {
+    setFeatureSetting(QUOTA_FEATURE, true);
+    String workspace = createWorkspace("workspace-spec-blank-lowered", storageQuota(1));
+
+    Workflow created =
+        workflowService.create(workspace, workflowWithWorkspace(workspace(null, null, null)));
+
+    // The 2Gi platform default would be over what this workspace may run.
+    assertEquals("1Gi", created.getWorkspace().getSize());
+  }
+
+  @Test
+  void aBlankSizeUnderAWorkspaceQuotaOfZeroTakesThePlatformDefault() {
+    setFeatureSetting(QUOTA_FEATURE, true);
+    String workspace = createWorkspace("workspace-spec-blank-unlimited", storageQuota(0));
+
+    Workflow created =
+        workflowService.create(workspace, workflowWithWorkspace(workspace(null, null, null)));
+
+    assertEquals("2Gi", created.getWorkspace().getSize());
   }
 
   @Test
