@@ -78,8 +78,8 @@ task poll (`dispatcher/DispatcherService.java:350-353`).
 ## Polling
 
 Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work every
-second, and answers as soon as it has claimed something, or 204 when the window passes
-(`dispatcher/DispatcherService.java:55-57`, `:365-417`). One task answer claims at most 20 task runs to run and 40
+`flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and answers as soon as it has claimed
+something, or 204 when the window passes (`dispatcher/DispatcherService.java:55-72`, `:372-424`, `:486-488`). One task answer claims at most 20 task runs to run and 40
 termination orders; one workflow answer at most 20 runs. A dispatcher's client read timeout MUST exceed 30 s. It
 SHOULD poll again at once after a poll that returned runs or was held for its window, and SHOULD wait about 5 s after
 one that failed or was answered at once with nothing; claiming switched off (`flow.queue.enabled=false`) and a filter

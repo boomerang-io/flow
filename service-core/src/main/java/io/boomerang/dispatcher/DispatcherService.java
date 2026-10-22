@@ -53,8 +53,11 @@ public class DispatcherService {
   private static final Logger LOGGER = LogManager.getLogger();
 
   private static final Integer MAX_POLL_INTERVAL = 30000;
-  private static final Integer MAX_SLEEP_INTERVAL = 1000; // 1 sec
   private static final int PAGE_SIZE = 20;
+
+  // The floor under the re-check interval: a value below it costs more claim-page queries than a
+  // dispatcher's hop latency gains.
+  static final long MIN_POLL_RECHECK_MS = 100;
 
   // One release query answers for at most this many owners of each kind. The dispatcher holds a
   // bounded set of volumes per reconciliation pass and pages anything larger.
@@ -63,6 +66,10 @@ public class DispatcherService {
   // Kill switch: stops CLAIMING only. The watcher's recovery sweeps are never gated by it.
   @Value("${flow.queue.enabled:true}")
   private boolean queueEnabled;
+
+  // How long a held poll waits between looks at the claimable page.
+  @Value("${flow.dispatcher.poll.recheck-ms:1000}")
+  private long pollRecheckMs;
 
   private final DispatcherRepository dispatcherRepository;
   private final WorkflowRunStateHelper workflowRunStateHelper;
@@ -471,13 +478,14 @@ public class DispatcherService {
   }
 
   /**
-   * Wait one re-check interval before the poll looks again - after an error too, so a query that
-   * fails fast is not re-run in a tight loop for the rest of the window. Return false when the
-   * thread is interrupted, so the poll ends and the thread can stop.
+   * Wait one re-check interval ({@code flow.dispatcher.poll.recheck-ms}, never under the floor)
+   * before the poll looks again - after an error too, so a query that fails fast is not re-run in
+   * a tight loop for the rest of the window. Return false when the thread is interrupted, so the
+   * poll ends and the thread can stop.
    */
-  private static boolean pauseBeforeRecheck() {
+  private boolean pauseBeforeRecheck() {
     try {
-      Thread.sleep(MAX_SLEEP_INTERVAL);
+      Thread.sleep(Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs));
       return true;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
