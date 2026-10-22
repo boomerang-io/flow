@@ -327,3 +327,6 @@ tag's release notes.
   query (the task-run query, a dispatcher's workflow-label filter, Insights by label) from admission until its end;
   a for-each's items were missing from the task-run query while they ran. Admission now stores the keys as an
   entity write does. Task runs admitted on beta.26 to beta.28 and still in flight match once they end.
+- A dispatcher SDK poller no longer ends when its pool's free-slot supplier throws: the throw is logged, read as not
+  due, and the poller asks again after its spacing. Before, every pool whose supplier failed during a store outage
+  stopped claiming until the process restarted, while the dispatcher went on reporting itself running.

@@ -145,6 +145,38 @@ class QueuePollerTest {
   }
 
   @Test
+  void aDueCheckThatThrowsDoesNotEndThePoller() throws Exception {
+    AtomicInteger dueChecks = new AtomicInteger();
+    AtomicInteger polls = new AtomicInteger();
+    QueuePoller<String> poller =
+        new QueuePoller<>(
+            "test",
+            () -> {
+              polls.incrementAndGet();
+              return List.of("task");
+            },
+            handedOff::add,
+            Duration.ofMillis(50),
+            () -> {
+              if (dueChecks.incrementAndGet() == 1) {
+                throw new IllegalStateException("limit store unavailable");
+              }
+              return true;
+            });
+
+    poller.start();
+    long started = System.nanoTime();
+    while (polls.get() == 0 && System.nanoTime() - started < Duration.ofSeconds(5).toNanos()) {
+      Thread.sleep(5);
+    }
+    poller.stop();
+
+    assertThat(dueChecks.get()).isGreaterThan(1);
+    assertThat(polls.get()).isGreaterThanOrEqualTo(1);
+    assertThat(handedOff).contains("task");
+  }
+
+  @Test
   void aPollerThatIsNotDueChecksAgainWithinTheSpacingUnwoken() throws Exception {
     AtomicBoolean due = new AtomicBoolean();
     AtomicInteger polls = new AtomicInteger();
