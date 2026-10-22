@@ -96,18 +96,21 @@ export async function userTokensLoader({ request }: { request: Request }): Promi
 
 /*
  * /:workspace/editor/:workflow/* - the `key` tokens minted for one workflow's own use, shown on
- * the editor's Configure > Tokens tab. `:workflow` is the workflow *name* (see
- * appConfig.appLink.editorCanvas call sites, which pass `workflow.name`), which is exactly the
- * principal Configure.tsx used to pass as `props.workflow.name`.
+ * the editor's Configure > Tokens tab. A workflow token's principal is the workflow *id*, which
+ * the editor loader resolves from the compose and passes as `workflowId`: the `:workflow`
+ * segment is the workflow name (appConfig.appLink.editorCanvas call sites pass `workflow.name`)
+ * and only stands in when this loader runs on its own.
  */
 export async function workflowTokensLoader({
   params,
   request,
+  workflowId,
 }: {
   params: { workflow?: string };
   request: Request;
+  workflowId?: string;
 }): Promise<TokenSectionRouteData> {
-  const workflow = String(params.workflow ?? "");
+  const workflow = workflowId ?? String(params.workflow ?? "");
   return {
     tokenSection: await loadTokenSection(request, {
       types: TokenType.Key,

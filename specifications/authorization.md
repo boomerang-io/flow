@@ -100,7 +100,11 @@ or not security is on. Being a `global` token, it is refused by `/api/v2/profile
 `session` tokens (`workspace/ProfileControllerV2.java:54,76`), so the webapp cannot sign in with it.
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
-human tokens. Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
+human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or
+`createWorkflowSchedulerToken` minted it (`core/TokenService.java:734-739`); a workflow name is only unique within
+its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:703`),
+and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
+(`workspace/WorkspaceService.java:354`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
 token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
 database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:292`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`)

@@ -700,7 +700,7 @@ public class WorkflowService {
       // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
       scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
-      tokenService.deleteAllForPrincipal(name);
+      tokenService.deleteAllForPrincipal(refs.get(0));
       removeWorkflowReferences(refs.get(0));
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
