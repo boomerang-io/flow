@@ -55,14 +55,23 @@ public class KubeLogService {
     this.podStartWait = podStartWait;
   }
 
+  /**
+   * Read the log of the task's pod: the one {@code podSelector} names when the executor knows
+   * the task's runtime object, else the first under the task labels, which also select an earlier
+   * attempt's pod (a task that started before the dispatcher last restarted, or whose executor
+   * runs on another instance, has no selector here).
+   */
   public String getPodLog(
       String workflowId,
       String workflowActivityId,
       String taskActivityId,
-      Map<String, String> customLabels) {
+      Map<String, String> customLabels,
+      Map<String, String> podSelector) {
     Map<String, String> labelSelector =
-        helperKubeService.getTaskLabels(
-            workflowId, workflowActivityId, taskActivityId, customLabels);
+        (podSelector != null)
+            ? podSelector
+            : helperKubeService.getTaskLabels(
+                workflowId, workflowActivityId, taskActivityId, customLabels);
 
     try {
       List<Pod> pods = client.pods().withLabels(labelSelector).list().getItems();
@@ -85,18 +94,22 @@ public class KubeLogService {
     }
   }
 
+  /** Follow the task's pod's log; the pod is chosen as {@link #getPodLog} chooses it. */
   public StreamingResponseBody streamPodLog(
       HttpServletResponse response,
       String workflowId,
       String workflowActivityId,
       String taskActivityId,
-      Map<String, String> customLabels) {
+      Map<String, String> customLabels,
+      Map<String, String> podSelector) {
 
     LOGGER.info("Stream logs from Kubernetes");
 
     Map<String, String> labelSelector =
-        helperKubeService.getTaskLabels(
-            workflowId, workflowActivityId, taskActivityId, customLabels);
+        (podSelector != null)
+            ? podSelector
+            : helperKubeService.getTaskLabels(
+                workflowId, workflowActivityId, taskActivityId, customLabels);
     List<Pod> pods = client.pods().withLabels(labelSelector).list().getItems();
     if (pods.isEmpty()) {
       // Nothing to watch yet - end the response instead of hanging on a Pod that may never

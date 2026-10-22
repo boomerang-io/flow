@@ -1,10 +1,19 @@
 package io.boomerang.kube;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.config.LogCapture;
+import io.boomerang.error.TaskExecutionException;
+import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodBuilder;
+import io.fabric8.kubernetes.api.model.PodStatus;
 import io.boomerang.dispatcher.sdk.Dispatcher;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.RunParam;
@@ -19,6 +28,11 @@ import io.fabric8.tekton.client.TektonClient;
 import io.fabric8.tekton.v1.TaskRunStatus;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -259,6 +273,53 @@ public class TektonServiceImplTest {
   }
 
   @Test
+  public void testCreateAdoptsARunningTaskRunAndCancelCancelsEveryRunningOne() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-attempts");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    // The attempt handed out again while its TaskRun still runs continues that TaskRun.
+    tektonService.create(task, 30L);
+    tektonService.create(task, 30L);
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(1, taskRuns.size());
+
+    // A cancelled attempt is finished: the next attempt gets a TaskRun of its own, and a cancel
+    // reaches every attempt still running under the same labels.
+    tektonService.cancel(task);
+    tektonService.create(task, 30L);
+    io.fabric8.tekton.v1.TaskRun another =
+        new io.fabric8.tekton.v1.TaskRunBuilder()
+            .withNewMetadata()
+            .withGenerateName("manual-attempt-")
+            .withLabels(taskRuns.get(0).getMetadata().getLabels())
+            .endMetadata()
+            .build();
+    tektonClient.v1().taskRuns().resource(another).create();
+    tektonService.cancel(task);
+
+    taskRuns = tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(3, taskRuns.size());
+    assertTrue(
+        taskRuns.stream()
+            .allMatch(
+                t -> "TaskRunCancelled".equals(t.getStatus().getConditions().get(0).getReason())),
+        "every attempt is cancelled: " + taskRuns);
+  }
+
+  @Test
   public void testToRunResultsConvertsTektonResultsRegardlessOfTaskOutcome() {
     // watchTaskRun() calls this on both the success return and the failure throw - a failed Task
     // (e.g. an HTTP Task that records a 404 status code before exiting non-zero) must not lose the
@@ -340,6 +401,140 @@ class TektonServiceImplReconcileTest {
     List<RunResult> results = tektonService.watch(task, 30L);
 
     assertNotNull(results);
+  }
+
+  @Test
+  public void testAFailedTaskRunsMessageIgnoresAnotherAttemptsPod() throws Exception {
+    // The only pod under the task's labels belongs to an earlier attempt (its TaskRun name
+    // differs): it must not supply this attempt's failure reason or detail.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-other-attempts-pod");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+    io.fabric8.tekton.v1.TaskRun created =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems().get(0);
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setExitCode(137);
+    terminated.setReason("OOMKilled");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus step = new ContainerStatus();
+    step.setName("step-task");
+    step.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setPhase("Failed");
+    podStatus.setContainerStatuses(List.of(step));
+    Map<String, String> earlierAttemptPodLabels = new HashMap<>(created.getMetadata().getLabels());
+    earlierAttemptPodLabels.put("tekton.dev/taskRun", "earlier-attempt");
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("earlier-attempt-pod-")
+            .withLabels(earlierAttemptPodLabels)
+            .endMetadata()
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    Condition failed = new Condition();
+    failed.setType("Succeeded");
+    failed.setStatus("False");
+    failed.setReason("Failed");
+    failed.setMessage("\"step-task\" exited with code 2");
+    TaskRunStatus status = new TaskRunStatus();
+    status.setConditions(List.of(failed));
+    status.setResults(List.of());
+    created.setStatus(status);
+    tektonClient.v1().taskRuns().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> tektonService.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+    assertEquals("Failed - \"step-task\" exited with code 2", ex.getMessage());
+  }
+
+  @Test
+  public void testWatchIsNotEndedByAnEarlierAttemptsCancelledTaskRun() throws Exception {
+    // Every attempt of a task carries the same labels. The first attempt's TaskRun was cancelled
+    // and left in place (deletion policy Never); the second attempt gets a TaskRun of its own and
+    // its watch must wait for that one, whatever the first reports.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tekton-attempt");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    tektonService.create(task, 30L);
+    io.fabric8.tekton.v1.TaskRun first =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems().get(0);
+    Condition cancelled = new Condition();
+    cancelled.setType("Succeeded");
+    cancelled.setStatus("False");
+    cancelled.setReason("TaskRunCancelled");
+    cancelled.setMessage("The TaskRun was cancelled successfully.");
+    TaskRunStatus cancelledStatus = new TaskRunStatus();
+    cancelledStatus.setConditions(List.of(cancelled));
+    cancelledStatus.setResults(List.of());
+    first.setStatus(cancelledStatus);
+    tektonClient.v1().taskRuns().resource(first).updateStatus();
+
+    tektonService.create(task, 30L);
+    List<io.fabric8.tekton.v1.TaskRun> taskRuns =
+        tektonClient.v1().taskRuns().inAnyNamespace().list().getItems();
+    assertEquals(2, taskRuns.size());
+    io.fabric8.tekton.v1.TaskRun second =
+        taskRuns.stream()
+            .filter(t -> !first.getMetadata().getName().equals(t.getMetadata().getName()))
+            .findFirst()
+            .orElseThrow();
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<List<RunResult>> future = executor.submit(() -> tektonService.watch(task, 30L));
+
+      // The watch is open: the first attempt's TaskRun reports its cancellation again, and the
+      // reconcile poll (1 s) runs. Neither may end the second attempt.
+      Thread.sleep(500);
+      tektonClient.v1().taskRuns().resource(first).updateStatus();
+      Thread.sleep(1500);
+      assertFalse(future.isDone(), "the earlier attempt's cancelled TaskRun ended the watch");
+
+      Condition succeeded = new Condition();
+      succeeded.setType("Succeeded");
+      succeeded.setStatus("True");
+      TaskRunStatus status = new TaskRunStatus();
+      status.setConditions(List.of(succeeded));
+      status.setResults(List.of());
+      second.setStatus(status);
+      tektonClient.v1().taskRuns().resource(second).updateStatus();
+
+      assertNotNull(future.get(10, TimeUnit.SECONDS));
+    } finally {
+      executor.shutdownNow();
+    }
   }
 }
 

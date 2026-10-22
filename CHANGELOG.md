@@ -184,6 +184,11 @@ tag's release notes.
 - A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
   delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
   workspace and left its own scheduler token in place.
+- A task attempt retried after an earlier attempt was cancelled or failed with its TaskRun or Job left in place
+  (deletion policy `Never`, or `OnSuccess` after a failure) no longer ends at once with the earlier attempt's
+  result, and no longer reports the earlier attempt's pod as its own start failure, failure detail or log: each
+  executor watches the object its attempt created or adopted, reads only that object's pod (the stored and live
+  logs included), adopts only an object still running, and on Tekton a cancel reaches every attempt still running.
 
 ### Changed
 

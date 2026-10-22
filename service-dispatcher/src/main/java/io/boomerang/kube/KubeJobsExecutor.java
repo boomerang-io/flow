@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -150,6 +151,25 @@ public class KubeJobsExecutor implements TaskExecutor {
     this.client = client;
   }
 
+  // The Job each task run in flight created or adopted, by task run id, from create until its
+  // log has been read. Labels alone cannot find it: every attempt carries the same ones.
+  private final Map<String, String> jobNames = new ConcurrentHashMap<>();
+
+  // The Job controller stamps the Job's name on its pod; the task labels select every attempt's.
+  private static Map<String, String> podLabels(String name) {
+    return Map.of("job-name", name);
+  }
+
+  @Override
+  public Optional<Map<String, String>> runtimePodSelector(String taskRunId) {
+    return Optional.ofNullable(jobNames.get(taskRunId)).map(KubeJobsExecutor::podLabels);
+  }
+
+  @Override
+  public void forgetRuntimeObject(String taskRunId) {
+    jobNames.remove(taskRunId);
+  }
+
   @Override
   public void create(TaskRun task, Long timeoutMinutes) throws InterruptedException, ParseException {
     LOGGER.info("Initializing Task...");
@@ -161,12 +181,17 @@ public class KubeJobsExecutor implements TaskExecutor {
     Map<String, String> taskLabels =
         helperKubeService.getTaskLabels(workflowRef, workflowRunRef, taskRunRef, task.getLabels());
 
-    List<Job> existing = client.batch().v1().jobs().withLabels(taskLabels).list().getItems();
-    if (!existing.isEmpty()) {
+    // An attempt handed out again while its Job still runs (a dispatcher that stopped and let the
+    // lease lapse) continues that Job; a finished one belongs to an earlier attempt.
+    Job running =
+        client.batch().v1().jobs().withLabels(taskLabels).list().getItems().stream()
+            .filter(job -> !isFinished(job))
+            .findFirst()
+            .orElse(null);
+    if (running != null) {
       LOGGER.info(
-          "Adopting existing Job {} for TaskRun {}",
-          existing.get(0).getMetadata().getName(),
-          taskRunRef);
+          "Adopting existing Job {} for TaskRun {}", running.getMetadata().getName(), taskRunRef);
+      jobNames.put(taskRunRef, running.getMetadata().getName());
       return;
     }
 
@@ -243,6 +268,7 @@ public class KubeJobsExecutor implements TaskExecutor {
     job.setSpec(jobSpec);
 
     Job result = client.batch().v1().jobs().resource(job).create();
+    jobNames.put(taskRunRef, result.getMetadata().getName());
     // Name, namespace and image only: the pod spec carries the task's env values and the
     // filled-in script, any of which may be a secret.
     LOGGER.info(
@@ -250,6 +276,18 @@ public class KubeJobsExecutor implements TaskExecutor {
         result.getMetadata().getName(),
         result.getMetadata().getNamespace(),
         container.getImage());
+  }
+
+  // A Job is finished once it carries a true Complete or Failed condition, the same terminal
+  // test the watch applies.
+  private static boolean isFinished(Job job) {
+    return job.getStatus() != null
+        && job.getStatus().getConditions() != null
+        && job.getStatus().getConditions().stream()
+            .anyMatch(
+                condition ->
+                    ("Complete".equals(condition.getType()) || "Failed".equals(condition.getType()))
+                        && "True".equals(condition.getStatus()));
   }
 
   private void addDataVolume(List<Volume> volumes, List<VolumeMount> volumeMounts, List<RunParam> params) {
@@ -380,12 +418,20 @@ public class KubeJobsExecutor implements TaskExecutor {
 
   @Override
   public List<RunResult> watch(TaskRun task, Long timeoutMinutes) throws InterruptedException {
+    return watchJob(task, jobNames.get(task.getId()), timeoutMinutes);
+  }
+
+  /** Wait for the Job of that {@code name}, the one {@link #create} made or adopted. */
+  private List<RunResult> watchJob(TaskRun task, String name, Long timeoutMinutes)
+      throws InterruptedException {
     Map<String, String> taskLabels =
         helperKubeService.getTaskLabels(
             task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+    Map<String, String> podLabels = podLabels(String.valueOf(name));
 
     final CountDownLatch latch = new CountDownLatch(1);
-    JobWatcher jobWatcher = new JobWatcher(latch, Duration.ofSeconds(failedConditionGraceSeconds));
+    JobWatcher jobWatcher =
+        new JobWatcher(latch, Duration.ofSeconds(failedConditionGraceSeconds), name);
     PodStartWatch podStartWatch =
         new PodStartWatch(
             Instant.now(), Duration.ofMinutes(startMinutes), Duration.ofSeconds(startFailureGraceSeconds));
@@ -405,11 +451,12 @@ public class KubeJobsExecutor implements TaskExecutor {
         // The watch is the fast path; this poll is the reconcile that catches whatever the watch
         // missed - a dropped connection, or a state transition that happened before the watch was
         // established.
-        List<Job> jobs = client.batch().v1().jobs().withLabels(taskLabels).list().getItems();
-        if (jobs.isEmpty()) {
+        // No name means no create recorded a Job for this attempt: nothing to wait for.
+        Job job = (name != null) ? client.batch().v1().jobs().withName(name).get() : null;
+        if (job == null) {
           jobWatcher.markDeleted();
         } else {
-          jobWatcher.evaluate(jobs.get(0));
+          jobWatcher.evaluate(job);
         }
         if (jobWatcher.isWatchLost()) {
           watch.close();
@@ -418,7 +465,7 @@ public class KubeJobsExecutor implements TaskExecutor {
         }
         if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
           TaskExecutionException startFailure =
-              podStartWatch.check(helperKubeService.podStart(client, taskLabels), Instant.now());
+              podStartWatch.check(helperKubeService.podStart(client, podLabels), Instant.now());
           if (startFailure != null) {
             // Nothing ran: remove the Job so a pod that cannot start stops holding capacity.
             client
@@ -436,7 +483,7 @@ public class KubeJobsExecutor implements TaskExecutor {
       JobCondition condition = jobWatcher.getCondition();
       if (condition != null && "Complete".equals(condition.getType()) && "True".equals(condition.getStatus())) {
         LOGGER.info("Job completed successfully");
-        return readResults(taskLabels, task.getResults());
+        return readResults(podLabels, task.getResults());
       }
 
       String reason = condition != null ? condition.getReason() : "Unknown";
@@ -444,8 +491,8 @@ public class KubeJobsExecutor implements TaskExecutor {
       LOGGER.info("Task execution error. " + reason + " - " + message);
       // The container may have written its Result Parameters to the termination log before it
       // exited non-zero; carry them so a failed Task's output still reaches the Engine.
-      List<RunResult> failureResults = readResults(taskLabels, task.getResults());
-      throw failureFor(reason, message, taskLabels, failureResults);
+      List<RunResult> failureResults = readResults(podLabels, task.getResults());
+      throw failureFor(reason, message, podLabels, failureResults);
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
@@ -456,10 +503,10 @@ public class KubeJobsExecutor implements TaskExecutor {
   }
 
   private TaskExecutionException failureFor(
-      String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
+      String reason, String message, Map<String, String> podLabels, List<RunResult> results) {
     // The status message is the Job's condition first, then the container's own account of the
     // failure (exit code, termination reason, log tail) while its pod can still be read.
-    String detail = helperKubeService.failureDetail(client, taskLabels);
+    String detail = helperKubeService.failureDetail(client, podLabels);
     String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason)) {
       return new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, results, text);
@@ -467,7 +514,7 @@ public class KubeJobsExecutor implements TaskExecutor {
     if ("JobDeleted".equals(reason)) {
       return new TaskExecutionException(StatusReason.JOB_DELETED, results, text);
     }
-    String podReason = helperKubeService.getPodFailureReason(client, taskLabels);
+    String podReason = helperKubeService.getPodFailureReason(client, podLabels);
     if (StatusReason.OOM_KILLED.equals(podReason)) {
       return new TaskExecutionException(StatusReason.OOM_KILLED, results, text);
     }
@@ -494,9 +541,10 @@ public class KubeJobsExecutor implements TaskExecutor {
    * short unparseable message is a task writing something that is not a results payload: it
    * carries no results, which is not a failure, and is logged rather than failed.
    */
-  private List<RunResult> readResults(Map<String, String> taskLabels, List<RunResult> declaredResults) {
-    String message = getTerminationMessage(taskLabels);
-    if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
+  private List<RunResult> readResults(
+      Map<String, String> podLabels, List<RunResult> declaredResults) {
+    String message = getTerminationMessage(podLabels);
+    if (kubeService.isTaskRunResultTooLarge(podLabels)) {
       throw new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, RESULTS_TOO_LARGE_MESSAGE);
     }
     Optional<List<RunResult>> parsed = TerminationMessageParser.parse(message, declaredResults);
@@ -512,8 +560,8 @@ public class KubeJobsExecutor implements TaskExecutor {
     return List.of();
   }
 
-  private String getTerminationMessage(Map<String, String> taskLabels) {
-    List<Pod> pods = client.pods().withLabels(taskLabels).list().getItems();
+  private String getTerminationMessage(Map<String, String> podLabels) {
+    List<Pod> pods = client.pods().withLabels(podLabels).list().getItems();
     if (pods.isEmpty()) {
       return null;
     }

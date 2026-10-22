@@ -601,7 +601,7 @@ class KubeJobsExecutorReconcileTest {
         new PodBuilder()
             .withNewMetadata()
             .withGenerateName("test-pod-")
-            .withLabels(taskLabels)
+            .withLabels(podLabels(created))
             .endMetadata()
             .build();
     Pod createdPod = client.pods().resource(pod).create();
@@ -631,7 +631,6 @@ class KubeJobsExecutorReconcileTest {
     kubeJobsExecutor.create(task, 30L);
 
     Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
-    Map<String, String> taskLabels = created.getMetadata().getLabels();
 
     JobStatus status = new JobStatus();
     status.setFailed(1);
@@ -652,7 +651,7 @@ class KubeJobsExecutorReconcileTest {
         new PodBuilder()
             .withNewMetadata()
             .withGenerateName("test-pod-")
-            .withLabels(taskLabels)
+            .withLabels(podLabels(created))
             .endMetadata()
             .withStatus(podStatus)
             .build();
@@ -676,7 +675,6 @@ class KubeJobsExecutorReconcileTest {
     kubeJobsExecutor.create(task, 30L);
 
     Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
-    Map<String, String> taskLabels = created.getMetadata().getLabels();
 
     ContainerStateTerminated terminated = new ContainerStateTerminated();
     terminated.setExitCode(1);
@@ -696,7 +694,7 @@ class KubeJobsExecutorReconcileTest {
         new PodBuilder()
             .withNewMetadata()
             .withName("failure-detail-pod")
-            .withLabels(taskLabels)
+            .withLabels(podLabels(created))
             .endMetadata()
             .withNewSpec()
             .withContainers(taskContainer)
@@ -748,7 +746,6 @@ class KubeJobsExecutorReconcileTest {
     kubeJobsExecutor.create(task, 30L);
 
     Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
-    Map<String, String> taskLabels = created.getMetadata().getLabels();
 
     JobCondition complete = new JobCondition();
     complete.setType("Complete");
@@ -761,14 +758,19 @@ class KubeJobsExecutorReconcileTest {
     created.setStatus(status);
     client.batch().v1().jobs().resource(created).updateStatus();
 
-    seedTerminationMessage(taskLabels, "{\"greeting\": \"" + "x".repeat(5000));
+    seedTerminationMessage(created, "{\"greeting\": \"" + "x".repeat(5000));
 
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("ResultsTooLarge", ex.getStatusReason());
   }
 
-  private void seedTerminationMessage(Map<String, String> taskLabels, String message) {
+  // The Job controller stamps its Job's name on the pod; the executor reads the pod by it.
+  private static Map<String, String> podLabels(Job job) {
+    return Map.of("job-name", job.getMetadata().getName());
+  }
+
+  private void seedTerminationMessage(Job created, String message) {
     ContainerStateTerminated terminated = new ContainerStateTerminated();
     terminated.setMessage(message);
     ContainerState state = new ContainerState();
@@ -783,7 +785,7 @@ class KubeJobsExecutorReconcileTest {
         new PodBuilder()
             .withNewMetadata()
             .withGenerateName("test-pod-")
-            .withLabels(taskLabels)
+            .withLabels(podLabels(created))
             .endMetadata()
             .withStatus(podStatus)
             .build();
@@ -801,6 +803,78 @@ class KubeJobsExecutorReconcileTest {
     kubeJobsExecutor.create(task, 30L);
 
     assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+  }
+
+  @Test
+  public void testAFailedJobsMessageIgnoresAnotherAttemptsPod() throws Exception {
+    // The only pod under the task's labels belongs to an earlier attempt (its Job name differs):
+    // it must not supply this attempt's failure reason or detail.
+    TaskRun task = task("taskrun-other-attempts-pod");
+    kubeJobsExecutor.create(task, 30L);
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setExitCode(137);
+    terminated.setReason("OOMKilled");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setPhase("Failed");
+    podStatus.setContainerStatuses(List.of(containerStatus));
+    Map<String, String> earlierAttemptPodLabels = new HashMap<>(created.getMetadata().getLabels());
+    earlierAttemptPodLabels.put("job-name", "earlier-attempt");
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("earlier-attempt-")
+            .withLabels(earlierAttemptPodLabels)
+            .endMetadata()
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    failed.setMessage("Job has reached the specified backoff limit");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+    assertEquals("BackoffLimitExceeded - Job has reached the specified backoff limit", ex.getMessage());
+  }
+
+  @Test
+  public void testCreateDoesNotAdoptAFinishedJob() throws Exception {
+    // Every attempt of a task carries the same labels. A failed attempt's Job left in place
+    // (deletion policy Never) is finished; the next attempt gets a Job of its own.
+    TaskRun task = task("taskrun-reconcile-finished");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    kubeJobsExecutor.create(task, 30L);
+
+    assertEquals(2, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
   }
 }
 
