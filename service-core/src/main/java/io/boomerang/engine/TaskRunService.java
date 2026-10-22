@@ -28,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -370,11 +371,16 @@ public class TaskRunService {
                 .is(RunStatus.notstarted)
                 .and("phase")
                 .is(RunPhase.pending));
+    // A map set through an Update keeps its keys as given, unlike an entity write, which stores a
+    // dot as `#` (MongoConfiguration); the label query matches the stored form, so the keys are
+    // stored that way here too.
+    Map<String, String> storedLabels = new HashMap<>();
+    labels.forEach((key, value) -> storedLabels.put(key.replace(".", "#"), value));
     Update update =
         new Update()
             .set("status", RunStatus.ready)
             .set("params", secretValues.sealRunParams(resolvedParams))
-            .set("labels", labels);
+            .set("labels", storedLabels);
     return transition(query, update, RunStatus.ready, null);
   }
 

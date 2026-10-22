@@ -322,3 +322,7 @@ tag's release notes.
 - A dispatcher SDK stop that lands as a claim is being taken drains that claim to its end, or refuses it before it
   enters flight; it used to drop a claim already in flight as "not taken", holding a claim it never reported on
   until its lease lapsed.
+- A task run admitted since 5.0.0-beta.26 stored its label keys with their dots unescaped, so it matched no label
+  query (the task-run query, a dispatcher's workflow-label filter, Insights by label) from admission until its end;
+  a for-each's items were missing from the task-run query while they ran. Admission now stores the keys as an
+  entity write does. Task runs admitted on beta.26 to beta.28 and still in flight match once they end.
