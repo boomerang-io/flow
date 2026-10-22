@@ -2,6 +2,7 @@ package io.boomerang.dispatcher;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atMost;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
@@ -77,6 +79,24 @@ class DispatcherQueueErrorPathTest {
     entity.setId(id);
     entity.setType(TaskType.template);
     return entity;
+  }
+
+  // An id the engine does not hold is refused with the not-registered error, which the wire
+  // answers as 404, never as a framework 500.
+  @Test
+  void aPollFromAnUnknownDispatcherIsRefusedAsNotRegistered() {
+    when(mongoTemplate.findAndModify(
+            any(Query.class),
+            any(Update.class),
+            any(FindAndModifyOptions.class),
+            eq(DispatcherEntity.class)))
+        .thenReturn(null);
+
+    assertThatThrownBy(
+            () -> dispatcherService.getTaskQueue("no-such-agent", null, null, null, null))
+        .isInstanceOf(BoomerangException.class)
+        .extracting("reason", "status")
+        .containsExactly("DISPATCHER_NOT_REGISTERED", HttpStatus.NOT_FOUND);
   }
 
   @Test
