@@ -96,7 +96,7 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
     {
       name: "taskName",
       id: "taskName",
-      label: "Task Name",
+      label: "Task name",
       placeholder: "Enter a task name",
       type: "custom",
       required: true,
@@ -157,7 +157,12 @@ function RunWorkflowForm(props: RunWorkflowFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.RunWorkflow} />
+            <TaskFormTabs
+              inputs={inputs}
+              formikProps={formikProps}
+              taskType={NodeType.RunWorkflow}
+              results={props.task?.spec?.results}
+            />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>

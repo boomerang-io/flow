@@ -474,9 +474,9 @@ public class TaskExecutionService {
   /*
    * End a task with an outcome whose results may not fit MongoDB's 16 MB document limit - a
    * for-each parent's combined results - ending it with the fallback outcome when they do not.
+   * Synchronous: the parent ends on the thread that found its items terminal.
    */
-  @Async("asyncTaskExecutor")
-  public void end(String taskRunId, TaskOutcome outcome, TaskOutcome ifTooLarge) {
+  private void end(String taskRunId, TaskOutcome outcome, TaskOutcome ifTooLarge) {
     try {
       end(taskRunId, outcome, Optional.empty(), Optional.empty());
     } catch (RuntimeException ex) {
@@ -606,15 +606,17 @@ public class TaskExecutionService {
     }
 
     // An item never advances the graph: it completes its parent once every item is terminal, and
-    // the parent's own end advances.
+    // the parent's own end, on this same thread, advances.
     if (taskExecution.getParentRef() != null) {
       completeParentIfItemsTerminal(taskExecution.getParentRef());
       return;
     }
 
-    // Winner-only graph advance. No workflow-level lock: admission and completion
+    // Winner-only graph advance over the ended task's neighbourhood - its dependants and what they
+    // depend on - never the run's whole graph. No workflow-level lock: admission and completion
     // Compare-And-Set transitions make a duplicate or concurrent advance a no-op.
-    List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunEntity.getId());
+    List<TaskRunEntity> tasks =
+        dagUtility.retrieveDependants(wfRunEntity.getId(), taskExecution.getName());
     boolean finishedAllDependencies = this.finishedAll(wfRunEntity, tasks, taskExecution);
     LOGGER.debug("[{}] Finished all TaskRuns? {}", taskExecutionId, finishedAllDependencies);
 
@@ -801,8 +803,10 @@ public class TaskExecutionService {
    * Complete a running foreach parent once every item is terminal. It succeeds only when every item
    * succeeded, and each declared result - or, for a task that declares none, each result its items
    * produced - becomes a JSON array in item order, null for an item that did not succeed. The
-   * parent ends with that outcome in the completion Compare-And-Set itself, so of any number of
-   * concurrent last-item enders exactly one completes it and advances the graph.
+   * parent ends with that outcome on this thread - the last item's end, the fan-out of an empty
+   * array or the watcher's recovery - in the completion Compare-And-Set itself, so of any number
+   * of concurrent enders exactly one completes it, and that one admits the parent's dependants
+   * before it returns.
    */
   void completeParentIfItemsTerminal(String parentRef) {
     TaskRunEntity parent = taskRunRepository.findById(parentRef).orElse(null);
@@ -848,7 +852,7 @@ public class TaskExecutionService {
                 + " items exceed MongoDB's 16 MB document limit. Pass large outputs by reference"
                 + " (workspace path or URI).",
             null);
-    self.end(parentRef, outcome, withoutResults);
+    end(parentRef, outcome, withoutResults);
   }
 
   // Whether a write failed because the document, or the command carrying it, is over MongoDB's
@@ -1480,7 +1484,9 @@ public class TaskExecutionService {
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
-  private void finishWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
+  // The run's whole graph is read here, once per run: the path check needs every vertex.
+  private void finishWorkflow(WorkflowRunEntity wfRunEntity) {
+    List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunEntity.getId());
     // Terminalise the end node via the completion Compare-And-Set (a no-op on recovery).
     tasks.stream()
         .filter(t -> TaskType.end.equals(t.getType()))
@@ -1535,7 +1541,7 @@ public class TaskExecutionService {
       if (TaskType.end.equals(next.getType())) {
         if (finishedAll) {
           LOGGER.debug("FINISHED ALL");
-          this.finishWorkflow(wfRunEntity, tasks);
+          this.finishWorkflow(wfRunEntity);
           return;
         }
         continue;

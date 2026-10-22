@@ -5,8 +5,8 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
-import ch.qos.logback.core.AppenderBase;
 import ch.qos.logback.core.Layout;
+import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import io.boomerang.dispatcher.sdk.TaskLogCapture;
 import org.slf4j.LoggerFactory;
 
@@ -16,8 +16,12 @@ import org.slf4j.LoggerFactory;
  * to the root logger of the running logback; a host that configures logback itself adds it to
  * the loggers it wants captured instead. Without a {@link #setLayout layout} a line is the
  * event's message, followed by its stack trace when it carries a throwable.
+ *
+ * <p>Unsynchronized: the host's every log event passes through here, and the capture's buffers
+ * are safe on their own, so no thread waits on another to log. An event with no task in its MDC
+ * is dropped before its line is formatted.
  */
-public final class TaskLogAppender extends AppenderBase<ILoggingEvent> {
+public final class TaskLogAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
   private final TaskLogCapture capture;
   private Layout<ILoggingEvent> layout;
@@ -44,7 +48,11 @@ public final class TaskLogAppender extends AppenderBase<ILoggingEvent> {
 
   @Override
   protected void append(ILoggingEvent event) {
-    capture.append(event.getMDCPropertyMap().get(TaskLogCapture.MDC_KEY), line(event));
+    String taskRunId = event.getMDCPropertyMap().get(TaskLogCapture.MDC_KEY);
+    if (taskRunId == null || !capture.isCapturing(taskRunId)) {
+      return;
+    }
+    capture.append(taskRunId, line(event));
   }
 
   private String line(ILoggingEvent event) {
