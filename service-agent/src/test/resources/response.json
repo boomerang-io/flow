@@ -1,0 +1,106 @@
+{
+    "apiVersion": "1.0", 
+    "kind": "kind", 
+    "metadata": { 
+      "annotations": {
+          "kubectl.kubernetes.io/last-applied-configuration": "kubectlKubernetesIoLastAppliedConfiguration"
+      },
+      "clusterName": "clusterName",
+      "creationTimestamp": "creationTimestamp",
+      "generation": 1,
+      "labels": {
+        "workflows.argoproj.io/completed": "workflowsArgoprojIoCompleted",
+        "workflows.argoproj.io/phase": "workflowsArgoprojIoPhase"
+      },
+      "name": "podName",
+      "namespace": "podNamespace",
+      "resourceVersion": "resourceVersion",
+      "selfLink": "selfLink",
+      "uid": "1"
+    },
+    "spec": { 
+      "arguments": {"additionalProperties": {"myArg": "myValue"}},
+      "entrypoint": "entrypoint",
+      "imagePullSecrets": [{"name": "name"}],
+      "templates": [{
+        "inputs": {"additionalProperties": {"myArg1": "myValue1"}},
+        "metadata": {"additionalProperties": {"myArg2": "myValue2"}},
+        "name": "specName",
+        "outputs": {"additionalProperties": {"myArg3": "myValue3"}},
+        "steps": [[{"arguments": {"additionalProperties": {"myArg5": "myValue5"}}, "name": "stepName", "template": "stepTemplate"}]],
+        "script": {
+    	"command": ["command1", "command2"],
+    	"image": "image", 
+    	"name": "scriptName",
+    	"resources": {"additionalProperties": {"myArg4": "myValue4"}},
+    	"source": "source"
+        }
+      }]
+    }, 
+    "status": {
+      "finishedAt": "finishedAt",
+      "phase": "phase", 
+      "startedAt": "startedAt",
+      "nodes": {
+        "bmrg-flow-1": {
+          "children": ["children1", "children"],
+          "displayName": "bmrg-flow-1",
+          "finishedAt": "finishedAt",
+          "id": "1",
+          "name": "bmrg-flow-1",
+          "outboundNodes": ["outboundNode1", "outboundNode2"],
+          "phase": "phase1",
+          "startedAt": "startedAt",
+          "templateName": "templateName1",
+          "type": "type"
+        },
+        "bmrg-flow-1-15782439": {
+          "boundaryID": "boundaryID",
+          "displayName": "bmrg-flow-1-15782439",
+          "finishedAt": "finishedAt",
+          "id": "1-15782439",
+          "name": "bmrg-flow-1-15782439",
+          "outputs": {"result": "result"},
+          "phase": "phase2",
+          "startedAt": "startedAt",
+          "templateName": "templateName2",
+          "type": "type"
+        },
+        "bmrg-flow-1-4081481": {
+          "boundaryID": "boundaryID",
+          "children": ["children1", "children"],
+          "displayName": "bmrg-flow-1-4081481",
+          "finishedAt": "finishedAt",
+          "id": "1-4081481",
+          "name": "bmrg-flow-1-4081481",
+          "outputs": {"result": "result"},
+          "phase": "phase3",
+          "startedAt": "startedAt",
+          "templateName": "templateName3",
+           "type": "type"
+        },
+        "bmrg-flow-1-548609519": {
+          "boundaryID": "boundaryID",
+          "children": ["children1", "children"],
+          "displayName": "bmrg-flow-1-548609519",
+          "finishedAt": "finishedAt",
+          "id": "1-4081481",
+          "name": "bmrg-flow-1-548609519",
+          "phase": "phase3",
+          "startedAt": "startedAt",
+          "type": "type"
+        },
+        "bmrg-flow-1-615867090": {
+          "boundaryID": "boundaryID",
+          "children": ["children1", "children"],
+          "displayName": "bmrg-flow-1-615867090",
+          "finishedAt": "finishedAt",
+          "id": "1-4081481",
+          "name": "bmrg-flow-1-615867090",
+          "phase": "phase3",
+          "startedAt": "startedAt",
+          "type": "type"
+        }
+      }
+    }
+  }

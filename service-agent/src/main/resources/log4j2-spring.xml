@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+   <Appenders>
+      <Console name="Console" target="SYSTEM_OUT">
+         <PatternLayout pattern="[%clr{%d{yyyy-MM-dd HH:mm:ss.SSS}}{faint}] [%clr{%level}] [%tid] %clr{%-40.40c{3.2}}{cyan} %clr{:}{faint} %m%n%xwEx" />
+      </Console>
+   </Appenders>
+   <Loggers>
+      <Root level="info">
+         <AppenderRef ref="Console" />
+      </Root>
+      <Logger name="org.springframework.web.client.RestTemplate" level="debug" additivity="false">
+         <AppenderRef ref="Console" />
+         <AppenderRef ref="File" />
+      </Logger>
+      <Logger name="net.boomerangplatform.logging.LoggingAspect" level="info" additivity="false" />
+      <Logger name="org.springframework.*" level="warn" additivity="false" />
+      <Logger name="org.springframework.test.context.support" level="warn" additivity="false" />
+      <Logger name="org.mongodb.driver.Connection" level="error" additivity="false" />
+      <Logger name="org.springframework.context.support" level="warn" additivity="false" />
+      <Logger name="hibernate.validator.internal.util.Version" level="warn" additivity="false" />
+      <Logger name="org.apache.coyote.http11.Http11NioProtocol" level="warn" additivity="false" />
+      <Logger name="org.apache.tomcat.util.net.NioSelectorPool" level="warn" additivity="false" />
+      <Logger name="org.apache.catalina.startup.DigesterFactory" level="warn" additivity="false" />
+      <Logger name="org.springframework.ldap.pool" level="debug" additivity="false">
+         <AppenderRef ref="Console" />
+      </Logger>
+   </Loggers>
+</Configuration>

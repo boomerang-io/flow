@@ -4,12 +4,12 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>net.boomerangplatform</groupId>
-	<artifactId>service-flow</artifactId>
-	<version>${version.name}</version>
-	<packaging>jar</packaging>
-	<name>service-flow</name>
-	<description>Service for Flow</description>
+	<groupId>io.boomerang</groupId>
+	<artifactId>parent</artifactId>
+	<version>1.0</version>
+	<packaging>pom</packaging>
+	<name>parent</name>
+	<description>Parent project for Boomerang Flow services</description>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -220,6 +220,20 @@
 		</dependencies>
 
 	</dependencyManagement>
+	<modules>
+		<module>lib-common</module>
+		<module>service-agent</module>
+		<module>service-engine</module>
+		<module>service-flow</module>
+	</modules>
+	<profiles>
+		<profile>
+			<id>legacy-service-flow</id>
+			<activation>
+				<property>
+					<name>legacy-service-flow</name>
+				</property>
+			</activation>
 	<dependencies>
 		<!--
 		https://mvnrepository.com/artifact/jakarta.validation/jakarta.validation-api 
@@ -513,6 +527,8 @@
 			<version>2.1.7</version>
 		</dependency>
 	</dependencies>
+		</profile>
+	</profiles>
 
 	<build>
 		<plugins>
@@ -522,6 +538,13 @@
 				<configuration>
 					<forceJavacCompilerUse>true</forceJavacCompilerUse>
 					<release>${java.version}</release>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.42</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
 			<plugin>
