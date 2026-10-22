@@ -68,8 +68,10 @@ second scale with its pools × 1000 / the interval. Admitting a task, or submitt
 wakes every poll held on that engine instance, which re-runs its filter query at once
 (`dispatcher/PollWakeups.java:24-55`, `engine/TaskExecutionService.java:254`, `workflow/WorkflowRunService.java:815`,
 `dispatcher/DispatcherService.java:494-497`): a few indexed queries per admission, none while nothing is admitted,
-and a hop in a sequential chain costs the end round trip, the admission and the claim round trip, about 100–200 ms,
-independent of the interval. The interval bounds the wait for a task that becomes claimable without an admission
+and a hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
+the interval. Measured by an embedder on one engine and one in-process dispatcher, the same 41-hop scenario before
+and after: the hop from a task's end to the next task's start fell from 0.88 s median and 1.03 s p90 to 0.05–0.11 s
+median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval bounds the wait for a task that becomes claimable without an admission
 on the polled instance: a `retry.after` that elapses, an admission on another replica, or a slot that frees while
 the engine holds a full dispatcher's `limit=0` poll. A multi-replica engine whose chains hop often can trade queries
 for that latency: one dispatcher with seven pools at 200 ms costs 35 queries/s instead of 7. A dispatcher holds at most `flow.dispatcher.task.max-in-flight` tasks (25,
