@@ -856,7 +856,7 @@ function Configure(props: ConfigureProps) {
             )}
             <div>
               <dl className={styles.detailedListContainer}>
-                <TokenSection type={TokenType.Key} actorKind={TokenActorKind.Workflow} principal={props.workflow.name} />
+                <TokenSection type={TokenType.Key} actorKind={TokenActorKind.Workflow} principal={props.workflow.id} />
               </dl>
             </div>
           </Section>

@@ -101,6 +101,42 @@ class KubePodStartTest {
   }
 
   @Test
+  void anotherAttemptsPodUnderTheSameTaskLabelsIsNotRead() {
+    // Every attempt of a task labels its pod the same way; the executors therefore select the
+    // pod by the label its owning Job or TaskRun stamps on it, and only that pod is read.
+    PodStatus failed = new PodStatus();
+    failed.setPhase("Failed");
+    failed.setContainerStatuses(List.of(waiting("task", "ImagePullBackOff")));
+    Pod earlierAttempt =
+        new PodBuilder()
+            .withNewMetadata()
+            .withName("attempt-1-pod")
+            .withLabels(Map.of("task", "retried", "job-name", "attempt-1"))
+            .endMetadata()
+            .build();
+    earlierAttempt = client.pods().resource(earlierAttempt).create();
+    earlierAttempt.setStatus(failed);
+    client.pods().resource(earlierAttempt).updateStatus();
+    PodStatus running = new PodStatus();
+    running.setPhase("Running");
+    Pod thisAttempt =
+        new PodBuilder()
+            .withNewMetadata()
+            .withName("attempt-2-pod")
+            .withLabels(Map.of("task", "retried", "job-name", "attempt-2"))
+            .endMetadata()
+            .build();
+    thisAttempt = client.pods().resource(thisAttempt).create();
+    thisAttempt.setStatus(running);
+    client.pods().resource(thisAttempt).updateStatus();
+
+    assertThat(helper.podStart(client, Map.of("job-name", "attempt-2")).started()).isTrue();
+    assertThat(helper.getPodFailureReason(client, Map.of("job-name", "attempt-2"))).isNull();
+    assertThat(helper.podStart(client, Map.of("job-name", "attempt-3")).message())
+        .isEqualTo("no pod was created");
+  }
+
+  @Test
   void tektonsStepContainerIsReadForTheFailureReason() {
     ContainerStateTerminated terminated = new ContainerStateTerminated();
     terminated.setReason("OOMKilled");

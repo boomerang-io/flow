@@ -844,8 +844,8 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Arm a wait with no wake time - an eventwait, an approval or manual task, or a runworkflow task
-  // waiting on its child.
+  // Arm a wait with no wake time - an eventwait, or a runworkflow task waiting on its child; an
+  // approval or manual task arms below, carrying its result.
   // status -> waiting as a field-scoped Compare-And-Set fenced on the running phase, leaving
   // waitUntil absent so the watcher's time-based resume never picks the row up: only the arriving
   // event, the child's completion, or the timeout reap ends it. An event delivered between
@@ -856,6 +856,17 @@ public class TaskRunService {
     Query query =
         Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
     Update update = new Update().set("status", RunStatus.waiting);
+    return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
+  }
+
+  // Arm a wait that carries a result - an approval or manual task recording the action it waits
+  // on: the result is pushed and status -> waiting in the one write, fenced on the running phase,
+  // so a cancel or a timeout that completed the task first is never rolled back and the task
+  // never names an action it is not waiting on. Returns whether the arm was applied.
+  public boolean tryArmWait(String id, RunResult result) {
+    Query query =
+        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running));
+    Update update = new Update().set("status", RunStatus.waiting).push("results", result);
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 

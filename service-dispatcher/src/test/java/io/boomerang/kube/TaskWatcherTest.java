@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.fabric8.knative.pkg.apis.Condition;
@@ -35,7 +36,7 @@ public class TaskWatcherTest {
             .build();
 
     CountDownLatch latch = new CountDownLatch(1);
-    TaskWatcher watcher = new TaskWatcher(latch);
+    TaskWatcher watcher = new TaskWatcher(latch, "test-taskrun");
 
     watcher.eventReceived(Watcher.Action.MODIFIED, taskRun);
 
@@ -63,7 +64,7 @@ public class TaskWatcherTest {
             .build();
 
     CountDownLatch latch = new CountDownLatch(1);
-    TaskWatcher watcher = new TaskWatcher(latch);
+    TaskWatcher watcher = new TaskWatcher(latch, "test-taskrun");
 
     assertDoesNotThrow(() -> watcher.eventReceived(Watcher.Action.MODIFIED, taskRun));
 
@@ -73,9 +74,38 @@ public class TaskWatcherTest {
   }
 
   @Test
+  public void testATerminalTaskRunOfAnotherNameIsIgnored() {
+    // Every attempt of a task carries the same labels, so the watch also delivers an earlier
+    // attempt's cancelled TaskRun; it must not end the attempt being watched.
+    Condition cancelled = new Condition();
+    cancelled.setType("Succeeded");
+    cancelled.setStatus("False");
+    cancelled.setReason("TaskRunCancelled");
+    TaskRun earlierAttempt =
+        new TaskRunBuilder()
+            .withNewMetadata()
+            .withName("test-taskrun-attempt-1")
+            .endMetadata()
+            .withNewStatus()
+            .withConditions(cancelled)
+            .withResults(List.of())
+            .endStatus()
+            .build();
+
+    CountDownLatch latch = new CountDownLatch(1);
+    TaskWatcher watcher = new TaskWatcher(latch, "test-taskrun-attempt-2");
+
+    watcher.eventReceived(Watcher.Action.ADDED, earlierAttempt);
+    watcher.evaluate(earlierAttempt);
+
+    assertEquals(1, latch.getCount());
+    assertNull(watcher.getCondition());
+  }
+
+  @Test
   public void testOnCloseSetsWatchLostAndDoesNotExitTheProcess() {
     CountDownLatch latch = new CountDownLatch(1);
-    TaskWatcher watcher = new TaskWatcher(latch);
+    TaskWatcher watcher = new TaskWatcher(latch, "test-taskrun");
 
     assertFalse(watcher.isWatchLost());
     // If this still called System.exit(1), as it once did, this test process would terminate
@@ -90,7 +120,7 @@ public class TaskWatcherTest {
   @Test
   public void testMarkDeletedSetsAJobDeletedConditionAndCountsDownTheLatch() {
     CountDownLatch latch = new CountDownLatch(1);
-    TaskWatcher watcher = new TaskWatcher(latch);
+    TaskWatcher watcher = new TaskWatcher(latch, "test-taskrun");
 
     watcher.markDeleted();
 

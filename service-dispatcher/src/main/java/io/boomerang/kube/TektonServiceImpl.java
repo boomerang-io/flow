@@ -35,6 +35,7 @@ import io.fabric8.tekton.v1.Step;
 import io.fabric8.tekton.v1.TaskRun;
 import io.fabric8.tekton.v1.TaskRunBuilder;
 import io.fabric8.tekton.v1.TaskRunResult;
+import io.fabric8.tekton.v1.TaskRunStatus;
 import io.fabric8.tekton.v1.WorkspaceBinding;
 import io.fabric8.tekton.v1.WorkspaceDeclaration;
 import java.text.ParseException;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -82,25 +84,46 @@ public class TektonServiceImpl implements TaskExecutor {
   @Value("${kube.timeout.startFailureGraceSeconds:60}")
   protected long startFailureGraceSeconds;
 
+  // The TaskRun each task run in flight created or adopted, by task run id, from create until
+  // its log has been read. Labels alone cannot find it: every attempt carries the same ones.
+  private final Map<String, String> taskRunNames = new ConcurrentHashMap<>();
+
+  // Tekton stamps the TaskRun's name on its pod; the task labels select every attempt's pods.
+  private static Map<String, String> podLabels(String name) {
+    return Map.of("tekton.dev/taskRun", name);
+  }
+
+  @Override
+  public Optional<Map<String, String>> runtimePodSelector(String taskRunId) {
+    return Optional.ofNullable(taskRunNames.get(taskRunId)).map(TektonServiceImpl::podLabels);
+  }
+
+  @Override
+  public void forgetRuntimeObject(String taskRunId) {
+    taskRunNames.remove(taskRunId);
+  }
+
   @Override
   public void create(io.boomerang.dispatcher.sdk.model.TaskRun task, Long timeoutMinutes)
       throws InterruptedException, ParseException {
-    createTaskRun(
-        task.getWorkflowRef(),
-        task.getWorkflowRunRef(),
-        task.getId(),
-        task.getLabels(),
-        imageResolver.image(task),
-        imageResolver.command(task),
-        imageResolver.script(task),
-        imageResolver.arguments(task),
-        task.getParams(),
-        imageResolver.environment(task),
-        task.getResults(),
-        task.getSpec().getWorkingDir(),
-        task.getWorkspace(),
-        timeoutMinutes,
-        task.getSpec().getDebug());
+    TaskRun taskRun =
+        createTaskRun(
+            task.getWorkflowRef(),
+            task.getWorkflowRunRef(),
+            task.getId(),
+            task.getLabels(),
+            imageResolver.image(task),
+            imageResolver.command(task),
+            imageResolver.script(task),
+            imageResolver.arguments(task),
+            task.getParams(),
+            imageResolver.environment(task),
+            task.getResults(),
+            task.getSpec().getWorkingDir(),
+            task.getWorkspace(),
+            timeoutMinutes,
+            task.getSpec().getDebug());
+    taskRunNames.put(task.getId(), taskRun.getMetadata().getName());
   }
 
   @Override
@@ -111,6 +134,7 @@ public class TektonServiceImpl implements TaskExecutor {
         task.getWorkflowRunRef(),
         task.getId(),
         task.getLabels(),
+        taskRunNames.get(task.getId()),
         timeoutMinutes);
   }
 
@@ -187,6 +211,25 @@ public class TektonServiceImpl implements TaskExecutor {
       throws InterruptedException, ParseException {
 
     LOGGER.info("Initializing Task...");
+
+    Map<String, String> taskLabels =
+        helperKubeService.getTaskLabels(
+            workflowId, workflowActivityId, taskActivityId, customLabels);
+
+    // An attempt handed out again while its TaskRun still runs (a dispatcher that stopped and
+    // let the lease lapse) continues that TaskRun; a finished one belongs to an earlier attempt.
+    TaskRun running =
+        client.v1().taskRuns().withLabels(taskLabels).list().getItems().stream()
+            .filter(taskRun -> !isTerminal(taskRun))
+            .findFirst()
+            .orElse(null);
+    if (running != null) {
+      LOGGER.info(
+          "Adopting existing TaskRun {} for TaskRun {}",
+          running.getMetadata().getName(),
+          taskActivityId);
+      return running;
+    }
 
     /*
      * Define environment variables made up of
@@ -396,9 +439,7 @@ public class TektonServiceImpl implements TaskExecutor {
         new TaskRunBuilder()
             .withNewMetadata()
             .withGenerateName(helperKubeService.getPrefixTask() + "-" + taskActivityId + "-")
-            .withLabels(
-                helperKubeService.getTaskLabels(
-                    workflowId, workflowActivityId, taskActivityId, customLabels))
+            .withLabels(taskLabels)
             .withAnnotations(
                 helperKubeService.getAnnotations(workflowId))
             .endMetadata()
@@ -442,11 +483,21 @@ public class TektonServiceImpl implements TaskExecutor {
     return result;
   }
 
+  // A TaskRun runs until its Succeeded condition is True or False; none yet reads as Unknown.
+  private static boolean isTerminal(TaskRun taskRun) {
+    return taskRun.getStatus() != null
+        && taskRun.getStatus().getConditions() != null
+        && !taskRun.getStatus().getConditions().isEmpty()
+        && !"Unknown".equals(taskRun.getStatus().getConditions().get(0).getStatus());
+  }
+
+  /** Wait for the TaskRun of that {@code name}, the one {@link #createTaskRun} returned. */
   public List<RunResult> watchTaskRun(
       String workflowId,
       String workflowActivityId,
       String taskActivityId,
       Map<String, String> customLabels,
+      String name,
       Long timeout)
       throws InterruptedException {
     Map<String, String> taskLabels =
@@ -456,7 +507,9 @@ public class TektonServiceImpl implements TaskExecutor {
     Condition condition;
     List<TaskRunResult> tknResults;
 
-    TaskWatcher taskWatcher = new TaskWatcher(latch);
+    Map<String, String> podLabels = podLabels(String.valueOf(name));
+
+    TaskWatcher taskWatcher = new TaskWatcher(latch, name);
     PodStartWatch podStartWatch =
         new PodStartWatch(
             Instant.now(),
@@ -478,11 +531,12 @@ public class TektonServiceImpl implements TaskExecutor {
         // The watch is the fast path; this poll is the reconcile that catches whatever the watch
         // missed - a dropped connection, or a state transition that happened before the watch was
         // established.
-        List<TaskRun> taskRuns = client.v1().taskRuns().withLabels(taskLabels).list().getItems();
-        if (taskRuns.isEmpty()) {
+        // No name means no create recorded a TaskRun for this attempt: nothing to wait for.
+        TaskRun taskRun = (name != null) ? client.v1().taskRuns().withName(name).get() : null;
+        if (taskRun == null) {
           taskWatcher.markDeleted();
         } else {
-          taskWatcher.evaluate(taskRuns.get(0));
+          taskWatcher.evaluate(taskRun);
         }
         if (taskWatcher.isWatchLost()) {
           watch.close();
@@ -492,7 +546,7 @@ public class TektonServiceImpl implements TaskExecutor {
         if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
           TaskExecutionException startFailure =
               podStartWatch.check(
-                  helperKubeService.podStart(client.adapt(KubernetesClient.class), taskLabels),
+                  helperKubeService.podStart(client.adapt(KubernetesClient.class), podLabels),
                   Instant.now());
           if (startFailure != null) {
             // Nothing ran: remove the TaskRun so a pod that cannot start stops holding capacity.
@@ -516,7 +570,7 @@ public class TektonServiceImpl implements TaskExecutor {
       LOGGER.info("Task execution error. " + reason + " - " + message);
       // The Step may have written its Result Parameters to the termination message before the
       // container exited non-zero; carry them so a failed Task's output still reaches the Engine.
-      throw failureFor(reason, message, taskLabels, toRunResults(tknResults));
+      throw failureFor(reason, message, podLabels, toRunResults(tknResults));
     } catch (Exception e) {
       LOGGER.error(e.toString());
       throw e;
@@ -539,11 +593,11 @@ public class TektonServiceImpl implements TaskExecutor {
   }
 
   private TaskExecutionException failureFor(
-      String reason, String message, Map<String, String> taskLabels, List<RunResult> results) {
+      String reason, String message, Map<String, String> podLabels, List<RunResult> results) {
     // The status message is the TaskRun's condition first, then the container's own account of
     // the failure (exit code, termination reason, log tail) while its pod can still be read.
     KubernetesClient kubernetesClient = client.adapt(KubernetesClient.class);
-    String detail = helperKubeService.failureDetail(kubernetesClient, taskLabels);
+    String detail = helperKubeService.failureDetail(kubernetesClient, podLabels);
     String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
     if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
       return new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, results, text);
@@ -551,10 +605,10 @@ public class TektonServiceImpl implements TaskExecutor {
     if ("JobDeleted".equals(reason)) {
       return new TaskExecutionException(StatusReason.JOB_DELETED, results, text);
     }
-    if (kubeService.isTaskRunResultTooLarge(taskLabels)) {
+    if (kubeService.isTaskRunResultTooLarge(podLabels)) {
       return new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
     }
-    String podReason = helperKubeService.getPodFailureReason(kubernetesClient, taskLabels);
+    String podReason = helperKubeService.getPodFailureReason(kubernetesClient, podLabels);
     if (StatusReason.OOM_KILLED.equals(podReason)) {
       return new TaskExecutionException(StatusReason.OOM_KILLED, results, text);
     }
@@ -605,19 +659,24 @@ public class TektonServiceImpl implements TaskExecutor {
     List<TaskRun> taskRuns = client.v1().taskRuns().withLabels(labels).list().getItems();
 
     if (taskRuns != null && !taskRuns.isEmpty()) {
-      TaskRun taskRun = taskRuns.get(0);
+      // Every attempt still running; a finished attempt's TaskRun keeps its own condition.
+      for (TaskRun taskRun : taskRuns) {
+        if (isTerminal(taskRun)) {
+          continue;
+        }
+        Condition taskRunCancelCondition = new Condition();
+        taskRunCancelCondition.setType("Succeeded");
+        taskRunCancelCondition.setStatus("False");
+        taskRunCancelCondition.setReason("TaskRunCancelled");
+        taskRunCancelCondition.setMessage("The TaskRun was cancelled successfully.");
 
-      List<Condition> taskRunConditions = new ArrayList<>();
-      Condition taskRunCancelCondition = new Condition();
-      taskRunCancelCondition.setType("Succeeded");
-      taskRunCancelCondition.setStatus("False");
-      taskRunCancelCondition.setReason("TaskRunCancelled");
-      taskRunCancelCondition.setMessage("The TaskRun was cancelled successfully.");
-      taskRunConditions.add(taskRunCancelCondition);
+        if (taskRun.getStatus() == null) {
+          taskRun.setStatus(new TaskRunStatus());
+        }
+        taskRun.getStatus().setConditions(List.of(taskRunCancelCondition));
 
-      taskRun.getStatus().setConditions(taskRunConditions);
-
-      client.v1().taskRuns().resource(taskRun).updateStatus();
+        client.v1().taskRuns().resource(taskRun).updateStatus();
+      }
     } else if (taskRuns != null && taskRuns.isEmpty()) {
       throw new BoomerangException(
           BoomerangError.TASK_EXECUTION_ERROR,

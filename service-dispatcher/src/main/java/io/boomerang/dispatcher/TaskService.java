@@ -162,6 +162,7 @@ public class TaskService implements TaskHandler {
     } finally {
       // The pod holds the log, so it is read before the runtime object is deleted.
       storeLog(task, context);
+      executor.forgetRuntimeObject(task.getId());
       TaskDeletion deletion = getTaskDeletion(task.getSpec().getDeletion());
       if (deletion.equals(TaskDeletion.Always)
           || (succeeded && deletion.equals(TaskDeletion.OnSuccess))) {
@@ -181,7 +182,12 @@ public class TaskService implements TaskHandler {
     }
     try {
       context.uploadLog(
-          podLogs.getPodLog(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), null));
+          podLogs.getPodLog(
+              task.getWorkflowRef(),
+              task.getWorkflowRunRef(),
+              task.getId(),
+              null,
+              executor.runtimePodSelector(task.getId()).orElse(null)));
     } catch (RuntimeException e) {
       LOGGER.warn("Task (" + task.getId() + ") log not read from its pod: " + e.getMessage());
     }

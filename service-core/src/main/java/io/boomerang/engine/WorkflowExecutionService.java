@@ -215,23 +215,29 @@ public class WorkflowExecutionService {
   }
 
   /*
-   * Times out a running WorkflowRun. Reached from the watcher timeout sweep and the
-   * task-timeout path - idempotent against each other via the completion Compare-And-Set.
+   * Times out a running WorkflowRun, or a pending one no dispatcher provisioned within its
+   * budget. Reached from the watcher timeout sweep and the task-timeout path - idempotent
+   * against each other via the completion Compare-And-Set.
    */
   public void timeoutWorkflow(String wfRunId, String statusMessage) {
     LOGGER.debug("[{}] Timing out WorkflowRun...", wfRunId);
     WorkflowRunEntity wfRunEntity = this.workflowRunRepository.findById(wfRunId).orElse(null);
-    if (wfRunEntity == null || !RunPhase.running.equals(wfRunEntity.getPhase())) {
+    if (wfRunEntity == null
+        || !List.of(RunPhase.pending, RunPhase.running).contains(wfRunEntity.getPhase())) {
       return;
     }
     LOGGER.info("[{}] Timing out WorkflowRun.", wfRunId);
     long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
 
-    // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins running ->
+    // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins the move to
     // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate
     // timeout can never spawn a duplicate retry.
     if (workflowRunStateHelper.tryComplete(
-            wfRunId, List.of(RunPhase.running), RunStatus.timedout, statusMessage, duration)
+            wfRunId,
+            List.of(RunPhase.pending, RunPhase.running),
+            RunStatus.timedout,
+            statusMessage,
+            duration)
         == null) {
       LOGGER.info("[{}] WorkflowRun already completed. Only the timeout winner acts.", wfRunId);
       return;
