@@ -1418,9 +1418,16 @@ public class TaskExecutionService {
       }
     }
     actionEntity = actionRepository.save(actionEntity);
-    taskExecution.getResults().add(new RunResult("actionRef", actionEntity.getId()));
+    // Field-scoped arm carrying the actionRef result: a cancel or a timeout that completed the
+    // task since execute()'s entry read fails the fence, and the action it would wait on goes.
+    RunResult actionRef = new RunResult("actionRef", actionEntity.getId());
+    if (!taskRunService.tryArmWait(taskExecution.getId(), actionRef)) {
+      LOGGER.debug("[{}] Action task no longer running; not armed.", taskExecution.getId());
+      actionRepository.deleteById(actionEntity.getId());
+      return;
+    }
+    taskExecution.getResults().add(actionRef);
     taskExecution.setStatus(RunStatus.waiting);
-    taskExecution = taskRunRepository.save(taskExecution);
     // Atomic single-field set - no lock, no full-document rewrite.
     workflowRunStateHelper.setAwaitingApproval(wfRunEntity.getId(), true);
   }

@@ -171,6 +171,20 @@ tag's release notes.
 - `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
   constants are the same values.
 
+### Fixed
+
+- A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
+  ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher
+  starts it.
+- A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
+- A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
+  up to the platform default, matching what the workspace may run.
+- An approval or manual task that a run cancel or a task timeout completed while its action was being created
+  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
+- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
+  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
+  workspace and left its own scheduler token in place.
+
 ### Changed
 
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
@@ -286,6 +300,7 @@ tag's release notes.
   the unused `/api/v2/extensions/slack/install` permit entry is gone.
 - The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
   did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.
-- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
-  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
-  workspace and left its own scheduler token in place.
+- A dispatcher whose registration the engine no longer holds (a database reset under a running dispatcher) is
+  answered `404 DISPATCHER_NOT_REGISTERED` on its polls and heartbeats instead of a 500, and the dispatcher SDK
+  registers again and carries on under the new id instead of failing every poll until restarted. A registration
+  without a host is `400 DISPATCHER_INVALID_REQ`.

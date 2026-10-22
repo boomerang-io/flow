@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -20,9 +21,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.util.Assert;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -40,7 +43,9 @@ import org.springframework.web.client.RestClient;
  * }</pre>
  *
  * <p>{@link #start} returns at once: registration is retried with backoff until the engine
- * answers, and polling begins once it has. {@link #stop} stops polling, waits up to the drain
+ * answers, and polling begins once it has. An engine that answers 404 to a poll or a heartbeat no
+ * longer holds the registration, so the dispatcher registers again and carries on under the new
+ * id. {@link #stop} stops polling, waits up to the drain
  * timeout for the tasks in flight to finish and report, and keeps their leases renewed while it
  * waits.
  */
@@ -71,6 +76,7 @@ public final class Dispatcher implements AutoCloseable {
       Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("dispatcher-work-", 0).factory());
   private final List<QueuePoller<?>> pollers = new ArrayList<>();
   private final LogUploader logs;
+  private final Object registering = new Object();
 
   private ScheduledExecutorService heartbeats;
   private Thread starter;
@@ -193,9 +199,42 @@ public final class Dispatcher implements AutoCloseable {
       return;
     }
     try {
-      client.heartbeat(id, ids);
+      registered(
+          () -> {
+            client.heartbeat(id, ids);
+            return null;
+          });
     } catch (RuntimeException e) {
       LOGGER.warn("Dispatcher heartbeat failed: " + e.getMessage());
+    }
+  }
+
+  // The engine answers 404 to an id it no longer holds - its database was reset under this
+  // dispatcher - so the call registers again and is made once more under the new id. Every
+  // poller and the heartbeat see the same 404 at once; only the first of them registers.
+  private <T> T registered(Supplier<T> call) {
+    String current = id;
+    try {
+      return call.get();
+    } catch (HttpClientErrorException.NotFound e) {
+      if (!reregister(current)) {
+        throw e;
+      }
+      return call.get();
+    }
+  }
+
+  // False when the dispatcher stopped before the engine answered.
+  private boolean reregister(String stale) {
+    synchronized (registering) {
+      if (stopped) {
+        return false;
+      }
+      if (!Objects.equals(id, stale)) {
+        return true;
+      }
+      LOGGER.warn("Dispatcher " + stale + " is no longer registered: registering again.");
+      return register();
     }
   }
 
@@ -262,14 +301,14 @@ public final class Dispatcher implements AutoCloseable {
       QueuePoller<TaskRun> workPoll =
           new QueuePoller<>(
               pool.name(),
-              () -> client.pollTasks(id, inFlight.free(), pool.filter()),
+              () -> registered(() -> client.pollTasks(id, inFlight.free(), pool.filter())),
               runner::accept,
               idlePollSpacing,
               () -> !inFlight.isFull());
       QueuePoller<TaskRun> fullPoll =
           new QueuePoller<>(
               pool.name() + "-full",
-              () -> client.pollTasks(id, 0, pool.filter()),
+              () -> registered(() -> client.pollTasks(id, 0, pool.filter())),
               runner::accept,
               idlePollSpacing,
               inFlight::isFull);
@@ -285,7 +324,10 @@ public final class Dispatcher implements AutoCloseable {
       WorkflowRunner runner = new WorkflowRunner(client, workflowHandler, work);
       pollers.add(
           new QueuePoller<WorkflowRun>(
-              "workflows", () -> client.pollWorkflows(id), runner::accept, idlePollSpacing));
+              "workflows",
+              () -> registered(() -> client.pollWorkflows(id)),
+              runner::accept,
+              idlePollSpacing));
     }
     pollers.forEach(QueuePoller::start);
     if (heartbeatInterval != null && heartbeatInterval.isPositive()) {

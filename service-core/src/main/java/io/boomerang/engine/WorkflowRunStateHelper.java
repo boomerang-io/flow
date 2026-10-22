@@ -292,16 +292,17 @@ public class WorkflowRunStateHelper {
     return mongoTemplate.updateFirst(query, update, WorkflowRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Paused and waiting runs are excluded: their clock is stopped, and the deadline moves forward
-  // by the time stopped when they resume, so neither is reaped on resume for time it did not
-  // spend executing.
+  // A pending run past its deadline is one with a workspace that no dispatcher claimed in time;
+  // a claimed one is queued and left to the stale-claim sweep. Paused and waiting runs are
+  // excluded: their clock is stopped, and the deadline moves forward by the time stopped when
+  // they resume, so neither is reaped on resume for time it did not spend executing.
   public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
     Query query =
         Query.query(
                 Criteria.where("timeoutAt")
                     .lte(now)
                     .and("phase")
-                    .is(RunPhase.running)
+                    .in(RunPhase.pending, RunPhase.running)
                     .and("pauseRequestedAt")
                     .exists(false)
                     .and("waitingSince")
@@ -417,7 +418,8 @@ public class WorkflowRunStateHelper {
   // is the one event a timeout sends. Returns the pre-image, or null when the run is not running.
   public WorkflowRunEntity tryMarkTimedOut(String id) {
     return mongoTemplate.findAndModify(
-        Query.query(Criteria.where("_id").is(id).and("phase").is(RunPhase.running)),
+        Query.query(
+            Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.running)),
         new Update().set("status", RunStatus.timedout),
         FindAndModifyOptions.options().returnNew(false),
         WorkflowRunEntity.class);

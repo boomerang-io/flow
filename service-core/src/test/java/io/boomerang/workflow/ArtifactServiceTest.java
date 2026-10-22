@@ -194,11 +194,16 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
   void aWorkspaceWithNoArtifactStorageLeftRefusesTheUploadAndKeepsWhatItHas() {
     upload("kept.txt", null, new byte[] {7});
     complete("kept.txt");
-    Quotas none = new Quotas();
-    none.setMaxArtifactStorage(0);
-    WorkspaceRequest patch = new WorkspaceRequest();
-    patch.setQuotas(none);
-    workspaceService.patch(workspace, patch);
+    // A record holding a whole Gi fills the 1Gi quota without storing a Gi in the test.
+    ArtifactEntity full = new ArtifactEntity();
+    full.setName("full.bin");
+    full.setWorkflowRef(workflowRef);
+    full.setWorkflowRunRef("some-other-run");
+    full.setScope(ArtifactScope.run);
+    full.setStatus(ArtifactStatus.available);
+    full.setSize(1024L * 1024 * 1024);
+    artifactRepository.save(full);
+    setArtifactQuota(1);
     setFeatureSetting(QUOTA_FEATURE, true);
 
     assertThatThrownBy(() -> begin("refused.txt", null))
@@ -207,6 +212,16 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     assertThat(artifactService.listForRun(workspace, uploadTask.getWorkflowRunRef()))
         .extracting(Artifact::name)
         .containsExactly("kept.txt");
+  }
+
+  @Test
+  void anArtifactStorageQuotaOfZeroIsUnlimited() {
+    setArtifactQuota(0);
+    setFeatureSetting(QUOTA_FEATURE, true);
+
+    upload("unlimited.txt", null, new byte[] {7});
+
+    assertThat(complete("unlimited.txt").status()).isEqualTo(ArtifactStatus.available);
   }
 
   @Test
@@ -823,6 +838,14 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     request.setDisplayName(name);
     request.setQuotas(quotas);
     return workspaceService.create(request).getName();
+  }
+
+  private void setArtifactQuota(int gi) {
+    Quotas quotas = new Quotas();
+    quotas.setMaxArtifactStorage(gi);
+    WorkspaceRequest patch = new WorkspaceRequest();
+    patch.setQuotas(quotas);
+    workspaceService.patch(workspace, patch);
   }
 
   private void setArtifactSetting(String key, String value) {
