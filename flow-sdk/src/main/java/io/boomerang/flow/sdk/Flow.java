@@ -34,7 +34,7 @@ public final class Flow {
     return new Builder();
   }
 
-  /** The workflow runs of one workspace: submit, read, cancel, retry, query and count. */
+  /** The workflow runs of one workspace: submit, start, read, pause, cancel, retry, query, count. */
   public Runs runs(String workspace) {
     return new Runs(api, workspace);
   }
@@ -47,6 +47,20 @@ public final class Flow {
   /** The Insights of one workspace: run and task-run statistics over a period. */
   public Insights insights(String workspace) {
     return new Insights(api, workspace);
+  }
+
+  /** The manual and approval actions of one workspace: read, query and decide. */
+  public Actions actions(String workspace) {
+    return new Actions(api, workspace);
+  }
+
+  /**
+   * The server's health probe ({@code GET /health}): {@code UP} when it serves, {@code DOWN} when
+   * it answers that it does not. A server that cannot be reached throws {@link
+   * org.springframework.web.client.ResourceAccessException}, as every call does.
+   */
+  public String health() {
+    return api.health();
   }
 
   public static final class Builder {
