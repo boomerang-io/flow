@@ -282,3 +282,5 @@ tag's release notes.
   `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
   Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
   the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
+  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.
