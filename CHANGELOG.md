@@ -120,6 +120,11 @@ tag's release notes.
 
 ### Added
 
+- The dispatcher SDK captures a task's log and opens its trace for an in-process dispatcher: with
+  `captureTaskLogs(new TaskLogCapture())` on the builder, the lines a handler logs (tagged `taskRunId` in the MDC,
+  the first and last 64 KB kept) are uploaded as the task log when it ends and every 30 s while it runs; with
+  `observationRegistry(registry)`, each handler runs under a `flow.task` observation carrying the task's
+  `traceparent`. Both are off by default; a logback appender is included, SLF4J and logback stay optional.
 - Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
   task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
   tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The

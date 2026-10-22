@@ -26,6 +26,8 @@ with the product's version. Reading GitHub Packages needs a token with `read:pac
 ```
 
 It depends on `spring-web` (for `RestClient`) and Jackson, and nothing else: no Spring Boot, no Kubernetes.
+Micrometer Observation comes with `spring-web`; SLF4J and logback are optional and reach you only if you add
+them, for task log capture (below).
 
 ## Write one
 
@@ -103,14 +105,19 @@ read to size the pool from (`dispatcher-contract.md`, "Where the contract ends")
 ### In-process, inside a host product
 
 The host is both the caller that submits runs and the executor that runs them. Build the dispatcher as a
-bean in the host's own process, with the host's `RestClient` so its proxy and certificates apply, and
-upload logs from the handler, since there is no route for the engine to read them live:
+bean in the host's own process, with the host's `RestClient` so its proxy and certificates apply, let the
+SDK capture what the handler logs as the task log, since there is no route for the engine to read it live,
+and hand it the host's `ObservationRegistry` so each task's spans join the run's trace:
 
 ```java
+TaskLogCapture taskLogs = new TaskLogCapture();            // 64 KB head + 64 KB tail per task
+TaskLogAppender.attach(taskLogs);                          // logback; see "Logs" for log4j2
 Dispatcher.builder()
     .client(new DispatcherClient(hostRestClient, engineUrl, token))
     .name("archie").taskTypes(List.of("ai"))
     .tasks(handler, () -> 4)
+    .captureTaskLogs(taskLogs)
+    .observationRegistry(observationRegistry)
     .build();
 ```
 
@@ -139,16 +146,39 @@ volumes may go with `dispatcher.client().releasable(...)`. Skip all of it when y
 
 ## Logs
 
-Two optional pieces, independent of each other:
+Three optional pieces, independent of each other:
 
 - **Store the finished log.** `context.uploadLog(bytes)` or `uploadLog(String)` from the handler, before
   returning. The engine keeps it (when it has an artifact store and the "Store Task Logs" setting is on) and
   serves it ahead of any live read, so the log outlives whatever ran the task. Best effort: a refusal is
   logged and never fails the task, and an engine with no store is asked once.
+- **Capture what the handler logs.** `.captureTaskLogs(new TaskLogCapture())` makes the lines a handler
+  logs the task's log: while the handler runs, its thread carries the task-run id in the SLF4J MDC as
+  `taskRunId`; your log framework feeds the capture with each event's tag; the SDK uploads the capture when
+  the handler returns (replacing anything the handler uploaded itself) and every 30 s while it runs
+  (`.logUploadInterval(Duration.ZERO)` for only at the end). Each task keeps its first 64 KB and last 64 KB
+  (`new TaskLogCapture(headBytes, tailBytes)` to change them) with one line between saying how many bytes
+  were dropped. Needs `org.slf4j:slf4j-api` on your class path. Feeding it:
+  - logback: `TaskLogAppender.attach(taskLogs)` (package `io.boomerang.dispatcher.sdk.logback`, needs
+    `ch.qos.logback:logback-classic`) adds an appender to the root logger; `setLayout(...)` for a pattern.
+  - log4j2, or any other: an appender that calls
+    `taskLogs.append(event.getContextData().getValue("taskRunId"), layout.toSerializable(event))`.
+  Lines from threads the handler starts are captured only if they carry the MDC tag: copy it with
+  `MDC.getCopyOfContextMap()` or log from the handler's thread. `taskLogs.snapshot(taskRunId)` is the log so
+  far, should you also serve a live route.
 - **Serve the live log.** `.logs(url, token)` registers where the engine reads a running task's log, with
   `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters, and the bearer it presents.
   `Dispatcher.Builder.randomLogsToken()` makes one; your route MUST check `dispatcher.logsToken()` and
   refuse anything else, because a task log is unscrubbed until the engine serves it.
+
+## Tracing
+
+`.observationRegistry(registry)` opens a Micrometer observation named `flow.task` around every handler call,
+with the task-run id, task name and workflow run id as low-cardinality keys and the task's W3C `traceparent`
+(`context.traceparent()`; the trace id is the run's id) as its receiver carrier. With Micrometer Tracing on
+the registry, the observation becomes a span parented on the run's trace and the handler's own spans join
+it; a handler exception marks it in error. Without a registry nothing is opened, and the SDK adds no
+OpenTelemetry dependency.
 
 ## Leases, reconnect and stop
 
