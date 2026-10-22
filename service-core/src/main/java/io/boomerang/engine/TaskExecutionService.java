@@ -864,11 +864,13 @@ public class TaskExecutionService {
     return new LinkedList<>(produced.values());
   }
 
+  // The value an item reported under the name, or null when it reported none or a null value: a
+  // declared result an item leaves empty is an empty slot, not a failure of the parent.
   private static Object resultValueOf(TaskRunEntity taskRun, String name) {
     return taskRun.getResults().stream()
         .filter(r -> name.equals(r.getName()))
-        .map(RunResult::getValue)
         .findFirst()
+        .map(RunResult::getValue)
         .orElse(null);
   }
 

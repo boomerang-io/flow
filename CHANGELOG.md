@@ -308,3 +308,5 @@ tag's release notes.
   answered `404 DISPATCHER_NOT_REGISTERED` on its polls and heartbeats instead of a 500, and the dispatcher SDK
   registers again and carries on under the new id instead of failing every poll until restarted. A registration
   without a host is `400 DISPATCHER_INVALID_REQ`.
+- A for-each item that ends with a declared result of no value leaves an empty slot in the parent's combined array;
+  the parent used to throw on that item's end and on every recovery sweep, stranding the run as running.
