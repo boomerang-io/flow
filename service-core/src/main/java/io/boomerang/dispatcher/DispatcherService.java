@@ -344,8 +344,10 @@ public class DispatcherService {
    * dispatcher has free - and never more than a page. A limit of 0 claims none and still hands out
    * termination orders, which free slots rather than take them; no limit means a full page. The
    * poll is narrowed by optional filters: task types, task slugs, and a label on the workflow
-   * definition (see {@link ClaimFilterService}). Termination orders follow the same filters. A
-   * filter that matches nothing answers at once with no content.
+   * definition (see {@link ClaimFilterService}). Termination orders follow the same filters, and
+   * their pages run on the first look and then at most once per re-check interval - never on a
+   * look an admission woke, which costs the claimable page alone. A filter that matches nothing
+   * answers at once with no content.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(
       String dispatcherId, Integer limit, String type, String task, String workflowLabel) {
@@ -377,8 +379,13 @@ public class DispatcherService {
     Instant endTime =
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
+    // Residue - a task cancelled, timed out or parked while a dispatcher held it - changes rarely
+    // and is never fresh work, so its pages are due once per re-check interval, not on every wake.
+    long residueDue = 0;
     while (Instant.now().isBefore(endTime)) {
       long seen = pollWakeups.generation();
+      long now = System.currentTimeMillis();
+      boolean residue = now >= residueDue;
       LOGGER.debug(
           "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
@@ -405,12 +412,15 @@ public class DispatcherService {
         // terminated - the node either finished cancelled/timedout, or is parked mid-retry. The
         // claim release is what makes it one dispatcher's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
-        for (TaskRunEntity candidate :
-            taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
-          TaskRunEntity claimed =
-              taskRunService.tryClaimForTermination(candidate.getId(), dispatcherId);
-          if (claimed != null) {
-            taskRuns.add(new TaskRun(claimed));
+        if (residue) {
+          residueDue = now + recheckMillis();
+          for (TaskRunEntity candidate :
+              taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
+            TaskRunEntity claimed =
+                taskRunService.tryClaimForTermination(candidate.getId(), dispatcherId);
+            if (claimed != null) {
+              taskRuns.add(new TaskRun(claimed));
+            }
           }
         }
       } catch (Exception e) {
@@ -428,6 +438,11 @@ public class DispatcherService {
     }
     LOGGER.debug("Ending long poll queue for dispatcher: {}", dispatcherId);
     return ResponseEntity.noContent().build();
+  }
+
+  // The re-check interval, never under the floor.
+  private long recheckMillis() {
+    return Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs);
   }
 
   /**
@@ -493,8 +508,7 @@ public class DispatcherService {
    */
   private boolean pauseBeforeRecheck(long seen) {
     try {
-      pollWakeups.awaitChange(
-          seen, Duration.ofMillis(Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs)));
+      pollWakeups.awaitChange(seen, Duration.ofMillis(recheckMillis()));
       return true;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
