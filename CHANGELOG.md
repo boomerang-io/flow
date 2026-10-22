@@ -179,6 +179,8 @@ tag's release notes.
 - A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
 - A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
   up to the platform default, matching what the workspace may run.
+- An approval or manual task that a run cancel or a task timeout completed while its action was being created
+  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
 
 ### Changed
 
