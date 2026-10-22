@@ -64,13 +64,40 @@ describe("TokenSection --- loader", () => {
   // route must return, and the catalog that PermissionSelector reads off it).
   test("returns tokens and the permission catalog under the tokenSection key", async () => {
     const result = await workflowTokensLoader({
-      params: { workflow: "test-workflow" },
+      params: { workspace: "test-workspace", workflow: "test-workflow" },
       request: new Request(`http://localhost${ROUTE}`),
     });
 
     expect(result.tokenSection.errorLoading).toBe(false);
     expect(result.tokenSection.tokens.length).toBeGreaterThan(0);
     expect(result.tokenSection.catalog?.actions).toEqual(["read", "write", "delete", "action"]);
+  });
+
+  // The catalog is the set of permissions the caller may grant, computed from the caller's own
+  // grants, which name the workspace - asked with the workflow as principal it is empty for every
+  // non-admin (TOKEN_ADMIN_REQUIRED). The token list stays filtered by the workflow id.
+  test("asks the catalog with the workspace and lists tokens by the workflow id", async () => {
+    let catalogPrincipal: string | null = null;
+    let tokensPrincipals: string | null = null;
+    server.use(
+      http.get(serviceUrl.getTokenCatalog({ query: "" }), ({ request }) => {
+        catalogPrincipal = new URL(request.url).searchParams.get("principal");
+        return HttpResponse.json({ actions: [] });
+      }),
+      http.get(serviceUrl.getTokens({ query: "" }), ({ request }) => {
+        tokensPrincipals = new URL(request.url).searchParams.get("principals");
+        return HttpResponse.json({ content: [] });
+      }),
+    );
+
+    await workflowTokensLoader({
+      params: { workspace: "test-workspace", workflow: "test-workflow" },
+      request: new Request(`http://localhost${ROUTE}`),
+      workflowId: "64b8d5a5040e205ee3383ab1",
+    });
+
+    expect(catalogPrincipal).toBe("test-workspace");
+    expect(tokensPrincipals).toBe("64b8d5a5040e205ee3383ab1");
   });
 
   // A workflow token's principal is the workflow id, and the `:workflow` segment is the name: the
@@ -100,7 +127,7 @@ describe("TokenSection --- loader", () => {
     server.use(http.get(serviceUrl.getTokenCatalog({ query: "" }), () => HttpResponse.json({}, { status: 500 })));
 
     const result = await workflowTokensLoader({
-      params: { workflow: "test-workflow" },
+      params: { workspace: "test-workspace", workflow: "test-workflow" },
       request: new Request(`http://localhost${ROUTE}`),
     });
 

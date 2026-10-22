@@ -459,25 +459,30 @@ public class WorkflowService {
   /*
    * Settles the Workflow's workspace on every save (create and update alike): a blank size takes
    * the platform's storage quota, a blank mountPath takes the default, and - only when quotas are
-   * enforced - an authored size over the owning workspace's storage quota is refused, the same
-   * ceiling a run submission is held to. The size is then written as a Kubernetes quantity
-   * ("1Gi", "500Mi"): a bare number is the Gi shorthand authors use, and the dispatcher passes the
-   * value straight to a Kubernetes Quantity, which would read a bare number as bytes. A Workflow
-   * without a workspace has no shared storage and nothing to settle.
+   * enforced - the owning workspace's own storage quota lowers the blank fill and refuses an
+   * authored size above it, the same ceiling a run submission is held to; a quota of 0 is no
+   * ceiling. The size is then written as a Kubernetes quantity ("1Gi", "500Mi"): a bare number
+   * is the Gi shorthand authors use, and the dispatcher passes the value straight to a Kubernetes
+   * Quantity, which would read a bare number as bytes. A Workflow without a workspace has no
+   * shared storage and nothing to settle.
    */
   private void applyWorkspaceDefaults(String workspace, Workflow request) {
     WorkflowWorkspace declared = request.getWorkspace();
     if (declared == null) {
       return;
     }
+    Integer maxSizeGi =
+        quotaService.enforced() ? quotaService.maxWorkspaceStorage(workspace) : null;
     if (declared.getSize() == null || declared.getSize().isBlank()) {
-      declared.setSize(quotaService.defaultWorkspaceStorage());
-    } else if (quotaService.enforced()) {
-      Integer maxSizeGi = quotaService.maxWorkspaceStorage(workspace);
-      if (Quotas.limited(maxSizeGi) && StorageQuantityUtil.toGi(declared.getSize()) > maxSizeGi) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED, "Workspace Size Limit", declared.getSize(), maxSizeGi);
-      }
+      String platformSize = quotaService.defaultWorkspaceStorage();
+      declared.setSize(
+          Quotas.limited(maxSizeGi) && maxSizeGi < StorageQuantityUtil.toGi(platformSize)
+              ? maxSizeGi + "Gi"
+              : platformSize);
+    } else if (Quotas.limited(maxSizeGi)
+        && StorageQuantityUtil.toGi(declared.getSize()) > maxSizeGi) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, "Workspace Size Limit", declared.getSize(), maxSizeGi);
     }
     declared.settle();
   }

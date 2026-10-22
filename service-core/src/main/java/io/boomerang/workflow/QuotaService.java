@@ -356,8 +356,8 @@ public class QuotaService {
   /*
    * Refuses a workspace on a run submission whose requested size is over the workspace storage
    * quota. The size is a Kubernetes quantity ("1Gi", "500Mi") compared in Gi - the same rule
-   * WorkflowService.applyWorkspaceDefaults applies at save. A workspace naming no size takes the
-   * quota default and cannot breach it.
+   * WorkflowService.applyWorkspaceDefaults applies at save. A workspace naming no size is passed
+   * on blank and takes the dispatcher's own default size, which this check does not see.
    */
   private static void assertWorkspaceStorage(WorkflowWorkspace workspace, CurrentQuotas quotas) {
     Integer maxSizeGi = quotas.getMaxWorkspaceStorage();

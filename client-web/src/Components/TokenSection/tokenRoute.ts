@@ -100,22 +100,27 @@ export async function userTokensLoader({ request }: { request: Request }): Promi
  * the editor loader resolves from the compose and passes as `workflowId`: the `:workflow`
  * segment is the workflow name (appConfig.appLink.editorCanvas call sites pass `workflow.name`)
  * and only stands in when this loader runs on its own.
+ *
+ * The catalog is asked with the owning workspace, not the workflow: it is the set of permissions
+ * the caller may grant, derived from the caller's own grants, and those name the workspace. A
+ * workflow token's grants are workspace-scoped, so the workspace catalog is what it may carry.
  */
 export async function workflowTokensLoader({
   params,
   request,
   workflowId,
 }: {
-  params: { workflow?: string };
+  params: { workspace?: string; workflow?: string };
   request: Request;
   workflowId?: string;
 }): Promise<TokenSectionRouteData> {
+  const workspace = String(params.workspace ?? "");
   const workflow = workflowId ?? String(params.workflow ?? "");
   return {
     tokenSection: await loadTokenSection(request, {
       types: TokenType.Key,
       principals: workflow,
-      catalog: { scope: "workspace", principal: workflow },
+      catalog: { scope: "workspace", principal: workspace },
     }),
   };
 }

@@ -285,6 +285,9 @@ tag's release notes.
 - A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
 - A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
   up to the platform default, matching what the workspace may run.
+- A workflow saved with a workspace but no size takes the smaller of the platform default and its own
+  workspace's storage quota when quotas are enforced; it used to take the platform default even when that was
+  over the workspace's quota.
 - An approval or manual task that a run cancel or a task timeout completed while its action was being created
   stays completed; it used to flip back to waiting with its action left open for nobody to answer.
 - A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
@@ -313,6 +316,9 @@ tag's release notes.
 - The stalled-run recovery re-advances a run only after two consecutive sweeps find no task in flight; a run caught
   in the instant between a task's end and the next admission was re-advanced on one sighting, with a "Task Status
   invalid" error for every completed task.
+- Workspace owners and editors can issue workflow tokens from a workflow's Configure › Tokens tab; it answered
+  `TOKEN_ADMIN_REQUIRED` to every non-admin because the permission catalog was asked with the workflow, not the
+  workspace, as principal.
 - A dispatcher SDK stop that lands as a claim is being taken drains that claim to its end, or refuses it before it
   enters flight; it used to drop a claim already in flight as "not taken", holding a claim it never reported on
   until its lease lapsed.
