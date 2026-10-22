@@ -26,6 +26,7 @@ import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -306,6 +307,32 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     assertEquals(RunPhase.completed, completed.getPhase());
     assertEquals(RunStatus.succeeded, completed.getStatus());
     assertEquals(List.of("found-x"), resultValue(completed, "found"));
+  }
+
+  /*
+   * An item that reports a declared result with no value leaves an empty slot in the combined
+   * array; the parent still completes. It used to throw on the last item's end and on every
+   * recovery sweep, stranding the parent as running.
+   */
+  @Test
+  void anItemWithANullResultValueLeavesAnEmptySlotAndTheParentCompletes() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("foreach-null-result-wf", RunStatus.running, RunPhase.running);
+    savedTaskRun(
+        "start", TaskType.start, RunStatus.succeeded, RunPhase.completed, wfRun.getWorkflowRef(), wfRun.getId());
+    TaskRunEntity parent = savedCrashedParent(wfRun, List.of("x", "y"));
+    TaskRunEntity gate = savedGateAfterParent(wfRun);
+    savedItem(parent, 0, RunStatus.succeeded, RunPhase.completed, "found-x");
+    savedItem(parent, 1, RunStatus.succeeded, RunPhase.completed, null);
+
+    workflowWatcher.recoverForeachTasks();
+
+    Query byTaskRunRef = new Query(Criteria.where("taskRunRef").is(gate.getId()));
+    awaitEngine("the task after the parent is admitted")
+        .until(() -> mongoTemplate.count(byTaskRunRef, ActionEntity.class) == 1);
+    TaskRunEntity completed = taskRunRepository.findById(parent.getId()).orElseThrow();
+    assertEquals(RunPhase.completed, completed.getPhase());
+    assertEquals(RunStatus.succeeded, completed.getStatus());
+    assertEquals(Arrays.asList("found-x", null), resultValue(completed, "found"));
   }
 
   /*
