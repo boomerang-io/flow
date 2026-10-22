@@ -279,7 +279,17 @@ speculation. The laptop baseline above is not that test.
 
 - Sent outbox rows and received inbox rows expire after 7 days; `task_locks` documents expire on their own index — all built by `_0021__Indexes` (`migration/_0021__Indexes.java:112-128`).
 - Sweeps page 50 documents at a time; the dispatcher claims at most 20 per poll.
-- A run's graph is read about twice per task, at its queue and at its end, projected to the seven fields the graph
-  walk reads (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:130-142`); a completion returns only the fields
-  its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:895-899`). An end therefore
-  reads no other task run's params, spec or results (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`).
+- A run's graph is read once per task, at its queue, projected to the six fields the graph walk reads
+  (`DAGUtility.retrieveGraph`, `engine/DAGUtility.java:131-136`), and once more when the run finishes. A task's end
+  reads only its dependants and the tasks they depend on, by the stored `dependencies.taskRef` under the `run_tasks`
+  index and by name under `node_uniqueness` (`DAGUtility.retrieveDependants`, `:145-181`): in a chain of 200 tasks
+  an end returns 4 task run documents where the graph read returned 202, and a wider fan-in costs one document per
+  neighbour, never per task in the run
+  (`DispatcherRequestDatabaseCommandsTest.anEndOfA200TaskRunReadsItsDependantsNotTheGraph`). A completion returns
+  only the fields its transition publishes (`TaskRunService.transition`, `engine/TaskRunService.java:895-899`). An
+  end therefore reads no other task run's params, spec or results
+  (`DispatcherRequestDatabaseCommandsTest.anEndReadsNoOtherTaskRunWhole`). `advance` and the watcher's recovery keep
+  the whole-graph read: they run rarely.
+- A for-each parent completes on its last item's end thread and its dependants are admitted from there
+  (`engine/TaskExecutionService.java:811-856`), so nothing but the admission hand-off sits between the last item
+  and the next task.

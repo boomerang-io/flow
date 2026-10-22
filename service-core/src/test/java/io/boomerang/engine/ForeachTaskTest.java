@@ -23,6 +23,7 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowTaskForeach;
+import io.boomerang.engine.DatabaseCommands.Recorded;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import java.time.Duration;
@@ -137,6 +138,42 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     TaskRunEntity completed = taskRunRepository.findById(parent.getId()).orElseThrow();
     assertEquals(RunStatus.succeeded, completed.getStatus());
     assertEquals(RunPhase.completed, completed.getPhase());
+  }
+
+  /*
+   * The last item's end completes the parent and admits the task after it before it returns: the
+   * parent's completion is on the item's end thread, not a second asynchronous hop. The recorder
+   * sees only that thread's commands, so the parent's completion compare-and-set is among them.
+   */
+  @Test
+  void theLastItemsEndCompletesTheParentAndAdmitsTheNextTaskBeforeReturning() {
+    String runId = submit(workflow("foreach-sync", "$(tasks.stage.results.batches)"));
+    endTask(runId, "stage", RunStatus.succeeded, "batches", "[\"a\",\"b\"]");
+    TaskRunEntity parent = awaitParentRunning(runId);
+    List<TaskRunEntity> items = awaitItemsReady(parent, 2);
+    endTaskRun(items.get(0).getId(), RunStatus.succeeded, "found", "found-0");
+
+    Recorded<?> recorded =
+        DatabaseCommands.record(
+            () -> {
+              endTaskRun(items.get(1).getId(), RunStatus.succeeded, "found", "found-1");
+              return null;
+            });
+
+    TaskRunEntity completed = taskRunRepository.findById(parent.getId()).orElseThrow();
+    assertEquals(
+        RunPhase.completed,
+        completed.getPhase(),
+        "the parent is completed when the last item's end returns");
+    assertEquals(
+        2,
+        recorded.names().stream()
+            .filter(name -> name.startsWith("findAndModify ") && name.endsWith("task_runs"))
+            .count(),
+        "the item's completion and the parent's, both on the item's end thread: "
+            + recorded.names());
+    TaskRunEntity report = awaitAdmitted(runId, "report");
+    assertEquals("[\"found-0\",\"found-1\"]", paramValue(report, "input"));
   }
 
   @Test

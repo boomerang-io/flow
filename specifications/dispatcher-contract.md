@@ -156,7 +156,7 @@ with `DispatchPrepareFailed`, and the rest of the poll is still handed out, so n
 never hears of it (`:425-444`).
 
 The task run's params are the task's declared params merged with the values authored on the workflow node
-(`engine/DAGUtility.java:221-224`). A `custom` task takes its runtime from its own params (`image`, `command` and
+(`engine/DAGUtility.java:273-276`). A `custom` task takes its runtime from its own params (`image`, `command` and
 `arguments` split on newlines, and `shellScript`), not from the catalogue entry, which declares no image
 (`:350-377`); a secret-typed one is copied as its reference `$(params.<name>)`, filled in at claim, so a secret
 `command` or `arguments` arrives as one element (`:391-402`).
@@ -281,7 +281,7 @@ Shared storage is one workspace per run: a workflow declares a single `workspace
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
 at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1820-1826`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
-own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:259-271`).
+own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:311-323`).
 
 ## Task types
 
@@ -295,7 +295,7 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
 | `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:307-328`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`engine/TaskRunService.java:1117-1148`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
-| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:458-461`) |
+| `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:510-513`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run with the node's params other than `workflowRef` and `wait` (`engine/TaskExecutionService.java:1199-1209`). Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (`execution-model.md`, "Child workflows") |
 | `runscheduledworkflow`, `setwfstatus`, `setwfproperty` | Schedule another workflow to run later, or write the run's status message or a workflow-scoped param, then end |
@@ -310,10 +310,10 @@ migrations seed 89 tasks and their 134 revisions from `service-core/src/main/res
 unit (`migration/_0018__SeedArtifactTasks.java`). A seed inserts only what is absent, so a task or revision added to
 the seed later needs a change unit of its own to reach an existing database (`data-model.md`, "Migrations"). A
 `template` or `script` task without an image takes the `task` settings' `default.image` (seeded as
-`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:275-280`).
+`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:327-332`).
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1424-1425`), and the task run records it (`engine/DAGUtility.java:186-190`), so a new
+(`workflow/WorkflowService.java:1424-1425`), and the task run records it (`engine/DAGUtility.java:238-242`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks

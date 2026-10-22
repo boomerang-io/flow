@@ -1,10 +1,20 @@
 @use "@carbon/react/scss/spacing" as *;
 @use "@carbon/react/scss/type" as *;
 
-.tabList {
-  margin-top: $spacing-05;
+// The task name and the tab list, read with the modal's title and description as one header. The
+// forms give the body no padding above it, so it starts one spacing step (the add-ons header
+// margin) under the description; the tabs sit directly under the name, whose label padding keeps
+// them apart.
+.header {
+  display: flex;
+  flex-direction: column;
+}
 
-  // The modal resets button padding, which runs the two tab labels together.
+.tabList {
+  // The tabs' own underline spans the tabs; this line closes the header across the modal.
+  border-bottom: 1px solid var(--cds-border-subtle-01);
+
+  // The modal resets button padding, which runs the tab labels together.
   :global(.cds--tabs__nav-link) {
     padding: $spacing-04 $spacing-05 $spacing-03;
   }
@@ -25,14 +35,44 @@
   flex-shrink: 0;
 }
 
-.tabPanel {
-  padding: $spacing-05 0 0;
+// The add-ons modal form already puts one spacing step between the body's children, so the panel,
+// and the inputs of a form with no tabs, add nothing above and stack their fields the same way.
+.tabPanel,
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  padding: 0;
 }
 
 .configure {
   display: flex;
   flex-direction: column;
   gap: $spacing-05;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  list-style: none;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.resultName {
+  @include type-style("code-01");
+  color: var(--cds-text-01);
+}
+
+.resultDescription {
+  @include type-style("body-compact-01");
+  color: var(--cds-text-02);
+  margin: 0;
 }
 
 .explainer {

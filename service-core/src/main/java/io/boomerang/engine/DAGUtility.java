@@ -19,6 +19,7 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
 import io.boomerang.engine.ResultUtil;
 import io.boomerang.workflow.TaskService;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
@@ -128,8 +129,59 @@ public class DAGUtility {
    * the graph is walked. The result is never saved - a save would drop every field left out.
    */
   public List<TaskRunEntity> retrieveGraph(String wfRunId) {
-    Query query =
-        Query.query(Criteria.where("workflowRunRef").is(wfRunId).and("parentRef").is(null));
+    return mongoTemplate.find(
+        graphFields(
+            Query.query(Criteria.where("workflowRunRef").is(wfRunId).and("parentRef").is(null))),
+        TaskRunEntity.class);
+  }
+
+  /**
+   * The part of the run's graph an end walks: the ended task's dependants, found by the stored
+   * dependencies (`dependencies.taskRef`), and every task those dependants depend on, the ended
+   * task itself included, so the walk can tell whether each dependant's dependencies are all
+   * complete. Two reads whose size is the task's neighbourhood, not the run's. Never saved, like
+   * retrieveGraph's result.
+   */
+  public List<TaskRunEntity> retrieveDependants(String wfRunId, String name) {
+    List<TaskRunEntity> dependants =
+        mongoTemplate.find(
+            graphFields(
+                Query.query(
+                    Criteria.where("workflowRunRef")
+                        .is(wfRunId)
+                        .and("parentRef")
+                        .is(null)
+                        .and("dependencies.taskRef")
+                        .is(name))),
+            TaskRunEntity.class);
+    Set<String> loaded =
+        dependants.stream().map(TaskRunEntity::getName).collect(Collectors.toSet());
+    Set<String> dependencies =
+        dependants.stream()
+            .flatMap(dependant -> dependant.getDependencies().stream())
+            .map(WorkflowTaskDependency::getTaskRef)
+            .filter(dependency -> !loaded.contains(dependency))
+            .collect(Collectors.toSet());
+    if (dependencies.isEmpty()) {
+      return dependants;
+    }
+    List<TaskRunEntity> neighbourhood = new ArrayList<>(dependants);
+    neighbourhood.addAll(
+        mongoTemplate.find(
+            graphFields(
+                Query.query(
+                    Criteria.where("workflowRunRef")
+                        .is(wfRunId)
+                        .and("parentRef")
+                        .is(null)
+                        .and("name")
+                        .in(dependencies))),
+            TaskRunEntity.class));
+    return neighbourhood;
+  }
+
+  // The fields the graph walk reads, and nothing a save would need.
+  private static Query graphFields(Query query) {
     query
         .fields()
         .include("name")
@@ -138,7 +190,7 @@ public class DAGUtility {
         .include("phase")
         .include("foreach")
         .include("workflowRunRef");
-    return mongoTemplate.find(query, TaskRunEntity.class);
+    return query;
   }
 
   // TODO: determine a better way to handle the start and end task without saving them as a

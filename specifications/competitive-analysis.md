@@ -74,7 +74,7 @@ inputs to the propose/dispose node type, where an AI task may only append tasks 
 | Outcomes and cost per accepted outcome | `ActionService` computes an approval rate (`service-core/src/main/java/io/boomerang/workflow/ActionService.java:423-428`); Insights sums the token-usage results of `ai` task runs by model (`workflow/WorkflowRunInsightService.java:77-84`) | Each proposal records `disposition` (`appended`, `staged`, `rejected`, `approved`) and later the appended TaskRun's terminal status. |
 | Egress allowlists by named ecosystem, enforced by a per-agent proxy | No NetworkPolicy or egress proxy in either executor; an `ai` task runs only an allow-listed worker image and can be given its own dispatcher deployment as its network zone (`dispatcher-kubernetes.md`, "AI tasks") | `network.allowed: [ecosystems…, domains…]` on the task template, mapped to a NetworkPolicy (Jobs) or a proxy allowlist. |
 | Opt-outs require a written justification (`dangerously-disable-sandbox-agent: "<≥20 chars why>"`) | Opt-outs are bare properties (`flow.security.enabled=false`) | A required `reason` string in the audit log for an unrestricted AI menu or a task below the isolation floor. |
-| Lock-file drift is a security property | Runs pin `workflowRevisionRef` (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:45`, set at `workflow/WorkflowService.java:1812`); every revision save stamps each task's resolved version (`workflow/WorkflowService.java:1424-1425`), and each task run records the version it ran (`engine/DAGUtility.java:186-190`) | Parity. |
+| Lock-file drift is a security property | Runs pin `workflowRevisionRef` (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:45`, set at `workflow/WorkflowService.java:1812`); every revision save stamps each task's resolved version (`workflow/WorkflowService.java:1424-1425`), and each task run records the version it ran (`engine/DAGUtility.java:238-242`) | Parity. |
 
 | GitHub Agentic Workflows | Flow | Position |
 | ------------------------ | ---- | -------- |
@@ -183,7 +183,7 @@ with `FOR UPDATE SKIP LOCKED`, with lock contention "12+ seconds" (#2600) and de
 | Retry | Per task `retry: { type, maxAttempts, maxDuration }`; flow-level `RETRY_FAILED_TASK` | Timeout, lost-claim and never-started requeue ≤ 3, `Backoff` 10 s → 5 min; a started task's failure is terminal; a run retry with scope `failed` re-runs the failed tasks and what follows them (`common/enums/RetryScope.java`) |
 | Concurrency | Per flow `concurrency: { limit, behavior: QUEUE \| CANCEL \| FAIL }` | Per workspace `maxConcurrentRuns` only (`workflow/QuotaService.java:295-301`) |
 | Failure semantics | `allowFailure`, `errors` branch, `finally`, `afterExecution`; 13 states including `WARNING`, `RETRYING`, `PAUSED` | `executionCondition: always \| success \| failure` on edges (`common/enums/ExecutionCondition.java:3-7`); `statusOverride`; no `finally`; closed 10-value `RunStatus` |
-| Control flow | `ForEach`, `ForEachItem`, `Dag`, `LoopUntil`, `If`/`Switch`, `Subflow` (`wait`, `transmitFailed`) | `decision` (regex edges, `engine/DAGUtility.java:522-531`), edge conditions, for-each, `runworkflow` with optional `wait` (`engine/TaskExecutionService.java:1110-1197`), `eventwait`, `sleep`, `approval`/`manual`, locks; no loop |
+| Control flow | `ForEach`, `ForEachItem`, `Dag`, `LoopUntil`, `If`/`Switch`, `Subflow` (`wait`, `transmitFailed`) | `decision` (regex edges, `engine/DAGUtility.java:574-583`), edge conditions, for-each, `runworkflow` with optional `wait` (`engine/TaskExecutionService.java:1110-1197`), `eventwait`, `sleep`, `approval`/`manual`, locks; no loop |
 | Pause / approval | `Pause` task: `pauseDuration`, `behavior: RESUME \| WARN \| CANCEL \| FAIL`; Human Tasks (paid) | `approval`/`manual` via `createActionTask` (`engine/TaskExecutionService.java:1377`) with group approval; run-level pause as an admission gate; no timeout-behaviour enum |
 | Replay | Re-run from any task run, optionally on the latest revision | Retry = a new run on the same revision: all, the failed tasks, or named tasks and what follows them, the rest carried over as copies (`workflow/WorkflowRunService.java:937-945`); in-place re-run deliberately not built |
 | Kubernetes runner (paid) | `resources`, `podSpec` overlays; `waitUntilRunning` `PT10M` / `waitUntilCompletion` `PT1H` split | A pod start deadline (`kube.timeout.startMinutes`, 15) apart from the task deadline, plus a watch grace (`service-dispatcher/src/main/resources/application.properties:22-41`); deployment-wide `kube.resource.*` |
@@ -233,7 +233,7 @@ dispatcher protocol.
 
 **Conflicts.** Whole-workflow-on-one-worker with in-memory item arrays is the opposite of materialise-all with
 per-task claims. The security record is the positioning point: an in-process runtime with expression injection is
-the attack surface; Flow's `decision` regex evaluation (`engine/DAGUtility.java:526-528`) runs no user code.
+the attack surface; Flow's `decision` regex evaluation (`engine/DAGUtility.java:578-580`) runs no user code.
 
 ## Langflow
 

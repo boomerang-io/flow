@@ -31,8 +31,11 @@ public final class DatabaseCommands implements CommandListener {
 
   static final DatabaseCommands LISTENER = new DatabaseCommands();
 
-  /** One command: its name, the collection it addressed and the bytes of its reply. */
-  public record Command(String name, String collection, long replyBytes) {
+  /**
+   * One command: its name, the collection it addressed, the bytes of its reply and the documents
+   * the reply carried - a find's or getMore's batch, a findAndModify's value.
+   */
+  public record Command(String name, String collection, long replyBytes, long documents) {
     @Override
     public String toString() {
       return name + " " + collection;
@@ -48,6 +51,15 @@ public final class DatabaseCommands implements CommandListener {
 
     public long replyBytes() {
       return commands.stream().mapToLong(Command::replyBytes).sum();
+    }
+
+    /** The documents the finds and getMores on a collection returned. */
+    public long documentsRead(String collection) {
+      return commands.stream()
+          .filter(c -> c.collection().endsWith(collection))
+          .filter(c -> "find".equals(c.name()) || "getMore".equals(c.name()))
+          .mapToLong(Command::documents)
+          .sum();
     }
   }
 
@@ -72,7 +84,9 @@ public final class DatabaseCommands implements CommandListener {
   @Override
   public void commandStarted(CommandStartedEvent event) {
     if (recording.get() != null && !HOUSEKEEPING.contains(event.getCommandName())) {
-      BsonValue target = event.getCommand().get(event.getCommandName());
+      // A getMore carries its cursor id under its name and the collection under `collection`.
+      String name = event.getCommandName();
+      BsonValue target = event.getCommand().get("getMore".equals(name) ? "collection" : name);
       pendingCollection.set((target != null && target.isString()) ? target.asString().getValue() : "");
     }
   }
@@ -86,8 +100,27 @@ public final class DatabaseCommands implements CommandListener {
           (reply != null)
               ? new RawBsonDocument(reply, new BsonDocumentCodec()).getByteBuffer().remaining()
               : 0;
-      commands.add(new Command(event.getCommandName(), pendingCollection.get(), bytes));
+      commands.add(
+          new Command(event.getCommandName(), pendingCollection.get(), bytes, documents(reply)));
     }
+  }
+
+  // The documents a reply carries: a find's first batch, a getMore's next batch, a findAndModify's
+  // value; nothing for a write or a count.
+  private static long documents(BsonDocument reply) {
+    if (reply == null) {
+      return 0;
+    }
+    BsonValue cursor = reply.get("cursor");
+    if (cursor != null && cursor.isDocument()) {
+      BsonValue batch =
+          cursor.asDocument().containsKey("firstBatch")
+              ? cursor.asDocument().get("firstBatch")
+              : cursor.asDocument().get("nextBatch");
+      return (batch != null && batch.isArray()) ? batch.asArray().size() : 0;
+    }
+    BsonValue value = reply.get("value");
+    return (value != null && !value.isNull()) ? 1 : 0;
   }
 
   // A refused command - a duplicate key, say - is still a round trip.
@@ -95,7 +128,8 @@ public final class DatabaseCommands implements CommandListener {
   public void commandFailed(CommandFailedEvent event) {
     List<Command> commands = recording.get();
     if (commands != null && !HOUSEKEEPING.contains(event.getCommandName())) {
-      commands.add(new Command(event.getCommandName() + "(failed)", pendingCollection.get(), 0));
+      commands.add(
+          new Command(event.getCommandName() + "(failed)", pendingCollection.get(), 0, 0));
     }
   }
 

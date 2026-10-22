@@ -222,21 +222,30 @@ accent (`src/Features/Reactflow/components/Ai/AiNode.module.scss:6-8`). A new no
 
 ### Task configuration modal
 
-Every task edit form keeps **Task Name** above everything else. For a task type that can run for each item
-(`template`, `script`, `custom`, `ai`, `generic`, `uploadartifact`, `downloadartifact`;
-`src/Features/Reactflow/components/shared/foreach.ts:24-32`) Carbon line `Tabs` follow with two tabs, **Parameters**
-and **Configure**, mirroring the workflow editor's own header tabs. Any other type renders its fields without a tab
-bar (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:32-36`).
+The task edit modal is the add-ons `ComposedModal` at its default size, laid out the way Carbon's tearsheet lays out
+a header so the fields get the height: the title `Edit <task>`, the task's description on one line (clipped with an
+ellipsis, the full text as the line's `title`;
+`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:111-119`), then a header block every task
+form shares (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:38-60`): the **Task name** field, always
+editable, and the tab list flush against the block's bottom border. The body has no padding above the block (each
+form's `.container` zeroes it), and the tab panel starts one spacing step (`$spacing-05`) below the bar. By Carbon's
+tokens the first field starts about 212 px down (255 px before): modal header padding 16, title 28, description
+12 + 20, header margin 16, name 64 (label 16 + 8, input 40), tab bar 40, panel 16.
 
-- **Parameters** holds the task's parameters and its "Result Parameters"; **Configure** holds settings about how the
-  task runs ("Run for each item").
-- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves both and validation is shared.
+| Tab | Shown for | Holds |
+| --- | --- | --- |
+| Parameters | every task | the task's own inputs; a custom or script task's editable result list (`src/Features/Reactflow/components/shared/inputs.tsx`, `ResultsInput`) |
+| Configure | a type that can run for each item (`template`, `script`, `custom`, `ai`, `generic`, `uploadartifact`, `downloadartifact`; `src/Features/Reactflow/components/shared/foreach.ts:24-32`) | how the task runs ("Run for each item") |
+| Results | a task whose catalogue entry declares results | each result's name in monospace and its description, read-only (`TaskFormTabs.tsx`, `ResultsList`) |
+
+A type with no Configure tab and no declared results has no tab bar: the name alone above its inputs.
+
+- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves every tab and validation is shared.
 - A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each") while a setting on
   that tab is on, and a `WarningFilled` icon in the error colour, with an `aria-label` "<Tab> has an error", while
-  one of its fields is invalid (`TaskFormTabs.tsx:49-89`). Apply never fails for a reason on a tab the user is not
-  looking at.
+  one of its fields is invalid. Apply never fails for a reason on a tab the user is not looking at.
 - The modal resets button padding, so the tab list restores Carbon's tab padding itself
-  (`src/Features/Reactflow/components/shared/TaskFormTabs.module.scss:7-10`).
+  (`src/Features/Reactflow/components/shared/TaskFormTabs.module.scss`).
 
 ### Palette entry points
 

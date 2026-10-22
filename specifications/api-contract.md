@@ -5,7 +5,12 @@ routes the webapp's server calls under `/internal/v1`, and the dispatcher wire u
 states the rules every public route follows. Route-level detail is the OpenAPI document springdoc generates from the
 controllers and serves at `/api/docs/spec` (`service-core/src/main/resources/application.properties:155`);
 `OpenApiDocumentTest` pins that it covers the public API and the dispatcher wire and leaves out `/internal/`
-(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`).
+(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is
+served as the `api-v2` group at `/api/docs/spec/api-v2` (`core/config/OpenApiConfiguration.java:29-44`) and checked in
+as `contracts/api-v2.yaml`, with every object's keys sorted so a regeneration diffs only where the API changed;
+`ApiContractTest` fails when the served document and the file differ and rewrites the file under
+`-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`).
+`contracts/dispatcher-v1.yaml` and `DispatcherContractTest` do the same for the dispatcher wire.
 
 ## URL shape
 
@@ -175,7 +180,7 @@ runs with the run query's filters, applied to the task run, plus `tasks`: node n
 items too (`workflow/WorkflowRunService.java:326-406`). It needs `labels` or `workflowruns`, the two ways task runs
 are indexed (`migration/_0021__Indexes.java:63,75`), or it is `400 QUERY_INVALID_FILTERS`
 (`workflow/WorkflowRunService.java:339-343`). A task run carries its run's labels, and a run-workflow child its
-parent's (`engine/DAGUtility.java:196-200`, `engine/TaskExecutionService.java:1154-1166`), so one label finds a run's
+parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1154-1166`), so one label finds a run's
 task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`, `annotations` or
 `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:363-365,410-417`). Rows
 sort by creation, then id, so pages stay stable (`:344-346`).
@@ -317,7 +322,7 @@ while `PUT /workflow` merges unless `replace=true`.
 | --- | --- | --- |
 | Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:627-630,1057,1332-1333,1727-1728,1872-1875`; `workflow/TaskService.java:709-710,797-798`; `workflow/WorkflowRunService.java:821-827` |
 | Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:228-238,747-755,1179-1188`; `engine/ParameterManager.java:354` |
-| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:631,1817`; `workflow/WorkflowRunService.java:825,1006`; `engine/DAGUtility.java:196-199` |
+| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:631,1817`; `workflow/WorkflowRunService.java:825,1006`; `engine/DAGUtility.java:248-251` |
 
 ## Parameter model
 

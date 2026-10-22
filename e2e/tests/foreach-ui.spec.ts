@@ -90,7 +90,7 @@ test.describe("for each in the editor", () => {
     await page.getByRole("option", { name: "Execute Shell" }).first().click();
     await dialog.getByRole("textbox", { name: "Items" }).fill("$(tasks.stage.results.batches)");
     // A name ending in [<digits>] shows the reserved-name error and holds Next.
-    const name = dialog.getByRole("textbox", { name: "Task Name" });
+    const name = dialog.getByRole("textbox", { name: "Task name" });
     await name.fill("fan[0]");
     await name.blur();
     await expect(dialog.getByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeVisible();
@@ -104,15 +104,15 @@ test.describe("for each in the editor", () => {
     await page.screenshot({ path: `${SHOTS}/2-dialog.png` });
     await next.click();
 
-    // The task's own form opens straight away: Task Name above Parameters | Configure.
+    // The task's own form opens straight away: Task name above Parameters | Configure.
     const taskModal = page.getByRole("dialog").filter({ hasText: "Edit Execute Shell" });
     await expect(taskModal).toBeVisible();
-    await expect(taskModal.getByRole("textbox", { name: "Task Name" })).toHaveValue("fan");
+    await expect(taskModal.getByRole("textbox", { name: "Task name" })).toHaveValue("fan");
     const tabs = taskModal.getByRole("tab");
     await expect(tabs).toHaveText([/Parameters/, /Configure/]);
-    const nameBox = await taskModal.getByRole("textbox", { name: "Task Name" }).boundingBox();
+    const nameBox = await taskModal.getByRole("textbox", { name: "Task name" }).boundingBox();
     const tabBox = await tabs.first().boundingBox();
-    expect(nameBox!.y, "Task Name sits above the tabs").toBeLessThan(tabBox!.y);
+    expect(nameBox!.y, "Task name sits above the tabs").toBeLessThan(tabBox!.y);
     await page.screenshot({ path: `${SHOTS}/3-parameters-tab.png` });
 
     await taskModal.getByRole("textbox", { name: "Shell Interpreter" }).fill("sh");
@@ -131,11 +131,11 @@ test.describe("for each in the editor", () => {
     await page.screenshot({ path: `${SHOTS}/3-configure-tab.png` });
 
     // The same reserved-name rule holds in the task form.
-    await taskModal.getByRole("textbox", { name: "Task Name" }).fill("fan[1]");
-    await taskModal.getByRole("textbox", { name: "Task Name" }).blur();
+    await taskModal.getByRole("textbox", { name: "Task name" }).fill("fan[1]");
+    await taskModal.getByRole("textbox", { name: "Task name" }).blur();
     await expect(taskModal.getByText("Task names cannot end in [ and a number ]; that form is reserved for for-each items")).toBeVisible();
-    await taskModal.getByRole("textbox", { name: "Task Name" }).fill("fan");
-    await taskModal.getByRole("textbox", { name: "Task Name" }).blur();
+    await taskModal.getByRole("textbox", { name: "Task name" }).fill("fan");
+    await taskModal.getByRole("textbox", { name: "Task name" }).blur();
 
     await taskModal.getByRole("button", { name: "Apply" }).click();
     await expect(taskModal).toBeHidden();
