@@ -3,7 +3,6 @@
 .container {
   display: flex;
   flex-direction: column;
-  margin-top: 1rem;
   min-height: 0;
   flex-grow: 1;
 
@@ -11,8 +10,10 @@
     cursor: pointer;
   }
 
+  // The task name and tabs (TaskFormTabs) sit flush under the modal header, as part of it.
   :global .cds--modal-content {
     padding-bottom: 5rem !important;
+    padding-top: 0;
   }
 }
 

@@ -7,12 +7,21 @@ import io.boomerang.dispatcher.sdk.model.RunResult;
 import io.boomerang.dispatcher.sdk.model.RunStatus;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunEndRequest;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.LoggerContext;
+import io.boomerang.dispatcher.sdk.logback.TaskLogAppender;
 import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.micrometer.common.KeyValue;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.transport.ReceiverContext;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -24,17 +33,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 
 /**
  * One task run's lifecycle: a claim to run is started, run and ended; the start answer decides
  * whether it runs; the end is retried until the engine takes it; a terminate order stops the work
- * and reports nothing.
+ * and reports nothing. Around the handler: its logged lines as the task log and its observation,
+ * each only when asked for.
  */
 @Tag("smoke")
 class TaskRunnerTest {
 
   private static final Backoff FAST = new Backoff(Duration.ofMillis(1), Duration.ofMillis(5));
+  private static final org.slf4j.Logger TASK_LOG = LoggerFactory.getLogger("task");
 
   private final FakeEngine engine = new FakeEngine();
   private final InFlightTasks inFlight = new InFlightTasks(() -> 25);
@@ -52,6 +65,15 @@ class TaskRunnerTest {
   }
 
   private TaskRunner runner(TaskHandler handler, Executor executor) {
+    return runner(handler, executor, null, Duration.ZERO, ObservationRegistry.NOOP);
+  }
+
+  private TaskRunner runner(
+      TaskHandler handler,
+      Executor executor,
+      TaskLogCapture capture,
+      Duration logUploadInterval,
+      ObservationRegistry observations) {
     Set<String> registered = Set.of("template", "custom", "script", "ai");
     return new TaskRunner(
         engine,
@@ -62,9 +84,56 @@ class TaskRunnerTest {
         task -> registered.contains(task.getType().name()),
         task -> null,
         new LogUploader(engine, () -> "d-1"),
+        capture,
+        logUploadInterval,
+        observations,
         executor,
         FAST,
         abandoned::get);
+  }
+
+  /** Records every observation the runner opens, as a tracing handler would see it. */
+  private static final class RecordingObservations
+      implements ObservationHandler<Observation.Context> {
+
+    final List<Observation.Context> started = new CopyOnWriteArrayList<>();
+    final List<Observation.Context> stopped = new CopyOnWriteArrayList<>();
+    final ObservationRegistry registry = ObservationRegistry.create();
+
+    RecordingObservations() {
+      registry.observationConfig().observationHandler(this);
+    }
+
+    @Override
+    public boolean supportsContext(Observation.Context context) {
+      return true;
+    }
+
+    @Override
+    public void onStart(Observation.Context context) {
+      started.add(context);
+    }
+
+    @Override
+    public void onStop(Observation.Context context) {
+      stopped.add(context);
+    }
+
+    @SuppressWarnings("unchecked")
+    static String traceparentOf(Observation.Context context) {
+      return ((ReceiverContext<Map<String, String>>) context).getCarrier().get("traceparent");
+    }
+  }
+
+  private String uploaded(String id) {
+    return engine.logs.get(id);
+  }
+
+  private static void detach(TaskLogAppender appender) {
+    ((LoggerContext) LoggerFactory.getILoggerFactory())
+        .getLogger(Logger.ROOT_LOGGER_NAME)
+        .detachAppender(appender);
+    appender.stop();
   }
 
   private static TaskRun taskRun(TaskType type, RunPhase phase, RunStatus status) {
@@ -102,6 +171,140 @@ class TaskRunnerTest {
     assertThat(end.getStatusMessage()).isEqualTo("done");
     assertThat(end.getDispatcherRef()).isEqualTo("d-1");
     assertThat(inFlight.size()).isZero();
+  }
+
+  @Test
+  void theLinesAHandlerLogsAreItsTaskLogUploadedInOrderBeforeTheEnd() {
+    TaskLogCapture capture = new TaskLogCapture();
+    TaskLogAppender appender = TaskLogAppender.attach(capture);
+    AtomicReference<String> tag = new AtomicReference<>();
+    AtomicBoolean uploadedBeforeEnd = new AtomicBoolean();
+    engine.endAnswers.add(() -> uploadedBeforeEnd.set(engine.logs.containsKey("task-1")));
+    try {
+      runner(
+              (task, context) -> {
+                tag.set(MDC.get(TaskLogCapture.MDC_KEY));
+                TASK_LOG.info("one");
+                TASK_LOG.info("two {}", 2);
+                TASK_LOG.warn("three");
+                return TaskResult.empty();
+              },
+              Runnable::run,
+              capture,
+              Duration.ZERO,
+              ObservationRegistry.NOOP)
+          .accept(runOrder());
+    } finally {
+      detach(appender);
+    }
+
+    assertThat(tag.get()).isEqualTo("task-1");
+    assertThat(uploaded("task-1")).isEqualTo("one\ntwo 2\nthree\n");
+    assertThat(uploadedBeforeEnd).isTrue();
+    assertThat(MDC.get(TaskLogCapture.MDC_KEY)).isNull();
+    assertThat(capture.isCapturing("task-1")).isFalse();
+  }
+
+  @Test
+  void aCapturedLogIsUploadedWhileTheTaskRuns() {
+    TaskLogCapture capture = new TaskLogCapture();
+    AtomicReference<String> midway = new AtomicReference<>();
+
+    runner(
+            (task, context) -> {
+              capture.append(task.getId(), "first");
+              long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+              while (!engine.logs.containsKey("task-1") && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+              }
+              midway.set(uploaded("task-1"));
+              capture.append(task.getId(), "second");
+              return TaskResult.empty();
+            },
+            Runnable::run,
+            capture,
+            Duration.ofMillis(10),
+            ObservationRegistry.NOOP)
+        .accept(runOrder());
+
+    assertThat(midway.get()).isEqualTo("first\n");
+    assertThat(uploaded("task-1")).isEqualTo("first\nsecond\n");
+  }
+
+  @Test
+  void aHandlerRunsUnderOneObservationCarryingTheRunsTrace() {
+    RecordingObservations observations = new RecordingObservations();
+    TaskRun task = runOrder();
+    task.setId("6ad1bfa6cfefa66e88d5e2e0");
+    task.setWorkflowRunRef("6ad1bfa3cfefa66e88d5e24a");
+    task.setName("echo");
+    AtomicReference<Observation> current = new AtomicReference<>();
+
+    runner(
+            (run, context) -> {
+              current.set(observations.registry.getCurrentObservation());
+              return TaskResult.empty();
+            },
+            Runnable::run,
+            null,
+            Duration.ZERO,
+            observations.registry)
+        .accept(task);
+
+    assertThat(observations.started).hasSize(1);
+    Observation.Context context = observations.started.get(0);
+    assertThat(current.get()).isNotNull();
+    assertThat(context.getName()).isEqualTo("flow.task");
+    assertThat(RecordingObservations.traceparentOf(context))
+        .isEqualTo("00-000000006ad1bfa3cfefa66e88d5e24a-cfefa66e88d5e2e0-01")
+        .contains("000000006ad1bfa3cfefa66e88d5e24a");
+    assertThat(context.getLowCardinalityKeyValues())
+        .contains(
+            KeyValue.of("flow.taskrun.id", "6ad1bfa6cfefa66e88d5e2e0"),
+            KeyValue.of("flow.task.name", "echo"),
+            KeyValue.of("flow.workflowrun.id", "6ad1bfa3cfefa66e88d5e24a"));
+    assertThat(context.getError()).isNull();
+    assertThat(observations.stopped).hasSize(1);
+    assertThat(observations.registry.getCurrentObservation()).isNull();
+  }
+
+  @Test
+  void aHandlerExceptionMarksTheObservationInError() {
+    RecordingObservations observations = new RecordingObservations();
+
+    runner(
+            (task, context) -> {
+              throw new TaskFailure("JobFailed", "exited with code 1");
+            },
+            Runnable::run,
+            null,
+            Duration.ZERO,
+            observations.registry)
+        .accept(runOrder());
+
+    assertThat(observations.stopped).hasSize(1);
+    assertThat(observations.stopped.get(0).getError())
+        .isInstanceOf(TaskFailure.class)
+        .hasMessage("exited with code 1");
+    assertThat(soleEnd().getStatusReason()).isEqualTo("JobFailed");
+  }
+
+  @Test
+  void withoutTheOptionsNothingIsUploadedAndNoObservationIsOpened() {
+    RecordingObservations observations = new RecordingObservations();
+    AtomicReference<String> tag = new AtomicReference<>("unset");
+
+    runner((task, context) -> {
+          tag.set(MDC.get(TaskLogCapture.MDC_KEY));
+          TASK_LOG.info("goes nowhere");
+          return TaskResult.empty();
+        })
+        .accept(runOrder());
+
+    assertThat(tag.get()).isNull();
+    assertThat(engine.logs).isEmpty();
+    assertThat(observations.started).isEmpty();
+    assertThat(soleEnd().getStatus()).isEqualTo(RunStatus.succeeded);
   }
 
   @Test

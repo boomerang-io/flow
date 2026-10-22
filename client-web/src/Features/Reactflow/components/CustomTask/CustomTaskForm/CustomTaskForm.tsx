@@ -51,7 +51,7 @@ function CustomTaskForm(props: CustomTaskFormProps) {
     {
       name: "taskName",
       id: "taskName",
-      label: "Task Name",
+      label: "Task name",
       placeholder: "Enter a task name",
       type: "custom",
       required: true,

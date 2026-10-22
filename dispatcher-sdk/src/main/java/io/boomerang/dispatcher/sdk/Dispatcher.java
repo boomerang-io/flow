@@ -3,6 +3,7 @@ package io.boomerang.dispatcher.sdk;
 import io.boomerang.dispatcher.sdk.model.DispatcherRegistrationRequest;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
+import io.micrometer.observation.ObservationRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.SecureRandom;
@@ -57,6 +58,9 @@ public final class Dispatcher implements AutoCloseable {
   /** How long {@link #stop} waits for the tasks in flight. */
   public static final Duration DEFAULT_DRAIN_TIMEOUT = Duration.ofSeconds(10);
 
+  /** How often a captured task log is uploaded while its task runs. */
+  public static final Duration DEFAULT_LOG_UPLOAD_INTERVAL = Duration.ofSeconds(30);
+
   private static final Log LOGGER = LogFactory.getLog(Dispatcher.class);
 
   private final DispatcherClient client;
@@ -65,6 +69,9 @@ public final class Dispatcher implements AutoCloseable {
   private final Set<String> taskTypes;
   private final List<Pool> pools;
   private final WorkflowHandler workflowHandler;
+  private final TaskLogCapture taskLogs;
+  private final Duration logUploadInterval;
+  private final ObservationRegistry observations;
   private final Duration heartbeatInterval;
   private final Duration drainTimeout;
   private final Backoff registerBackoff;
@@ -98,6 +105,9 @@ public final class Dispatcher implements AutoCloseable {
     this.taskTypes = Set.copyOf(builder.taskTypes);
     this.pools = List.copyOf(builder.pools);
     this.workflowHandler = builder.workflowHandler;
+    this.taskLogs = builder.taskLogs;
+    this.logUploadInterval = builder.logUploadInterval;
+    this.observations = builder.observations;
     this.heartbeatInterval = builder.heartbeatInterval;
     this.drainTimeout = builder.drainTimeout;
     this.registerBackoff = builder.registerBackoff;
@@ -297,6 +307,9 @@ public final class Dispatcher implements AutoCloseable {
               task -> task.getType() != null && taskTypes.contains(task.getType().name()),
               task -> new ArtifactTransfer(artifactHttp, task),
               logs,
+              taskLogs,
+              logUploadInterval,
+              observations,
               work,
               endBackoff,
               () -> abandoned);
@@ -366,6 +379,9 @@ public final class Dispatcher implements AutoCloseable {
     private final List<String> taskTypes = new ArrayList<>();
     private final List<Pool> pools = new ArrayList<>();
     private WorkflowHandler workflowHandler;
+    private TaskLogCapture taskLogs;
+    private Duration logUploadInterval = DEFAULT_LOG_UPLOAD_INTERVAL;
+    private ObservationRegistry observations = ObservationRegistry.NOOP;
     private Duration heartbeatInterval = DEFAULT_HEARTBEAT_INTERVAL;
     private Duration drainTimeout = DEFAULT_DRAIN_TIMEOUT;
     private Backoff registerBackoff = Backoff.DEFAULT;
@@ -479,6 +495,38 @@ public final class Dispatcher implements AutoCloseable {
     /** Poll the workflow queue and provision each run with {@code handler}. */
     public Builder workflows(WorkflowHandler handler) {
       this.workflowHandler = handler;
+      return this;
+    }
+
+    /**
+     * Make the lines a handler logs the task's log: the runner tags the handler's thread with the
+     * task-run id in the MDC ({@value TaskLogCapture#MDC_KEY}), the host's log framework feeds
+     * {@code capture} ({@code logback.TaskLogAppender.attach(capture)} for logback), and the SDK
+     * uploads the capture when the task ends - replacing any log the handler uploaded itself -
+     * and every {@link #logUploadInterval} while it runs. Off by default: an executor that
+     * collects its tasks' output elsewhere needs none of it.
+     */
+    public Builder captureTaskLogs(TaskLogCapture capture) {
+      this.taskLogs = capture;
+      return this;
+    }
+
+    /**
+     * How often a captured log is uploaded while its task runs, so a long task's log is readable
+     * before it ends; zero or null uploads only at the end. Defaults to 30 s.
+     */
+    public Builder logUploadInterval(Duration logUploadInterval) {
+      this.logUploadInterval = (logUploadInterval != null) ? logUploadInterval : Duration.ZERO;
+      return this;
+    }
+
+    /**
+     * Open an observation named {@code flow.task} around every handler call, registered with
+     * {@code registry} and carrying the task's {@code traceparent} for the registry's tracing
+     * handler, so the handler's spans join the run's trace. Without one no observation is opened.
+     */
+    public Builder observationRegistry(ObservationRegistry registry) {
+      this.observations = (registry != null) ? registry : ObservationRegistry.NOOP;
       return this;
     }
 

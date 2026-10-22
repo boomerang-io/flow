@@ -8,8 +8,12 @@ import io.boomerang.dispatcher.sdk.model.RunStatus;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskType;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -280,6 +284,46 @@ class DispatcherTest {
     assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(5));
     await(() -> dispatcher.inFlight().isEmpty());
     assertThat(engine.endsOf("task-1")).isEmpty();
+  }
+
+  @Test
+  void theLogCaptureAndTheObservationRegistryReachEveryTask() throws Exception {
+    TaskLogCapture capture = new TaskLogCapture();
+    List<Observation.Context> observed = new CopyOnWriteArrayList<>();
+    ObservationRegistry registry = ObservationRegistry.create();
+    registry
+        .observationConfig()
+        .observationHandler(
+            new ObservationHandler<Observation.Context>() {
+              @Override
+              public boolean supportsContext(Observation.Context context) {
+                return true;
+              }
+
+              @Override
+              public void onStart(Observation.Context context) {
+                observed.add(context);
+              }
+            });
+    engine.taskPolls.add(List.of(runOrder("task-1")));
+    dispatcher =
+        builder()
+            .captureTaskLogs(capture)
+            .logUploadInterval(Duration.ZERO)
+            .observationRegistry(registry)
+            .tasks(
+                (task, context) -> {
+                  capture.append(task.getId(), "hello from " + task.getId());
+                  return TaskResult.empty();
+                })
+            .build();
+
+    dispatcher.start();
+
+    await(() -> !engine.endsOf("task-1").isEmpty());
+    assertThat(engine.logs).containsEntry("task-1", "hello from task-1\n");
+    assertThat(observed).hasSize(1);
+    assertThat(observed.get(0).getName()).isEqualTo("flow.task");
   }
 
   @Test
