@@ -82,11 +82,22 @@ final class QueuePoller<T> {
 
   private void loop() {
     while (running && !Thread.currentThread().isInterrupted()) {
-      if (due.getAsBoolean()) {
+      if (isDue()) {
         pollOnce();
       } else {
         awaitWake();
       }
+    }
+  }
+
+  // The due check runs the caller's own code (a pool's free-slot count), so a throw there is
+  // logged and read as not due; the poller waits its spacing and asks again, and never ends.
+  private boolean isDue() {
+    try {
+      return due.getAsBoolean();
+    } catch (RuntimeException e) {
+      LOGGER.warn("Poll (" + name + ") could not tell whether it is due: " + e.getMessage());
+      return false;
     }
   }
 
