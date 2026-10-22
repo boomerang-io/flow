@@ -5,7 +5,12 @@ routes the webapp's server calls under `/internal/v1`, and the dispatcher wire u
 states the rules every public route follows. Route-level detail is the OpenAPI document springdoc generates from the
 controllers and serves at `/api/docs/spec` (`service-core/src/main/resources/application.properties:155`);
 `OpenApiDocumentTest` pins that it covers the public API and the dispatcher wire and leaves out `/internal/`
-(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`).
+(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is
+served as the `api-v2` group at `/api/docs/spec/api-v2` (`core/config/OpenApiConfiguration.java:29-44`) and checked in
+as `contracts/api-v2.yaml`, with every object's keys sorted so a regeneration diffs only where the API changed;
+`ApiContractTest` fails when the served document and the file differ and rewrites the file under
+`-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`).
+`contracts/dispatcher-v1.yaml` and `DispatcherContractTest` do the same for the dispatcher wire.
 
 ## URL shape
 

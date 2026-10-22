@@ -176,6 +176,9 @@ tag's release notes.
   next major version.
 - `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
   constants are the same values.
+- The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
+  `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
+  and models from the file at the tag they run.
 
 ### Changed
 
