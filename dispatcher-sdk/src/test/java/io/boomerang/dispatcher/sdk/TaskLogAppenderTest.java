@@ -40,6 +40,43 @@ class TaskLogAppenderTest {
     assertThat(captured("t-1")).isEqualTo("tagged 1\n");
   }
 
+  /*
+   * The host's every log event passes through the appender: an event with no task in its MDC
+   * is dropped before its line is formatted, and threads never wait on one another to log.
+   */
+  @Test
+  void untaggedEventsFromManyThreadsAreDroppedUnformatted() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger formatted =
+        new java.util.concurrent.atomic.AtomicInteger();
+    appender.setLayout(
+        new ch.qos.logback.core.LayoutBase<ch.qos.logback.classic.spi.ILoggingEvent>() {
+          @Override
+          public String doLayout(ch.qos.logback.classic.spi.ILoggingEvent event) {
+            formatted.incrementAndGet();
+            return event.getFormattedMessage() + "\n";
+          }
+        });
+    capture.open("t-1");
+    Thread[] others = new Thread[8];
+    for (int i = 0; i < others.length; i++) {
+      others[i] = Thread.ofVirtual().unstarted(() -> log.info("noise"));
+    }
+    for (Thread other : others) {
+      other.start();
+    }
+    for (Thread other : others) {
+      other.join();
+    }
+    assertThat(formatted.get()).isZero();
+
+    log.info("tagged");
+
+    assertThat(formatted.get()).isEqualTo(1);
+    assertThat(captured("t-1")).isEqualTo("tagged\n");
+    assertThat(appender)
+        .isInstanceOf(ch.qos.logback.core.UnsynchronizedAppenderBase.class);
+  }
+
   @Test
   void aThrowableFollowsItsMessage() {
     capture.open("t-1");
