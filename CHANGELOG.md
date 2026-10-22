@@ -275,3 +275,9 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
+- A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
+  up to the platform default, matching what the workspace may run.

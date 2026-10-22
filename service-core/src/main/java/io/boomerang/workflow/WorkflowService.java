@@ -49,6 +49,7 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import io.boomerang.workspace.model.Quotas;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -415,7 +416,7 @@ public class WorkflowService {
     validateTriggerDefaults(request);
 
     // Default Workspace
-    applyWorkspaceDefaults(request);
+    applyWorkspaceDefaults(workspace, request);
 
     // Convert TaskRefs to IDs
     convertTaskSlugsToRefs(workspace, request);
@@ -457,30 +458,28 @@ public class WorkflowService {
 
   /*
    * Settles the Workflow's workspace on every save (create and update alike): a blank size takes
-   * the storage quota, a blank mountPath takes the default, and - only when quotas are enforced -
-   * an authored size over quota is refused. The size is then written as a Kubernetes quantity
+   * the platform's storage quota, a blank mountPath takes the default, and - only when quotas are
+   * enforced - an authored size over the owning workspace's storage quota is refused, the same
+   * ceiling a run submission is held to. The size is then written as a Kubernetes quantity
    * ("1Gi", "500Mi"): a bare number is the Gi shorthand authors use, and the dispatcher passes the
    * value straight to a Kubernetes Quantity, which would read a bare number as bytes. A Workflow
    * without a workspace has no shared storage and nothing to settle.
    */
-  private void applyWorkspaceDefaults(Workflow request) {
-    WorkflowWorkspace workspace = request.getWorkspace();
-    if (workspace == null) {
+  private void applyWorkspaceDefaults(String workspace, Workflow request) {
+    WorkflowWorkspace declared = request.getWorkspace();
+    if (declared == null) {
       return;
     }
-    String maxStorageSizeQuota = quotaService.defaultWorkspaceStorage();
-    if (workspace.getSize() == null || workspace.getSize().isBlank()) {
-      workspace.setSize(maxStorageSizeQuota);
-    } else if (quotaService.enforced()
-        && StorageQuantityUtil.toGi(workspace.getSize())
-            > StorageQuantityUtil.toGi(maxStorageSizeQuota)) {
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED,
-          "Workspace Size Limit",
-          workspace.getSize(),
-          maxStorageSizeQuota);
+    if (declared.getSize() == null || declared.getSize().isBlank()) {
+      declared.setSize(quotaService.defaultWorkspaceStorage());
+    } else if (quotaService.enforced()) {
+      Integer maxSizeGi = quotaService.maxWorkspaceStorage(workspace);
+      if (Quotas.limited(maxSizeGi) && StorageQuantityUtil.toGi(declared.getSize()) > maxSizeGi) {
+        throw new BoomerangException(
+            BoomerangError.QUOTA_EXCEEDED, "Workspace Size Limit", declared.getSize(), maxSizeGi);
+      }
     }
-    workspace.settle();
+    declared.settle();
   }
 
   /*
@@ -499,7 +498,7 @@ public class WorkflowService {
         validateAndSetDisplayName(workflow);
 
         // Default Workspace - the same rule create applies, so an update cannot slip past it
-        applyWorkspaceDefaults(workflow);
+        applyWorkspaceDefaults(workspace, workflow);
 
         // A trigger the request leaves out keeps its stored value, as labels do; then sync the
         // workflow's schedules with the schedule trigger.

@@ -16,6 +16,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.List;
 import java.util.Optional;
@@ -28,8 +29,9 @@ import org.springframework.beans.factory.annotation.Autowired;
  * WorkflowService.applyWorkspaceDefaults settles a Workflow's workspace on every save, create and
  * update alike: an authored workspace survives intact, a blank size takes the storage quota, a
  * blank mountPath takes the default, the size is never stripped of its Kubernetes unit, a legacy
- * bare-number size is read as Gi, and - with quotas enforced - a size over quota is refused. A
- * revision carrying the v3 workflow-storage marker cannot be run until it is saved again.
+ * bare-number size is read as Gi, and - with quotas enforced - a size over the owning workspace's
+ * storage quota is refused, where a quota of 0 is unlimited. A revision carrying the v3
+ * workflow-storage marker cannot be run until it is saved again.
  */
 class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
 
@@ -102,6 +104,29 @@ class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
                 workflowService.create(
                     workspace, workflowWithWorkspace(workspace("5Gi", null, null))));
     assertEquals("QUOTA_EXCEEDED", ex.getReason());
+  }
+
+  @Test
+  void aWorkspaceQuotaAboveThePlatformDefaultSavesTheLargerSize() {
+    setFeatureSetting(QUOTA_FEATURE, true);
+    String workspace = createWorkspace("workspace-spec-raised-quota", storageQuota(10));
+
+    // 5Gi is over the 2Gi platform default but within what this workspace may run.
+    Workflow created =
+        workflowService.create(workspace, workflowWithWorkspace(workspace("5Gi", null, null)));
+
+    assertEquals("5Gi", created.getWorkspace().getSize());
+  }
+
+  @Test
+  void aWorkspaceQuotaOfZeroSavesAnySize() {
+    setFeatureSetting(QUOTA_FEATURE, true);
+    String workspace = createWorkspace("workspace-spec-unlimited-quota", storageQuota(0));
+
+    Workflow created =
+        workflowService.create(workspace, workflowWithWorkspace(workspace("500Gi", null, null)));
+
+    assertEquals("500Gi", created.getWorkspace().getSize());
   }
 
   @Test
@@ -191,10 +216,21 @@ class WorkflowWorkspaceSpecDefaultsTest extends AbstractEngineIntegrationTest {
   }
 
   private String createWorkspace(String name) {
+    return createWorkspace(name, null);
+  }
+
+  private String createWorkspace(String name, Quotas quotas) {
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName(name);
     request.setDisplayName(name);
+    request.setQuotas(quotas);
     return workspaceService.create(request).getName();
+  }
+
+  private static Quotas storageQuota(int gi) {
+    Quotas quotas = new Quotas();
+    quotas.setMaxWorkspaceStorage(gi);
+    return quotas;
   }
 
   private static WorkflowWorkspace workspace(String size, String mountPath, String accessMode) {
