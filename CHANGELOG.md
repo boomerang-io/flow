@@ -187,6 +187,9 @@ tag's release notes.
 - The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
   `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
   and models from the file at the tag they run.
+- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
+  cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
+  carried as `FlowApiException`. It depends on `spring-web` and Jackson only (`flow-sdk/README.md`).
 
 ### Changed
 

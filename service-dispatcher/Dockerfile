@@ -12,6 +12,7 @@ COPY pom.xml ./
 COPY service-core/pom.xml service-core/
 COPY dispatcher-sdk/pom.xml dispatcher-sdk/
 COPY service-dispatcher/pom.xml service-dispatcher/
+COPY flow-sdk/pom.xml flow-sdk/
 COPY dispatcher-sdk/src dispatcher-sdk/src
 COPY service-dispatcher/src service-dispatcher/src
 

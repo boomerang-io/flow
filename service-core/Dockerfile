@@ -10,12 +10,13 @@
 FROM --platform=$BUILDPLATFORM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
 
-# Every module's POM, because the parent POM lists all three and the reactor refuses to start
+# Every module's POM, because the parent POM lists all four and the reactor refuses to start
 # without them; sources only for the module this image needs.
 COPY pom.xml ./
 COPY service-core/pom.xml service-core/
 COPY dispatcher-sdk/pom.xml dispatcher-sdk/
 COPY service-dispatcher/pom.xml service-dispatcher/
+COPY flow-sdk/pom.xml flow-sdk/
 COPY service-core/src service-core/src
 
 # The cache mount keeps the local Maven repository between builds, so a rebuild downloads only

@@ -9,5 +9,6 @@
 !dispatcher-sdk/src
 !service-dispatcher/pom.xml
 !service-dispatcher/src
+!flow-sdk/pom.xml
 !docker/health
 **/target
