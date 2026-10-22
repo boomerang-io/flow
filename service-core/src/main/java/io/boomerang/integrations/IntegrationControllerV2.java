@@ -51,12 +51,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntegrationControllerV2 {
   private static final Logger LOGGER = LogManager.getLogger();
 
-  // Shared by the five Slack routes.
+  // Shared by the three inbound POST routes, which accept only a request Slack signed with the
+  // configured signing secret, and the OAuth redirect, which accepts only a code Slack issued for
+  // the configured client.
   private static final String SLACK_EXEMPT_REASON =
-      "Meant for Slack, which cannot hold a Flow token. Not reachable by Slack today: the route is"
-          + " outside SecurityConfiguration's permit list, so a Flow credential is still required."
-          + " The three inbound POST routes accept only a request Slack signed with the configured"
-          + " signing secret - the legacy integration, boomerang-io/flow#374.";
+      "Reached by Slack, which cannot hold a Flow token, so permitAll in SecurityConfiguration and"
+          + " skipped by AuthenticationFilter (SLACK_ROUTES); the handler checks the request"
+          + " itself - the Slack signature, or the OAuth code exchange against Slack.";
+
+  // The install redirect checks nothing, so it is not on the permit list: it answers only a
+  // signed-in caller, with the configured install URL.
+  private static final String SLACK_INSTALL_EXEMPT_REASON =
+      "Meant for a browser, which may hold a Flow session. Nothing to protect: it redirects to the"
+          + " configured install URL and takes no input, but it is kept behind sign-in because it"
+          + " carries no check of its own.";
 
   // The headers Slack signs every request with.
   private static final String SLACK_TIMESTAMP_HEADER = "x-slack-request-timestamp";
@@ -108,7 +116,7 @@ public class IntegrationControllerV2 {
     return slackService.handleAuth(code);
   }
 
-  @AuthExempt(reason = SLACK_EXEMPT_REASON)
+  @AuthExempt(reason = SLACK_INSTALL_EXEMPT_REASON)
   @GetMapping(value = "/slack/install")
   @Operation(summary = "Install URL Redirect")
   @ApiResponses(value = {@ApiResponse(responseCode = "302", description = "Found")})

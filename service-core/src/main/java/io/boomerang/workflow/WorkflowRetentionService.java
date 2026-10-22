@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.WorkflowStatus;
@@ -87,9 +88,11 @@ public class WorkflowRetentionService {
   /**
    * Purge finished runs older than the Activity retention: each run's run- and log-scoped
    * artifacts (files first), actions, task runs, relationship node and finally the run document.
-   * A run another run still points at through {@code initiatedByRef} (a retry's origin, a child's
-   * parent) is kept until that run is gone, so a carried-over task run never outlives the task run
-   * it stands for. In-flight runs, workflow-scoped artifacts and audit records are never touched.
+   * A run another run still points at through {@code initiatedByRef} - by the run's id (a retry's
+   * origin) or by one of its task runs' ids (a child's parent) - is kept until that run is gone,
+   * so a carried-over task run never outlives the task run it stands for and a child's "started
+   * by" link never dangles. In-flight runs, workflow-scoped artifacts and audit records are never
+   * touched.
    */
   public void purgeExpiredRuns() {
     Date cutoff = new Date(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(runRetentionDays()));
@@ -103,7 +106,7 @@ public class WorkflowRetentionService {
               cutoff,
               PageRequest.of(0, PAGE_SIZE, Sort.by(Sort.Direction.ASC, "creationDate")));
       for (WorkflowRunEntity wfRun : page) {
-        if (workflowRunRepository.existsByInitiatedByRef(wfRun.getId())) {
+        if (isPointedAt(wfRun.getId())) {
           LOGGER.debug("[{}] Kept past retention: a later run points at it.", wfRun.getId());
           continue;
         }
@@ -177,6 +180,15 @@ public class WorkflowRetentionService {
     } catch (RuntimeException notConfigured) {
       return RUN_RETENTION_DEFAULT_DAYS;
     }
+  }
+
+  // A retry points at its origin run; a child points at the parent's task run that submitted it.
+  private boolean isPointedAt(String wfRunId) {
+    return workflowRunRepository.existsByInitiatedByRef(wfRunId)
+        || workflowRunRepository.existsByInitiatedByRefIn(
+            taskRunRepository.findIdsByWorkflowRunRef(wfRunId).stream()
+                .map(TaskRunEntity::getId)
+                .toList());
   }
 
   private void purgeRun(String wfRunId) {

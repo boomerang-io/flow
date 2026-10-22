@@ -173,8 +173,6 @@ tag's release notes.
 
 ### Changed
 
-- The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
-  a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
@@ -277,9 +275,17 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+- The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
+  a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
 
 ### Fixed
 
+- Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
+  `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
+  Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
+  the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
+  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.
 - A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
   delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
   workspace and left its own scheduler token in place.

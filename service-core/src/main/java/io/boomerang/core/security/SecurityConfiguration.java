@@ -3,6 +3,7 @@ package io.boomerang.core.security;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.SettingsService;
 import jakarta.servlet.DispatcherType;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,11 +32,20 @@ public class SecurityConfiguration {
 
   private static final String WEBJARS = "/webjars/**";
 
-  private static final String SLACK_INSTALL = "/api/v2/extensions/slack/install";
-
   // Reached by a browser redirect from GitHub - cannot carry a bearer token. Also exempted from
   // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
   static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
+
+  // Reached by Slack's servers (the three signed POST routes) or by a browser redirect from
+  // Slack's consent page (auth), so none can carry a Flow token; each checks the request itself -
+  // the signing secret, or the code exchange against Slack. Exempted exactly like GITHUB_CALLBACK.
+  // The install redirect is not here: it checks nothing, so it stays behind sign-in.
+  static final List<String> SLACK_ROUTES =
+      List.of(
+          "/api/v2/integration/slack/auth",
+          "/api/v2/integration/slack/commands",
+          "/api/v2/integration/slack/interactivity",
+          "/api/v2/integration/slack/events");
 
   // The unified token exchange's direct OIDC login path is
   // reached by the browser with no prior credential - AuthenticationFilter still RUNS for this
@@ -94,8 +104,10 @@ public class SecurityConfiguration {
                       .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
                       .permitAll()
                       .requestMatchers(
-                          HEALTH, API_DOCS, INFO, WEBJARS, SLACK_INSTALL, GITHUB_CALLBACK,
-                          AUTH_EXCHANGE, AUTH_CONFIG)
+                          HEALTH, API_DOCS, INFO, WEBJARS, GITHUB_CALLBACK, AUTH_EXCHANGE,
+                          AUTH_CONFIG)
+                      .permitAll()
+                      .requestMatchers(SLACK_ROUTES.toArray(String[]::new))
                       .permitAll()
                       .anyRequest()
                       .authenticated())

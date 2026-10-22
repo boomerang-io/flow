@@ -14,7 +14,7 @@ shape"). Two mutually exclusive configurations key off it:
 
 | Security | Filter chain | Identity on every request | Authorization |
 | --- | --- | --- | --- |
-| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:23,78-108`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
+| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:24,88-118`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
 | off | `SecurityDisabledConfiguration` — `anyRequest().permitAll()`, `http.anonymous(...)` (`core/security/SecurityDisabledConfiguration.java:13,18-33`) | a synthetic `UnauthenticatedGlobalToken` (see below) | the advisor is not registered; `RelationshipService` still runs but its `global` branch allows everything |
 
 The dispatcher's `/dispatcher/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:37-47`) is ordered
@@ -24,7 +24,7 @@ first and is independent of this switch — see "Dispatcher endpoints".
 
 `AuthenticationFilter` checks the identity sources in a fixed order and stops at the first one present
 (`core/security/AuthenticationFilter.java:107-121`). Only `SecurityConfiguration` constructs it, so it runs only
-when security is on (`core/security/SecurityConfiguration.java:23,81-83`). Every branch installs the resolved
+when security is on (`core/security/SecurityConfiguration.java:24,91-93`). Every branch installs the resolved
 `Token` as the `Authentication`'s details with an empty authority list: the `Token` is what every permission and
 relationship check reads.
 
@@ -57,9 +57,10 @@ on one instance, another instance MAY still honour the token until its own entry
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint`
 (`core/security/AuthenticationFilter.java:132-136`), except on `/internal/v1/auth/exchange`, which continues so
 the controller can verify an OpenID Connect (OIDC) id_token itself (`:127-131`). Paths that skip the filter:
-`/error`, `/health`, `/api/docs`, the GitHub App callback and `/internal/v1/auth/config` (`:345-352`);
-`core/security/SecurityConfiguration.java:96-99` also permits `/info`, `/webjars`, the exchange endpoint and
-`/api/v2/extensions/slack/install`, a path no controller serves.
+`/error`, `/health`, `/api/docs`, the GitHub App callback, `/internal/v1/auth/config` and the four Slack routes
+that check the request themselves (`/api/v2/integration/slack/{auth,commands,interactivity,events}`,
+`core/security/SecurityConfiguration.java:39-48`) (`:345-353`); `SecurityConfiguration.java:106-111` permits the
+same paths plus `/info`, `/webjars` and the exchange endpoint.
 
 ### Session sign-in (the browser flow)
 
@@ -166,8 +167,9 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
-| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:272-278`) |
-| The five `/api/v2/integration/slack/*` routes | Yes | Meant for Slack, which cannot hold a Flow token, so Slack cannot reach them while sign-in is required. The three inbound POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:76,837-849`) |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:280-286`) |
+| `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:76,837-849`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret (`:510-538`), with no state parameter |
+| `GET /api/v2/integration/slack/install` | Yes | A redirect to the configured install URL that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:62-67`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:53`) |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a

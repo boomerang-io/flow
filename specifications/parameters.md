@@ -224,7 +224,7 @@ DEBUG is opt-in (`service-core/src/main/resources/application.properties:165-176
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
 every task of the owning run (`common/util/FilterValuesOutputStream.java:23`). The dispatcher ends the stream
 when the pod finishes (`service-dispatcher/src/main/java/io/boomerang/kube/KubeLogService.java:25-27`); its
-asynchronous completion skips a second authorization (`core/security/SecurityConfiguration.java:94-95`).
+asynchronous completion skips a second authorization (`core/security/SecurityConfiguration.java:104-105`).
 
 Downward, the dispatcher reads `type`
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
