@@ -23,9 +23,11 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Duration;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.slf4j.helpers.MessageFormatter;
@@ -53,6 +55,15 @@ public class WorkflowWatcher {
   // A run must have been started at least this long before it is checked for a lost advance,
   // so freshly-started runs whose first tasks are still being queued are not churned.
   private static final long STALL_GRACE_MILLIS = 60000;
+
+  // How long a run stays remembered as seen with nothing in flight. Bounds the memory for runs
+  // that moved on; a stalled run seen again within this is recovered, which pages of 50 reach.
+  private static final long STALL_FORGET_MILLIS = 600000;
+
+  // Runs seen with nothing in flight, by when they were first seen so. The instant between a
+  // task's end and its dependants' admission is empty too, so a run is recovered only when a
+  // later sweep finds it empty again.
+  private final Map<String, Long> emptySince = new ConcurrentHashMap<>();
 
   private static final Set<TaskType> REQUEUEABLE_TYPES = EngineConstants.REQUEUEABLE_TYPES;
 
@@ -258,12 +269,18 @@ public class WorkflowWatcher {
     Set<String> inFlight =
         taskRunService.runsWithTasksInFlight(
             page.stream().map(WorkflowRunEntity::getId).toList());
+    long now = System.currentTimeMillis();
+    emptySince.values().removeIf(since -> now - since > STALL_FORGET_MILLIS);
     SweepRunner.forEachIsolated(
         page,
         wfRun -> {
-          if (!inFlight.contains(wfRun.getId())) {
+          if (inFlight.contains(wfRun.getId())) {
+            emptySince.remove(wfRun.getId());
+          } else if (emptySince.putIfAbsent(wfRun.getId(), now) != null) {
+            emptySince.remove(wfRun.getId());
             LOGGER.info(
-                "[{}] Active WorkflowRun has no in-flight TaskRuns. Recovering advance.",
+                "[{}] Active WorkflowRun has had no in-flight TaskRun across two sweeps."
+                    + " Recovering advance.",
                 wfRun.getId());
             taskExecutionService.advance(wfRun.getId());
           }
