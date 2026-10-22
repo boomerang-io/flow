@@ -179,6 +179,10 @@ tag's release notes.
 
 ### Changed
 
+- A task's end reads only the tasks that depend on it and what those depend on, not the run's whole graph, so the
+  database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
+  chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
+  once, without a second asynchronous hop.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
