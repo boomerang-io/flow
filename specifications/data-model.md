@@ -214,16 +214,18 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 | `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:303`, called from `engine/TaskRunService.java:1117`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:363`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:535`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:134`) or its
+A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:137`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
 document (365; `service-core/src/main/resources/seed/settings.json:456`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
-(`workflow/WorkflowRetentionService.java:170-176`). An hourly pass (`flow.watcher.retention-interval-ms`,
+(`workflow/WorkflowRetentionService.java:173-179`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `engine/WorkflowWatcher.java:192-199`) pages runs in phase `completed` created before the cutoff, oldest first,
 on the `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first),
-actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:94-125,182-189`).
-A run another run still names in `initiatedByRef` (a retry's origin, a child's parent) is kept until that run is
-gone, so a carried-over task run never outlives the one it stands for. Workflow-scoped artifacts and audit
+actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:97-128,194-201`).
+A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'
+ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:186-192`, on the
+`initiated_by_phase` index), so a carried-over task run never outlives the one it stands for and a child's
+"started by" link never dangles. Workflow-scoped artifacts and audit
 events are never purged. The first pass runs within a minute of startup, so an upgraded install purges its old
 runs before the setting can be changed, and no value turns the purge off; history worth keeping is exported
 before upgrading.
