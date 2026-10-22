@@ -194,6 +194,10 @@ tag's release notes.
   cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
   carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is published to GitHub
   Packages by every product tag beside `dispatcher-sdk`, at the tag's version (`flow-sdk/README.md`).
+- A for-each parent's task run carries `foreach: true` in the public `TaskRun`, and the task-run query takes
+  `foreach=true|false` to list parents only or leave them out; absent lists both as before. A parent stands for its
+  items in the graph and never runs, so a running or waiting count over a run's task runs can now exclude it without
+  reading the workflow. `flow-sdk` adds `TaskRunQuery.foreach(boolean)` and `TaskRun.foreach()`.
 
 ### Changed
 

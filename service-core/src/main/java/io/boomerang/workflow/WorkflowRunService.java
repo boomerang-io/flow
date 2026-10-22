@@ -325,8 +325,9 @@ public class WorkflowRunService {
   /**
    * Query the task runs of the workspace's runs, across runs: by label (a run's labels are on
    * each of its task runs, and a child run has its parent's) or by run, then by workflow, task
-   * name, status, phase and creation date. A task name also matches its for-each items. Each row
-   * leaves out what can carry a secret value; {@code get} returns the whole task run.
+   * name, status, phase and creation date. A task name also matches its for-each items, and
+   * {@code foreach} keeps for-each parents only ({@code true}) or leaves them out ({@code false}).
+   * Each row leaves out what can carry a secret value; {@code get} returns the whole task run.
    */
   public TaskRunResponsePage queryTaskRuns(
       String workspace,
@@ -340,7 +341,8 @@ public class WorkflowRunService {
       Optional<List<String>> queryPhase,
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows,
-      Optional<List<String>> queryTasks) {
+      Optional<List<String>> queryTasks,
+      Optional<Boolean> queryForeach) {
     // Task runs are indexed by run and by label, not by workflow, so a query needs one of the two.
     if (queryLabels.filter(labels -> !labels.isEmpty()).isEmpty()
         && queryWorkflowRuns.filter(runs -> !runs.isEmpty()).isEmpty()) {
@@ -362,12 +364,14 @@ public class WorkflowRunService {
             .in("workflowRunRef", queryWorkflowRuns)
             .in("workflowRef", wfRefs);
     queryTasks.ifPresent(tasks -> criteria.add(taskNames(tasks)));
+    // A for-each parent is the task run carrying the foreach setting.
+    queryForeach.ifPresent(parents -> criteria.add(Criteria.where("foreach").exists(parents)));
     Query query = new Query(criteria.build());
     query
         .fields()
         .include("type", "name", "labels", "creationDate", "startTime", "duration", "status")
         .include("phase", "statusReason", "taskRef", "workflowRef", "workflowRunRef", "parentRef")
-        .include("index", "reusedFromRef", "claim", "retry");
+        .include("index", "reusedFromRef", "claim", "retry", "foreach");
     Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
     List<TaskRun> rows =
         mongoTemplate.find(query, TaskRunEntity.class).stream()

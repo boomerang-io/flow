@@ -33,8 +33,7 @@ class PublicModelSerialisationTest {
           "dependencies",
           "preApproved",
           "preApprovedStatus",
-          "decisionValue",
-          "foreach");
+          "decisionValue");
 
   @Test
   void theRunModelsDeclareNoExecutionStateField() {
@@ -43,7 +42,7 @@ class PublicModelSerialisationTest {
         .contains("status", "phase", "paused");
     assertThat(ApiContractTest.properties(TaskRun.class).keySet())
         .doesNotContainAnyElementsOf(EXECUTION_STATE)
-        .contains("status", "phase", "attempt");
+        .contains("status", "phase", "attempt", "foreach");
   }
 
   @Test
@@ -77,7 +76,7 @@ class PublicModelSerialisationTest {
         new TaskRun(
             "t1", null, "review", null, null, null, null, null, null, List.of(secret), null, null,
             spec, null, null, null, null, null, null, null, null, null, null, null, null, null,
-            null);
+            null, null);
     WorkflowRun run =
         new WorkflowRun(
             "r1", null, null, null, null, null, null, null, null, null, null, null, null, null,

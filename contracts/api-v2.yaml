@@ -1822,6 +1822,8 @@ components:
         duration:
           format: "int64"
           type: "integer"
+        foreach:
+          type: "boolean"
         id:
           type: "string"
         index:
@@ -6588,6 +6590,15 @@ paths:
           items:
             type: "string"
           type: "array"
+      - description: "true lists for-each parents only, the task run that stands for\
+          \ a for-each task's items and never runs itself; false leaves them out.\
+          \ Defaults to both."
+        example: false
+        in: "query"
+        name: "foreach"
+        required: false
+        schema:
+          type: "boolean"
       - description: "Result Size"
         example: 10
         in: "query"

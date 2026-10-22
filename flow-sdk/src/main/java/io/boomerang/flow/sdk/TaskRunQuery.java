@@ -24,6 +24,7 @@ public final class TaskRunQuery {
   private final List<String> runs = new ArrayList<>();
   private final List<String> workflows = new ArrayList<>();
   private final List<String> tasks = new ArrayList<>();
+  private Boolean foreach;
   private Instant from;
   private Instant to;
   private Integer page;
@@ -74,6 +75,15 @@ public final class TaskRunQuery {
     return this;
   }
 
+  /**
+   * For-each parents only ({@code true}), or every task run but them ({@code false}): a parent
+   * stands for its items and never runs itself. Both are listed when not set.
+   */
+  public TaskRunQuery foreach(boolean parents) {
+    this.foreach = parents;
+    return this;
+  }
+
   public TaskRunQuery from(Instant from) {
     this.from = from;
     return this;
@@ -103,6 +113,7 @@ public final class TaskRunQuery {
     copy.runs.addAll(runs);
     copy.workflows.addAll(workflows);
     copy.tasks.addAll(tasks);
+    copy.foreach = foreach;
     copy.from = from;
     copy.to = to;
     copy.page = page;
@@ -119,6 +130,7 @@ public final class TaskRunQuery {
         .addAll("workflowruns", runs)
         .addAll("workflows", workflows)
         .addAll("tasks", tasks)
+        .add("foreach", foreach)
         .add("fromDate", (from != null) ? from.toEpochMilli() : null)
         .add("toDate", (to != null) ? to.toEpochMilli() : null)
         .add("page", page)
