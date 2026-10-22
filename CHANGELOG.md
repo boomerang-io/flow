@@ -288,6 +288,10 @@ tag's release notes.
   rest of the poll is still handed out.
 - The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
+- A task's end reads only the tasks that depend on it and what those depend on, not the run's whole graph, so the
+  database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
+  chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
+  once, without a second asynchronous hop.
 
 ### Fixed
 
