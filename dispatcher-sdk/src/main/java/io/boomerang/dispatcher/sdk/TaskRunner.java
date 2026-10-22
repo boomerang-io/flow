@@ -13,7 +13,9 @@ import io.micrometer.observation.transport.ReceiverContext;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -58,6 +60,9 @@ final class TaskRunner {
   static final String OBSERVATION = "flow.task";
 
   private static final Log LOGGER = LogFactory.getLog(TaskRunner.class);
+
+  // How long the end waits for a periodic log upload still in flight when the handler returns.
+  private static final Duration STOP_UPLOAD_WAIT = Duration.ofSeconds(30);
 
   private final DispatcherClient client;
   private final Supplier<String> dispatcherId;
@@ -218,7 +223,7 @@ final class TaskRunner {
   private TaskRunEndRequest handle(TaskRun task, TaskContext context) {
     String id = task.getId();
     Observation observation = observe(task).start();
-    Thread uploads = null;
+    Reuploads uploads = null;
     if (capture != null) {
       capture.open(id);
       uploads = reuploading(task);
@@ -239,9 +244,43 @@ final class TaskRunner {
       observation.stop();
       if (capture != null) {
         if (uploads != null) {
-          uploads.interrupt();
+          uploads.stop();
         }
         logs.upload(task, capture.close(id));
+      }
+    }
+  }
+
+  // The periodic upload thread: told to stop, it finishes any upload in flight first, so the final
+  // upload is the last one stored and no PUT is interrupted after it may have reached the engine.
+  private static final class Reuploads {
+    private final Thread thread;
+    private final CountDownLatch stopped = new CountDownLatch(1);
+
+    Reuploads(String name, Duration interval, Runnable upload) {
+      this.thread =
+          Thread.ofVirtual()
+              .name(name)
+              .start(
+                  () -> {
+                    try {
+                      while (!stopped.await(interval.toMillis(), TimeUnit.MILLISECONDS)) {
+                        upload.run();
+                      }
+                    } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                    }
+                  });
+    }
+
+    void stop() {
+      stopped.countDown();
+      try {
+        if (!thread.join(STOP_UPLOAD_WAIT)) {
+          LOGGER.warn("A periodic log upload is still in flight; uploading the final log beside it.");
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
       }
     }
   }
@@ -260,18 +299,14 @@ final class TaskRunner {
   }
 
   // A long task's log is readable before it ends: the captured log so far, every interval.
-  private Thread reuploading(TaskRun task) {
+  private Reuploads reuploading(TaskRun task) {
     if (!logUploadInterval.isPositive()) {
       return null;
     }
-    return Thread.ofVirtual()
-        .name("dispatcher-log-" + task.getId())
-        .start(
-            () -> {
-              while (Backoff.sleep(logUploadInterval)) {
-                logs.upload(task, capture.snapshot(task.getId()));
-              }
-            });
+    return new Reuploads(
+        "dispatcher-log-" + task.getId(),
+        logUploadInterval,
+        () -> logs.upload(task, capture.snapshot(task.getId())));
   }
 
   /** Tell the engine the task is starting; return whether to go ahead and run it. */

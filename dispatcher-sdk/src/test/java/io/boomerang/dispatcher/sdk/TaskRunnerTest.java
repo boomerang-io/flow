@@ -232,6 +232,43 @@ class TaskRunnerTest {
   }
 
   @Test
+  void aPeriodicUploadInFlightWhenTheHandlerReturnsCompletesBeforeTheFinalOne() throws Exception {
+    TaskLogCapture capture = new TaskLogCapture();
+    // The first upload - the periodic one - is still in flight in the engine when the handler
+    // returns; an interrupt would abort it there.
+    CountDownLatch periodicUploading = new CountDownLatch(1);
+    List<String> stored = new CopyOnWriteArrayList<>();
+    engine.logAnswers.add(
+        () -> {
+          periodicUploading.countDown();
+          try {
+            Thread.sleep(300);
+          } catch (InterruptedException e) {
+            throw new IllegalStateException("the periodic upload was interrupted", e);
+          }
+          stored.add("periodic");
+        });
+    engine.logAnswers.add(() -> stored.add("final"));
+
+    runner(
+            (task, context) -> {
+              capture.append(task.getId(), "first");
+              assertThat(periodicUploading.await(10, TimeUnit.SECONDS)).isTrue();
+              capture.append(task.getId(), "second");
+              return TaskResult.empty();
+            },
+            virtualThreads,
+            capture,
+            Duration.ofMillis(10),
+            ObservationRegistry.NOOP)
+        .accept(runOrder());
+
+    awaitEmpty();
+    assertThat(stored).containsExactly("periodic", "final");
+    assertThat(uploaded("task-1")).isEqualTo("first\nsecond\n");
+  }
+
+  @Test
   void aHandlerRunsUnderOneObservationCarryingTheRunsTrace() {
     RecordingObservations observations = new RecordingObservations();
     TaskRun task = runOrder();
