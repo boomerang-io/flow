@@ -157,6 +157,9 @@ class ForeachChildRunTest extends AbstractEngineIntegrationTest {
     assertEquals("alpha", childRunOf(items.get(0)).getLabels().get(ServerLabel.ITEM));
     assertNull(childRunOf(items.get(1)).getLabels().get(ServerLabel.ITEM));
     assertEquals("gamma", childRunOf(items.get(2)).getLabels().get(ServerLabel.ITEM));
+    // The item task in the parent run carries the same label under the same rule.
+    assertEquals("alpha", items.get(0).getLabels().get(ServerLabel.ITEM));
+    assertNull(items.get(1).getLabels().get(ServerLabel.ITEM));
   }
 
   @Test
