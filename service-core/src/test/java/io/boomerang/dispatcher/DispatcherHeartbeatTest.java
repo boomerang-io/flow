@@ -1,0 +1,187 @@
+package io.boomerang.dispatcher;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
+import io.boomerang.common.model.RunClaim;
+import io.boomerang.dispatcher.entity.DispatcherEntity;
+import io.boomerang.dispatcher.repository.DispatcherRepository;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import java.util.Date;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+/**
+ * The heartbeat endpoint (DispatcherControllerV1 PUT /{id}/heartbeat) renews the lease on the
+ * TaskRuns the calling dispatcher owns and refreshes its liveness; the claim set the first lease.
+ */
+class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
+
+  @Autowired private DispatcherService dispatcherService;
+  @Autowired private DispatcherRepository dispatcherRepository;
+  @Autowired private WebApplicationContext context;
+
+  private String registerAgent(String name) {
+    return dispatcherService.register(
+        new DispatcherRegistrationRequest(name, name + ".local", List.of("template")));
+  }
+
+  private TaskRunEntity claimedTaskRun(String name, String claimedBy) {
+    WorkflowRunEntity wfRun = savedWorkflowRun(name + "-wf", RunStatus.running, RunPhase.running);
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            name, TaskType.template, RunStatus.running, RunPhase.running, wfRun.getWorkflowRef(), wfRun.getId());
+    RunClaim claim = new RunClaim();
+    claim.setBy(claimedBy);
+    claim.setAt(new Date());
+    claim.setSeq(1L);
+    taskRun.setClaim(claim);
+    return taskRunRepository.save(taskRun);
+  }
+
+  @Test
+  void unknownAgentIsRejected() {
+    BoomerangException refused =
+        assertThrows(
+            BoomerangException.class,
+            () -> dispatcherService.heartbeat("no-such-agent", List.of("some-id")));
+
+    assertEquals(BoomerangError.DISPATCHER_NOT_REGISTERED.getReason(), refused.getReason());
+  }
+
+  @Test
+  void aPollFromAnUnknownAgentIsRejected() {
+    assertThrows(
+        BoomerangException.class,
+        () -> dispatcherService.getTaskQueue("no-such-agent", 1, null, null, null));
+    assertThrows(
+        BoomerangException.class, () -> dispatcherService.getWorkflowQueue("no-such-agent"));
+  }
+
+  // The wire: an unregistered id answers 404 with the standard error body, so a dispatcher can
+  // tell a lost registration from a failing engine and register again.
+  @Test
+  void aPollFromAnUnknownAgentAnswers404WithTheStandardErrorBody() throws Exception {
+    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+    mockMvc
+        .perform(get("/dispatcher/v1/no-such-agent/tasks"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value(BoomerangError.DISPATCHER_NOT_REGISTERED.getCode()))
+        .andExpect(jsonPath("$.reason").value("DISPATCHER_NOT_REGISTERED"))
+        .andExpect(jsonPath("$.status").value("404 NOT_FOUND"));
+    mockMvc
+        .perform(
+            put("/dispatcher/v1/no-such-agent/heartbeat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ids\":[\"some-id\"]}"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.reason").value("DISPATCHER_NOT_REGISTERED"));
+  }
+
+  // A type wildcard that matches none of the agent's types leaves nothing to claim, so the poll
+  // answers at once - after marking the agent connected.
+  @Test
+  void aTaskPollRefreshesTheAgentsLastConnectedDate() {
+    String agent = registerAgent("poll-liveness");
+    dispatcherRepository.save(
+        withLastConnected(dispatcherRepository.findById(agent).orElseThrow(), new Date(0)));
+
+    dispatcherService.getTaskQueue(agent, 1, "nothing-matches*", null, null);
+
+    Date after = dispatcherRepository.findById(agent).orElseThrow().getLastConnectedDate();
+    assertTrue(after.getTime() > 0, "a task poll must refresh lastConnectedDate");
+  }
+
+  @Test
+  void heartbeatRefreshesTheAgentsLastConnectedDate() {
+    String agent = registerAgent("heartbeat-liveness");
+    Date before = dispatcherRepository.findById(agent).orElseThrow().getLastConnectedDate();
+
+    // Force a detectable gap: lastConnectedDate is set at registration too.
+    dispatcherRepository.save(
+        withLastConnected(dispatcherRepository.findById(agent).orElseThrow(), new Date(0)));
+
+    dispatcherService.heartbeat(agent, List.of());
+
+    Date after = dispatcherRepository.findById(agent).orElseThrow().getLastConnectedDate();
+    assertNotNull(after);
+    assertTrue(after.getTime() > 0, "heartbeat must refresh lastConnectedDate");
+  }
+
+  private DispatcherEntity withLastConnected(DispatcherEntity entity, Date date) {
+    entity.setLastConnectedDate(date);
+    return entity;
+  }
+
+  @Test
+  void heartbeatRenewsOnlyLeasesTheAgentOwns() {
+    String owner = registerAgent("heartbeat-owner");
+    String other = registerAgent("heartbeat-other");
+    TaskRunEntity owned = claimedTaskRun("owned-by-heartbeat-agent", owner);
+    TaskRunEntity notOwned = claimedTaskRun("owned-by-other-agent", other);
+
+    long renewed = dispatcherService.heartbeat(owner, List.of(owned.getId(), notOwned.getId()));
+
+    assertEquals(1, renewed, "only the caller's own claim is renewed");
+    TaskRunEntity ownedAfter = taskRunRepository.findById(owned.getId()).orElseThrow();
+    assertNotNull(ownedAfter.getClaim().getLeaseExpiresAt(), "the heartbeat sets the lease");
+    TaskRunEntity notOwnedAfter = taskRunRepository.findById(notOwned.getId()).orElseThrow();
+    assertNull(
+        notOwnedAfter.getClaim().getLeaseExpiresAt(),
+        "a heartbeat must never renew a lease it does not own");
+  }
+
+  @Test
+  void heartbeatWithNoIdsStillRefreshesLivenessAndRenewsNothing() {
+    String agent = registerAgent("heartbeat-empty");
+
+    long renewed = dispatcherService.heartbeat(agent, List.of());
+
+    assertEquals(0, renewed);
+  }
+
+  // A run that finished between the executor's last poll and its next heartbeat is no longer
+  // queued/running - renewLeases must not resurrect a stale claim.leaseExpiresAt on a terminal
+  // record.
+  @Test
+  void renewLeasesSkipsATerminalTaskRun() {
+    String owner = registerAgent("heartbeat-terminal-owner");
+    TaskRunEntity terminal = claimedTaskRun("terminal-by-the-time-of-heartbeat", owner);
+    taskRunRepository.save(
+        withPhaseAndStatus(terminal, RunPhase.completed, RunStatus.succeeded));
+
+    long renewed =
+        taskRunService.renewLeases(List.of(terminal.getId()), owner);
+
+    assertEquals(0, renewed, "a terminal TaskRun must never be renewed");
+    TaskRunEntity after = taskRunRepository.findById(terminal.getId()).orElseThrow();
+    assertNull(after.getClaim().getLeaseExpiresAt());
+  }
+
+  private TaskRunEntity withPhaseAndStatus(TaskRunEntity entity, RunPhase phase, RunStatus status) {
+    entity.setPhase(phase);
+    entity.setStatus(status);
+    return entity;
+  }
+}

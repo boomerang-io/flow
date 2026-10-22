@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="28px" height="30px" viewBox="0 0 28 30" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 43.2 (39069) - http://www.bohemiancoding.com/sketch -->
+    <title>double_chevron</title>
+    <desc>Created with Sketch.</desc>
+    <defs></defs>
+    <g id="13-Report-a-bug" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="13.30-describe-filled" transform="translate(-707.000000, -795.000000)">
+            <g id="double_chevron" transform="translate(705.000000, 795.000000)">
+                <rect id="Rectangle-2" x="0" y="0" width="30" height="30"></rect>
+                <path d="M15.6818182,23.224799 L23.9066172,15 L15.6818182,6.77520098 L15.6818182,0.714285714 L29.9675325,15 L15.6818182,29.2857143 L15.6818182,23.224799 Z M2.82467532,23.224799 L11.0494743,15 L2.82467532,6.77520098 L2.82467532,0.714285714 L17.1103896,15 L2.82467532,29.2857143 L2.82467532,23.224799 Z" id="Combined-Shape" fill="#595859"></path>
+            </g>
+        </g>
+    </g>
+</svg>

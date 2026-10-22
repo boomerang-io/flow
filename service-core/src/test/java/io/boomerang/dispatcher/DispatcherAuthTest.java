@@ -1,0 +1,306 @@
+package io.boomerang.dispatcher;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import io.boomerang.core.TokenService;
+import io.boomerang.core.enums.TokenTypePrefix;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.model.TokenCreateRequest;
+import io.boomerang.core.model.TokenCreateResponse;
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.enums.TokenActorKind;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import jakarta.servlet.Filter;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+/**
+ * Security contract guard for the dispatcher endpoints (T6-1). {@code /dispatcher/**}
+ * requires a real Flow token: {@code global} scope + a machine {@link TokenActorKind}. Covers:
+ * missing bearer, a valid dispatcher token, a human/user-scope token (rejected — wrong scope AND
+ * no {@code actorKind}), an expired token, and a bearer that isn't Flow-token-shaped at all
+ * (rejected by the {@link TokenTypePrefix#isFlowToken} pre-DB gate before any Mongo lookup — see
+ * that method's own unit test for the gate's shape coverage; {@link DispatcherAuthFilter}'s
+ * source shows this bearer never reaches {@link TokenService}).
+ *
+ * <p>MockMvc is built from the real WebApplicationContext with the actual Spring Security filter
+ * chain wired in, so the request genuinely traverses {@code DispatcherAuthFilter}.
+ */
+@TestPropertySource(properties = {"flow.queue.enabled=false"})
+class DispatcherAuthTest extends AbstractEngineIntegrationTest {
+
+  private static final String DISPATCHER_PATH = "/dispatcher/v1/any-agent-id/tasks";
+
+  @Autowired private WebApplicationContext context;
+
+  @Autowired private TokenService tokenService;
+
+  @Autowired private IdentityService identityService;
+
+  @Autowired
+  @Qualifier("springSecurityFilterChain")
+  private Filter springSecurityFilterChain;
+
+  private MockMvc mockMvc;
+
+  @BeforeEach
+  void setUp() {
+    mockMvc =
+        MockMvcBuilders.webAppContextSetup(context).addFilters(springSecurityFilterChain).build();
+  }
+
+  @AfterEach
+  void tearDown() {
+    SecurityContextHolder.clearContext();
+  }
+
+  @Test
+  void missingBearerTokenIsRejected() throws Exception {
+    mockMvc.perform(get(DISPATCHER_PATH)).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void validDispatcherTokenPassesTheFilter() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(get(DISPATCHER_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().is(not(401)));
+  }
+
+  @Test
+  void aPathUnderThePrefixThatNothingServesStillNeedsTheToken() throws Exception {
+    // The chain checks every request it claims, not a list of known routes.
+    mockMvc.perform(get("/dispatcher/v2/anything")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void theFormerPrefixIsNoLongerTheDispatcherWire() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            get("/api/v1/dispatcher/any-agent-id/tasks")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void humanScopeTokenIsRejected() throws Exception {
+    // A user-scope token: real principal, no actorKind - the shape of a human's token, not a
+    // machine's. Rejected on BOTH grounds (validateActorToken requires global scope AND a
+    // non-null actorKind), but this test only needs the observable outcome.
+    String raw = mintToken(AuthScope.user, null, null);
+
+    mockMvc
+        .perform(get(DISPATCHER_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void expiredTokenIsRejected() throws Exception {
+    Calendar cal = Calendar.getInstance();
+    cal.add(Calendar.HOUR, -1);
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, cal.getTime());
+
+    mockMvc
+        .perform(get(DISPATCHER_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The agent lifecycle callbacks are part of the SAME worker protocol as the queue polls and are
+   * called with the same bearer-attaching {@code internalRestTemplate}, so they must be gated by
+   * the same filter. They previously lived on their own path roots ({@code /api/v1/taskrun/**},
+   * {@code /api/v1/workflowrun/**}), fell outside the filter's prefix and were fully
+   * unauthenticated — anyone with network reach could write terminal status and results onto any
+   * run. They now sit under {@code /dispatcher/v1} with the rest of the protocol, inside the one
+   * filter chain that checks every request it claims; these assertions are what prevent a later
+   * move from silently re-opening the hole.
+   */
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "/dispatcher/v1/taskrun/any-run-id/start",
+        "/dispatcher/v1/taskrun/any-run-id/end",
+        "/dispatcher/v1/workflowrun/any-run-id/start"
+      })
+  void lifecycleCallbacksRejectMissingBearerToken(String path) throws Exception {
+    mockMvc.perform(put(path)).andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The workspace release query is the same worker protocol on the same path root: it reveals which
+   * runs and workflows exist and in what state, so it must sit behind the same filter as the queue
+   * polls rather than being reachable by anyone with network access.
+   */
+  @Test
+  void releaseQueryRejectsMissingBearerToken() throws Exception {
+    mockMvc
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void releaseQueryAcceptsAValidDispatcherToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void lifecycleCallbackAcceptsAValidDispatcherToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+
+    mockMvc
+        .perform(
+            put("/dispatcher/v1/taskrun/any-run-id/end")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw))
+        .andExpect(status().is(not(401)));
+  }
+
+  @Test
+  void aDispatcherRouteRunsAsTheDispatchersOwnTokenAndTheIdentityEndsWithTheRequest()
+      throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
+    AtomicReference<Token> seen = new AtomicReference<>();
+    MockMvc capturing =
+        MockMvcBuilders.webAppContextSetup(context)
+            .addFilters(
+                springSecurityFilterChain,
+                (request, response, chain) -> {
+                  seen.set(identityService.getCurrentIdentity());
+                  chain.doFilter(request, response);
+                })
+            .build();
+
+    capturing
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
+
+    assertThat(seen.get()).isNotNull();
+    assertThat(seen.get().getId()).isEqualTo(tokenService.get(raw).getId());
+    assertThat(seen.get().getActorKind()).isEqualTo(TokenActorKind.SERVICE);
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void nonFlowShapedBearerIsRejected() throws Exception {
+    mockMvc
+        .perform(
+            get(DISPATCHER_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer not-a-flow-token"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  /**
+   * The dispatcher chain claims a request by its path, and Spring routes it by its path. Wherever
+   * those two could disagree a request might reach the controller outside the chain, so each
+   * known divergence class is probed here: path parameters ({@code ;k=v}) in a segment, a
+   * traversal segment, a duplicated leading slash, and case variation.
+   *
+   * <p>None of these may produce a success status. Rejection may legitimately come from the filter
+   * (401) or from the dispatcher servlet's own normalisation (400/404) — what must never happen is
+   * a 2xx, which would mean the handler ran unauthenticated.
+   */
+  @Test
+  void pathVariantsCannotBypassTheFilter() throws Exception {
+    List<String> bypassAttempts =
+        List.of(
+            "/dispatcher;x=1/v1/any-agent-id/tasks",
+            "/dispatcher/v1;x=1/any-agent-id/tasks",
+            "/dispatcher/v1/../v1/any-agent-id/tasks",
+            "//dispatcher/v1/any-agent-id/tasks",
+            "/DISPATCHER/V1/any-agent-id/tasks");
+
+    for (String attempt : bypassAttempts) {
+      int status = mockMvc.perform(get(attempt)).andReturn().getResponse().getStatus();
+      assertThat(status / 100)
+          .as("unauthenticated request to %s must not succeed (was %d)", attempt, status)
+          .isNotEqualTo(2);
+    }
+  }
+
+  @Test
+  void tokenPrefixGateRejectsNonFlowShapesBeforeAnyLookupWouldOccur() {
+    assertThat(TokenTypePrefix.isFlowToken("not-a-flow-token")).isFalse();
+    assertThat(TokenTypePrefix.isFlowToken(null)).isFalse();
+    assertThat(TokenTypePrefix.isFlowToken("bfg_")).isFalse();
+    assertThat(TokenTypePrefix.isFlowToken("bfg_" + "abc-123")).isTrue();
+  }
+
+  private String mintToken(AuthScope type, TokenActorKind actorKind, Date expirationDate) {
+    // T6-3 invariant #2: minting a `global` token requires the caller to already hold a
+    // `global`-scoped grant. This helper calls TokenService.create() directly (bypassing
+    // AuthenticationFilter, which is what populates the SecurityContext on a real HTTP request),
+    // so it seeds one itself - cleared in tearDown() before the MockMvc request below runs.
+    if (AuthScope.global.equals(type)) {
+      seedGlobalAdminIdentity();
+    }
+    try {
+      TokenCreateRequest request = new TokenCreateRequest();
+      request.setType(type);
+      request.setName("dispatcher-auth-test");
+      request.setActorKind(actorKind);
+      request.setExpirationDate(expirationDate);
+      if (AuthScope.user.equals(type)) {
+        request.setPrincipal("human-user-1");
+      } else {
+        request.setPermissions(List.of("**/**"));
+      }
+      TokenCreateResponse response = tokenService.create(request);
+      return response.getToken();
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  private void seedGlobalAdminIdentity() {
+    Token admin = new Token(AuthScope.global);
+    admin.setPrincipal("dispatcher-auth-test-admin");
+    admin.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+    Authentication authentication =
+        new UsernamePasswordAuthenticationToken(admin.getPrincipal(), null);
+    ((UsernamePasswordAuthenticationToken) authentication).setDetails(admin);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+}

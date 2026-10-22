@@ -1,0 +1,121 @@
+package io.boomerang.core.security;
+
+import io.boomerang.core.TokenService;
+import io.boomerang.core.SettingsService;
+import jakarta.servlet.DispatcherType;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+// A5/H6: gated via the unified flow.security.enabled resolution - see FlowSecurityProperties.
+@Configuration
+@Conditional(SecurityEnabledCondition.class)
+public class SecurityConfiguration {
+
+  private static final String INFO = "/info";
+
+  private static final String API_DOCS = "/api/docs/**";
+
+  private static final String HEALTH = "/health";
+
+  private static final String WEBJARS = "/webjars/**";
+
+  // Reached by a browser redirect from GitHub - cannot carry a bearer token. Also exempted from
+  // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
+  static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
+
+  // Reached by Slack's servers (the three signed POST routes) or by a browser redirect from
+  // Slack's consent page (auth), so none can carry a Flow token; each checks the request itself -
+  // the signing secret, or the code exchange against Slack. Exempted exactly like GITHUB_CALLBACK.
+  // The install redirect is not here: it checks nothing, so it stays behind sign-in.
+  static final List<String> SLACK_ROUTES =
+      List.of(
+          "/api/v2/integration/slack/auth",
+          "/api/v2/integration/slack/commands",
+          "/api/v2/integration/slack/interactivity",
+          "/api/v2/integration/slack/events");
+
+  // The unified token exchange's direct OIDC login path is
+  // reached by the browser with no prior credential - AuthenticationFilter still RUNS for this
+  // path (so proxy-forwarded identity is picked up when present), it just no longer 401s when it
+  // resolves nothing; permitAll here is what lets that unauthenticated request continue to the
+  // controller, which verifies the id_token itself.
+  static final String AUTH_EXCHANGE = AuthenticationFilter.PATH_AUTH_EXCHANGE;
+
+  // The pre-auth bootstrap (GET /internal/v1/auth/config) tells the webapp HOW to sign in, so it
+  // must be readable before any session exists - exempted exactly like GITHUB_CALLBACK: permitAll
+  // here AND shouldNotFilter in AuthenticationFilter, since no identity is needed at all.
+  static final String AUTH_CONFIG = "/internal/v1/auth/config";
+
+  @Autowired
+  private TokenService tokenService;
+
+  @Autowired
+  private SettingsService settingsService;
+
+  @Autowired
+  @Qualifier("delegatedAuthenticationEntryPoint")
+  AuthenticationEntryPoint authEntryPoint;
+
+  @Value("${flow.authorization.basic.password:}")
+  private String basicPassword;
+
+  // Delegating encoder (Spring Security's own recommended default) so the single shared Basic
+  // password is compared via PasswordEncoder.matches - constant-time - rather than a raw
+  // String.equals. There is one operator-wide password, not a per-user credential store, so this
+  // stays a plain bean rather than a full http.httpBasic()/UserDetailsService setup - see decision
+  // 0074.
+  @Bean
+  PasswordEncoder passwordEncoder() {
+    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+  }
+
+  //TODO figure out why we also have to have the permitAll matches in the doNotFilter of AuthenticationFilter
+    // @Order required now that DispatcherSecurityConfiguration's /dispatcher/** chain
+    // also lives in this context: it must evaluate FIRST (lower value), this chain evaluates last.
+    @Bean
+    @Order(2)
+    SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
+      final AuthenticationFilter authFilter =
+          new AuthenticationFilter(
+              tokenService, settingsService, basicPassword, authEntryPoint, passwordEncoder());
+      http.csrf(csrf -> csrf.disable())
+          .authorizeHttpRequests(
+              authorize ->
+                  authorize
+                      // A streaming response (e.g. StreamingResponseBody) completes its async
+                      // dispatch with no Authentication in the SecurityContext - our
+                      // AuthenticationFilter (a OncePerRequestFilter) only ever populates it on
+                      // the initial REQUEST dispatch. The authorization decision already happened
+                      // there; permit the ASYNC/ERROR re-dispatch here so it isn't denied a second
+                      // time against a response that is already committed.
+                      .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
+                      .permitAll()
+                      .requestMatchers(
+                          HEALTH, API_DOCS, INFO, WEBJARS, GITHUB_CALLBACK, AUTH_EXCHANGE,
+                          AUTH_CONFIG)
+                      .permitAll()
+                      .requestMatchers(SLACK_ROUTES.toArray(String[]::new))
+                      .permitAll()
+                      .anyRequest()
+                      .authenticated())
+          .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
+          .sessionManagement(
+              session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+          .exceptionHandling(
+              exceptionHandling -> exceptionHandling.authenticationEntryPoint(authEntryPoint));
+      return http.build();
+    }
+}

@@ -1,0 +1,124 @@
+.modal {
+  max-height: 43.4375rem;
+  max-width: 37.5rem;
+}
+
+.addMemberContainer {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.roleDropdown {
+  min-width: 8rem;
+}
+
+.roleButton {
+  min-height: 1.875rem;
+  line-height: 1rem;
+}
+
+.tileContainer {
+  display: flex;
+  gap: 1rem;
+}
+
+.addMemberTile {
+  width: 50%;
+  height: 6.25rem;
+  background-color: white;
+}
+
+.search {
+  position: relative;
+  margin: 0 0 0.75rem 0;
+  width: 28.12rem;
+}
+
+.selectUsers {
+  background-color: var(--cds-ui-01);
+  position: absolute;
+  max-height: 26rem;
+  list-style: none;
+  overflow-y: auto;
+  padding: 0.25rem;
+  width: 28.12rem;
+  z-index: 2;
+
+  :global .cds--bmrg-avatar {
+    path {
+      fill: var(--cds-text-01);
+    }
+  }
+}
+
+.noUsersInfo {
+  align-items: center;
+  background-color: var(--cds-ui-02);
+  display: flex;
+  flex-direction: column;
+  height: 26rem;
+  padding: 1.5rem 1rem 1.5rem 1rem;
+  position: absolute;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 28.12rem;
+  z-index: 2;
+}
+
+.infoUserIcon {
+  min-height: 1.75rem;
+  min-width: 1.875rem;
+}
+
+.infoFishIcon {
+  height: 2.43rem;
+}
+
+.infoTitle {
+  color: var(--cds-text-01);
+  font-size: 1rem;
+  letter-spacing: 0.011rem;
+  line-height: 1.25;
+  margin: 1.25rem 0 1.5rem 0;
+  text-align: center;
+}
+
+.infoText {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.infoInviteButton {
+  margin-bottom: 1.75rem;
+
+  &.emailSentButton {
+    background-color: transparent;
+    color: var(--cds-interactive-01);
+    cursor: default;
+    path {
+      fill: var(--cds-interactive-01) !important;
+    }
+  }
+}
+
+.sectionTitle {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.01rem;
+  line-height: 0.93rem;
+  margin-bottom: 1.17rem;
+}
+
+.selectedUsers {
+  border-top: 0.0625rem solid var(--cds-active-ui);
+  height: 14.3rem;
+  list-style: none;
+  overflow-y: auto;
+  padding: 0.25rem;
+  width: 28.12rem;
+}

@@ -1,0 +1,80 @@
+@import "Styles/mixins";
+
+.container {
+  max-width: 70rem;
+  max-height: 50rem;
+
+  :global .cds--modal-content {
+    padding-right: 1rem;
+  }
+
+  h1 {
+    margin: 0;
+  }
+
+  :global .cds--modal-content {
+    height: 100%;
+  }
+
+  .bmrg--b-modal-flow-header {
+    margin: 1.875rem auto;
+  }
+
+  .bmrg--c-modal-flow-content {
+    margin-bottom: 2rem;
+  }
+
+  :global .react-lazylog-searchbar {
+    background: var(--cds-text-01);
+    padding: 0.625rem;
+    font-family: var(--cds-font-family);
+  }
+
+  :global .react-lazylog-searchbar-input {
+    border-radius: 0.125rem;
+    color: var(--cds-ui-01);
+    letter-spacing: 0.0625rem;
+    font-family: var(--cds-font-family);
+    font-size: 0.75rem;
+    &:focus {
+      @include focus-outline();
+    }
+    &:active {
+      outline: none;
+    }
+  }
+
+  :global .react-lazylog-searchbar-filter {
+    &:focus {
+      @include focus-outline();
+    }
+  }
+
+  :global .react-lazylog-searchbar-matches {
+    color: var(--cds-ui-01);
+    font-family: var(--cds-font-family);
+    font-size: 0.75rem;
+    letter-spacing: 0.0625rem;
+    min-width: 5rem;
+  }
+
+  :global .react-lazylog {
+    background: var(--cds-text-01);
+    color: var(--cds-ui-01);
+    padding: 1rem 1rem 1rem 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .followToggle {
+    position: absolute;
+    right: 22rem;
+    top: 1.125rem;
+
+    :global .cds--toggle__appearance {
+      display: flex;
+      flex-direction: row-reverse;
+    }
+  }
+}

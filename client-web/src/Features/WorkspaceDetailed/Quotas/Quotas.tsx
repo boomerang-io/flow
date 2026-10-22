@@ -1,0 +1,382 @@
+//@ts-nocheck
+import { TooltipHover, ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
+import { Tile, Button, InlineNotification } from "@carbon/react";
+import { Edit } from "@carbon/react/icons";
+import React from "react";
+import { Helmet } from "react-helmet";
+import { formatErrorMessage } from "@boomerang-io/utils";
+import ProgressBar from "Components/ProgressBar";
+import { serviceUrl } from "Config/servicesConfig";
+import { serverFetch } from "Config/serverFetch";
+import QuotaEditModalContent from "./QuotaEditModalContent";
+import styles from "./Quotas.module.scss";
+import RestoreDefaults from "./RestoreDefaults";
+import { ModalTriggerProps } from "Types";
+import { actionError, type ActionError } from "Utils/actionResult";
+import { formatDuration } from "Utils/dateHelper";
+import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
+import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
+
+// The editor's helper text for the five quotas a 0 makes unlimited.
+const UNLIMITED_AT_ZERO = "0 means unlimited";
+
+// Route module for the Quotas tab (app/routes/manageWorkspaceQuotas.tsx).
+//
+// The workspace's *own* quota values come from the parent layout route's loader. The loader here
+// fetches the platform *default* quotas that the "Restore defaults" modal lists - previously a
+// useQuery inside that modal, so the fetch only started once a user opened it.
+//
+// Both writes on this tab - a single quota edit and the restore-to-defaults - post to the one
+// intent-keyed action below via useFetcher, whose completion revalidates the parent loader that
+// holds the displayed values.
+export type QuotasLoaderData = {
+  defaultQuotas: Record<string, number> | null;
+  errorLoadingDefaults: boolean;
+};
+
+export async function loader({ request }: { request: Request }): Promise<QuotasLoaderData> {
+  try {
+    const response = await serverFetch(request).get(serviceUrl.getWorkspaceQuotaDefaults());
+    return { defaultQuotas: response.data, errorLoadingDefaults: false };
+  } catch (error) {
+    return { defaultQuotas: null, errorLoadingDefaults: true };
+  }
+}
+
+export type QuotasActionResult =
+  | { intent: "update" | "restore" }
+  | ({ intent: "update" | "restore" } & ActionError);
+
+export async function action({ params, request }: { params: { workspace?: string }; request: Request }) {
+  const workspace = String(params.workspace);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent"));
+
+  if (intent === "restore") {
+    try {
+      await serverFetch(request).delete(serviceUrl.deleteWorkspaceQuotas({ workspace }));
+      return { intent: "restore" as const };
+    } catch (error) {
+      return actionError({
+        intent: "restore" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Failed to restore default quotas" }),
+      });
+    }
+  }
+
+  const quotaProperty = String(formData.get("quotaProperty"));
+  const quotaValue = String(formData.get("quotaValue"));
+  try {
+    await serverFetch(request).patch(serviceUrl.resourceWorkspace({ workspace }), {
+      quotas: { [quotaProperty]: quotaValue },
+    });
+    return { intent: "update" as const };
+  } catch (error) {
+    return actionError({
+      intent: "update" as const,
+      error: formatErrorMessage({ error, defaultMessage: "Failed to update workspace quota" }),
+    });
+  }
+}
+
+// Quotas tab of /:workspace/manage (app/routes/manageWorkspaceQuotas.tsx). The workspace, the
+// current user and `canEdit` arrive from the parent layout route's <Outlet context> rather than
+// as props; the admin-only narrowing of `canEdit` used to be applied by the caller.
+function Quotas() {
+  const { workspace, canEdit: workspaceCanEdit, user } = useWorkspaceDetailedContext();
+  const canEdit = workspaceCanEdit && user?.type === "admin";
+  // null when the quota is unlimited (0): no usage bar, since there is no limit to measure against.
+  const workflowLimitPercentage = quotaUsagePercent(
+    workspace.quotas.currentWorkflowCount,
+    workspace.quotas.maxWorkflowCount,
+  );
+  const concurrentLimitPercentage = quotaUsagePercent(
+    workspace.quotas.currentConcurrentRuns,
+    workspace.quotas.maxConcurrentRuns,
+  );
+  const monthlyExecutionPercentage = quotaUsagePercent(
+    workspace.quotas.currentRuns,
+    workspace.quotas.maxWorkflowRunMonthly,
+  );
+  // currentArtifactStorage is bytes; maxArtifactStorage is GB (Gi) - convert before comparing.
+  const currentArtifactStorageGB = workspace.quotas.currentArtifactStorage / 1024 ** 3;
+  let artifactStoragePercentage = (currentArtifactStorageGB / workspace.quotas.maxArtifactStorage) * 100;
+
+  if (artifactStoragePercentage > 100) artifactStoragePercentage = 100;
+
+  const coverageBarStyle = { height: "1rem", width: "17.625rem" };
+
+  return (
+    <section aria-label={`${workspace.displayName} Workspace Quotas`} className={styles.container}>
+      <Helmet>
+        <title>{`Quotas - ${workspace.displayName}`}</title>
+      </Helmet>
+      {!canEdit ? (
+        <section className={styles.notificationsContainer}>
+          <InlineNotification
+            lowContrast
+            hideCloseButton={true}
+            kind="info"
+            title="Read-only"
+            subtitle="The workspace may be inactive or you don’t have the necessary permissions. You can still see what’s going on behind the
+            scenes."
+          />
+        </section>
+      ) : null}
+      <section className={styles.actionsContainer}>
+        <div className={styles.leftActions}>
+          <p className={styles.featureDescription}>
+            The following quotas have been set for the workspace - only administrators have access to adjust these.
+          </p>
+        </div>
+        <div className={styles.rightActions}>
+          <RestoreDefaults workspace={workspace} disabled={!canEdit} />
+        </div>
+      </section>
+      <section className={styles.cardsSection}>
+        <QuotaCard
+          subtitle="Number of Workflows that can be created for this workspace."
+          title="Number of Workflows"
+          modalSubtitle="Set the maximum number of Workflows that can be created for this workspace."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Current Usage"
+          detailedData={formatQuotaUsage(workspace.quotas.currentWorkflowCount, workspace.quotas.maxWorkflowCount)}
+          inputLabel="Maximum Workflows"
+          inputUnits="Workflows"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxWorkflowCount"
+          quotaValue={workspace.quotas.maxWorkflowCount}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowCount, "Workflows")}</h3>
+          {workflowLimitPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxWorkflowCount}
+              value={workflowLimitPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentWorkflowCount}`}</p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Number of executions per month across all Workflows for this Workspace"
+          title="Number of Executions"
+          modalSubtitle="Set the maximum total number of executions per month - this is the total amount across all Workflows for this Workspace."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Current Usage"
+          detailedData={formatQuotaUsage(workspace.quotas.currentRuns, workspace.quotas.maxWorkflowRunMonthly)}
+          inputLabel="Maximum executions"
+          inputUnits="executions"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxWorkflowRunMonthly"
+          quotaValue={workspace.quotas.maxWorkflowRunMonthly}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowRunMonthly, "per month")}</h3>
+          {monthlyExecutionPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxWorkflowRunMonthly}
+              value={monthlyExecutionPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentRuns}`}</p>
+          <p className={styles.detailedSmallText}>
+            Monthly counts include Workflows and runs that have since been deleted.
+          </p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Maximum amount of time that a single Workflow can take for one run (execution)."
+          title="Run Duration"
+          modalSubtitle="Set the maximum amount of run time for a single Workflow."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Current average execution time"
+          detailedData={formatDuration(workspace.quotas.currentRunAverageDuration)}
+          inputLabel="Maximum duration"
+          inputUnits="minutes"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxWorkflowRunDuration"
+          quotaValue={workspace.quotas.maxWorkflowRunDuration}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowRunDuration, "minutes")}</h3>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Max number of Workflows able to run at the same time."
+          title="Concurrent Runs (executions)"
+          modalSubtitle="Set the maximum number of Workflows that are able to run at the same time."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Current number of Concurrent Workflow Runs"
+          detailedData={`${workspace.quotas.currentConcurrentRuns} Workflow Runs`}
+          inputLabel="Maximum concurrent"
+          inputUnits="Workflows"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxConcurrentRuns"
+          quotaValue={workspace.quotas.maxConcurrentRuns}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxConcurrentRuns, "Workflows")}</h3>
+          {concurrentLimitPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxConcurrentRuns}
+              value={concurrentLimitPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentConcurrentRuns}`}</p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Size limit of the shared workspace a workflow can declare for each of its runs."
+          title="Workspace Storage - Per Run"
+          modalSubtitle="Set the size limit of the shared workspace a workflow can declare for each run."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Shared workspace size limit"
+          detailedData={formatQuotaLimit(workspace.quotas.maxWorkspaceStorage, "GB per run")}
+          inputLabel="Storage limit"
+          inputUnits="GB"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxWorkspaceStorage"
+          quotaValue={workspace.quotas.maxWorkspaceStorage}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkspaceStorage, "GB per run")}</h3>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Total size of artifacts a task uploads for this workspace's runs."
+          title="Artifact Storage"
+          modalSubtitle="Set the maximum artifact storage size for this workspace."
+          minValue={1}
+          detailedTitle="Current Usage"
+          detailedData={`${currentArtifactStorageGB.toFixed(2)}GB/${workspace.quotas.maxArtifactStorage}GB`}
+          inputLabel="Maximum storage"
+          inputUnits="GB"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxArtifactStorage"
+          quotaValue={workspace.quotas.maxArtifactStorage}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.maxArtifactStorage}GB`}</h3>
+          <ProgressBar
+            maxValue={workspace.quotas.maxArtifactStorage}
+            value={artifactStoragePercentage}
+            coverageBarStyle={coverageBarStyle}
+          />
+          <p className={styles.detailedSmallText}>{`Current usage: ${currentArtifactStorageGB.toFixed(2)} GB`}</p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Days an artifact is kept after upload"
+          title="Artifact Retention"
+          modalSubtitle="Set the number of days an artifact is kept after upload, after which it expires."
+          minValue={1}
+          detailedTitle="Current Setting"
+          detailedData={`${workspace.quotas.artifactRetentionDays} days`}
+          inputLabel="Retention"
+          inputUnits="days"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="artifactRetentionDays"
+          quotaValue={workspace.quotas.artifactRetentionDays}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {`${workspace.quotas.artifactRetentionDays} days`}</h3>
+        </QuotaCard>
+      </section>
+    </section>
+  );
+}
+
+interface QuotaCardProps {
+  subtitle: boolean;
+  title: string;
+  modalSubtitle: string;
+  detailedData: string;
+  detailedTitle: string;
+  inputLabel: string;
+  inputUnits: string;
+  stepValue: number;
+  workspaceName: string;
+  quotaProperty: string;
+  quotaValue: number;
+  disabled: boolean;
+  minValue: number;
+  helperText?: string;
+}
+
+const QuotaCard: React.FC<QuotaCardProps> = ({
+  children,
+  subtitle,
+  title,
+  modalSubtitle,
+  detailedData,
+  detailedTitle,
+  inputLabel,
+  inputUnits,
+  stepValue,
+  workspaceName,
+  quotaProperty,
+  quotaValue,
+  disabled,
+  minValue,
+  helperText,
+}) => {
+  return (
+    <Tile className={styles.cardContainer}>
+      <section className={styles.titleSection}>
+        <h1 className={styles.title}>{title}</h1>
+        <ComposedModal
+          composedModalProps={{
+            containerClassName: styles.modalContainer,
+          }}
+          modalHeaderProps={{
+            title: title,
+            subtitle: modalSubtitle,
+          }}
+          modalTrigger={({ openModal }: ModalTriggerProps) => (
+            <TooltipHover direction="top" content={"Edit"}>
+              <Button
+                className={styles.editButton}
+                iconDescription="Edit"
+                kind="ghost"
+                onClick={openModal}
+                renderIcon={Edit}
+                size="md"
+                disabled={disabled}
+              />
+            </TooltipHover>
+          )}
+        >
+          {({ closeModal }) => (
+            <QuotaEditModalContent
+              closeModal={closeModal}
+              detailedData={detailedData}
+              detailedTitle={detailedTitle}
+              inputLabel={inputLabel}
+              inputUnits={inputUnits}
+              stepValue={stepValue}
+              workspaceName={workspaceName}
+              quotaProperty={quotaProperty}
+              quotaValue={quotaValue}
+              minValue={minValue}
+              helperText={helperText}
+            />
+          )}
+        </ComposedModal>
+      </section>
+      <h2 className={styles.subtitle}>{subtitle}</h2>
+      <section>{children}</section>
+    </Tile>
+  );
+};
+
+export default Quotas;

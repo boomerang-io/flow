@@ -1,0 +1,120 @@
+package io.boomerang.workspace;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import io.boomerang.workflow.TaskService;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.Task;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+/**
+ * Task-slug uniqueness used to be checked with {@code RelationshipService.check()}, which answers
+ * "may this caller act on this?", not "does this already exist?" - with no principal on the
+ * SecurityContext (as here) it always answers true, so creation failed with TASK_ALREADY_EXISTS
+ * on every single call, whether or not a name actually collided. The fix is a pure existence
+ * lookup: creation must succeed with no collision and still reject a real duplicate, both within
+ * a workspace (WORKSPACETASK) and in the global catalogue (TASK).
+ */
+class WorkspaceTaskUniquenessTest extends AbstractEngineIntegrationTest {
+
+  @Autowired private TaskService taskService;
+  @Autowired private WorkspaceService workspaceService;
+
+  @BeforeEach
+  void seedFixtures() {
+    // TaskService.internalCreate touches the changelog author off the current identity -
+    // a global principal keeps that path populated without needing a workspace membership edge.
+    seedGlobalIdentity();
+  }
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
+
+  @Test
+  void creatingAWorkspaceTaskWithAUniqueNameSucceeds() {
+    String workspace = createWorkspace("task-uniqueness-a");
+
+    Task task = taskService.create(workspace, newTask("unique-team-task"));
+
+    assertNotNull(task);
+    assertEquals("unique-team-task", task.getName());
+  }
+
+  @Test
+  void creatingAWorkspaceTaskWithADuplicateNameInTheSameWorkspaceIsRejected() {
+    String workspace = createWorkspace("task-uniqueness-b");
+    taskService.create(workspace, newTask("duplicate-team-task"));
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () -> taskService.create(workspace, newTask("duplicate-team-task")));
+    assertEquals("TASK_ALREADY_EXISTS", ex.getReason());
+  }
+
+  @Test
+  void creatingAGlobalTaskWithAUniqueNameSucceeds() {
+    Task task = taskService.createGlobal(newTask("unique-global-task"));
+
+    assertNotNull(task);
+    assertEquals("unique-global-task", task.getName());
+  }
+
+  @Test
+  void creatingAGlobalTaskWithADuplicateNameIsRejected() {
+    taskService.createGlobal(newTask("duplicate-global-task"));
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () -> taskService.createGlobal(newTask("duplicate-global-task")));
+    assertEquals("TASK_ALREADY_EXISTS", ex.getReason());
+  }
+
+  private void seedGlobalIdentity() {
+    Token admin = new Token(AuthScope.global);
+    admin.setPrincipal("task-uniqueness-test-principal");
+    // Enforcement is real: a global caller in production always carries a resolved grant set
+    // (TokenService.resolvePermissionsForUser's admin/operator branch, or
+    // UnauthenticatedGlobalToken's **/**) - mirrors AbstractEngineIntegrationTest.
+    admin.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+    Authentication authentication = new UsernamePasswordAuthenticationToken(admin.getPrincipal(), null);
+    ((UsernamePasswordAuthenticationToken) authentication).setDetails(admin);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private String createWorkspace(String name) {
+    WorkspaceRequest request = new WorkspaceRequest();
+    request.setName(name);
+    request.setDisplayName(name);
+    return workspaceService.create(request).getName();
+  }
+
+  private static Task newTask(String name) {
+    Task task = new Task();
+    task.setName(name);
+    task.setType(TaskType.template);
+    task.getSpec().setImage("busybox:latest");
+    task.getSpec().setCommand(List.of("echo"));
+    return task;
+  }
+}

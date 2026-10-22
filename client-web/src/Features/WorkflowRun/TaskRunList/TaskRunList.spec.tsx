@@ -1,0 +1,271 @@
+import React from "react";
+import { screen, fireEvent, within } from "@testing-library/react";
+import { foreachWithoutItemsWorkflowRun, foreachWorkflowRun } from "Utils/testing/fixtures/foreachRun";
+import { renderWithRouter } from "Utils/testing/render";
+import { NodeType } from "Constants";
+import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import ExecutionTaskLog from "./index";
+
+const baseTaskRun = {
+  annotations: { "boomerang.io/position": { x: 0, y: 0 } },
+  duration: 300190,
+  labels: {},
+  params: [],
+  phase: RunPhase.Completed,
+  results: [],
+  retries: 0,
+  spec: {
+    arguments: null,
+    command: null,
+    debug: false,
+    deletion: null,
+    envs: null,
+    image: null,
+    timeout: 0,
+    script: null,
+    workingDir: null,
+  },
+  status: RunStatus.Succeeded,
+  statusMessage: "",
+  taskRef: "515c8b05-ceb0-470a-a58e-b8740b332a6a",
+  timeout: 0,
+  type: "template",
+  workflowRef: "651b91a77fbb1a64ab8b7154",
+  workflowRevisionRef: "651cffa3e99fd73f5122879d",
+  workflowRunRef: "651e4789ab1cb56bc8976ae4",
+  workflowName: "Parameter Resolution Check",
+};
+
+const slackTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2019-09-03T15:00:00.230+0000",
+  id: "5c36289096052900012cc81e",
+  name: "Slack",
+  results: [{ name: "args", description: "", value: "test" }],
+  startTime: "2019-09-03T15:00:00.230+0000",
+};
+
+const emailTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2019-09-03T15:01:00.103+0000",
+  id: "5c3628909605290001dcc81e",
+  name: "Email",
+  startTime: "2019-09-03T15:01:00.103+0000",
+};
+
+// The synthetic graph markers every run carries - see NodeType.Start/End - always bookend the
+// log regardless of sort direction, so they intentionally sit outside the startTime range of
+// slackTask/emailTask above.
+const startTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2019-09-03T14:59:00.000+0000",
+  id: "5c36289096052900012cc800",
+  name: "start",
+  startTime: "2019-09-03T14:59:00.000+0000",
+  type: NodeType.Start,
+};
+
+const endTask: TaskRun = {
+  ...baseTaskRun,
+  creationDate: "2019-09-03T15:02:00.000+0000",
+  id: "5c36289096052900012cc8ff",
+  name: "end",
+  startTime: "2019-09-03T15:02:00.000+0000",
+  type: NodeType.End,
+};
+
+const workflowRun: WorkflowRun = {
+  annotations: {
+    "boomerang.io/task-deletion": "Never",
+    "boomerang.io/task-default-image": "",
+    "boomerang.io/workspace-name": "Workspace",
+    "boomerang.io/kind": "WorkflowRun",
+    "boomerang.io/generation": "1",
+  },
+  awaitingApproval: false,
+  creationDate: "2019-09-03T15:00:00.230+0000",
+  duration: 904934,
+  id: "651e4789ab1cb56bc8976ae4",
+  initiatedByRef: "",
+  labels: {},
+  params: [],
+  phase: RunPhase.Completed,
+  results: [],
+  retries: 0,
+  startTime: "2019-09-03T15:00:00.230+0000",
+  status: RunStatus.Succeeded,
+  statusMessage: "",
+  tasks: [startTask, slackTask, emailTask, endTask],
+  timeout: 0,
+  trigger: "manual",
+  workflowName: "Parameter Resolution Check",
+  workflowRef: "651b91a77fbb1a64ab8b7154",
+  workflowRevisionRef: "651cffa3e99fd73f5122879d",
+  workflowVersion: 1,
+};
+
+const props = {
+  workflowRun,
+  executionViewRedirect: () => {},
+};
+
+describe("ExecutionTaskLog --- Snapshot", () => {
+  it("Capturing Snapshot of ExecutionTaskLog", () => {
+    const { baseElement } = renderWithRouter(<ExecutionTaskLog {...props} />);
+    expect(baseElement).toMatchSnapshot();
+  });
+});
+
+describe("ExecutionTaskLog --- RTL", () => {
+  it("Sort tasks, with START pinned first and END pinned last", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const sortButton = screen.getByTestId("taskbar-button");
+    let taskItems = screen.getAllByTestId("taskitem-name");
+    expect(taskItems).toHaveLength(4);
+    expect(taskItems[0]).toHaveTextContent("start");
+    expect(taskItems[1]).toHaveTextContent("Email");
+    expect(taskItems[2]).toHaveTextContent("Slack");
+    expect(taskItems[3]).toHaveTextContent("end");
+
+    fireEvent.click(sortButton);
+    taskItems = screen.getAllByTestId("taskitem-name");
+    expect(taskItems[0]).toHaveTextContent("start");
+    expect(taskItems[1]).toHaveTextContent("Slack");
+    expect(taskItems[2]).toHaveTextContent("Email");
+    expect(taskItems[3]).toHaveTextContent("end");
+  });
+
+  it("Renders START and END slim - no start time or duration shown", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    // Ordering is asserted separately above - index into the <li> list items directly rather
+    // than walking up from the name node (keeps this Testing-Library-idiomatic).
+    const listItems = screen.getAllByRole("listitem");
+    expect(listItems).toHaveLength(4);
+    const [startItem, emailItem, , endItem] = listItems;
+
+    expect(within(startItem).queryByTestId("taskitem-time")).not.toBeInTheDocument();
+    expect(within(endItem).queryByTestId("taskitem-time")).not.toBeInTheDocument();
+
+    // Normal task entries are unaffected.
+    expect(within(emailItem).getByTestId("taskitem-time")).toHaveTextContent(/^Started at /);
+  });
+});
+
+describe("ExecutionTaskLog --- task log and artifacts switch", () => {
+  it("switches the panel between the task log and the run's artifacts", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Artifacts \(0\)/ }));
+    expect(screen.getByText("No artifacts for this run.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Task log \(\d+\)/ }));
+    expect(screen.queryByText("No artifacts for this run.")).not.toBeInTheDocument();
+  });
+});
+
+describe("ExecutionTaskLog --- for each", () => {
+  const foreachProps = { workflowRun: foreachWorkflowRun, executionViewRedirect: () => {} };
+
+  it("lists a for-each task once, with its items grouped under it", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    const names = screen.getAllByTestId("taskitem-name").map((node) => node.textContent);
+    expect(names).toEqual(["start", "locate", "stage", "end"]);
+    expect(screen.queryByText("locate[0]")).not.toBeInTheDocument();
+  });
+
+  it("summarises the items on the parent's entry", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    // Entries run start, locate, stage, end - see the grouping test above.
+    const [, parent, stage] = screen.getAllByRole("listitem");
+    expect(within(parent).getByText("For each")).toBeInTheDocument();
+    expect(within(parent).getByTestId("foreach-summary")).toHaveTextContent(
+      "3 items · 1 succeeded · 1 running · 1 failed",
+    );
+    // An ordinary task carries neither.
+    expect(within(stage).queryByText("For each")).not.toBeInTheDocument();
+    expect(within(stage).queryByTestId("foreach-summary")).not.toBeInTheDocument();
+  });
+
+  it("expands to each item's index, item, status, failure reason and log", () => {
+    renderWithRouter(<ExecutionTaskLog {...foreachProps} />);
+
+    const parent = screen.getAllByRole("listitem")[1];
+    expect(within(parent).getByTestId("taskitem-name")).toHaveTextContent("locate");
+    expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+    // The parent never ran a pod, so it offers no log of its own.
+    expect(within(parent).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+
+    const toggle = within(parent).getByRole("button", { name: "Show items" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(within(parent).getByRole("button", { name: "Hide items" })).toHaveAttribute("aria-expanded", "true");
+
+    const items = within(parent).getAllByTestId("foreach-item");
+    expect(items).toHaveLength(3);
+    const [first, second, third] = items;
+
+    expect(first).toHaveTextContent("[0]");
+    expect(first).toHaveTextContent("repo-a");
+    expect(within(first).getByText("Succeeded")).toBeInTheDocument();
+    expect(within(first).queryByTestId("foreach-item-reason")).not.toBeInTheDocument();
+
+    expect(second).toHaveTextContent("[1]");
+    expect(within(second).getByText("Running")).toBeInTheDocument();
+
+    expect(third).toHaveTextContent("[2]");
+    expect(third).toHaveTextContent("repo-c");
+    expect(within(third).getByText("Failed")).toBeInTheDocument();
+    expect(within(third).getByTestId("foreach-item-reason")).toHaveTextContent("OOMKilled");
+
+    // Every item here ran, so each has its own log.
+    items.forEach((itemRow) => expect(within(itemRow).getByRole("button", { name: "View Log" })).toBeInTheDocument());
+
+    fireEvent.click(within(parent).getByRole("button", { name: "Hide items" }));
+    expect(within(parent).queryAllByTestId("foreach-item")).toHaveLength(0);
+  });
+});
+
+describe("ExecutionTaskLog --- a for-each task with no items", () => {
+  // Neither parent has item task runs, so only the workflow definition says they are for-each.
+  const props = {
+    workflowRun: foreachWithoutItemsWorkflowRun,
+    executionViewRedirect: () => {},
+    foreachTaskNames: new Set(["scan", "fetch"]),
+  };
+
+  function entry(name: string) {
+    return screen.getAllByRole("listitem").find((item) => within(item).queryByText(name)) as HTMLElement;
+  }
+
+  it("marks a parent whose items were empty as for-each, with 0 items and no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const scan = entry("scan");
+    expect(within(scan).getByText("For each")).toBeInTheDocument();
+    expect(within(scan).getByTestId("foreach-summary")).toHaveTextContent("0 items");
+    expect(within(scan).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+    expect(within(scan).queryByRole("button", { name: "Show items" })).not.toBeInTheDocument();
+  });
+
+  it("shows why a parent failed before fanning out, with no log", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const fetch = entry("fetch");
+    expect(within(fetch).getByText("For each")).toBeInTheDocument();
+    expect(within(fetch).getByTestId("foreach-summary")).toHaveTextContent(
+      "The for-each items did not resolve to a JSON array.",
+    );
+    expect(within(fetch).queryByRole("button", { name: "View Log" })).not.toBeInTheDocument();
+  });
+
+  it("treats the same task runs as plain tasks when the workflow does not define them as for-each", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} foreachTaskNames={new Set()} />);
+
+    expect(within(entry("fetch")).queryByText("For each")).not.toBeInTheDocument();
+    expect(within(entry("fetch")).getByRole("button", { name: "View Log" })).toBeInTheDocument();
+  });
+});

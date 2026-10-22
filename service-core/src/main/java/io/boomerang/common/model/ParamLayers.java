@@ -1,0 +1,189 @@
+package io.boomerang.common.model;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
+
+/*
+ * Holds the Param Layers to be built up and resolved
+ * 
+ * CAUTION: tightly coupled between Engine and Workflow services
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class ParamLayers {
+  private static final Logger LOGGER = LogManager.getLogger();
+
+  /** Scope prefix for workspace parameters: {@code $(workspace.params.name)}. */
+  public static final String WORKSPACE_SCOPE = "workspace";
+
+  /**
+   * The pre-rename prefix, {@code $(team.params.name)}: still resolved, deprecated, and removed in the
+   * next major version.
+   */
+  public static final String DEPRECATED_WORKSPACE_SCOPE = "team";
+
+  @JsonIgnore
+  private Map<String, Object> contextParams = new HashMap<>();
+
+  @JsonIgnore
+  private Map<String, Object> globalParams = new HashMap<>();
+
+  @JsonIgnore
+  private Map<String, Object> workspaceParams = new HashMap<>();
+
+  @JsonIgnore
+  private Map<String, Object> workflowParams = new HashMap<>();
+
+  @JsonIgnore
+  private Map<String, Object> taskParams = new HashMap<>();
+
+  // The names of the password-typed global and workspace parameters: their values are secrets, so
+  // a string param that takes one in becomes a secret (ParameterManager).
+  @JsonIgnore
+  private Set<String> secretGlobalParams = new HashSet<>();
+
+  @JsonIgnore
+  private Set<String> secretWorkspaceParams = new HashSet<>();
+
+  @JsonIgnore
+  public Set<String> getSecretGlobalParams() {
+    return secretGlobalParams;
+  }
+
+  public void setSecretGlobalParams(Set<String> secretGlobalParams) {
+    this.secretGlobalParams = secretGlobalParams;
+  }
+
+  @JsonIgnore
+  public Set<String> getSecretWorkspaceParams() {
+    return secretWorkspaceParams;
+  }
+
+  public void setSecretWorkspaceParams(Set<String> secretWorkspaceParams) {
+    this.secretWorkspaceParams = secretWorkspaceParams;
+  }
+
+  @JsonIgnore
+  public Map<String, Object> getTaskParams() {
+    return taskParams;
+  }
+
+  public void setTaskParams(Map<String, Object> taskInputProperties) {
+    this.taskParams = taskInputProperties;
+  }
+
+  public Map<String, Object> getGlobalParams() {
+    return globalParams;
+  }
+
+  public void setGlobalParams(Map<String, Object> globalProperties) {
+    this.globalParams = globalProperties;
+  }
+
+  public Map<String, Object> getContextParams() {
+    return contextParams;
+  }
+
+  public void setContextParams(Map<String, Object> contextParams) {
+    this.contextParams = contextParams;
+  }
+
+  public Map<String, Object> getWorkspaceParams() {
+    return workspaceParams;
+  }
+
+  public void setWorkspaceParams(Map<String, Object> workspaceParams) {
+    this.workspaceParams = workspaceParams;
+  }
+
+  public Map<String, Object> getWorkflowParams() {
+    return workflowParams;
+  }
+
+  public void setWorkflowParams(Map<String, Object> workflowProperties) {
+    this.workflowParams = workflowProperties;
+  }
+
+  @JsonAnyGetter
+  public Map<String, Object> getFlatMap() {
+
+    Map<String, Object> finalProperties = new TreeMap<>();
+    copyFlatParams(globalParams, finalProperties, "global");
+    copyFlatParams(workspaceParams, finalProperties, WORKSPACE_SCOPE);
+    // Deprecated spelling of the workspace scope, still resolved until the next major version.
+    copyFlatParams(workspaceParams, finalProperties, DEPRECATED_WORKSPACE_SCOPE);
+    copyFlatParams(workflowParams, finalProperties, "workflow");
+    copyFlatParams(taskParams, finalProperties, null);
+    copyFlatParams(contextParams, finalProperties, "context");
+
+    return finalProperties;
+  }
+
+  private void copyFlatParams(Map<String, Object> source, Map<String, Object> target, String prefix) {
+    for (Entry<String, Object> entry : source.entrySet()) {
+      LOGGER.debug("Parameter: {}", entry.getKey());
+      String key = entry.getKey();
+      Object value = entry.getValue();
+      if (value != null) {
+        if (prefix != null) {
+          target.put(prefix + ".params." + key, value);
+        }
+        target.put("params." + key, value);
+      }
+    }
+  }
+
+  @JsonAnyGetter
+  public List<String> getFlatKeys() {
+    HashSet<String> keys = new HashSet<>();
+    copyFlatKeys(globalParams, keys, "global");
+    // Suggest only the current spelling; team.params still resolves but is not offered.
+    copyFlatKeys(workspaceParams, keys, WORKSPACE_SCOPE);
+    copyFlatKeys(workflowParams, keys, "workflow");
+    copyFlatKeys(taskParams, keys, null);
+    copyFlatKeys(contextParams, keys, "context");
+
+    return new ArrayList<String>(keys);
+  }
+
+  private void copyFlatKeys(Map<String, Object> source, HashSet<String> target, String prefix) {
+    for (Entry<String, Object> entry : source.entrySet()) {
+      LOGGER.debug("Parameter: {}", entry.getKey());
+      String key = entry.getKey();
+      Object value = entry.getValue();
+      if (value != null) {
+        if (prefix != null) {
+          target.add(prefix + ".params." + key);
+        }
+        target.add("params." + key);
+      }
+    }
+  }
+
+  @Override
+  public String toString() {
+    ObjectMapper mapper =
+        JsonMapper.builder().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS).build();
+    String jsonResult;
+    try {
+      jsonResult = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(this);
+    } catch (JacksonException e) {
+      return "";
+    }
+    return jsonResult;
+  }
+}

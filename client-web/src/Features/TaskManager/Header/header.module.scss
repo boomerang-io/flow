@@ -1,0 +1,133 @@
+@import "Styles/mixins";
+
+.featureHeader {
+  width: 100%;
+}
+
+.footer {
+  align-items: stretch;
+  display: flex;
+}
+
+.saveContainer {
+  max-height: 33rem;
+}
+
+.confirmModalText {
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+.saveConfirmModalText {
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  width: 36rem;
+}
+
+.archivedTag {
+  background-color: var(--cds-icon-02);
+  color: var(--cds-ui-02);
+  margin-left: 1rem !important;
+  svg {
+    fill: var(--cds-ui-02);
+  }
+}
+// On the tab row, as in the workflow editor.
+.buttons {
+  align-items: center;
+  display: flex;
+  flex-grow: 1;
+  height: 2.5rem;
+  justify-content: flex-end;
+  > * {
+    margin-left: 0.5rem;
+  }
+}
+
+.iconOnlyTooltip {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.archiveContainer {
+  height: 25rem !important;
+  width: 30rem !important;
+}
+
+.copyButton {
+  //width: 12.8125rem;
+}
+
+.mainActionButton {
+  width: 7.75rem;
+}
+
+// Row 1 of the page header, where other pages carry their breadcrumb.
+.category {
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin: 0 0 0.125rem;
+}
+
+.taskName {
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 2.25rem;
+  margin: 0rem;
+  @include text-overflow-ellipsis();
+}
+.infoContainer {
+  align-items: center;
+  display: flex;
+  height: 2.25rem;
+  justify-content: flex-start;
+  width: 100%;
+  :global .cds--assistive-text {
+    left: -2rem !important;
+  }
+}
+.info {
+  align-items: center;
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+.icon {
+  height: 1.5rem;
+  margin-right: 0.75rem;
+}
+.content {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+}
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 2rem;
+  margin: 0;
+}
+.subtitle {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.5rem;
+}
+
+.exportYaml {
+  align-items: center;
+  color: var(--cds-text-01);
+  cursor: pointer;
+  display: flex !important;
+  justify-content: center;
+  margin-left: 0.5rem;
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.lastUpdate {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  margin: 0 0 0 1rem;
+  white-space: nowrap;
+}

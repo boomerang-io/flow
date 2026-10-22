@@ -18,5 +18,5 @@ otherwise.
 
 ## Scope
 
-The `boomerang-io/flow` monorepo (service-core, service-dispatcher, service-loader, client-web) and the images
+The `boomerang-io/flow` monorepo (service-core, dispatcher-sdk, service-dispatcher, client-web) and the images
 built from it. Container-image CVEs are tracked by the SBOM pipeline (`.github/workflows/sbom.yml`).

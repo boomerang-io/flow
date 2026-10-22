@@ -1,0 +1,458 @@
+package io.boomerang.workflow;
+
+import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.common.enums.ActionStatus;
+import io.boomerang.common.enums.ActionType;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.QueryCriteria;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.UserService;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.User;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
+import io.boomerang.workflow.model.Action;
+import io.boomerang.workflow.model.ActionRequest;
+import io.boomerang.workflow.model.ActionSummary;
+import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.workspace.repository.ApproverGroupRepository;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.support.PageableExecutionUtils;
+import org.springframework.stereotype.Service;
+
+/**
+ * The Action (approval / manual task) domain service.
+ *
+ * <p>Despite its former name and package this was never an {@code api} pass-through: it owns the
+ * Action collection outright - {@code action} runs the approver-group and quorum logic and ends the
+ * blocked TaskRun, {@code query}/{@code summary} build their own Mongo criteria, and there is no
+ * {@code engine} service underneath it to delegate to. F3 moved it to the feature package it
+ * belongs to and gave it the plain domain name the house convention asks for
+ * ({@code <Name>Service}); its behaviour, its signatures and its authorization are unchanged.
+ *
+ * <p>Every operation is workspace-scoped ({@code action}/{@code query}/{@code summary} take the
+ * {@code /api/v2/workspace/&#123;workspace&#125;/action} path segment) except the
+ * {@link WorkflowService#delete} cascade, which calls {@code ActionRepository} directly.
+ */
+@Service
+public class ActionService {
+
+  private static final Logger LOGGER = LogManager.getLogger();
+
+  private final ActionRepository actionRepository;
+  private final ApproverGroupRepository approverGroupRepository;
+  private final TaskRunService engineTaskRunService;
+  private final WorkflowService workflowService;
+  private final WorkflowRunService workflowRunService;
+  private final RelationshipService relationshipService;
+  private final UserService userService;
+  private final IdentityService identityService;
+  private final MongoTemplate mongoTemplate;
+
+  public ActionService(
+      ActionRepository actionRepository,
+      ApproverGroupRepository approverGroupRepository,
+      TaskRunService engineTaskRunService,
+      WorkflowService workflowService,
+      WorkflowRunService workflowRunService,
+      RelationshipService relationshipService,
+      UserService userService,
+      IdentityService identityService,
+      MongoTemplate mongoTemplate) {
+    this.actionRepository = actionRepository;
+    this.approverGroupRepository = approverGroupRepository;
+    this.engineTaskRunService = engineTaskRunService;
+    this.workflowService = workflowService;
+    this.workflowRunService = workflowRunService;
+    this.relationshipService = relationshipService;
+    this.userService = userService;
+    this.identityService = identityService;
+    this.mongoTemplate = mongoTemplate;
+  }
+
+  /*
+   * Updates / Processes an Action
+   *
+   * TODO: at this point in time, only users can process Actions even though we have an API that
+   * allows it. Once fixed will need to adjust the token scope on the Controller
+   */
+  public void action(String workspace, List<ActionRequest> requests) {
+    for (ActionRequest request : requests) {
+      Optional<ActionEntity> optActionEntity = this.actionRepository.findById(request.getId());
+      if (!optActionEntity.isPresent()) {
+        throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+      }
+
+      ActionEntity actionEntity = optActionEntity.get();
+      if (actionEntity.getActioners() == null) {
+        actionEntity.setActioners(new LinkedList<>());
+      }
+
+      // Check if requester has access to the Workflow the Action Entity belongs to
+      if (!relationshipService.check(
+          RelationshipType.WORKFLOW,
+          actionEntity.getWorkflowRef(),
+          Optional.empty(),
+          Optional.empty())) {
+        throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+      }
+
+      boolean canBeActioned = false;
+      UserEntity userEntity = userService.getCurrentUser();
+      if (actionEntity.getType() == ActionType.manual) {
+        // Manual tasks only require a single yes or no
+        canBeActioned = true;
+      } else if (actionEntity.getType() == ActionType.approval) {
+        if (actionEntity.getApproverGroupRef() != null) {
+          List<String> approverGroupRefs =
+              relationshipService.filter(
+                  RelationshipType.APPROVERGROUP,
+                  Optional.of(List.of(actionEntity.getApproverGroupRef())),
+                  Optional.of(RelationshipType.WORKSPACE),
+                  Optional.of(List.of(workspace)));
+          if (approverGroupRefs.isEmpty()) {
+            throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
+          }
+          Optional<ApproverGroupEntity> approverGroupEntity =
+              approverGroupRepository.findById(actionEntity.getApproverGroupRef());
+          if (approverGroupEntity.isEmpty()) {
+            throw new BoomerangException(BoomerangError.ACTION_INVALID_APPROVERGROUP);
+          }
+          // RULED (2026-09-02, maintainer): a group approval is a membership test, and only
+          // named members pass it. A machine token (key/global - resolves no user record) is
+          // denied; an automation that must approve is given a real user identity and placed IN
+          // the group, mirroring GitHub's protection-rule model. Note security-off is NOT this
+          // branch: it resolves the synthetic admin user, which is non-null and simply not a
+          // member. Manual tasks and group-less approvals are deliberately unchanged - they are
+          // completion claims, not accountability controls.
+          boolean partOfGroup =
+              userEntity != null
+                  && approverGroupEntity.get().getApprovers().contains(userEntity.getId());
+          if (partOfGroup) {
+            canBeActioned = true;
+          }
+        } else {
+          canBeActioned = true;
+        }
+      }
+
+      if (canBeActioned) {
+        Actioner actioner = new Actioner();
+        actioner.setDate(new Date());
+        // Every decision records SOME actor: the user's id, or - for a machine token on the
+        // still-open manual/group-less paths - the token's own name/principal, so no action ever
+        // lands unattributed (Temporal's capture-approver-metadata norm).
+        if (userEntity != null) {
+          actioner.setApproverId(userEntity.getId());
+        } else {
+          Token machineIdentity = identityService.getCurrentIdentity();
+          actioner.setApproverId(
+              machineIdentity == null
+                  ? null
+                  : (machineIdentity.getName() != null && !machineIdentity.getName().isBlank()
+                      ? machineIdentity.getName()
+                      : machineIdentity.getPrincipal()));
+        }
+        actioner.setComments(request.getComments());
+        actioner.setApproved(request.isApproved());
+        // Appended in place while the action is open, so each decision is kept until enough have
+        // been made and two approvers acting together both count. A decided action takes no more.
+        actionEntity =
+            mongoTemplate.findAndModify(
+                Query.query(
+                    Criteria.where("_id")
+                        .is(actionEntity.getId())
+                        .and("status")
+                        .is(ActionStatus.submitted)
+                        // At most the required number land, so approvers acting together can
+                        // never push the count past it and read as a rejection.
+                        .and("actioners." + (Math.max(actionEntity.getNumberOfApprovers(), 1) - 1))
+                        .exists(false)),
+                new Update().push("actioners", actioner),
+                FindAndModifyOptions.options().returnNew(true),
+                ActionEntity.class);
+        if (actionEntity == null) {
+          throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
+        }
+      }
+
+      int numberApprovals = actionEntity.getNumberOfApprovers();
+      long approvedCount = actionEntity.getActioners().stream().filter(x -> x.isApproved()).count();
+      long numberOfActioners = actionEntity.getActioners().size();
+
+      if (numberOfActioners >= numberApprovals) {
+        boolean approved = false;
+        if (approvedCount == numberApprovals) {
+          approved = true;
+        }
+        actionEntity.setStatus(approved ? ActionStatus.approved : ActionStatus.rejected);
+        try {
+          TaskRunEndRequest endRequest = new TaskRunEndRequest();
+          endRequest.setStatus(approved ? RunStatus.succeeded : RunStatus.failed);
+          if (actionEntity.getType() == ActionType.approval) {
+            endRequest.setResults(approvalResults(actionEntity));
+          }
+          engineTaskRunService.end(actionEntity.getTaskRunRef(), Optional.ofNullable(endRequest));
+        } catch (BoomerangException e) {
+          throw new BoomerangException(BoomerangError.ACTION_UNABLE_TO_ACTION);
+        }
+        // The status alone, so a decision landing alongside is never overwritten.
+        mongoTemplate.updateFirst(
+            Query.query(Criteria.where("_id").is(actionEntity.getId())),
+            Update.update("status", actionEntity.getStatus()),
+            ActionEntity.class);
+      }
+    }
+  }
+
+  /*
+   * The results the approval task declares: the outcome, and the date, approver and comments of
+   * the last actioner - the one whose action decided it. An approver that resolves to no user (a
+   * machine token) is named by its recorded id and has no email.
+   */
+  private List<RunResult> approvalResults(ActionEntity actionEntity) {
+    List<RunResult> results =
+        new LinkedList<>(List.of(new RunResult("approvalStatus", actionEntity.getStatus().name())));
+    if (actionEntity.getActioners().isEmpty()) {
+      return results;
+    }
+    Actioner decider = actionEntity.getActioners().getLast();
+    Optional<User> user =
+        (decider.getApproverId() != null)
+            ? userService.getUserByID(decider.getApproverId())
+            : Optional.empty();
+    results.add(
+        new RunResult(
+            "approvalDate",
+            (decider.getDate() != null) ? decider.getDate().toInstant().toString() : ""));
+    results.add(
+        new RunResult(
+            "approvalUserName",
+            user.map(User::getName).orElse(Objects.toString(decider.getApproverId(), ""))));
+    results.add(new RunResult("approvalUserEmail", user.map(User::getEmail).orElse("")));
+    results.add(new RunResult("approvalComments", Objects.toString(decider.getComments(), "")));
+    return results;
+  }
+
+  private Action convertToAction(ActionEntity actionEntity) {
+    Action action = new Action(actionEntity);
+    action.setInstructions(filterSensitiveValues(actionEntity));
+
+    action.setApprovalsRequired(actionEntity.getNumberOfApprovers());
+
+    if (actionEntity.getActioners() != null) {
+      long aprovalCount = actionEntity.getActioners().stream().filter(x -> x.isApproved()).count();
+
+      action.setNumberOfApprovals(aprovalCount);
+      for (Actioner audit : actionEntity.getActioners()) {
+        Optional<User> user = userService.getUserByID(audit.getApproverId());
+        if (user.isPresent()) {
+          audit.setApproverName(user.get().getName());
+          audit.setApproverEmail(user.get().getEmail());
+        }
+      }
+      action.setActioners(actionEntity.getActioners());
+    }
+
+    Workflow workflow =
+        workflowService
+            .get(actionEntity.getWorkflowRef(), Optional.empty(), false)
+            .getBody();
+    // #378: the Actions table must show the Workflow's display name, resolved fresh at
+    // retrieval (never stored on ActionEntity) because it can change after the Action is
+    // created. Fall back to the slug-like name when displayName is blank.
+    String displayName = workflow.getDisplayName();
+    action.setWorkflowName(
+        displayName != null && !displayName.isBlank() ? displayName : workflow.getName());
+    // The owning Workspace is resolved fresh from the relationship graph (never stored on
+    // ActionEntity); its slug is the name the webapp displays and routes on.
+    String workspaceRef =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW,
+            RelationshipType.WORKFLOW,
+            actionEntity.getWorkflowRef());
+    if (workspaceRef != null && !workspaceRef.isBlank()) {
+      action.setWorkspaceName(
+          relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspaceRef));
+    }
+    try {
+      TaskRun taskRun = engineTaskRunService.get(actionEntity.getTaskRunRef()).getBody();
+      action.setTaskName(taskRun.getName());
+    } catch (BoomerangException e) {
+      LOGGER.error(
+          "convertToAction() - Skipping specific TaskRun as not available. Most likely bad data");
+    }
+
+    return action;
+  }
+
+  /*
+   * A manual action's instructions are its task's resolved `instructions` param, so a reference
+   * to a secret - $(params.dbPassword) - is stored with the value in place. They are scrubbed on
+   * every read with the values the task log stream is scrubbed with
+   * (WorkflowRunService.taskRunSensitiveValues). Instructions that take in a secret are themselves
+   * secret-typed, so their whole text is among those values; it is left out when a secret inside
+   * it is scrubbed anyway, so the reader sees the instructions with only the secret hidden.
+   */
+  private String filterSensitiveValues(ActionEntity actionEntity) {
+    String instructions = actionEntity.getInstructions();
+    if (instructions == null
+        || instructions.isBlank()
+        || actionEntity.getWorkflowRunRef() == null) {
+      return instructions;
+    }
+    Set<String> secrets =
+        new HashSet<>(workflowRunService.taskRunSensitiveValues(actionEntity.getWorkflowRunRef()));
+    if (secrets.stream()
+        .anyMatch(
+            secret ->
+                !secret.equals(instructions)
+                    && secret.length() >= DataAdapterUtil.MIN_SCRUB_LENGTH
+                    && instructions.contains(secret))) {
+      secrets.remove(instructions);
+    }
+    return DataAdapterUtil.scrubString(instructions, secrets);
+  }
+
+  public Action get(String workspace, String id) {
+    Optional<ActionEntity> actionEntity = this.actionRepository.findById(id);
+    if (actionEntity.isEmpty()) {
+      throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+    }
+    // Same scoping as action(): the caller must reach the Action's Workflow. The refusal is the
+    // same error as not-found, so the response does not disclose whether the id exists.
+    // Ruled (2026-09-02): Actions stay OUTSIDE the relationship graph - they scope through
+    // their parent by reference (workflowRef + this one check() hop), never by their own node.
+    if (!relationshipService.check(
+        RelationshipType.WORKFLOW,
+        actionEntity.get().getWorkflowRef(),
+        Optional.empty(),
+        Optional.empty())) {
+      throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
+    }
+    return this.convertToAction(actionEntity.get());
+  }
+
+  public Page<Action> query(
+      String workspace,
+      Optional<Date> from,
+      Optional<Date> to,
+      Pageable pageable,
+      Optional<List<ActionType>> queryTypes,
+      Optional<List<ActionStatus>> queryStatus,
+      Optional<List<String>> queryWorkflows) {
+
+    // Get Refs that request has access to
+    List<String> workflowRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, queryWorkflows);
+    if (workflowRefs == null || workflowRefs.size() == 0) {
+      return Page.empty();
+    }
+
+    Criteria criteria =
+        buildCriteriaList(from, to, Optional.of(workflowRefs), queryTypes, queryStatus);
+    Query query = new Query(criteria).with(pageable);
+
+    List<ActionEntity> actionEntities =
+        mongoTemplate.find(query.with(pageable), ActionEntity.class);
+
+    List<Action> actions = new LinkedList<>();
+    actionEntities.forEach(
+        a -> {
+          actions.add(this.convertToAction(a));
+        });
+
+    Page<Action> pages =
+        PageableExecutionUtils.getPage(
+            actions,
+            pageable,
+            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), ActionEntity.class));
+
+    return pages;
+  }
+
+  /**
+   * Counts of approval and manual actions in a workspace, by default those waiting ({@code submitted}),
+   * or those in {@code statuses}; and the approval rate: approved as a share of decided approvals.
+   */
+  public ActionSummary summary(
+      String workspace,
+      Optional<Date> fromDate,
+      Optional<Date> toDate,
+      Optional<List<String>> queryWorkflows,
+      Optional<List<ActionStatus>> statuses) {
+    ActionSummary summary = new ActionSummary();
+    List<String> workflowRefs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, queryWorkflows);
+    if (workflowRefs == null || workflowRefs.size() == 0) {
+      return summary;
+    }
+    Optional<List<String>> inWorkspace = Optional.of(workflowRefs);
+    List<ActionStatus> counted =
+        statuses.filter(list -> !list.isEmpty()).orElse(List.of(ActionStatus.submitted));
+    summary.setApprovals(count(ActionType.approval, counted, fromDate, toDate, inWorkspace));
+    summary.setManual(count(ActionType.manual, counted, fromDate, toDate, inWorkspace));
+
+    long approved =
+        count(ActionType.approval, List.of(ActionStatus.approved), fromDate, toDate, inWorkspace);
+    long rejected =
+        count(ActionType.approval, List.of(ActionStatus.rejected), fromDate, toDate, inWorkspace);
+    long decided = approved + rejected;
+    summary.setApprovalsRate(decided == 0 ? 0 : Math.round(approved * 100.0 / decided));
+    return summary;
+  }
+
+  private long count(
+      ActionType type,
+      List<ActionStatus> statuses,
+      Optional<Date> from,
+      Optional<Date> to,
+      Optional<List<String>> workflowRefs) {
+    Criteria criteria =
+        this.buildCriteriaList(
+            from, to, workflowRefs, Optional.of(List.of(type)), Optional.of(statuses));
+    return mongoTemplate.count(new Query(criteria), ActionEntity.class);
+  }
+
+  private Criteria buildCriteriaList(
+      Optional<Date> from,
+      Optional<Date> to,
+      Optional<List<String>> workflowRefs,
+      Optional<List<ActionType>> type,
+      Optional<List<ActionStatus>> status) {
+    return new QueryCriteria()
+        .between("creationDate", from, to)
+        .in("workflowRef", workflowRefs)
+        .in("type", type)
+        .in("status", status)
+        .build();
+  }
+
+}

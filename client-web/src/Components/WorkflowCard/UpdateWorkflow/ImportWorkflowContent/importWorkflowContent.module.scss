@@ -1,0 +1,23 @@
+.validMessage {
+  align-items: center;
+  display: flex;
+  margin-top: 1rem;
+}
+.message {
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
+}
+.successIcon {
+  height: 1.25rem;
+  width: 1.25rem;
+  path {
+    fill: var(--cds-support-02);
+  }
+}
+.errorIcon {
+  height: 1.25rem;
+  width: 1.25rem;
+  path {
+    fill: var(--cds-support-01);
+  }
+}

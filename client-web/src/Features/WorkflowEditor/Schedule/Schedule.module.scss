@@ -1,0 +1,12 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+
+.panelContainer {
+  margin-top: 12.125rem;
+}

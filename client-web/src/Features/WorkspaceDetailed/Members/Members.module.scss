@@ -1,0 +1,100 @@
+.container {
+  padding: 1.5rem 2rem;
+
+  :global .cds--bmrg-error-page {
+    width: 100%;
+  }
+
+  :global .cds--structured-list {
+    max-width: 100rem;
+  }
+
+  :global .cds--structured-list-td {
+    line-height: 1rem;
+    padding: 1rem 1rem;
+  }
+}
+
+.manageOwnershipCell {
+  position: relative;
+
+  :global .cds--dropdown__wrapper--inline {
+    position: absolute;
+    top: 0.5rem;
+  }
+}
+
+.actionsContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  width: 100%;
+
+  :global .cds--search {
+    max-width: 24rem;
+  }
+}
+
+.leftActions {
+  min-width: 24rem;
+}
+
+.memberCountText {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.featureDescription {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 1.375rem;
+}
+
+.roleTrigger {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  letter-spacing: 0.16px;
+  font-weight: 600;
+
+  :global .cds--tooltip__trigger {
+    margin-left: 0.5rem;
+  }
+}
+
+.memberNameContainer {
+  align-items: center;
+  display: flex;
+
+  :global .cds--bmrg-avatar {
+    margin-right: 1rem;
+    position: absolute;
+    path {
+      fill: var(--cds-text-01);
+    }
+  }
+
+  p {
+    color: var(--cds-text-01);
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+  }
+
+  svg {
+    fill: var(--cds-support-02);
+  }
+}
+
+.viewMemberLink {
+  color: var(--cds-interactive-01);
+  font-size: 0.75rem;
+}
+
+.rightActions {
+  display: flex;
+  gap: 1rem;
+}

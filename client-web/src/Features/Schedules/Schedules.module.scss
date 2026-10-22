@@ -1,0 +1,59 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.headerTitle {
+  margin: 0;
+}
+
+.headerSummary {
+  align-items: flex-end;
+  display: flex;
+  flex-flow: row wrap;
+  margin: 0.5rem 0;
+}
+
+.headerSummaryText {
+  color: var(--cds-text-01);
+  font-size: 1.25rem;
+  font-weight: 300;
+  line-height: 1.5625rem;
+}
+
+.headerSummarySkeleton {
+  width: 25rem;
+  height: 4rem;
+}
+
+.content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dataFiltersContainer {
+  margin-left: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 1rem;
+  margin-left: auto;
+  flex > * + * {
+    margin-left: 1.4rem;
+  }
+}
+
+.dataFilter {
+  width: 15.875rem;
+}
+
+.contentContainer {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+
+.panelContainer {
+  margin-top: 10.875rem;
+  height: calc(100vh - 10.875rem);
+}

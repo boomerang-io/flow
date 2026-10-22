@@ -626,7 +626,8 @@ BenchmarkDotNet.Artifacts/
 # .NET Core
 project.lock.json
 project.fragment.lock.json
-artifacts/
+# Anchored: unanchored, it also matched source folders named Artifacts on case-insensitive checkouts.
+/artifacts/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -941,3 +942,9 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/git,osx,java,linux,macos,maven,eclipse,windows,intellij,jetbrains,jdeveloper,sublimetext,intellij+all,intellij+iml,visualstudio,visualstudiocode
+# The Visual Studio [Rr]elease/ build-output pattern above must not swallow the release skill.
+!.claude/skills/release/
+!.claude/skills/release/**
+
+# Generated kubeconfig for the local dispatcher (the service-dispatcher service in docker-compose.yml)
+docker/kube/config

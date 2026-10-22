@@ -1,0 +1,81 @@
+import React from "react";
+import { Calendar, CalendarProps, EventProps, Event, momentLocalizer } from "react-big-calendar";
+import { TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
+import moment from "moment";
+import { scheduleStatusLabelMap } from "Constants";
+import { CircleFilled, RadioButton } from "@carbon/react/icons";
+import { CalendarEvent } from "Types";
+import styles from "./ScheduleCalendar.module.scss";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import "./big-calendar.scss";
+
+const localizer = momentLocalizer(moment);
+
+interface ScheduleCalendarProps extends Omit<CalendarProps, "localizer"> {
+  events: Array<CalendarEvent>;
+  heightOffset?: number;
+  [key: string]: any;
+}
+
+export default function ScheduleCalendar(props: ScheduleCalendarProps) {
+  const { heightOffset = 260 } = props;
+  // The server has no window: render at a default height, then size to the viewport on mount.
+  const [height, setHeight] = React.useState(
+    (typeof window !== "undefined" ? window.innerHeight : 900) - heightOffset,
+  );
+
+  React.useEffect(() => {
+    function updateSize() {
+      setHeight(window.innerHeight - heightOffset);
+    }
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [heightOffset]);
+
+  return (
+    <Calendar<CalendarEvent>
+      popup
+      selectable
+      // @ts-ignore
+      components={{ event: CustomEvent }}
+      drilldownView="agenda"
+      // @ts-ignore
+      localizer={localizer}
+      length={30}
+      messages={{ noEventsInRange: "No runs scheduled in this period." }}
+      style={{ height }}
+      toolbar={false}
+      views={["month", "week", "agenda"]}
+      eventPropGetter={() => ({
+        className: styles.event,
+      })}
+      {...props}
+    />
+  );
+}
+
+interface LocalEventProps extends EventProps<Event> {
+  event: CalendarEvent;
+}
+
+function CustomEvent(props: LocalEventProps) {
+  const { event } = props;
+  const schedule = event.resource;
+  const hour = moment(event.start).format("h:mm a");
+  return (
+    <button className={styles.eventContentContainer} data-status={schedule.status} onClick={event.onClick}>
+      <TooltipHover direction="top" tooltipText={scheduleStatusLabelMap[schedule.status] ?? "---"}>
+        {schedule.status === "inactive" ? (
+          <RadioButton className={styles.statusCircle} data-status={schedule.status} />
+        ) : (
+          <CircleFilled className={styles.statusCircle} data-status={schedule.status} />
+        )}
+      </TooltipHover>
+      <span>
+        <b>{event.title}</b>
+      </span>
+      <span>{hour}</span>
+    </button>
+  );
+}

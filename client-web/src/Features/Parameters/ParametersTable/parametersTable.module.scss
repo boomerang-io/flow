@@ -1,0 +1,41 @@
+.tableContainer {
+  margin: 1.5rem;
+
+  :global .cds--pagination__control-buttons {
+    z-index: 1;
+  }
+}
+
+.table {
+  td {
+    vertical-align: middle;
+  }
+}
+
+// Name first, in the monospace tasks type it in; the free text columns take what's left.
+.name {
+  font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
+  font-size: 0.8125rem;
+}
+
+.value,
+.text {
+  display: block;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.none {
+  color: var(--cds-text-placeholder);
+}
+
+.tag {
+  width: 7rem;
+}
+
+.actions {
+  text-align: right;
+  width: 3rem;
+}

@@ -1,0 +1,46 @@
+package io.boomerang.core.enums;
+
+import java.util.HashMap;
+import java.util.Map;
+
+// The former TEAM type is labelled "workspace". No stored rel_nodes/rel_edges "type" value says
+// "team": the migrations write workspace nodes from the start (_0004__SeedSystemWorkspace,
+// _0013__V3BuildRelationshipGraph), so there is no "team" input alias.
+// WORKSPACETASK is a task scoped to a workspace; TASK is one in the global catalogue under root.
+// Databases from before the rename stored "teamtask": _0027__RenameWorkspaceTaskNodes moves them.
+public enum RelationshipType {
+  ROOT("root"),
+  WORKSPACE("workspace"),
+  USER("user"),
+  WORKFLOW("workflow"),
+  WORKFLOWRUN("workflowrun"),
+  APPROVERGROUP("approvergroup"),
+  //  TEMPLATE("template"),
+  //  TOKEN("token"),
+  INTEGRATION("integration"),
+  SCHEDULE("schedule"),
+  WORKSPACETASK("workspacetask"),
+  TASK("task");
+
+  private String label;
+
+  private static final Map<String, RelationshipType> BY_LABEL = new HashMap<>();
+
+  RelationshipType(String label) {
+    this.label = label;
+  }
+
+  public String getLabel() {
+    return label;
+  }
+
+  static {
+    for (RelationshipType e : values()) {
+      BY_LABEL.put(e.label, e);
+    }
+  }
+
+  public static RelationshipType valueOfLabel(String label) {
+    return BY_LABEL.get(label);
+  }
+}

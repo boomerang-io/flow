@@ -1,0 +1,26 @@
+.layout {
+  display: flex;
+  flex-grow: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.nav {
+  flex-shrink: 0;
+  min-width: 16rem;
+  padding-top: 1rem;
+  width: 16rem;
+
+  :global .cds--bmrg-feature-sidenav-link-content {
+    width: 100%;
+  }
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 1.5rem 2rem 3rem;
+}

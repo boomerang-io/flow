@@ -1,0 +1,52 @@
+@use "@carbon/react/scss/colors";
+
+@import "Styles/mixins";
+
+.container {
+  height: 1.75rem;
+  width: 1.75rem;
+  opacity: inherit;
+
+  &.designer {
+    cursor: pointer;
+    &:focus {
+      @include focus-outline(var(--cds-interactive-01), 0rem);
+    }
+  }
+
+  &.disabled {
+    circle {
+      stroke: var(--cds-text-primary);
+    }
+    path {
+      fill: var(--cds-text-primary);
+    }
+  }
+
+  &.execution {
+    circle {
+      stroke: var(--cds-text-primary);
+    }
+    path {
+      fill: var(--cds-text-primary) !important;
+    }
+  }
+
+  &.success {
+    path {
+      fill: colors.$teal-50;
+    }
+  }
+
+  &.failure {
+    path {
+      fill: colors.$red-70;
+    }
+  }
+
+  &.always {
+    path {
+      fill: var(--cds-text-primary);
+    }
+  }
+}

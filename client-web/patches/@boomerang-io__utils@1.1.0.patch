@@ -1,0 +1,26 @@
+diff --git a/es/hooks/useIsModalOpen/useIsModalOpen.js b/es/hooks/useIsModalOpen/useIsModalOpen.js
+index 96b10250b3d3dfcc51df7b8ca690958c1d281ca5..68e384398b069e815a41bcfc39c39a497bba722c 100644
+--- a/es/hooks/useIsModalOpen/useIsModalOpen.js
++++ b/es/hooks/useIsModalOpen/useIsModalOpen.js
+@@ -12,7 +12,7 @@ function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+ 
+ import { useRef, useState } from "react";
+ import useMutationObserver from "../useMutationObserver";
+-var htmlElem = document.getElementsByTagName("html")[0];
++var htmlElem = typeof document !== "undefined" ? document.getElementsByTagName("html")[0] : undefined;
+ var HTML_MODAL_CLASS = "bx--bmrg-html-modal-is-open";
+ 
+ function useIsModalOpen() {
+diff --git a/lib/hooks/useIsModalOpen/useIsModalOpen.js b/lib/hooks/useIsModalOpen/useIsModalOpen.js
+index fcb6d91e43275df9da8e978ec097241e04e38966..f6ddb16aa0a77f80124d4a3f51de45a4ca0a6958 100644
+--- a/lib/hooks/useIsModalOpen/useIsModalOpen.js
++++ b/lib/hooks/useIsModalOpen/useIsModalOpen.js
+@@ -23,7 +23,7 @@ function _iterableToArrayLimit(arr, i) { var _i = arr == null ? null : typeof Sy
+ 
+ function _arrayWithHoles(arr) { if (Array.isArray(arr)) return arr; }
+ 
+-var htmlElem = document.getElementsByTagName("html")[0];
++var htmlElem = typeof document !== "undefined" ? document.getElementsByTagName("html")[0] : undefined;
+ var HTML_MODAL_CLASS = "bx--bmrg-html-modal-is-open";
+ 
+ function useIsModalOpen() {

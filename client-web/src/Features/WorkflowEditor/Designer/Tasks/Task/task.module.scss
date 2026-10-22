@@ -1,0 +1,55 @@
+@import "Styles/mixins";
+
+// A 40px single-line row (Carbon's medium row); a workspace task's second line grows it.
+.container {
+  align-items: center;
+  background-color: var(--cds-ui-01);
+  border: 0.0625rem solid var(--cds-border-subtle);
+  cursor: grab;
+  display: flex;
+  margin-bottom: 0.25rem;
+  min-height: 2.5rem;
+  overflow: hidden;
+  padding: 0.5rem 0.75rem;
+  white-space: nowrap;
+  @include border-radius();
+  &:hover {
+    border-color: var(--cds-border-interactive);
+  }
+  &:focus {
+    @include focus-outline();
+  }
+
+  .taskName {
+    color: var(--cds-text-01);
+    flex-grow: 1;
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+    padding-left: 0.75rem;
+    @include text-overflow-ellipsis();
+  }
+
+  .taskSubtext {
+    color: var(--cds-text-secondary);
+    font-size: 0.75rem;
+    letter-spacing: 0.02rem;
+    line-height: 1rem;
+    margin-left: 1.75rem;
+  }
+
+  .rowContainer {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+  }
+
+  .columnContainer {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+}
+
+.tooltipContainer {
+  width: 12.875rem;
+}

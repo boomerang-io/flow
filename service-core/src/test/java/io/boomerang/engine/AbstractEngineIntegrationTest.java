@@ -1,0 +1,275 @@
+package io.boomerang.engine;
+
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.Task;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.workflow.TaskService;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.SettingConfig;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.repository.SettingsRepository;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.engine.repository.TaskRunRepository;
+import io.boomerang.engine.repository.WorkflowRunRepository;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.mongodb.MongoDBContainer;
+import org.testcontainers.utility.DockerImageName;
+
+/**
+ * Boots the full engine Spring context against a single static Testcontainers MongoDB. All
+ * subclasses share one cached context and one database: tests must create their own data and
+ * assert on their own ids, never on global collection state. Externals are neutralised (no
+ * CloudEvents egress) so nothing else needs to run. The migrations run as the context starts, so
+ * the database holds the seeded roles, settings, catalogue and indexes before any test.
+ */
+@SpringBootTest
+@Import(DatabaseCommands.Registration.class)
+public abstract class AbstractEngineIntegrationTest {
+
+  private static final MongoDBContainer MONGO =
+      new MongoDBContainer(DockerImageName.parse("mongo:7.0"));
+
+  static {
+    MONGO.start();
+  }
+
+  @DynamicPropertySource
+  static void engineTestProperties(DynamicPropertyRegistry registry) {
+    registry.add("spring.mongodb.uri", () -> MONGO.getReplicaSetUrl("boomerang"));
+    registry.add("flow.mongo.collection.prefix", () -> "flowtest");
+    registry.add("flow.encrypt.secret", () -> "test-encrypt-secret");
+    registry.add("flow.encrypt.salt", () -> "test-encrypt-salt");
+    registry.add("flow.events.sink.enabled", () -> "false");
+    // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
+    registry.add("flow.watcher.enabled", () -> "false");
+  }
+
+  @Autowired protected TaskRunRepository taskRunRepository;
+  @Autowired protected WorkflowRunRepository workflowRunRepository;
+  @Autowired protected TaskRunService taskRunService;
+  @Autowired protected RelationshipService relationshipService;
+  @Autowired protected SettingsRepository settingsRepository;
+  @Autowired protected TaskService taskService;
+  @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private WorkflowWatcher workflowWatcher;
+
+  /**
+   * Starts every test with an empty claim queue. The database is shared and a dispatcher poll
+   * claims the oldest page of ready task runs, so tasks earlier tests left ready would crowd out
+   * the ones a test creates and polls for. They end as cancelled, which no poll, sweep or
+   * termination claim picks up.
+   */
+  // Each test's sweeps start from the oldest candidate, as a single sweep did before the cursors.
+  @BeforeEach
+  void resetSweepCursors() {
+    workflowWatcher.resetSweepCursors();
+  }
+
+  @BeforeEach
+  void cancelTasksEarlierTestsLeftReady() {
+    mongoTemplate.updateMulti(
+        Query.query(
+            Criteria.where("status")
+                .is(RunStatus.ready)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("claim.by")
+                .exists(false)),
+        new Update().set("status", RunStatus.cancelled).set("phase", RunPhase.completed),
+        TaskRunEntity.class);
+  }
+
+  /**
+   * Establishes an identity for every test, mirroring production: a served request always has one
+   * (AuthenticationFilter when {@code flow.security.enabled=true}, otherwise
+   * UnauthenticatedGlobalAuthenticationFilter), and background work hoists its own (ScheduleJob).
+   *
+   * <p>These tests call authz-scoped services (RelationshipService.filter/check,
+   * WorkspaceWorkflowService.count) DIRECTLY, bypassing the servlet chain that would normally
+   * establish it - so without this they run under a condition production never produces. Subclasses
+   * that need a specific principal still override it in their own {@code @BeforeEach}, which JUnit
+   * runs after this one.
+   */
+  @BeforeEach
+  void establishTestIdentity() {
+    Token principal = new Token(AuthScope.global);
+    principal.setPrincipal("integration-test-principal");
+    // Enforcement is real (no shadow mode): a global caller in production always carries a
+    // resolved grant set - UnauthenticatedGlobalToken's **/** or a minted token's resolution -
+    // so a grantless token here would be a condition production never produces.
+    principal.setPermissions(
+        java.util.List.of(
+            new io.boomerang.core.security.model.ResolvedPermissions(
+                io.boomerang.core.security.enums.PermissionScope.global,
+                "**",
+                java.util.List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
+    authentication.setDetails(principal);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @AfterEach
+  void clearTestIdentity() {
+    SecurityContextHolder.clearContext();
+  }
+
+  /**
+   * Sets one key in the "features" settings document, creating the document or the key as needed.
+   * Merges rather than replaces - the shared Testcontainers Mongo means several test classes seed
+   * their own keys into this one document.
+   */
+  protected void setFeatureSetting(String key, boolean value) {
+    SettingEntity settings = settingsRepository.findOneByKey("features");
+    if (settings == null) {
+      settings = new SettingEntity();
+      settings.setKey("features");
+      settings.setName("Features");
+      settings.setConfig(new ArrayList<>());
+    }
+    List<SettingConfig> config = new ArrayList<>(settings.getConfig());
+    config.stream()
+        .filter(c -> key.equals(c.getKey()))
+        .findFirst()
+        .ifPresentOrElse(
+            c -> c.setValue(Boolean.toString(value)),
+            () -> config.add(settingConfig(key, "boolean", Boolean.toString(value))));
+    settings.setConfig(config);
+    settingsRepository.save(settings);
+  }
+
+  /**
+   * Sets the value of one existing entry in a settings group and returns the value it replaced, so
+   * a test can restore the shared document when it is done.
+   */
+  protected String setSettingValue(String group, String key, String value) {
+    SettingEntity settings = settingsRepository.findOneByKey(group);
+    SettingConfig entry =
+        settings.getConfig().stream().filter(c -> key.equals(c.getKey())).findFirst().orElseThrow();
+    String previous = entry.getValue();
+    entry.setValue(value);
+    settingsRepository.save(settings);
+    return previous;
+  }
+
+  private static SettingConfig settingConfig(String key, String type, String value) {
+    SettingConfig config = new SettingConfig();
+    config.setKey(key);
+    config.setType(type);
+    config.setValue(value);
+    return config;
+  }
+
+  /**
+   * Creates a global template Task (idempotently) so workflows have something real to reference:
+   * DAGUtility.createTaskList resolves every non-start/end task against the catalogue. Needs the
+   * root relationship node, which the migrations seed. Both the existence
+   * filter and the changelog author read the current identity, which {@link
+   * #establishTestIdentity()} has already put in place - this method no longer installs (and then
+   * clears) one of its own, which used to leave the filter call above running with none.
+   */
+  protected void seedGlobalTask(String name) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.TASK, name)) {
+      return;
+    }
+    Task task = new Task();
+    task.setName(name);
+    task.setType(TaskType.template);
+    task.getSpec().setImage("busybox:latest");
+    task.getSpec().setCommand(List.of("echo"));
+    taskService.createGlobal(task);
+  }
+
+  /**
+   * A Workflow that actually passes DAGUtility.validateWorkflow: start -> one task -> end. A
+   * Workflow carrying only the implicit start/end pair is rejected as "incomplete, or invalid".
+   */
+  protected static Workflow runnableWorkflow(String name, String taskSlug) {
+    Workflow workflow = new Workflow();
+    workflow.setName(name);
+    workflow.setTasks(
+        new LinkedList<>(
+            List.of(
+                workflowTask("start", TaskType.start, null, null),
+                workflowTask("work", TaskType.template, taskSlug, "start"),
+                workflowTask("end", TaskType.end, null, "work"))));
+    return workflow;
+  }
+
+  private static WorkflowTask workflowTask(
+      String name, TaskType type, String taskRef, String dependsOn) {
+    WorkflowTask task = new WorkflowTask();
+    task.setName(name);
+    task.setType(type);
+    task.setTaskRef(taskRef);
+    if (dependsOn != null) {
+      WorkflowTaskDependency dependency = new WorkflowTaskDependency();
+      dependency.setTaskRef(dependsOn);
+      task.setDependencies(new LinkedList<>(List.of(dependency)));
+    }
+    return task;
+  }
+
+  protected static ConditionFactory awaitEngine(String alias) {
+    return Awaitility.await(alias)
+        .atMost(Duration.ofSeconds(60))
+        .pollInterval(Duration.ofMillis(250));
+  }
+
+  protected WorkflowRunEntity savedWorkflowRun(
+      String workflowRef, RunStatus status, RunPhase phase) {
+    WorkflowRunEntity run = new WorkflowRunEntity();
+    run.setWorkflowRef(workflowRef);
+    run.setStatus(status);
+    run.setPhase(phase);
+    run.setCreationDate(new Date());
+    run.setStartTime(new Date());
+    return workflowRunRepository.save(run);
+  }
+
+  protected TaskRunEntity savedTaskRun(
+      String name,
+      TaskType type,
+      RunStatus status,
+      RunPhase phase,
+      String workflowRef,
+      String workflowRunRef) {
+    TaskRunEntity run = new TaskRunEntity();
+    run.setName(name);
+    run.setType(type);
+    run.setStatus(status);
+    run.setPhase(phase);
+    run.setCreationDate(new Date());
+    run.setWorkflowRef(workflowRef);
+    run.setWorkflowRunRef(workflowRunRef);
+    run.setDependencies(new LinkedList<>());
+    return taskRunRepository.save(run);
+  }
+}

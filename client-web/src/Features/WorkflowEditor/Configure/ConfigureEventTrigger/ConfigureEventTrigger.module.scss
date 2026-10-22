@@ -1,0 +1,43 @@
+@use "@carbon/react/scss/colors";
+
+@import "Styles/mixins";
+
+.codeSnippet{
+  background: var(--cds-background, colors.$cool-gray-10);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-block-end: none !important;
+  min-height: 48px;
+
+  button{
+    border-radius: 0 !important;
+    background: var(--cds-background, colors.$cool-gray-10);
+  }
+
+  pre {
+    padding-block-end: 0 !important;
+  }
+}
+
+.codeSnippetInline{
+  background: var(--cds-background, colors.$cool-gray-10);
+}
+
+.sectionHeader {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9rem;
+}
+
+.sectionHeader:nth-child(n+2) {
+  margin-top: 2.5rem;
+}
+
+.stickyFooter {
+  bottom: 0;
+  position: absolute;
+  width: 100%;
+}

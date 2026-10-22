@@ -1,0 +1,105 @@
+@import "Styles/mixins";
+
+.listContainer {
+  background: var(--cds-layer);
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--cds-border-subtle);
+  display: flex;
+  min-height: 3rem;
+}
+
+.search {
+  max-width: 20rem;
+}
+
+.statusFilter {
+  width: 14rem;
+}
+
+.toolbarEnd {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.table {
+  td {
+    vertical-align: middle;
+  }
+}
+
+.name,
+.nameButton {
+  color: var(--cds-text-primary);
+  display: block;
+  font-size: 0.875rem;
+}
+
+.nameButton {
+  background: none;
+  border: 0;
+  color: var(--cds-link-primary);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus {
+    @include focus-outline();
+  }
+}
+
+.description,
+.cron {
+  color: var(--cds-text-secondary);
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cron {
+  font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+
+  :global(.cds--tag) {
+    margin: 0;
+  }
+}
+
+.actionsCell {
+  text-align: right;
+  width: 3rem;
+}
+
+.empty {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  padding: 1.5rem 1rem;
+}
+
+.listItemSkeleton {
+  height: 3rem;
+  margin: 1rem;
+  width: calc(100% - 2rem);
+}

@@ -1,0 +1,62 @@
+@import "Styles/mixins";
+
+.container {
+  padding: 1.5rem 2rem;
+
+  :global .cds--bmrg-error-page {
+    width: 100%;
+  }
+
+  :global .cds--structured-list {
+    max-width: 100rem;
+  }
+
+  :global .cds--structured-list-td {
+    line-height: 1rem;
+    padding: 1rem 1rem;
+  }
+}
+
+.actionsContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  width: 100%;
+
+  :global .cds--search {
+    max-width: 24rem;
+  }
+}
+
+.leftActions {
+  min-width: 24rem;
+}
+
+.featureDescription {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 1.375rem;
+}
+
+.labelsCountText {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.rightActions {
+  display: flex;
+  flex-direction: column;
+
+  button + button {
+    margin-top: 1rem;
+  }
+}
+
+.labelKeyCell {
+  max-width: 20rem;
+  @include text-overflow-ellipsis();
+}

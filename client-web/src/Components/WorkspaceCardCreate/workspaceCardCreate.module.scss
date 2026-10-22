@@ -1,0 +1,46 @@
+@use "@carbon/react/scss/motion" as motion;
+@import "Styles/mixins";
+
+.container {
+  @include border-radius();
+  border: 0.0625rem dashed var(--cds-border-strong-01, var(--cds-ui-04));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 12rem;
+  position: relative;
+}
+
+.content {
+  align-items: center;
+  color: var(--cds-text-primary);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: center;
+  padding: 1rem;
+  transition: background-color motion.$duration-fast-02 motion.motion(standard, productive);
+  width: 100%;
+
+  &:hover {
+    background-color: var(--cds-layer-hover-01, var(--cds-background-hover));
+  }
+
+  &:focus {
+    @include focus-outline($offset: 0rem);
+  }
+}
+
+.addIcon {
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+.text {
+  font-size: var(--cds-heading-02-font-size, 1rem);
+  font-weight: var(--cds-heading-02-font-weight, 600);
+  line-height: var(--cds-heading-02-line-height, 1.5);
+  margin-top: 0.5rem;
+}

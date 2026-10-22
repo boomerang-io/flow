@@ -1,0 +1,19 @@
+
+.disabledSidenavLink {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  
+.switcherInfo {
+  height: 2rem;
+  width: 100%;
+  margin: 1.5rem 0rem -0.75rem;
+
+  span {
+    font-size: var(--cds-label-01-font-size,.75rem);
+    font-weight: var(--cds-label-01-font-weight,400);
+    letter-spacing: var(--cds-label-01-letter-spacing,.32px);
+    line-height: var(--cds-label-01-line-height,1.33333);
+    padding: 1rem 0.5rem 0 1rem;
+  }
+}

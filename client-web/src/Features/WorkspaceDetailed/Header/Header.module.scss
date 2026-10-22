@@ -1,0 +1,75 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  //height: 10.5rem;
+  justify-content: space-between;
+  padding-bottom: 0rem !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  h1 {
+    margin: 0 0 0.5rem 0;
+  }
+}
+
+.actionButtons {
+  bottom: 0.25rem;
+  position: absolute;
+  right: 1.5rem;
+  z-index: 1;
+}
+
+.infoContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.infoDetailsContainer {
+  align-self: flex-end;
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+}
+
+.subHeaderContainer {
+  display: flex;
+  flex-direction: row;
+  & > * + * {
+    margin-left: 2.5rem;
+  }
+}
+
+.dataTitle {
+  font-size: 0.875rem;
+  font-weight: 300;
+  line-height: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.dataValueEmail {
+  font-size: 1rem;
+  line-height: 1.25;
+  max-width: 16rem;
+  @include text-overflow-ellipsis();
+}
+
+.dataValue {
+  font-size: 1rem;
+  line-height: 1.25;
+  max-width: 16rem;
+  text-transform: capitalize;
+  @include text-overflow-ellipsis();
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  font-size: 1rem;
+}
+
+.statusText {
+  font-size: 1rem;
+}

@@ -1,0 +1,11 @@
+@import "Styles/mixins";
+
+.button {
+  cursor: pointer;
+  height: 1.75rem;
+  width: 1.75rem;
+
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01), 0rem);
+  }
+}

@@ -1,0 +1,752 @@
+package io.boomerang.core;
+
+import io.boomerang.common.util.PagingUtil;
+import io.boomerang.common.util.QueryCriteria;
+import io.boomerang.core.entity.RoleEntity;
+import io.boomerang.core.entity.TokenEntity;
+import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.enums.RoleEnum;
+import io.boomerang.core.enums.TokenTypePrefix;
+import io.boomerang.core.enums.UserType;
+import io.boomerang.core.model.*;
+import io.boomerang.core.repository.RoleRepository;
+import io.boomerang.core.repository.TokenRepository;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.TokenLookupCache;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.enums.TokenActorKind;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.domain.Sort.Order;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+
+@Service
+public class TokenService {
+
+  private static final Logger LOGGER = LogManager.getLogger();
+
+  private static final String TOKEN_PERMISSION_REGEX =
+      "(\\*{2}|[0-9a-zA-Z\\-]+)\\/(\\*{2}|read|write|action|delete){1}";
+
+  @Value("${flow.token.max-user-session-duration}")
+  private Integer MAX_SESSION_TOKEN_DURATION;
+
+  // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
+  // write per request (the ARCHIE pattern).
+  private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Reuse window for filter-minted session tokens (see createSessionToken): bounds the
+  // header-authenticated paths to at most one persisted TokenEntity per identity per window,
+  // and equally bounds how stale a reused token's permissions can be.
+  private Duration sessionMintReuseWindow = Duration.ofSeconds(60);
+
+  private final Map<String, MintedSession> mintedSessionsByEmail = new ConcurrentHashMap<>();
+
+  private final TokenRepository tokenRepository;
+  private final UserService userService;
+  private final RoleRepository roleRepository;
+  private final RelationshipService relationshipService;
+  private final MongoTemplate mongoTemplate;
+  private final IdentityService identityService;
+  private final TokenLookupCache lookupCache;
+
+  public TokenService(
+      TokenRepository tokenRepository,
+      UserService userService,
+      RoleRepository roleRepository,
+      RelationshipService relationshipService,
+      MongoTemplate mongoTemplate,
+      IdentityService identityService,
+      TokenLookupCache lookupCache) {
+    this.tokenRepository = tokenRepository;
+    this.userService = userService;
+    this.roleRepository = roleRepository;
+    this.relationshipService = relationshipService;
+    this.mongoTemplate = mongoTemplate;
+    this.identityService = identityService;
+    this.lookupCache = lookupCache;
+  }
+
+  /*
+   * Creates an Access Token
+   *
+   * Limited to creation by a User on behalf of a User, Workflow, Workspace, Global scope
+   *
+   * TODO: make sure requesting principal has access to create for the provided principal
+   */
+  public TokenCreateResponse create(TokenCreateRequest request) {
+    // Disallow creation of session tokens except via internal AuthenticationFilter
+    if (AuthScope.session.equals(request.getType())) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_SESSION_REQ);
+    }
+
+    // Required field checks
+    // - Type and name: required for all tokens
+    // - Principal: required if type!=global
+    // - Permissions: required for type!=user
+    if (request.getType() == null
+        || request.getName() == null
+        || request.getName().isEmpty()
+        || (!AuthScope.global.equals(request.getType())
+            && (request.getPrincipal() == null || request.getPrincipal().isBlank()))
+        || (!AuthScope.user.equals(request.getType())
+            && (request.getPermissions() == null || request.getPermissions().isEmpty()))) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+
+    // createdBy is ALWAYS the server-resolved authenticated principal - NEVER taken from the
+    // request body (the third token invariant). Resolved once, up front, so both the createdBy
+    // stamp and the admin-authority check below use the same identity snapshot.
+    Token currentIdentity = identityService.getCurrentIdentity();
+
+    // The second token invariant: minting a `global` token requires the caller to already hold a
+    // `global`-scoped grant (admin authority) - enforced here, not just documented. Internal
+    // bootstrap minting (TokenService#createSessionToken) never calls this method, so the
+    // very first admin session token is unaffected.
+    if (AuthScope.global.equals(request.getType()) && !hasGlobalGrant(currentIdentity)) {
+      throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
+    }
+
+    // Validate permissions matches the REGEX
+    if (!AuthScope.user.equals(request.getType()) && Objects.isNull(request.getRole())) {
+      request
+          .getPermissions()
+          .forEach(
+              p -> {
+                if (!p.matches(TOKEN_PERMISSION_REGEX)) {
+                  throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
+                }
+                String[] pSplit = p.split("/");
+                LOGGER.debug("Resource: " + PermissionResource.valueOfLabel(pSplit[0]));
+                if (PermissionResource.valueOfLabel(pSplit[0]) == null) {
+                  throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
+                }
+                LOGGER.debug("Action: " + pSplit[1]);
+                // ACTION is already checked as part of the regex
+              });
+    }
+
+    // Create TokenEntity
+    TokenEntity tokenEntity = new TokenEntity();
+    tokenEntity.setType(request.getType());
+    tokenEntity.setName(request.getName());
+    tokenEntity.setDescription(request.getDescription());
+    tokenEntity.setExpirationDate(request.getExpirationDate());
+    if (!AuthScope.global.equals(request.getType())) {
+      tokenEntity.setPrincipal(request.getPrincipal());
+    }
+    // actorKind is caller-declared (like type/permissions above).
+    tokenEntity.setActorKind(request.getActorKind());
+    if (currentIdentity != null) {
+      tokenEntity.setCreatedBy(currentIdentity.getPrincipal());
+    }
+
+    // Set Permissions. Grant scope (PermissionScope) is ALWAYS derived server-side from the
+    // token's own class - the request body has no way to set it directly, which is itself part
+    // of how the first token invariant (a `key` token can never hold a `global` grant) holds by
+    // construction: `key` tokens only ever get `workspace`-scoped grants below.
+    if (AuthScope.user.equals(request.getType())) {
+      // TODO do i need to check if user is Admin or Operator
+      Map<String, String> teamsAndRoles = relationshipService.roles(request.getPrincipal());
+      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
+        ResolvedPermissions resolvedPermissions =
+            new ResolvedPermissions(
+                PermissionScope.workspace,
+                entry.getKey(),
+                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions());
+        tokenEntity.getPermissions().add(resolvedPermissions);
+      }
+    } else {
+      PermissionScope grantScope =
+          AuthScope.global.equals(request.getType())
+              ? PermissionScope.global
+              : PermissionScope.workspace;
+      tokenEntity
+          .getPermissions()
+          .add(
+              new ResolvedPermissions(
+                  grantScope,
+                  request.getPrincipal() != null && !request.getPrincipal().isBlank()
+                      ? request.getPrincipal()
+                      : "**",
+                  request.getPermissions()));
+    }
+    LOGGER.debug(tokenEntity.getPermissions().toString());
+
+    // The first token invariant, enforced (not just constructed-to-avoid): defence in depth against any
+    // future path that builds a key token's permissions differently.
+    assertKeyTokenCeiling(tokenEntity);
+
+    String prefix = TokenTypePrefix.valueOf(request.getType().toString()).getPrefix();
+    String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
+
+    final String hashToken = hashString(uniqueToken);
+    tokenEntity.setToken(hashToken);
+    tokenEntity = tokenRepository.save(tokenEntity);
+    LOGGER.debug("Created {} token {}", request.getType(), tokenEntity.getId());
+
+    TokenCreateResponse tokenResponse = new TokenCreateResponse();
+    tokenResponse.setToken(uniqueToken);
+    tokenResponse.setId(tokenEntity.getId());
+    tokenResponse.setType(request.getType());
+    tokenResponse.setExpirationDate(request.getExpirationDate());
+    tokenResponse.setActorKind(request.getActorKind());
+    return tokenResponse;
+  }
+
+  /**
+   * The permission building blocks (resources, actions, role presets) the CURRENT caller could
+   * actually grant for {@code scope}/{@code principal} - backs the token permission picker.
+   * {@code resources} is sourced from {@link PermissionResource}, {@code actions} from {@link
+   * PermissionAction}, and {@code rolePresets} from the {@code roles} collection via {@link
+   * RoleRepository} - the same source the enforcement path itself reads ({@link #create}, {@code
+   * RelationshipService.check()}), so the picker can never offer a grant that isn't enforceable.
+   *
+   * <p>Mirrors {@link #assertKeyTokenCeiling}'s explicit-assertion habit rather than relying on
+   * "only admins reach this endpoint": the caller must actually hold authority over the
+   * requested scope/principal (a matching grant, or a global grant) or this throws - and
+   * whatever is returned is capped to that caller's own ceiling, never the full catalog, unless
+   * the caller's grant is itself unrestricted ({@code **}/{@code **}).
+   */
+  public TokenPermissionCatalog getPermissionCatalog(PermissionScope scope, String principal) {
+    if (scope == null) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+    String resolvedPrincipal =
+        PermissionScope.global.equals(scope) ? "**" : principal;
+    if (PermissionScope.workspace.equals(scope)
+        && (resolvedPrincipal == null || resolvedPrincipal.isBlank())) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
+    }
+
+    Set<String> ceiling = resolveGrantCeiling(identityService.getCurrentIdentity(), scope, resolvedPrincipal);
+    if (ceiling.isEmpty()) {
+      throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
+    }
+    boolean unrestricted = ceiling.contains("**/**");
+
+    TokenPermissionCatalog catalog = new TokenPermissionCatalog();
+    catalog.setResources(
+        Arrays.stream(PermissionResource.values())
+            .filter(r -> !PermissionResource.ANY.equals(r))
+            .filter(r -> unrestricted || ceilingCoversResource(ceiling, r))
+            .map(PermissionResource::getLabel)
+            .collect(Collectors.toList()));
+    catalog.setActions(
+        Arrays.stream(PermissionAction.values())
+            .filter(a -> unrestricted || ceilingCoversAction(ceiling, a))
+            .map(PermissionAction::getLabel)
+            .collect(Collectors.toList()));
+
+    Map<String, List<String>> rolePresets = new LinkedHashMap<>();
+    for (RoleEntity role : roleRepository.findByType(scope.getLabel())) {
+      if (unrestricted || ceiling.containsAll(expandActionPatterns(role.getPermissions()))) {
+        rolePresets.put(role.getName(), role.getPermissions());
+      }
+    }
+    catalog.setRolePresets(rolePresets);
+    return catalog;
+  }
+
+  /**
+   * The set of concrete {@code resource/action} strings {@code identity} could grant for
+   * {@code scope}/{@code principal} - the union of any {@code global} grant it holds (applies to
+   * every scope/principal) and any grant matching {@code scope} whose principal is {@code
+   * principal} or the token wildcard {@code **}. Wildcard action patterns (e.g. {@code
+   * workflow/**}, {@code **}/{@code **}) are expanded to concrete pairs.
+   */
+  private Set<String> resolveGrantCeiling(Token identity, PermissionScope scope, String principal) {
+    if (identity == null) {
+      // No principal on the SecurityContext (e.g. security disabled) - mirrors
+      // RelationshipService.check()'s unscoped-allow for the same case.
+      return Set.of("**/**");
+    }
+    Set<String> ceiling = new HashSet<>();
+    if (identity.getPermissions() != null) {
+      for (ResolvedPermissions grant : identity.getPermissions()) {
+        boolean applies =
+            PermissionScope.global.equals(grant.getScope())
+                || (scope.equals(grant.getScope())
+                    && (principal.equals(grant.getPrincipal())
+                        || "**".equals(grant.getPrincipal())));
+        if (applies) {
+          ceiling.addAll(expandActionPatterns(grant.getActions()));
+        }
+      }
+    }
+    return ceiling;
+  }
+
+  private static Set<String> expandActionPatterns(List<String> patterns) {
+    Set<String> expanded = new HashSet<>();
+    if (patterns == null) {
+      return expanded;
+    }
+    for (String pattern : patterns) {
+      if ("**/**".equals(pattern)) {
+        expanded.add("**/**");
+        continue;
+      }
+      String[] split = pattern.split("/");
+      if (split.length != 2) {
+        continue;
+      }
+      if ("**".equals(split[1])) {
+        for (PermissionAction a : PermissionAction.values()) {
+          expanded.add(split[0] + "/" + a.getLabel());
+        }
+      } else {
+        expanded.add(pattern);
+      }
+    }
+    return expanded;
+  }
+
+  private static boolean ceilingCoversResource(Set<String> ceiling, PermissionResource resource) {
+    for (PermissionAction a : PermissionAction.values()) {
+      if (ceiling.contains(resource.getLabel() + "/" + a.getLabel())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean ceilingCoversAction(Set<String> ceiling, PermissionAction action) {
+    for (PermissionResource r : PermissionResource.values()) {
+      if (ceiling.contains(r.getLabel() + "/" + action.getLabel())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The second token invariant's predicate: does {@code identity} already hold a {@code global}-scoped
+   * grant (the closest existing concept to "admin authority" - it's exactly what {@code
+   * createSessionToken} gives an {@code admin}/{@code operator} user, and what an existing {@code
+   * global} token's own permissions always carry).
+   */
+  private boolean hasGlobalGrant(Token identity) {
+    return identity != null
+        && identity.getPermissions() != null
+        && identity.getPermissions().stream()
+            .anyMatch(p -> PermissionScope.global.equals(p.getScope()));
+  }
+
+  /**
+   * The first token invariant: a {@code key} token may never carry a {@code global}-scoped grant - its
+   * ceiling is only the workspaces it was explicitly granted (Stripe {@code sk_}/{@code rk_}
+   * privilege-ceiling pattern). Package-private (not {@code private}) specifically so it is
+   * directly unit-testable against a constructed {@link TokenEntity} - the public {@link #create}
+   * flow above cannot actually violate this (a {@code key} token's grant scope is always derived
+   * as {@code workspace}), so this method is the only way to exercise the enforcement itself.
+   */
+  void assertKeyTokenCeiling(TokenEntity tokenEntity) {
+    if (AuthScope.key.equals(tokenEntity.getType())
+        && tokenEntity.getPermissions() != null
+        && tokenEntity.getPermissions().stream()
+            .anyMatch(p -> PermissionScope.global.equals(p.getScope()))) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_CEILING);
+    }
+  }
+
+  public String hashString(String originalString) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(originalString.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(hash);
+    } catch (NoSuchAlgorithmException e) {
+      return null;
+    }
+  }
+
+  public boolean validate(String token) {
+    boolean valid = lookup(token).filter(te -> isValid(te.getExpirationDate())).isPresent();
+    LOGGER.debug("Token Validation - " + (valid ? "valid" : "not valid"));
+    return valid;
+  }
+
+  /**
+   * Resolve a raw token to its stored entity through {@link TokenLookupCache}: a hit is served
+   * from memory (evicted first if it has since expired, but still returned so callers see the same
+   * entity they would have read), a miss goes to the repository and is cached only when present
+   * and unexpired. Every read path that starts from a raw token goes through here, so {@code
+   * validate} followed by {@code get} costs one repository read.
+   */
+  private Optional<TokenEntity> lookup(String rawToken) {
+    String hash = hashString(rawToken);
+    TokenEntity cached = lookupCache.get(hash);
+    if (cached != null) {
+      if (!isValid(cached.getExpirationDate())) {
+        lookupCache.evict(hash);
+      }
+      return Optional.of(cached);
+    }
+    Optional<TokenEntity> found = tokenRepository.findByToken(hash);
+    found.filter(te -> isValid(te.getExpirationDate())).ifPresent(te -> lookupCache.put(hash, te));
+    return found;
+  }
+
+  /**
+   * Full validation for a machine-actor bearer token — used by internal callers such as
+   * {@code DispatcherAuthFilter} that need more than the public {@link Token}/{@code validate}
+   * pair expose: hash -> lookup -> not expired -> {@code actorKind} is a machine kind -> {@code
+   * global} scope. Empty on any failure; never throws. Callers are expected to have already
+   * applied the cheap {@link io.boomerang.core.enums.TokenTypePrefix#isFlowToken} shape gate
+   * before reaching this (Mongo) lookup.
+   */
+  public Optional<TokenEntity> validateActorToken(String rawToken) {
+    return lookup(rawToken)
+        .filter(te -> isValid(te.getExpirationDate()))
+        .filter(te -> te.getActorKind() != null)
+        .filter(te -> AuthScope.global.equals(te.getType()));
+  }
+
+  /**
+   * Best-effort "last used" stamp, throttled to at most one write per {@link
+   * #LAST_USED_THROTTLE_MS} so a busy dispatcher/integration doesn't hammer Mongo on every
+   * request (the ARCHIE pattern).
+   */
+  public void touchLastUsed(TokenEntity token) {
+    if (token == null) {
+      return;
+    }
+    Date now = new Date();
+    Date last = token.getLastUsedAt();
+    if (last != null && now.getTime() - last.getTime() < LAST_USED_THROTTLE_MS) {
+      return;
+    }
+    token.setLastUsedAt(now);
+    // One field, never the whole document: the token may be a cached copy, and saving it whole
+    // would bring back a token deleted on another instance since it was cached.
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(token.getId())),
+        new Update().set("lastUsedAt", now),
+        TokenEntity.class);
+  }
+
+  public boolean delete(String id) {
+    TokenEntity tokenEntity = this.tokenRepository.findById(id).orElse(null);
+    if (tokenEntity == null) {
+      return false;
+    }
+    this.tokenRepository.delete(tokenEntity);
+    lookupCache.evict(tokenEntity.getToken());
+    return true;
+  }
+
+  /** Revoke every token of {@code principal}; the hashes are not in hand, so the whole cache goes. */
+  public void deleteAllForPrincipal(String principal) {
+    this.tokenRepository.deleteAllByPrincipal(principal);
+    lookupCache.evictAll();
+  }
+
+  public Page<Token> query(
+      Optional<Date> from,
+      Optional<Date> to,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> queryOrder,
+      Optional<String> querySort,
+      Optional<List<AuthScope>> queryTypes,
+      Optional<List<String>> queryPrincipals) {
+    final Sort sort =
+        Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("creationDate")));
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .between("creationDate", from, to)
+                .in("type", queryTypes)
+                .in("principal", queryPrincipals)
+                .build());
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
+
+    List<TokenEntity> entities = mongoTemplate.find(query, TokenEntity.class);
+
+    List<Token> response = new LinkedList<>();
+    entities.forEach(
+        te -> {
+          Token token = new Token(te);
+          token.setValid(isValid(te.getExpirationDate()));
+          response.add(token);
+        });
+
+    Page<Token> pages =
+        PagingUtil.page(response, pageable, mongoTemplate, query, TokenEntity.class);
+
+    return pages;
+  }
+
+  public Token get(String token) {
+    TokenEntity tokenEntity = lookup(token).orElse(null);
+    if (tokenEntity == null) {
+      return null;
+    }
+    Token response = new Token();
+    response.setValid(isValid(tokenEntity.getExpirationDate()));
+    BeanUtils.copyProperties(tokenEntity, response);
+    return response;
+  }
+
+  /*
+   * Token.valid element is only on the Model and not the Data Entity It is a derived element based
+   * on expiration date
+   */
+  private boolean isValid(Date expirationDate) {
+    Date currentDate = new Date();
+    if (expirationDate == null || expirationDate.after(currentDate)) {
+      return true;
+    }
+    return false;
+  }
+
+  /*
+   * Creates a token expiring in MAX SESSION TIME. Used by the AuthenticationFilter when accessed by
+   * non Access Token
+   *
+   * TODO: add scopes that a user session token would have (needs to based on User ... eventually
+   * dynamic)
+   *
+   * Discards the raw bfs_ value - historically nothing needed it, since no browser-visible
+   * credential existed before the unified token exchange. Kept for the existing
+   * AuthenticationFilter call sites; new callers that need the raw value (the exchange endpoint,
+   * to set the session cookie) use {@link #createSessionTokenWithRaw} below.
+   *
+   * The filter's header-resolved branches (forwarded email, raw JWT, Basic) call this on EVERY
+   * request, so the mint is reused per identity within sessionMintReuseWindow rather than
+   * persisting a new TokenEntity each time - the same throttle idea as LAST_USED_THROTTLE_MS.
+   * Within the window a permission change is not picked up on these paths - INCLUDING
+   * deactivating or deleting the user, whose reused token keeps authenticating for up to the 60s
+   * window because the re-mint that re-checks user status is skipped. Downstream only ever reads
+   * the Token off the Authentication details, so a reused instance behaves identically to a
+   * fresh one. The exchange endpoint's mint paths never read this cache: every exchange must hand
+   * a fresh raw value to the browser cookie.
+   */
+  public Token createSessionToken(
+      String email,
+      String firstName,
+      String lastName,
+      boolean allowActivation,
+      boolean allowUserCreation) {
+    if (email == null || email.isBlank()) {
+      return createSessionTokenWithRaw(
+              email, firstName, lastName, allowActivation, allowUserCreation)
+          .token();
+    }
+    // Keyed on the normalised email - the same fold UserService.normaliseEmail applies.
+    String key = email.toLowerCase(Locale.ROOT);
+    MintedSession reusable = mintedSessionsByEmail.get(key);
+    if (reusable != null && withinReuseWindow(reusable, Instant.now())) {
+      return reusable.token();
+    }
+    Token minted =
+        createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
+            .token();
+    // Sweep expired entries on each put: keys derive from caller-supplied identity
+    // (x-forwarded-email), so without eviction the map would grow with every identity ever
+    // seen. After the sweep it only ever holds identities seen within the last window.
+    Instant now = Instant.now();
+    mintedSessionsByEmail.entrySet().removeIf(entry -> !withinReuseWindow(entry.getValue(), now));
+    mintedSessionsByEmail.put(key, new MintedSession(minted, now));
+    return minted;
+  }
+
+  private boolean withinReuseWindow(MintedSession session, Instant now) {
+    return session.mintedAt().plus(sessionMintReuseWindow).isAfter(now);
+  }
+
+  /** A filter-minted session held for reuse - see {@link #createSessionToken}. */
+  private record MintedSession(Token token, Instant mintedAt) {}
+
+  /**
+   * Same resolve-or-create-user + mint flow as {@link #createSessionToken}, but also returns the
+   * raw {@code bfs_<uuid>} value - needed by {@code POST /internal/v1/auth/exchange} to set the
+   * httpOnly session cookie. The entity only ever persists
+   * the SHA-256 hash (see {@link #mintSessionToken}), so the raw value only ever exists on the
+   * stack of the request that minted it.
+   */
+  public SessionToken createSessionTokenWithRaw(
+      String email,
+      String firstName,
+      String lastName,
+      boolean allowActivation,
+      boolean allowUserCreation) {
+    Optional<UserEntity> user = Optional.empty();
+    String name = String.format("%s %s", sanitise(firstName), sanitise(lastName));
+    if (allowActivation && !userService.isActivated()) {
+      user =
+          userService.getAndRegisterUser(
+              email,
+              Optional.of(name),
+              Optional.of(UserType.admin),
+              Optional.empty(),
+              allowUserCreation);
+      if (user.isPresent()) {
+        relationshipService.createEdge(
+            RelationshipType.USER,
+            user.get().getId(),
+            RelationshipLabel.MEMBER_OF,
+            RelationshipType.WORKSPACE,
+            "system",
+            Optional.of(Map.of("role", RoleEnum.OWNER.getLabel())));
+      }
+    } else if (userService.isActivated()) {
+      user =
+          userService.getAndRegisterUser(
+              email,
+              Optional.of(name),
+              Optional.of(UserType.user),
+              Optional.empty(),
+              allowUserCreation);
+    } else {
+      throw new HttpClientErrorException(HttpStatus.LOCKED);
+    }
+    if (!user.isPresent()) {
+      throw new HttpClientErrorException(HttpStatus.FORBIDDEN);
+    }
+    return mintSessionToken(user.get());
+  }
+
+  /**
+   * Mints a session token for an ALREADY resolved user, skipping the get-or-register round trip -
+   * used by the proxy path of {@code POST /internal/v1/auth/exchange}, where {@code
+   * AuthenticationFilter} has already resolved (and, for a first-time caller, registered) the
+   * user for this very request; re-deriving email/name from headers here would duplicate the
+   * filter's own logic.
+   */
+  public SessionToken createSessionTokenForUser(UserEntity user) {
+    return mintSessionToken(user);
+  }
+
+  private SessionToken mintSessionToken(UserEntity user) {
+    Date expiryDate = getExpirationDate();
+
+    TokenEntity tokenEntity = new TokenEntity();
+    tokenEntity.setCreationDate(new Date());
+    tokenEntity.setDescription("Generated User Session Token");
+    tokenEntity.setType(AuthScope.session);
+    tokenEntity.setExpirationDate(expiryDate);
+    tokenEntity.setPrincipal(user.getId());
+    tokenEntity.getPermissions().addAll(resolvePermissionsForUser(user));
+    String prefix = TokenTypePrefix.session.prefix;
+    String uniqueToken = prefix + "_" + UUID.randomUUID().toString().toLowerCase();
+
+    final String hashToken = hashString(uniqueToken);
+    tokenEntity.setToken(hashToken);
+    tokenEntity = tokenRepository.save(tokenEntity);
+
+    return new SessionToken(new Token(tokenEntity), uniqueToken);
+  }
+
+  /** A minted session's public {@link Token} identity alongside the raw {@code bfs_<uuid>} value that only ever exists for the duration of the minting request. */
+  public record SessionToken(Token token, String rawToken) {}
+
+  /**
+   * Resolves the full permission grant set for a user: a global platform grant for admin/operator
+   * users, or one workspace-scoped grant per workspace they are a member of. The single source of
+   * truth for a user's permissions - both {@link #createSessionToken} and the user profile
+   * composition (api layer) call this, so a platform-role grant can never be applied on one path
+   * and missed on the other.
+   */
+  public List<ResolvedPermissions> resolvePermissionsForUser(UserEntity user) {
+    List<ResolvedPermissions> permissions = new LinkedList<>();
+    if (UserType.admin.equals(user.getType()) || UserType.operator.equals(user.getType())) {
+      permissions.add(
+          new ResolvedPermissions(
+              PermissionScope.global,
+              "**",
+              roleRepository.findByTypeAndName("global", user.getType().toString()).getPermissions()));
+    } else {
+      // Collect all workspace permissions the user has
+      Map<String, String> teamsAndRoles = relationshipService.roles(user.getId());
+      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
+        permissions.add(
+            new ResolvedPermissions(
+                PermissionScope.workspace,
+                entry.getKey(),
+                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
+      }
+    }
+    return permissions;
+  }
+
+  private Date getExpirationDate() {
+    Calendar cal = Calendar.getInstance();
+    cal.setTime(new Date());
+    cal.add(Calendar.HOUR, MAX_SESSION_TOKEN_DURATION);
+    return cal.getTime();
+  }
+
+  private String sanitise(String value) {
+    if (StringUtils.isBlank(value)) {
+      return value;
+    }
+    String cleanString = value;
+    try {
+      cleanString = java.net.URLDecoder.decode(value, "UTF-8");
+    } catch (final UnsupportedEncodingException e) {
+      return value;
+    }
+    // Need to make lower as capitalize only converts the first letter to upper but doesn't change
+    // the remaining to lower
+    cleanString = cleanString.toLowerCase();
+    cleanString = StringUtils.capitalize(cleanString);
+    return cleanString;
+  }
+
+  /*
+   * Creates a Workflow / System token for use by the scheduled task
+   *
+   * the retired `workflow` token class (bfw) is replaced 1:1 by a `key` token
+   * (AuthScope.key, prefix bfk) carrying actorKind=WORKFLOW - principal still holds the workflow
+   * id, and its grant is workspace-scoped (never global) exactly like every other key token.
+   */
+  public Token createWorkflowSchedulerToken(String workflowRef) {
+    TokenCreateRequest tokenRequest = new TokenCreateRequest();
+    tokenRequest.setName("scheduled-job-token");
+    tokenRequest.setType(AuthScope.key);
+    tokenRequest.setActorKind(TokenActorKind.WORKFLOW);
+    tokenRequest.setPrincipal(workflowRef);
+    tokenRequest.setPermissions(List.of("workflow/**"));
+
+    Calendar cal = Calendar.getInstance();
+    cal.setTime(new Date());
+    cal.add(Calendar.HOUR, 1);
+    Date expiryDate = cal.getTime();
+    tokenRequest.setExpirationDate(expiryDate);
+
+    final TokenCreateResponse tokenResponse = this.create(tokenRequest);
+
+    return this.get(tokenResponse.getToken());
+  }
+}

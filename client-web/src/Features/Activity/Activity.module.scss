@@ -1,0 +1,38 @@
+@import "Styles/mixins";
+
+.content {
+  display: flex;
+  flex-direction: column;
+  padding: 1.875rem 1.5rem 1.5rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.tabs {
+  margin-bottom: 1.125rem;
+}
+
+.filtersContainer {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  flex-flow: row wrap;
+  width: 100%;
+
+  :global .cds--form-item {
+    flex-grow: 0;
+  }
+}
+
+.dataFilters {
+  margin-bottom: 1rem;
+  display: flex;
+  > * + * {
+    margin-left: 1.4rem;
+  }
+}
+
+.dataFilter {
+  width: 15.875rem;
+}

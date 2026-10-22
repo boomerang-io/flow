@@ -1,0 +1,320 @@
+// @ts-nocheck
+import { Component } from "react";
+import { Accordion, AccordionItem, Checkbox, Layer, OverflowMenu, Search } from "@carbon/react";
+import { ChevronLeft, Recommend, Repeat, SettingsAdjust } from "@carbon/react/icons";
+import { CheckboxList } from "@boomerang-io/carbon-addons-boomerang-react";
+import { sortByProp } from "@boomerang-io/utils";
+import cx from "classnames";
+import uniqBy from "lodash/uniqBy";
+import { matchSorter } from "match-sorter";
+import { FOREACH_PALETTE_TYPE } from "Features/Reactflow/components/shared/foreach";
+import { groupTasksByName } from "Utils";
+import { taskIcons } from "Utils/taskIcons";
+import type { Task as TaskType } from "Types";
+import Task from "./Task";
+import styles from "./tasks.module.scss";
+
+const FIRST_TASK_CATEGORY = "workflow";
+
+// Catalogue categories arrive capitalised ("Workflow"); compare them without case.
+const isFirstTaskCategory = (category: string) => category?.toLowerCase() === FIRST_TASK_CATEGORY;
+
+// Not a catalogue task: dropping it opens "Repeat a task for each item" on the canvas, which then
+// places the chosen task with its for-each setting on. Only `type` is read on drop.
+const FOREACH_PALETTE_ENTRY = {
+  id: FOREACH_PALETTE_TYPE,
+  name: FOREACH_PALETTE_TYPE,
+  displayName: "For each",
+  description: "Repeat a task once per item of a list",
+  type: FOREACH_PALETTE_TYPE,
+  // Built into Flow like the catalogue's system tasks, so it carries their verified badge.
+  verified: true,
+};
+const ForeachIcon = ({ className = "", ...props }) => (
+  <Repeat alt="Task node type for each" style={{ willChange: "auto" }} className={className} {...props} />
+);
+
+interface TaskProps {
+  tasks: Array<TaskType>;
+}
+export default class Tasks extends Component<TaskProps> {
+  state = {
+    activeFilters: [],
+    firstTaskCategoryIsOpen: true,
+    isAccordionOpen: false,
+    isSidenavOpen: true,
+    searchQuery: "",
+    tasksToDisplay: this.props.tasks,
+    taskTypes: [],
+    showVerified: false,
+  };
+
+  componentDidMount() {
+    const taskFilters = taskIcons.map((IconConfig) => ({
+      id: IconConfig.name,
+      labelText: (
+        <div className={styles.checkboxOption}>
+          <IconConfig.Icon /> <p>{IconConfig.name}</p>{" "}
+        </div>
+      ),
+    }));
+    this.setState({ taskTypes: sortByProp(taskFilters, "id") });
+  }
+
+  handleOnSearchInputChange = (e) => {
+    const searchQuery = e.target.value;
+    if (searchQuery === "") {
+      this.setState({
+        searchQuery,
+        tasksToDisplay: this.props.tasks,
+      });
+      return;
+    }
+    if (this.state.activeFilters.length === 0) {
+      this.setState({
+        searchQuery,
+        tasksToDisplay: this.handleSearchFilter(searchQuery, this.props.tasks),
+      });
+      return;
+    }
+
+    //use the filters to select which tasks can be passed to search query
+    const currentTasks = this.props.tasks.filter((task) => this.state.activeFilters.includes(task.icon));
+    this.setState({
+      searchQuery,
+      tasksToDisplay: this.handleSearchFilter(searchQuery, currentTasks),
+    });
+  };
+
+  handleCheckboxListChange = (checked: boolean, label: string) => {
+    let filtersState = [].concat(this.state.activeFilters);
+
+    let newFilters = [];
+    let hasFilter = Boolean(filtersState.find((filter) => filter === label));
+    if (hasFilter) newFilters = filtersState.filter((filter) => filter !== label);
+    else newFilters = filtersState.concat(label);
+
+    const searchQuery = this.state.searchQuery;
+
+    this.setState({ activeFilters: newFilters });
+
+    //if none are checked, set back to default w/ search query
+    if (newFilters.length === 0) {
+      this.setState({
+        tasksToDisplay: this.handleSearchFilter(searchQuery, this.props.tasks),
+      });
+      return;
+    }
+
+    //use the filters to select which tasks can be passed to search query
+    const currentTasksWithMapping = this.props.tasks.filter((task) => newFilters.includes(task.icon));
+    this.setState({
+      tasksToDisplay: this.handleSearchFilter(searchQuery, currentTasksWithMapping),
+    });
+  };
+
+  handleCheckboxChange = () => {
+    const newTasks = this.state.showVerified
+      ? this.props.tasks.filter((task) => task.verified === true)
+      : this.props.tasks;
+    const tasksFilteredByType =
+      this.state.activeFilters.length > 0
+        ? newTasks.filter((task) => this.state.activeFilters.includes(task.icon))
+        : newTasks;
+
+    const searchQuery = this.state.searchQuery;
+
+    this.setState({
+      tasksToDisplay: this.handleSearchFilter(searchQuery, tasksFilteredByType),
+    });
+  };
+
+  handleSearchFilter = (searchQuery: string, tasksToDisplay) =>
+    matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name"] });
+
+  // The "For each" entry follows the search box. It is verified, so the verified filter keeps it; it
+  // has no task type, so any type filter hides it.
+  showForeachEntry = () =>
+    this.state.activeFilters.length === 0 &&
+    matchSorter([FOREACH_PALETTE_ENTRY], this.state.searchQuery, { keys: ["displayName", "name"] }).length > 0;
+
+  determineTasks = () => {
+    const taskTemplatesByName = groupTasksByName(this.state.tasksToDisplay);
+    // List of distinct task names by latest version
+    const tasksToDisplay = Object.values(taskTemplatesByName).map((taskList) => taskList[0]);
+    //Create object with keys as the categories and values as tasks
+    const sortedTasksByCategory = sortByProp(tasksToDisplay, "category");
+    const catgegoriesWithTasks = sortedTasksByCategory.reduce((accum, task) => {
+      const formattedCategory = task.category;
+      if (!accum[formattedCategory]) {
+        accum[formattedCategory] = [task];
+      } else {
+        accum[formattedCategory].push(task);
+      }
+      return accum;
+    }, {});
+
+    const showForeach = this.showForeachEntry();
+    const foreachCategory = Object.keys(catgegoriesWithTasks).find(isFirstTaskCategory) ?? "Workflow";
+    if (showForeach && !catgegoriesWithTasks[foreachCategory]) {
+      catgegoriesWithTasks[foreachCategory] = [];
+    }
+
+    // Push "workflow" to front of array and delete the other instance of it w/ set
+    const uniqueCategories = uniqBy(Object.keys(catgegoriesWithTasks)).sort((categoryA, categoryB) => {
+      if (isFirstTaskCategory(categoryA)) {
+        return -1;
+      }
+
+      if (isFirstTaskCategory(categoryB)) {
+        return 1;
+      }
+
+      if (categoryA < categoryB) {
+        return -1;
+      }
+
+      if (categoryA > categoryB) {
+        return 1;
+      }
+
+      return 0;
+    });
+
+    //Iterate through all of the categories and render header with associated tasks
+    return (
+      <Accordion>
+        {uniqueCategories.map((category) => (
+          <AccordionItem
+            className={styles.taskCategory}
+            title={`${category} (${
+              catgegoriesWithTasks[category].length + (showForeach && category === foreachCategory ? 1 : 0)
+            })`}
+            open={
+              this.state.isAccordionOpen || (isFirstTaskCategory(category) && this.state.firstTaskCategoryIsOpen)
+                ? true
+                : null
+            }
+            key={category}
+          >
+            <ul className={styles.taskSection} key={category}>
+              {showForeach && category === foreachCategory ? (
+                <Task
+                  key={FOREACH_PALETTE_ENTRY.id}
+                  name={FOREACH_PALETTE_ENTRY.displayName}
+                  renderIcon={ForeachIcon}
+                  verified={FOREACH_PALETTE_ENTRY.verified}
+                  scope="global"
+                  taskData={FOREACH_PALETTE_ENTRY}
+                />
+              ) : null}
+              {sortByProp(catgegoriesWithTasks[category], "name").map((task) => (
+                <Task
+                  key={task.id}
+                  icon={task.icon}
+                  name={task.displayName}
+                  verified={task.verified}
+                  scope={task.scope}
+                  taskData={task}
+                />
+              ))}
+            </ul>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    );
+  };
+
+  render() {
+    return (
+      <aside className={cx(styles.container, { [styles.collapsed]: !this.state.isSidenavOpen })}>
+        <header className={styles.header}>
+          <h2 className={styles.heading}>Add a task</h2>
+          {this.state.isSidenavOpen && (
+            <button
+              className={styles.expandButton}
+              onClick={() => {
+                this.setState((prevState) => ({
+                  isAccordionOpen: !prevState.isAccordionOpen,
+                  firstTaskCategoryIsOpen: false,
+                }));
+              }}
+            >
+              {this.state.isAccordionOpen ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+          <button
+            aria-label={this.state.isSidenavOpen ? "Collapse the task palette" : "Expand the task palette"}
+            className={styles.collapseButton}
+            onClick={() => this.setState((prevState) => ({ isSidenavOpen: !prevState.isSidenavOpen }))}
+          >
+            <ChevronLeft className={styles.collapseButtonImg} />
+          </button>
+        </header>
+        {this.state.isSidenavOpen && (
+          <>
+            <Layer className={styles.tasks}>
+              <Search
+                data-testid="editor-task-search"
+                id="search-tasks"
+                size="sm"
+                labelText="Search"
+                onChange={this.handleOnSearchInputChange}
+                placeholder={`Search ${this.state.tasksToDisplay.length} tasks`}
+                value={this.state.searchQuery}
+              />
+              <OverflowMenu
+                ariaLabel="Filter"
+                size="sm"
+                iconDescription="Filter"
+                renderIcon={SettingsAdjust}
+                className={cx({ [styles.filterActive]: this.state.activeFilters.length > 0 || this.state.showVerified })}
+                flipped={true}
+                menuOptionsClass={styles.filters}
+              >
+                <section className={styles.filterHeader}>
+                  <p className={styles.filterTitle}>Filters</p>
+                  <button
+                    className={styles.resetFilter}
+                    onClick={() =>
+                      this.setState({ activeFilters: [], tasksToDisplay: this.props.tasks, showVerified: false })
+                    }
+                  >
+                    Reset filters
+                  </button>
+                </section>
+                <section className={styles.topFilter}>
+                  <Checkbox
+                    id="verified-tasks"
+                    labelText={
+                      <div className={styles.checkboxOption}>
+                        <Recommend fill="#0072C3" style={{ willChange: "auto" }} /> <p>Verified Tasks</p>
+                      </div>
+                    }
+                    checked={this.state.showVerified}
+                    onChange={() => {
+                      this.setState(
+                        (prevState) => ({ showVerified: !prevState.showVerified }),
+                        this.handleCheckboxChange,
+                      );
+                    }}
+                  />
+                </section>
+                <section className={styles.filter}>
+                  <p className={styles.sectionTitle}>Filter by Task Type</p>
+                  <CheckboxList
+                    selectedItems={this.state.activeFilters}
+                    // initialSelectedItems={this.state.activeFilters}
+                    options={this.state.taskTypes}
+                    onChange={(...args) => this.handleCheckboxListChange(...args)}
+                  />
+                </section>
+              </OverflowMenu>
+            </Layer>
+            <section className={styles.content}>{this.determineTasks()}</section>
+          </>
+        )}
+      </aside>
+    );
+  }
+}

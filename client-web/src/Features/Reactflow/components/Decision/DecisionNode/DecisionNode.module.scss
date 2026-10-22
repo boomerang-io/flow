@@ -1,0 +1,17 @@
+.node {
+  border: 0.125rem solid var(--flow-switch-primary);
+  border-radius: 0.25rem;
+  box-sizing: border-box;
+  width: 10rem;
+
+  svg {
+    circle {
+      stroke: var(--flow-switch-primary);
+    }
+  }
+
+  :global .source {
+    background-color: var(--flow-switch-primary);
+    border-color: var(--flow-switch-primary);
+  }
+}

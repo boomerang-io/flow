@@ -1,0 +1,681 @@
+package io.boomerang.schedule;
+
+import com.cronutils.model.Cron;
+import com.cronutils.model.CronType;
+import com.cronutils.model.definition.CronDefinition;
+import com.cronutils.model.definition.CronDefinitionBuilder;
+import com.cronutils.model.time.ExecutionTime;
+import com.cronutils.parser.CronParser;
+import io.boomerang.common.entity.WorkflowScheduleEntity;
+import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.enums.WorkflowScheduleStatus;
+import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.WorkflowSchedule;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.ParameterUtil;
+import io.boomerang.common.util.QueryCriteria;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.audit.SecretChangeHolder;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.schedule.model.WorkflowScheduleCalendar;
+import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowService;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.support.PageableExecutionUtils;
+import org.springframework.stereotype.Service;
+
+/*
+ * Workflow Schedule Service provides all the methods for both the Schedules page and the individual
+ * Workflow Schedule. Firing is level-triggered: schedules carry a nextFireAt that the
+ * ScheduleWatcher sweep advances-and-fires via a Compare-And-Set - no external job scheduler.
+ *
+ * @since Flow 3.6.0
+ */
+@Service
+public class ScheduleService {
+
+  private final Logger LOGGER = LogManager.getLogger(getClass());
+
+  private final WorkflowScheduleRepository scheduleRepository;
+  private final WorkflowService workflowService;
+  private final RelationshipService relationshipService;
+  private final MongoTemplate mongoTemplate;
+  private final CronService cronService;
+
+  public ScheduleService(
+      WorkflowScheduleRepository scheduleRepository,
+      WorkflowService workflowService,
+      RelationshipService relationshipService,
+      MongoTemplate mongoTemplate,
+      CronService cronService) {
+    this.scheduleRepository = scheduleRepository;
+    this.workflowService = workflowService;
+    this.relationshipService = relationshipService;
+    this.mongoTemplate = mongoTemplate;
+    this.cronService = cronService;
+  }
+
+  /*
+   * Retrieves a specific schedule
+   *
+   * @return a single Workflow Schedule
+   */
+  public WorkflowSchedule get(String workspace, String scheduleId) {
+    final Optional<WorkflowScheduleEntity> scheduleEntity = scheduleRepository.findById(scheduleId);
+    if (scheduleEntity.isPresent()
+        && scheduleEntity.get().getWorkflowRef() != null
+        && relationshipService.hasNodes(
+            RelationshipType.WORKSPACE,
+            workspace,
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(scheduleEntity.get().getWorkflowRef())),
+            Optional.empty(),
+            Optional.empty())) {
+      return masked(convertScheduleEntityToModel(scheduleEntity.get()));
+    }
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+  }
+
+  /*
+   * Internal Get
+   *
+   * Used by ExecuteScheduleJob. Unmasked: the scheduled run must receive the real secret values.
+   */
+  public WorkflowSchedule internalGet(String scheduleId) {
+    final Optional<WorkflowScheduleEntity> scheduleEntity = scheduleRepository.findById(scheduleId);
+    if (scheduleEntity.isPresent()) {
+      return convertScheduleEntityToModel(scheduleEntity.get());
+    }
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+  }
+
+  /*
+   * Provides an all encompassing schedule retrieval method with optional filters. Ignores deleted schedules.
+   *
+   * @return list of Workflow Schedules
+   */
+  public Page<WorkflowSchedule> query(
+      String queryTeam,
+      int page,
+      int limit,
+      Sort sort,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryTypes,
+      Optional<List<String>> queryWorkflows) {
+    List<String> refs =
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
+    if (!refs.isEmpty()) {
+      Query query =
+          new Query(
+              new QueryCriteria()
+                  .in("workflowRef", refs)
+                  .in("status", WorkflowScheduleStatus.class, queryStatus, "status")
+                  .in("type", queryTypes)
+                  .build());
+      final Pageable pageable = PageRequest.of(page, limit, sort);
+      query.with(pageable);
+
+      List<WorkflowScheduleEntity> scheduleEntities =
+          mongoTemplate.find(query.with(pageable), WorkflowScheduleEntity.class);
+
+      List<WorkflowSchedule> workflowSchedules = new LinkedList<>();
+      scheduleEntities.forEach(
+          e -> {
+            workflowSchedules.add(masked(convertScheduleEntityToModel(e)));
+          });
+
+      Page<WorkflowSchedule> pages =
+          PageableExecutionUtils.getPage(
+              workflowSchedules,
+              pageable,
+              () ->
+                  mongoTemplate.count(
+                      Query.of(query).skip(-1).limit(-1), WorkflowScheduleEntity.class));
+      return pages;
+    }
+    // No reachable Workflow: an unreachable workspace is a 404; a reachable one with nothing to
+    // list (new, emptied, or a workflows= filter matching none) is an empty page.
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+    }
+    return Page.empty(PageRequest.of(page, limit, sort));
+  }
+
+  /*
+   * Create a schedule based on the payload which includes the Workflow Id.
+   *
+   * @return echos the created schedule
+   */
+  public WorkflowSchedule create(String workspace, final WorkflowSchedule schedule) {
+    if (schedule != null && schedule.getWorkflowRef() != null) {
+      List<String> refs =
+          relationshipService.refsInWorkspace(
+              RelationshipType.WORKFLOW, workspace, Optional.of(List.of(schedule.getWorkflowRef())));
+      if (!refs.isEmpty()) {
+        schedule.setWorkflowRef(refs.get(0));
+        WorkflowScheduleEntity scheduleEntity = internalCreate(workspace, schedule);
+        return masked(convertScheduleEntityToModel(scheduleEntity));
+      }
+    }
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
+  }
+
+  public WorkflowScheduleEntity internalCreate(final String workspace, final WorkflowSchedule schedule) {
+    // Validate required fields are present
+    if ((WorkflowScheduleType.runOnce.equals(schedule.getType())
+            && schedule.getDateSchedule() == null)
+        || (!WorkflowScheduleType.runOnce.equals(schedule.getType())
+            && schedule.getCronSchedule() == null)
+        || schedule.getTimezone() == null
+        || schedule.getTimezone().isBlank()) {
+      throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
+    }
+    Workflow workflow =
+        workflowService
+            .get(schedule.getWorkflowRef(), Optional.empty(), false)
+            .getBody();
+    WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
+    BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
+    stampSecretParams(scheduleEntity, workflow);
+    // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
+    DataAdapterUtil.keepRunParamValueByFieldType(
+        scheduleEntity.getParams(), List.of(), ParamType.secret);
+    SecretChangeHolder.compare(
+        Map.of(),
+        SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
+    storeCronAsUnix(scheduleEntity);
+    boolean enableJob = false;
+    if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
+        && workflow != null
+        && workflow.getTriggers().getSchedule().getEnabled()) {
+      enableJob = true;
+    } else if (WorkflowScheduleStatus.active.equals(scheduleEntity.getStatus())
+        && workflow != null
+        && !workflow.getTriggers().getSchedule().getEnabled()) {
+      scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
+    }
+    // Only create JobRunr if Schedule is enabled. As there is no pause functionality in JobRunr.
+    if (enableJob) {
+      createOrUpdateSchedule(scheduleEntity);
+    }
+    return scheduleRepository.save(scheduleEntity);
+  }
+
+  /*
+   * A schedule's params arrive without a type, as the UI and API send them. Each one the workflow
+   * declares as `password` (its latest revision, at save) is stamped `secret`, so it is encrypted at
+   * rest and masked on reads. A param that becomes `password` later stays untyped until the
+   * schedule is saved again.
+   */
+  private static void stampSecretParams(WorkflowScheduleEntity schedule, Workflow workflow) {
+    if (workflow != null) {
+      ParameterUtil.stampSecretParams(schedule.getParams(), workflow.getParams());
+    }
+  }
+
+  // Every schedule response masks its secret params; the copy leaves the entity's list untouched.
+  private static WorkflowSchedule masked(WorkflowSchedule schedule) {
+    schedule.setParams(
+        DataAdapterUtil.filterDefinitionValueByFieldType(schedule.getParams(), ParamType.secret));
+    return schedule;
+  }
+
+  /*
+   * Helper method to convert from Entity to Model as well as adding in the next schedule date.
+   *
+   * @return the single returnable schedule.
+   */
+  private WorkflowSchedule convertScheduleEntityToModel(WorkflowScheduleEntity entity) {
+    try {
+      WorkflowSchedule schedule = new WorkflowSchedule(entity, getNextTriggerDate(entity));
+      relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, schedule.getWorkflowRef());
+      schedule.setWorkflowRef(
+          relationshipService.getSlugByRefForType(
+              RelationshipType.WORKFLOW, schedule.getWorkflowRef()));
+      return schedule;
+    } catch (Exception e) {
+      // Trap exception as we still want to return the dates that we can
+      LOGGER.warn("Unable to retrieve next schedule date for {}, skipping.", entity.getId());
+      WorkflowSchedule schedule = new WorkflowSchedule(entity);
+      relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, schedule.getWorkflowRef());
+      schedule.setWorkflowRef(
+          relationshipService.getSlugByRefForType(
+              RelationshipType.WORKFLOW, schedule.getWorkflowRef()));
+      return schedule;
+    }
+  }
+
+  /*
+   * Retrieves the calendar dates between a start and end date period for the schedules provided.
+   *
+   * @return list of Schedule Calendars
+   *
+   * TODO add relationship check
+   */
+  public List<WorkflowScheduleCalendar> calendars(
+      String workspace, final List<String> scheduleIds, Date fromDate, Date toDate) {
+    List<WorkflowScheduleCalendar> scheduleCalendars = new LinkedList<>();
+    final Optional<List<WorkflowScheduleEntity>> scheduleEntities =
+        scheduleRepository.findByIdInAndStatusIn(scheduleIds, getStatusesNotCompletedOrDeleted());
+    if (scheduleEntities.isPresent()) {
+      scheduleEntities
+          .get()
+          .forEach(
+              e -> {
+                WorkflowScheduleCalendar scheduleCalendar = new WorkflowScheduleCalendar();
+                scheduleCalendar.setScheduleId(e.getId());
+                scheduleCalendar.setDates(getCalendarForDates(e.getId(), fromDate, toDate));
+                scheduleCalendars.add(scheduleCalendar);
+              });
+    }
+    return scheduleCalendars;
+  }
+
+  /*
+   * Retrieves the calendar dates between a start and end date period for a specific schedule
+   *
+   * @return a list of dates for a single Schedule Calendar
+   */
+  private List<Date> getCalendarForDates(final String scheduleId, Date fromDate, Date toDate) {
+    final WorkflowScheduleEntity scheduleEntity =
+        scheduleRepository.findById(scheduleId).orElse(null);
+    if (scheduleEntity != null) {
+      try {
+        if (WorkflowScheduleType.runOnce.equals(scheduleEntity.getType())) {
+          return List.of(scheduleEntity.getDateSchedule());
+        } else {
+          return getCronTriggerDates(
+              cronService.toUnix(scheduleEntity.getType(), scheduleEntity.getCronSchedule()),
+              fromDate,
+              toDate,
+              scheduleEntity.getTimezone());
+        }
+      } catch (Exception e) {
+        // Trap exception as we still want to return the dates that we can
+        e.printStackTrace();
+        LOGGER.warn(
+            "Unable to retrieve calendar for Schedule: {}, skipping.", scheduleEntity.getId());
+      }
+    }
+    return new LinkedList<>();
+  }
+
+  /*
+   * Update a schedule based on the payload and the Schedules Id.
+   *
+   * @return echos the updated schedule
+   */
+  public WorkflowSchedule apply(String workspace, final WorkflowSchedule request) {
+    if (request != null
+        && request.getId() != null
+        && !request.getId().isBlank()
+        && !request.getId().isEmpty()) {
+      final Optional<WorkflowScheduleEntity> optScheduleEntity =
+          scheduleRepository.findById(request.getId());
+      if (optScheduleEntity.isPresent()) {
+        WorkflowScheduleEntity scheduleEntity = optScheduleEntity.get();
+        /*
+         * The copy ignores ID, workflowRef and creationDate to ensure data integrity
+         */
+        WorkflowScheduleStatus previousStatus = scheduleEntity.getStatus();
+        List<RunParam> storedParams = scheduleEntity.getParams();
+        BeanUtils.copyProperties(
+            request, scheduleEntity, "id", "creationDate", "workflowRef", "schedulerRef");
+        storeCronAsUnix(scheduleEntity);
+        Workflow workflow =
+            workflowService.get(workspace, request.getWorkflowRef(), Optional.empty(), false);
+        // The one secret write rule: the marker, or no value, keeps the stored value; a blank
+        // clears it.
+        stampSecretParams(scheduleEntity, workflow);
+        DataAdapterUtil.keepRunParamValueByFieldType(
+            scheduleEntity.getParams(), storedParams, ParamType.secret);
+        SecretChangeHolder.compare(
+            SecretChangeHolder.secretRunValues("", storedParams, ParamType.secret),
+            SecretChangeHolder.secretRunValues("", scheduleEntity.getParams(), ParamType.secret));
+
+        /*
+         * Complex Status checking to determine what can and can't be enabled, incl date in the past check
+         */
+        WorkflowScheduleStatus newStatus = scheduleEntity.getStatus();
+        boolean enableJob = true;
+        if (!previousStatus.equals(newStatus)) {
+          if (WorkflowScheduleStatus.active.equals(previousStatus)
+              && WorkflowScheduleStatus.inactive.equals(newStatus)) {
+            scheduleEntity.setStatus(WorkflowScheduleStatus.inactive);
+            enableJob = false;
+          } else if (WorkflowScheduleStatus.inactive.equals(previousStatus)
+              && WorkflowScheduleStatus.active.equals(newStatus)) {
+            if (workflow != null && !workflow.getTriggers().getSchedule().getEnabled()) {
+              scheduleEntity.setStatus(WorkflowScheduleStatus.trigger_disabled);
+              enableJob = false;
+            }
+            if (WorkflowScheduleType.runOnce.equals(scheduleEntity.getType())) {
+              Date currentDate = new Date();
+              if (scheduleEntity.getDateSchedule().getTime() < currentDate.getTime()) {
+                scheduleEntity.setStatus(WorkflowScheduleStatus.error);
+                scheduleRepository.save(scheduleEntity);
+                LOGGER.error(
+                    "Cannot enable schedule ({}) as it is in the past.", scheduleEntity.getId());
+                throw new BoomerangException(
+                    BoomerangError.SCHEDULE_INVALID_RUNONCE, scheduleEntity.getId());
+              }
+            }
+          }
+        } else {
+          if (WorkflowScheduleStatus.inactive.equals(newStatus)) {
+            enableJob = false;
+          }
+        }
+        scheduleRepository.save(scheduleEntity);
+        if (enableJob) {
+          createOrUpdateSchedule(scheduleEntity);
+        }
+        return masked(convertScheduleEntityToModel(scheduleEntity));
+      }
+    } else if (request != null) {
+      request.setId(null);
+      return this.create(workspace, request);
+    }
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REQ);
+  }
+
+  /*
+   * Helper method to determine if we are updating a cron or runonce schedule. It also handles
+   * pausing a schedule if the status is set to pause.
+   */
+  private void createOrUpdateSchedule(final WorkflowScheduleEntity schedule) {
+    schedule.setNextFireAt(computeNextFireAt(schedule, ZonedDateTime.now()));
+    scheduleRepository.save(schedule);
+  }
+
+  /**
+   * The next fire time for a schedule: the run-once date, or the next cron occurrence from
+   * {@code from}. Returns null when there is no future occurrence.
+   */
+  private Date computeNextFireAt(WorkflowScheduleEntity schedule, ZonedDateTime from) {
+    if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+      return schedule.getDateSchedule();
+    }
+    return nextOccurrence(schedule, from);
+  }
+
+  /** Save a schedule's cron in the UNIX form the scheduler reads; an unreadable one is kept as sent. */
+  private void storeCronAsUnix(WorkflowScheduleEntity schedule) {
+    if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+      return;
+    }
+    String unix = cronService.toUnix(schedule.getType(), schedule.getCronSchedule());
+    if (unix != null) {
+      schedule.setCronSchedule(unix);
+    }
+  }
+
+  /**
+   * The next occurrence of a schedule's cron at or after {@code from}, read in whichever form it was
+   * stored (see {@link CronService#toUnix}). Null on an unreadable cron or no future occurrence.
+   */
+  public Date nextOccurrence(WorkflowScheduleEntity schedule, ZonedDateTime from) {
+    if (schedule.getCronSchedule() == null || schedule.getCronSchedule().isBlank()) {
+      return null;
+    }
+    String unix = cronService.toUnix(schedule.getType(), schedule.getCronSchedule());
+    if (unix == null) {
+      LOGGER.error(
+          "[{}] Unreadable cron, the schedule cannot fire: {}", schedule.getId(), schedule.getCronSchedule());
+      return null;
+    }
+    return nextOccurrence(unix, schedule.getTimezone(), from);
+  }
+
+  /**
+   * The next occurrence of a five-field UNIX cron at or after {@code from}, using cron-utils - the
+   * same parser as the forward calendar, so firing and preview never disagree. Null on a bad
+   * expression or no future occurrence.
+   */
+  public Date nextOccurrence(String cron, String timezone, ZonedDateTime from) {
+    if (cron == null || timezone == null) {
+      return null;
+    }
+    try {
+      CronDefinition definition = CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX);
+      ExecutionTime executionTime = ExecutionTime.forCron(new CronParser(definition).parse(cron));
+      ZoneId zone = TimeZone.getTimeZone(timezone).toZoneId();
+      return executionTime
+          .nextExecution(from.withZoneSameInstant(zone))
+          .map(next -> Date.from(next.toInstant()))
+          .orElse(null);
+    } catch (Exception e) {
+      LOGGER.error("Unable to compute next cron occurrence for expression: {}", cron, e);
+      return null;
+    }
+  }
+
+  /**
+   * Fire-claim Compare-And-Set: advance {@code nextFireAt} from its observed value to the next
+   * occurrence in one atomic write. The query pinning the observed {@code nextFireAt} is the
+   * fence - only one instance wins per tick; a racing instance's query misses because the value
+   * already advanced. Returns whether this instance won the fire.
+   */
+  public boolean tryClaimFire(
+      String id, Date observedNextFireAt, Date newNextFireAt, Date now) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(WorkflowScheduleStatus.active)
+                .and("nextFireAt")
+                .is(observedNextFireAt));
+    Update update = new Update().set("nextFireAt", newNextFireAt).set("lastFiredAt", now);
+    return mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class).getModifiedCount()
+        > 0;
+  }
+
+  /**
+   * Re-arm a schedule to retry a failed fire: bring {@code nextFireAt} back to the (sooner) retry
+   * time and record the attempt count. The retry fires before the already-advanced next occurrence.
+   */
+  public void reArmForRetry(String id, Date retryFireAt, int attempts) {
+    Query query = Query.query(Criteria.where("_id").is(id));
+    Update update = new Update().set("nextFireAt", retryFireAt).set("retryCount", attempts);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /** Clear the failed-fire counter: called on a successful fire or once the attempts are exhausted. */
+  public void clearRetryCount(String id) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("retryCount").gt(0));
+    Update update = new Update().set("retryCount", 0);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /**
+   * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} without
+   * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
+   */
+  public void initializeNextFireAt(String id, Date nextFireAt) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("nextFireAt").exists(false));
+    Update update = new Update().set("nextFireAt", nextFireAt);
+    mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class);
+  }
+
+  /*
+   * Enables all schedules that have been disabled by the trigger being disabled. This is needed to
+   * differentiate between user paused and trigger disabled schedules.
+   */
+  public void enableAllTriggerSchedules(final String workspace, final String workflowId) {
+    final Optional<List<WorkflowScheduleEntity>> entities =
+        scheduleRepository.findByWorkflowRefInAndStatusIn(
+            List.of(workflowId), List.of(WorkflowScheduleStatus.trigger_disabled));
+    if (entities.isPresent()) {
+      entities.get().forEach(s -> enableSchedule(workspace, s.getId()));
+    }
+  }
+
+  /*
+   * Enables a specific schedule
+   */
+  private void enableSchedule(final String workspace, final String scheduleId) {
+    Optional<WorkflowScheduleEntity> optSchedule = scheduleRepository.findById(scheduleId);
+    if (optSchedule.isPresent()) {
+      WorkflowScheduleEntity scheduleEntity = optSchedule.get();
+      if (WorkflowScheduleType.runOnce.equals(scheduleEntity.getType())) {
+        Date currentDate = new Date();
+        if (scheduleEntity.getDateSchedule().getTime() < currentDate.getTime()) {
+          LOGGER.error("Cannot enable schedule ({}) as it is in the past.", scheduleEntity.getId());
+          scheduleEntity.setStatus(WorkflowScheduleStatus.error);
+          scheduleRepository.save(scheduleEntity);
+        }
+      }
+      scheduleEntity.setStatus(WorkflowScheduleStatus.active);
+      scheduleRepository.save(scheduleEntity);
+      this.createOrUpdateSchedule(scheduleEntity);
+    }
+  }
+
+  /*
+   * Disables all schedules that are currently active and is used when the trigger is disabled.
+   */
+  public void disableAllTriggerSchedules(final String workspace, final String workflowId) {
+    final Optional<List<WorkflowScheduleEntity>> entities =
+        scheduleRepository.findByWorkflowRefInAndStatusIn(
+            List.of(workflowId), List.of(WorkflowScheduleStatus.active));
+    if (entities.isPresent()) {
+      entities
+          .get()
+          .forEach(
+              s -> {
+                // Status alone stops firing - the sweep only fires active schedules.
+                s.setStatus(WorkflowScheduleStatus.trigger_disabled);
+                scheduleRepository.save(s);
+              });
+    }
+  }
+
+  /*
+   * Complete a specific schedule
+   *
+   * Used by ExecuteScheduleJob
+   */
+  public void complete(String scheduleId) {
+    Optional<WorkflowScheduleEntity> schedule = scheduleRepository.findById(scheduleId);
+    if (schedule.isPresent()) {
+      schedule.get().setStatus(WorkflowScheduleStatus.completed);
+      scheduleRepository.save(schedule.get());
+    }
+  }
+
+  /*
+   * Mark all schedules as deleted and cancel the scheduled jobs. This is used when a workflow is deleted.
+   */
+  public void deleteAllForWorkflow(final String workflowId) {
+    final Optional<List<WorkflowScheduleEntity>> entities =
+        scheduleRepository.findByWorkflowRef(workflowId);
+    if (entities.isPresent()) {
+      entities
+          .get()
+          .forEach(
+              s -> {
+                this.internalDelete(s);
+              });
+    }
+  }
+
+  /*
+   * Mark a single schedule as deleted and cancel the scheduled jobs. Used by the UI when deleting a schedule.
+   */
+  public void delete(String workspace, final String scheduleId) {
+    final Optional<WorkflowScheduleEntity> schedule = scheduleRepository.findById(scheduleId);
+    if (schedule.isPresent()
+        && relationshipService.hasNodes(
+            RelationshipType.WORKSPACE,
+            workspace,
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(schedule.get().getWorkflowRef())),
+            Optional.empty(),
+            Optional.empty())) {
+      this.internalDelete(schedule.get());
+    } else {
+      throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+    }
+  }
+
+  private void internalDelete(WorkflowScheduleEntity entity) {
+    LOGGER.debug("Deleting schedule: {}", entity.getId());
+    scheduleRepository.deleteById(entity.getId());
+  }
+
+  private List<WorkflowScheduleStatus> getStatusesNotCompletedOrDeleted() {
+    List<WorkflowScheduleStatus> statuses = new LinkedList<>();
+    statuses.add(WorkflowScheduleStatus.active);
+    statuses.add(WorkflowScheduleStatus.inactive);
+    statuses.add(WorkflowScheduleStatus.trigger_disabled);
+    statuses.add(WorkflowScheduleStatus.error);
+    return statuses;
+  }
+
+
+  /**
+   * Retrieve the list of dates that a cron expression will trigger between two dates.
+   *
+   * @param cronExpression
+   * @param fromDate
+   * @param toDate
+   * @param timezone
+   * @return
+   */
+  private List<Date> getCronTriggerDates(
+      String cronExpression, Date fromDate, Date toDate, String timezone) {
+    List<Date> triggerDates = new LinkedList<>();
+
+    if (cronExpression != null && timezone != null) {
+      try {
+        CronDefinition cronDefinition = CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX);
+        CronParser parser = new CronParser(cronDefinition);
+        Cron cron = parser.parse(cronExpression);
+        ExecutionTime executionTime = ExecutionTime.forCron(cron);
+
+        ZoneId zoneId = TimeZone.getTimeZone(timezone).toZoneId();
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
+        ZonedDateTime startTime = fromDate.toInstant().atZone(zoneId);
+        ZonedDateTime endTime = toDate.toInstant().atZone(zoneId);
+
+        // Ensure startTime is not in the past
+        if (startTime.isBefore(now)) {
+          startTime = now;
+        }
+
+        List<ZonedDateTime> executionDates = executionTime.getExecutionDates(startTime, endTime);
+        executionDates.stream().forEach(d -> triggerDates.add(Date.from(d.toInstant())));
+      } catch (Exception e) {
+        LOGGER.error("Error getting cron trigger dates for expression: {}", cronExpression, e);
+      }
+    }
+
+    return triggerDates;
+  }
+
+  /**
+   * Retrieve the next trigger date for a given schedule based on its cron expression and timezone.
+   */
+  private Date getNextTriggerDate(WorkflowScheduleEntity schedule) {
+    return nextOccurrence(schedule, ZonedDateTime.now());
+  }
+}

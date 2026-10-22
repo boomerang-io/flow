@@ -1,0 +1,430 @@
+import React, { useEffect, useRef, useState } from "react";
+//@ts-ignore
+import { Button, InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
+import { Run, Bee, CircleFill, InformationFilled } from "@carbon/react/icons";
+import {
+  ConfirmModal,
+  ComposedModal,
+  ToastNotification,
+  notify,
+  TooltipHover,
+} from "@boomerang-io/carbon-addons-boomerang-react";
+import workflowIcons from "Assets/workflowIcons";
+import { useFeature } from "flagged";
+import fileDownload from "js-file-download";
+import cloneDeep from "lodash/cloneDeep";
+import { useFetcher, Link, useNavigate } from "react-router-dom";
+import WorkflowWarningButton from "Components/WorkflowWarningButton";
+// @ts-ignore:next-line
+import { swapValue } from "Utils";
+import { WorkflowView } from "Constants";
+import { appLink, FeatureFlag } from "Config/appConfig";
+import { resourceRoute } from "Config/resourceRoutes";
+import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
+import UpdateWorkflow from "./UpdateWorkflow";
+import WorkflowInputModalContent from "./WorkflowInputModalContent";
+import WorkflowRunModalContent from "./WorkflowRunModalContent";
+import styles from "./workflowCard.module.scss";
+
+interface WorkflowCardProps {
+  workspaceName: string;
+  quotas: FlowWorkspaceQuotas | null;
+  workflow: Workflow;
+  viewType: WorkflowViewType;
+}
+
+// Matches only the fields this component reads off the Workflows route's action result for the
+// "delete"/"duplicate"/"execute" intents it submits - see Features/Workflows/Workflows.tsx for the
+// actual action. Renders as a descendant of that route's element with no nested <Route> of its
+// own, so `useFetcher()` resolves against it.
+type ActionResult =
+  | { intent: "delete" | "duplicate" }
+  | ({ intent: "delete" | "duplicate" } & ActionError)
+  | { intent: "execute"; execution: WorkflowRun; redirect: boolean }
+  | ({ intent: "execute" } & ActionError);
+
+const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType }) => {
+  const fetcher = useFetcher<ActionResult>();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
+  const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
+  const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
+
+  const navigate = useNavigate();
+  const [errorMessage, seterrorMessage] = useState<{ title: string; message: string } | null>(null);
+  // handleExecuteWorkflow hands this component a `closeModal` + the "Run and View" redirect flag
+  // at submit time; the fetcher settles asynchronously (fetcher.state -> "idle"), so both are
+  // stashed here and read from the effect below once the execution actually succeeds - same
+  // "stay open with a spinner, close/navigate only on success" behaviour the old mutateAsync/then
+  // chain had.
+  const executeRef = useRef<{ closeModal: () => void; redirect: boolean } | null>(null);
+
+  const submittingIntent = fetcher.formData?.get("intent");
+  const isDeleting = submittingIntent === "delete";
+  const isDuplicating = submittingIntent === "duplicate";
+  const isExecuting = submittingIntent === "execute";
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    const data = fetcher.data;
+
+    if (data.intent === "delete") {
+      if (!isActionError(data)) {
+        notify(
+          <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
+        );
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title="Something's Wrong"
+            subtitle={`Request to delete ${viewType.toLowerCase()} failed`}
+          />,
+        );
+      }
+      return;
+    }
+
+    if (data.intent === "duplicate") {
+      if (!isActionError(data)) {
+        notify(
+          <ToastNotification
+            kind="success"
+            title={`Duplicate ${viewType}`}
+            subtitle={`Successfully duplicated ${viewType.toLowerCase()}`}
+          />,
+        );
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title="Something's Wrong"
+            subtitle={`Request to duplicate ${viewType.toLowerCase()} failed`}
+          />,
+        );
+      }
+      return;
+    }
+
+    if (data.intent === "execute") {
+      if (!isActionError(data)) {
+        notify(
+          <ToastNotification
+            kind="success"
+            title={`Run ${viewType}`}
+            subtitle={`Successfully started ${viewType.toLowerCase()} execution`}
+          />,
+        );
+        seterrorMessage(null);
+        if (data.redirect) {
+          navigate(appLink.execution({ workspace: workspaceName, runId: data.execution.id }), {
+            state: { fromUrl: appLink.workflows({ workspace: workspaceName }), fromText: `${viewType}s` },
+          });
+        } else {
+          executeRef.current?.closeModal();
+        }
+      } else {
+        seterrorMessage(data.error);
+      }
+      executeRef.current = null;
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  /**
+   * Format properties to be edited in form by Formik. It doesn't work with property notation :(
+   * See: https://jaredpalmer.com/formik/docs/guides/arrays#nested-objects
+   * This is safe to do because we don't accept "-" characters in property keys
+   * @returns {Array}
+   */
+  const formatPropertiesForEdit = () => {
+    const { params = [] } = workflow;
+    return params.filter((param: DataDrivenInput) => !param.readOnly);
+  };
+
+  const handleDeleteWorkflow = () => {
+    fetcher.submit({ intent: "delete", workflowName: workflow.name }, { method: "post" });
+  };
+
+  const handleDuplicateWorkflow = (workflow: Workflow) => {
+    fetcher.submit({ intent: "duplicate", workflowName: workflow.name }, { method: "post" });
+  };
+
+  // Fetches the same-origin /res streaming resource route (app/routes/resWorkflowExport.tsx)
+  // rather than calling /api from the browser (the BFF direction). The downloaded file's content
+  // is unchanged: the JSON is still pretty-printed exactly as the previous axios version did.
+  const handleExportWorkflow = (workflow: Workflow) => {
+    notify(<ToastNotification kind="info" title={`Export ${viewType}`} subtitle="Export starting soon" />);
+    fetch(resourceRoute.workflowExport({ workspace: workspaceName, workflow: workflow.name }), {
+      credentials: "same-origin",
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(String(response.status)))))
+      .then((data) => {
+        fileDownload(JSON.stringify(data, null, 4), `${workflow.name}.json`);
+      })
+      .catch(() => {
+        notify(
+          <ToastNotification
+            kind="error"
+            title="Something's Wrong"
+            subtitle={`Export ${viewType.toLowerCase()} failed`}
+          />,
+        );
+      });
+  };
+
+  /*
+   * This function is used to handle the execution of a workflow. It only needs to work for WorkflowView.Workflow as Templates cant be executed
+   */
+  const handleExecuteWorkflow = async (closeModal: () => void, redirect: boolean = false, properties: {} = {}) => {
+    let newProperties = properties;
+    if (Object.values(properties).includes("")) {
+      newProperties = cloneDeep(properties);
+      swapValue(newProperties);
+    }
+    const params = Object.entries(newProperties).map(([name, value]) => ({ name, value }));
+    const body = { params: params, trigger: "manual" };
+    executeRef.current = { closeModal, redirect };
+    fetcher.submit(
+      { intent: "execute", workflowName: workflow.name, body: JSON.stringify(body), redirect: String(redirect) },
+      { method: "post" },
+    );
+  };
+
+  let menuOptions = [
+    {
+      itemText: "Edit",
+      onClick: () => navigate(appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name })),
+    },
+    {
+      itemText: "View Activity",
+      onClick: () => navigate(appLink.workflowActivity({ workspace: workspaceName, workflow: workflow.name })),
+    },
+    {
+      itemText: "Update",
+      onClick: () => setIsUpdateWorkflowModalOpen(true),
+    },
+    {
+      itemText: "Export",
+      onClick: () => handleExportWorkflow(workflow),
+    },
+    {
+      itemText: "Duplicate",
+      onClick: () => handleDuplicateWorkflow(workflow),
+    },
+    {
+      hasDivider: true,
+      itemText: "Delete",
+      isDelete: true,
+      onClick: () => setIsDeleteModalOpen(true),
+    },
+  ];
+
+  //Remove View Activity if not enabled
+  if (!activityEnabled) {
+    menuOptions = menuOptions.filter((el) => el.itemText !== "View Activity");
+  }
+
+  const formattedProperties = formatPropertiesForEdit();
+  const { name, Icon = Bee } = workflowIcons.find((icon) => icon.name === workflow.icon) ?? {};
+  let hasReachedMonthlyRunLimit = false;
+  let hasReachedConcurrentLimit = false;
+
+  if (quotas) {
+    hasReachedMonthlyRunLimit = quotas?.maxWorkflowRunMonthly <= quotas?.currentRuns;
+    hasReachedConcurrentLimit = quotas?.maxConcurrentRuns <= quotas?.currentConcurrentRuns;
+  }
+
+  const canRunManually = workflow?.triggers?.manual?.enabled ?? false;
+  const isDisabledViaRunQuota = workspaceQuotasEnabled && hasReachedMonthlyRunLimit;
+  const isDisabledViaConcurrentQuota = workspaceQuotasEnabled && hasReachedConcurrentLimit;
+  const isDisabledViaTrigger = canRunManually === false;
+  const isDisabled = isDisabledViaRunQuota || isDisabledViaConcurrentQuota || isDisabledViaTrigger;
+
+  let loadingText = "";
+
+  if (isExecuting) {
+    loadingText = "Executing...";
+  } else if (isDuplicating) {
+    loadingText = "Duplicating...";
+  } else if (isDeleting) {
+    loadingText = "Deleting...";
+  }
+
+  return (
+    <div className={styles.container}>
+      <Link to={!isDeleting ? appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name }) : ""}>
+        <section className={styles.details}>
+          <div className={styles.iconContainer}>
+            <Icon className={styles.icon} aria-label={`${workflow.icon}`} />
+          </div>
+          <div className={styles.descriptionContainer}>
+            <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">
+              {workflow.displayName}
+            </h1>
+            <p title={workflow.description} className={styles.description}>
+              {workflow.description}
+            </p>
+          </div>
+        </section>
+      </Link>
+
+      {viewType === WorkflowView.Workflow && (
+        <section className={styles.launch}>
+          {Array.isArray(formattedProperties) && formattedProperties.length !== 0 ? (
+            <ComposedModal
+              modalHeaderProps={{
+                title: `Workflow Parameters`,
+                subtitle: `Provide parameter values for your Workflow`,
+              }}
+              modalTrigger={({ openModal }: ModalTriggerProps) => (
+                <Button
+                  disabled={isDeleting || isDisabled}
+                  iconDescription={`Run ${viewType}`}
+                  renderIcon={Run}
+                  size="md"
+                  onClick={openModal}
+                >
+                  Run it
+                </Button>
+              )}
+            >
+              {({ closeModal }) => (
+                <WorkflowInputModalContent
+                  closeModal={closeModal}
+                  executeError={Boolean(errorMessage)}
+                  executeWorkflow={handleExecuteWorkflow}
+                  isExecuting={isExecuting}
+                  /* @ts-ignore-next-line */
+                  inputs={formattedProperties}
+                  errorMessage={errorMessage}
+                />
+              )}
+            </ComposedModal>
+          ) : (
+            <ComposedModal
+              composedModalProps={{ containerClassName: `${styles.executeWorkflow}` }}
+              modalHeaderProps={{
+                title: `Execute ${viewType}`,
+                subtitle: `"Run and View" will navigate you to the ${viewType.toLowerCase()} exeuction view.`,
+              }}
+              modalTrigger={({ openModal }: ModalTriggerProps) => (
+                <Button
+                  disabled={isDeleting || isDisabled}
+                  iconDescription={`Run ${viewType}`}
+                  renderIcon={Run}
+                  size="md"
+                  onClick={openModal}
+                >
+                  Run it
+                </Button>
+              )}
+            >
+              {({ closeModal }) => (
+                <WorkflowRunModalContent
+                  closeModal={closeModal}
+                  executeError={Boolean(errorMessage)}
+                  executeWorkflow={handleExecuteWorkflow}
+                  isExecuting={isExecuting}
+                  errorMessage={errorMessage}
+                />
+              )}
+            </ComposedModal>
+          )}
+        </section>
+      )}
+      {workflow.upgradesAvailable && (
+        <div className={styles.templatesWarningIcon}>
+          <TooltipHover
+            direction="top"
+            tooltipContent={`New version of a task available! To update, edit your ${viewType.toLowerCase()}.`}
+          >
+            <div>
+              <WorkflowWarningButton />
+            </div>
+          </TooltipHover>
+        </div>
+      )}
+      {isDuplicating || isDeleting || isExecuting ? (
+        <InlineLoading
+          description={loadingText}
+          style={{ position: "absolute", left: "0.5rem", top: "0", width: "fit-content" }}
+        />
+      ) : (
+        <div className={styles.status}>
+          {isDisabledViaRunQuota ? (
+            <TooltipHover
+              direction="top"
+              tooltipText="This workspace has reached the maximum number of runs (executions) allowed this month. Contact your administrator or workspace owner to increase the quota, or wait until the quota resets next month."
+            >
+              <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
+            </TooltipHover>
+          ) : isDisabledViaConcurrentQuota ? (
+            <TooltipHover
+              direction="top"
+              tooltipText="This workspace has reached the maximum number of concurrent runs (executions) allowed. Contact your administrator or workspace owner to increase the quota, or wait until a run has completed execution."
+            >
+              <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
+            </TooltipHover>
+          ) : isDisabledViaTrigger ? (
+            <TooltipHover direction="top" tooltipText="Trigger disabled">
+              <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
+            </TooltipHover>
+          ) : workflow.status === "active" ? (
+            <TooltipHover direction="top" tooltipText="Active">
+              <CircleFill className={styles.warningIcon} style={{ fill: "#009d9a" }} />
+            </TooltipHover>
+          ) : (
+            <TooltipHover direction="top" tooltipText="Inactive">
+              <CircleFill className={styles.warningIcon} style={{ fill: "#da1e28" }} />
+            </TooltipHover>
+          )}
+          {/* <p className={styles.statusText}>{workflow.status === "active" ? "Active" : "Inactive"}</p> */}
+        </div>
+      )}
+      <div style={{ position: "absolute", right: "0" }}>
+        <OverflowMenu flipped ariaLabel="Overflow card menu" iconDescription="Overflow menu icon" size="sm">
+          {menuOptions.map(({ onClick, itemText, ...rest }, index) => (
+            <OverflowMenuItem
+              onClick={onClick}
+              itemText={itemText}
+              key={`${itemText}-${index}`}
+              disabled={isDuplicating || isDeleting || isExecuting}
+              {...rest}
+            />
+          ))}
+        </OverflowMenu>
+      </div>
+      {isUpdateWorkflowModalOpen && (
+        <UpdateWorkflow
+          onCloseModal={() => setIsUpdateWorkflowModalOpen(false)}
+          workflowRef={workflow.name}
+          workspaceName={workspaceName}
+          type={viewType}
+        />
+      )}
+      {isDeleteModalOpen && (
+        <ConfirmModal
+          affirmativeAction={handleDeleteWorkflow}
+          affirmativeButtonProps={{ kind: "danger" }}
+          affirmativeText="Delete"
+          isOpen={isDeleteModalOpen}
+          negativeAction={() => {
+            setIsDeleteModalOpen(false);
+          }}
+          negativeText="Cancel"
+          onCloseModal={() => {
+            setIsDeleteModalOpen(false);
+          }}
+          title={`Delete ${viewType}`}
+        >
+          {`Are you sure you want to delete this ${viewType.toLowerCase()}? There's no going back from this decision.`}
+        </ConfirmModal>
+      )}
+    </div>
+  );
+};
+
+export default WorkflowCard;

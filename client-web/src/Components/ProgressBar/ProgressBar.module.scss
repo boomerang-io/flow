@@ -1,0 +1,13 @@
+.coverageBar {
+  //   height: 1.125rem;
+  //   width: 28.125rem;
+  border-radius: 0.5625rem;
+  background-color: var(--cds-ui-02);
+  margin-bottom: 0.25rem;
+}
+
+.coverageFiller {
+  background-color: var(--cds-support-02);
+  border-radius: 0.5625rem;
+  height: 100%;
+}

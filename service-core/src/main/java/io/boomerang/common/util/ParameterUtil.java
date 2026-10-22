@@ -1,0 +1,348 @@
+package io.boomerang.common.util;
+
+import io.boomerang.common.enums.ConfigType;
+import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.model.*;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+public class ParameterUtil {
+
+  /** The body of a {@code $(...)} reference: the one pattern references are discovered with. */
+  public static final Pattern REFERENCE_PATTERN = Pattern.compile("(?<=\\$\\().+?(?=\\))");
+
+  // The scopes a $(<scope>.params.<name>) reference may name.
+  private static final List<String> REFERENCE_SCOPES =
+      List.of(
+          "global",
+          ParamLayers.WORKSPACE_SCOPE,
+          ParamLayers.DEPRECATED_WORKSPACE_SCOPE,
+          "workflow",
+          "context");
+
+  /** Whether a scope is one a {@code $(<scope>.params.<name>)} reference may name, in any case. */
+  public static boolean isReferenceScope(String scope) {
+    return REFERENCE_SCOPES.stream().anyMatch(s -> s.equalsIgnoreCase(scope));
+  }
+
+  /**
+   * Whether a value is a String whose whole content, ignoring surrounding whitespace, is one
+   * {@code $(...)} - "$(params.config)" and nothing else, whatever the body.
+   */
+  public static boolean isSingleReference(Object value) {
+    if (!(value instanceof String string)) {
+      return false;
+    }
+    String trimmed = string.trim();
+    Matcher matcher = REFERENCE_PATTERN.matcher(trimmed);
+    return matcher.find()
+        && matcher.start() == 2
+        && matcher.end() == trimmed.length() - 1
+        && !matcher.find();
+  }
+
+  /**
+   * Whether a value is exactly one Flow reference - {@code $(params.x)}, {@code
+   * $(<scope>.params.x)} or {@code $(tasks.t.results.r)}, each with an optional path - and not
+   * shell text such as {@code $(date)}. A lone reference carries no secret's text.
+   */
+  public static boolean isSingleFlowReference(Object value) {
+    if (!isSingleReference(value)) {
+      return false;
+    }
+    String body = ((String) value).trim();
+    String[] parts = body.substring(2, body.length() - 1).split("\\.");
+    return (parts.length >= 2 && "params".equalsIgnoreCase(parts[0]))
+        || (parts.length >= 3 && "params".equalsIgnoreCase(parts[1]) && isReferenceScope(parts[0]))
+        || (parts.length >= 4
+            && "tasks".equalsIgnoreCase(parts[0])
+            && "results".equalsIgnoreCase(parts[2]));
+  }
+
+  /*
+   * Add a parameter to an existing Run Parameter list, converting each AbstractParam's
+   * UI config type to the equivalent Tekton ParamType
+   *
+   * @param the parameter list
+   *
+   * @param the new parameter to add
+   *
+   * @return the parameter list
+   */
+  public static List<RunParam> abstractParamToRunParam(List<AbstractParam> parameterList) {
+    return parameterList.stream()
+        .map(p -> new RunParam(p.getName(), p.getDefaultValue(), getRunParamType(p.getType())))
+        .collect(Collectors.toList());
+  }
+
+  /*
+   * The run-time type of a UI field: a `password` field is a secret, every other field takes its
+   * Tekton type. Kept apart from getTektonParamType because a Tekton export has no secret type -
+   * there a password is still a string.
+   */
+  public static ParamType getRunParamType(String fieldType) {
+    return ConfigType.PASSWORD.equals(ConfigType.getConfigType(fieldType))
+        ? ParamType.secret
+        : getTektonParamType(fieldType);
+  }
+
+  /*
+   * Stamps `secret` on each value whose declared param is a `password` field, matched by name
+   * case-insensitively - the getRunParamType mapping a TaskRun is built with. A value given on a
+   * workflow node or a schedule carries no type of its own, and the stamp is what lets the store
+   * encrypt it at rest and reads mask it.
+   */
+  public static void stampSecretParams(List<RunParam> values, List<AbstractParam> declaredParams) {
+    if (values == null || declaredParams == null || declaredParams.isEmpty()) {
+      return;
+    }
+    values.stream()
+        .filter(p -> p.getName() != null)
+        .filter(
+            p ->
+                declaredParams.stream()
+                    .anyMatch(
+                        d ->
+                            p.getName().equalsIgnoreCase(d.getName())
+                                && ParamType.secret.equals(getRunParamType(d.getType()))))
+        .forEach(p -> p.setType(ParamType.secret));
+  }
+
+  /*
+   * Add a parameter to an existing Run Parameter list
+   *
+   * @param the parameter list
+   *
+   * @param the new parameter to add
+   *
+   * @return the parameter list
+   */
+  public static List<RunParam> addUniqueParam(List<RunParam> parameterList, RunParam param) {
+    // Case-insensitive (ruled 2026-08-26): a node param overrides the declared param it case-varies
+    // from rather than duplicating it. The existing entry keeps its name - declared casing is the
+    // display and delivery form.
+    if (parameterList.stream().noneMatch(p -> param.getName().equalsIgnoreCase(p.getName()))) {
+      parameterList.add(param);
+    } else {
+      // The declared type wins, with one exception: a value sent as a secret makes the param a
+      // secret. A type is only ever raised to secret here, never lowered from it.
+      parameterList.stream()
+          .filter(p -> param.getName().equalsIgnoreCase(p.getName()))
+          .findFirst()
+          .ifPresent(
+              p -> {
+                p.setValue(param.getValue());
+                if (ParamType.secret.equals(param.getType())) {
+                  p.setType(ParamType.secret);
+                }
+              });
+    }
+    return parameterList;
+  }
+
+  /*
+   * The canonical environment-variable fold for a param name (PARAM_<NAME>): upper-cased, any
+   * character outside [A-Za-z0-9_] replaced by '_'. Two names folding identically collide as env
+   * vars and, under case-insensitive matching, as references.
+   */
+  /*
+   * The canonical param-name rule, matching the webapp's PROPERTY_KEY_REGEX: letters, digits,
+   * dash, underscore, starting with a letter or underscore. '.' is deliberately excluded - it is
+   * the reference path separator in $(params.x) expressions, so a dotted name could never be
+   * referenced unambiguously.
+   */
+  /*
+   * The params' names, comma-joined, for a log line. A log carries names, never values: a value
+   * may be a secret, or a plain value that becomes one once its declared type is applied.
+   */
+  public static String runParamNames(List<RunParam> parameterList) {
+    return parameterList == null
+        ? ""
+        : parameterList.stream().map(RunParam::getName).collect(Collectors.joining(", "));
+  }
+
+  public static String abstractParamNames(List<AbstractParam> parameterList) {
+    return parameterList == null
+        ? ""
+        : parameterList.stream().map(AbstractParam::getName).collect(Collectors.joining(", "));
+  }
+
+  public static final String PARAM_NAME_REGEX = "^[a-zA-Z_][a-zA-Z0-9_-]*$";
+
+  public static boolean isValidParamName(String name) {
+    // "names" (any casing/separator variant) is reserved: it folds to PARAM_NAMES, the env var
+    // that carries the param-name manifest itself, and would clobber it.
+    return name != null && name.matches(PARAM_NAME_REGEX) && !"NAMES".equals(envFold(name));
+  }
+
+  public static String envFold(String name) {
+    // Locale.ROOT: the fold must match task-core's JavaScript toUpperCase() on every JVM locale
+    // (Turkish dotted-I would otherwise fold "id" to PARAM__D instead of PARAM_ID).
+    return name.toUpperCase(Locale.ROOT).replaceAll("[^A-Za-z0-9_]", "_");
+  }
+
+  /*
+   * Groups of names that collide under envFold (case or separator variants of each other).
+   * Empty when all names are distinct. Definition-side validation rejects these groups.
+   */
+  public static List<List<String>> paramNameCollisions(Collection<String> names) {
+    return names.stream()
+        .filter(Objects::nonNull)
+        .collect(Collectors.groupingBy(ParameterUtil::envFold, LinkedHashMap::new, Collectors.toList()))
+        .values()
+        .stream()
+        .filter(group -> group.size() > 1)
+        .collect(Collectors.toList());
+  }
+
+  /*
+   * Add a Run Parameter List to an existing Run Parameter list ensuring unique names
+   *
+   * @param the parameter list
+   *
+   * @param the new parameter to add
+   *
+   * @return the parameter list
+   */
+  /**
+   * The params of a run request - a submit, a start, a retry - that set a value: one sent with no
+   * value, or as the redaction marker for a secret (by its own type or the one it overrides),
+   * leaves the declared value, or the stored one, in place. A blank sets the value empty.
+   */
+  public static List<RunParam> suppliedParams(List<RunParam> current, List<RunParam> request) {
+    if (request == null) {
+      return new LinkedList<>();
+    }
+    return request.stream()
+        .filter(p -> p.getName() != null && p.getValue() != null)
+        .filter(
+            p ->
+                !DataAdapterUtil.REDACTED.equals(p.getValue())
+                    || !(ParamType.secret.equals(p.getType())
+                        || (current != null
+                            && current.stream()
+                                .anyMatch(
+                                    c ->
+                                        p.getName().equalsIgnoreCase(c.getName())
+                                            && ParamType.secret.equals(c.getType())))))
+        .collect(Collectors.toCollection(LinkedList::new));
+  }
+
+  public static List<RunParam> addUniqueParams(
+      List<RunParam> origParameterList, List<RunParam> newParameterList) {
+    newParameterList.stream()
+        .forEach(
+            p -> {
+              addUniqueParam(origParameterList, p);
+            });
+    return origParameterList;
+  }
+
+  /*
+   * Converts a Parameter Map to a Run Parameter List. This allows us to go between the two object
+   * types for storing Run Parameters
+   *
+   * @param the parameter map
+   *
+   * @return the parameter list
+   */
+  public static List<RunParam> mapToRunParamList(Map<String, Object> parameterMap) {
+    List<RunParam> parameterList = new LinkedList<>();
+    if (parameterMap != null) {
+      for (Entry<String, Object> entry : parameterMap.entrySet()) {
+        String key = entry.getKey();
+        ParamType type = ParamType.object;
+        if (parameterMap.get(key) instanceof String) {
+          type = ParamType.string;
+        } else if (parameterMap.get(key) instanceof List) {
+          type = ParamType.array;
+        }
+        RunParam param = new RunParam(key, parameterMap.get(key), type);
+        parameterList.add(param);
+      }
+    }
+    return parameterList;
+  }
+
+  /*
+   * Converts a Run Parameter List to a Parameter Map. This allows us to go between the two object
+   * types for storing Run Parameters
+   *
+   * @param the parameter map
+   *
+   * @return the parameter list
+   */
+  public static Map<String, Object> runParamListToMap(List<RunParam> parameterList) {
+    Map<String, Object> parameterMap = new HashMap<>();
+    if (parameterList != null) {
+      parameterList.stream()
+          .forEach(
+              p -> {
+                parameterMap.put(p.getName(), p.getValue());
+              });
+    }
+    return parameterMap;
+  }
+
+  /*
+   * Checks the Run Parameter list for a matching name
+   *
+   * @param the parameter list
+   *
+   * @param the name of the parameter
+   *
+   * @return boolean
+   */
+  public static boolean containsName(List<RunParam> parameterList, String name) {
+    return parameterList.stream().anyMatch(p -> name.equals(p.getName()));
+  }
+
+  /*
+   * Retrieve the value for the matching name in Run Parameter list
+   *
+   * @param the parameter list
+   *
+   * @param the name of the parameter
+   *
+   * @return the value
+   */
+  public static Object getValue(List<RunParam> parameterList, String name) {
+    Object value = null;
+    Optional<RunParam> param =
+        parameterList.stream().filter(p -> name.equals(p.getName())).findFirst();
+    if (param.isPresent()) {
+      value = param.get().getValue();
+    }
+    return value;
+  }
+
+  /*
+   * Remove the entry for the matching name in Run Parameter list
+   *
+   * @param the parameter list
+   *
+   * @param the name of the parameter
+   *
+   * @return the reduced list
+   */
+  public static List<RunParam> removeEntry(List<RunParam> parameterList, String name) {
+    List<RunParam> reducedParamList = new LinkedList<>();
+    reducedParamList =
+        parameterList.stream().filter(p -> !name.equals(p.getName())).collect(Collectors.toList());
+    return reducedParamList;
+  }
+
+  public static ParamType getTektonParamType(String type) {
+    switch (ConfigType.getConfigType(type)) {
+      case ConfigType.MULTISELECT:
+        return ParamType.array;
+      case ConfigType.JSON:
+        return ParamType.object;
+      default:
+        return ParamType.string;
+    }
+  }
+}

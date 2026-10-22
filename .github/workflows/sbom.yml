@@ -1,0 +1,96 @@
+name: SBOM
+on:
+  # Manual trigger from the Actions tab
+  workflow_dispatch:
+  # Weekly posture scan
+  schedule:
+    - cron: '0 6 * * 1'
+  # Scan on every release tag so a release always has a fresh report behind it.
+  # One product tag releases the whole image set (core, dispatcher, webapp); the scan builds the same set.
+  push:
+    tags:
+      - '5.[0-9]+.[0-9]+'
+      - '5.[0-9]+.[0-9]+-beta.[0-9]+'
+      - '5.[0-9]+.[0-9]+-rc.[0-9]+'
+jobs:
+  vuln-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The scan covers what ships: each product image, built from the checkout with the
+      # Dockerfiles ci-release.yml uses, for the runner's platform only, loaded locally and never
+      # pushed. The report lists the base image's packages, the jars inside each fat jar and the
+      # webapp's serving packages, and leaves out build-only and test-scoped dependencies. The
+      # builds read the layer cache main's CI runs write; they write none of their own.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build flow-service-core
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: service-core/Dockerfile
+          load: true
+          tags: flow-service-core:scan
+          cache-from: type=gha,scope=flow-service-core
+
+      - name: Build flow-service-dispatcher
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: service-dispatcher/Dockerfile
+          load: true
+          tags: flow-service-dispatcher:scan
+          cache-from: type=gha,scope=flow-service-dispatcher
+
+      - name: Build flow-client-web
+        uses: docker/build-push-action@v6
+        with:
+          context: client-web
+          file: client-web/Dockerfile
+          load: true
+          tags: flow-client-web:scan
+          cache-from: type=gha,scope=flow-client-web
+
+      - name: Install syft + grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOMs (CycloneDX)
+        run: |
+          for image in flow-service-core flow-service-dispatcher flow-client-web; do
+            syft "docker:${image}:scan" -o "cyclonedx-json=sbom-${image}.cdx.json"
+          done
+
+      - name: Scan for vulnerabilities
+        run: |
+          # Do not fail the job on findings — this is a reporting workflow. One report per image,
+          # then grype-report.json merges their matches for the review below.
+          : > grype-table.txt
+          for image in flow-service-core flow-service-dispatcher flow-client-web; do
+            grype "sbom:sbom-${image}.cdx.json" -o json > "grype-${image}.json" || true
+            { echo "== ${image}"; grype "sbom:sbom-${image}.cdx.json" -o table || true; echo; } >> grype-table.txt
+          done
+          jq -s '{matches: (map(.matches // []) | add // []), descriptor: .[0].descriptor}' \
+            grype-flow-service-core.json grype-flow-service-dispatcher.json grype-flow-client-web.json \
+            > grype-report.json
+
+      - name: Render review to job summary
+        run: |
+          python3 .claude/skills/cve-review/cve-review.py . >> "$GITHUB_STEP_SUMMARY" || \
+            echo "cve-review.py failed to render; see the grype-report.json artifact." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload cve-report
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: cve-report
+          path: |
+            grype-report.json
+            grype-flow-*.json
+            sbom-flow-*.cdx.json
+            grype-table.txt
+          retention-days: 90

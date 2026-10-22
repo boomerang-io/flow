@@ -1,0 +1,514 @@
+import { useState } from "react";
+import { Button, ModalBody, Tag } from "@carbon/react";
+import { ArrowRight, ChevronDown, ChevronUp, Redo } from "@carbon/react/icons";
+import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
+import moment from "moment";
+import ReactMarkdown from "react-markdown";
+import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
+import { foreachItemSuffix, foreachParentSummary } from "Utils/taskRunHelper";
+import { ExecutionStatusCopy, NodeType, PASSWORD_CONSTANT, executionStatusIcon } from "Constants";
+import { Action, Param, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
+import ManualTaskModal from "./ManualTaskModal";
+import PropertiesTable from "./PropertiesTable";
+import ResultsTable from "./ResultsTable";
+import TaskApprovalModal from "./TaskApprovalModal";
+import TaskExecutionLog from "./TaskRunLog";
+import styles from "./runTaskItem.module.scss";
+
+const logTaskTypes = ["customtask", "template", "script", "uploadartifact", "downloadartifact"];
+const logStatusTypes = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running];
+
+function hasLog(taskRun: TaskRun) {
+  return (
+    (taskRun.status === RunStatus.Cancelled && taskRun.duration > 0) ||
+    (logTaskTypes.includes(taskRun.type) && logStatusTypes.includes(taskRun.status))
+  );
+}
+
+function taskRunDuration(taskRun: TaskRun) {
+  return taskRun.duration
+    ? formatDuration(taskRun.duration)
+    : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
+}
+
+// The attempt, shown only once the task was requeued: a first attempt is the ordinary case.
+function laterAttempt(taskRun: TaskRun) {
+  return taskRun.attempt && taskRun.attempt > 1 ? taskRun.attempt : undefined;
+}
+
+type Props = {
+  taskRun: TaskRun;
+  workflowRun: WorkflowRun;
+  // The Action record behind an `approval`/`manual` task, when this task has one. Approver
+  // names, comments, verdicts and dates live only on the Action (see the backend's
+  // ActionEntity/Actioner) - the TaskRun itself carries nothing but an `actionRef` result
+  // pointing at it, so the run route's loader resolves it and hands it down here rather than
+  // every list item fetching its own.
+  action?: Action;
+  executionViewRedirect: ({ workflowRunRef }: { workflowRunRef: string }) => void;
+  // Whether the workflow defines this task as for-each. A parent with no items - empty, or failed
+  // before fanning out - is still one, so this cannot be read off `items`.
+  isForeach?: boolean;
+  // The item task runs of a for-each task, in item order, when this task run is their parent.
+  items?: Array<TaskRun>;
+  // Opens the page's retry modal with this task preselected. Absent when the user may not
+  // action the run.
+  onRetryFrom?: (taskName: string) => void;
+};
+
+// A retry can start from a task that finished, well or badly; one still in flight, or never
+// started, is picked up by the retry's own rules.
+const retryFromStatuses = [
+  RunStatus.Succeeded,
+  RunStatus.Failed,
+  RunStatus.TimedOut,
+  RunStatus.Cancelled,
+  RunStatus.Invalid,
+];
+
+function RunTaskItem({
+  taskRun,
+  workflowRun,
+  action,
+  executionViewRedirect,
+  isForeach: isForeachTask,
+  items = [],
+  onRetryFrom,
+}: Props) {
+  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+  const isForeach = Boolean(isForeachTask) || items.length > 0;
+  const foreachSummary = isForeach ? foreachParentSummary(taskRun, items) : undefined;
+  const Icon = executionStatusIcon[taskRun.status];
+  const statusClassName = styles[taskRun.status];
+  // START/END are synthetic graph markers, not executed tasks - they render "slim", without the
+  // start time/duration block below, which has no meaningful value for them.
+  const isSlim = taskRun.type === NodeType.Start || taskRun.type === NodeType.End;
+
+  const calculatedDuration = taskRunDuration(taskRun);
+  const attempt = laterAttempt(taskRun);
+
+  return (
+    <li
+      key={taskRun.name}
+      id={`task-${taskRun.name}`}
+      className={[styles.taskitem, statusClassName, isSlim && styles.slim, isForeach && styles.foreach]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className={styles.progressBar} />
+      <section className={styles.header}>
+        <div className={styles.title}>
+          <Icon aria-label={taskRun.status} className={styles.taskIcon} />
+          <p title={taskRun.name} data-testid="taskitem-name">
+            {taskRun.name}
+          </p>
+        </div>
+        <div className={`${styles.status} ${statusClassName}`}>
+          <Icon aria-label={taskRun.status} className={styles.statusIcon} />
+          <p>{ExecutionStatusCopy[taskRun.status]}</p>
+          {/* Carried over by a scoped retry: its results and log are the origin task run's. */}
+          {taskRun.reusedFromRef && (
+            <Tag className={styles.reusedTag} size="sm" type="gray" title="Carried over from the origin run">
+              Reused
+            </Tag>
+          )}
+        </div>
+      </section>
+      {isForeach && (
+        <section className={styles.foreachSummary}>
+          <Tag className={styles.foreachTag} size="sm" type="purple">
+            For each
+          </Tag>
+          {foreachSummary ? (
+            <p className={styles.foreachSummaryText} data-testid="foreach-summary">
+              {foreachSummary}
+            </p>
+          ) : null}
+        </section>
+      )}
+      {!isSlim && (
+        // One line, the values in primary text: "Started at 04:25:37 PM in 6 secs, attempt 2".
+        <p className={styles.timeLine} data-testid="taskitem-time">
+          {taskRun.startTime ? (
+            <>
+              Started at <time className={styles.timeValue}>{moment(taskRun.startTime).format("hh:mm:ss A")}</time>
+              {calculatedDuration !== "---" && (
+                <>
+                  {" "}
+                  in <time className={styles.timeValue}>{calculatedDuration}</time>
+                </>
+              )}
+            </>
+          ) : (
+            "Not started"
+          )}
+          {attempt && (
+            <>
+              , attempt <span className={styles.timeValue}>{attempt}</span>
+            </>
+          )}
+        </p>
+      )}
+      <section className={`${styles.data} ${styles.actions}`}>
+        <ComposedModal
+          composedModalProps={{
+            containerClassName: styles.actionManualTaskModalContainer,
+          }}
+          modalHeaderProps={{
+            title: "View Details",
+            subtitle: taskRun.name,
+          }}
+          modalTrigger={({ openModal }) => (
+            <Button className={styles.modalTrigger} size="sm" kind="ghost" onClick={openModal}>
+              View Details
+            </Button>
+          )}
+        >
+          {() => <TaskRunDetail taskRun={taskRun} />}
+        </ComposedModal>
+        {/* A for-each parent never runs a pod of its own; each item below has the log. */}
+        {hasLog(taskRun) && !isForeach && <TaskExecutionLog taskrunId={taskRun.id} taskName={taskRun.name} />}
+        {onRetryFrom && !isSlim && retryFromStatuses.includes(taskRun.status) && (
+          <Button
+            data-testid="retry-from-task"
+            kind="ghost"
+            onClick={() => onRetryFrom(taskRun.name)}
+            renderIcon={Redo}
+            size="sm"
+          >
+            Retry from here
+          </Button>
+        )}
+        {items.length > 0 && (
+          <Button
+            aria-controls={`task-${taskRun.name}-items`}
+            aria-expanded={isItemsExpanded}
+            kind="ghost"
+            onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+            renderIcon={isItemsExpanded ? ChevronUp : ChevronDown}
+            size="sm"
+          >
+            {isItemsExpanded ? "Hide items" : "Show items"}
+          </Button>
+        )}
+        {taskRun.status === RunStatus.Waiting && taskRun.type === NodeType.Approval && (
+          <ComposedModal
+            modalHeaderProps={{
+              title: "Action Manual Approval",
+              subtitle: taskRun.name,
+            }}
+            modalTrigger={({ openModal }) => (
+              <Button size="sm" kind="ghost" onClick={openModal}>
+                Action
+              </Button>
+            )}
+          >
+            {({ closeModal }) => (
+              <TaskApprovalModal
+                actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
+                closeModal={closeModal}
+              />
+            )}
+          </ComposedModal>
+        )}
+        {taskRun.status === RunStatus.Waiting && taskRun.type === NodeType.Manual && (
+          <ComposedModal
+            composedModalProps={{
+              containerClassName: styles.actionManualTaskModalContainer,
+            }}
+            modalHeaderProps={{
+              title: "Action Manual Task",
+              subtitle: taskRun.name,
+            }}
+            modalTrigger={({ openModal }) => (
+              <Button size="sm" kind="ghost" onClick={openModal}>
+                Action
+              </Button>
+            )}
+          >
+            {({ closeModal }) => (
+              <ManualTaskModal
+                actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
+                closeModal={closeModal}
+                instructions={taskRun.params.find((param) => param.name === "instructions")?.value}
+              />
+            )}
+          </ComposedModal>
+        )}
+        {taskRun.type === NodeType.RunWorkflow && taskRun.id && taskRun.workflowRef && (
+          <Button
+            kind="ghost"
+            size="sm"
+            onClick={() =>
+              executionViewRedirect({
+                workflowRunRef: taskRun.results.find((result) => result.name === "workflowRunRef")?.value ?? "",
+              })
+            }
+            renderIcon={ArrowRight}
+          >
+            View Activity
+          </Button>
+        )}
+        {taskRun.type === NodeType.Approval && taskRun.phase === RunPhase.Completed && (
+          <ComposedModal
+            composedModalProps={{
+              containerClassName: styles.approvalResultsModalContainer,
+              shouldCloseOnOverlayClick: true,
+            }}
+            modalHeaderProps={{
+              title: "Manual Approval details",
+            }}
+            modalTrigger={({ openModal }) => (
+              <Button size="sm" kind="ghost" onClick={openModal}>
+                View Action
+              </Button>
+            )}
+          >
+            {() => <ApprovalResult taskRun={taskRun} action={action} />}
+          </ComposedModal>
+        )}
+        {taskRun.type === NodeType.Manual && taskRun.phase === RunPhase.Completed && (
+          <ComposedModal
+            composedModalProps={{
+              containerClassName: styles.approvalResultsModalContainer,
+              shouldCloseOnOverlayClick: true,
+            }}
+            modalHeaderProps={{
+              title: "Manual Task details",
+            }}
+            modalTrigger={({ openModal }) => (
+              <Button size="sm" kind="ghost" onClick={openModal}>
+                View Action
+              </Button>
+            )}
+          >
+            {() => <ManualResult taskRun={taskRun} action={action} />}
+          </ComposedModal>
+        )}
+      </section>
+      {items.length > 0 && isItemsExpanded && (
+        <ol className={styles.itemList} id={`task-${taskRun.name}-items`} aria-label={`${taskRun.name} items`}>
+          {items.map((item) => (
+            <ForeachItemRow key={item.id} item={item} parentName={taskRun.name} />
+          ))}
+        </ol>
+      )}
+    </li>
+  );
+}
+
+export default RunTaskItem;
+
+const itemFailedStatuses = [RunStatus.Failed, RunStatus.Cancelled, RunStatus.TimedOut, RunStatus.Invalid];
+
+function itemValue(item: TaskRun) {
+  const value = item.params.find((param) => param.name === "item")?.value;
+  if (value === undefined || value === null) {
+    return "";
+  }
+  return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+// One item of a for-each task: its index, the item it ran for, its own status and - once it
+// fails - why, its duration and a later attempt, and its own log (logs are per task run id, so
+// items need nothing new).
+function ForeachItemRow({ item, parentName }: { item: TaskRun; parentName: string }) {
+  const Icon = executionStatusIcon[item.status];
+  const value = itemValue(item);
+  const isFailed = itemFailedStatuses.includes(item.status);
+  const attempt = laterAttempt(item);
+  return (
+    <li className={styles.item} data-testid="foreach-item">
+      <div className={styles.itemHeader}>
+        <p className={styles.itemName} title={value ? `${item.name} ${value}` : item.name}>
+          <span className={styles.itemIndex}>{foreachItemSuffix(item, parentName)}</span>
+          {value ? <span className={styles.itemValue}>{value}</span> : null}
+        </p>
+        <div className={`${styles.status} ${styles[item.status]}`}>
+          <Icon aria-label={item.status} className={styles.statusIcon} />
+          <p>{ExecutionStatusCopy[item.status]}</p>
+        </div>
+      </div>
+      {isFailed && item.statusReason ? (
+        <p className={styles.itemReason} data-testid="foreach-item-reason">
+          {item.statusReason}
+        </p>
+      ) : null}
+      <div className={styles.itemFooter}>
+        <p className={styles.itemDuration}>
+          <time>{taskRunDuration(item)}</time>
+          {attempt && <span data-testid="foreach-item-attempt">, attempt {attempt}</span>}
+        </p>
+        {hasLog(item) && <TaskExecutionLog taskrunId={item.id} taskName={item.name} />}
+      </div>
+    </li>
+  );
+}
+
+// An Action is actioned by potentially MANY approvers (`numberOfApprovers` on the backend
+// entity), each recording their own verdict, comment and timestamp - so every actioner is
+// rendered with its own status rather than one shared verdict for the whole Action.
+// `approverName`/`approverEmail` are resolved server-side from `approverId` and are absent
+// whenever that lookup fails (or no principal was recorded, e.g. `flow.security.enabled=false`),
+// so neither is assumed present.
+function approverLabel({ approverName, approverEmail }: SimpleApprover) {
+  if (approverName && approverEmail) {
+    return `${approverName} (${approverEmail})`;
+  }
+  return approverName || approverEmail || "Unknown approver";
+}
+
+function ActionersList({ actioners, showVerdict }: { actioners: SimpleApprover[]; showVerdict: boolean }) {
+  return (
+    <ul className={styles.actionerList}>
+      {actioners.map((actioner, index) => (
+        <li className={styles.actioner} key={`${actioner.approverId ?? "unknown"}-${index}`}>
+          <p className={styles.sectionDetail}>{approverLabel(actioner)}</p>
+          <p className={styles.actionerMeta}>
+            {showVerdict ? `${actioner.approved ? "Approved" : "Rejected"} · ` : ""}
+            {actioner.date ? moment(actioner.date).format(DATETIME_DISPLAY_FORMAT) : "---"}
+          </p>
+          {actioner.comments && <p className={styles.sectionDetail}>{actioner.comments}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+interface ApprovalResultProps {
+  taskRun: TaskRun;
+  action?: Action;
+}
+
+function ApprovalResult({ taskRun, action }: ApprovalResultProps) {
+  const actioners = action?.actioners ?? [];
+  return (
+    <ModalBody>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Approval Status</span>
+        <p className={styles.sectionDetail}>{taskRun.status}</p>
+      </section>
+      {action && (
+        <section className={styles.detailedSection}>
+          <span className={styles.sectionHeader}>Approvals</span>
+          <p className={styles.sectionDetail}>{`${action.numberOfApprovals} of ${action.approvalsRequired}`}</p>
+        </section>
+      )}
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Approvers</span>
+        {actioners.length > 0 ? (
+          <ActionersList actioners={actioners} showVerdict />
+        ) : (
+          <p className={styles.sectionDetail}>No approvals have been recorded.</p>
+        )}
+      </section>
+    </ModalBody>
+  );
+}
+
+interface ManualResultProps {
+  taskRun: TaskRun;
+  action?: Action;
+}
+
+function ManualResult({ taskRun, action }: ManualResultProps) {
+  const actioners = action?.actioners ?? [];
+  // A manual task's instructions are stored on the Action, but they originate as a task param -
+  // fall back to that so the instructions still render if the Action can't be resolved.
+  const instructions =
+    action?.instructions ?? taskRun.params.find((param) => param.name === "instructions")?.value ?? "";
+  return (
+    <ModalBody>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Status</span>
+        <p className={styles.sectionDetail}>{`${
+          taskRun.status === RunStatus.Succeeded ? "Successfully Completed" : "Unsuccessfully Completed"
+        }`}</p>
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Submitted by</span>
+        {actioners.length > 0 ? (
+          <ActionersList actioners={actioners} showVerdict={false} />
+        ) : (
+          <p className={styles.sectionDetail}>No submission has been recorded.</p>
+        )}
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Instructions</span>
+        <ReactMarkdown className="markdown-body" children={String(instructions)} />
+      </section>
+    </ModalBody>
+  );
+}
+
+// A secret is masked whatever its value - the server already sends "*****", so this only
+// guarantees that an empty or unexpected value cannot show through.
+function formatParamValue(param: Param): string {
+  switch (param.type) {
+    case "secret":
+      return PASSWORD_CONSTANT;
+    case "string":
+    case "array":
+    case "object":
+    default:
+      return !param.value
+        ? "---"
+        : Array.isArray(param.value) || typeof param.value === "string"
+          ? param.value
+          : JSON.stringify(param.value);
+  }
+}
+
+interface TaskRunDetailModalProps {
+  taskRun: TaskRun;
+}
+
+function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
+  let paramList: { id: string; key: string; value: string; description?: string }[] = [];
+  taskRun.params.forEach((result, index) =>
+    paramList.push({
+      id: `${result.name}-${index}`,
+      key: result.name,
+      value: formatParamValue(result),
+    }),
+  );
+
+  let resultsList: { id: string; key: string; value: string; description?: string }[] = [];
+  taskRun.results.forEach((result, index) =>
+    resultsList.push({
+      id: `${result.name}-${index}`,
+      key: result.name,
+      description: result.description ? result.description : "---",
+      value: !result.value
+        ? "---"
+        : Array.isArray(result.value) || typeof result.value === "string"
+        ? result.value
+        : JSON.stringify(result.value),
+    }),
+  );
+
+  return (
+    <ModalBody>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Status</span>
+        <p className={styles.sectionDetail}>{taskRun.status}</p>
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Message</span>
+        <p className={styles.sectionDetail}>{taskRun.statusMessage || "---"}</p>
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Params</span>
+        <p>
+          <PropertiesTable data={paramList} hasJsonValues={false} />
+        </p>
+      </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Results</span>
+        <p>
+          <ResultsTable data={resultsList} hasJsonValues={false} />
+        </p>
+      </section>
+    </ModalBody>
+  );
+}

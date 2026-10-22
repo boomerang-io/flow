@@ -1,0 +1,48 @@
+@import "Styles/mixins";
+
+.container {
+  :global .cds--list-box__wrapper {
+    width: 22rem;
+  }
+
+  :global .cds--inline-notification {
+    bottom: 4rem;
+    position: absolute;
+    width: 95%;
+  }
+
+  :global .cds--date-picker-container,
+  :global .cds--date-picker,
+  :global .cds--date-picker--single,
+  :global .cds--date-picker__input {
+    width: 22rem !important;
+  }
+}
+
+.modalLabel {
+  font-size: 0.75rem;
+}
+.modalHelper {
+  color: var(--cds-active-secondary);
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.scopeContainer {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+}
+
+.inputLabelContainer {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tooltip {
+  a {
+    display: inline-flex;
+    align-items: center;
+    color: var(--cds-inverse-link);
+  }
+}

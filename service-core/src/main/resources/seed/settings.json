@@ -1,0 +1,504 @@
+{
+  "documents": [
+    {
+      "config": [
+        {
+          "description": "Days an artifact is kept after upload when neither its workspace nor its upload task sets a retention.",
+          "key": "retention.default.days",
+          "label": "Default Retention (days)",
+          "type": "number",
+          "value": "30",
+          "readOnly": false
+        },
+        {
+          "description": "The longest any workspace or upload task may keep an artifact, in days.",
+          "key": "retention.max.days",
+          "label": "Maximum Retention (days)",
+          "type": "number",
+          "value": "90",
+          "readOnly": false
+        },
+        {
+          "description": "The largest file an upload task may store, in MB. A bigger upload fails its task.",
+          "key": "max.artifact.size",
+          "label": "Largest Artifact (MB)",
+          "type": "number",
+          "value": "1024",
+          "readOnly": false
+        },
+        {
+          "description": "Store the finished log a dispatcher sends for each task and serve it ahead of the dispatcher's live log. Off tells dispatchers their logs are not stored; logs already stored are served until they expire.",
+          "key": "logs.enabled",
+          "label": "Store Task Logs",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Days a stored task log is kept. Independent of artifact retention; a log never counts toward artifact storage.",
+          "key": "logs.retention.days",
+          "label": "Task Log Retention (days)",
+          "type": "number",
+          "value": "7",
+          "readOnly": false
+        }
+      ],
+      "description": "Files that upload tasks attach to a run, and the task logs dispatchers store. A file is deleted when it expires; nothing is deleted to make room.",
+      "key": "artifacts",
+      "name": "Artifacts",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "The issuer URL of the single trusted OIDC provider (e.g. local IDPZero) accepted for the direct id_token login path of the sign-in exchange. Empty disables that path entirely.",
+          "key": "oidc.issuer",
+          "label": "OIDC Issuer",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The OAuth2 client id (public client, no secret) the id_token's aud claim must match.",
+          "key": "oidc.clientId",
+          "label": "OIDC Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        }
+      ],
+      "description": "The identity provider that signs people in, and how their tokens are exchanged.",
+      "key": "auth",
+      "lastModiifed": {
+        "$date": "2026-08-20T00:00:00.000Z"
+      },
+      "name": "Authentication",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "The name to appear in the header (and throughout the App) that appears to the right of the Platform Name or Logo.",
+          "key": "appName",
+          "label": "App Name",
+          "type": "text",
+          "value": "Flow",
+          "readOnly": false
+        },
+        {
+          "description": "The overall platform name. This only appears if the logo is set to not appear.",
+          "key": "platformName",
+          "label": "Platform Name",
+          "type": "text",
+          "value": "Boomerang",
+          "readOnly": false
+        },
+        {
+          "description": "Whether to display the platforms Logo or use the Platform Name.",
+          "key": "displayLogo",
+          "label": "Display Platform Logo",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "A URL for retrieving the Platform Logo.",
+          "key": "logoURL",
+          "label": "Logo URL",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        }
+      ],
+      "description": "The name, logo and links this instance shows its users.",
+      "key": "customizations",
+      "lastModiifed": {
+        "$date": "2022-06-15T12:07:48.123Z"
+      },
+      "name": "Customization",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "Allow users to access and interact with Activity",
+          "key": "activity",
+          "label": "Activity",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow users to access and view Insights",
+          "key": "insights",
+          "label": "Insights",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enforce Workspace level quotas",
+          "key": "workspaceQuotas",
+          "label": "Workspace Quotas",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable Workflow Triggers to be visible on the Workflows Configuration",
+          "key": "workflowTriggers",
+          "label": "Workflow Triggers",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable Workflow Tokens to be visible on the Workflows Configuration",
+          "key": "workflowTokens",
+          "label": "Workflow Tokens",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable users to access and create Workspace Parameters",
+          "key": "workspaceParameters",
+          "label": "Workspace Parameters",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Enable users to access and create Global Parameters",
+          "key": "globalParameters",
+          "label": "Global Parameters",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow management and editing of Workspaces. The Workspaces screen will always be visible but if disabled will be in view only mode",
+          "key": "workspaceManagement",
+          "label": "Workspace Management",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow management and editing of Users. The Users screen will always be visible but if disabled will be in view only mode",
+          "key": "userManagement",
+          "label": "User Management",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Allow users to access and create Workspace Tasks",
+          "key": "workspaceTasks",
+          "label": "Workspace Tasks",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        }
+      ],
+      "description": "Turn parts of the product on or off for everyone.",
+      "key": "features",
+      "lastModiifed": {
+        "$date": "2021-08-23T21:57:01.577Z"
+      },
+      "name": "Features",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "The default auth token for authenticating as a Slack app. Only used if installing into a single workspace and not a distributed app.",
+          "key": "slack.token",
+          "label": "Slack Auth Token",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The App ID from your Slack apps credentials.",
+          "key": "slack.appId",
+          "label": "Slack App ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client ID from your Slack apps credentials.",
+          "key": "slack.clientId",
+          "label": "Slack Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client Secret from your Slack apps credentials.",
+          "key": "slack.clientSecret",
+          "label": "Slack Client Secret",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "slack.signingSecret",
+          "label": "Slack Signing Secret",
+          "value": "",
+          "description": "The Signing Secret from your Slack apps credentials.",
+          "type": "secured",
+          "readOnly": false
+        },
+        {
+          "key": "github.appId",
+          "description": "The GitHub App ID",
+          "label": "GitHub App ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.jwt",
+          "description": "Private key used to sign access token requests",
+          "label": "GitHub Private Key",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.appName",
+          "description": "The GitHub App Name",
+          "label": "GitHub App Name",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client ID from your GitHub App credentials.",
+          "key": "github.clientId",
+          "label": "GitHub Client ID",
+          "type": "text",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "description": "The Client Secret from your GitHub App credentials.",
+          "key": "github.clientSecret",
+          "label": "GitHub Client Secret",
+          "type": "secured",
+          "value": "",
+          "readOnly": false
+        },
+        {
+          "key": "github.webhookSecret",
+          "label": "GitHub Webhook Secret",
+          "value": "",
+          "description": "The Webhook Secret configured on your GitHub App, used to verify the X-Hub-Signature-256 header on incoming webhook payloads.",
+          "type": "secured",
+          "readOnly": false
+        }
+      ],
+      "description": "Credentials and endpoints for the systems Flow connects to.",
+      "key": "integration",
+      "lastModiifed": {
+        "$date": "2022-06-15T12:07:48.123Z"
+      },
+      "name": "Integrations",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "Enable Debug logging for worker logs",
+          "key": "debug",
+          "label": "Enable Debug",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Default container image to be used by the Worker including version",
+          "key": "default.image",
+          "label": "Default Image Path",
+          "type": "text",
+          "value": "boomerangio/task-flow:3.1.0",
+          "readOnly": false
+        },
+        {
+          "description": "When a finished task's worker (its Kubernetes Job or Tekton TaskRun) is removed. A task's logs are read from its worker, so they go with it, and a run's storage is only freed once no worker still holds it. Always: at task end. On Success: at task end if the task succeeded; a failed task's worker stays for its logs. Never: not at task end; the worker, its logs and any storage it holds stay until the retention period (kube.task.ttlDays, 7 days by default) removes it.",
+          "key": "deletion.policy",
+          "label": "Deletion Policy",
+          "type": "select",
+          "minValueLength": 0,
+          "maxValueLength": 128,
+          "options": [
+            {
+              "key": "Never",
+              "value": "Never (keep until the retention period)"
+            },
+            {
+              "key": "OnSuccess",
+              "value": "On Success (remove when a task succeeds)"
+            },
+            {
+              "key": "Always",
+              "value": "Always (remove when a task ends)"
+            }
+          ],
+          "value": "Never",
+          "readOnly": false
+        },
+        {
+          "description": "When enabled, verified tasks can be edited in the task manager",
+          "key": "edit.verified",
+          "label": "Enable Verified Tasks to be edited",
+          "type": "boolean",
+          "value": "false"
+        },
+        {
+          "description": "Maximum minutes any single task may run, whatever its run allows. Set to 0 to let tasks inherit the run's timeout.",
+          "key": "default.timeout",
+          "label": "Maximum task duration",
+          "type": "number",
+          "value": "0",
+          "readOnly": false
+        }
+      ],
+      "description": "How task containers run: images, worker clean-up, timeouts.",
+      "key": "task",
+      "lastModiifed": {
+        "$date": "2020-08-20T00:59:19.145Z"
+      },
+      "name": "Tasks",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "The number of workflows that can be running at the same time",
+          "key": "max.workflowrun.concurrent",
+          "label": "Maximum Concurrent Workflows",
+          "type": "number",
+          "value": "4",
+          "readOnly": false
+        },
+        {
+          "description": "The total number of workflows that a team can have",
+          "key": "max.workflow.count",
+          "label": "Maximum Number of Workflows",
+          "type": "number",
+          "value": "10",
+          "readOnly": false
+        },
+        {
+          "description": "The number of workflow executions per month",
+          "key": "max.workflowrun.monthly",
+          "label": "Max WorkflowRuns per month",
+          "type": "number",
+          "value": "20",
+          "readOnly": false
+        },
+        {
+          "description": "The maximum time that a workflow can be executing for in minutes",
+          "key": "max.workflowrun.duration",
+          "label": "Max WorkflowRun Duration",
+          "type": "number",
+          "value": "30",
+          "readOnly": false
+        },
+        {
+          "key": "max.workspace.storage",
+          "description": "Maximum size of the shared workspace a run may declare",
+          "label": "Max Workspace Storage",
+          "type": "text",
+          "value": "2Gi",
+          "readOnly": false
+        },
+        {
+          "key": "max.artifact.storage",
+          "description": "Maximum storage the workspace's unexpired artifacts may hold",
+          "label": "Max Artifact Storage",
+          "type": "text",
+          "value": "5Gi",
+          "readOnly": false
+        }
+      ],
+      "description": "The limits every workspace starts with; a workspace can override them.",
+      "key": "quotas",
+      "lastModiifed": {
+        "$date": "2021-08-23T21:57:01.577Z"
+      },
+      "name": "Quotas",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "How many levels of child workflows a run may nest. A runworkflow task at the cap fails instead of submitting another child.",
+          "key": "max.nesting.depth",
+          "label": "Maximum Child Workflow Nesting Depth",
+          "type": "number",
+          "value": "5",
+          "readOnly": false
+        },
+        {
+          "description": "How many items a for-each task may run. A task whose items resolve to more fails instead of running any.",
+          "key": "max.foreach.items",
+          "label": "Maximum For-Each Items",
+          "type": "number",
+          "value": "256",
+          "readOnly": false
+        },
+        {
+          "description": "Days a finished run and its task runs, actions, artifacts and logs are kept. Floored at 60 so monthly quota counts stay complete.",
+          "key": "retention.days",
+          "label": "Activity Retention (days)",
+          "type": "number",
+          "value": "365",
+          "readOnly": false
+        }
+      ],
+      "description": "How deep a run may nest child workflows, how many items a for-each may fan out to, and how long finished runs are kept.",
+      "key": "workflowrun",
+      "lastModiifed": {
+        "$date": "2021-02-10T22:15:18.729Z"
+      },
+      "name": "Run limits",
+      "type": "ValuesList"
+    },
+    {
+      "config": [
+        {
+          "description": "Capture an audit event for every audited operation. Disabling stops capture immediately; nothing is captured retroactively when re-enabled.",
+          "key": "enabled",
+          "label": "Enabled",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Capture verbosity: DESTRUCTIVE records deletes only, WRITE records all mutations, ALL adds sensitive reads and exports.",
+          "key": "level",
+          "label": "Level",
+          "type": "text",
+          "value": "WRITE",
+          "readOnly": false
+        },
+        {
+          "description": "Days audit events are retained before expiry. Applied to the TTL index at startup; floored at 60 days because monthly quota counting needs at least one month of events.",
+          "key": "retentionDays",
+          "label": "Retention Days",
+          "type": "number",
+          "value": "365",
+          "readOnly": false
+        }
+      ],
+      "description": "Control the capture and retention of the audit trail.",
+      "key": "audit",
+      "name": "Audit",
+      "type": "ValuesList"
+    }
+  ]
+}

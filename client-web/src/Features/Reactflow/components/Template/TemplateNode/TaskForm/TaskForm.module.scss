@@ -1,0 +1,15 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-grow: 1;
+
+  :global .bmrg--b-textarea__text {
+    cursor: pointer;
+  }
+
+  // The task name and tabs (TaskFormTabs) sit flush under the modal header, as part of it.
+  :global .cds--modal-content {
+    padding-top: 0;
+  }
+}

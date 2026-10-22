@@ -1,0 +1,72 @@
+@use "@carbon/react/scss/colors";
+
+@import "Styles/mixins";
+
+.node {
+  background: colors.$cyan-90;
+  border: 0.125rem solid colors.$cyan-90;
+  color: white;
+  width: 9rem;
+  height: 5rem;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  @include border-radius();
+
+  &.locked {
+    background: colors.$cool-gray-60;
+    border: 0.1875rem solid colors.$cool-gray-60;
+    .port {
+      background-color: colors.$cool-gray-70;
+      border: 0.0625rem solid colors.$cool-gray-70;
+    }
+
+    &.running {
+      .port {
+        opacity: 0.5;
+      }
+    }
+  }
+}
+
+.port {
+  position: absolute;
+  height: 2.25rem;
+  width: 2rem;
+  background-color: var(--cds-interactive-01);
+  border: 0.0625rem solid var(--cds-interactive-01);
+  right: -2.125rem;
+  top: 2.5rem;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  border-bottom-right-radius: 50%;
+  border-top-right-radius: 50%;
+  background-image: url("../../../../Assets/icons/chevron_white.svg");
+  background-position: center;
+  background-repeat: no-repeat;
+  &:hover {
+    filter: brightness(110%);
+  }
+
+  &.locked:hover {
+    filter: brightness(100%);
+  }
+}
+
+.edge {
+  stroke: var(--cds-interactive-01);
+
+  &.locked {
+    stroke: colors.$cool-gray-60;
+  }
+}
+
+.edgeLabel {
+  display: flex;
+  gap: 0.5rem;
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: all;
+}

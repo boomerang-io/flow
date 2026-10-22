@@ -1,0 +1,131 @@
+package io.boomerang.common.model;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import lombok.Data;
+import org.springframework.data.annotation.Id;
+
+@Data
+@JsonPropertyOrder({
+  "id",
+  "creationDate",
+  "status",
+  "phase",
+  "paused",
+  "startTime",
+  "duration",
+  "statusMessage",
+  "error",
+  "timeout",
+  "retries",
+  "workflowRef",
+  "workflowRevisionRef",
+  "labels",
+  "annotations",
+  "params",
+  "tasks"
+})
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class WorkflowRun {
+
+  @Id private String id;
+  private Map<String, String> labels = new HashMap<>();
+  private Map<String, Object> annotations = new HashMap<>();
+  private Date creationDate;
+  private Date startTime;
+  private long duration = 0;
+  private Long timeout;
+  private Long retries;
+  private Boolean debug;
+  private RunStatus status = RunStatus.notstarted;
+  private RunPhase phase = RunPhase.pending;
+
+  // Derived from the entity's pauseRequestedAt - never the timestamp itself on the wire.
+  // Orthogonal to status/phase: a paused run keeps its underlying status and phase.
+  private boolean paused;
+
+  private String statusMessage;
+  private boolean isAwaitingApproval;
+  private String workflowRef;
+  private String workflowName;
+  private String workflowDisplayName;
+  private Integer workflowVersion;
+  private String workflowRevisionRef;
+  private String trigger;
+  private String initiatedByRef;
+
+  // The run that owns the TaskRun in initiatedByRef, resolved on read for a task-triggered run so
+  // a client can link back to the parent without a TaskRun lookup of its own. Derived, never
+  // stored - the entity keeps only the lineage pair above.
+  private String initiatedByWorkflowRunRef;
+
+  // Where a scoped retry started from. Absent on a plain retry and on every other run.
+  private RetryFrom retryFrom;
+
+  private List<RunParam> params = new LinkedList<>();
+  private List<RunResult> results = new LinkedList<>();
+  private WorkflowWorkspace workspace;
+  private List<TaskRun> tasks;
+
+  @Override
+  public String toString() {
+    return "WorkflowRun [id="
+        + id
+        + ", creationDate="
+        + creationDate
+        + ", startTime="
+        + startTime
+        + ", duration="
+        + duration
+        + ", timeout="
+        + timeout
+        + ", retries="
+        + retries
+        + ", debug="
+        + debug
+        + ", status="
+        + status
+        + ", phase="
+        + phase
+        + ", paused="
+        + paused
+        + ", statusMessage="
+        + statusMessage
+        + ", isAwaitingApproval="
+        + isAwaitingApproval
+        + ", workflowRef="
+        + workflowRef
+        + ", workflowName="
+        + workflowName
+        + ", workflowVersion="
+        + workflowVersion
+        + ", workflowRevisionRef="
+        + workflowRevisionRef
+        + ", trigger="
+        + trigger
+        + ", params="
+        + params
+        + ", results="
+        + results
+        + ", workspace="
+        + workspace
+        + "]";
+  }
+
+  public boolean isAwaitingApproval() {
+    return isAwaitingApproval;
+  }
+
+  public void setAwaitingApproval(boolean isAwaitingApproval) {
+    this.isAwaitingApproval = isAwaitingApproval;
+  }
+}

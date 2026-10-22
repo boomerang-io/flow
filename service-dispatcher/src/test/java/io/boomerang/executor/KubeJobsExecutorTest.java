@@ -1,0 +1,1015 @@
+package io.boomerang.executor;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.boomerang.config.LogCapture;
+import io.boomerang.dispatcher.sdk.Dispatcher;
+import io.boomerang.dispatcher.sdk.model.TaskType;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskRun;
+import io.boomerang.dispatcher.sdk.model.TaskRunSpec;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
+import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
+import io.boomerang.kube.KubeJobsExecutor;
+import io.boomerang.kube.KubeServiceImpl;
+import io.fabric8.kubernetes.api.model.ConfigMap;
+import io.fabric8.kubernetes.api.model.Container;
+import io.fabric8.kubernetes.api.model.ContainerState;
+import io.fabric8.kubernetes.api.model.ContainerStateTerminated;
+import io.fabric8.kubernetes.api.model.ContainerStateWaiting;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
+import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.Quantity;
+import io.fabric8.kubernetes.api.model.PodBuilder;
+import io.fabric8.kubernetes.api.model.PodStatus;
+import io.fabric8.kubernetes.api.model.Volume;
+import io.fabric8.kubernetes.api.model.VolumeMount;
+import io.fabric8.kubernetes.api.model.batch.v1.Job;
+import io.fabric8.kubernetes.api.model.batch.v1.JobCondition;
+import io.fabric8.kubernetes.api.model.batch.v1.JobStatus;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.server.mock.EnableKubernetesMockClient;
+import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import io.fabric8.kubernetes.api.model.HostAlias;
+import io.fabric8.kubernetes.api.model.Toleration;
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "kube.resource.request.cpu=100m",
+      "kube.resource.limit.cpu=500m"
+    })
+@Tag("smoke")
+public class KubeJobsExecutorTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @Value("${flow.product}")
+  private String flowProduct;
+
+  // The agent registers with the engine at startup; no engine runs in tests.
+  @MockitoBean private Dispatcher dispatcher;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  private TaskRun commandTask(String taskRunRef, boolean withWorkspace) {
+    TaskRun task = new TaskRun();
+    task.setId(taskRunRef);
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of(new RunParam("greeting", "hello")));
+    task.setResults(List.of());
+
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setWorkingDir("/data");
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    if (withWorkspace) {
+      WorkflowWorkspace ws = new WorkflowWorkspace();
+      ws.setSize("1Gi");
+      ws.setMountPath("/workspace");
+      task.setWorkspace(ws);
+    } else {
+      task.setWorkspace(null);
+    }
+    return task;
+  }
+
+  private Job soleJobFor(String taskRunRef) {
+    List<Job> jobs =
+        client.batch().v1().jobs().withLabels(Map.of("boomerang.io/taskrun-ref", taskRunRef)).list().getItems();
+    assertEquals(1, jobs.size());
+    return jobs.get(0);
+  }
+
+  @Test
+  public void testCreateLogsNoParamEnvOrScriptValue() throws Exception {
+    String secret = "jobs-s3cr3t-8888";
+    TaskRun task = commandTask("taskrun-jobs-log", false);
+    RunParam password = new RunParam("apiKey", secret);
+    password.setType(io.boomerang.dispatcher.sdk.model.ParamType.secret);
+    task.setParams(List.of(password));
+    task.getSpec().setCommand(null);
+    task.getSpec().setScript("echo " + secret);
+    task.getSpec()
+        .setEnvs(List.of(new io.boomerang.dispatcher.sdk.model.TaskEnvVar("TOKEN", secret)));
+
+    List<String> lines;
+    try (LogCapture logs = LogCapture.start(org.apache.logging.log4j.Level.DEBUG, "io.boomerang")) {
+      kubeJobsExecutor.create(task, 30L);
+      lines = logs.lines();
+    }
+
+    // The value really went into the Job, and only the name, namespace and image were logged.
+    Container container =
+        soleJobFor("taskrun-jobs-log").getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertTrue(
+        container.getEnv().stream().anyMatch(e -> secret.equals(e.getValue())),
+        "the Job carries the value");
+    assertTrue(
+        lines.stream().anyMatch(l -> l.startsWith("Created Job ") && l.contains("alpine:3.19")),
+        "the creation is logged by name: " + lines);
+    assertTrue(
+        lines.stream().noneMatch(l -> l.contains(secret)), "a secret value was logged: " + lines);
+  }
+
+  @Test
+  public void testCreateSizesTheTaskContainerFromTheConfiguredResources() throws Exception {
+    // The same six deployment-wide values the Tekton executor applies to its step.
+    TaskRun task = commandTask("taskrun-jobs-resources", false);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor("taskrun-jobs-resources")
+            .getSpec()
+            .getTemplate()
+            .getSpec()
+            .getContainers()
+            .get(0);
+
+    assertEquals(new Quantity("2Gi"), container.getResources().getRequests().get("memory"));
+    assertEquals(
+        new Quantity("2Gi"), container.getResources().getRequests().get("ephemeral-storage"));
+    assertEquals(new Quantity("100m"), container.getResources().getRequests().get("cpu"));
+    assertEquals(new Quantity("16Gi"), container.getResources().getLimits().get("memory"));
+    assertEquals(
+        new Quantity("16Gi"), container.getResources().getLimits().get("ephemeral-storage"));
+    assertEquals(new Quantity("500m"), container.getResources().getLimits().get("cpu"));
+  }
+
+  @Test
+  public void testCreateAiTaskRunsTheImageItsRevisionDeclaresWithTheParamEnv() throws Exception {
+    // An `ai` task is authored with params only - no image, no command, no script - and the
+    // dispatcher supplies the configured worker image and its `prompt` command.
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-ai");
+    task.setName("Ask the model");
+    task.setType(TaskType.ai);
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(
+        List.of(
+            new RunParam("endpoint", "https://api.example.com/v1"),
+            new RunParam("model", "gpt-4o-mini"),
+            new RunParam("maxTokens", 1024),
+            new RunParam("prompt", "Summarise the run")));
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    // The spec an `ai` TaskRun carries: the image and command its catalogue revision declares.
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("boomerangio/task-ai:1.2.3");
+    spec.setCommand(List.of("prompt"));
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/task-ai:1.2.3", container.getImage());
+    assertEquals(List.of("prompt"), container.getCommand());
+
+    // Params reach the worker exactly as they reach any other type: PARAM_<NAME>, upper-cased.
+    List<EnvVar> env = container.getEnv();
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "PARAM_ENDPOINT".equals(e.getName())
+                        && "https://api.example.com/v1".equals(e.getValue())));
+    assertTrue(
+        env.stream().anyMatch(e -> "PARAM_MAXTOKENS".equals(e.getName()) && "1024".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "RESULTS_PATH".equals(e.getName())
+                        && "/dev/termination-log".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
+  }
+
+  @Test
+  public void testCreateAiTaskRunsTheImageAndCommandItsRevisionDeclares() throws Exception {
+    TaskRun task = commandTask("taskrun-ai-agent", false);
+    task.setType(TaskType.ai);
+    task.getSpec().setImage("boomerangio/task-ai:2.0.0");
+    task.getSpec().setCommand(List.of("agent"));
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Container container =
+        soleJobFor(task.getId()).getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals("boomerangio/task-ai:2.0.0", container.getImage());
+    assertEquals(List.of("agent"), container.getCommand());
+  }
+
+  @Test
+  public void testCreateCommandTaskWithRunWorkspace() throws Exception {
+    TaskRun task = commandTask("taskrun-cmd", true);
+
+    // Pre-create the run's claim, exactly as WorkflowService.provision() does before any task of
+    // the run reaches the executor.
+    try {
+      kubeService.createWorkspacePVC(
+          task.getWorkflowRef(), task.getWorkflowRunRef(), null, "1Gi", "", "ReadWriteMany", 1L);
+    } catch (Exception e) {
+      // The mock server never reports a PVC phase of Bound/Pending, so the wait times out; the
+      // PVC itself is still created and that's all getPVCName() needs.
+    }
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> allJobs = client.batch().v1().jobs().inAnyNamespace().list().getItems();
+    assertEquals(1, allJobs.size());
+
+    Job job = allJobs.get(0);
+    assertEquals(30L * 60, job.getSpec().getActiveDeadlineSeconds());
+    assertEquals(0, job.getSpec().getBackoffLimit());
+    assertEquals(7 * 86400, job.getSpec().getTtlSecondsAfterFinished());
+
+    Map<String, String> podLabels = job.getSpec().getTemplate().getMetadata().getLabels();
+    assertEquals(task.getId(), podLabels.get("boomerang.io/taskrun-ref"));
+
+    List<Volume> volumes = job.getSpec().getTemplate().getSpec().getVolumes();
+    String volPrefix = flowProduct + "-vol";
+    List<String> volumeNames = volumes.stream().map(Volume::getName).toList();
+    assertTrue(volumeNames.contains(volPrefix + "-data"));
+    assertFalse(volumeNames.contains(volPrefix + "-params"));
+    assertTrue(volumeNames.contains(volPrefix + "-ws"));
+
+    Container container = job.getSpec().getTemplate().getSpec().getContainers().get(0);
+    List<VolumeMount> mounts = container.getVolumeMounts();
+    assertTrue(
+        mounts.stream()
+            .anyMatch(
+                m -> (volPrefix + "-ws").equals(m.getName()) && "/workspace".equals(m.getMountPath())));
+
+    List<EnvVar> env = container.getEnv();
+    assertTrue(env.stream().anyMatch(e -> "CI".equals(e.getName()) && "true".equals(e.getValue())));
+    // Every Task Param is also exposed as PARAM_<NAME>, exactly as the Tekton executor does.
+    assertTrue(env.stream().anyMatch(e -> e.getName().startsWith("PARAM_")));
+    assertTrue(
+        env.stream()
+            .anyMatch(
+                e ->
+                    "RESULTS_PATH".equals(e.getName())
+                        && "/dev/termination-log".equals(e.getValue())));
+    assertTrue(
+        env.stream()
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
+  }
+
+  @Test
+  public void testCreateScriptTaskMountsExecutableConfigMap() throws Exception {
+    TaskRun task = commandTask("taskrun-script", false);
+    task.getSpec().setCommand(null);
+    task.getSpec().setScript("#!/bin/sh\necho hello");
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<ConfigMap> configMaps =
+        client.configMaps().withLabels(Map.of("boomerang.io/taskrun-ref", task.getId())).list().getItems();
+    // Only the script ConfigMap create() built — params are env-only, no ConfigMap for them.
+    assertEquals(1, configMaps.size());
+    ConfigMap scriptConfigMap = configMaps.get(0);
+    assertTrue(scriptConfigMap.getMetadata().getGenerateName().contains("-script-"));
+    assertEquals("#!/bin/sh\necho hello", scriptConfigMap.getData().get("script"));
+
+    Job job = soleJobFor(task.getId());
+    Container container = job.getSpec().getTemplate().getSpec().getContainers().get(0);
+    assertEquals(List.of("/scripts/script"), container.getCommand());
+  }
+
+  @Test
+  public void testDeleteRemovesScriptConfigMap() throws Exception {
+    TaskRun task = commandTask("taskrun-script-delete", false);
+    task.getSpec().setCommand(null);
+    task.getSpec().setScript("#!/bin/sh\necho hello");
+
+    kubeJobsExecutor.create(task, 30L);
+    Map<String, String> taskLabels = Map.of("boomerang.io/taskrun-ref", task.getId());
+    assertEquals(1, client.configMaps().withLabels(taskLabels).list().getItems().size());
+
+    kubeJobsExecutor.delete(task);
+
+    assertTrue(client.configMaps().withLabels(taskLabels).list().getItems().isEmpty());
+  }
+
+  @Test
+  public void testCreateWithoutRuntimeClassNameLeavesItUnset() throws Exception {
+    TaskRun task = commandTask("taskrun-no-runtimeclass", false);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    Job job = soleJobFor(task.getId());
+    assertNull(job.getSpec().getTemplate().getSpec().getRuntimeClassName());
+  }
+
+  @Test
+  public void testCancelWithNoMatchingJobThrows() {
+    TaskRun task = commandTask("taskrun-missing", false);
+
+    BoomerangException ex = assertThrows(BoomerangException.class, () -> kubeJobsExecutor.cancel(task));
+    assertTrue(ex.getDescription().contains("CANCEL_FAILURE"));
+  }
+
+  @Test
+  public void testParseTerminationMessageObjectShape() {
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"hello\"}", List.of()).orElseThrow();
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals("hello", results.get(0).getValue());
+  }
+
+  @Test
+  public void testParseTerminationMessageArrayShape() {
+    List<RunResult> results =
+        TerminationMessageParser.parse("[{\"key\": \"greeting\", \"value\": \"hello\"}]", List.of())
+            .orElseThrow();
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals("hello", results.get(0).getValue());
+  }
+
+  @Test
+  public void testParseTerminationMessageFiltersToDeclaredResults() {
+    List<RunResult> declared = List.of(new RunResult("greeting", null));
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"hello\", \"other\": \"skip\"}", declared)
+            .orElseThrow();
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+  }
+
+  @Test
+  public void testParseTerminationMessageSeparatesGarbageFromNoResults() {
+    // Absent: the message is not a Result Parameter payload at all, which the executor has to
+    // tell apart from a task that simply wrote nothing.
+    assertTrue(TerminationMessageParser.parse("not json at all !!", List.of()).isEmpty());
+    assertTrue(TerminationMessageParser.parse("", List.of()).orElseThrow().isEmpty());
+    assertTrue(TerminationMessageParser.parse(null, List.of()).orElseThrow().isEmpty());
+  }
+}
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(properties = {"dispatcher.executor=kube-jobs", "dispatcher.tasks.runtimeClassName=gvisor"})
+class KubeJobsExecutorRuntimeClassNamePropertyTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private Dispatcher dispatcher;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  @Test
+  public void testCreateSetsRuntimeClassNameWhenConfigured() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-runtimeclass");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> jobs =
+        client
+            .batch()
+            .v1()
+            .jobs()
+            .withLabels(Map.of("boomerang.io/taskrun-ref", task.getId()))
+            .list()
+            .getItems();
+    assertEquals(1, jobs.size());
+    assertEquals("gvisor", jobs.get(0).getSpec().getTemplate().getSpec().getRuntimeClassName());
+  }
+  @Test
+  public void testParseTerminationMessageHandlesOversizedMessage() {
+    // Kubernetes caps a container's termination message at 4096 bytes and truncates mid-stream,
+    // so a real oversized message arrives as syntactically broken JSON. The parser must not throw
+    // — it reports the message as unparseable so the executor can fail the task with
+    // ResultsTooLarge instead of succeeding with every Result silently missing.
+    String truncated = "{\"greeting\": \"" + "x".repeat(5000);
+    assertTrue(TerminationMessageParser.parse(truncated, List.of()).isEmpty());
+
+    // A large but well-formed message (bigger than the 4096-byte Kubernetes cap would ever allow
+    // in practice) still parses correctly — the parser itself imposes no size limit.
+    String largeValue = "y".repeat(5000);
+    List<RunResult> results =
+        TerminationMessageParser.parse("{\"greeting\": \"" + largeValue + "\"}", List.of())
+            .orElseThrow();
+    assertEquals(1, results.size());
+    assertEquals("greeting", results.get(0).getName());
+    assertEquals(largeValue, results.get(0).getValue());
+  }
+}
+
+/**
+ * Pins the reconcile loop: the watch never delivers a terminating event in these tests (the
+ * terminal state is written to the mock server before the watch is opened), so every case is
+ * resolved by the label-list poll on a one-second {@code kube.timeout.reconcileSeconds}.
+ * {@code kube.timeout.failedConditionGraceSeconds} is likewise cut down to two seconds so the
+ * JobFailed-fallback test doesn't wait out the sixty-second production default.
+ */
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "kube.timeout.reconcileSeconds=1",
+      "kube.timeout.failedConditionGraceSeconds=2",
+      "kube.timeout.startFailureGraceSeconds=0"
+    })
+class KubeJobsExecutorReconcileTest {
+
+  KubernetesClient client;
+  KubernetesMockServer server;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private Dispatcher dispatcher;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  private TaskRun task(String taskRunRef) {
+    TaskRun task = new TaskRun();
+    task.setId(taskRunRef);
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+    return task;
+  }
+
+  @Test
+  public void testWatchFallsBackToJobFailedAfterGraceElapsesWithNoCondition() throws Exception {
+    // status.failed=1 with no Failed condition ever showing up (the Job controller crashed
+    // before writing one, say) - after kube.timeout.failedConditionGraceSeconds the watch must
+    // stop waiting and report the generic JobFailed rather than hang forever.
+    TaskRun task = task("taskrun-reconcile-failed");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+  }
+
+  @Test
+  public void testWatchWaitsForFailedConditionThenReportsDeadlineExceeded() throws Exception {
+    // status.failed=1 alone must NOT be terminal: the Job controller writes that count before it
+    // writes the Failed condition and its real reason. The watch must still be waiting after one
+    // reconcile interval, and only resolve - as DeadlineExceeded, not the generic JobFailed - once
+    // the condition arrives.
+    TaskRun task = task("taskrun-reconcile-deadline");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<TaskExecutionException> future =
+          executor.submit(
+              () -> assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L)));
+
+      // Longer than one reconcile interval (1s), shorter than the grace (2s): the count alone
+      // must not have resolved the watch yet.
+      Thread.sleep(1500);
+      assertFalse(future.isDone());
+
+      JobCondition failedCondition = new JobCondition();
+      failedCondition.setType("Failed");
+      failedCondition.setStatus("True");
+      failedCondition.setReason("DeadlineExceeded");
+      failedCondition.setMessage("Job was active longer than specified deadline");
+      status.setConditions(List.of(failedCondition));
+      created.setStatus(status);
+      client.batch().v1().jobs().resource(created).updateStatus();
+
+      TaskExecutionException ex = future.get(10, TimeUnit.SECONDS);
+      assertEquals("DeadlineExceeded", ex.getStatusReason());
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
+  public void testWatchFailsAPodThatCannotPullItsImageAndRemovesTheJob() throws Exception {
+    TaskRun task = task("taskrun-reconcile-image-pull");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    Map<String, String> taskLabels = created.getMetadata().getLabels();
+
+    ContainerStateWaiting waiting = new ContainerStateWaiting();
+    waiting.setReason("ImagePullBackOff");
+    waiting.setMessage("Back-off pulling image \"alpine:missing\"");
+    ContainerState state = new ContainerState();
+    state.setWaiting(waiting);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setPhase("Pending");
+    podStatus.setContainerStatuses(List.of(containerStatus));
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(podLabels(created))
+            .endMetadata()
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("ImagePull", ex.getStatusReason());
+    assertTrue(
+        client.batch().v1().jobs().withLabels(taskLabels).list().getItems().isEmpty(),
+        "a Job whose pod cannot start is removed, not left holding capacity");
+  }
+
+  @Test
+  public void testWatchReconcilesAMissingJobAsJobDeleted() {
+    TaskRun task = task("taskrun-reconcile-missing");
+    // No Job is ever created - the watch never fires and the reconcile poll finds nothing.
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobDeleted", ex.getStatusReason());
+  }
+
+  @Test
+  public void testWatchReconcilesAnOOMKilledPodAsOOMKilled() throws Exception {
+    TaskRun task = task("taskrun-reconcile-oom");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setReason("OOMKilled");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(podLabels(created))
+            .endMetadata()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("OOMKilled", ex.getStatusReason());
+  }
+
+  /*
+   * A failed Task's status message carries the container's own account of the failure - the Job
+   * condition first, then the exit code and termination reason, then the tail of the task
+   * container's log - so nobody has to fetch the pod log to learn why it failed.
+   */
+  @Test
+  public void testFailedTaskMessageCarriesExitCodeAndLogTail() throws Exception {
+    TaskRun task = task("taskrun-failure-detail");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setExitCode(1);
+    terminated.setReason("Error");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Container taskContainer = new Container();
+    taskContainer.setName("task");
+    taskContainer.setImage("busybox");
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withName("failure-detail-pod")
+            .withLabels(podLabels(created))
+            .endMetadata()
+            .withNewSpec()
+            .withContainers(taskContainer)
+            .endSpec()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+    server
+        .expect()
+        .get()
+        .withPath(
+            "/api/v1/namespaces/"
+                + createdPod.getMetadata().getNamespace()
+                + "/pods/failure-detail-pod/log?pretty=false&container=task&tailLines=20")
+        .andReturn(200, "loading model\nerror: no model configured\n")
+        .always();
+
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    failed.setMessage("Job has reached the specified backoff limit");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+    assertEquals(
+        "BackoffLimitExceeded - Job has reached the specified backoff limit\n"
+            + "exit code 1 (Error)\n"
+            + "loading model\nerror: no model configured",
+        ex.getMessage());
+  }
+
+  /*
+   * Kubernetes truncates a termination message above 4096 bytes, so an oversize Result payload
+   * comes back as a broken-JSON prefix. It used to read as "no Results" and the task ended
+   * succeeded with every Result missing and nothing said; it now fails with ResultsTooLarge.
+   */
+  @Test
+  public void testAnOversizedTerminationMessageFailsTheTaskAsResultsTooLarge() throws Exception {
+    TaskRun task = task("taskrun-results-too-large");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+
+    JobCondition complete = new JobCondition();
+    complete.setType("Complete");
+    complete.setStatus("True");
+    complete.setReason("JobComplete");
+    complete.setMessage("The Job completed successfully.");
+    JobStatus status = new JobStatus();
+    status.setSucceeded(1);
+    status.setConditions(List.of(complete));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    seedTerminationMessage(created, "{\"greeting\": \"" + "x".repeat(5000));
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("ResultsTooLarge", ex.getStatusReason());
+  }
+
+  // The Job controller stamps its Job's name on the pod; the executor reads the pod by it.
+  private static Map<String, String> podLabels(Job job) {
+    return Map.of("job-name", job.getMetadata().getName());
+  }
+
+  private void seedTerminationMessage(Job created, String message) {
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setMessage(message);
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setContainerStatuses(List.of(containerStatus));
+
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("test-pod-")
+            .withLabels(podLabels(created))
+            .endMetadata()
+            .withStatus(podStatus)
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+  }
+
+  @Test
+  public void testCreateAdoptsAnExistingJobRatherThanCreatingASecondOne() throws Exception {
+    TaskRun task = task("taskrun-reconcile-adopt");
+    kubeJobsExecutor.create(task, 30L);
+    assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+
+    kubeJobsExecutor.create(task, 30L);
+
+    assertEquals(1, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+  }
+
+  @Test
+  public void testAFailedJobsMessageIgnoresAnotherAttemptsPod() throws Exception {
+    // The only pod under the task's labels belongs to an earlier attempt (its Job name differs):
+    // it must not supply this attempt's failure reason or detail.
+    TaskRun task = task("taskrun-other-attempts-pod");
+    kubeJobsExecutor.create(task, 30L);
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+
+    ContainerStateTerminated terminated = new ContainerStateTerminated();
+    terminated.setExitCode(137);
+    terminated.setReason("OOMKilled");
+    ContainerState state = new ContainerState();
+    state.setTerminated(terminated);
+    ContainerStatus containerStatus = new ContainerStatus();
+    containerStatus.setName("task");
+    containerStatus.setState(state);
+    PodStatus podStatus = new PodStatus();
+    podStatus.setPhase("Failed");
+    podStatus.setContainerStatuses(List.of(containerStatus));
+    Map<String, String> earlierAttemptPodLabels = new HashMap<>(created.getMetadata().getLabels());
+    earlierAttemptPodLabels.put("job-name", "earlier-attempt");
+    Pod pod =
+        new PodBuilder()
+            .withNewMetadata()
+            .withGenerateName("earlier-attempt-")
+            .withLabels(earlierAttemptPodLabels)
+            .endMetadata()
+            .build();
+    Pod createdPod = client.pods().resource(pod).create();
+    createdPod.setStatus(podStatus);
+    client.pods().resource(createdPod).updateStatus();
+
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    failed.setMessage("Job has reached the specified backoff limit");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    TaskExecutionException ex =
+        assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
+    assertEquals("JobFailed", ex.getStatusReason());
+    assertEquals("BackoffLimitExceeded - Job has reached the specified backoff limit", ex.getMessage());
+  }
+
+  @Test
+  public void testCreateDoesNotAdoptAFinishedJob() throws Exception {
+    // Every attempt of a task carries the same labels. A failed attempt's Job left in place
+    // (deletion policy Never) is finished; the next attempt gets a Job of its own.
+    TaskRun task = task("taskrun-reconcile-finished");
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    JobCondition failed = new JobCondition();
+    failed.setType("Failed");
+    failed.setStatus("True");
+    failed.setReason("BackoffLimitExceeded");
+    JobStatus status = new JobStatus();
+    status.setFailed(1);
+    status.setConditions(List.of(failed));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    kubeJobsExecutor.create(task, 30L);
+
+    assertEquals(2, client.batch().v1().jobs().inAnyNamespace().list().getItems().size());
+  }
+}
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "dispatcher.tasks.tolerations=[{\"key\":\"dedicated\",\"operator\":\"Equal\",\"value\":\"worker\",\"effect\":\"NoSchedule\"}]",
+      "dispatcher.tasks.hostaliases=[{\"ip\":\"127.0.0.1\",\"hostnames\":[\"foo.local\",\"bar.local\"]}]"
+    })
+class KubeJobsExecutorTolerationsHostAliasesTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private Dispatcher dispatcher;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  // Proves the fabric8 Serialization.unmarshal replacement for Gson parses
+  // dispatcher.tasks.tolerations / dispatcher.tasks.hostaliases identically to before.
+  @Test
+  public void testCreateAppliesConfiguredTolerationsAndHostAliases() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-tolerations-hostaliases");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> jobs =
+        client
+            .batch()
+            .v1()
+            .jobs()
+            .withLabels(Map.of("boomerang.io/taskrun-ref", task.getId()))
+            .list()
+            .getItems();
+    assertEquals(1, jobs.size());
+
+    List<Toleration> tolerations = jobs.get(0).getSpec().getTemplate().getSpec().getTolerations();
+    assertEquals(1, tolerations.size());
+    Toleration toleration = tolerations.get(0);
+    assertEquals("dedicated", toleration.getKey());
+    assertEquals("Equal", toleration.getOperator());
+    assertEquals("worker", toleration.getValue());
+    assertEquals("NoSchedule", toleration.getEffect());
+
+    List<HostAlias> hostAliases = jobs.get(0).getSpec().getTemplate().getSpec().getHostAliases();
+    assertEquals(1, hostAliases.size());
+    HostAlias hostAlias = hostAliases.get(0);
+    assertEquals("127.0.0.1", hostAlias.getIp());
+    assertEquals(List.of("foo.local", "bar.local"), hostAlias.getHostnames());
+  }
+}
+
+@SpringBootTest
+@ActiveProfiles("local")
+@EnableKubernetesMockClient(crud = true)
+@TestPropertySource(
+    properties = {
+      "dispatcher.executor=kube-jobs",
+      "dispatcher.tasks.tolerations=[{}]",
+      "dispatcher.tasks.hostaliases=[{}]"
+    })
+class KubeJobsExecutorEmptyTolerationsHostAliasesTest {
+
+  KubernetesClient client;
+
+  @Autowired private KubeServiceImpl kubeService;
+
+  @Autowired private KubeJobsExecutor kubeJobsExecutor;
+
+  @MockitoBean private Dispatcher dispatcher;
+
+  @BeforeEach
+  public void setUp() {
+    kubeService.setClient(client);
+    kubeJobsExecutor.setClient(client);
+  }
+
+  // A legacy "[{}]" property value carries no toleration/hostAlias data, so it must not reach
+  // the API server as one - Kubernetes rejects a Toleration with an empty operator outright.
+  @Test
+  public void testCreateDropsEmptyTolerationAndHostAliasEntries() throws Exception {
+    TaskRun task = new TaskRun();
+    task.setId("taskrun-empty-tolerations-hostaliases");
+    task.setName("Test Task");
+    task.setWorkflowRef("wf-1");
+    task.setWorkflowRunRef("wfr-1");
+    task.setLabels(new HashMap<>());
+    task.setParams(List.of());
+    task.setResults(List.of());
+    task.setWorkspace(null);
+    TaskRunSpec spec = new TaskRunSpec();
+    spec.setImage("alpine:3.19");
+    spec.setCommand(List.of("echo", "hello"));
+    spec.setDebug(false);
+    task.setSpec(spec);
+
+    kubeJobsExecutor.create(task, 30L);
+
+    List<Job> jobs =
+        client
+            .batch()
+            .v1()
+            .jobs()
+            .withLabels(Map.of("boomerang.io/taskrun-ref", task.getId()))
+            .list()
+            .getItems();
+    assertEquals(1, jobs.size());
+
+    List<Toleration> tolerations = jobs.get(0).getSpec().getTemplate().getSpec().getTolerations();
+    assertTrue(tolerations == null || tolerations.isEmpty());
+
+    List<HostAlias> hostAliases = jobs.get(0).getSpec().getTemplate().getSpec().getHostAliases();
+    assertTrue(hostAliases == null || hostAliases.isEmpty());
+  }
+}

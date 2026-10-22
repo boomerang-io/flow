@@ -1,0 +1,159 @@
+import React from "react";
+import cx from "classnames";
+import { getBezierPath, useReactFlow, EdgeLabelRenderer } from "@xyflow/react";
+import { markerTypes } from "Features/Reactflow/Reactflow";
+import TaskLinkExecutionConditionSwitcher from "Components/TaskLinkExecutionConditionSwitcher";
+import WorkflowCloseButton from "Components/WorkflowCloseButton";
+import { useWorkflowContext } from "Hooks";
+import { useRunContext } from "Hooks";
+import { EXECUTION_CONDITIONS } from "Utils/taskLinkIcons";
+import { findTaskRunByName } from "Utils/taskRunHelper";
+import { WorkflowEngineMode } from "Constants";
+import { WorkflowEdge, WorkflowEdgeProps, WorkflowNode } from "Types";
+import styles from "./TemplateEdge.module.scss";
+
+export default function TaskTemplateEdge(props: WorkflowEdgeProps) {
+  const { mode } = useWorkflowContext();
+
+  if (mode === WorkflowEngineMode.Run) {
+    return <TemplateEdgeRun {...props} />;
+  }
+
+  return <TemplateEdgeEditor {...props} />;
+}
+
+export function TemplateEdgeEditor(props: WorkflowEdgeProps) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, data } = props;
+  const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
+  const { mode } = useWorkflowContext();
+  const isEditor = mode === WorkflowEngineMode.Edit;
+
+  const executionConditionIndex = EXECUTION_CONDITIONS.findIndex(
+    (condition) => condition.name === data?.executionCondition,
+  );
+  const condition = executionConditionIndex >= 0 ? executionConditionIndex : 0;
+
+  const handleChangeCondition = (newCondition: number) => {
+    const edges = reactFlowInstance.getEdges();
+    // `Edge.data` is optional at the type level (unlike `Node.data`, which is required), so the
+    // early return also covers the (practically unreachable, since every edge here is created
+    // with `data` set - see `getEdgeType` in Reactflow.tsx) case of a matching edge with no data,
+    // rather than spreading `undefined` and silently dropping the required `decisionCondition`.
+    const newEdges = edges.map((edge): WorkflowEdge => {
+      if (edge.id !== props.id || !edge.data) {
+        return edge;
+      }
+      return {
+        ...edge,
+        data: { ...edge.data, executionCondition: EXECUTION_CONDITIONS[newCondition].name },
+      };
+    });
+
+    reactFlowInstance.setEdges(newEdges);
+  };
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const mergedStyles = {
+    ...style,
+    strokeWidth: "2",
+  };
+
+  return (
+    <>
+      <path
+        id={id}
+        className={cx("react-flow__edge-path", styles.editorEdge, { [styles.locked]: !isEditor })}
+        d={edgePath}
+        markerEnd={`url(#${markerTypes.template}`}
+        style={mergedStyles}
+      />
+      <EdgeLabelRenderer>
+        <div
+          className={cx("nodrag nopan", styles.edgeLabel)}
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+          }}
+        >
+          {isEditor ? (
+            <>
+              <WorkflowCloseButton className="" onClick={() => reactFlowInstance.deleteElements({ edges: [props] })} />
+              <TaskLinkExecutionConditionSwitcher
+                onClick={() => handleChangeCondition((condition + 1) % 3)}
+                executionCondition={EXECUTION_CONDITIONS[condition]}
+              />
+            </>
+          ) : (
+            <>
+              <TaskLinkExecutionConditionSwitcher disabled executionCondition={EXECUTION_CONDITIONS[condition]} />
+            </>
+          )}
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+export function TemplateEdgeRun(props: WorkflowEdgeProps) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, data } = props;
+  const { workflowRun, workflow } = useRunContext();
+
+  // The workflow.nodes IDs change with each call, so need to keep it stable
+  const sourceNodeName = React.useRef(workflow.nodes.find((node) => node.id === props.source)?.data.name);
+  const targetNodeName = React.useRef(workflow.nodes.find((node) => node.id === props.target)?.data.name);
+
+  let status = "";
+  if (targetNodeName.current === "end") {
+    status = findTaskRunByName(workflowRun.tasks, sourceNodeName.current)?.status ?? "";
+  } else {
+    status = findTaskRunByName(workflowRun.tasks, targetNodeName.current)?.status ?? "";
+  }
+
+  const executionConditionIndex = EXECUTION_CONDITIONS.findIndex(
+    (condition) => condition.name === data?.executionCondition,
+  );
+  const condition = executionConditionIndex >= 0 ? executionConditionIndex : 0;
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const mergedStyles = {
+    ...style,
+    strokeWidth: "2",
+  };
+
+  return (
+    <>
+      <path
+        id={id}
+        className={cx("react-flow__edge-path", styles.runEdge, styles[status])}
+        d={edgePath}
+        markerEnd={`url(#${markerTypes.template}`}
+        style={mergedStyles}
+      />
+      <EdgeLabelRenderer>
+        <div
+          className={cx("nodrag nopan", styles.edgeLabel)}
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+          }}
+        >
+          <TaskLinkExecutionConditionSwitcher disabled executionCondition={EXECUTION_CONDITIONS[condition]} />
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}

@@ -1,0 +1,32 @@
+@use "@carbon/react/scss/colors";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-grow: 1;
+
+  :global .bmrg--b-textarea__text {
+    cursor: pointer;
+  }
+
+  // The task name and tabs (TaskFormTabs) sit flush under the modal header, as part of it.
+  :global .cds--modal-content {
+    padding-top: 0;
+  }
+}
+
+.divider {
+  border-bottom: 0.0625rem solid colors.$cool-gray-30;
+  margin: 1rem -1rem 1rem;
+  opacity: 0.5;
+}
+
+.inputsTitle {
+  color: var(--cds-text-primary);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.25;
+  margin: 0;
+  margin-bottom: 1rem;
+}

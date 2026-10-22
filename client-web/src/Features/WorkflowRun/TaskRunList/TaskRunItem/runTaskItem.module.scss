@@ -1,0 +1,356 @@
+@use "@carbon/react/scss/colors";
+
+@import "Styles/mixins";
+
+// Name and status, one line of time, then the actions; the entry is as tall as its content.
+.taskitem {
+  padding-bottom: 0.25rem;
+  position: relative;
+  width: 100%;
+
+  &:focus {
+    @include focus-outline(var(--cds-interactive-01), -0.125rem);
+  }
+
+  &.succeeded {
+    border-top: 0.25rem solid var(--cds-support-02);
+  }
+
+  &.waiting, &.ready {
+    // border-top: 0.25rem solid var(--cds-support-03);
+    border-top: 0.25rem solid var(--flow-wait);
+  }
+
+  &.failed, &.cancelled, &.timedout {
+    border-top: 0.25rem solid var(--flow-failure);
+  }
+
+  &.running {
+    border-top: 0.25rem solid colors.$cool-gray-20;
+
+    .progressBar {
+      position: absolute;
+      display: block;
+      height: 0.25rem;
+      top: -0.25rem;
+      left: 0;
+      transition: width 0.3s linear;
+      width: 100%;
+      overflow: hidden;
+
+      &:before {
+        content: "";
+        position: absolute;
+        background-color: var(--cds-interactive-01);
+        top: 0;
+        left: 0;
+        bottom: 0;
+        will-change: left, right;
+        animation: indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+      }
+
+      &:after {
+        content: "";
+        position: absolute;
+        background-color: var(--cds-interactive-01);
+        top: 0;
+        left: 0;
+        bottom: 0;
+        will-change: left, right;
+        animation: indeterminate-short 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) infinite;
+        animation-delay: 1.15s;
+      }
+    }
+  }
+
+  &.notstarted,
+  &.invalid,
+  &.skipped {
+    border-top: 0.25rem solid colors.$cool-gray-20;
+  }
+
+  &:last-of-type {
+    border-bottom: 0.0625rem solid colors.$cool-gray-20;
+  }
+
+  // A for-each task's items list gets a little room below it.
+  &.foreach {
+    padding-bottom: 0.5rem;
+  }
+}
+
+.foreachSummary {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 1rem 0 2.5rem;
+}
+
+.foreachTag {
+  margin: 0;
+}
+
+.foreachSummaryText {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.itemList {
+  list-style: none;
+  margin: 0 1rem 0 2.5rem;
+  padding: 0;
+}
+
+.item {
+  border-top: 0.0625rem solid var(--cds-ui-03);
+  padding: 0.5rem 0;
+}
+
+.itemHeader {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.itemName {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  min-width: 0;
+  @include text-overflow-ellipsis();
+}
+
+.itemIndex {
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.itemValue {
+  color: var(--cds-text-02);
+}
+
+.itemReason {
+  color: var(--flow-failure);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-top: 0.25rem;
+}
+
+.itemFooter {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.itemDuration {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0.75rem 1rem 0 1rem;
+}
+
+.title {
+  align-items: center;
+  color: var(--cds-text-01);
+  display: flex;
+  font-size: 1rem;
+  line-height: 1.375rem;
+  white-space: nowrap;
+
+  p {
+    max-width: 14rem;
+    @include text-overflow-ellipsis();
+  }
+}
+
+.taskIcon {
+  height: 1rem;
+  margin-right: 0.5rem;
+  width: 1rem;
+}
+
+// Beside the status of a task run a scoped retry carried over from its origin.
+.reusedTag {
+  margin-left: 0.5rem;
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1rem;
+  white-space: nowrap;
+
+  &.succeeded {
+    color: var(--cds-support-02);
+    svg {
+      fill: var(--cds-support-02);
+    }
+  }
+
+  &.waiting, &.ready {
+    // color: var(--cds-support-03);
+    color: var(--flow-wait);
+
+    svg {
+      // fill: var(--cds-support-03);
+      fill: var(--flow-wait);
+    }
+  }
+
+  &.failed, &.cancelled {
+    color: var(--flow-failure);
+    svg {
+      fill: var(--flow-failure);
+    }
+  }
+
+  &.running,
+  &.notstarted,
+  &.invalid,
+  &.skipped {
+    color: colors.$cool-gray-60;
+    svg {
+      fill: colors.$cool-gray-60;
+    }
+  }
+}
+
+.statusIcon {
+  height: 1rem;
+  margin-right: 0.5rem;
+  width: 1rem;
+}
+
+.data {
+  margin-left: 2.5rem;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+}
+
+.timeLine {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  margin: 0.5rem 1rem 0 2.5rem;
+}
+
+// The entry's actions (View Details, View Log, Show items) sit on one row with a gap between them.
+.actions {
+  align-items: center;
+  column-gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.modalTrigger {
+  margin-left: -0.75rem;
+}
+
+.subtitle {
+  color: var(--cds-text-01);
+  font-size: 0.75rem;
+  line-height: 0.9375rem;
+  margin-bottom: 1.5rem;
+}
+
+.timeValue {
+  color: var(--cds-text-primary);
+}
+
+.approvalResultsModalContainer {
+  max-height: 40rem;
+  max-width: 75ch;
+}
+
+.actionManualTaskModalContainer {
+  max-height: 40rem;
+  max-width: 75ch;
+}
+
+.detailedSection {
+  margin-bottom: 1.5rem;
+}
+
+.sectionHeader {
+  color: colors.$cool-gray-70;
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+  margin-bottom: 0.5rem;
+}
+
+.sectionDetail {
+  color: var(--cds-text-01);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+}
+
+.actionerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.actioner {
+  border-left: 0.125rem solid colors.$cool-gray-20;
+  margin-top: 0.75rem;
+  padding-left: 0.75rem;
+
+  &:first-of-type {
+    margin-top: 0.25rem;
+  }
+}
+
+.actionerMeta {
+  color: colors.$cool-gray-70;
+  font-size: 0.75rem;
+  letter-spacing: 0.00875rem;
+  line-height: 0.9375rem;
+}
+
+.viewActivityLink {
+  color: var(--cds-interactive-01);
+  font-size: 0.8rem;
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
+@keyframes indeterminate-short {
+  0% {
+    left: -200%;
+    right: 100%;
+  }
+  60% {
+    left: 107%;
+    right: -8%;
+  }
+  100% {
+    left: 107%;
+    right: -8%;
+  }
+}

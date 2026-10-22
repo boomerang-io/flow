@@ -16,7 +16,7 @@ body:
       label: How to reproduce
       description: >
         Steps, or an exported workflow JSON that shows it. Mention how you run Flow if it matters
-        (standalone or engine mode; Tekton or kube-jobs dispatcher; docker-compose). Issues without a way
+        (security on or off; single workspace or many; Tekton or kube-jobs dispatcher; docker-compose). Issues without a way
         to reproduce get `needs-info` and are closed after 14 days.
       placeholder: |
         1. Create a workflow with …

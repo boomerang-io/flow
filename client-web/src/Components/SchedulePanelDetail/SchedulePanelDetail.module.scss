@@ -1,0 +1,137 @@
+@import "Styles/animation";
+@import "Styles/mixins";
+
+.panelContainer {
+  background-color: var(--cds-ui-01);
+  margin-top: 12.125rem;
+  border: none;
+  height: 100%;
+  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
+  :global .slide-pane__content {
+    padding: 0;
+  }
+  h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+}
+
+div.listItem {
+  background: var(--cds-ui-background) !important;
+  border-radius: 0.25rem;
+  min-height: 8rem;
+  margin: 1rem 0rem;
+  padding: 1rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+
+  dt {
+    font-size: 0.75rem;
+  }
+  dd {
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+}
+
+.listItemTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 90%;
+
+  h3 {
+    font-size: 1rem;
+    font-weight: bold;
+    @include text-overflow-ellipsis();
+  }
+}
+
+.detailsDescription {
+  @include multiline-text-overflow-ellipsis(5, vertical);
+  max-width: 90%;
+}
+
+.listItemLabels {
+  display: flex;
+  max-width: 90%;
+  span:first-child {
+    margin-left: 0rem;
+  }
+}
+
+.statusCircle {
+  height: 1rem;
+  width: 1rem;
+  &[data-status="active"] {
+    fill: var(--cds-support-success);
+  }
+  &[data-status="inactive"] {
+    fill: var(--cds-support-success);
+  }
+  &[data-status="deleted"] {
+    fill: var(--cds-support-error);
+  }
+  &[data-status="error"] {
+    fill: var(--cds-support-error);
+  }
+  &[data-status="trigger_disabled"] {
+    fill: var(--cds-text-03);
+  }
+}
+
+.detailsContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  h2 {
+    display: flex;
+    font-weight: bold;
+    margin-bottom: 0rem;
+  }
+
+  dl {
+    margin-top: 1rem;
+  }
+
+  dt {
+    align-items: center;
+    display: flex;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  section {
+    margin: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px var(--cds-ui-04) solid;
+  }
+
+  footer {
+    margin-top: auto;
+    width: 100%;
+    button {
+      border-radius: 0;
+      width: 50% !important;
+    }
+  }
+}
+
+.detailsTitle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+
+  h2 {
+    display: flex;
+    font-weight: bold;
+    margin-bottom: 0rem;
+    max-width: 80%;
+    @include multiline-text-overflow-ellipsis();
+  }
+}

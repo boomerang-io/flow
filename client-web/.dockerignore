@@ -1,0 +1,16 @@
+# The build stage needs the sources (app/, src/, public/, patches/, the Vite/react-router/tsconfig
+# files, package.json + pnpm-lock.yaml + .npmrc). Everything else only bloats the build context
+# sent to the daemon, or is regenerated inside the image (node_modules, build/, .react-router/).
+**/node_modules
+build
+.react-router
+.git
+.github
+.vscode
+coverage
+cypress
+lint-report.json
+*.md
+# Local dev only. Real deployments pass environment variables.
+.env
+.env.*

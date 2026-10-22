@@ -1,0 +1,631 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`UserDetailed --- Snapshot Test > Capturing Snapshot of UserDetailed 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <div
+      class="_container_86126e"
+    >
+      <header
+        class="cds--bmrg-feature-header _container_b9e313 --bordered"
+      >
+        <section
+          class="cds--bmrg-feature-header__content"
+        >
+          <div
+            class="cds--bmrg-feature-header__nav"
+          >
+            <nav
+              aria-label="Breadcrumb"
+            >
+              <ol
+                class="cds--breadcrumb cds--breadcrumb--no-trailing-slash"
+              >
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/home"
+                  >
+                    Home
+                  </a>
+                </li>
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <p
+                    class="cds--link"
+                  >
+                    Administer
+                  </p>
+                </li>
+                <li
+                  class="cds--breadcrumb-item"
+                >
+                  <a
+                    class="cds--link"
+                    data-discover="true"
+                    href="/admin/users"
+                  >
+                    Users
+                  </a>
+                </li>
+              </ol>
+            </nav>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__header"
+          >
+            <div
+              class="_titleRow_b9e313"
+            >
+              <svg
+                class="cds--bmrg-avatar --medium"
+                height="16px"
+                role="img"
+                version="1.1"
+                viewBox="0 0 16 16"
+                width="16px"
+                x="0px"
+                xmlns="http://www.w3.org/2000/svg"
+                y="0px"
+              >
+                <title>
+                  User icon for trbula@example.com
+                </title>
+                <desc>
+                  Avatar for trbula@example.com
+                </desc>
+                <g>
+                  <path
+                    d="M4,13.7C5.1,14.5,6.5,15,8,15s2.9-0.5,4-1.3v-1.2c0-0.8-0.7-1.5-1.5-1.5h-5C4.7,11,4,11.7,4,12.5V13.7
+		z M3,12.9v-0.4C3,11.1,4.1,10,5.5,10h5c1.4,0,2.5,1.1,2.5,2.5v0.4c1.2-1.3,2-3,2-4.9c0-3.9-3.1-7-7-7S1,4.1,1,8
+		C1,9.9,1.8,11.6,3,12.9z M8,16c-4.4,0-8-3.6-8-8s3.6-8,8-8s8,3.6,8,8S12.4,16,8,16z"
+                    fill="currentColor"
+                  />
+                  <path
+                    d="M8,8c1.1,0,2-0.9,2-2S9.1,4,8,4S6,4.9,6,6S6.9,8,8,8z M8,9C6.3,9,5,7.7,5,6s1.3-3,3-3s3,1.3,3,3S9.7,9,8,9z"
+                    fill="currentColor"
+                  />
+                </g>
+              </svg>
+              <h1
+                class="cds--bmrg-feature-header-title _title_b9e313"
+                title="Tim Bula"
+              >
+                Tim Bula
+              </h1>
+              <span
+                class="_email_b9e313"
+              >
+                trbula@example.com
+              </span>
+            </div>
+          </div>
+          <div
+            class="cds--bmrg-feature-header__footer"
+          >
+            <section
+              class="_headerActions_b9e313"
+            >
+              <nav
+                aria-label="User pages"
+                class="cds--tabs"
+              >
+                <ul
+                  class="cds--tab--list"
+                >
+                  <a
+                    aria-current="page"
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item cds--tabs__nav-item--selected"
+                    data-discover="true"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5"
+                  >
+                    Workspaces (7)
+                  </a>
+                  <a
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    data-discover="true"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5/labels"
+                  >
+                    Labels
+                  </a>
+                  <a
+                    class="cds--tabs__nav-item cds--tabs__nav-link cds--bmrg-feature--tabs__nav-item"
+                    data-discover="true"
+                    href="/admin/users/5f170b3df6ab327e302cb0a5/settings"
+                  >
+                    Settings
+                  </a>
+                </ul>
+              </nav>
+            </section>
+          </div>
+        </section>
+        <div
+          class="_facts_b9e313"
+        >
+          <dl>
+            <div>
+              <dt>
+                Role
+              </dt>
+              <dd>
+                Admin
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Status
+              </dt>
+              <dd
+                class="_status_b9e313"
+                data-status="active"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8,1C4.1,1,1,4.1,1,8c0,3.9,3.1,7,7,7s7-3.1,7-7C15,4.1,11.9,1,8,1z M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                  />
+                  <path
+                    d="M7,11L4.3,8.3l0.9-0.8L7,9.3l4-3.9l0.9,0.8L7,11z"
+                    data-icon-path="inner-path"
+                    opacity="0"
+                  />
+                </svg>
+                Active
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Joined
+              </dt>
+              <dd>
+                21 Jul 2020
+              </dd>
+            </div>
+            <div>
+              <dt>
+                Last sign-in
+              </dt>
+              <dd>
+                21 Jul 2020, 3:35 PM
+              </dd>
+            </div>
+          </dl>
+          <button
+            class="cds--btn cds--btn--md cds--layout--size-md cds--btn--tertiary"
+            type="button"
+          >
+            Change role
+          </button>
+        </div>
+      </header>
+      <section
+        aria-label="Tim Bula Workspaces"
+        class="_container_179016"
+      >
+        <section
+          class="_actionsContainer_179016"
+        >
+          <div
+            class="_leftActions_179016"
+          >
+            <p
+              class="_featureDescription_179016"
+            >
+              These are Tim Bula's workspaces
+            </p>
+            <p
+              class="_workspaceCountText_179016"
+            >
+              Showing 
+              7
+               workspace
+              s
+            </p>
+            <div
+              aria-label="Search for a workspace"
+              class="cds--search cds--search--md"
+              role="search"
+            >
+              <div
+                class="cds--search-magnifier"
+                tabindex="-1"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="cds--search-magnifier-icon"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M15,14.3L10.7,10c1.9-2.3,1.6-5.8-0.7-7.7S4.2,0.7,2.3,3S0.7,8.8,3,10.7c2,1.7,5,1.7,7,0l4.3,4.3L15,14.3z M2,6.5 C2,4,4,2,6.5,2S11,4,11,6.5S9,11,6.5,11S2,9,2,6.5z"
+                  />
+                </svg>
+              </div>
+              <label
+                class="cds--label"
+                for="workspaces-search"
+                id="workspaces-search-search"
+              >
+                workspaces search
+              </label>
+              <input
+                autocomplete="off"
+                class="cds--search-input"
+                id="workspaces-search"
+                placeholder="Search for a workspace"
+                role="searchbox"
+                type="text"
+                value=""
+              />
+              <button
+                aria-label="Clear search input"
+                class="cds--search-close cds--search-close--hidden"
+                title="Clear search input"
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 32 32"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M17.4141 16 24 9.4141 22.5859 8 16 14.5859 9.4143 8 8 9.4141 14.5859 16 8 22.5859 9.4143 24 16 17.4141 22.5859 24 24 22.5859 17.4141 16z"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+        <div
+          aria-label="Structured list section"
+          class="cds--structured-list"
+          role="table"
+        >
+          <div
+            class="cds--structured-list-thead"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row cds--structured-list-row--header-row"
+              role="row"
+            >
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Name
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Members
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              >
+                Workflows
+              </span>
+              <span
+                class="cds--structured-list-th"
+                dir="auto"
+                role="columnheader"
+              />
+            </div>
+          </div>
+          <div
+            class="cds--structured-list-tbody"
+            role="rowgroup"
+          >
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                admin-flowabl-io Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/admin-flowabl-io-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Bob Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/bob-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Boomerang Joe Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/boomerang-joe-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                marcus-d-roy-gmail-com Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/marcus-d-roy-gmail-com-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                System and Administration
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/system/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Tyson Personal Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/tyson-personal-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+            <div
+              class="cds--structured-list-row"
+              role="row"
+            >
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                Tyson Workspace
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                ---
+              </div>
+              <div
+                class="cds--structured-list-td"
+                dir="auto"
+                role="cell"
+              >
+                <a
+                  class="_viewWorkspaceLink_179016"
+                  data-discover="true"
+                  href="/tyson-workspace/manage"
+                >
+                  View workspace
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

@@ -1,0 +1,360 @@
+package io.boomerang.workflow;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+import io.boomerang.common.entity.TaskEntity;
+import io.boomerang.common.entity.TaskRevisionEntity;
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.DataAdapterUtil.FieldType;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.LogClient;
+import io.boomerang.workflow.repository.TaskRepository;
+import io.boomerang.workflow.repository.TaskRevisionRepository;
+import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
+/**
+ * The guard and the scrub on {@code GET /api/v2/taskrun/&#123;taskRunId&#125;/log}.
+ *
+ * <p>F3 moved this operation from the deleted {@code api.WorkspaceTaskRunService} pass-through into
+ * {@link WorkflowRunService#streamTaskRunLog}. Nothing pinned either half at the pass-through, so
+ * its call path changed shape untested: this pins that a caller who cannot reach the TaskRun's
+ * owning WorkflowRun is refused, that a caller who can is served, and that the served stream still
+ * has the owning run's password-typed values replaced.
+ *
+ * <p>Both identity halves are exercised, because they refuse (or do not refuse) for different
+ * reasons. A {@code session} principal is refused by the USER anchor {@code
+ * RelationshipService.check} walks from. A {@code global} token is NOT refused - {@code check}
+ * returns true unconditionally for global scope (RelationshipService:417-419) - and this route
+ * cannot narrow it, because it carries no workspace path segment to pass as an intermediate. That
+ * is the pre-existing shape carried over unchanged, and it is pinned here so a future change to
+ * either side is a deliberate one.
+ */
+class TaskRunLogAuthorizationTest extends AbstractEngineIntegrationTest {
+
+  private static final String MEMBER = "trlog-authz-member";
+  private static final String MY_WORKSPACE = "trlog-authz-my-ws";
+  private static final String FOREIGN_WORKSPACE = "trlog-authz-foreign-ws";
+  private static final String PASSWORD_PARAM = "trlogToken";
+  private static final String SECRET = "trlog-p4ssw0rd";
+  private static final String TASK_PARAM = "trlogApiKey";
+  private static final String TASK_SECRET = "trlog-task-declared-k3y";
+
+  @Autowired private WorkflowRunService workflowRunService;
+  @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
+  @Autowired private TaskRepository taskRepository;
+  @Autowired private TaskRevisionRepository taskRevisionRepository;
+
+  // The only external the stream touches: the agent's log endpoint. Stubbed so the served path
+  // produces real bytes to assert on without an agent.
+  @MockitoBean private LogClient logClient;
+
+  private String myTaskRunId;
+  private String foreignTaskRunId;
+
+  /**
+   * Seeds under the base class's global identity (writing relationship edges a member is not
+   * entitled to write), then replaces it with the session member. Runs after {@code
+   * establishTestIdentity}.
+   */
+  @BeforeEach
+  void establishMemberIdentity() {
+    workspaceNode(MY_WORKSPACE);
+    workspaceNode(FOREIGN_WORKSPACE);
+    relationshipService.createNode(RelationshipType.USER, MEMBER, MEMBER, Optional.empty());
+    relationshipService.createEdge(
+        RelationshipType.USER,
+        MEMBER,
+        RelationshipLabel.MEMBER_OF,
+        RelationshipType.WORKSPACE,
+        MY_WORKSPACE,
+        Optional.empty());
+
+    myTaskRunId = ownedTaskRun(MY_WORKSPACE, "trlog-mine");
+    foreignTaskRunId = ownedTaskRun(FOREIGN_WORKSPACE, "trlog-theirs");
+
+    StreamingResponseBody rawLog =
+        out -> out.write(("connected as " + SECRET + "\n").getBytes(StandardCharsets.UTF_8));
+    when(logClient.streamLog(any())).thenReturn(rawLog);
+
+    // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
+    // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
+    // non-WORKSPACE RelationshipType (here WORKFLOWRUN) - see the Rule-3 finding in the task
+    // report: a real "editor"/"reader" grant (["**/read","**/write","**/action"]) is now denied
+    // by that gate for every non-WORKSPACE check(), including this one.
+    Token principal = new Token(AuthScope.session);
+    principal.setPrincipal(MEMBER);
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, MY_WORKSPACE, List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(MEMBER, null);
+    authentication.setDetails(principal);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  @Test
+  void aTaskRunWhoseOwningRunTheCallerCannotReachIsRefused() {
+    assertRefused(
+        () -> workflowRunService.streamTaskRunLog(foreignTaskRunId),
+        "PERMISSION_DENIED",
+        "foreign taskrun log");
+  }
+
+  @Test
+  void aTaskRunTheCallerOwnsIsServed() {
+    assertNotNull(
+        workflowRunService.streamTaskRunLog(myTaskRunId),
+        "the guard must not refuse a TaskRun whose owning run the caller can reach");
+  }
+
+  /*
+   * Both halves are refused with a reference error rather than PERMISSION_DENIED, which is what
+   * "before any relationship call" looks like from outside: the caller here is a session
+   * principal scoped to one workspace, so a guard that ran first would answer differently. The
+   * two halves carry different codes - a blank id is a malformed request (400), an id nobody has
+   * is not found (404).
+   */
+  @Test
+  void aBlankTaskRunIsA400AndAnUnknownOneA404BeforeAnyRelationshipCall() {
+    // The reason strings, not the enum constant names - they differ here (TASKRUN_INVALID_REF
+    // carries the reason "TASKRUN_INVALID_REFERENCE"). Read them off the enum so the two cannot
+    // drift apart again.
+    assertRefused(
+        () -> workflowRunService.streamTaskRunLog("   "),
+        BoomerangError.TASKRUN_INVALID_REQ,
+        "blank id");
+    assertRefused(
+        () -> workflowRunService.streamTaskRunLog("trlog-does-not-exist"),
+        BoomerangError.TASKRUN_INVALID_REF,
+        "unknown id");
+  }
+
+  /**
+   * The global half. {@code check} returns true unconditionally for a global-scope token and this
+   * route has no workspace segment to narrow with, so a global caller reaches any TaskRun's log.
+   * Carried over from the pass-through unchanged - pinned, not fixed.
+   */
+  @Test
+  void aGlobalTokenReachesAnyTaskRunsLogBecauseTheRouteCarriesNoWorkspace() {
+    installGlobalIdentity();
+    assertNotNull(
+        workflowRunService.streamTaskRunLog(foreignTaskRunId),
+        "a global token is not narrowed by this route - see the class javadoc");
+    assertNotNull(
+        workflowRunService.streamTaskRunLog(myTaskRunId), "and reaches its own the same way");
+  }
+
+  @Test
+  void theServedStreamHasTheOwningRunsPasswordValuesReplaced() throws IOException {
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    workflowRunService.streamTaskRunLog(myTaskRunId).writeTo(sink);
+    String streamed = sink.toString(StandardCharsets.UTF_8);
+
+    assertTrue(
+        streamed.contains(DataAdapterUtil.REDACTED),
+        "the password-typed param's resolved value must be replaced: " + streamed);
+    assertFalse(streamed.contains(SECRET), "the raw secret must not reach the caller: " + streamed);
+  }
+
+  /**
+   * The catalogue task is the second type authority here too. The value is declared nowhere at the
+   * workflow level - only on the spec of the task a SIBLING TaskRun of the same run references -
+   * so the removal list has to reach it through that task's taskRef/taskVersion, and has to cover
+   * every task of the run rather than the streamed one: substitution carries a sibling's declared
+   * value into this task's script.
+   */
+  @Test
+  void theServedStreamAlsoReplacesAValueDeclaredOnlyByACatalogueTask() throws IOException {
+    TaskEntity catalogueTask = new TaskEntity();
+    catalogueTask.setName("trlog-secret-task");
+    catalogueTask.setType(TaskType.template);
+    catalogueTask = taskRepository.save(catalogueTask);
+
+    AbstractParam taskParam = new AbstractParam();
+    taskParam.setName(TASK_PARAM);
+    taskParam.setType(FieldType.PASSWORD.value());
+    TaskRevisionEntity revision = new TaskRevisionEntity();
+    revision.setParentRef(catalogueTask.getId());
+    revision.setVersion(1);
+    revision.getSpec().setParams(List.of(taskParam));
+    taskRevisionRepository.save(revision);
+
+    String workflowRunRef = taskRunRepository.findById(myTaskRunId).orElseThrow().getWorkflowRunRef();
+    TaskRunEntity sibling =
+        savedTaskRun(
+            "trlog-mine-sibling",
+            TaskType.template,
+            RunStatus.succeeded,
+            RunPhase.completed,
+            "trlog-mine-wf",
+            workflowRunRef);
+    sibling.setTaskRef(catalogueTask.getId());
+    sibling.setTaskVersion(1);
+    sibling.setParams(List.of(new RunParam(TASK_PARAM, TASK_SECRET)));
+    taskRunRepository.save(sibling);
+
+    when(logClient.streamLog(any()))
+        .thenReturn(
+            (StreamingResponseBody)
+                out -> out.write(("calling with " + TASK_SECRET + "\n").getBytes(StandardCharsets.UTF_8)));
+
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    workflowRunService.streamTaskRunLog(myTaskRunId).writeTo(sink);
+    String streamed = sink.toString(StandardCharsets.UTF_8);
+
+    assertFalse(
+        streamed.contains(TASK_SECRET),
+        "a value typed into a catalogue-declared password param must not reach the log: " + streamed);
+    assertTrue(streamed.contains(DataAdapterUtil.REDACTED), streamed);
+  }
+
+  /**
+   * A secret-typed param needs no definition: a value sent as a secret on the run request, or a
+   * string tainted by one, is removed from the log by its type alone.
+   */
+  @Test
+  void theServedStreamAlsoReplacesASecretTypedValueThatNoDefinitionDeclares() throws IOException {
+    String typedSecret = "trlog-typed-s3cret";
+    TaskRunEntity mine = taskRunRepository.findById(myTaskRunId).orElseThrow();
+    mine.setParams(List.of(new RunParam("dsn", typedSecret, ParamType.secret)));
+    taskRunRepository.save(mine);
+
+    when(logClient.streamLog(any()))
+        .thenReturn(
+            (StreamingResponseBody)
+                out -> out.write(("dsn is " + typedSecret + "\n").getBytes(StandardCharsets.UTF_8)));
+
+    ByteArrayOutputStream sink = new ByteArrayOutputStream();
+    workflowRunService.streamTaskRunLog(myTaskRunId).writeTo(sink);
+    String streamed = sink.toString(StandardCharsets.UTF_8);
+
+    assertFalse(streamed.contains(typedSecret), streamed);
+    assertTrue(streamed.contains(DataAdapterUtil.REDACTED), streamed);
+  }
+
+  private void installGlobalIdentity() {
+    Token global = new Token(AuthScope.global);
+    global.setPrincipal("trlog-authz-global");
+    // A real global caller always carries a resolved "**/**" grant (admin/operator role, or
+    // UnauthenticatedGlobalToken) - mirrors AbstractEngineIntegrationTest.
+    global.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(global.getPrincipal(), null);
+    authentication.setDetails(global);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private void assertRefused(Executable operation, String reason, String label) {
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, operation, label + " must be refused");
+    assertEquals(reason, ex.getReason(), label + " must fail with " + reason);
+  }
+
+  private void assertRefused(Executable operation, BoomerangError error, String label) {
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, operation, label + " must be refused");
+    assertEquals(error.getReason(), ex.getReason(), label + " must fail with " + error.getReason());
+    assertEquals(
+        error.getStatus(), ex.getStatus(), label + " must carry the code's own HTTP status");
+  }
+
+  // Anchored under root so the seeding identity (global, which anchors at ROOT) can resolve these
+  // workspaces - the same shape production has, where every workspace hangs off the root node.
+  private void workspaceNode(String name) {
+    if (relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, name)) {
+      return;
+    }
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.CONTAINS,
+        RelationshipType.WORKSPACE,
+        name,
+        name,
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  /**
+   * A completed TaskRun under a WorkflowRun the given workspace owns, whose revision declares one
+   * {@code password} param and whose run carries its resolved value - the exact join {@code
+   * DataAdapterUtil.sensitiveValues} performs.
+   */
+  private String ownedTaskRun(String workspace, String prefix) {
+    AbstractParam param = new AbstractParam();
+    param.setName(PASSWORD_PARAM);
+    param.setType(FieldType.PASSWORD.value());
+    WorkflowRevisionEntity revision = new WorkflowRevisionEntity();
+    revision.setWorkflowRef(prefix + "-wf");
+    revision.setVersion(1);
+    revision.setParams(List.of(param));
+    revision = workflowRevisionRepository.save(revision);
+
+    WorkflowRunEntity run = new WorkflowRunEntity();
+    run.setWorkflowRef(prefix + "-wf");
+    run.setWorkflowRevisionRef(revision.getId());
+    run.setStatus(RunStatus.succeeded);
+    run.setPhase(RunPhase.completed);
+    run.setCreationDate(new Date());
+    run.setParams(List.of(new RunParam(PASSWORD_PARAM, SECRET)));
+    run = workflowRunRepository.save(run);
+
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        workspace,
+        RelationshipLabel.HAS_WORKFLOWRUN,
+        RelationshipType.WORKFLOWRUN,
+        run.getId(),
+        run.getId(),
+        Optional.empty(),
+        Optional.empty());
+
+    TaskRunEntity taskRun =
+        savedTaskRun(
+            prefix + "-task",
+            TaskType.template,
+            RunStatus.succeeded,
+            RunPhase.completed,
+            run.getWorkflowRef(),
+            run.getId());
+    return taskRun.getId();
+  }
+}

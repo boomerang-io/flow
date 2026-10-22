@@ -1,0 +1,20 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  overflow: auto;
+  padding: 2rem 2rem 1rem;
+  width: 100%;
+
+  :global .bmrg--b-loading-animation__text {
+    display: none;
+  }
+  :global .bmrg--b-loading-animation__img {
+    transform: scale(0.3);
+  }
+}
+
+.searchSkeleton {
+  margin-bottom: 1rem;
+  width: 300px;
+}

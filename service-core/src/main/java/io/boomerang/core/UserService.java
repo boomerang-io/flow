@@ -1,0 +1,496 @@
+package io.boomerang.core;
+
+import io.boomerang.common.util.PagingUtil;
+import io.boomerang.common.util.QueryCriteria;
+import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RoleEnum;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.enums.UserStatus;
+import io.boomerang.core.enums.UserType;
+import io.boomerang.core.model.*;
+import io.boomerang.core.repository.UserRepository;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.UnauthenticatedGlobalToken;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
+import org.springframework.data.domain.Sort.Order;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
+
+@Service
+public class UserService {
+
+  private static final Logger LOGGER = LogManager.getLogger();
+
+  @Value("${flow.externalUrl.user}")
+  private String externalUserUrl;
+
+  @Value("${flow.otc}")
+  private String corePlatformOTC;
+
+  private final UserRepository userRepository;
+  private final IdentityService identityService;
+  private final ExternalUserService extUserService;
+  private final RelationshipService relationshipService;
+  private final MongoTemplate mongoTemplate;
+  private final ObjectMapper objectMapper;
+
+  UserService(
+      MongoTemplate mongoTemplate,
+      IdentityService identityService,
+      ExternalUserService extUserService,
+      RelationshipService relationshipService,
+      UserRepository userRepository,
+      ObjectMapper objectMapper) {
+    this.userRepository = userRepository;
+    this.identityService = identityService;
+    this.extUserService = extUserService;
+    this.relationshipService = relationshipService;
+    this.mongoTemplate = mongoTemplate;
+    this.objectMapper = objectMapper;
+  }
+
+  /**
+   * The single normalisation point for {@code users.email}: every read and every write of an email
+   * in this service passes through here, and this service is the only writer of {@code users.email}
+   * in the application ({@code io.boomerang.migration._0009__NormaliseUserEmails} lower-cases rows
+   * written before this rule existed, such as an upgraded v3 install's users).
+   *
+   * <p>Storing emails already lower-cased is what lets {@link UserRepository}'s lookups be exact
+   * equality rather than {@code ...IgnoreCase} — an {@code $options:'i'} regex has no computable
+   * index bounds, so it can only scan {@code users.email_unique}, never seek it. {@code
+   * Locale.ROOT} is mandatory: the default locale would lower-case {@code "I"} to a dotless {@code
+   * "ı"} under a Turkish locale and silently split an account across two rows.
+   *
+   * <p>Only the case is changed — no trimming, no other rewriting — so a stored email is always
+   * byte-identical to what the identity provider supplied apart from case.
+   */
+  private static String normaliseEmail(String email) {
+    return email == null ? null : email.toLowerCase(Locale.ROOT);
+  }
+
+  /*
+   * If OTC matches, activate the instance
+   *
+   * TODO: move to a better service
+   */
+  public ResponseEntity<Boolean> activateSetup(OneTimeCode otc) {
+    if (externalUserUrl.isBlank()) {
+      if (corePlatformOTC.equals(otc.getOtc())) {
+        return new ResponseEntity<>(HttpStatus.OK);
+      }
+    }
+    return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+  }
+
+  /*
+   * Used by the CreateUserSession to check if instance is activated
+   */
+  public boolean isActivated() {
+    if (externalUserUrl.isBlank() && userRepository.count() == 0) {
+      return false;
+    }
+    return true;
+  }
+
+  /*
+   * Used by the AuthenticationFilter to Retrieve the user
+   */
+  public Optional<UserEntity> getAndRegisterUser(
+      String email,
+      Optional<String> name,
+      Optional<UserType> userType,
+      Optional<UserStatus> userStatus,
+      boolean allowUserCreation) {
+    if (email == null || email.isBlank()) {
+      return Optional.empty();
+    }
+
+    Optional<UserEntity> userEntity = getUserEntityByEmail(email);
+    boolean createRelationshipNode = false;
+    if (externalUserUrl.isBlank()) {
+      // The one write path for users.email in the application - see normaliseEmail().
+      String normalisedEmail = normaliseEmail(email);
+      if (userEntity.isEmpty() && allowUserCreation) {
+        // Create new User (UserEntity is defaulted on new)
+        UserEntity newUserEntity = new UserEntity();
+        newUserEntity.setEmail(normalisedEmail);
+        if (userType.isPresent()) {
+          newUserEntity.setType(userType.get());
+        }
+        if (userStatus.isPresent()) {
+          newUserEntity.setStatus(userStatus.get());
+        }
+        if (name.isEmpty() && email != null) {
+          name = Optional.of(email);
+        }
+        newUserEntity.setName(name.get());
+        userEntity = Optional.of(newUserEntity);
+        createRelationshipNode = true;
+      } else if (userEntity.isEmpty()) {
+        return Optional.empty();
+      }
+      userEntity.get().setLastLoginDate(new Date());
+      if (userEntity.get().getSettings().getIsFirstVisit()) {
+        userEntity.get().getSettings().setIsFirstVisit(false);
+      }
+      userEntity = Optional.of(userRepository.save(userEntity.get()));
+      // Create User relationship node if entity was created
+      // At end due to the save only happening at the end.
+      if (createRelationshipNode) {
+        relationshipService.createNodeAndEdge(
+            RelationshipType.ROOT,
+            "root",
+            RelationshipLabel.CONTAINS,
+            RelationshipType.USER,
+            userEntity.get().getId(),
+            // The node slug is a copy of the user's email, so it carries the same normalisation -
+            // node.slug and users.email must never disagree for the same registration.
+            normalisedEmail,
+            Optional.empty(),
+            Optional.empty());
+      }
+    }
+    return userEntity;
+  }
+
+  private void convertExternalUserType(ExternalUserProfile extUser, UserEntity userEntity) {
+    if (!UserType.user.equals(extUser.getType())
+        && !UserType.admin.equals(extUser.getType())
+        && !UserType.operator.equals(extUser.getType())) {
+      userEntity.setType(UserType.user);
+    }
+  }
+
+  public Optional<User> getUserByID(String userId) {
+    if (externalUserUrl.isBlank()) {
+      Optional<UserEntity> userEntity = userRepository.findById(userId);
+      if (userEntity.isPresent()) {
+        return Optional.of(new User(userEntity.get()));
+      }
+    } else {
+      ExternalUserProfile extUser = extUserService.getUserProfileById(userId);
+      if (extUser != null) {
+        User user = new User();
+        BeanUtils.copyProperties(extUser, user);
+        convertExternalUserType(extUser, user);
+        return Optional.of(user);
+      }
+    }
+    return Optional.empty();
+  }
+
+  public Optional<User> getUserByEmail(String userEmail) {
+    Optional<UserEntity> userEntity = getUserEntityByEmail(userEmail);
+    if (userEntity.isPresent()) {
+      return Optional.of(new User(userEntity.get()));
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Resolves a user by email. The internal store is queried with an exact-match equality on the
+   * normalised value (see {@link #normaliseEmail}) so the lookup seeks {@code users.email_unique};
+   * the external-IdP branch passes the caller's value through untouched, because that email is the
+   * external directory's key (and the subject of the JWT minted for the call), not ours to rewrite.
+   */
+  private Optional<UserEntity> getUserEntityByEmail(String userEmail) {
+    if (externalUserUrl.isBlank()) {
+      UserEntity extUser =
+          userRepository.findByEmailAndStatus(normaliseEmail(userEmail), UserStatus.active);
+      if (extUser != null) {
+        UserEntity userEntity = new UserEntity();
+        BeanUtils.copyProperties(extUser, userEntity);
+        return Optional.of(userEntity);
+      }
+    } else {
+      ExternalUserProfile extUser = extUserService.getUserProfileByEmail(userEmail);
+      if (extUser != null && UserStatus.active.toString().equals(extUser.getStatus())) {
+        UserEntity userEntity = new UserEntity();
+        BeanUtils.copyProperties(extUser, userEntity);
+        convertExternalUserType(extUser, userEntity);
+        return Optional.of(userEntity);
+      }
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * Retrieves the user record for the current identity, or {@code null} when that identity is not a
+   * user.
+   *
+   * <p>An identity is always established now (see {@code IdentityService}), so "no principal" is no
+   * longer a case. What remains - and is genuinely reachable - is a principal with no user record:
+   * the {@code UnauthenticatedGlobalToken} installed when {@code flow.security.enabled=false}, and
+   * equally any {@code key}/{@code global} machine token when security IS enabled. No
+   * synthetic/placeholder user is fabricated for them; callers that can gracefully render "no
+   * current user" ({@code ContextService.getHeaderNavigation}) already null-check, and {@code
+   * updateCurrentProfile} fails clearly on its own.
+   */
+  public UserEntity getCurrentUser() {
+    // The security-off caller is synthetic (UnauthenticatedGlobalToken, never persisted), so its
+    // user is too: an in-memory admin profile, never written to Mongo and impossible to activate
+    // via an IDP email match. The token already carries global scope, so this adds no privilege -
+    // it makes the profile/context surface consistent with the authorization the caller holds.
+    if (identityService.getCurrentIdentity() instanceof UnauthenticatedGlobalToken) {
+      return UnauthenticatedGlobalToken.virtualUser();
+    }
+    // A minted global token carries no principal (TokenService.create only sets one for
+    // non-global types), and findById(null) throws rather than returning empty.
+    String principal = identityService.getCurrentPrincipal();
+    if (principal == null) {
+      return null;
+    }
+    return getUserByID(principal).orElse(null);
+  }
+
+  /*
+   * Retrieves the base (non-Workspace) profile fields for the current user session.
+   *
+   * Workspace summaries and permissions are a rollup across User (core) and Workspace (workspace) data,
+   * so core cannot compose them here - the api layer's Profile composition
+   * (ProfileControllerV2) calls this for the base entity, then WorkspaceService and
+   * RelationshipService for the Workspace membership rollup.
+   *
+   * With no resolvable principal (e.g. security disabled), this returns the same default/empty
+   * UserEntity the method already initialises "profile" to below - an anonymous, unpersisted
+   * placeholder profile rather than a lookup failure, so the webapp's profile bootstrap call
+   * still renders instead of erroring.
+   */
+  public UserEntity getCurrentProfileEntity() {
+    UserEntity profile = new UserEntity();
+    if (externalUserUrl.isBlank()) {
+      UserEntity currentUser = getCurrentUser();
+      if (currentUser != null) {
+        profile = currentUser;
+      }
+    } else {
+      String principal = identityService.getCurrentPrincipal();
+      if (principal != null) {
+        ExternalUserProfile extUserProfile = extUserService.getUserProfileById(principal);
+        if (extUserProfile != null) {
+          BeanUtils.copyProperties(extUserProfile, profile);
+          convertExternalUserType(extUserProfile, profile);
+        }
+      }
+    }
+    return profile;
+  }
+
+  /*
+   * Retrieves the Workspace ref -> role map for the given user. Used to compose the Workspace membership
+   * rollup on the Profile response (see getCurrentProfileEntity()).
+   */
+  public Map<String, String> getWorkspaceRefsAndRolesForUser(String userId) {
+    // The security-off virtual user is a member of nothing but can act on everything (its token
+    // is global-scoped, and filter() anchors at ROOT for it), so its membership rollup is every
+    // workspace as owner - the profile surface stays consistent with the caller's real power.
+    if (UnauthenticatedGlobalToken.PRINCIPAL.equals(userId)
+        && identityService.getCurrentIdentity() instanceof UnauthenticatedGlobalToken) {
+      return relationshipService
+          .filter(
+              RelationshipType.WORKSPACE,
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              // The membership summary resolves each key with workspaceRepository.findById, so
+              // this must return refs (ids), not the default slugs.
+              false)
+          .stream()
+          .collect(
+              java.util.stream.Collectors.toMap(
+                  ref -> ref, ref -> RoleEnum.OWNER.getLabel(), (a, b) -> a));
+    }
+    return relationshipService.roles(userId);
+  }
+
+  public void updateCurrentProfile(UserRequest request) {
+    String userId = identityService.getCurrentPrincipal();
+    if (userId == null) {
+      // No principal to update "my" profile for (e.g. security disabled). Fail clearly rather
+      // than letting apply() fall through to its email-lookup branch, which would let an
+      // unauthenticated caller update an arbitrary user by email in the request body.
+      throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
+    }
+    request.setId(userId);
+    this.apply(request);
+  }
+
+  /*
+   * Query for Users
+   */
+  public Page<User> query(
+      Optional<Integer> queryPage,
+      Optional<Integer> queryLimit,
+      Optional<Direction> queryOrder,
+      Optional<String> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryIds) {
+    final Sort sort =
+        Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
+
+    Query query =
+        new Query(
+            new QueryCriteria()
+                .labels(queryLabels)
+                .in("status", UserStatus.class, queryStatus, "status")
+                .in("id", queryIds)
+                .build());
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
+
+    List<UserEntity> entities = mongoTemplate.find(query, UserEntity.class);
+    LOGGER.debug("Found " + entities.size() + " users.");
+
+    List<User> users = new LinkedList<>();
+    if (!entities.isEmpty()) {
+      entities.forEach(e -> users.add(new User(e)));
+    }
+    Page<User> pages =
+        PagingUtil.page(users, pageable, mongoTemplate, query, UserEntity.class);
+
+    return pages;
+  }
+
+  /*
+   * Update User
+   *
+   * Self-service or admin-grade only. The update-by-email shape carries no target id, so it is
+   * never treated as self - only a global-grade caller can use it.
+   */
+  public User apply(UserRequest request) {
+    requireSelfOrGlobalGrant(
+        (request != null) ? request.getId() : null, PermissionAction.WRITE);
+    if (externalUserUrl.isBlank()) {
+      Optional<UserEntity> userOptional = Optional.empty();
+      if (request != null && request.getId() != null && !request.getId().isBlank()) {
+        userOptional = this.userRepository.findByIdAndStatus(request.getId(), UserStatus.active);
+      } else if (request != null && request.getEmail() != null && !request.getEmail().isBlank()) {
+        // ofNullable: findByEmailAndStatus answers null for an unknown email, which must surface
+        // as USER_NOT_FOUND below rather than an NPE here.
+        userOptional =
+            Optional.ofNullable(
+                this.userRepository.findByEmailAndStatus(
+                    normaliseEmail(request.getEmail()), UserStatus.active));
+      }
+      if (userOptional.isPresent()) {
+        UserEntity user = userOptional.get();
+        if (request.getName() != null && !request.getName().isBlank()) {
+          user.setName(request.getName());
+        }
+        if (request.getDisplayName() != null && !request.getDisplayName().isBlank()) {
+          user.setDisplayName(request.getDisplayName());
+        }
+        if (request.getType() != null) {
+          user.setType(request.getType());
+        }
+        if (request.getLabels() != null) {
+          user.setLabels(request.getLabels());
+        }
+        if (request.getSettings() != null) {
+          if (user.getSettings() == null) {
+            user.setSettings(new UserSettings());
+          }
+          objectMapper.updateValue(user.getSettings(), request.getSettings());
+        }
+        return new User(this.userRepository.save(user));
+      }
+      throw new BoomerangException(BoomerangError.USER_NOT_FOUND);
+    }
+    throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+  }
+
+  /*
+   * Delete User
+   *
+   * User must leave or delete teams prior to deleting account
+   */
+  // TODO - determine if the user needs to be removed from ApproverGroups, and anything else
+  public void delete(String userId) {
+    requireSelfOrGlobalGrant(userId, PermissionAction.DELETE);
+    Optional<UserEntity> user = userRepository.findById(userId);
+    Map<String, String> teamRefsAndRoles = relationshipService.roles(userId);
+    if (!teamRefsAndRoles.isEmpty()) {
+      throw new BoomerangException(BoomerangError.USER_UNABLE_TO_DELETE);
+    }
+    if (user.isPresent()) {
+      userRepository.deleteById(userId);
+      relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.USER, userId);
+    }
+  }
+
+  /**
+   * Permit self-service, otherwise require a global-scoped {@code user/<action>} grant.
+   *
+   * <p>The route-level {@code @AuthCriteria(resource = USER)} match is scope-blind:
+   * AuthCriteriaAuthorizationManager matches the required action against every grant's action strings without
+   * looking at the grant's scope, so a workspace editor/owner's {@code **}/{@code write} grant
+   * satisfies it - yet that grant is authority over the workspace's resources, not over other
+   * users' accounts. Only a global-scoped grant reaches past the caller's own record: the platform
+   * admin/operator roles (the only shapes {@code TokenService.resolvePermissionsForUser} issues at
+   * global scope), an explicitly minted {@code global} token, or the security-off {@code
+   * UnauthenticatedGlobalToken}.
+   */
+  private void requireSelfOrGlobalGrant(String targetUserId, PermissionAction action) {
+    Token identity = identityService.getCurrentIdentity();
+    if (identity != null && targetUserId != null && targetUserId.equals(identity.getPrincipal())) {
+      return;
+    }
+    String requiredRegex =
+        "(\\*{2}|"
+            + PermissionResource.USER.getLabel()
+            + ")\\/(\\*{2}|"
+            + action.getLabel()
+            + ")";
+    if (identity == null
+        || identity.getPermissions().stream()
+            .filter(p -> PermissionScope.global.equals(p.getScope()))
+            .flatMap(p -> p.getActions().stream())
+            .noneMatch(a -> a.matches(requiredRegex))) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
+  }
+
+  /**
+   * Whether the current identity maps to a user record carrying an elevated type.
+   *
+   * <p>A machine identity (the {@code UnauthenticatedGlobalToken} installed when security is
+   * disabled, or any {@code key}/{@code global} service token) has no user record, so this answers
+   * {@code false} - privilege is never asserted for a principal that is not a user. That preserves
+   * the previous security-disabled answer exactly, and additionally stops the machine-token case
+   * throwing {@code NoSuchElementException} out of the old {@code .get()}.
+   */
+  public boolean isCurrentUserAdmin() {
+    // Routed through getCurrentUser() so the security-off virtual user resolves here too.
+    return Optional.ofNullable(getCurrentUser())
+        .map(
+            user ->
+                user.getType() == UserType.admin
+                    || user.getType() == UserType.operator
+                    || user.getType() == UserType.auditor
+                    || user.getType() == UserType.author)
+        .orElse(false);
+  }
+}

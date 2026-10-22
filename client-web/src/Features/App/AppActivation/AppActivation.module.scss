@@ -1,0 +1,21 @@
+.container {
+  max-height: 28rem !important;
+  :global .cds--modal-close {
+    display: none;
+  }
+
+  :global .cds--text-input-wrapper {
+    margin-top: 0rem;
+  }
+
+  :global .cds--inline-notification {
+    bottom: 4rem;
+    position: absolute;
+    width: 95%;
+  }
+}
+
+.break {
+  display: block;
+  margin-bottom: 1rem;
+}

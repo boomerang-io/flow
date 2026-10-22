@@ -1,0 +1,155 @@
+.container {
+  padding: 1.5rem 2rem;
+
+  :global .cds--bmrg-error-page {
+    width: 100%;
+  }
+
+  :global .cds--structured-list {
+    max-width: 100rem;
+  }
+
+  :global .cds--structured-list-td {
+    line-height: 1rem;
+    padding: 1rem 1rem;
+  }
+}
+
+.dropdown {
+  width: 20rem;
+}
+
+.tableSkeleton {
+  thead {
+    th:nth-of-type(1) {
+      width: 25% !important;
+    }
+
+    th:nth-of-type(2) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(3) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(4) {
+      width: 20% !important;
+    }
+
+    th:nth-of-type(5) {
+      width: 5% !important;
+    }
+  }
+}
+
+.buttonSkeleton {
+  align-self: flex-end;
+  margin-bottom: 1rem;
+  margin-top: -1rem;
+  min-width: 12rem;
+}
+
+.header {
+  padding: 1rem 2rem 0;
+}
+
+.headerTitle {
+  margin: 0;
+}
+
+.tableHeadHeader {
+  font-size: inherit;
+  font-family: inherit;
+  :global .cds--table-header-label {
+    color: var(--cds-text-01);
+  }
+
+  button {
+    width: 100% !important;
+  }
+
+  &.creatorName {
+    width: 25%;
+  }
+
+  &.description {
+    width: 20%;
+  }
+
+  &.creationDate {
+    width: 20%;
+  }
+
+  &.expiryDate {
+    width: 20%;
+  }
+
+  &.delete {
+    width: 5%;
+  }
+}
+.tableBody {
+  font-weight: 300;
+}
+
+.tableCell {
+  align-items: center;
+  display: flex;
+  height: 3.625rem;
+  line-height: 1.2;
+  overflow-y: auto;
+  padding-left: 0.75rem;
+  width: 100%;
+}
+
+.tableTextarea {
+  background: inherit;
+  margin-left: 0.25rem;
+  max-width: 100%;
+  resize: none;
+  text-align: left;
+  white-space: normal;
+  width: 90%;
+  word-break: break-all;
+}
+
+.buttonContainer {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.headerWithIcon {
+  display: flex;
+}
+
+.headerHoverIcon {
+  margin-left: 0.25rem;
+}
+
+.notificationsContainer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  :global .cds--inline-notification {
+    max-width: 100%;
+  }
+}
+
+
+.dataTable {
+  :global .cds--data-table thead {
+      background: var(--cds-ui-background) !important;
+  }
+  :global .cds--data-table th {
+      background: var(--cds-ui-background) !important;
+  }
+  :global .cds--data-table-container {
+      padding-bottom: 1rem;
+  }
+}

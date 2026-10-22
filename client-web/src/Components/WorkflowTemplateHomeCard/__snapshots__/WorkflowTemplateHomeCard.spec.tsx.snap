@@ -1,0 +1,62 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`WorkflowCard --- Snapshot > Capturing Snapshot of WorkflowCard 1`] = `
+<body
+  id="app"
+>
+  <div>
+    <button
+      class="_row_745287"
+      data-testid="template-row"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        class="_icon_745287"
+      >
+        <svg
+          aria-label="bot"
+          fill="currentColor"
+          focusable="false"
+          height="16"
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          viewBox="0 0 32 32"
+          width="16"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M18 10H20V12H18z"
+          />
+          <path
+            d="M12 10H14V12H12z"
+          />
+          <path
+            d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+          />
+        </svg>
+      </span>
+      <span
+        class="_body_745287"
+      >
+        <span
+          class="_name_745287"
+          data-testid="workflow-card-title"
+          title="MongoDB email query results"
+        >
+          MongoDB email query results
+        </span>
+        <span
+          class="_description_745287"
+          title="This is a workflow example that runs a MongoDB query and then simultaneously sends the results as an attached file on an email and prints out the results for an easy verification."
+        >
+          This is a workflow example that runs a MongoDB query and then simultaneously sends the results as an attached file on an email and prints out the results for an easy verification.
+        </span>
+      </span>
+    </button>
+  </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+</body>
+`;

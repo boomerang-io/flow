@@ -1,0 +1,19 @@
+@import "Styles/mixins";
+
+.container {
+  margin-top: 1rem;
+}
+
+.accordion {
+  margin-top: 0.5rem;
+}
+
+.tableContainer {
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.error {
+  color: var(--cds-support-error);
+  font-size: 0.75rem;
+}

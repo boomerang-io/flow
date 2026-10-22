@@ -1,0 +1,351 @@
+package io.boomerang.workflow;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import io.boomerang.common.entity.ActionEntity;
+import io.boomerang.common.enums.ActionType;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.Actioner;
+import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.TaskRun;
+import io.boomerang.common.model.TaskRunEndRequest;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.UserService;
+import io.boomerang.core.entity.UserEntity;
+import io.boomerang.core.model.User;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.repository.ActionRepository;
+import io.boomerang.workflow.model.Action;
+import io.boomerang.workflow.model.ActionRequest;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
+import io.boomerang.workspace.repository.ApproverGroupRepository;
+import java.time.Instant;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.bson.Document;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.ResponseEntity;
+
+/**
+ * With no current USER, actioning a manual/approval task must not NPE on the approver identity -
+ * see {@code ActionService#action}, which used to dereference {@code userEntity.getId()}
+ * directly.
+ *
+ * <p>Note this is NOT the "no identity" case, which no longer exists: an identity is always
+ * established. {@code UserService.getCurrentUser()} still resolves to {@code null} whenever that
+ * identity is not a user - the {@code UnauthenticatedGlobalToken} when {@code
+ * flow.security.enabled=false}, and equally any {@code key}/{@code global} machine token when
+ * security IS enabled. So the {@code userEntity == null} branch in {@code action} remains
+ * genuinely reachable and was deliberately left in place: it currently sets {@code partOfGroup =
+ * true}, i.e. a machine token bypasses approver-group membership. Tightening that would change
+ * authorization semantics under security-enabled and is a separate maintainer decision.
+ */
+@ExtendWith(MockitoExtension.class)
+class ActionServiceTest {
+
+  @Mock private ActionRepository actionRepository;
+  @Mock private ApproverGroupRepository approverGroupRepository;
+  @Mock private TaskRunService engineTaskRunService;
+  @Mock private WorkflowService workflowService;
+  @Mock private WorkflowRunService workflowRunService;
+  @Mock private RelationshipService relationshipService;
+  @Mock private UserService userService;
+  @Mock private io.boomerang.core.security.IdentityService identityService;
+  @Mock private MongoTemplate mongoTemplate;
+
+  private ActionService actionService;
+
+  @BeforeEach
+  void setUp() {
+    actionService =
+        new ActionService(
+            actionRepository,
+            approverGroupRepository,
+            engineTaskRunService,
+            workflowService,
+            workflowRunService,
+            relationshipService,
+            userService,
+            identityService,
+            mongoTemplate);
+    when(relationshipService.check(any(), anyString(), any(), any())).thenReturn(true);
+    // The mocked store mirrors the atomic append: the actioner lands on the action findById holds.
+    lenient()
+        .when(
+            mongoTemplate.findAndModify(
+                any(Query.class),
+                any(Update.class),
+                any(FindAndModifyOptions.class),
+                eq(ActionEntity.class)))
+        .thenAnswer(
+            invocation -> {
+              ActionEntity action = actionRepository.findById("a1").orElseThrow();
+              Document push =
+                  (Document) ((Update) invocation.getArgument(1)).getUpdateObject().get("$push");
+              action.getActioners().add((Actioner) push.get("actioners"));
+              return action;
+            });
+  }
+
+  private ActionEntity manualAction() {
+    ActionEntity entity = new ActionEntity();
+    entity.setId("a1");
+    entity.setWorkflowRef("w1");
+    entity.setType(ActionType.manual);
+    entity.setActioners(new LinkedList<>());
+    entity.setNumberOfApprovers(2);
+    return entity;
+  }
+
+  @Test
+  void manualActionWithNoCurrentUserRecordsActionerWithNullApproverIdNotNpe() {
+    when(userService.getCurrentUser()).thenReturn(null);
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    ActionRequest request = new ActionRequest();
+    request.setId("a1");
+    request.setApproved(true);
+
+    actionService.action("team1", List.of(request));
+
+    assertThat(entity.getActioners()).hasSize(1);
+    Actioner actioner = entity.getActioners().get(0);
+    assertThat(actioner.getApproverId()).isNull();
+    assertThat(actioner.isApproved()).isTrue();
+  }
+
+  @Test
+  void approvalWithGroupDeniesACallerWithNoUserRecord() {
+    // A group approval is a membership test - a machine token (resolves no user record) cannot
+    // be a member, so its decision is not recorded. Automations that must approve are given a
+    // real user identity and placed in the group.
+    when(userService.getCurrentUser()).thenReturn(null);
+    ActionEntity entity = manualAction();
+    entity.setType(ActionType.approval);
+    entity.setApproverGroupRef("g1");
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+    when(relationshipService.filter(any(), any(), any(), any())).thenReturn(List.of("g1"));
+    ApproverGroupEntity group = new ApproverGroupEntity();
+    group.setId("g1");
+    group.setApprovers(List.of("some-other-user"));
+    when(approverGroupRepository.findById("g1")).thenReturn(Optional.of(group));
+
+    ActionRequest request = new ActionRequest();
+    request.setId("a1");
+    request.setApproved(true);
+
+    actionService.action("team1", List.of(request));
+
+    assertThat(entity.getActioners()).isEmpty();
+  }
+
+  @Test
+  void approvalWithGroupAndResolvedNonMemberUserIsDenied() {
+    UserEntity user = new UserEntity();
+    user.setId("user-1");
+    when(userService.getCurrentUser()).thenReturn(user);
+    ActionEntity entity = manualAction();
+    entity.setType(ActionType.approval);
+    entity.setApproverGroupRef("g1");
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+    when(relationshipService.filter(any(), any(), any(), any())).thenReturn(List.of("g1"));
+    ApproverGroupEntity group = new ApproverGroupEntity();
+    group.setId("g1");
+    group.setApprovers(List.of("some-other-user"));
+    when(approverGroupRepository.findById("g1")).thenReturn(Optional.of(group));
+
+    ActionRequest request = new ActionRequest();
+    request.setId("a1");
+    request.setApproved(true);
+
+    actionService.action("team1", List.of(request));
+
+    assertThat(entity.getActioners()).isEmpty();
+  }
+
+  // #378: the Actions table must show the Workflow's display name, resolved fresh at
+  // retrieval (never stored on ActionEntity) since it can change after the Action is created.
+  @Test
+  void getResolvesWorkflowNameFromDisplayName() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName("My Workflow");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkflowName()).isEqualTo("My Workflow");
+  }
+
+  @Test
+  void getFallsBackToNameWhenDisplayNameIsBlank() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName(" ");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkflowName()).isEqualTo("my-workflow-slug");
+  }
+
+  // The approval modal's Workspace field: the owning Workspace is resolved fresh from the
+  // relationship graph via the Action's Workflow, never stored on ActionEntity.
+  @Test
+  void getResolvesWorkspaceNameFromOwningWorkspace() {
+    ActionEntity entity = manualAction();
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    Workflow workflow = new Workflow();
+    workflow.setName("my-workflow-slug");
+    workflow.setDisplayName("My Workflow");
+    when(workflowService.get("w1", Optional.empty(), false))
+        .thenReturn(ResponseEntity.ok(workflow));
+    when(engineTaskRunService.get(any())).thenReturn(ResponseEntity.ok(new TaskRun()));
+    when(relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, "w1"))
+        .thenReturn("ws1");
+    when(relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, "ws1"))
+        .thenReturn("my-workspace");
+
+    Action action = actionService.get("team1", "a1");
+
+    assertThat(action.getWorkspaceName()).isEqualTo("my-workspace");
+  }
+
+  @Test
+  void anApprovedApprovalEndsTheTaskWithItsFiveResults() {
+    actAs("u1", "Ada Lovelace", "ada@example.com");
+    ActionEntity entity = approvalAction(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(true, "Looks good")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.succeeded);
+    assertThat(result(end, "approvalStatus")).isEqualTo("approved");
+    assertThat(result(end, "approvalUserName")).isEqualTo("Ada Lovelace");
+    assertThat(result(end, "approvalUserEmail")).isEqualTo("ada@example.com");
+    assertThat(result(end, "approvalComments")).isEqualTo("Looks good");
+    assertThat(Instant.parse(String.valueOf(result(end, "approvalDate")))).isNotNull();
+  }
+
+  @Test
+  void aRejectedApprovalEndsTheTaskFailedWithTheRejectedStatus() {
+    actAs("u1", "Ada Lovelace", "ada@example.com");
+    ActionEntity entity = approvalAction(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(false, "Not yet")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(result(end, "approvalStatus")).isEqualTo("rejected");
+    assertThat(result(end, "approvalComments")).isEqualTo("Not yet");
+  }
+
+  @Test
+  void twoRequiredApproversHoldTheTaskUntilTheSecondDecidesIt() {
+    ActionEntity entity = approvalAction(2);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+    UserEntity first = new UserEntity();
+    first.setId("u1");
+    when(userService.getCurrentUser()).thenReturn(first);
+
+    actionService.action("team1", List.of(request(true, "first")));
+
+    verify(engineTaskRunService, never()).end(any(), any());
+
+    actAs("u2", "Grace Hopper", "grace@example.com");
+    actionService.action("team1", List.of(request(true, "second")));
+
+    TaskRunEndRequest end = endRequest();
+    assertThat(result(end, "approvalStatus")).isEqualTo("approved");
+    assertThat(result(end, "approvalUserName")).isEqualTo("Grace Hopper");
+    assertThat(result(end, "approvalComments")).isEqualTo("second");
+  }
+
+  @Test
+  void aManualTaskEndsWithNoApprovalResults() {
+    when(userService.getCurrentUser()).thenReturn(null);
+    ActionEntity entity = manualAction();
+    entity.setNumberOfApprovers(1);
+    when(actionRepository.findById("a1")).thenReturn(Optional.of(entity));
+
+    actionService.action("team1", List.of(request(true, null)));
+
+    assertThat(endRequest().getResults()).isEmpty();
+  }
+
+  private ActionEntity approvalAction(int approvers) {
+    ActionEntity entity = manualAction();
+    entity.setType(ActionType.approval);
+    entity.setTaskRunRef("tr1");
+    entity.setNumberOfApprovers(approvers);
+    return entity;
+  }
+
+  private void actAs(String id, String name, String email) {
+    UserEntity entity = new UserEntity();
+    entity.setId(id);
+    when(userService.getCurrentUser()).thenReturn(entity);
+    User user = new User();
+    user.setId(id);
+    user.setName(name);
+    user.setEmail(email);
+    when(userService.getUserByID(id)).thenReturn(Optional.of(user));
+  }
+
+  private static ActionRequest request(boolean approved, String comments) {
+    ActionRequest request = new ActionRequest();
+    request.setId("a1");
+    request.setApproved(approved);
+    request.setComments(comments);
+    return request;
+  }
+
+  private TaskRunEndRequest endRequest() {
+    ArgumentCaptor<Optional<TaskRunEndRequest>> captor = ArgumentCaptor.captor();
+    verify(engineTaskRunService).end(any(), captor.capture());
+    return captor.getValue().orElseThrow();
+  }
+
+  private static Object result(TaskRunEndRequest end, String name) {
+    return end.getResults().stream()
+        .filter(r -> name.equals(r.getName()))
+        .map(RunResult::getValue)
+        .findFirst()
+        .orElse(null);
+  }
+}

@@ -1,0 +1,10 @@
+@use "@carbon/react/scss/spacing" as *;
+
+.nodes {
+  margin-top: $spacing-05;
+}
+
+.notice {
+  margin-top: $spacing-05;
+  max-width: 100%;
+}

@@ -1,0 +1,46 @@
+name: CI Core
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+  # Triggers the workflow on push (branch and tag) or pull request events
+  push:
+    branches:
+      - main
+    paths:
+      - 'service-core/**'
+      - 'contracts/**'
+      - 'pom.xml'
+      - '.github/workflows/ci-core.yml'
+  pull_request:
+    paths:
+      - 'service-core/**'
+      - 'contracts/**'
+      - 'pom.xml'
+      - '.github/workflows/ci-core.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Java and Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'maven'
+      - name: Maven Package
+        run: |
+          mvn clean test --projects service-core --also-make --batch-mode
+      - name: Slack
+        if: ${{ always() }}
+        uses: ./.github/actions/slack
+        with:
+          status: ${{ job.status }}
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+# Release (multi-platform image build and push) lives in ci-release.yml, triggered by the product tag
+# (`5.x.y`, optional `-beta.N`/`-rc.N`). This workflow tests the module; its image is built once, by
+# ci-e2e.yml for the stack that workflow tests, which also runs on service-core/ and pom.xml changes.

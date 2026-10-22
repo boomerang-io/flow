@@ -1,0 +1,189 @@
+package io.boomerang.event;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunResult;
+import io.boomerang.event.entity.EventOutboxEntity;
+import io.boomerang.event.enums.EventPayload;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Pins both outbound status payload shapes. The thin default carries the identity and lifecycle of
+ * a run and nothing else - no params, no results, no annotations - so a sink URL never receives
+ * parameter or result values; {@code full} restores the whole public run model. The CloudEvent
+ * envelope (type, source, subject, id) is the same either way.
+ */
+class StatusEventPayloadTest {
+
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
+
+  // The outbox row an event is built for: it gives the event its id and time, not its payload.
+  private static final EventOutboxEntity ROW = outboxRow();
+
+  private static final List<String> THIN_WORKFLOWRUN_KEYS =
+      List.of("id", "workflowRef", "status", "phase", "labels", "creationDate", "startTime", "duration");
+
+  private static final List<String> THIN_TASKRUN_KEYS =
+      List.of(
+          "id", "workflowRef", "workflowRunRef", "status", "statusReason", "phase", "labels",
+          "creationDate", "startTime", "duration");
+
+  @Test
+  void thinWorkflowRunEventCarriesIdentityAndLifecycleOnly() throws Exception {
+    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin));
+
+    assertThat(data.propertyNames()).containsExactlyInAnyOrderElementsOf(THIN_WORKFLOWRUN_KEYS);
+    assertThat(data.get("id").asString()).isEqualTo("wfr-1");
+    assertThat(data.get("workflowRef").asString()).isEqualTo("wf-1");
+    assertThat(data.get("status").asString()).isEqualTo("succeeded");
+    assertThat(data.get("phase").asString()).isEqualTo("completed");
+    assertThat(data.get("labels").get("initiatorId").asString()).isEqualTo("user-1");
+  }
+
+  @Test
+  void thinTaskRunEventCarriesIdentityAndLifecycleOnly() throws Exception {
+    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.thin));
+
+    assertThat(data.propertyNames()).containsExactlyInAnyOrderElementsOf(THIN_TASKRUN_KEYS);
+    assertThat(data.get("workflowRunRef").asString()).isEqualTo("wfr-1");
+    assertThat(data.get("statusReason").asString()).isEqualTo("JobFailed");
+  }
+
+  @Test
+  void aThinPayloadNeverCarriesParamsResultsOrAnnotations() throws Exception {
+    for (JsonNode data :
+        List.of(
+            payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin)),
+            payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.thin)))) {
+      assertThat(data.propertyNames()).doesNotContain("params", "results", "annotations");
+      assertThat(data.toString()).doesNotContain("api-key", "s3cret", "result-value");
+    }
+  }
+
+  @Test
+  void theFullPayloadIsThePublicRunModel() throws Exception {
+    JsonNode workflowRunData =
+        payload(EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.full));
+    assertThat(workflowRunData.propertyNames()).contains("params", "results", "annotations");
+    assertThat(workflowRunData.get("params").get(0).get("value").asString()).isEqualTo("s3cret");
+
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun(), ROW, EventPayload.full));
+    assertThat(taskRunData.propertyNames()).contains("params", "results", "spec", "name");
+    assertThat(taskRunData.get("results").get(0).get("value").asString()).isEqualTo("result-value");
+  }
+
+  // The full model leaves the platform, so a secret-typed param goes out as the redaction marker,
+  // and the entity the event was built from keeps its real value.
+  @Test
+  void theFullPayloadRedactsSecretTypedParams() throws Exception {
+    WorkflowRunEntity wfRun = workflowRun();
+    wfRun.setParams(List.of(new RunParam("dbPassword", "s3cret-value", ParamType.secret)));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, ROW, EventPayload.full));
+    assertThat(workflowRunData.get("params").get(0).get("value").asString()).isEqualTo("*****");
+    assertThat(workflowRunData.get("params").get(0).get("type").asString()).isEqualTo("secret");
+    assertThat(wfRun.getParams().get(0).getValue()).isEqualTo("s3cret-value");
+
+    TaskRunEntity taskRun = taskRun();
+    taskRun.setParams(List.of(new RunParam("dsn", "postgres://app:pw@db", ParamType.secret)));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, ROW, EventPayload.full));
+    assertThat(taskRunData.toString()).doesNotContain("postgres://app:pw@db");
+    assertThat(taskRun.getParams().get(0).getValue()).isEqualTo("postgres://app:pw@db");
+  }
+
+  // A script that echoes a secret puts it in a result, the status message or an annotation under
+  // no param at all; the full payload scrubs the secret's value from all of them, and the entity
+  // the event was built from keeps its real results.
+  @Test
+  void theFullPayloadScrubsASecretFromResultsAndFreeText() throws Exception {
+    TaskRunEntity taskRun = taskRun();
+    taskRun.setParams(List.of(new RunParam("token", "ghp_echoed_secret", ParamType.secret)));
+    taskRun.setResults(List.of(new RunResult("output", "logged in as ghp_echoed_secret")));
+    taskRun.setStatusMessage("failed with ghp_echoed_secret");
+    taskRun.setAnnotations(Map.of("note", "ghp_echoed_secret"));
+    JsonNode taskRunData = payload(EventFactory.buildStatusUpdateEvent(taskRun, ROW, EventPayload.full));
+    assertThat(taskRunData.toString()).doesNotContain("ghp_echoed_secret");
+    assertThat(taskRunData.get("results").get(0).get("value").asString())
+        .isEqualTo("logged in as *****");
+    assertThat(taskRun.getResults().get(0).getValue()).isEqualTo("logged in as ghp_echoed_secret");
+
+    WorkflowRunEntity wfRun = workflowRun();
+    wfRun.setParams(List.of(new RunParam("dbPassword", "wf-echoed-secret", ParamType.secret)));
+    wfRun.setResults(List.of(new RunResult("dsn", "postgres://app:wf-echoed-secret@db")));
+    JsonNode workflowRunData = payload(EventFactory.buildStatusUpdateEvent(wfRun, ROW, EventPayload.full));
+    assertThat(workflowRunData.toString()).doesNotContain("wf-echoed-secret");
+    assertThat(wfRun.getResults().get(0).getValue()).isEqualTo("postgres://app:wf-echoed-secret@db");
+  }
+
+  @Test
+  void theCloudEventEnvelopeIsTheSameForBothPayloads() throws Exception {
+    var thin = EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.thin).toCloudEvent();
+    var full = EventFactory.buildStatusUpdateEvent(workflowRun(), ROW, EventPayload.full).toCloudEvent();
+
+    assertThat(thin.getType()).isEqualTo("io.boomerang.event.status.workflowrun").isEqualTo(full.getType());
+    assertThat(thin.getSource()).isEqualTo(full.getSource());
+    assertThat(thin.getSubject())
+        .isEqualTo("/workflowrun/wfr-1/status/succeeded")
+        .isEqualTo(full.getSubject());
+  }
+
+  private static JsonNode payload(io.boomerang.event.model.Event event) throws Exception {
+    return MAPPER.readTree(
+        new String(event.toCloudEvent().getData().toBytes(), StandardCharsets.UTF_8));
+  }
+
+  private static WorkflowRunEntity workflowRun() {
+    WorkflowRunEntity entity = new WorkflowRunEntity();
+    entity.setId("wfr-1");
+    entity.setWorkflowRef("wf-1");
+    entity.setStatus(RunStatus.succeeded);
+    entity.setPhase(RunPhase.completed);
+    entity.setCreationDate(new Date(0));
+    entity.setStartTime(new Date(1000));
+    entity.setDuration(2000);
+    entity.setLabels(Map.of("initiatorId", "user-1"));
+    entity.setAnnotations(Map.of("boomerang.io/kind", "WorkflowRun"));
+    entity.setParams(List.of(new RunParam("password", "s3cret")));
+    entity.setResults(List.of(new RunResult("token", "api-key")));
+    return entity;
+  }
+
+  private static TaskRunEntity taskRun() {
+    TaskRunEntity entity = new TaskRunEntity();
+    entity.setId("tr-1");
+    entity.setName("deploy");
+    entity.setType(TaskType.template);
+    entity.setWorkflowRef("wf-1");
+    entity.setWorkflowRunRef("wfr-1");
+    entity.setStatus(RunStatus.failed);
+    entity.setPhase(RunPhase.completed);
+    entity.setStatusReason("JobFailed");
+    entity.setCreationDate(new Date(0));
+    entity.setStartTime(new Date(1000));
+    entity.setDuration(2000);
+    entity.setLabels(Map.of("initiatorId", "user-1"));
+    entity.setAnnotations(Map.of("boomerang.io/kind", "TaskRun"));
+    entity.setParams(List.of(new RunParam("password", "s3cret")));
+    entity.setResults(List.of(new RunResult("output", "result-value")));
+    return entity;
+  }
+
+  private static EventOutboxEntity outboxRow() {
+    EventOutboxEntity row = new EventOutboxEntity();
+    row.setId("row-1");
+    row.setOccurredAt(new Date(5000));
+    return row;
+  }
+}

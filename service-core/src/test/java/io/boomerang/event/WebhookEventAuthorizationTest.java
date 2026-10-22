@@ -1,0 +1,164 @@
+package io.boomerang.event;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import io.boomerang.workflow.WorkflowService;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workflow.WorkflowRunService;
+import io.cloudevents.CloudEvent;
+import io.cloudevents.core.builder.CloudEventBuilder;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import io.boomerang.integrations.GitHubService;
+import io.boomerang.integrations.IntegrationService;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+/**
+ * {@link WebhookEventService#processEvent} used to call {@code relationshipService.check(...)}
+ * as a bare statement - the boolean was discarded, so the gate never actually rejected anything.
+ * Any caller holding a webhook-capable token could trigger any workflow in any workspace. The
+ * fix must actually branch: a caller with no relationship to the target workflow is rejected, and
+ * a caller that does have the relationship is unaffected.
+ */
+class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
+
+  @Autowired private RelationshipService realRelationshipService;
+
+  private WorkflowService workflowService;
+  private WorkflowRunService workflowRunService;
+  private WebhookEventService webhookEventService;
+
+  @AfterEach
+  void clearSecurityContext() {
+    SecurityContextHolder.clearContext();
+  }
+
+  @Test
+  void aWorkflowThePrincipalHasNoRelationshipToIsRejected() {
+    seedFixture("own"); // the principal's own workspace/workflow
+    seedFixture("other"); // a real workflow the principal has no path to
+    principalMemberOf("own-owner", "own-ws");
+    setUpService();
+
+    CloudEvent event = eventFor("other-workflow");
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () -> webhookEventService.processEvent(event, Optional.of("other-workflow")));
+    assertEquals("PERMISSION_DENIED", ex.getReason());
+    verify(workflowService, never())
+        .submit(any(), any(), any(WorkflowSubmitRequest.class), anyBoolean());
+  }
+
+  @Test
+  void aWorkflowThePrincipalHasARelationshipToStillRuns() {
+    seedFixture("related-a");
+    principalMemberOf("related-a-owner", "related-a-ws");
+    setUpService();
+
+    CloudEvent event = eventFor("related-a-workflow");
+    WorkflowRun expected = new WorkflowRun();
+    expected.setId("run-1");
+    when(workflowService.submit(
+            eq("related-a-ws"), eq("related-a-workflow"), any(WorkflowSubmitRequest.class), anyBoolean()))
+        .thenReturn(expected);
+
+    WorkflowRun result = webhookEventService.processEvent(event, Optional.of("related-a-workflow"));
+
+    assertEquals("run-1", result.getId());
+    verify(workflowService)
+        .submit(
+            eq("related-a-ws"), eq("related-a-workflow"), any(WorkflowSubmitRequest.class), anyBoolean());
+  }
+
+  // Wires principal:owner --MEMBER_OF--> workspace:ws --HAS_WORKFLOW--> workflow:<prefix>-workflow
+  private void seedFixture(String prefix) {
+    realRelationshipService.createNode(
+        RelationshipType.USER, prefix + "-owner", prefix + "-owner", Optional.empty());
+    realRelationshipService.createNode(
+        RelationshipType.WORKSPACE, prefix + "-ws", prefix + "-ws", Optional.empty());
+    realRelationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        prefix + "-ws",
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        prefix + "-workflow",
+        prefix + "-workflow",
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  private void principalMemberOf(String userRef, String workspaceRef) {
+    realRelationshipService.createEdge(
+        RelationshipType.USER,
+        userRef,
+        RelationshipLabel.MEMBER_OF,
+        RelationshipType.WORKSPACE,
+        workspaceRef,
+        Optional.empty());
+
+    // Owner-shaped grant ("**/**"), the only workspace-role shape (seed/roles.json) that
+    // satisfies RelationshipService.checkPermissions()'s coarse resource-type gate for a
+    // non-WORKSPACE RelationshipType (here WORKFLOW) - see the Rule-3 finding in the task
+    // report: a real "editor"/"reader" grant (["**/read","**/write","**/action"]) is now denied
+    // by that gate for every non-WORKSPACE check(), including WebhookEventService's.
+    Token principal = new Token(AuthScope.session);
+    principal.setPrincipal(userRef);
+    principal.setPermissions(
+        List.of(
+            new ResolvedPermissions(PermissionScope.workspace, workspaceRef, List.of("**/**"))));
+    Authentication authentication = new UsernamePasswordAuthenticationToken(userRef, null);
+    ((UsernamePasswordAuthenticationToken) authentication).setDetails(principal);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private void setUpService() {
+    workflowService = mock(WorkflowService.class);
+    workflowRunService = mock(WorkflowRunService.class);
+    webhookEventService =
+        new WebhookEventService(
+            workflowService,
+            workflowRunService,
+            mock(IntegrationService.class),
+            mock(GitHubService.class),
+            realRelationshipService);
+  }
+
+  private static CloudEvent eventFor(String subjectWorkflowRef) {
+    return CloudEventBuilder.v1()
+        .withId(UUID.randomUUID().toString())
+        .withSource(URI.create("urn:webhook-authorization-test"))
+        .withType("io.boomerang.test.webhook")
+        .withSubject(subjectWorkflowRef + "/topic")
+        .withData(
+            "application/json", "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8))
+        .build();
+  }
+}

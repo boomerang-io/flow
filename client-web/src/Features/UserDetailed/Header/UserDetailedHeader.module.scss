@@ -1,0 +1,76 @@
+@import "Styles/mixins";
+
+.container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 0rem !important;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.headerActions {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+}
+
+// Title row: avatar, the person's name, their email.
+.titleRow {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.email {
+  color: var(--cds-text-secondary);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+// Facts on the right, then Change role.
+.facts {
+  align-items: center;
+  display: flex;
+  gap: 1.75rem;
+
+  dl {
+    display: flex;
+    font-size: 0.875rem;
+    gap: 1.75rem;
+  }
+
+  dt {
+    color: var(--cds-text-secondary);
+    font-size: 0.75rem;
+  }
+
+  dd {
+    line-height: 1.5rem;
+    margin-top: 0.25rem;
+    white-space: nowrap;
+  }
+}
+
+.status {
+  align-items: center;
+  display: flex;
+  gap: 0.375rem;
+
+  &[data-status="active"] {
+    color: var(--cds-support-success);
+    svg { fill: var(--cds-support-success); }
+  }
+
+  &:not([data-status="active"]) {
+    color: var(--cds-text-secondary);
+    svg { fill: var(--cds-icon-secondary); }
+  }
+}

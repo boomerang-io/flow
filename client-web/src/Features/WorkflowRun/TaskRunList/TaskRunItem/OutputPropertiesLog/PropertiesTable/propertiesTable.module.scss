@@ -1,0 +1,30 @@
+.tableContainer {
+  height: 23rem;
+  overflow-y: auto;
+  margin-top: 1rem;
+}
+
+// Plain rows, not Carbon's selection list: selection reserves the last column for a radio cell,
+// which squeezed Value against the right edge. Every column but Value takes a quarter; Value takes
+// the rest.
+.table {
+  table-layout: fixed;
+  width: 100%;
+
+  :global(.cds--structured-list-th:not(:last-child)),
+  :global(.cds--structured-list-td:not(:last-child)) {
+    width: 25%;
+  }
+}
+
+.code {
+  background-color: transparent;
+  font-family: "IBM Plex Mono", SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

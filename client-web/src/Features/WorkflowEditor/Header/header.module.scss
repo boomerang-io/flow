@@ -1,0 +1,29 @@
+@import "Styles/mixins";
+
+.container {
+  h1 {
+    margin: 0;
+  }
+}
+
+.footer {
+  align-items: stretch;
+  display: flex;
+}
+
+.workflowButtons {
+  align-items: center;
+  display: flex;
+  height: 2.5rem;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.workflowActionContainer {
+  width: 12rem;
+}
+
+.versionCommentModalContainer {
+  max-height: 24rem;
+  max-width: 36rem;
+}

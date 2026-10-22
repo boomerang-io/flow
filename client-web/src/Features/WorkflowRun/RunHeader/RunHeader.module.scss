@@ -1,0 +1,138 @@
+@import "Styles/mixins";
+
+.container {
+  h1 {
+    margin: 0;
+  }
+}
+
+.titleRow {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  height: 2.25rem;
+  min-width: 0;
+}
+
+.statusTag {
+  font-size: 0.875rem;
+  margin: 0;
+  // The fact values title-case themselves ("engine" shows as "Engine"); the tag reads as a phrase.
+  text-transform: none;
+
+  strong {
+    font-weight: 600;
+    margin-right: 0.25rem;
+  }
+}
+
+.workflowNameSkeleton {
+  height: 2.25rem;
+  width: 20rem;
+}
+
+.pausedTag {
+  align-items: center;
+  display: flex !important;
+  margin: 0;
+}
+
+// One row level with the title: the facts (status first), then the controls.
+.content {
+  align-items: center;
+  display: flex;
+  gap: 1.5rem;
+  margin-left: 2rem;
+  margin-top: 1.25rem;
+}
+
+.data {
+  color: var(--cds-text-01);
+  white-space: nowrap;
+}
+
+// Inside to outside: the run error, View results, the primary run action, then the overflow.
+.controls {
+  align-items: center;
+  display: flex;
+  gap: 0.25rem;
+}
+
+// Carbon's ghost button paints its icon in the primary icon colour; the run error reads red.
+.runErrorButton svg,
+.runErrorButton svg path {
+  fill: var(--cds-support-error) !important;
+}
+
+.dataTitle {
+  font-size: 0.875rem;
+  font-weight: 300;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  margin-bottom: 0.25rem;
+}
+
+.dataValue {
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+  max-width: 20rem;
+  text-transform: capitalize;
+  @include text-overflow-ellipsis();
+}
+
+// "from task chair" after the origin run link of a scoped retry; task names keep their case.
+.retryFrom {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
+  text-transform: none;
+}
+
+.headerContentSkeleton {
+  height: 4.31rem;
+  width: 40rem;
+}
+
+/**
+ * AdvancedDetail Modal
+ */
+
+.detailHeading {
+  margin: 1rem 0 0.5rem 0;
+}
+
+.workflowLabels {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.workflowLabelBubble {
+  margin-left: 0;
+}
+
+.kubernetes {
+  align-items: center;
+  display: flex;
+  margin-top: 1rem;
+  padding-right: 1rem;
+}
+
+.kubernetesCopyContainer {
+  height: 2rem;
+  margin-left: 0.5rem;
+  width: 2rem;
+}
+
+.kubernetesCopy {
+  justify-content: center;
+  width: 2rem;
+
+  :global .cds--btn__icon {
+    margin: 0;
+  }
+}
+
+.cancelRun {
+  margin: 0;
+}

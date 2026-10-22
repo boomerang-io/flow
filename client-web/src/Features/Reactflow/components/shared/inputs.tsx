@@ -1,0 +1,156 @@
+import React from "react";
+import { TextInput, TextArea, Creatable } from "@boomerang-io/carbon-addons-boomerang-react";
+import { json } from "d3";
+import { FormikProps, getIn } from "formik";
+import TextEditorModal from "Components/TextEditorModal";
+import { INPUT_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
+import { DataDrivenInput } from "Types";
+import styles from "./inputs.module.scss";
+
+// `input.type` is a free-form string on DataDrivenInput; look configs up safely
+// rather than indexing the frozen config maps with an unchecked key.
+function getTypeConfig<T extends Record<string, unknown>>(configMap: T, type: string): T[keyof T] | undefined {
+  return Object.prototype.hasOwnProperty.call(configMap, type) ? configMap[type as keyof T] : undefined;
+}
+
+// The design-system wrapper dropped its `AutoSuggest` component (parameter-token
+// autocomplete while typing) in the upgrade to 4.9 - it no longer exists to import.
+// Both inputs fall back to plain controlled fields; typing task parameters still
+// works, only the suggestion dropdown is gone until a replacement is designed.
+export const AutoSuggestInput = (props: any) => {
+  return <TextInput {...props} onChange={(e) => props.onChange(e.target.value)} />;
+};
+
+export const TextAreaSuggestInput = (props: any) => {
+  return (
+    <TextArea
+      {...props}
+      disabled={props?.inputProps?.readOnly}
+      labelText={props.label}
+      onChange={(e) => props.onChange(e.target.value)}
+    />
+  );
+};
+
+export const TextEditorInput = (props: any) => {
+  return <TextEditorModal {...props} {...props.inputProps} />;
+};
+
+export const TaskNameTextInput = ({ formikProps, ...input }: DataDrivenInput & { formikProps: FormikProps<any> }) => {
+  const { errors } = formikProps;
+  // DynamicFormik ids its inputs `['taskName']` unless the form sets its own id; getIn reads both.
+  const error = getIn(errors, input.id);
+  const hasError = Boolean(error);
+  // The task name is always a plain string; DataDrivenInput#value/#defaultValue are
+  // typed broadly (they also cover list/key-value inputs), so narrow them here
+  // rather than at the vendor TextInput.
+  const defaultValue = typeof input.defaultValue === "string" ? input.defaultValue : undefined;
+  const value = typeof input.value === "string" ? input.value : undefined;
+  // The Parameters | Configure tabs (TaskFormTabs) follow directly below this input.
+  return (
+    <TextInput {...input} defaultValue={defaultValue} value={value} invalid={hasError} invalidText={typeof error === "string" ? error : undefined} onChange={formikProps.handleChange} />
+  );
+};
+
+export const ResultsInput = ({ formikProps, ...input }: DataDrivenInput & { formikProps: FormikProps<any> }) => {
+  // Results are stored as "name:description" strings (see CustomTaskForm's
+  // initialValues/handleOnSave); DataDrivenInput#value is typed broadly to also
+  // cover object/key-value inputs, so narrow it to what Creatable actually accepts.
+  const rawValue = input.value;
+  const value: string | string[] | undefined =
+    typeof rawValue === "string" ? rawValue : Array.isArray(rawValue) && rawValue.every((item) => typeof item === "string") ? rawValue : undefined;
+  return (
+    <>
+      <hr className={styles.divider} />
+      <h2 className={styles.inputsTitle}>Result Parameters</h2>
+      <Creatable
+        {...input}
+        value={value}
+        createKeyValuePair
+        keyLabelText="Name"
+        valueLabelText="Description"
+        onChange={(value) => formikProps.setFieldValue("results", value)}
+      />
+    </>
+  );
+};
+
+export function formatAutoSuggestParameters(availableParameters: Array<string>) {
+  return availableParameters.map((parameter) => ({
+    value: `$(${parameter})`,
+    label: parameter,
+  }));
+}
+
+export const textAreaProps =
+  (availableParameters: Array<string>) =>
+  ({ input, formikProps }: { formikProps: FormikProps<any>; input: DataDrivenInput }) => {
+    const { errors, handleBlur, touched, values, setFieldValue } = formikProps;
+    const { name, type, ...rest } = input;
+    const itemConfig = getTypeConfig(TEXT_AREA_TYPES, type);
+    const safeKey = `['${name}']`;
+    return {
+      autoSuggestions: formatAutoSuggestParameters(availableParameters),
+      onChange: (value: React.FormEvent<HTMLInputElement>) => setFieldValue(safeKey, value),
+      initialValue: values[name] || values[safeKey],
+      inputProps: {
+        onBlur: handleBlur,
+        invalid: touched[name] && Boolean(errors[name]),
+        invalidText: errors[name],
+        ...itemConfig,
+        ...rest,
+        name: safeKey,
+        id: safeKey,
+      },
+    };
+  };
+
+export const textEditorProps =
+  (availableParameters: Array<string>, textEditorProps: any) =>
+  ({ input, formikProps }: { formikProps: FormikProps<any>; input: DataDrivenInput }) => {
+    const { values, setFieldValue } = formikProps;
+    const { name, type, ...rest } = input;
+    const itemConfig = getTypeConfig(TEXT_AREA_TYPES, type);
+    const safeKey = `['${name}']`;
+
+    return {
+      autoSuggestions: formatAutoSuggestParameters(availableParameters),
+      formikSetFieldValue: (value: React.FormEvent<HTMLInputElement>) => setFieldValue(safeKey, value),
+      initialValue: values[name] || values[safeKey],
+      ...rest,
+      ...itemConfig,
+      ...textEditorProps,
+      type,
+      name: safeKey,
+      id: safeKey,
+    };
+  };
+
+export const textInputProps =
+  (availableParameters: Array<string>) =>
+  ({ formikProps, input }: { formikProps: FormikProps<any>; input: DataDrivenInput }) => {
+    const { errors, handleBlur, touched, setFieldValue, values } = formikProps;
+    const { name, type, ...rest } = input;
+    const itemConfig = getTypeConfig(INPUT_TYPES, type);
+    const safeKey = `['${name}']`;
+    return {
+      autoSuggestions: formatAutoSuggestParameters(availableParameters),
+      onChange: (value: React.FormEvent<HTMLInputElement>) => setFieldValue(safeKey, value),
+      initialValue: values[name] || values[safeKey],
+      inputProps: {
+        onBlur: handleBlur,
+        invalid: touched[name] && Boolean(errors[name]),
+        invalidText: errors[name],
+        ...itemConfig,
+        ...rest,
+        name: safeKey,
+        id: safeKey,
+      },
+    };
+  };
+
+export const toggleProps = () => {
+  return {
+    orientation: "vertical",
+  };
+};

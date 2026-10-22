@@ -1,0 +1,690 @@
+package io.boomerang.kube;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import io.boomerang.dispatcher.sdk.model.RunParam;
+import io.boomerang.dispatcher.sdk.model.RunResult;
+import io.boomerang.dispatcher.sdk.model.TaskEnvVar;
+import io.boomerang.dispatcher.sdk.model.WorkflowWorkspace;
+import io.boomerang.dispatcher.sdk.StatusReason;
+import io.boomerang.error.BoomerangError;
+import io.boomerang.error.BoomerangException;
+import io.boomerang.error.TaskExecutionException;
+import io.boomerang.executor.PodStartWatch;
+import io.boomerang.executor.TaskExecutor;
+import io.boomerang.executor.TaskImageResolver;
+import io.boomerang.executor.TaskResourceResolver;
+import io.fabric8.knative.pkg.apis.Condition;
+import io.fabric8.kubernetes.api.model.DeletionPropagation;
+import io.fabric8.kubernetes.api.model.Duration;
+import io.fabric8.kubernetes.api.model.EmptyDirVolumeSource;
+import io.fabric8.kubernetes.api.model.EnvVar;
+import io.fabric8.kubernetes.api.model.HostAlias;
+import io.fabric8.kubernetes.api.model.LocalObjectReference;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimVolumeSource;
+import io.fabric8.kubernetes.api.model.Toleration;
+import io.fabric8.kubernetes.api.model.Volume;
+import io.fabric8.kubernetes.api.model.VolumeMount;
+import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.utils.Serialization;
+import io.fabric8.tekton.client.TektonClient;
+import io.fabric8.tekton.v1.Param;
+import io.fabric8.tekton.v1.ParamSpec;
+import io.fabric8.tekton.v1.ParamValue;
+import io.fabric8.tekton.v1.Step;
+import io.fabric8.tekton.v1.TaskRun;
+import io.fabric8.tekton.v1.TaskRunBuilder;
+import io.fabric8.tekton.v1.TaskRunResult;
+import io.fabric8.tekton.v1.TaskRunStatus;
+import io.fabric8.tekton.v1.WorkspaceBinding;
+import io.fabric8.tekton.v1.WorkspaceDeclaration;
+import java.text.ParseException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConditionalOnProperty(name = "dispatcher.executor", havingValue = "tekton", matchIfMissing = true)
+public class TektonServiceImpl implements TaskExecutor {
+
+  private static final Logger LOGGER = LogManager.getLogger(TektonServiceImpl.class);
+
+  // The Tekton name of the one workspace a task run declares and binds.
+  private static final String WORKSPACE_NAME = "workspace";
+
+  @Autowired protected KubeHelperService helperKubeService;
+
+  @Autowired protected KubeServiceImpl kubeService;
+
+  @Autowired protected TaskImageResolver imageResolver;
+
+  @Autowired protected TaskResourceResolver resourceResolver;
+
+  @Value("${kube.timeout.watchGraceMinutes}")
+  protected long watchGraceMinutes;
+
+  @Value("${kube.timeout.reconcileSeconds}")
+  protected long reconcileSeconds;
+
+  @Value("${kube.timeout.startMinutes:15}")
+  protected long startMinutes;
+
+  @Value("${kube.timeout.startFailureGraceSeconds:60}")
+  protected long startFailureGraceSeconds;
+
+  // The TaskRun each task run in flight created or adopted, by task run id, from create until
+  // its log has been read. Labels alone cannot find it: every attempt carries the same ones.
+  private final Map<String, String> taskRunNames = new ConcurrentHashMap<>();
+
+  // Tekton stamps the TaskRun's name on its pod; the task labels select every attempt's pods.
+  private static Map<String, String> podLabels(String name) {
+    return Map.of("tekton.dev/taskRun", name);
+  }
+
+  @Override
+  public Optional<Map<String, String>> runtimePodSelector(String taskRunId) {
+    return Optional.ofNullable(taskRunNames.get(taskRunId)).map(TektonServiceImpl::podLabels);
+  }
+
+  @Override
+  public void forgetRuntimeObject(String taskRunId) {
+    taskRunNames.remove(taskRunId);
+  }
+
+  @Override
+  public void create(io.boomerang.dispatcher.sdk.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException, ParseException {
+    TaskRun taskRun =
+        createTaskRun(
+            task.getWorkflowRef(),
+            task.getWorkflowRunRef(),
+            task.getId(),
+            task.getLabels(),
+            imageResolver.image(task),
+            imageResolver.command(task),
+            imageResolver.script(task),
+            imageResolver.arguments(task),
+            task.getParams(),
+            imageResolver.environment(task),
+            task.getResults(),
+            task.getSpec().getWorkingDir(),
+            task.getWorkspace(),
+            timeoutMinutes,
+            task.getSpec().getDebug());
+    taskRunNames.put(task.getId(), taskRun.getMetadata().getName());
+  }
+
+  @Override
+  public List<RunResult> watch(io.boomerang.dispatcher.sdk.model.TaskRun task, Long timeoutMinutes)
+      throws InterruptedException {
+    return watchTaskRun(
+        task.getWorkflowRef(),
+        task.getWorkflowRunRef(),
+        task.getId(),
+        task.getLabels(),
+        taskRunNames.get(task.getId()),
+        timeoutMinutes);
+  }
+
+  @Override
+  public void cancel(io.boomerang.dispatcher.sdk.model.TaskRun task) {
+    cancelTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
+
+  @Override
+  public void delete(io.boomerang.dispatcher.sdk.model.TaskRun task) {
+    deleteTaskRun(task.getWorkflowRef(), task.getWorkflowRunRef(), task.getId(), task.getLabels());
+  }
+
+  @Value("${tekton.results.maxBytes:4096}")
+  private int tektonResultsMaxBytes;
+
+  @Value("${kube.image.pullPolicy}")
+  protected String kubeImagePullPolicy;
+
+  @Value("${kube.image.pullSecret}")
+  protected String kubeImagePullSecret;
+
+  @Value("${kube.task.backOffLimit}")
+  protected Integer kubeJobBackOffLimit;
+
+  @Value("${kube.task.restartPolicy}")
+  protected String kubeJobRestartPolicy;
+
+  @Value("${kube.task.storage.data.memory}")
+  private Boolean kubeTaskStorageDataMemory;
+
+  @Value("${dispatcher.tasks.serviceaccount}")
+  private String kubeWorkerServiceAccount;
+
+  @Value("${dispatcher.tasks.hostaliases}")
+  private String kubeWorkerHostAliases;
+
+  @Value("#{${dispatcher.tasks.nodeselector}}")
+  private Map<String, String> kubeWorkerNodeSelector;
+
+  @Value("${dispatcher.tasks.tolerations}")
+  private String kubeWorkerTolerations;
+
+  @Value("${dispatcher.tasks.runtimeClassName}")
+  private String kubeWorkerRuntimeClassName;
+
+  TektonClient client = null;
+
+  public TektonServiceImpl(TektonClient client) {
+    this.client = client;
+  }
+
+  // Tests swap in the mock-server client after the context is up.
+  public void setClient(TektonClient client) {
+    this.client = client;
+  }
+
+  public TaskRun createTaskRun(
+      String workflowId,
+      String workflowActivityId,
+      String taskActivityId,
+      Map<String, String> customLabels,
+      String image,
+      List<String> command,
+      String script,
+      List<String> arguments,
+      List<RunParam> params,
+      List<TaskEnvVar> envVars,
+      List<RunResult> results,
+      String workingDir,
+      WorkflowWorkspace workspace,
+      Long timeout,
+      Boolean debug)
+      throws InterruptedException, ParseException {
+
+    LOGGER.info("Initializing Task...");
+
+    Map<String, String> taskLabels =
+        helperKubeService.getTaskLabels(
+            workflowId, workflowActivityId, taskActivityId, customLabels);
+
+    // An attempt handed out again while its TaskRun still runs (a dispatcher that stopped and
+    // let the lease lapse) continues that TaskRun; a finished one belongs to an earlier attempt.
+    TaskRun running =
+        client.v1().taskRuns().withLabels(taskLabels).list().getItems().stream()
+            .filter(taskRun -> !isTerminal(taskRun))
+            .findFirst()
+            .orElse(null);
+    if (running != null) {
+      LOGGER.info(
+          "Adopting existing TaskRun {} for TaskRun {}",
+          running.getMetadata().getName(),
+          taskActivityId);
+      return running;
+    }
+
+    /*
+     * Define environment variables made up of
+     * TODO: securityContext.setProcMount("Unmasked");
+     *  - Only works with Kube 1.12 and above
+     * TODO: determine if we need to do no network as an option
+     */
+    //    SecurityContext securityContext = new SecurityContext();
+    //    securityContext.setPrivileged(true);
+
+    /*
+     * The run's one workspace, when the task mounts it: a Tekton workspace declaration at the
+     * path the workspace names (blank means /workspace), bound to the claim keyed by the run.
+     * - TODO: migrate /data to workspaces
+     */
+    List<WorkspaceDeclaration> taskSpecWorkspaces = new ArrayList<>();
+    List<WorkspaceBinding> taskWorkspaces = new ArrayList<>();
+    if (workspace != null) {
+      WorkspaceDeclaration wsWorkspaceDeclaration = new WorkspaceDeclaration();
+      wsWorkspaceDeclaration.setName(WORKSPACE_NAME);
+      wsWorkspaceDeclaration.setMountPath(helperKubeService.workspaceMountPath(workspace));
+      wsWorkspaceDeclaration.setDescription("Storage shared by the tasks of this workflow run");
+      taskSpecWorkspaces.add(wsWorkspaceDeclaration);
+
+      PersistentVolumeClaimVolumeSource wsPVCVolumeSource = new PersistentVolumeClaimVolumeSource();
+      wsPVCVolumeSource.setClaimName(
+          kubeService.getPVCName(
+              helperKubeService.getWorkspaceLabels(workflowId, workflowActivityId, null)));
+
+      WorkspaceBinding wsWorkspaceBinding = new WorkspaceBinding();
+      wsWorkspaceBinding.setName(WORKSPACE_NAME);
+      wsWorkspaceBinding.setPersistentVolumeClaim(wsPVCVolumeSource);
+      taskWorkspaces.add(wsWorkspaceBinding);
+    }
+
+    /*
+     * Create volumes and Volume Mounts
+     * - /data for task storage. Memory-backed when the deployment and the task both ask for it,
+     *   which is how a container that would breach the ephemeral-storage limit off-loads to memory
+     *   instead - a tmpfs counts against the memory limit, not against ephemeral-storage.
+     *   See: https://kubernetes.io/docs/concepts/storage/volumes/#emptydir
+     */
+    List<VolumeMount> volumeMounts = new ArrayList<>();
+    List<Volume> volumes = new ArrayList<>();
+
+    VolumeMount dataVolumeMount = new VolumeMount();
+    dataVolumeMount.setName(helperKubeService.getPrefixVol() + "-data");
+    dataVolumeMount.setMountPath("/data");
+    volumeMounts.add(dataVolumeMount);
+
+    Volume dataVolume = new Volume();
+    dataVolume.setName(helperKubeService.getPrefixVol() + "-data");
+    EmptyDirVolumeSource dataEmptyDirVolumeSource = new EmptyDirVolumeSource();
+
+    Object value = null;
+    Optional<RunParam> param =
+        params.stream().filter(p -> "worker.storage.data.memory".equals(p.getName())).findFirst();
+    if (param.isPresent()) {
+      value = param.get().getValue();
+    }
+    if (kubeTaskStorageDataMemory && value != null && Boolean.valueOf((boolean) value)) {
+      LOGGER.info("Setting data to in memory storage...");
+      dataEmptyDirVolumeSource.setMedium("Memory");
+    }
+    dataVolume.setEmptyDir(dataEmptyDirVolumeSource);
+    volumes.add(dataVolume);
+
+    /*
+     * Configure Node Selector and Tolerations if defined
+     */
+    List<Toleration> tolerations = new ArrayList<>();
+    Map<String, String> nodeSelectors = new HashMap<>();
+    if (kubeWorkerNodeSelector != null && !kubeWorkerNodeSelector.isEmpty()) {
+      LOGGER.info(kubeWorkerNodeSelector.toString());
+      kubeWorkerNodeSelector.forEach(
+          (k, v) -> {
+            LOGGER.info("Adding node selector: " + k + "=" + v);
+            nodeSelectors.put(k, v);
+          });
+    }
+    LOGGER.info("Finalized Node Selectors: " + nodeSelectors.toString());
+    if (kubeWorkerTolerations != null
+        && !kubeWorkerTolerations.isEmpty()
+        && !"null".equalsIgnoreCase(kubeWorkerTolerations)) {
+      LOGGER.info(kubeWorkerTolerations.toString());
+      tolerations =
+          helperKubeService.withData(
+              Serialization.unmarshal(
+                  kubeWorkerTolerations, new TypeReference<List<Toleration>>() {}));
+
+      //      kubeWorkerTolerations.forEach(t -> {
+      //        LOGGER.info("Adding toleration: " + t);
+      //        tolerations.add(t);
+      //      });
+    }
+    LOGGER.info("Finalized Tolerations: " + tolerations.toString());
+
+    /*
+     * Create Host Aliases if defined
+     */
+    List<HostAlias> hostAliases = new ArrayList<>();
+    if (!kubeWorkerHostAliases.isEmpty()) {
+      hostAliases =
+          helperKubeService.withHostData(
+              Serialization.unmarshal(
+                  kubeWorkerHostAliases, new TypeReference<List<HostAlias>>() {}));
+    }
+
+    /*
+     * Define Image Pull Secrets
+     */
+    LocalObjectReference imagePullSecret = new LocalObjectReference();
+    imagePullSecret.setName(kubeImagePullSecret);
+    List<LocalObjectReference> imagePullSecrets = new ArrayList<>();
+    imagePullSecrets.add(imagePullSecret);
+
+    List<EnvVar> tknEnvVars =
+        helperKubeService.createTaskEnvVars(
+            debug,
+            params,
+            envVars,
+            helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"),
+            // Tekton's own results limit: 4096 bytes in its default termination-message mode, or
+            // the cluster's max-result-size under sidecar-logs. Set to match the cluster.
+            helperKubeService.createEnvVar("RESULTS_MAX_BYTES", String.valueOf(tektonResultsMaxBytes)));
+
+    /*
+     * Define Task Params and Task Spec Params
+     */
+    List<ParamSpec> taskSpecParams = new ArrayList<>();
+    List<Param> taskParams = new ArrayList<>();
+    params.forEach(
+        p -> {
+          ParamSpec taskSpecParam = new ParamSpec();
+          taskSpecParam.setName(p.getName());
+          taskSpecParam.setType("string");
+          taskSpecParams.add(taskSpecParam);
+          Param taskParam = new Param();
+          taskParam.setName(p.getName());
+          taskParam.setValue(new ParamValue(helperKubeService.paramValueAsString(p.getValue())));
+          taskParams.add(taskParam);
+        });
+
+    /*
+     * Create the main task container
+     * Notes:
+     *  - If script != null or empty then don't add command (Ref: https://github.com/tektoncd/pipeline/blob/main/docs/tasks.md#running-scripts-within-steps)
+     */
+    List<Step> taskSteps = new ArrayList<>();
+    Step taskStep = new Step();
+    taskStep.setName("task");
+    taskStep.setImage(image);
+    if (script != null && !script.isEmpty()) {
+      taskStep.setScript(script);
+    } else if (command != null && !command.isEmpty()) {
+      taskStep.setCommand(command);
+    }
+    taskStep.setImagePullPolicy(kubeImagePullPolicy);
+    taskStep.setArgs(arguments);
+    taskStep.setEnv(tknEnvVars);
+    taskStep.setVolumeMounts(volumeMounts);
+    taskStep.setWorkingDir(workingDir);
+    // Null when nothing is configured, so the step carries no computeResources block at all.
+    taskStep.setComputeResources(resourceResolver.requirements());
+    //    taskStep.setSecurityContext(securityContext);
+    taskSteps.add(taskStep);
+
+    /*
+     * Create the additional PodTemplate based controls
+     * TODO: figure out if volumes go here or on the TaskRunSpec
+     */
+    //    Template taskPodTemplate = new Template();
+    //    taskPodTemplate.setNodeSelector(nodeSelectors);
+    //    taskPodTemplate.setTolerations(tolerations);
+    //    taskPodTemplate.setImagePullSecrets(imagePullSecrets);
+    //    taskPodTemplate.setHostAliases(hostAliases);
+    ////    taskPodTemplate.setVolumes(volumes);
+    //
+    //    LOGGER.info(taskPodTemplate);
+
+    /*
+     * Define TaskResults and copy from internal model
+     */
+    List<io.fabric8.tekton.v1.TaskResult> tknTaskResults = new ArrayList<>();
+    if (results != null) {
+      results.forEach(
+          result -> {
+            io.fabric8.tekton.v1.TaskResult tknTaskResult = new io.fabric8.tekton.v1.TaskResult();
+            tknTaskResult.setName(result.getName());
+            tknTaskResult.setDescription(result.getDescription());
+            tknTaskResults.add(tknTaskResult);
+          });
+    }
+
+    Duration taskTimeout = Duration.parse(timeout + "mins");
+
+    /*
+     * Build out TaskRun definition.
+     * - Optionally loads Node Selector and Tolerations
+     * TODO: determine how to make Task Workspace work. Currently if using the local-path (bound to a particular node)
+     * the Task doesn't find a node to allow it to run. It cant handle the standard Pod method of determine if all its
+     * volumes can be satisfied
+     * Notes:
+     * - Parameters passed into the TaskRun MUST be parameters on the task
+     */
+    TaskRun taskRun =
+        new TaskRunBuilder()
+            .withNewMetadata()
+            .withGenerateName(helperKubeService.getPrefixTask() + "-" + taskActivityId + "-")
+            .withLabels(taskLabels)
+            .withAnnotations(
+                helperKubeService.getAnnotations(workflowId))
+            .endMetadata()
+            .withNewSpec()
+            //      .withPodTemplate(taskPodTemplate)
+            .withNewPodTemplate()
+            // Same deployment-wide isolation setting the Kubernetes Jobs executor honours
+            // (dispatcher.tasks.runtimeClassName); null leaves the field off the pod template.
+            .withRuntimeClassName(
+                kubeWorkerRuntimeClassName != null && !kubeWorkerRuntimeClassName.isBlank()
+                    ? kubeWorkerRuntimeClassName
+                    : null)
+            .addToNodeSelector(nodeSelectors)
+            .addAllToTolerations(tolerations)
+            .addAllToImagePullSecrets(imagePullSecrets)
+            .addAllToHostAliases(hostAliases)
+            .endPodTemplate()
+            .withParams(taskParams)
+            .withWorkspaces(taskWorkspaces)
+            .withTimeout(taskTimeout)
+            //      .withServiceAccountName(workerProperties.getServiceaccount())
+            .withNewTaskSpec()
+            .withWorkspaces(taskSpecWorkspaces)
+            .withParams(taskSpecParams)
+            .withResults(tknTaskResults)
+            .withVolumes(volumes)
+            .withSteps(taskSteps)
+            .endTaskSpec()
+            .endSpec()
+            .build();
+
+    TaskRun result = client.v1().taskRuns().resource(taskRun).create();
+    // Name, namespace and image only: the spec carries the task's filled-in params, env values
+    // and script, any of which may be a secret.
+    LOGGER.info(
+        "Created TaskRun {} in {} (image {})",
+        result.getMetadata().getName(),
+        result.getMetadata().getNamespace(),
+        image);
+
+    return result;
+  }
+
+  // A TaskRun runs until its Succeeded condition is True or False; none yet reads as Unknown.
+  private static boolean isTerminal(TaskRun taskRun) {
+    return taskRun.getStatus() != null
+        && taskRun.getStatus().getConditions() != null
+        && !taskRun.getStatus().getConditions().isEmpty()
+        && !"Unknown".equals(taskRun.getStatus().getConditions().get(0).getStatus());
+  }
+
+  /** Wait for the TaskRun of that {@code name}, the one {@link #createTaskRun} returned. */
+  public List<RunResult> watchTaskRun(
+      String workflowId,
+      String workflowActivityId,
+      String taskActivityId,
+      Map<String, String> customLabels,
+      String name,
+      Long timeout)
+      throws InterruptedException {
+    Map<String, String> taskLabels =
+        helperKubeService.getTaskLabels(workflowId, workflowActivityId, taskActivityId, customLabels);
+
+    final CountDownLatch latch = new CountDownLatch(1);
+    Condition condition;
+    List<TaskRunResult> tknResults;
+
+    Map<String, String> podLabels = podLabels(String.valueOf(name));
+
+    TaskWatcher taskWatcher = new TaskWatcher(latch, name);
+    PodStartWatch podStartWatch =
+        new PodStartWatch(
+            Instant.now(),
+            java.time.Duration.ofMinutes(startMinutes),
+            java.time.Duration.ofSeconds(startFailureGraceSeconds));
+    Watch watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
+
+    try {
+      // A backstop only, for the case where Tekton's own timeout interrupt never reaches this
+      // watch. The engine owns the deadline and reaps at the task budget plus a few seconds, so it
+      // always acts first; this grace exists to release the thread and report, not to wait for
+      // provisioning. Raise kube.timeout.watchGraceMinutes where image pulls are slow.
+      Instant deadline = Instant.now().plus(java.time.Duration.ofMinutes(timeout + watchGraceMinutes));
+      while (!latch.await(reconcileSeconds, TimeUnit.SECONDS)) {
+        if (Instant.now().isAfter(deadline)) {
+          throw new TaskExecutionException(
+              StatusReason.DEADLINE_EXCEEDED, "TaskRunTimeout - Task timed out while waiting for completion.");
+        }
+        // The watch is the fast path; this poll is the reconcile that catches whatever the watch
+        // missed - a dropped connection, or a state transition that happened before the watch was
+        // established.
+        // No name means no create recorded a TaskRun for this attempt: nothing to wait for.
+        TaskRun taskRun = (name != null) ? client.v1().taskRuns().withName(name).get() : null;
+        if (taskRun == null) {
+          taskWatcher.markDeleted();
+        } else {
+          taskWatcher.evaluate(taskRun);
+        }
+        if (taskWatcher.isWatchLost()) {
+          watch.close();
+          watch = client.v1().taskRuns().withLabels(taskLabels).watch(taskWatcher);
+          taskWatcher.resetWatchLost();
+        }
+        if (latch.getCount() > 0 && !podStartWatch.hasStarted()) {
+          TaskExecutionException startFailure =
+              podStartWatch.check(
+                  helperKubeService.podStart(client.adapt(KubernetesClient.class), podLabels),
+                  Instant.now());
+          if (startFailure != null) {
+            // Nothing ran: remove the TaskRun so a pod that cannot start stops holding capacity.
+            deleteTaskRun(workflowId, workflowActivityId, taskActivityId, customLabels);
+            throw startFailure;
+          }
+        }
+      }
+
+      condition = taskWatcher.getCondition();
+      tknResults = taskWatcher.getResults();
+
+      if (condition != null && "True".equals(condition.getStatus())) {
+        LOGGER.info("Task completed successfully");
+        return toRunResults(tknResults);
+      }
+
+      String reason = condition != null ? condition.getReason() : "Unknown";
+      String message =
+          condition != null ? condition.getMessage() : "TaskRun did not report a terminal condition.";
+      LOGGER.info("Task execution error. " + reason + " - " + message);
+      // The Step may have written its Result Parameters to the termination message before the
+      // container exited non-zero; carry them so a failed Task's output still reaches the Engine.
+      throw failureFor(reason, message, podLabels, toRunResults(tknResults));
+    } catch (Exception e) {
+      LOGGER.error(e.toString());
+      throw e;
+    } finally {
+      watch.close();
+    }
+  }
+
+  // Package-private so TektonServiceImplTest can pin the conversion directly.
+  static List<RunResult> toRunResults(List<TaskRunResult> tknResults) {
+    List<RunResult> results = new ArrayList<>();
+    tknResults.forEach(
+        tr -> {
+          // Tekton v1 result values are ParamValue wrappers; tasks emit string results.
+          results.add(
+              new RunResult(
+                  tr.getName(), (tr.getValue() != null) ? tr.getValue().getStringVal() : null));
+        });
+    return results;
+  }
+
+  private TaskExecutionException failureFor(
+      String reason, String message, Map<String, String> podLabels, List<RunResult> results) {
+    // The status message is the TaskRun's condition first, then the container's own account of
+    // the failure (exit code, termination reason, log tail) while its pod can still be read.
+    KubernetesClient kubernetesClient = client.adapt(KubernetesClient.class);
+    String detail = helperKubeService.failureDetail(kubernetesClient, podLabels);
+    String text = (detail != null) ? reason + " - " + message + "\n" + detail : reason + " - " + message;
+    if ("DeadlineExceeded".equals(reason) || "TaskRunTimeout".equals(reason)) {
+      return new TaskExecutionException(StatusReason.DEADLINE_EXCEEDED, results, text);
+    }
+    if ("JobDeleted".equals(reason)) {
+      return new TaskExecutionException(StatusReason.JOB_DELETED, results, text);
+    }
+    if (kubeService.isTaskRunResultTooLarge(podLabels)) {
+      return new TaskExecutionException(StatusReason.RESULTS_TOO_LARGE, results, "TaskRunResultTooLarge - Task has exceeded the maximum allowed " + tektonResultsMaxBytes + " byte size for Result Parameters.");
+    }
+    String podReason = helperKubeService.getPodFailureReason(kubernetesClient, podLabels);
+    if (StatusReason.OOM_KILLED.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.OOM_KILLED, results, text);
+    }
+    if (StatusReason.IMAGE_PULL.equals(podReason)) {
+      return new TaskExecutionException(StatusReason.IMAGE_PULL, results, text);
+    }
+    return new TaskExecutionException(StatusReason.JOB_FAILED, results, text);
+  }
+
+  public void deleteTaskRun(
+      String workflowId,
+      String workflowActivityId,
+      String taskActivityId,
+      Map<String, String> customLabels) {
+
+    LOGGER.debug("Deleting Task...");
+
+    client
+        .v1()
+        .taskRuns()
+        .withLabels(
+            helperKubeService.getTaskLabels(
+                workflowId, workflowActivityId, taskActivityId, customLabels))
+        .withPropagationPolicy(DeletionPropagation.BACKGROUND)
+        .delete();
+  }
+
+  /*
+   * Cancel a TaskRun
+   *
+   * The implementation needs to replace old conditions with the single status condition to be added.
+   * Without this, you will receive back a "Not all Steps in the Task have finished executing" message
+   *
+   * Reference(s):
+   * - https://github.com/abayer/tektoncd-pipeline/blob/0.8.0-jx-support-backwards-incompats/pkg/reconciler/taskrun/cancel.go
+   */
+  public void cancelTaskRun(
+      String workflowId,
+      String workflowActivityId,
+      String taskActivityId,
+      Map<String, String> customLabels) {
+    Map<String, String> labels =
+        helperKubeService.getTaskLabels(
+            workflowId, workflowActivityId, taskActivityId, customLabels);
+
+    LOGGER.info("Cancelling Task with labels: " + labels.toString());
+
+    List<TaskRun> taskRuns = client.v1().taskRuns().withLabels(labels).list().getItems();
+
+    if (taskRuns != null && !taskRuns.isEmpty()) {
+      // Every attempt still running; a finished attempt's TaskRun keeps its own condition.
+      for (TaskRun taskRun : taskRuns) {
+        if (isTerminal(taskRun)) {
+          continue;
+        }
+        Condition taskRunCancelCondition = new Condition();
+        taskRunCancelCondition.setType("Succeeded");
+        taskRunCancelCondition.setStatus("False");
+        taskRunCancelCondition.setReason("TaskRunCancelled");
+        taskRunCancelCondition.setMessage("The TaskRun was cancelled successfully.");
+
+        if (taskRun.getStatus() == null) {
+          taskRun.setStatus(new TaskRunStatus());
+        }
+        taskRun.getStatus().setConditions(List.of(taskRunCancelCondition));
+
+        client.v1().taskRuns().resource(taskRun).updateStatus();
+      }
+    } else if (taskRuns != null && taskRuns.isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.TASK_EXECUTION_ERROR,
+          "CANCEL_FAILURE - No tasks found matching the lables: " + labels.toString());
+    } else {
+      throw new BoomerangException(
+          BoomerangError.TASK_EXECUTION_ERROR,
+          "CANCEL_FAILURE - Unknown error attempting to cancel task.");
+    }
+  }
+}

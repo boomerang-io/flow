@@ -1,0 +1,31 @@
+.tableContainer {
+  margin-top: 1rem;
+}
+
+.tableText {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.tableSecondary {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-top: 0.25rem;
+}
+
+.link {
+  color: var(--cds-link-01);
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  line-height: 1.125rem;
+  padding: 1rem 0;
+
+  > * + * {
+    margin-top: 0.5rem;
+  }
+}

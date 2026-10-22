@@ -1,0 +1,148 @@
+@import "Styles/mixins";
+
+.modalContainer {
+  height: 48.31rem;
+  max-height: 84vh;
+  max-width: 55rem;
+}
+
+.modalBody {
+  padding-right: 1rem !important;
+}
+
+/**
+ * Action section
+ */
+
+.action {
+  position: relative;
+  width: 100%;
+
+  & + .action {
+    border-top: 0.0625rem solid var(--cds-skeleton-02);
+  }
+}
+
+.data {
+  margin-bottom: 1rem;
+}
+
+.dataLabel {
+  color: var(--cds-text-02);
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.dataValue {
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  line-height: 1.125rem;
+  @include text-overflow-ellipsis();
+}
+
+.comment {
+  margin-top: 1.5rem;
+  position: relative;
+}
+
+.commentArea {
+  height: 5.5rem;
+  resize: vertical !important;
+}
+
+
+/**
+ * Single Modal
+ */
+
+.threeOptionFooter {
+  padding-left: 25%;
+}
+
+.threeOptionFooterCancel {
+  border-bottom-left-radius: 0 !important;
+}
+
+.creationDate {
+  @extend .dataLabel;
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.yourInput {
+  border-top: 0.0625rem solid var(--cds-skeleton-02);
+  padding-top: 1.5rem;
+}
+
+.singleLabel {
+  @extend .dataLabel;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.singleHelperText {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.02rem;
+  line-height: 0.9375rem;
+  margin-top: 0.5rem;
+}
+
+.yourInputRequired {
+  color: var(--cds-danger-01);
+  display: flex;
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  width: fit-content;
+}
+
+.yourInputRequiredIcon {
+  margin-left: 0.5rem;
+}
+
+.yourInputOptional {
+  color: var(--cds-text-02);
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  width: fit-content;
+}
+
+.approvals {
+  border-top: 0.0625rem solid var(--cds-skeleton-02);
+  padding-top: 1.5rem;
+}
+
+.approvalsRatio {
+  display: block;
+  font-size: 0.875rem;
+  letter-spacing: 0.01rem;
+  line-height: 1.125rem;
+  margin-top: 0.5rem;
+}
+
+.approvers {
+  border-top: 0.0625rem solid var(--cds-skeleton-02);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+
+  :global .cds--structured-list-td {
+    padding: 0.5rem 1rem;
+  }
+}
+
+.approverCommentHead {
+  max-width: 40%;
+}
+
+.approverComment {
+  max-height: 3.5rem;
+  overflow-y: auto;
+}
+
+.approverActioned {
+  text-transform: capitalize;
+}

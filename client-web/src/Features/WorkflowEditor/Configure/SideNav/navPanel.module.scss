@@ -1,0 +1,22 @@
+@import "Styles/mixins";
+
+.container {
+  background-color: var(--cds-ui-01);
+  width: 18.75rem;
+  min-width: 18.75rem;
+  padding-top: 1.5rem;
+  height: 100%;
+
+  :global .cds--bmrg-feature-sidenav-link-content {
+    width: 100%;
+}
+
+  :global .cds--bmrg-select {
+    padding-left: 1rem;
+    padding-right: 1rem;
+
+    :global .cds--list-box__selection {
+      display: none;
+    }
+  }
+} 

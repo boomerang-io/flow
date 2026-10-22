@@ -1,0 +1,1250 @@
+{
+  "documents": [
+    {
+      "name": "acquire-lock",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "acquirelock"
+    },
+    {
+      "name": "add-box-folder",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T09:29:41.643Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "add-issue-to-project",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-21T00:26:30.03Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "add-sheet",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:23:29.333Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "add-user-to-box-folder",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-04T13:00:43.348Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "append-data",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:28:30.895Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "artifactory-file-download",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "artifactory-file-upload",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "check-file-contains-string",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "check-file-or-folder-exists",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "clear-data",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:35:00.875Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "copy-file",
+      "status": "active",
+      "verified": false,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-04-20T09:28:02.838Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "copy-sheet-to-another-spreadsheet",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:39:26.873Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-slack-channel",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T14:25:35.751Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-spreadsheet",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:44:03.569Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-support-center-ticket",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-11T19:19:13.996Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-team-in-organization",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:44:44.514Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "delete-file",
+      "status": "active",
+      "verified": false,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-04-20T09:28:02.838Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "delete-sheet",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:56:06.049Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "delete-slack-channel",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T16:10:26.379Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "delete-team-from-organization",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:40:58.891Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "download-file-from-box",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T11:51:50.347Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "execute-advanced-http-call",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "execute-basic-http-call",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-01-26T13:33:23.236Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "execute-shell",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "script"
+    },
+    {
+      "name": "file-jsonpath-to-parameter",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-06-10T14:58:05.686Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "find-issues-and-label",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-04-30T23:06:18.142Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "find-issues-and-remove",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-04-30T22:54:58.469Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "find-repositories-in-org",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "find-slack-member-by-email",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "find-slack-member-by-id",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T14:54:07.226Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-all-organizations",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:08:31.431Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-all-teams-in-organization",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:32:48.238Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-box-folder-info",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T12:01:37.233Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-data",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T08:52:31.561Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-github-repository",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-04-07T15:11:41.595Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-incidents",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-organization-info",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:21:04.542Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-slack-channel-info",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T16:02:26.116Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-slack-channel-members",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T15:14:46.062Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-slack-channels",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T14:59:09.271Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-team-in-organization",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:37:23.232Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "invite-collaborator-to-project",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-04-01T15:42:26.439Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "invite-member-to-team",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T14:28:39.504Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "invite-members-to-channel",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T14:46:57.024Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "invite-user-to-organization",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T14:46:18.032Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "jsonpath-to-parameter",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-04-30T22:43:20.543Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "list-box-folders",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-19T15:30:25.049Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "list-file-permissions",
+      "status": "active",
+      "verified": false,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-04-20T09:28:02.838Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "list-files",
+      "status": "active",
+      "verified": false,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-04-20T09:28:02.838Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "make-repositories-private",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "manual-approval",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "approval"
+    },
+    {
+      "name": "manual-task",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "manual"
+    },
+    {
+      "name": "mongodb-query-execution",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2022-01-27T13:58:58.698Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "read-file-to-parameter",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "read-parameters-from-file",
+      "status": "inactive",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "release-lock",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "releaselock"
+    },
+    {
+      "name": "remove-box-folder",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T10:42:56.178Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "remove-collaborator-from-project",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-04-01T15:53:47.643Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "remove-member-from-channel",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-16T14:37:23.706Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "remove-member-from-team",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-24T13:40:58.891Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "remove-user-from-box-folder",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T10:01:23.084Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "replace-string-in-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "replace-tokens-in-files",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-01-15T06:14:56.408Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "run-custom-task",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "custom"
+    },
+    {
+      "name": "run-python-script",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-04-16T12:01:47.277Z"
+      },
+      "type": "script"
+    },
+    {
+      "name": "run-scheduled-workflow",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-01-10T00:01:00Z"
+      },
+      "type": "runscheduledworkflow"
+    },
+    {
+      "name": "run-workflow",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "runworkflow"
+    },
+    {
+      "name": "send-custom-slack-message",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-email-with-postmark-template",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-08-28T00:56:11.475Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-email-with-sendgrid",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-10-13T16:53:52.235Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-email-with-sendgrid-template",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-02-22T10:24:02.958Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-platform-email",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-platform-notification",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-simple-slack-message",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-slack-message-with-file-contents",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-twilio-sms",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-06-30T01:58:09.297Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "set-result-parameter",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "setwfproperty"
+    },
+    {
+      "name": "set-workflow-result-status",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "setwfstatus"
+    },
+    {
+      "name": "sleep",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "sleep"
+    },
+    {
+      "name": "switch",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "decision"
+    },
+    {
+      "name": "update-data",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-10-28T12:59:52.7Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "update-incidents",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "upload-file-to-box",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2021-03-22T11:40:19.164Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "upload-slack-file-with-message",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "wait-for-event",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "3",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2020-01-09T00:01:00Z"
+      },
+      "type": "eventwait"
+    },
+    {
+      "name": "ai-prompt",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-16T00:00:00Z"
+      },
+      "type": "ai"
+    },
+    {
+      "name": "ai-agent",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-16T00:00:00Z"
+      },
+      "type": "ai"
+    }
+  ]
+}

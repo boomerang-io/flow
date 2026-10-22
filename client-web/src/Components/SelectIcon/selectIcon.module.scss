@@ -1,0 +1,12 @@
+.container {
+  align-items: center;
+  display: flex;
+}
+.icon {
+  margin-right: 0.5rem;
+  width: 1rem;
+}
+
+:global #select-icon__menu {
+  max-height: 14rem;
+}

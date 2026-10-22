@@ -1,0 +1,386 @@
+//@ts-nocheck
+import React, { useState } from "react";
+import { InlineNotification } from "@carbon/react";
+import { ChevronRight } from "@carbon/react/icons";
+import { Loading, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
+import "Styles/markdown.css";
+import { sentenceCase } from "change-case";
+import cx from "classnames";
+import "codemirror/addon/comment/comment.js";
+import "codemirror/addon/fold/brace-fold.js";
+import "codemirror/addon/fold/comment-fold.js";
+import "codemirror/addon/fold/foldcode.js";
+import "codemirror/addon/fold/foldgutter.css";
+import "codemirror/addon/fold/foldgutter.js";
+import "codemirror/addon/fold/indent-fold.js";
+import "codemirror/addon/hint/javascript-hint";
+import "codemirror/addon/hint/show-hint";
+import "codemirror/addon/search/searchcursor";
+import "codemirror/lib/codemirror.css";
+import "codemirror/mode/yaml/yaml";
+import "codemirror/theme/material.css";
+import { Formik } from "formik";
+import fileDownload from "js-file-download";
+// import CodeMirror from "codemirror";
+import { Controlled as CodeMirrorReact } from "react-codemirror2";
+import { Helmet } from "react-helmet";
+import ReactMarkdown from "react-markdown";
+import { useFetcher, useParams, useNavigate, useBlocker, matchPath } from "react-router-dom";
+import EmptyState from "Components/EmptyState";
+import { TaskTemplateStatus } from "Constants";
+import { yamlInstructions } from "Constants";
+import { appLink, AppPath } from "Config/appConfig";
+import { resourceRoute } from "Config/resourceRoutes";
+import { ChangeLog, Task } from "Types";
+import { isActionError, type ActionError } from "Utils/actionResult";
+import Header from "../Header";
+import { TemplateRequestType } from "../constants";
+import styles from "./TaskTemplateEditor.module.scss";
+
+type TaskYamlEditorProps = {
+  editVerifiedTasksEnabled: any;
+  selectedTaskTemplate: Task | null;
+  changelog: ChangeLog | null;
+  yaml: string | null;
+  errorLoading: boolean;
+};
+
+// useBlocker must be called from its own component so it keeps a stable hook position
+// regardless of how Formik invokes the surrounding render-prop function.
+function TaskTemplateEditorBlocker({ getBlockMessage }: { getBlockMessage: (pathname: string) => string | null }) {
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      currentLocation.pathname !== nextLocation.pathname && getBlockMessage(nextLocation.pathname) !== null,
+  );
+
+  React.useEffect(() => {
+    if (blocker.state === "blocked") {
+      const message = getBlockMessage(blocker.location.pathname) ?? "Are you sure you want to leave? You have unsaved changes.";
+      if (window.confirm(message)) {
+        blocker.proceed();
+      } else {
+        blocker.reset();
+      }
+    }
+  }, [blocker, getBlockMessage]);
+
+  return null;
+}
+
+// Discriminates what a pending fetcher submission should do once it settles - mirrors
+// TaskTemplateOverview.tsx's PendingApply. "save" covers both the JSON `apply` (Copy) and the
+// text `applyYaml` (Overwrite/New version) writes, since both settle the same modal flow.
+type PendingWrite =
+  | {
+      kind: "save";
+      requestType: string;
+      resetForm: () => void;
+      setRequestError: (error: { title: string; subtitle: string } | null) => void;
+      closeModal: () => void;
+    }
+  | { kind: "archive" }
+  | { kind: "restore" };
+
+export function TaskTemplateYamlEditor({
+  editVerifiedTasksEnabled,
+  selectedTaskTemplate,
+  changelog,
+  yaml,
+  errorLoading,
+}: TaskYamlEditorProps) {
+  const [isSaving, setIsSaving] = React.useState(false);
+  // Feature flags are now read via the root loader (Features/App/App.tsx), not a react-query
+  // cache entry - queryClient.invalidateQueries(getFeatureFlags()) would be a silent no-op.
+  // The yaml text, task template and changelog all come from the parent route's loader as props
+  // now (see AdminTasks.tsx/WorkspaceTasks.tsx), and React Router revalidates every matched
+  // loader once this fetcher's action settles, so no write needs to refresh them by hand.
+  const fetcher = useFetcher<{ intent: "apply" | "applyYaml"; task: Task } | ({ intent: "apply" | "applyYaml" } & ActionError)>();
+  const pendingWriteRef = React.useRef<PendingWrite | null>(null);
+
+  const params = useParams();
+  const navigate = useNavigate();
+
+  const [docOpen, setDocOpen] = useState(true);
+
+  React.useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || (fetcher.data.intent !== "apply" && fetcher.data.intent !== "applyYaml")) {
+      return;
+    }
+    const pending = pendingWriteRef.current;
+    pendingWriteRef.current = null;
+    if (!pending) {
+      return;
+    }
+    const result = fetcher.data;
+
+    if (pending.kind === "archive") {
+      notify(
+        !isActionError(result) ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Archived Task Template"}
+            subtitle={`Request to archive ${params.name} succeeded`}
+            data-testid="archive-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Archive Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="archive-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
+
+    if (pending.kind === "restore") {
+      notify(
+        !isActionError(result) ? (
+          <ToastNotification
+            kind="success"
+            title={"Successfully Restored Task Template"}
+            subtitle={`Request to restore ${selectedTaskTemplate?.name} succeeded`}
+            data-testid="restore-task-template-notification"
+          />
+        ) : (
+          <ToastNotification
+            kind="error"
+            title={"Restore Task Template Failed"}
+            subtitle={result.error.message}
+            data-testid="restore-task-template-notification"
+          />
+        ),
+      );
+      return;
+    }
+
+    // pending.kind === "save"
+    setIsSaving(false);
+    if (!isActionError(result)) {
+      notify(
+        <ToastNotification
+          kind="success"
+          title={"Task Template Updated"}
+          subtitle={`Request to update succeeded`}
+          data-testid="create-update-task-template-notification"
+        />,
+      );
+      pending.resetForm();
+      navigate(
+        params.workspace
+          ? appLink.manageTasksEdit({ workspace: params.workspace, name: result.task.name, version: String(result.task.version) })
+          : appLink.adminTasksDetail({ name: result.task.name, version: String(result.task.version) }),
+      );
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError(null);
+        pending.closeModal();
+      }
+    } else {
+      if (pending.requestType !== TemplateRequestType.Copy) {
+        pending.setRequestError({ title: result.error.title, subtitle: result.error.message });
+      } else {
+        notify(
+          <ToastNotification
+            kind="error"
+            title={"Update Task Template Failed"}
+            subtitle={"Something's Wrong"}
+            data-testid="update-task-template-notification"
+          />,
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
+
+  if (errorLoading || !selectedTaskTemplate || !changelog || yaml === null) {
+    return (
+      <EmptyState title="Task Template not found" message="Crikey. We can't find the template you are looking for." />
+    );
+  }
+
+  const canEdit = !selectedTaskTemplate?.verified || (editVerifiedTasksEnabled && selectedTaskTemplate?.verified);
+  const isActive = selectedTaskTemplate.status === TaskTemplateStatus.Active;
+  // params.version is a string, changelog.length is a number
+  const isOldVersion = params.version < changelog.length;
+
+  const handleSaveTaskTemplate = (values, resetForm, requestType, setRequestError, closeModal) => {
+    setIsSaving(true);
+    pendingWriteRef.current = { kind: "save", requestType, resetForm, setRequestError, closeModal };
+
+    if (requestType === TemplateRequestType.Copy) {
+      const body = {
+        ...selectedTaskTemplate,
+        version: changelog.length + 1,
+        // eslint-disable-next-line no-template-curly-in-string
+        changelog: { reason: "Version copied from ${values.currentConfig.version}" },
+      };
+      fetcher.submit(
+        { intent: "apply", name: selectedTaskTemplate.name, replace: "false", body: JSON.stringify(body) },
+        { method: "post" },
+      );
+    } else {
+      const replace = requestType === TemplateRequestType.Overwrite;
+      fetcher.submit(
+        { intent: "applyYaml", name: selectedTaskTemplate.name, replace: String(replace), body: values.yaml },
+        { method: "post" },
+      );
+    }
+  };
+
+  const handleArchiveTaskTemplate = () => {
+    pendingWriteRef.current = { kind: "archive" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "inactive" }),
+      },
+      { method: "post" },
+    );
+  };
+
+  const handleRestoreTaskTemplate = () => {
+    pendingWriteRef.current = { kind: "restore" };
+    fetcher.submit(
+      {
+        intent: "apply",
+        name: selectedTaskTemplate.name,
+        replace: "true",
+        body: JSON.stringify({ ...selectedTaskTemplate, status: "active" }),
+      },
+      { method: "post" },
+    );
+  };
+
+  // Fetches the same-origin /res streaming resource route (app/routes/resTaskYaml.tsx) rather
+  // than calling /api from the browser (the BFF direction); the route forwards
+  // Accept: application/x-yaml upstream and streams the YAML text through untouched.
+  const handleDownloadTaskTemplate = async () => {
+    try {
+      const response = await fetch(
+        resourceRoute.taskYaml({
+          name: selectedTaskTemplate.name,
+          version: selectedTaskTemplate.version,
+          workspace: params.workspace,
+        }),
+        { credentials: "same-origin" },
+      );
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+      }
+      fileDownload(await response.text(), `${selectedTaskTemplate.name}.yaml`);
+      notify(
+        <ToastNotification
+          kind="success"
+          title={"Task Template Download"}
+          subtitle={`Request to download ${params.name} started.`}
+          data-testid="downloaded-task-template-notification"
+        />,
+      );
+    } catch (err) {
+      notify(
+        <ToastNotification
+          kind="error"
+          title={"Download Task Template Failed"}
+          subtitle={`Unable to download the task template. ${sentenceCase(err.message)}. Please contact support.`}
+          data-testid="download-task-template-notification"
+        />,
+      );
+    }
+  };
+
+  return (
+    <Formik
+      initialValues={{
+        yaml: yaml ?? "",
+      }}
+      enableReinitialize={true}
+    >
+      {(formikProps) => {
+        const { setFieldValue, values, dirty: isDirty, isSubmitting } = formikProps;
+
+        // Same in-app "leave without saving" guard as before, ported from v5's <Prompt> to
+        // v6/v7's useBlocker (requires the data router set up in Root.tsx). Returns the
+        // confirm-dialog message to show for a given target pathname, or null to navigate
+        // through unprompted. React Router calls this on every navigation, so it must not throw.
+        // The post-save navigate runs while isSaving is still true, so it is never prompted.
+        function getBlockMessage(pathname: string) {
+          if (!isDirty || isSaving) {
+            return null;
+          }
+          const target = matchPath(
+            { path: params.workspace ? AppPath.ManageTasksDetail : AppPath.TasksDetail, end: false },
+            pathname,
+          );
+          if (target?.params.name === selectedTaskTemplate.name && target.params.version !== String(selectedTaskTemplate.version)) {
+            return "Are you sure you want to change the version? Your changes will be lost.";
+          }
+          return "Are you sure you want to leave? You have unsaved changes.";
+        }
+
+        return (
+          <div className={styles.container}>
+            <Helmet>
+              <title>{`Task manager - ${selectedTaskTemplate.name}`}</title>
+            </Helmet>
+            <TaskTemplateEditorBlocker getBlockMessage={getBlockMessage} />
+            {(fetcher.state !== "idle" || isSaving) && <Loading />}
+            <Header
+              editVerifiedTasksEnabled={editVerifiedTasksEnabled}
+              selectedTaskTemplate={selectedTaskTemplate}
+              changelog={changelog}
+              formikProps={formikProps}
+              handleRestoreTaskTemplate={handleRestoreTaskTemplate}
+              handleArchiveTaskTemplate={handleArchiveTaskTemplate}
+              handleSaveTaskTemplate={handleSaveTaskTemplate}
+              handleDownloadTaskTemplate={handleDownloadTaskTemplate}
+              isActive={isActive}
+              isLoading={isSubmitting || isSaving}
+              isOldVersion={isOldVersion}
+            />
+            <div className={styles.content}>
+              {!canEdit && (
+                <section className={styles.notificationsContainer}>
+                  <InlineNotification
+                    lowContrast
+                    hideCloseButton={true}
+                    kind="info"
+                    title="Verified tasks are not editable"
+                    subtitle="Admins can adjust this in global settings"
+                  />
+                </section>
+              )}
+              <section className={styles.yamlContainer}>
+                <CodeMirrorReact
+                  className={cx(styles.codeMirrorContainer, { [styles.yamlCollapsed]: !docOpen })}
+                  value={values.yaml}
+                  options={{
+                    mode: "yaml",
+                    theme: "material",
+                    lineWrapping: true,
+                    foldGutter: true,
+                    lineNumbers: true,
+                    gutters: ["CodeMirrorReact-linenumbers", "CodeMirror-foldgutter"],
+                  }}
+                  onBeforeChange={(editor, data, value) => {
+                    setFieldValue("yaml", value);
+                  }}
+                />
+                <div className={cx(styles.markdownContainer, { [styles.collapsed]: !docOpen })}>
+                  <button className={styles.collapseButton} onClick={() => setDocOpen(!docOpen)}>
+                    <ChevronRight size={32} className={styles.collapseButtonImg} />
+                  </button>
+                  {docOpen && <ReactMarkdown className="markdown-body" children={yamlInstructions} />}
+                </div>
+              </section>
+            </div>
+          </div>
+        );
+      }}
+    </Formik>
+  );
+}
+
+export default TaskTemplateYamlEditor;

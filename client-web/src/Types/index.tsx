@@ -1,0 +1,1160 @@
+import { User } from "@boomerang-io/carbon-addons-boomerang-react";
+import { Edge, EdgeProps, Node, NodeProps, ReactFlowInstance } from "@xyflow/react";
+import {
+  EdgeExecutionCondition,
+  FlowWorkspaceStatus,
+  NodeType,
+  TokenType,
+  UserRole,
+  WorkflowEngineMode,
+  WorkflowPropertyAction,
+  WorkflowView,
+} from "Constants";
+
+/**
+ * Take an object const and turn the values into a
+ * union type e.g.
+ * const ActionKind = {
+ *    "Approval": "approval",
+ *    "Manual": "manual"
+ * } as const
+ *
+ * ActionKindType = ObjectValues<typeof ActionKind>
+ * ^? "approval" | "manual"
+ */
+export type ObjectValues<T> = T[keyof T];
+
+declare global {
+  interface Window {
+    _SERVER_DATA: {
+      APP_ROOT: string;
+      CORE_ENV_URL: string;
+      EMBEDDED_MODE: string;
+      PRODUCT_ENV_URL: string;
+      PRODUCT_SERVICE_ENV_URL: string;
+      PRODUCT_STANDALONE: string;
+      [key: string]: string;
+    };
+  }
+}
+
+export enum PlatformRole {
+  Admin = "admin",
+  User = "user",
+  Operator = "operator",
+  Sponsor = "sponsor",
+  Auditor = "auditor",
+  Author = "author",
+  Partner = "partner",
+  Advisor = "advisor",
+}
+
+export enum UserStatus {
+  Active = "active",
+  Inactive = "inactive",
+  PendingDeletion = "pending_deletion",
+  Deleted = "deleted",
+  Archived = "archived",
+}
+
+export type PermissionScope = "global" | "workspace";
+
+// A single resolved grant: a set of resource/action strings (e.g. "workflow/read"),
+// scoped globally (principal "**") or to one workspace (principal = its reference).
+export interface ResolvedPermissions {
+  scope: PermissionScope;
+  principal: string;
+  actions: string[];
+}
+
+// The platform type requires `teams: any[]`; Flow's profile carries the list as `workspaces` instead.
+export interface FlowUser extends Omit<User, "teams"> {
+  id: string;
+  email: string;
+  name: string;
+  displayName?: string;
+  type: PlatformRole;
+  creationDate: string;
+  lastLoginDate: string;
+  status: UserStatus;
+  labels?: Record<string, string>;
+  settings?: FlowUserSettings;
+  // Only present on the profile response; carries the caller's resolved workspace
+  // memberships and permissions alongside the base user record.
+  workspaces?: Array<FlowWorkspaceSummary>;
+  permissions?: Array<ResolvedPermissions>;
+}
+
+export interface FlowUserSettings {
+  hasConsented: boolean;
+  isShowHelp: boolean | null;
+  isFirstVisit: boolean;
+  isShowGetStarted?: boolean;
+}
+
+export interface SimpleApprover {
+  approverId: string;
+  approverEmail: string;
+  approverName: string;
+  comments: string;
+  date: string;
+  approved: boolean;
+}
+
+export interface Action {
+  id: string;
+  taskRunRef: string;
+  workflowRunRef: string;
+  workflowRef: string;
+  workspaceRef: string;
+  status: string;
+  type: string;
+  creationDate: string;
+  taskName: string;
+  workflowName: string;
+  workspaceName: string;
+  numberOfApprovals: number;
+  approvalsRequired: number;
+  actioners: SimpleApprover[];
+  instructions: any;
+}
+
+// An ApproverGroup approver is a workspace member; the two are the same wire shape.
+export type Approver = Member;
+
+export interface ApproverGroup {
+  id: string;
+  name: string;
+  creationDate: string;
+  approvers: Array<Member>;
+}
+
+export interface DataDrivenInput {
+  id: string;
+  default: string | Array<string> | Array<{ key: string; value: string }> | Object;
+  defaultValue: string | Array<string> | Array<{ key: string; value: string }> | Object;
+  description?: string;
+  helperText?: string;
+  language?: string;
+  name: string;
+  key?: string; //TODO: remove - for backwards compatability with other param layers
+  disabled?: boolean;
+  label?: string;
+  onChange?: (args: any) => void;
+  onBlur?: (args: any) => void;
+  options?: Array<{ key: string; value: string }>;
+  placeholder?: string;
+  readOnly?: boolean;
+  required?: boolean;
+  value: string | Array<string> | Array<{ key: string; value: string }> | Object;
+  type: string;
+  // `min`/`max`/`step` mirror the backend param model's nullable numeric bounds. They govern the
+  // `slider` input type (Constants#InputType.Slider); `min`/`max` are also read by
+  // DynamicFormik's yup generation for `number` inputs.
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface ResultParameter {
+  name: string;
+  description: string;
+  value?: any;
+}
+
+export interface ModalTriggerProps {
+  openModal(): void;
+}
+
+export interface FormikSetFieldValue {
+  (id: string, value: string | Array<string> | boolean | undefined): void;
+}
+
+export interface CreateWorkflowSummary {
+  name: string;
+  displayName: string;
+  description: string;
+  icon: string;
+}
+
+/**
+ * The one shared filesystem a run gets: every task in the run reads and writes it, it is created
+ * when the run starts and removed when the run completes. Absent on the workflow means no shared
+ * storage. `size` is a Kubernetes quantity ("2Gi"); the editor edits it in whole gigabytes, capped by
+ * the workspace's `maxWorkspaceStorage` quota.
+ * Files that must outlive the run are artifacts uploaded with scope `workflow`.
+ */
+export interface WorkflowWorkspace {
+  size: string;
+  mountPath?: string;
+  className?: string;
+  accessMode?: string;
+}
+
+export interface WorkflowTaskDependency {
+  taskRef: string;
+  decisionCondition?: string;
+  executionCondition: EdgeExecutionConditionType;
+}
+
+export interface WorkflowTask {
+  name: string;
+  type: string;
+  taskRef?: string;
+  taskVersion?: number;
+  upgradesAvailable?: boolean;
+  timeout?: number;
+  dependencies?: Array<WorkflowTaskDependency>;
+  labels?: Record<string, string>;
+  annotations?: Record<string, object>;
+  params?: Array<Param>;
+  results?: Array<{ name: string; description: string }>;
+  /** Absent or true mounts the run's shared workspace into this task; false opts the task out. */
+  workspace?: boolean;
+  foreach?: WorkflowTaskForeach;
+}
+
+/**
+ * Run the task once per item. `items` is either one reference such as
+ * `$(tasks.stage.results.batches)` or a JSON array literal.
+ */
+export interface WorkflowTaskForeach {
+  items: string | Array<unknown>;
+}
+
+export interface Workflow {
+  id?: string;
+  name: string;
+  displayName: string;
+  creationDate: string;
+  status: WorkflowStatus;
+  timeout?: number;
+  retries?: number;
+  version: number;
+  description: string;
+  icon: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, object>;
+  markdown?: string;
+  params?: Array<DataDrivenInput>;
+  tasks: Array<WorkflowTask>;
+  changelog: {
+    author: string;
+    reason: string;
+    date: string;
+  };
+  triggers: {
+    event: WorkflowTrigger;
+    github: WorkflowTrigger;
+    manual: WorkflowTrigger;
+    schedule: WorkflowTrigger;
+    webhook: WorkflowTrigger;
+  };
+  upgradesAvailable: boolean;
+  workspace?: WorkflowWorkspace;
+  /**
+   * Read-only. True on a workflow upgraded from v3 that declared Workflow storage (the cross-run
+   * volume Flow 5 removed): submitting it fails with `WORKFLOW_STORAGE_REMOVED` until the
+   * workflow is saved again.
+   */
+  legacyWorkflowStorage?: boolean;
+}
+
+export enum WorkflowStatus {
+  Active = "active",
+  Inactive = "inactive",
+}
+
+export interface WorkflowTrigger {
+  enabled: boolean;
+  conditions: Array<WorkflowTriggerCondition>;
+}
+
+export enum WorkflowTriggerType {
+  Manual = "manual",
+  Scheduler = "scheduler",
+  Event = "event",
+  Webhook = "webhook",
+  GitHub = "github",
+}
+
+export interface WorkflowTriggerCondition {
+  operation: WorkflowTriggerConditionOperation;
+  field: string;
+  value: string;
+  values: Array<string>;
+}
+
+export enum WorkflowTriggerConditionOperation {
+  Matches = "matches",
+  Equals = "equals",
+  In = "in",
+}
+
+export type WorkflowViewType = ObjectValues<typeof WorkflowView>;
+export type EdgeExecutionConditionType = ObjectValues<typeof EdgeExecutionCondition>;
+
+type PageableSort = {
+  sorted: boolean;
+  empty: boolean;
+  unsorted: boolean;
+};
+
+type Pageable<T> = {
+  empty: boolean;
+  first: boolean;
+  last: boolean;
+  number: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  numberOfElements: number;
+  sort: PageableSort;
+  content: Array<T>;
+};
+
+export type PaginatedUserResponse = Pageable<FlowUser>;
+export type PaginatedAuditResponse = Pageable<AuditEvent>;
+export type PaginatedWorkspaceResponse = Pageable<FlowWorkspace>;
+export type PaginatedTaskResponse = Pageable<Task>;
+export type PaginatedWorkflowResponse = Pageable<Workflow>;
+export type PaginatedSchedulesResponse = Pageable<ScheduleUnion>;
+
+/**
+ * One audited attempt as `GET /api/v2/audit` returns it: the server's AuditEvent minus the
+ * CloudEvents envelope and the TTL anchor. `payload` carries request discriminators only -
+ * source IP, user agent, method, path, duration, an error summary - never request content.
+ */
+export interface AuditEvent {
+  id: string;
+  time: string;
+  actorId?: string;
+  actorName?: string;
+  actorType?: string;
+  workspaceId?: string;
+  action?: string;
+  resourceType?: string;
+  resourceId?: string;
+  resourceName?: string;
+  outcome?: AuditOutcome;
+  level?: AuditLevel;
+  payload?: Record<string, unknown>;
+}
+
+export enum AuditOutcome {
+  Success = "SUCCESS",
+  Failed = "FAILED",
+  Denied = "DENIED",
+}
+
+export enum AuditLevel {
+  Destructive = "DESTRUCTIVE",
+  Write = "WRITE",
+  All = "ALL",
+}
+
+/** Counts for the same window and filters the listing carries, plus the capture configuration. */
+export interface AuditStats {
+  from: string;
+  to: string | null;
+  total: number;
+  outcomes: Record<AuditOutcome, number>;
+  captureEnabled: boolean;
+  level: AuditLevel;
+  retentionDays: number;
+}
+
+export type WorkflowNodeData = {
+  name: string;
+  taskRef: string;
+  taskVersion: number;
+  upgradesAvailable: boolean;
+  params: Array<{ name: string; value: string }>;
+  results: Array<{ name: string; description: string }>;
+  foreach?: WorkflowTaskForeach;
+};
+// xyflow's `Node<Data>`/`Edge<Data>` require `Data extends Record<string, unknown>`. The
+// intersection is applied here (at the xyflow boundary) rather than on `WorkflowNodeData`/
+// `WorkflowEdgeData` themselves, because adding a `[key: string]: unknown` index signature
+// directly to those types would widen every property to `unknown` wherever they're used with
+// `Omit`/mapped types elsewhere in the codebase.
+export type WorkflowNode = Node<WorkflowNodeData & Record<string, unknown>>;
+// `NodeProps` takes the full node type (not just its data) as of v12.
+export type WorkflowNodeProps = NodeProps<WorkflowNode>;
+
+export type WorkflowEdgeData = {
+  decisionCondition: string;
+  executionCondition: EdgeExecutionConditionType;
+};
+export type WorkflowEdge = Edge<WorkflowEdgeData & Record<string, unknown>>;
+export type WorkflowEdgeProps = EdgeProps<WorkflowEdge>;
+
+// The instance handed to `onInit`/held in state by the canvas's consumers (Designer, Editor,
+// WorkflowRun) needs to carry the same `WorkflowNode`/`WorkflowEdge` type parameters as the
+// `<ReactFlow>` element itself - `getNodes()`/`setNodes()` etc. are otherwise typed against
+// xyflow's bare `Node`/`Edge` defaults, which don't carry `WorkflowNodeData`/`WorkflowEdgeData`.
+export type WorkflowReactFlowInstance = ReactFlowInstance<WorkflowNode, WorkflowEdge>;
+
+export interface WorkflowParameter {
+  defaultValue: string;
+  description: string;
+  key: string;
+  label: string;
+  required: boolean;
+  type: string;
+}
+
+export interface WorkflowCanvas extends Workflow {
+  edges: Array<WorkflowEdge>;
+  nodes: Array<WorkflowNode>;
+  config?: Array<DataDrivenInput>;
+}
+
+export enum ApprovalStatus {
+  Approved = "approved",
+  Rejected = "rejected",
+  Submitted = "submitted",
+}
+
+export interface ChangeLogEntry {
+  date: string;
+  reason: string;
+  author: string;
+  version: number;
+}
+
+export type ChangeLog = Array<ChangeLogEntry>;
+
+export interface Task {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  status: string;
+  category?: string;
+  version: number;
+  creationDate: string;
+  labels?: Record<string, string>;
+  annotations?: Record<string, object>;
+  icon?: string;
+  type: string;
+  changelog: ChangeLog;
+  verified: boolean;
+  spec: TaskSpec;
+}
+
+export interface TaskSpec {
+  arguments?: Array<string>;
+  command?: Array<string>;
+  params?: Array<DataDrivenInput>;
+  envs?: any;
+  image?: string;
+  results?: Array<{ name: string; description: string }>;
+  script?: number;
+  workingDir?: string;
+}
+
+export type FlowWorkspaceStatusType = ObjectValues<typeof FlowWorkspaceStatus>;
+
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  displayName: string;
+  status: WorkflowStatus;
+  version: number;
+  creationDate: string;
+  icon?: string;
+  description?: string;
+}
+
+export interface FlowWorkspace {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  creationDate: string;
+  status: FlowWorkspaceStatusType;
+  externalRef?: string;
+  labels?: Record<string, string>;
+  quotas: FlowWorkspaceQuotas;
+  members: Array<Member>;
+  workflows?: Array<WorkflowSummary>;
+  parameters: Array<DataDrivenInput>;
+  approverGroups: Array<ApproverGroup>;
+}
+
+// As part of the Profile
+export interface FlowWorkspaceSummary {
+  name: string;
+  displayName: string;
+  description?: string;
+  creationDate: string;
+  status: ObjectValues<typeof FlowWorkspaceStatus>;
+  externalRef?: string;
+  labels?: Record<string, string>;
+  insights: {
+    workflows: number;
+    members: number;
+  };
+}
+
+export interface FlowWorkspaceQuotas {
+  currentRuns: number;
+  currentWorkflowCount: number;
+  currentConcurrentRuns: number;
+  currentRunTotalDuration: number;
+  currentRunAverageDuration: number;
+  // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
+  currentArtifactStorage: number;
+  // For the five max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
+  // resolved an absent stored value to the platform default.
+  maxWorkflowCount: number;
+  maxWorkflowRunMonthly: number;
+  // GB (integer) - the size cap of the shared workspace a run can declare.
+  maxWorkspaceStorage: number;
+  maxWorkflowRunDuration: number;
+  maxConcurrentRuns: number;
+  // Gi (integer) - the artifact storage cap for this workspace.
+  maxArtifactStorage: number;
+  // Days an artifact is kept after upload before it expires.
+  artifactRetentionDays: number;
+  monthlyResetDate: string;
+}
+
+export interface PaginatedSort {
+  direction: string;
+  property: string;
+  ignoreCase: boolean;
+  nullHandling: string;
+  descending: boolean;
+  ascending: boolean;
+}
+
+export interface PaginatedResponse<RecordType> {
+  totalPages: number;
+  totalElements: number;
+  last: boolean;
+  sort: Array<PaginatedSort>;
+  first: boolean;
+  numberOfElements: number;
+  size: number;
+  number: number;
+  content: Array<RecordType>;
+}
+
+export interface Member {
+  id?: string;
+  email?: string;
+  name?: string;
+  role?: MemberRole;
+}
+
+export enum MemberRole {
+  Owner = "owner",
+  Editor = "editor",
+  Reader = "reader",
+}
+
+export interface Property {
+  value: string | null;
+  readOnly: boolean;
+  id: string;
+  description: string;
+  key: string;
+  label: string;
+  type: string;
+}
+
+export interface PatchProperty {
+  value?: string;
+  readOnly?: boolean;
+  id?: string;
+  description?: string;
+  key?: string;
+  label?: string;
+  type?: string;
+}
+
+export type TokenScopeType = ObjectValues<typeof TokenType>;
+
+export interface Token {
+  id: string;
+  name: string;
+  type: TokenScopeType;
+  creationDate: string;
+  expirationDate: string;
+  principal: string;
+  description: string;
+  valid: boolean;
+  permissions: Array<{
+    scope: TokenScopeType;
+    principal: string;
+    actions: Array<string>;
+  }>;
+  actorKind?: string;
+  createdBy?: string;
+  lastUsedAt?: string;
+}
+
+export interface TokenRequest {
+  expiryDate: string | number | null;
+  description: string;
+}
+
+export interface ComboBoxItem {
+  name: string;
+  label?: string;
+  value: string;
+}
+
+export interface WorkflowTemplate {
+  name: string;
+  displayName: string;
+  icon: string;
+  description: string;
+  creationDate: string;
+  markdown: string;
+  version: Number;
+  labels?: Record<string, string>;
+  annotations?: Record<string, object>;
+  params?: Array<DataDrivenInput>;
+  tasks: Array<any>; //TODO: what should this be
+  changelog: {
+    author: string;
+    reason: string;
+    date: string;
+  };
+  config: Array<DataDrivenInput>;
+}
+
+export enum RunStatus {
+  NotStarted = "notstarted",
+  Ready = "ready",
+  Running = "running",
+  Waiting = "waiting",
+  Succeeded = "succeeded",
+  Failed = "failed",
+  Invalid = "invalid",
+  Cancelled = "cancelled",
+  Skipped = "skipped",
+  TimedOut = "timedout",
+}
+
+export enum RunPhase {
+  Queued = "queued",
+  Pending = "pending",
+  Running = "running",
+  Completed = "completed",
+}
+
+export interface FlowNavigationItemChild {
+  activeClassName?: string;
+  element?: React.ReactNode;
+  onClick?: (e: React.SyntheticEvent) => any;
+  href?: string;
+  disabled?: boolean;
+  large: boolean;
+  link: string;
+  name: string;
+  renderIcon: SVGElement;
+  to?: string;
+}
+
+export interface FlowNavigationItem {
+  disabled: boolean;
+  icon: string;
+  name: string;
+  link: string;
+  type: "link" | "menu" | "divider";
+  childLinks: Array<FlowNavigationItemChild>;
+  beta?: boolean;
+}
+
+export type PlatformFeatureKey =
+  | "consent.enabled"
+  | "docs.enabled"
+  | "metering.enabled"
+  | "notifications.enabled"
+  | "support.enabled"
+  | "welcome.enabled";
+
+export interface ContextConfig {
+  features: {
+    [k in PlatformFeatureKey]: boolean;
+  };
+  navigation: Array<{ name: string; url: string }>;
+  platform: {
+    appName?: string;
+    baseEnvUrl: string;
+    baseServicesUrl: string;
+    communityUrl?: string;
+    displayLogo: boolean;
+    name: string;
+    platformName: string;
+    privateWorkspaces: boolean;
+    sendMail: boolean;
+    signOutUrl: string;
+    version: string;
+  };
+  platformMessage: {
+    kind: string;
+    message: string;
+    title: string;
+  };
+}
+
+export type FlowFeatureKey =
+  | "activity"
+  | "enable.verified.tasks.edit"
+  | "global.parameters"
+  | "insights"
+  | "workspace.management"
+  | "workspace.parameters"
+  | "workspace.tasks"
+  | "user.management"
+  | "workspace.quotas"
+  | "workflow.tokens"
+  | "workflow.triggers"
+  | "workspace.single"
+  | "schedules"
+  | "integrations"
+  | "authentication"
+  | "tokens";
+
+export interface FlowFeatures {
+  features: {
+    [k in FlowFeatureKey]: boolean;
+  };
+}
+
+export interface Integration {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  instructions: string;
+  link: string;
+  status: string;
+}
+
+// Insights: statistics over the runs a workspace still holds. Durations and waits are
+// milliseconds; a rate is 0..1 or null when nothing finished with an outcome.
+export interface InsightsTotals {
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  inFlight: number;
+  successRate: number | null;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  byTrigger: Record<string, number>;
+}
+
+export interface InsightsDay {
+  /** ISO date, UTC. */
+  date: string;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+}
+
+export interface InsightsWorkflow {
+  workflowRef: string;
+  workflowName: string;
+  runs: number;
+  succeeded: number;
+  failed: number;
+  timedOut: number;
+  cancelled: number;
+  other: number;
+  successRate: number | null;
+  p5Duration: number;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  timeoutMinutes: number | null;
+  lastFailureDate: string | null;
+  lastFailureRunRef: string | null;
+  /** The last seven calendar days ending at the period's end, oldest first. */
+  recent: Array<InsightsDay>;
+}
+
+export interface InsightsSummary {
+  from: string;
+  to: string;
+  previousFrom: string;
+  previousTo: string;
+  totals: InsightsTotals;
+  previous: InsightsTotals;
+  daily: Array<InsightsDay>;
+  workflows: Array<InsightsWorkflow>;
+  /** Absent from a core that predates usage roll-ups. */
+  usage?: InsightsUsage;
+}
+
+/** Token counts summed over ai task runs; `cost` is the endpoint's own figure, null when none reported one. */
+export interface InsightsUsageSums {
+  aiTaskRuns: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  reasoningTokens: number;
+  cachedPromptTokens: number;
+  cost: number | null;
+}
+
+export interface InsightsModelUsage extends InsightsUsageSums {
+  model: string | null;
+}
+
+export interface InsightsUsage extends InsightsUsageSums {
+  byModel: Array<InsightsModelUsage>;
+}
+
+export interface InsightsTaskRow {
+  name: string;
+  taskRef: string | null;
+  runs: number;
+  failed: number;
+  p50Duration: number;
+  p95Duration: number;
+  /** Null for a task that is not an ai task. */
+  totalTokens?: number | null;
+  cost?: number | null;
+}
+
+export interface InsightsFailure {
+  status: string;
+  taskName: string | null;
+  reason: string | null;
+  count: number;
+  lastRunRef: string;
+  lastDate: string;
+}
+
+export interface InsightsWorkflowDetail {
+  workflowRef: string;
+  workflowName: string;
+  from: string;
+  to: string;
+  runs: number;
+  p50QueueWait: number;
+  p95QueueWait: number;
+  retriedRuns: number;
+  tasks: Array<InsightsTaskRow>;
+  failures: Array<InsightsFailure>;
+  usage?: InsightsUsage;
+}
+
+/** One group of task runs; durations are over its succeeded task runs, 0 over none. */
+export interface InsightsTaskGroup {
+  /** The group's value; null for task runs without one, and for every one when ungrouped. */
+  key: string | null;
+  /** The bucket's start (UTC), when grouped by time. */
+  bucket?: string;
+  taskRuns: number;
+  succeeded: number;
+  failed: number;
+  cancelled: number;
+  meanDuration: number;
+  p50Duration: number;
+  p95Duration: number;
+  maxDuration: number;
+  /** With spanBy: how many label values, and their first start to last end. */
+  spans?: number;
+  p50Span?: number;
+  p95Span?: number;
+  maxSpan?: number;
+  /** With ai task runs: how many, and the usage they reported, summed. */
+  aiTaskRuns?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedPromptTokens?: number;
+  /** Absent when no ai task run of the group reported a cost. */
+  cost?: number;
+}
+
+export interface InsightsSlowTaskRun {
+  taskRunRef: string;
+  workflowRunRef: string;
+  workflowRef: string;
+  name: string;
+  status: string;
+  startTime?: string;
+  duration: number;
+}
+
+export interface InsightsTasks {
+  from: string;
+  to: string;
+  groupBy?: string;
+  bucket?: string;
+  spanBy?: string;
+  /** Rows past the cap were left out. */
+  truncated: boolean;
+  rows: Array<InsightsTaskGroup>;
+  slowest?: Array<InsightsSlowTaskRun>;
+}
+
+//Schedule types
+export type ScheduleStatus = "active" | "inactive" | "deleted" | "trigger_disabled" | "error" | "completed";
+export type ScheduleType = "runOnce" | "cron" | "advancedCron";
+
+export interface Schedule {
+  id: string;
+  name: string;
+  description?: string;
+  labels?: Record<string, string>;
+  nextScheduleDate: string;
+  params?: Array<Param>;
+  status: ScheduleStatus;
+  type: ScheduleType;
+  timezone: string;
+  workflowRef: string;
+  workflow?: Workflow;
+}
+
+export interface ScheduleDate extends Schedule {
+  dateSchedule: string;
+  type: "runOnce";
+}
+
+export interface ScheduleCron extends Schedule {
+  cronSchedule: string;
+  type: "cron" | "advancedCron";
+}
+
+export type ScheduleUnion = ScheduleDate | ScheduleCron;
+
+export interface CalendarEntry {
+  scheduleId: string;
+  dates: Array<string>;
+}
+
+export interface CalendarEvent {
+  start: Date;
+  end: Date;
+  title: string;
+  resource: ScheduleUnion;
+  onClick?: () => void;
+}
+
+export type CalendarDateRange = { start: string | Date; end: string | Date } | Date[];
+
+export interface ScheduleManagerFormInputs {
+  advancedCron: boolean;
+  cronSchedule: string;
+  dateTime: string;
+  days: Array<DayOfWeekKey>;
+  description: string;
+  id: string;
+  labels: Array<string>;
+  name: string;
+  type: ScheduleType;
+  timezone: { label: string; value: string };
+  time: string;
+  workflowRef: string;
+  [key: string]: any;
+}
+
+export type DayOfWeekKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+export type DayOfWeekCronAbbreviation = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
+
+export type MultiSelectItem = {
+  label: string;
+  value: string;
+};
+
+export interface MultiSelectItems<Type = MultiSelectItem> {
+  selectedItems: Array<Type>;
+}
+
+export type WorkflowEditorState = WorkflowCanvas & { hasUnsavedUpdates?: boolean };
+export type WorkflowEngineModeType = ObjectValues<typeof WorkflowEngineMode>;
+export type WorkflowPropertyActionType = ObjectValues<typeof WorkflowPropertyAction>;
+export type UserRoleType = ObjectValues<typeof UserRole>;
+export type NodeTypeType = ObjectValues<typeof NodeType>;
+
+export interface ConfigureWorkflowFormValues {
+  config: WorkflowCanvas["config"];
+  description: string;
+  icon: string;
+  labels: Array<{ key: string; value: string }>;
+  name: string;
+  displayName: string;
+  // Form-only shape: `enabled` is the toggle, and Editor.tsx's formatConfigureValues turns it
+  // into the API's `workspace` object (or null to clear it) on save.
+  workspace: {
+    enabled: boolean;
+    size: number;
+    mountPath: string;
+  };
+  retries: number | null;
+  timeout: number | null;
+  triggers: WorkflowCanvas["triggers"];
+}
+
+export interface WorkflowRun {
+  annotations: Record<string, unknown>;
+  awaitingApproval: boolean;
+  creationDate: string;
+  duration: number;
+  id: string;
+  initiatedByRef: string;
+  // The run that owns the TaskRun in initiatedByRef, resolved server-side for a task-triggered
+  // (child) run so the header can link back to the parent. Absent on every other trigger.
+  initiatedByWorkflowRunRef?: string;
+  labels: Record<string, string>;
+  params: Array<Param>;
+  // Populated on the wire (WorkflowRunService#get copies the entity's phase across).
+  phase: RunPhase;
+  // Where a scoped retry started from: the scope, and the task names when the scope is "nodes".
+  // Absent on a plain retry and on every other run.
+  retryFrom?: { scope: RetryScope; nodes?: Array<string> };
+  // Derived from the pause admission gate, not a status/phase value - a paused run keeps its
+  // underlying status and phase (the raw pauseRequestedAt timestamp is not exposed). Optional:
+  // older responses may not carry it.
+  paused?: boolean;
+  results: Array<RunResult>;
+  retries: number;
+  startTime: string;
+  status: RunStatus;
+  statusMessage: string;
+  tasks: Array<TaskRun>;
+  timeout: number;
+  trigger: string;
+  workspace?: WorkflowWorkspace;
+  workflowName: string;
+  workflowRef: string;
+  workflowRevisionRef: string;
+  workflowVersion: number;
+}
+
+export interface TaskRun {
+  annotations: TaskAnnotations;
+  creationDate: string;
+  duration: number;
+  id: string;
+  labels: Record<string, string>;
+  name: string;
+  params: Array<Param>;
+  phase: RunPhase;
+  results: Array<RunResult>;
+  retries: number;
+  spec: Spec;
+  startTime: string;
+  status: RunStatus;
+  statusMessage: string;
+  /** Why the task run ended as it did, e.g. `OOMKilled`; absent while it is running. */
+  statusReason?: string;
+  taskRef: string;
+  timeout: number;
+  type: string;
+  workflowRef: string;
+  workflowRevisionRef: string;
+  workflowRunRef: string;
+  workflowName: string;
+  workspace?: WorkflowWorkspace;
+  /** Set on an item of a for-each task: the id of the parent task run. */
+  parentRef?: string;
+  /** Set on an item of a for-each task: the item's position, from 0. */
+  index?: number;
+  /** Set on a task run a scoped retry carried over instead of executing: the origin task run it stands for. */
+  reusedFromRef?: string;
+  /** The attempt a dispatcher holds or last held: 1, plus one per requeue. Absent when no dispatcher claimed it. */
+  attempt?: number;
+}
+
+/** What a retry re-runs: the whole graph, the tasks that did not succeed and after, or named tasks and after. */
+export type RetryScope = "all" | "failed" | "nodes";
+
+export enum ArtifactStatus {
+  Uploading = "uploading",
+  Available = "available",
+  Expired = "expired",
+}
+
+/**
+ * `run`: the artifact belongs to the run that uploaded it and expires on its retention date.
+ * `workflow`: the artifact is kept for the workflow across runs - each name keeps its newest
+ * verified upload until it is replaced or deleted, and it never expires.
+ */
+export enum ArtifactScope {
+  Run = "run",
+  Workflow = "workflow",
+}
+
+/**
+ * A file a task run uploaded during a run (`uploadartifact`), listed/downloaded/deleted through
+ * the workspace-scoped `/workspace/{workspace}/workflowrun/{runId}/artifacts` surface (per-run) or
+ * `/workspace/{workspace}/artifacts` (workspace-wide). `taskRunRef` is the id of the TaskRun that
+ * uploaded it - resolve it against `WorkflowRun.tasks` for a display name, the API does not carry
+ * one. `status` is "uploading" while the upload is in flight (never returned by the list routes),
+ * "available" once complete, and "expired" once `expirationDate` (creationDate + retentionDays)
+ * has passed - an expired artifact is still listed but can no longer be downloaded (410).
+ * `expirationDate` is null/absent for scope `workflow`.
+ */
+export interface Artifact {
+  id: string;
+  name: string;
+  workflowRef: string;
+  workflowRunRef: string;
+  taskRunRef: string;
+  scope: ArtifactScope;
+  size: number;
+  sha256: string;
+  contentType: string;
+  status: ArtifactStatus;
+  creationDate: string;
+  retentionDays: number;
+  expirationDate?: string | null;
+}
+
+// A run param's type. `secret` is a string whose value the server never returns: it arrives
+// as "*****". Absent means string.
+export type ParamType = "string" | "array" | "object" | "secret";
+
+export interface Param {
+  name: string;
+  value: string;
+  type?: ParamType;
+}
+
+export interface TaskAnnotations {
+  "boomerang.io/position": BoomerangIoPosition;
+  "boomerang.io/kind"?: string;
+  "boomerang.io/generation"?: string;
+}
+
+export interface BoomerangIoPosition {
+  x: number;
+  y: number;
+}
+
+export interface Spec {
+  arguments: string[] | null;
+  command: any[] | null;
+  debug: boolean;
+  deletion: null | string;
+  envs: null;
+  image: null | string;
+  timeout: number;
+  script: null;
+  workingDir: null;
+}
+
+export interface RunResult {
+  name: string;
+  description: string;
+  value: string;
+}
