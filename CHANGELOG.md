@@ -120,6 +120,9 @@ tag's release notes.
 
 ### Added
 
+- The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
+  `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
+  and models from the file at the tag they run.
 - Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
   task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
   tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The
