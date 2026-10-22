@@ -275,3 +275,8 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
+  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.

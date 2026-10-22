@@ -130,6 +130,36 @@ class WorkflowRunRetentionTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aParentRunOutlivesItsRetentionUntilTheChildItsTaskRunStartedIsGone() {
+    WorkflowEntity workflow = savedWorkflow("parent-wf");
+    WorkflowRunEntity parent = finishedRun(workflow.getId(), 400);
+    String taskRunId =
+        savedTaskRun(
+                "run-child",
+                TaskType.runworkflow,
+                RunStatus.succeeded,
+                RunPhase.completed,
+                workflow.getId(),
+                parent.getId())
+            .getId();
+    WorkflowRunEntity child = finishedRun(workflow.getId(), 399);
+    child.setInitiatedByRef(taskRunId);
+    workflowRunRepository.save(child);
+
+    watcher.purgeExpiredRuns();
+
+    assertThat(workflowRunRepository.existsById(parent.getId()))
+        .as("the parent stays while the child its task run submitted exists")
+        .isTrue();
+    assertThat(workflowRunRepository.existsById(child.getId())).isFalse();
+
+    watcher.purgeExpiredRuns();
+
+    assertThat(workflowRunRepository.existsById(parent.getId())).isFalse();
+    assertThat(taskRunRepository.existsById(taskRunId)).isFalse();
+  }
+
+  @Test
   void anInFlightRunPastRetentionIsKept() {
     WorkflowEntity workflow = savedWorkflow("waiting-wf");
     WorkflowRunEntity waiting =
