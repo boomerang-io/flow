@@ -275,3 +275,8 @@ tag's release notes.
   enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
   poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
   rest of the poll is still handed out.
+
+### Fixed
+
+- An approval or manual task that a run cancel or a task timeout completed while its action was being created
+  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
