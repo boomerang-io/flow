@@ -5,12 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
@@ -20,6 +26,10 @@ import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 /**
  * The heartbeat endpoint (DispatcherControllerV1 PUT /{id}/heartbeat) renews the lease on the
@@ -29,6 +39,7 @@ class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
 
   @Autowired private DispatcherService dispatcherService;
   @Autowired private DispatcherRepository dispatcherRepository;
+  @Autowired private WebApplicationContext context;
 
   private String registerAgent(String name) {
     return dispatcherService.register(
@@ -50,18 +61,42 @@ class DispatcherHeartbeatTest extends AbstractEngineIntegrationTest {
 
   @Test
   void unknownAgentIsRejected() {
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> dispatcherService.heartbeat("no-such-agent", List.of("some-id")));
+    BoomerangException refused =
+        assertThrows(
+            BoomerangException.class,
+            () -> dispatcherService.heartbeat("no-such-agent", List.of("some-id")));
+
+    assertEquals(BoomerangError.DISPATCHER_NOT_REGISTERED.getReason(), refused.getReason());
   }
 
   @Test
   void aPollFromAnUnknownAgentIsRejected() {
     assertThrows(
-        IllegalArgumentException.class,
+        BoomerangException.class,
         () -> dispatcherService.getTaskQueue("no-such-agent", 1, null, null, null));
     assertThrows(
-        IllegalArgumentException.class, () -> dispatcherService.getWorkflowQueue("no-such-agent"));
+        BoomerangException.class, () -> dispatcherService.getWorkflowQueue("no-such-agent"));
+  }
+
+  // The wire: an unregistered id answers 404 with the standard error body, so a dispatcher can
+  // tell a lost registration from a failing engine and register again.
+  @Test
+  void aPollFromAnUnknownAgentAnswers404WithTheStandardErrorBody() throws Exception {
+    MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+
+    mockMvc
+        .perform(get("/dispatcher/v1/no-such-agent/tasks"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value(BoomerangError.DISPATCHER_NOT_REGISTERED.getCode()))
+        .andExpect(jsonPath("$.reason").value("DISPATCHER_NOT_REGISTERED"))
+        .andExpect(jsonPath("$.status").value("404 NOT_FOUND"));
+    mockMvc
+        .perform(
+            put("/dispatcher/v1/no-such-agent/heartbeat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"ids\":[\"some-id\"]}"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.reason").value("DISPATCHER_NOT_REGISTERED"));
   }
 
   // A type wildcard that matches none of the agent's types leaves nothing to claim, so the poll

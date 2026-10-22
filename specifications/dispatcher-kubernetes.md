@@ -208,10 +208,10 @@ one declaration and one binding named `workspace`), `/workspace` when it names n
 `size` is a Kubernetes quantity (`1Gi`, `500Mi`); a bare number means Gi and is written as `<n>Gi` wherever a
 workspace enters the engine, because a Kubernetes quantity would read it as bytes
 (`service-core/src/main/java/io/boomerang/common/model/WorkflowWorkspace.java:39-49`). On save, create and update
-alike, a blank size takes the `max.workspace.storage` quota value and a blank mount path becomes `/workspace`; a size
-above the quota is refused with `QUOTA_EXCEEDED` when quotas are enforced
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:458-484`), and the same check runs when a run
-is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:339-355`). A
+alike, a blank size takes the platform's `max.workspace.storage` value and a blank mount path becomes `/workspace`; a
+size above the owning workspace's storage quota (0 is unlimited) is refused with `QUOTA_EXCEEDED` when quotas are
+enforced (`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:459-483`), and the same check runs
+when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:356-372`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
 `ReadWriteMany`; `dispatcher/WorkspaceService.java:51-58`); a blank class leaves `storageClassName` unset, because an
 empty string disables dynamic provisioning (`kube/KubeServiceImpl.java:127-130`). After creating a claim the

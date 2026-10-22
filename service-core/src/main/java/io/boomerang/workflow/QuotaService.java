@@ -115,6 +115,23 @@ public class QuotaService {
     return setting(QUOTA_MAX_WORKSPACE_STORAGE);
   }
 
+  /**
+   * The ceiling on the shared-workspace size a Workflow may declare, in Gi: the workspace's own
+   * stored quota when it has one - a stored 0 is no ceiling ({@link Quotas#limited}) - else the
+   * platform default. The same limit a run submission is held to.
+   */
+  public Integer maxWorkspaceStorage(String workspace) {
+    Integer stored =
+        workspaceRepository
+            .findByNameIgnoreCase(workspace)
+            .map(WorkspaceEntity::getQuotas)
+            .map(Quotas::getMaxWorkspaceStorage)
+            .orElse(null);
+    return (stored != null)
+        ? stored
+        : Integer.valueOf(setting(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", ""));
+  }
+
   /** The platform's run-duration limit in minutes; throws when the setting is missing. */
   public long defaultMaxRunDuration() {
     return Long.parseLong(setting(QUOTA_MAX_WORKFLOWRUN_DURATION));

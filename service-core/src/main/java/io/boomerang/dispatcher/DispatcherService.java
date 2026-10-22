@@ -137,7 +137,7 @@ public class DispatcherService {
    */
   public String register(DispatcherRegistrationRequest request) {
     if (request == null || request.getHost() == null || request.getHost().isEmpty()) {
-      throw new IllegalArgumentException("A dispatcher registration needs a host.");
+      throw new BoomerangException(BoomerangError.DISPATCHER_INVALID_REQ);
     }
 
     // Idempotent registration: a dispatcher re-registering with the same name and host refreshes its
@@ -213,7 +213,7 @@ public class DispatcherService {
   public long heartbeat(String dispatcherId, List<String> ids) {
     if (!markConnected(dispatcherId)) {
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
-      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
+      throw new BoomerangException(BoomerangError.DISPATCHER_NOT_REGISTERED, dispatcherId);
     }
     if (ids == null || ids.isEmpty()) {
       return 0;
@@ -243,7 +243,7 @@ public class DispatcherService {
     // Validate the Dispatcher
     if (!markConnected(dispatcherId)) {
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
-      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
+      throw new BoomerangException(BoomerangError.DISPATCHER_NOT_REGISTERED, dispatcherId);
     }
     // TODO add in future filtering of workflows based on labels or a setting
 
@@ -345,7 +345,7 @@ public class DispatcherService {
     DispatcherEntity entity = connect(dispatcherId);
     if (entity == null) {
       LOGGER.error("Dispatcher {} not registered", dispatcherId);
-      throw new IllegalArgumentException("Dispatcher ID does not exist or is not registered.");
+      throw new BoomerangException(BoomerangError.DISPATCHER_NOT_REGISTERED, dispatcherId);
     }
     if (entity.getTaskTypes() != null && entity.getTaskTypes().isEmpty()) {
       LOGGER.warn("Dispatcher {} has no task types defined. Returning 204.", dispatcherId);

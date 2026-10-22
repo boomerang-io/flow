@@ -17,12 +17,17 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
+import io.boomerang.common.model.Task;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.core.audit.AuditEventEntity;
 import io.boomerang.core.audit.AuditEventRepository;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
+import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import java.util.Date;
@@ -51,6 +56,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   @Autowired private ActionRepository actionRepository;
   @Autowired private WorkflowScheduleRepository scheduleRepository;
   @Autowired private AuditEventRepository auditEventRepository;
+  @Autowired private WorkflowService workflowService;
 
   @Test
   void killedClaimantTaskIsRequeuedByOneSweep() {
@@ -264,6 +270,55 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
               assertEquals(RunStatus.timedout, after.getStatus());
               assertEquals(RunPhase.completed, after.getPhase());
             });
+  }
+
+  // A run with a workspace waits ready/pending for a dispatcher to provision it. With none, its
+  // own budget ends the wait, so it does not hold a concurrent-run slot for ever.
+  @Test
+  void unstartedRunWithAWorkspacePastDeadlineIsTimedOut() {
+    Task template = new Task();
+    template.setName("wf-deadline-unstarted-echo");
+    template.setType(TaskType.template);
+    template.getSpec().setImage("busybox:latest");
+    template.getSpec().setCommand(List.of("echo"));
+    Workflow workflow =
+        runnableWorkflow("wf-deadline-unstarted", taskService.create(template).getId());
+    WorkflowWorkspace workspace = new WorkflowWorkspace();
+    workspace.setSize("1Gi");
+    workflow.setWorkspace(workspace);
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTimeout(1L);
+
+    String wfRunId = workflowService.submit(workflowId, request, true).getId();
+
+    WorkflowRunEntity parked = workflowRunRepository.findById(wfRunId).orElseThrow();
+    assertEquals(RunStatus.ready, parked.getStatus());
+    assertEquals(RunPhase.pending, parked.getPhase());
+    assertNotNull(
+        parked.getTimeoutAt(), "the deadline runs from submit while no dispatcher claims");
+    // Two minutes waiting on a one-minute budget.
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(wfRunId)),
+        new Update().set("timeoutAt", new Date(System.currentTimeMillis() - 60_000)),
+        WorkflowRunEntity.class);
+
+    watcher.reapWorkflowTimeouts();
+
+    awaitEngine("the unclaimed run past its deadline to be timed out")
+        .untilAsserted(
+            () -> {
+              WorkflowRunEntity after = workflowRunRepository.findById(wfRunId).orElseThrow();
+              assertEquals(RunStatus.timedout, after.getStatus());
+              assertEquals(RunPhase.completed, after.getPhase());
+            });
+    WorkflowRunEntity after = workflowRunRepository.findById(wfRunId).orElseThrow();
+    assertNull(after.getTimeoutAt());
+    assertTrue(after.getClaim() == null || after.getClaim().getBy() == null);
+    assertTrue(
+        taskRunRepository.findByWorkflowRunRef(wfRunId).stream()
+            .noneMatch(t -> RunPhase.running.equals(t.getPhase())),
+        "a run that never started leaves no task run in flight");
   }
 
   @Test

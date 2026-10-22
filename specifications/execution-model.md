@@ -23,7 +23,7 @@ Each arrow is one guarded write:
 | admit: writes the resolved params, secret values sealed, and the labels; the spec keeps its references | `TaskRunService.java:362` | `WorkflowRunStateHelper.java:158` |
 | claim: a dispatcher takes it | `TaskRunService.java:317` | `WorkflowRunStateHelper.java:75`, only a run that declares a workspace (`WorkflowRunStateHelper.java:57-73`) |
 | release a stale claim | a requeue parks it (`TaskRunService.java:735`) and a termination claim releases it (`TaskRunService.java:236`) | back to `ready/pending`, fenced on `claim.seq` (`WorkflowRunStateHelper.java:125`) |
-| start: bakes `timeoutAt` | `TaskRunService.java:404` | `WorkflowRunStateHelper.java:171` |
+| start: bakes `timeoutAt` from the start time | `TaskRunService.java:404` | `WorkflowRunStateHelper.java:171`; a run with a workspace already carries one from its submit (`workflow/WorkflowRunService.java:798-802`) |
 | complete | `TaskRunService.java:543-595` | `WorkflowRunStateHelper.java:205` |
 
 An end the engine decides itself (a skip, an admission refusal, an engine-run task's result, a sleep or lock resume,
@@ -86,6 +86,12 @@ declares a workspace stays `ready/pending` until a dispatcher claims it, provisi
 first dispatcher to poll provisions and starts it (`engine/WorkflowRunStateHelper.java:57-73`). A `runworkflow` task
 submits its child with `start=true` (`engine/TaskExecutionService.java:1172-1173`).
 
+The wait for a dispatcher is bounded by the run's own budget: a run with a workspace submitted with `start=true` takes
+`timeoutAt` = creation + timeout at submit (`workflow/WorkflowRunService.java:798-802`), the timeout sweep takes
+`pending` runs as well as `running` ones (`engine/WorkflowRunStateHelper.java:299-315`), and the start re-stamps the
+deadline from the start time. A run no dispatcher claims within its budget ends `timedout` with no task run in flight
+and no claim; a parked run has no deadline, and a claimed one is `queued` and left to the stale-claim sweep below.
+
 A dispatcher that fails to provision, or dies holding the claim, tells the engine nothing; the run stays
 `ready/queued` and claimed (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:38-49`).
 The `recoverStaleProvisionClaims` sweep releases a claim older than `flow.watcher.provision-claim-grace-ms`
@@ -106,7 +112,7 @@ each instance keeps its own cursors.
 | Sweep | Selects | Does |
 | --- | --- | --- |
 | `reapTaskTimeouts` (`WorkflowWatcher.java:218`) | `queued`/`running` task runs past `timeoutAt` (`TaskRunService.java:607-618`) | requeue or abandon (`WorkflowWatcher.java:504-521`): a requeueable type with fewer than 3 requeues is requeued (`TaskRunService.java:735`); otherwise it is marked `timedout` with `DeadlineExceeded`, only while its deadline has passed (`TaskRunService.java:693-713`), and ended |
-| `reapWorkflowTimeouts` (`WorkflowWatcher.java:235`) | `running` runs past `timeoutAt`, neither paused nor waiting (`WorkflowRunStateHelper.java:298-313`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:906`) |
+| `reapWorkflowTimeouts` (`WorkflowWatcher.java:238`) | `pending` and `running` runs past `timeoutAt`, neither paused nor waiting (`WorkflowRunStateHelper.java:299-315`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:915`) |
 | `recoverStalledRuns` (`WorkflowWatcher.java:248`) | unpaused `running` runs started over 60 s ago (`WorkflowRunStateHelper.java:315-333`) with no task run in flight, checked for the page in one read (`TaskRunService.java:675-686`) | re-drives the graph advance (`TaskExecutionService.java:641-661`) |
 | `recoverForeachTasks` (`WorkflowWatcher.java:281`) | for-each parents in the `running` phase for over 60 s, whatever their status (`TaskRunService.java:462-485`) | ends a parent whose outcome is recorded; re-runs the idempotent fan-out (`TaskExecutionService.java:704-739`) for one with no item in flight (`TaskRunService.java:509-519`) in an unpaused run. A paused run is skipped, since the pause gate would refuse every item; resume re-runs the fan-out |
 | `resumeDueWaitingTasks` (`WorkflowWatcher.java:319`) | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:825-832`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:873-881`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1075-1100`) |
@@ -124,8 +130,9 @@ each instance keeps its own cursors.
 ## Timeouts and crash recovery
 
 Timeouts are deadlines: `timeoutAt` = start + budget in minutes + 5 s grace (`engine/RunTimeouts.java:15-19`,
-`engine/EngineConstants.java:13`), written by the task claim, the task start and the run start, and cleared by
-completion, requeue and abandon. There are no per-run timers; the sweeps are the only reaper. A crashed dispatcher,
+`engine/EngineConstants.java:13`), written by the task claim, the task start, the run start and, from the creation
+time, the submit of a run with a workspace (`workflow/WorkflowRunService.java:798-802`), and cleared by completion,
+requeue and abandon. There are no per-run timers; the sweeps are the only reaper. A crashed dispatcher,
 a dead executor thread or a lost pod is recovered by the same path: the lease lapses (90 s), the dispatcher goes stale
 (60 s) or `timeoutAt` passes, and the task is requeued or timed out. Both reap writes are fenced on the observed
 `claim.seq`, so a claim that races the reap wins (`engine/TaskRunService.java:897-901`).
@@ -137,12 +144,12 @@ are created), the task's declared timeout and the run's timeout, 0 meaning no ce
 is an optional cap on a single pod, not a budget every task may spend.
 
 When a timed-out task ends, its run times out too (`engine/TaskExecutionService.java:602-606`). A workflow timeout is
-two writes and one transition: `WorkflowRunService.timeout` marks a running run `timedout` on the caller's thread,
-publishing nothing and leaving the phase `running` (`workflow/WorkflowRunService.java:906-931`,
-`engine/WorkflowRunStateHelper.java:418-424`); the asynchronous `timeoutWorkflow` then completes it with one
+two writes and one transition: `WorkflowRunService.timeout` marks a pending or running run `timedout` on the caller's
+thread, publishing nothing and leaving the phase as it is (`workflow/WorkflowRunService.java:915-940`,
+`engine/WorkflowRunStateHelper.java:419-426`); the asynchronous `timeoutWorkflow` then completes it with one
 compare-and-set, and only that winner ends the run's task runs and starts an automatic retry
-(`engine/WorkflowExecutionService.java:212-260`). A lost completion leaves the run `timedout` in the `running` phase,
-and the timeout sweep drives it again once the run's own deadline has passed.
+(`engine/WorkflowExecutionService.java:213-266`). A lost completion leaves the run `timedout` in its phase, and the
+timeout sweep drives it again once the run's own deadline has passed.
 
 **The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting`: an
 approval, a manual task, an event wait, a run-workflow task waiting on its child, a sleep or an acquire-lock wait

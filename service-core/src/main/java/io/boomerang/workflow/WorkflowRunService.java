@@ -27,6 +27,7 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
+import io.boomerang.engine.RunTimeouts;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowExecutionService;
@@ -788,12 +789,20 @@ public class WorkflowRunService {
    * first, so the run stays ready/pending for its provisioning claim (findClaimableForProvision)
    * and the dispatcher starts it itself once provisioned (PUT .../workflowrun/{id}/start). Only a
    * run with no workspace - nothing to provision - starts on this call.
+   *
+   * A run waiting for its provisioning claim has no start to bake its deadline from, so it takes
+   * one from its creation: the timeout sweep bounds the wait for a dispatcher as it bounds the
+   * run, and the start re-stamps the deadline from the start time.
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
+    boolean hasWorkspace = wfRunEntity.getWorkspace() != null;
+    if (start && hasWorkspace) {
+      wfRunEntity.setTimeoutAt(
+          RunTimeouts.deadline(wfRunEntity.getCreationDate(), wfRunEntity.getTimeout()));
+    }
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    boolean hasWorkspace = wfRunEntity.getWorkspace() != null;
     if (start && hasWorkspace) {
       LOGGER.info(
           "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
