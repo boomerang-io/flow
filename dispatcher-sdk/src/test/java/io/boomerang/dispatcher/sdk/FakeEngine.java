@@ -34,6 +34,7 @@ class FakeEngine extends DispatcherClient {
   final Map<String, List<TaskRunEndRequest>> ends = new ConcurrentHashMap<>();
   final List<List<String>> heartbeats = new CopyOnWriteArrayList<>();
   final List<String> workflowStarts = new CopyOnWriteArrayList<>();
+  final List<String> taskPollIds = new CopyOnWriteArrayList<>();
   final List<Integer> taskPollLimits = new CopyOnWriteArrayList<>();
   final List<TaskFilter> taskPollFilters = new CopyOnWriteArrayList<>();
   final List<String> workflowPolls = new CopyOnWriteArrayList<>();
@@ -41,6 +42,8 @@ class FakeEngine extends DispatcherClient {
   final Deque<Supplier<String>> registerAnswers = new ArrayDeque<>();
   final Deque<Supplier<TaskRun>> startAnswers = new ArrayDeque<>();
   final Queue<Runnable> endAnswers = new ConcurrentLinkedQueue<>();
+  final Queue<RuntimeException> taskPollRefusals = new ConcurrentLinkedQueue<>();
+  final Queue<RuntimeException> heartbeatRefusals = new ConcurrentLinkedQueue<>();
   final Queue<List<TaskRun>> taskPolls = new ConcurrentLinkedQueue<>();
   final Queue<List<WorkflowRun>> workflowPollAnswers = new ConcurrentLinkedQueue<>();
   final Map<String, String> logs = new ConcurrentHashMap<>();
@@ -95,8 +98,13 @@ class FakeEngine extends DispatcherClient {
 
   @Override
   public List<TaskRun> pollTasks(String dispatcherId, Integer limit, TaskFilter filter) {
+    taskPollIds.add(dispatcherId);
     taskPollLimits.add(limit);
     taskPollFilters.add(filter);
+    RuntimeException refusal = taskPollRefusals.poll();
+    if (refusal != null) {
+      throw refusal;
+    }
     List<TaskRun> answer = taskPolls.poll();
     return (answer != null) ? answer : List.of();
   }
@@ -127,6 +135,10 @@ class FakeEngine extends DispatcherClient {
   @Override
   public void heartbeat(String dispatcherId, List<String> taskRunIds) {
     heartbeats.add(taskRunIds);
+    RuntimeException refusal = heartbeatRefusals.poll();
+    if (refusal != null) {
+      throw refusal;
+    }
   }
 
   @Override
