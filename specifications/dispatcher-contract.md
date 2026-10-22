@@ -336,10 +336,12 @@ environment variable on a Kubernetes pod, readable by anyone who can read the po
 
 ## Errors
 
-Every error is the engine's standard body (`CLAUDE.md`, "API errors") except two: the authentication filter's bare
-401, and a registration without a host or a poll or heartbeat for an unregistered dispatcher id, which throws an
-`IllegalArgumentException` no handler maps (`dispatcher/DispatcherService.java:139-141`, `:214-216`, `:244-246`,
-`:346-348`; `core/RestExceptionHandler.java:43`) and so answers 500 with the framework's default body.
+Every error is the engine's standard body (`CLAUDE.md`, "API errors") except one: the authentication filter's bare
+401. A registration without a host is `400 DISPATCHER_INVALID_REQ` (`dispatcher/DispatcherService.java:139-141`). A
+poll or heartbeat under an id the engine does not hold is `404 DISPATCHER_NOT_REGISTERED` (`:214-216`, `:244-246`,
+`:346-348`): nothing deletes a registration, so the id goes unknown when the database is reset under a running
+dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
+backoff; no other error re-registers (`sdk/Dispatcher.java:211-240`).
 
 ## SDK
 
@@ -351,7 +353,7 @@ fields ignored, an unknown enum value read as `unknown`), and its `DispatcherCon
 | Class | Gives the author |
 | --- | --- |
 | `DispatcherClient` | One method per route over the host's `RestClient`, keeping its proxy, certificates and timeouts; the token on engine calls only (`sdk/DispatcherClient.java:56-64`) |
-| `Dispatcher` | Registration retried with backoff until the engine answers (`sdk/Dispatcher.java:202-238`), with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool with the pacing above, `limit` set to the pool's free capacity on every poll, and optional filters, plus a `limit=0` poll while the pool is full (`sdk/Dispatcher.java:240-290`); the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s listing every task in flight; a stop that drains for 10 s (`sdk/Dispatcher.java:120-154`) |
+| `Dispatcher` | Registration retried with backoff until the engine answers (`sdk/Dispatcher.java:242-277`), and again when a poll or heartbeat is answered `404 DISPATCHER_NOT_REGISTERED` (`:211-240`), with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool with the pacing above, `limit` set to the pool's free capacity on every poll, and optional filters, plus a `limit=0` poll while the pool is full (`sdk/Dispatcher.java:240-290`); the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s listing every task in flight; a stop that drains for 10 s (`sdk/Dispatcher.java:120-154`) |
 | `TaskRunner` | The start answer honoured; the end retried with backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx other than 408 or 429, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end (`sdk/TaskRunner.java:162-226`) |
 | `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` with one of `StatusReason`'s reasons (`TaskFailure.exceededQuota`, `startTimeout` and `rateLimited` for the requeued ones); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`sdk/LogUploader.java:41-67`) |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim, the download verified against `sha256` (`sdk/ArtifactTransfer.java:83-131`) |
