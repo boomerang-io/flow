@@ -32,12 +32,8 @@ class InsightsControllerTests extends FlowTests {
 
   @Autowired private InsightsController insightsController;
 
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/InsightsControllerTests.java
-  @Mock
-  private UserIdentityService service;
-=======
-  @MockBean private IdentityService service;
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/InsightsControllerTests.java
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private io.boomerang.security.IdentityService service;
 
   @Test
   void testGetInsightsTeamAndWorkflowFiltered() {

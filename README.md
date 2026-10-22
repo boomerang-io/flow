@@ -1,12 +1,7 @@
 # Boomerang Flow Services Monorepo
 
-<<<<<<< HEAD
 
 The Boomerang Flow Workflow service provides the CRUD backing the front-end web tier, as well as the v1 APIs for direct consumption, and the executor for the workflow tasks.
-=======
-Welcome to the Boomerang Flow Services Monorepo! This repository is the powerhouse behind the Boomerang Flow Workflow
-services that enable the creation and execution of workflows as Directed Acyclic Graphs (DAGs).
->>>>>>> origin/main
 
 The [Flow service](./service-flow) provides v2 RESTful APIs for the CRUD operations backing the front-end and direct
 consumption with:

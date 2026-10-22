@@ -36,7 +36,7 @@ public class ExternalUserService {
   public ExternalUserProfile getUserProfileByEmail(String email) {
     try {
       UriComponents uriComponents =
-          UriComponentsBuilder.fromHttpUrl(externalUserUrl).queryParam("userEmail", email).build();
+          UriComponentsBuilder.fromUriString(externalUserUrl).queryParam("userEmail", email).build();
       HttpHeaders headers = buildHeaders(email);
 
       HttpEntity<String> requestUpdate = new HttpEntity<>("", headers);
@@ -55,7 +55,7 @@ public class ExternalUserService {
 
   public ExternalUserProfile getUserProfileById(String id) {
     UriComponents uriComponents =
-        UriComponentsBuilder.fromHttpUrl(externalUserUrl).queryParam("userId", id).build();
+        UriComponentsBuilder.fromUriString(externalUserUrl).queryParam("userId", id).build();
     HttpHeaders headers = buildHeaders(null);
 
     HttpEntity<String> requestUpdate = new HttpEntity<>("", headers);

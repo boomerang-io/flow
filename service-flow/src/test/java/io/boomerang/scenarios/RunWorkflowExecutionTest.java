@@ -47,12 +47,8 @@ import org.springframework.test.web.client.MockRestServiceServer;
 @Disabled
 public class RunWorkflowExecutionTest extends IntegrationTests {
 
-<<<<<<< HEAD:src/test/java/io/boomerang/scenarios/RunWorkflowExecutionTest.java
-  @Spy
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
   private TaskClient taskClient;
-=======
-  @SpyBean private TaskClient taskClient;
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/scenarios/RunWorkflowExecutionTest.java
 
   @Test
   public void testExecution() throws Exception {

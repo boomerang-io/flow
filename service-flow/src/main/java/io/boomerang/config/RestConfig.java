@@ -20,10 +20,6 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.HttpHost;
-<<<<<<< HEAD:src/main/java/io/boomerang/rest/config/RestConfig.java
-import org.apache.hc.core5.http.io.SocketConfig;
-=======
->>>>>>> origin/main:service-flow/src/main/java/io/boomerang/config/RestConfig.java
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.TrustStrategy;
 import org.apache.hc.core5.util.TimeValue;
@@ -72,24 +68,14 @@ public class RestConfig {
       throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException {
 
     final TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
-<<<<<<< HEAD:src/main/java/io/boomerang/rest/config/RestConfig.java
-        final SSLContext sslContext = SSLContextBuilder.create()
-=======
     final SSLContext sslContext = SSLContextBuilder.create()
->>>>>>> origin/main:service-flow/src/main/java/io/boomerang/config/RestConfig.java
         .loadTrustMaterial(null,acceptingTrustStrategy).build();
 
     final SSLConnectionSocketFactory csf = new SSLConnectionSocketFactory(sslContext);
     final CloseableHttpClient httpClient = HttpClients.custom()
-<<<<<<< HEAD:src/main/java/io/boomerang/rest/config/RestConfig.java
-    .setConnectionManager(
-        PoolingHttpClientConnectionManagerBuilder.create()
-            .setSSLSocketFactory(csf).build()).build();
-=======
         .setConnectionManager(
             PoolingHttpClientConnectionManagerBuilder.create()
                 .setSSLSocketFactory(csf).build()).build();
->>>>>>> origin/main:service-flow/src/main/java/io/boomerang/config/RestConfig.java
     final HttpComponentsClientHttpRequestFactory requestFactory =
         new HttpComponentsClientHttpRequestFactory();
     requestFactory.setHttpClient(httpClient);
@@ -136,27 +122,6 @@ public class RestConfig {
   }
   
   public CloseableHttpClient httpClient() {
-<<<<<<< HEAD:src/main/java/io/boomerang/rest/config/RestConfig.java
-  	ConnectionConfig connectionConfig = ConnectionConfig.custom()
-      .setConnectTimeout(Timeout.ofMinutes(CONNECTION_TIMEOUT))
-      .build();
-  	SocketConfig socketConfig = SocketConfig.custom()
-      .setSoTimeout(Timeout.ofMinutes(SOCKET_TIMEOUT))
-      .build();
-  	RequestConfig requestConfig = RequestConfig.custom()
-      .setConnectionRequestTimeout(Timeout.ofMinutes(REQUEST_TIMEOUT))
-      .build();
-  	PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
-  	connectionManager.setDefaultSocketConfig(socketConfig);
-  	connectionManager.setDefaultConnectionConfig(connectionConfig);
-  	connectionManager.setMaxTotal(MAX_TOTAL_CONNECTIONS);
-  	connectionManager.setDefaultMaxPerRoute(MAX_ROUTE_CONNECTIONS);
-  	return HttpClientBuilder.create()
-      .setConnectionManager(connectionManager)
-      .setDefaultRequestConfig(requestConfig)
-      .setKeepAliveStrategy(connectionKeepAliveStrategy())
-      .build();
-=======
 
     RequestConfig requestConfig = RequestConfig.custom().
         setConnectionRequestTimeout(Timeout.ofMinutes(CONNECTION_TIMEOUT)).build();
@@ -175,7 +140,6 @@ public class RestConfig {
         .setConnectTimeout(Timeout.ofMinutes(1))
         .build());
     return poolingConnectionManager;
->>>>>>> origin/main:service-flow/src/main/java/io/boomerang/config/RestConfig.java
   }
 
   public ConnectionKeepAliveStrategy connectionKeepAliveStrategy() {

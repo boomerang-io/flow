@@ -90,15 +90,10 @@ public class WorkflowControllerTests extends FlowTests {
   public void testGetWorkflowWithId() {
     WorkflowSummary summary = controller.getWorkflowWithId("5d1a188af6ca2c00014c4314");
     assertEquals("5d1a188af6ca2c00014c4314", summary.getId());
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-    Optional<WorkflowProperty> passProp = summary.getProperties().stream()
-        .filter(f -> FieldType.PASSWORD.value().equals(f.getType())).findAny();
-=======
     Optional<WorkflowAbstractParam> passProp =
         summary.getProperties().stream()
-            .filter(f -> FieldType.PASSWORD.value().equals(f.getLabel()))
+      .filter(f -> FieldType.PASSWORD.value().equals(f.getType()))
             .findAny();
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
     if (passProp.isPresent()) {
       assertNull(passProp.get().getDefaultValue());
     }
@@ -113,10 +108,6 @@ public class WorkflowControllerTests extends FlowTests {
     WorkflowSummary summary = controller.insertWorkflow(entity);
     assertEquals("TestWorkflow", summary.getName());
     assertEquals(WorkflowStatus.active, summary.getStatus());
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-
-=======
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
   }
 
   @Test
@@ -165,20 +156,12 @@ public class WorkflowControllerTests extends FlowTests {
     assertNotNull(entity.getProperties());
     assertEquals(1, entity.getProperties().size());
     assertEquals("testDescription", entity.getProperties().get(0).getDescription());
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-
-=======
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
   }
 
   @Test
   public void testUpdateWorkflowPasswordProperty() {
 
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-    WorkflowProperty passProperty = new WorkflowProperty();
-=======
     WorkflowAbstractParam passProperty = new WorkflowAbstractParam();
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
     passProperty.setKey("myPassword");
     passProperty.setDescription("testDescriptionPass");
     passProperty.setLabel("testLabelPass");
@@ -191,15 +174,10 @@ public class WorkflowControllerTests extends FlowTests {
 
     WorkflowEntity entity =
         controller.updateWorkflowProperties("5d1a188af6ca2c00014c4314", properties);
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-    Optional<WorkflowProperty> passProp = entity.getProperties().stream()
-        .filter(f -> FieldType.PASSWORD.value().equals(f.getType())).findAny();
-=======
     Optional<WorkflowAbstractParam> passProp =
         entity.getProperties().stream()
-            .filter(f -> FieldType.PASSWORD.value().equals(f.getLabel()))
+      .filter(f -> FieldType.PASSWORD.value().equals(f.getType()))
             .findAny();
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
     assertTrue(passProp.isPresent());
     assertNull(passProp.get().getDefaultValue());
     assertTrue(passProp.get().isHiddenValue());
@@ -267,29 +245,20 @@ public class WorkflowControllerTests extends FlowTests {
   @Test
   public void testDeleteWorkflow() {
     controller.deleteWorkflowWithId("5d1a188af6ca2c00014c4314");
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-    assertEquals(WorkflowStatus.deleted,
-=======
     assertEquals(
         WorkflowStatus.deleted,
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
         controller.getWorkflowWithId("5d1a188af6ca2c00014c4314").getStatus());
   }
 
   @Test
   public void testViewChangeLog() {
     List<RevisionResponse> response =
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-        controller.viewChangelog(getOptionalString("5d1a188af6ca2c00014c4314"),
-            getOptionalOrder(Direction.ASC), getOptionalString("sort"), 0, 2147483647);
-=======
         controller.viewChangelog(
             getOptionalString("5d1a188af6ca2c00014c4314"),
             getOptionalOrder(Direction.ASC),
             getOptionalString("sort"),
             0,
             2147483647);
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
     assertEquals(1, response.size());
     assertEquals(1, response.get(0).getVersion());
   }
@@ -309,12 +278,8 @@ public class WorkflowControllerTests extends FlowTests {
     assertNotNull(entity.getTriggers().getWebhook());
     assertEquals(false, entity.getTriggers().getScheduler().getEnable());
     assertEquals(true, entity.getTriggers().getWebhook().getEnable());
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-    assertEquals("A5DF2F840C0DFF496D516B4F75BD947C9BC44756A8AE8571FC45FCB064323641",
-=======
     assertEquals(
         "A5DF2F840C0DFF496D516B4F75BD947C9BC44756A8AE8571FC45FCB064323641",
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
         entity.getTriggers().getWebhook().getToken());
 
     entity.getTriggers().setScheduler(scheduler);
@@ -342,10 +307,6 @@ public class WorkflowControllerTests extends FlowTests {
 
     assertEquals("5d1a188af6ca2c00014c4314", updatedEntity.getId());
     assertEquals(false, updatedEntity.getTriggers().getScheduler().getEnable());
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-
-=======
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
   }
 
   @Test
@@ -386,10 +347,6 @@ public class WorkflowControllerTests extends FlowTests {
     assertEquals("params.hello", parameters.get(3));
     assertEquals("system.params.workflow-id", parameters.get(4));
     assertEquals("params.workflow-id", parameters.get(5));
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
-
-=======
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/WorkflowControllerTests.java
   }
 
   private void verifyTemplateVersions(FlowWorkflowRevision entity) {

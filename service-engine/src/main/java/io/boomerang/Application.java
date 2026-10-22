@@ -2,7 +2,7 @@ package io.boomerang;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import com.github.alturkovic.lock.mongo.configuration.EnableMongoDistributedLock;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;

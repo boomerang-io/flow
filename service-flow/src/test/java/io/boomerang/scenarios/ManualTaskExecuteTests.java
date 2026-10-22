@@ -39,12 +39,8 @@ import io.boomerang.v3.mongo.model.TokenScope;
 @WithUserDetails("mdroy@us.ibm.com")
 class ManualTaskExecuteTests extends IntegrationTests {
 
-<<<<<<< HEAD:src/test/java/io/boomerang/scenarios/ManualTaskExecuteTests.java
-  @Mock
-  private UserIdentityService service;
-=======
-  @MockBean private IdentityService service;
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/scenarios/ManualTaskExecuteTests.java
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private io.boomerang.security.IdentityService service;
 
   @Test
   void testExecution() throws Exception {

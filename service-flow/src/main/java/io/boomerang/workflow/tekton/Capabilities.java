@@ -1,4 +1,4 @@
-package io.boomerang.model.tekton;
+package io.boomerang.workflow.tekton;
 
 import java.util.ArrayList;
 import java.util.HashMap;

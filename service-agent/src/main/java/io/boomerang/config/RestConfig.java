@@ -24,7 +24,6 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -95,7 +94,7 @@ public class RestConfig {
   @Bean
   @Qualifier("internalRestTemplate")
   public RestTemplate internalRestTemplate() {
-    return new RestTemplateBuilder().requestFactory(this::clientHttpRequestFactory).build();
+    return new RestTemplate(clientHttpRequestFactory());
   }
 
   @Bean

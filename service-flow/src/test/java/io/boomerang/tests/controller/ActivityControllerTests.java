@@ -29,13 +29,8 @@ import org.springframework.security.test.context.support.WithUserDetails;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/ActivityControllerTests.java
-
-import io.boomerang.controller.ActivityController;
-=======
 import io.boomerang.workflow.ActivityController;
 import io.boomerang.core.entity.UserEntity;
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/ActivityControllerTests.java
 import io.boomerang.misc.FlowTests;
 import io.boomerang.workflow.model.FlowActivity;
 import io.boomerang.workflow.model.ListActivityResponse;
@@ -53,12 +48,8 @@ class ActivityControllerTests extends FlowTests {
 
   @Autowired private ActivityController activityController;
 
-<<<<<<< HEAD:src/test/java/io/boomerang/tests/controller/ActivityControllerTests.java
-  @Mock
-  private UserIdentityService service;
-=======
-  @MockBean private IdentityService service;
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/tests/controller/ActivityControllerTests.java
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  private io.boomerang.security.IdentityService service;
 
   @Test
   void testGetFlowActivity() {

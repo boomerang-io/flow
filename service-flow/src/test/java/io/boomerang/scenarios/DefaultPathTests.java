@@ -31,14 +31,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.client.MockRestServiceServer;
-<<<<<<< HEAD:src/test/java/io/boomerang/scenarios/DefaultPathTests.java
-import io.boomerang.Application;
-import io.boomerang.model.FlowActivity;
-import io.boomerang.model.teams.Action;
-import io.boomerang.mongo.model.TaskStatus;
-import io.boomerang.tests.IntegrationTests;
-=======
->>>>>>> origin/main:service-flow/src/test/java/io/boomerang/scenarios/DefaultPathTests.java
 
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @ExtendWith(SpringExtension.class)

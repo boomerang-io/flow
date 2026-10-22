@@ -65,7 +65,7 @@ public class WorkflowClient {
       String ref, WorkflowRunRequest request, Optional<Boolean> start) {
     try {
       UriComponentsBuilder urlBuilder =
-          UriComponentsBuilder.fromHttpUrl(workflowSubmitURL.replace("{ref}", ref));
+          UriComponentsBuilder.fromUriString(workflowSubmitURL.replace("{ref}", ref));
       if (start.isPresent()) {
         urlBuilder.queryParam("start", start.get());
       }
