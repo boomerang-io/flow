@@ -28,8 +28,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -66,6 +68,36 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     stageRef = template("foreach-stage-" + System.nanoTime(), null, "batches");
     locateRef = template("foreach-locate-" + System.nanoTime(), null, "found");
     reportRef = template("foreach-report-" + System.nanoTime(), "input", null);
+  }
+
+  /*
+   * An admitted task run matches a label query while it is in flight. Admission writes the labels
+   * through an update, which stores a dotted key as given unless it is escaped as an entity write
+   * is; a `ready` item then matched no label query until its end rewrote the labels.
+   */
+  @Test
+  void admittedItemsMatchTheRunsLabelsWhileInFlight() {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setLabels(new HashMap<>(Map.of("archie.io/analysis", "a-1")));
+    String runId =
+        workflowService
+            .submit(workflow("foreach-labelled", "$(tasks.stage.results.batches)"), request, true)
+            .getId();
+    endTask(runId, "stage", RunStatus.succeeded, "batches", "[\"a\",\"b\",\"c\"]");
+    List<TaskRunEntity> items = awaitItemsReady(awaitParentRunning(runId), 3);
+
+    // The stored form the label query matches (MongoConfiguration stores a dot as `#`).
+    Criteria label = Criteria.where("labels.archie#io/analysis").is("a-1");
+    Query byLabel = Query.query(label.and("workflowRunRef").is(runId));
+    List<String> matched =
+        mongoTemplate.find(byLabel, TaskRunEntity.class).stream()
+            .map(TaskRunEntity::getName)
+            .toList();
+    assertTrue(
+        matched.containsAll(List.of("locate[0]", "locate[1]", "locate[2]")), matched.toString());
+    TaskRunEntity item = taskRunRepository.findById(items.get(0).getId()).orElseThrow();
+    assertEquals(
+        "a-1", item.getLabels().get("archie.io/analysis"), "the label reads back under its own key");
   }
 
   @Test
