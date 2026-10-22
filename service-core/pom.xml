@@ -30,7 +30,7 @@
             <dependency>
                 <groupId>org.codehaus.plexus</groupId>
                 <artifactId>plexus-utils</artifactId>
-                <version>3.5.1</version>
+                <version>3.6.1</version>
             </dependency>
             <!-- github-client 0.3.2 brings commons-io 2.7, which has known CVEs. -->
             <dependency>
