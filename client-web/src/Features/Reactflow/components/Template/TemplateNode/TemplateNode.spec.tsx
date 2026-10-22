@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ReactFlow, useNodes } from "@xyflow/react";
 import { aiTask } from "ApiServer/fixtures";
 import { EditorContextProvider, WorkflowProvider } from "State/context";
@@ -95,6 +95,21 @@ describe("Template task node --- what Apply saves", () => {
     expect(saved.params.map((param) => param.name)).not.toContain("results");
     expect(saved.params).toContainEqual({ name: "model", value: "a-model" });
     expect(saved.results).toEqual([{ name: "summary", description: "kept" }]);
+  });
+
+  it("shows the task's description once in the modal header, on one line that carries the full text as its title", async () => {
+    await renderNode();
+
+    const description = task.description as string;
+    const dialog = await screen.findByRole("dialog", { hidden: true });
+    const subtitle = within(dialog).getByTitle(description);
+    expect(subtitle).toHaveTextContent(description);
+    expect(within(dialog).getAllByText(description)).toHaveLength(1);
+    // The name and the tabs follow the description inside the dialog, the name first.
+    const name = within(dialog).getByLabelText("Task name");
+    const tabList = within(dialog).getByRole("tablist", { hidden: true });
+    expect(subtitle.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(name.compareDocumentPosition(tabList) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("stores the results a custom or script form hands over as the node's results, never as a param", async () => {

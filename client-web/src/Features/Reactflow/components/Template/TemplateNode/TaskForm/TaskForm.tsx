@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, ModalBody, ModalFooter, Tag } from "@carbon/react";
+import { Button, ModalBody, ModalFooter } from "@carbon/react";
 import { DynamicFormik, ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import * as Yup from "yup";
 import { normaliseInputs } from "Utils/paramsHelper";
@@ -18,23 +18,6 @@ import {
 } from "../../../shared/inputs";
 import styles from "./TaskForm.module.scss";
 
-const ResultsDisplay = (props: { results: WorkflowNodeData["results"] }) => {
-  const { results } = props;
-  if (!results || results.length === 0) return null;
-  else
-    return (
-      <>
-        <hr className={styles.divider} />
-        <h2 className={styles.inputsTitle}>Result Parameters</h2>
-        <div className={styles.resultParamsContainer}>
-          {results.map((result) => (
-            <Tag type="teal">{`${result.name}:${result.description}`}</Tag>
-          ))}
-        </div>
-      </>
-    );
-};
-
 interface WorkflowTaskFormProps {
   additionalFormInputs?: Array<Partial<DataDrivenInput>>;
   availableParameters: Array<string>;
@@ -51,12 +34,11 @@ interface WorkflowTaskFormProps {
 function WorkflowTaskForm(props: WorkflowTaskFormProps) {
   const { availableParameters, additionalFormInputs = [], node, task, otherTaskNames } = props;
 
-  const taskResults = task.spec.results;
+  // The template's results are listed read-only on their own tab and are not a param; the node
+  // keeps its own.
   const handleOnSave = (values: Record<string, string>) => {
     props.node.name = values.taskName;
-    // The template's results are shown read-only and are not a param; the node keeps its own.
-    const { results: _results, ...inputs } = values;
-    props.onSave(inputs);
+    props.onSave(values);
     props.closeModal();
   };
 
@@ -65,7 +47,7 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
     {
       key: "taskName",
       name: "taskName",
-      label: "Task Name",
+      label: "Task name",
       placeholder: "Enter a task name",
       type: "custom",
       required: true,
@@ -73,13 +55,6 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
     },
     ...(task.spec.params ?? []),
     ...additionalFormInputs,
-    {
-      key: "results",
-      name: "results",
-      type: "custom",
-      results: taskResults,
-      customComponent: ResultsDisplay,
-    },
   ];
 
   // Normalise inputs to match Carbon's requirements
@@ -121,7 +96,12 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={props.nodeType} />
+            <TaskFormTabs
+              inputs={inputs}
+              formikProps={formikProps}
+              taskType={props.nodeType}
+              results={task.spec.results}
+            />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>

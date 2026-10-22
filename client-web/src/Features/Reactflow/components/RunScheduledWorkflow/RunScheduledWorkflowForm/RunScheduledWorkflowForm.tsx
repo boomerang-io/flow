@@ -156,7 +156,7 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
     {
       name: "taskName",
       id: "taskName",
-      label: "Task Name",
+      label: "Task name",
       placeholder: "Enter a task name",
       type: "custom",
       required: true,
@@ -279,7 +279,12 @@ function RunScheduledWorkflowForm(props: RunScheduledWorkflowFormProps) {
       {({ inputs, formikProps }) => (
         <ModalForm noValidate className={styles.container} onSubmit={formikProps.handleSubmit}>
           <ModalBody aria-label="inputs">
-            <TaskFormTabs inputs={inputs} formikProps={formikProps} taskType={NodeType.RunScheduledWorkflow} />
+            <TaskFormTabs
+              inputs={inputs}
+              formikProps={formikProps}
+              taskType={NodeType.RunScheduledWorkflow}
+              results={task.spec.results}
+            />
           </ModalBody>
           <ModalFooter>
             <Button kind="secondary" onClick={props.closeModal}>
