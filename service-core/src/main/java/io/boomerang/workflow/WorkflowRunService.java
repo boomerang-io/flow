@@ -25,6 +25,7 @@ import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.RunTimeouts;
@@ -111,6 +112,7 @@ public class WorkflowRunService {
   private final ObjectMapper objectMapper;
   private final QuotaService quotaService;
   private final ParamLayerService paramLayerService;
+  private final PollWakeups pollWakeups;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -128,7 +130,8 @@ public class WorkflowRunService {
       MongoTemplate mongoTemplate,
       ObjectMapper objectMapper,
       QuotaService quotaService,
-      ParamLayerService paramLayerService) {
+      ParamLayerService paramLayerService,
+      PollWakeups pollWakeups) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -145,6 +148,7 @@ public class WorkflowRunService {
     this.objectMapper = objectMapper;
     this.quotaService = quotaService;
     this.paramLayerService = paramLayerService;
+    this.pollWakeups = pollWakeups;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -807,6 +811,8 @@ public class WorkflowRunService {
       LOGGER.info(
           "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
           wfRunEntity.getId());
+      // The run is claimable for provisioning: every poll held on this instance looks again now.
+      pollWakeups.signal();
     }
     if (start && !hasWorkspace) {
       return this.start(wfRunEntity.getId(), Optional.empty());

@@ -105,7 +105,8 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
   /**
    * Every TaskRun in the run carries a 64 KB spec, and only the two reads of the ending TaskRun
    * itself return one whole: the completion returns what it publishes and the graph advance reads
-   * the graph's fields, so the end does not read back the run's specs, params and results.
+   * the graph's fields of the ended task's neighbourhood, so the end does not read back the run's
+   * specs, params and results.
    */
   @Test
   void anEndReadsNoOtherTaskRunWhole() {
@@ -145,16 +146,62 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
         "only the two reads of the ending TaskRun return a TaskRun whole");
   }
 
+  /**
+   * An end reads the ended task's dependants and what they depend on, not the run's graph: in a
+   * chain of 200 tasks the end of the first returns 4 task run documents - the ending task twice
+   * whole, then its one dependant and, with that dependant's dependencies, itself once more - where
+   * the graph read returned the run's 202, in a find and a getMore. Each dependant and each task it
+   * depends on is one more document, never the run's size.
+   */
+  @Test
+  void anEndOfA200TaskRunReadsItsDependantsNotTheGraph() {
+    Ready ready = readyTask("db-chain", 200);
+    String taskRunId = ready.taskRunId();
+    String dispatcherId = ready.dispatcherId();
+    assertTrue(
+        dispatcherService
+            .getTaskQueue(dispatcherId, 1, null, null, ready.label())
+            .getBody()
+            .stream()
+            .anyMatch(t -> taskRunId.equals(t.getId())),
+        "the poll claims the task");
+    TaskRunStartRequest start = new TaskRunStartRequest();
+    start.setDispatcherRef(dispatcherId);
+    taskRunService.start(taskRunId, Optional.of(start));
+    awaitEngine("the task to be running")
+        .until(() -> RunPhase.running.equals(current(taskRunId).getPhase()));
+
+    TaskRunEndRequest end = new TaskRunEndRequest();
+    end.setStatus(RunStatus.succeeded);
+    end.setDispatcherRef(dispatcherId);
+    Recorded<?> recorded =
+        DatabaseCommands.record(() -> taskRunService.end(taskRunId, Optional.of(end)));
+    awaitEndHandedOn(ready);
+
+    System.out.printf(
+        "DB DOCUMENTS | end of 1 of 200 | %d task_runs documents | %s%n",
+        recorded.documentsRead("task_runs"),
+        recorded.commands().stream().map(c -> c + " " + c.documents()).toList());
+    assertEquals(
+        4,
+        recorded.documentsRead("task_runs"),
+        "the end reads the ending task, its dependant and the dependant's dependencies");
+  }
+
   private static final int LARGE_FIELD_BYTES = 64 * 1024;
 
   private record Ready(String runId, String taskRunId, String dispatcherId, String label) {}
 
-  // A run of start -> work -> next -> end whose first task is ready for a dispatcher, with the
-  // poll filter and the run's parameter layers already cached, so every recording is of the warm
-  // path a dispatcher sees in steady state. Two tasks, so the measured end is mid-graph: ending the
-  // last task would also complete the run on the request thread, and what that does depends on
-  // state other tests leave behind.
   private Ready readyTask(String name) {
+    return readyTask(name, 2);
+  }
+
+  // A run of start -> work -> next -> ... -> end, a chain of the given number of tasks, whose first
+  // task is ready for a dispatcher, with the poll filter and the run's parameter layers already
+  // cached, so every recording is of the warm path a dispatcher sees in steady state. At least two
+  // tasks, so the measured end is mid-graph: ending the last task would also complete the run on
+  // the request thread, and what that does depends on state other tests leave behind.
+  private Ready readyTask(String name, int tasks) {
     setFeatureSetting("workspaceQuotas", false);
     seedGlobalTask(TASK_SLUG);
     WorkspaceRequest workspace = new WorkspaceRequest();
@@ -163,13 +210,15 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
     workspaceService.create(workspace);
     Workflow workflow = new Workflow();
     workflow.setName(name + "-wf");
-    workflow.setTasks(
-        new LinkedList<>(
-            List.of(
-                node("start", TaskType.start, null, null),
-                node("work", TaskType.template, TASK_SLUG, "start"),
-                node("next", TaskType.template, TASK_SLUG, "work"),
-                node("end", TaskType.end, null, "next"))));
+    LinkedList<WorkflowTask> chain = new LinkedList<>();
+    chain.add(node("start", TaskType.start, null, null));
+    chain.add(node("work", TaskType.template, TASK_SLUG, "start"));
+    chain.add(node("next", TaskType.template, TASK_SLUG, "work"));
+    for (int i = 3; i <= tasks; i++) {
+      chain.add(node("task" + i, TaskType.template, TASK_SLUG, chain.getLast().getName()));
+    }
+    chain.add(node("end", TaskType.end, null, chain.getLast().getName()));
+    workflow.setTasks(chain);
     workflow.getLabels().put(name, "yes");
     workflowService.create(name + "-ws", workflow);
     WorkflowSubmitRequest submit = new WorkflowSubmitRequest();
@@ -247,6 +296,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
               "find workflow_runs",
               "findAndModify task_runs",
               "find workflow_runs",
+              "find task_runs",
               "find task_runs",
               "aggregate task_runs"));
 }
