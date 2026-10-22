@@ -125,7 +125,8 @@ tag's release notes.
   and models from the file at the tag they run.
 - `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, read,
   cancel and retry workflow runs, query runs and task runs by label, and read Insights, with the server's error
-  carried as `FlowApiException`. It depends on `spring-web` and Jackson only (`flow-sdk/README.md`).
+  carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is published to GitHub
+  Packages by every product tag beside `dispatcher-sdk`, at the tag's version (`flow-sdk/README.md`).
 - Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
   task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
   tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The

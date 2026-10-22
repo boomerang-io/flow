@@ -95,12 +95,16 @@ jobs:
           job-name: deploy-${{ matrix.name }}
   publish-sdk:
     runs-on: ubuntu-latest
-    # The dispatcher SDK is the only library published: to this repository's GitHub Packages Maven
-    # registry, versioned by the product tag. A manual run publishes nothing.
+    # The two libraries, the dispatcher SDK and the Flow SDK, are published to this repository's
+    # GitHub Packages Maven registry, each versioned by the product tag: a library's version is the
+    # server version it was built against. A manual run publishes nothing.
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        module: [dispatcher-sdk, flow-sdk]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,17 +114,17 @@ jobs:
           java-version: '25'
           distribution: 'temurin'
           cache: 'maven'
-          server-id: github # distributionManagement/repository/id in dispatcher-sdk/pom.xml
+          server-id: github # distributionManagement/repository/id in each library's pom.xml
           settings-path: ${{ github.workspace }}
-      - name: Set the SDK version from the tag
+      - name: Set the library's version from the tag
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          mvn --batch-mode -f dispatcher-sdk/pom.xml org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+          mvn --batch-mode -f ${{ matrix.module }}/pom.xml org.codehaus.mojo:versions-maven-plugin:2.21.0:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
       - name: Publish to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          mvn --batch-mode -f dispatcher-sdk/pom.xml -P release deploy -s settings.xml
+          mvn --batch-mode -f ${{ matrix.module }}/pom.xml -P release deploy -s settings.xml
       - name: Slack
         if: ${{ always() }}
         uses: ./.github/actions/slack
