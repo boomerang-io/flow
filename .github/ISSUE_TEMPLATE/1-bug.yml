@@ -1,0 +1,50 @@
+name: "🐛 Bug"
+description: Something is not working as expected.
+type: Bug
+labels: [needs-triage]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: A short, human description in your own words. Screenshots are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: >
+        Steps, or an exported workflow JSON that shows it. Mention how you run Flow if it matters
+        (standalone or engine mode; Tekton or kube-jobs dispatcher; docker-compose). Issues without a way
+        to reproduce get `needs-info` and are closed after 14 days.
+      placeholder: |
+        1. Create a workflow with …
+        2. Run it with …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The Flow version you are running (Settings → About, or the image tag).
+      placeholder: 5.0.0-beta.2
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does this happen?
+      options:
+        - Web UI
+        - API & engine
+        - Task execution (dispatcher)
+        - Install & upgrade (loader, compose, charts)
+        - Not sure
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log lines or an error response. Redact tokens and secrets.
+      render: shell

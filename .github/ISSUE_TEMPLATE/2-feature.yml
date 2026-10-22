@@ -1,0 +1,25 @@
+name: "✨ Feature"
+description: Suggest a change or something new.
+type: Feature
+labels: [needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do? Describe the situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: If you have one. Alternatives you considered are useful too.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A bullet list of what would make this done. It helps maintainers and agents scope the work.
+      placeholder: |
+        - [ ] …
+        - [ ] …
