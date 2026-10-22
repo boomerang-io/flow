@@ -171,6 +171,12 @@ tag's release notes.
 - `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
   constants are the same values.
 
+### Fixed
+
+- A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
+  ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher
+  starts it.
+
 ### Changed
 
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
