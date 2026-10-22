@@ -28,6 +28,20 @@ class TaskRunsTest {
   }
 
   @Test
+  void logReadsTheStoredLogAsTextByTheTaskRunsIdAlone() {
+    stub.server
+        .expect(requestTo(StubServer.API + "/taskrun/t1/log"))
+        .andExpect(method(HttpMethod.GET))
+        .andRespond(withSuccess("line one\nline two\n", MediaType.TEXT_PLAIN));
+    stub.server
+        .expect(requestTo(StubServer.API + "/taskrun/t2/log"))
+        .andRespond(withSuccess());
+
+    assertThat(stub.flow.taskRuns("ws").log("t1")).isEqualTo("line one\nline two\n");
+    assertThat(stub.flow.taskRuns("ws").log("t2")).isEmpty();
+  }
+
+  @Test
   void queryMapsEveryFilterToTheRoutesParameters() {
     stub.server
         .expect(

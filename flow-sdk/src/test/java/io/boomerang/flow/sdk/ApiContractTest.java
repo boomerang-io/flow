@@ -2,6 +2,10 @@ package io.boomerang.flow.sdk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.boomerang.flow.sdk.model.Action;
+import io.boomerang.flow.sdk.model.ActionStatus;
+import io.boomerang.flow.sdk.model.ActionType;
+import io.boomerang.flow.sdk.model.Actioner;
 import io.boomerang.flow.sdk.model.RetryFrom;
 import io.boomerang.flow.sdk.model.RunParam;
 import io.boomerang.flow.sdk.model.RunPhase;
@@ -78,6 +82,10 @@ class ApiContractTest {
     MODELLED.put("WorkflowRunCount", type(WorkflowRunCount.class));
     MODELLED.put("PageWorkflowRun", Runs.RUN_PAGE);
     MODELLED.put("PageTaskRun", TaskRuns.TASK_RUN_PAGE);
+    MODELLED.put("Action", type(Action.class));
+    MODELLED.put("Actioner", type(Actioner.class));
+    MODELLED.put("ActionRequest", type(ActionDecision.class));
+    MODELLED.put("PageAction", Actions.ACTION_PAGE);
     MODELLED.put("WorkflowRunInsightSummary", type(WorkflowRunInsightSummary.class));
     MODELLED.put("Totals", type(WorkflowRunInsightSummary.Totals.class));
     MODELLED.put("Day", type(WorkflowRunInsightSummary.Day.class));
@@ -97,12 +105,13 @@ class ApiContractTest {
       Map.of(
           // They restate the request's paging and sort, which the caller already holds.
           "PageWorkflowRun", Set.of("pageable", "sort"),
-          "PageTaskRun", Set.of("pageable", "sort"));
+          "PageTaskRun", Set.of("pageable", "sort"),
+          "PageAction", Set.of("pageable", "sort"));
 
   // Bodies the SDK writes and never reads: the properties and enums are checked here, and the
   // JSON each builder writes is pinned in RunsTest.
   private static final Set<String> WRITTEN_ONLY =
-      Set.of("WorkflowSubmitRequest", "WorkflowRunRetryRequest");
+      Set.of("WorkflowSubmitRequest", "WorkflowRunRetryRequest", "ActionRequest");
 
   // Each query route the SDK calls, with a builder carrying every filter it offers.
   private static final Map<String, Params> QUERY_ROUTES = new LinkedHashMap<>();
@@ -136,6 +145,18 @@ class ApiContractTest {
             .to(SAMPLE_INSTANT)
             .page(0, 1)
             .order(Order.ASC)
+            .params());
+    QUERY_ROUTES.put(
+        WORKSPACE + "/action/query",
+        ActionQuery.all()
+            .types(ActionType.approval)
+            .statuses(ActionStatus.submitted)
+            .workflows("w")
+            .from(SAMPLE_INSTANT)
+            .to(SAMPLE_INSTANT)
+            .page(0, 1)
+            .order(Order.ASC)
+            .sort("creationDate")
             .params());
     InsightsQuery insights =
         InsightsQuery.period(SAMPLE_INSTANT, SAMPLE_INSTANT)
@@ -341,16 +362,23 @@ class ApiContractTest {
 
     flow.runs("ws").submit("wf", SubmitRequest.empty());
     flow.runs("ws").get("r");
+    flow.runs("ws").start("r");
+    flow.runs("ws").pause("r");
+    flow.runs("ws").resume("r");
     flow.runs("ws").cancel("r");
     flow.runs("ws").retry("r", Retry.all());
     flow.runs("ws").query(RunQuery.all());
     flow.runs("ws").count(RunQuery.all());
     flow.taskRuns("ws").query(TaskRunQuery.all());
+    flow.taskRuns("ws").log("t");
+    flow.actions("ws").get("a");
+    flow.actions("ws").query(ActionQuery.all());
+    flow.actions("ws").decide(ActionDecision.approve("a", null));
     flow.insights("ws").summary(InsightsQuery.all());
     flow.insights("ws").tasks(InsightsQuery.all());
     flow.insights("ws").workflow("wf", InsightsQuery.all());
 
-    assertThat(calls).hasSize(10);
+    assertThat(calls).hasSize(17);
     List<String> routes = routes();
     calls.forEach(
         call ->

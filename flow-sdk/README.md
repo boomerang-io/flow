@@ -42,8 +42,11 @@ WorkflowRun run =
 
 run = runs.get(run.id());                                       // with its task runs
 if (run.status() == RunStatus.failed) {
-  run = runs.retry(run.id(), Retry.failed().param("depth", 5)); // a new run; Retry.all(), Retry.nodes("review")
+  run = runs.retry(run.id(), Retry.failed().param("depth", 5)); // a new run, parked at ready
+  runs.start(run.id());
 }
+runs.pause(run.id());                                           // no further task admitted
+runs.resume(run.id());
 runs.cancel(run.id());
 
 Page<WorkflowRun> page =
@@ -53,6 +56,14 @@ page.next();                                                    // Optional<Page
 runs.count(RunQuery.all().label("team.io/batch", "b-7"));       // by status
 
 flow.taskRuns("my-workspace").query(TaskRunQuery.all().label("team.io/batch", "b-7").tasks("review").foreach(false)); // foreach(false) leaves out for-each parents
+flow.taskRuns("my-workspace").log(taskRunId);                   // the stored log as text
+
+Actions actions = flow.actions("my-workspace");                 // what a run waits on
+Page<Action> waiting =
+    actions.query(ActionQuery.all().types(ActionType.approval).statuses(ActionStatus.submitted).workflows(workflowId));
+actions.decide(ActionDecision.approve(waiting.content().getFirst().id(), "reviewed"));
+
+flow.health();                                                  // "UP", or "DOWN"
 
 Insights insights = flow.insights("my-workspace");
 insights.summary(InsightsQuery.period(t0, t1));
@@ -75,5 +86,6 @@ server added after this library was built reads as `unknown`.
 
 ## Not in this release
 
-Workflow authoring, tokens, settings, schedules, the callback and webhook routes, and log streaming. Each is
-added behind the same contract test when an embedder needs it.
+Workflow authoring, tokens, settings, schedules, quotas, the callback and webhook routes. The library is the
+runtime API; an embedder provisions with its own client. Each is added behind the same contract test when an
+embedder needs it.

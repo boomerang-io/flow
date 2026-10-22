@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.sun.net.httpserver.HttpServer;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -52,6 +54,35 @@ class FlowTest {
     } finally {
       server.stop(0);
     }
+  }
+
+  @Test
+  void healthReadsTheProbeOutsideTheApiPathWhateverItsStatus() {
+    RestClient.Builder builder = RestClient.builder();
+    MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    server
+        .expect(requestTo("https://flow.example.com/health"))
+        .andRespond(withSuccess("{\"status\":\"UP\"}", MediaType.APPLICATION_JSON));
+    server
+        .expect(requestTo("https://flow.example.com/health"))
+        .andRespond(
+            withStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"status\":\"DOWN\"}"));
+    server
+        .expect(requestTo("https://flow.example.com/health"))
+        .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+    Flow flow =
+        Flow.builder()
+            .baseUrl("https://flow.example.com/")
+            .token("tok-3")
+            .restClient(builder.build())
+            .build();
+
+    assertThat(flow.health()).isEqualTo("UP");
+    assertThat(flow.health()).isEqualTo("DOWN");
+    assertThat(flow.health()).isEqualTo("DOWN");
+    server.verify();
   }
 
   @Test

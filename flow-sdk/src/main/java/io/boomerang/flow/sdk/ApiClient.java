@@ -11,9 +11,11 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.util.Assert;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The HTTP layer under every resource: the base path, the bearer, the SDK's JSON, and the
@@ -28,10 +30,12 @@ final class ApiClient {
   private static final Duration READ_TIMEOUT = Duration.ofSeconds(60);
 
   private final RestClient http;
+  private final String origin;
 
   ApiClient(RestClient http, String baseUrl, String token) {
     Assert.notNull(http, "http must not be null");
     Assert.hasText(baseUrl, "baseUrl must not be empty");
+    this.origin = trimTrailingSlash(baseUrl);
     this.http =
         http.mutate()
             .baseUrl(trimTrailingSlash(baseUrl) + BASE_PATH)
@@ -75,6 +79,43 @@ final class ApiClient {
             .contentType(MediaType.APPLICATION_JSON)
             .body(WireFormat.JSON.writeValueAsBytes(body)),
         type);
+  }
+
+  /** A put with no body, for a route that acts on its path alone. */
+  <T> T put(String path, Map<String, Object> pathVariables, JavaType type) {
+    return read(http.put().uri(builder -> uri(builder, path, pathVariables, Params.none())), type);
+  }
+
+  /** A route's body as text; empty when the server sent none. */
+  String text(String path, Map<String, Object> pathVariables) {
+    String body =
+        http.get()
+            .uri(builder -> uri(builder, path, pathVariables, Params.none()))
+            .accept(MediaType.TEXT_PLAIN, MediaType.ALL)
+            .retrieve()
+            .body(String.class);
+    return (body != null) ? body : "";
+  }
+
+  /**
+   * The server's health probe, outside the API path: its actuator {@code status}, {@code UP} or
+   * {@code DOWN}, whatever the HTTP status - a probe answers 503 with a body when it is down.
+   */
+  String health() {
+    return http.get()
+        .uri(URI.create(origin + "/health"))
+        .accept(MediaType.APPLICATION_JSON)
+        .exchange(
+            (request, response) -> {
+              byte[] body = StreamUtils.copyToByteArray(response.getBody());
+              if (body.length > 0) {
+                JsonNode status = WireFormat.JSON.readTree(body).get("status");
+                if (status != null && status.isString()) {
+                  return status.asString();
+                }
+              }
+              return response.getStatusCode().is2xxSuccessful() ? "UP" : "DOWN";
+            });
   }
 
   <T> T delete(String path, Map<String, Object> pathVariables, JavaType type) {

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpRequest;
 import tools.jackson.databind.JsonNode;
 
 /** Each workflow-run route's method, path, query, body and token, and how each answer is read. */
@@ -116,6 +117,25 @@ class RunsTest {
             withSuccess("{\"id\":\"r1\",\"status\":\"running\"}", MediaType.APPLICATION_JSON));
 
     assertThat(runs.get("r1", false).tasks()).isNull();
+  }
+
+  @Test
+  void startPausesAndResumesPutTheRouteWithNoBodyAndReadTheRunAfter() {
+    for (String route : List.of("start", "pause", "resume")) {
+      stub.server
+          .expect(requestTo(RUNS + "/r1/" + route))
+          .andExpect(method(HttpMethod.PUT))
+          .andExpect(header("Authorization", "Bearer secret"))
+          .andExpect(
+              request ->
+                  assertThat(((MockClientHttpRequest) request).getBodyAsBytes()).isEmpty())
+          .andRespond(
+              withSuccess("{\"id\":\"r1\",\"status\":\"running\"}", MediaType.APPLICATION_JSON));
+    }
+
+    assertThat(runs.start("r1").status()).isEqualTo(RunStatus.running);
+    assertThat(runs.pause("r1").id()).isEqualTo("r1");
+    assertThat(runs.resume("r1").id()).isEqualTo("r1");
   }
 
   @Test

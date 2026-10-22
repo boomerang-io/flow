@@ -56,6 +56,36 @@ public final class Runs {
         RUN);
   }
 
+  /**
+   * {@code PUT /workflowrun/{id}/start}: start a run parked at {@code ready}, submitted with
+   * {@code start} false or created by a retry; the answer is its state after.
+   */
+  public WorkflowRun start(String id) {
+    return api.put(
+        "/workspace/{workspace}/workflowrun/{id}/start",
+        Map.of("workspace", workspace, "id", id),
+        RUN);
+  }
+
+  /**
+   * {@code PUT /workflowrun/{id}/pause}: ask the run to pause; tasks already running finish, and
+   * no further task is admitted until {@link #resume}. The answer is its state after.
+   */
+  public WorkflowRun pause(String id) {
+    return api.put(
+        "/workspace/{workspace}/workflowrun/{id}/pause",
+        Map.of("workspace", workspace, "id", id),
+        RUN);
+  }
+
+  /** {@code PUT /workflowrun/{id}/resume}: lift a pause; the answer is the run's state after. */
+  public WorkflowRun resume(String id) {
+    return api.put(
+        "/workspace/{workspace}/workflowrun/{id}/resume",
+        Map.of("workspace", workspace, "id", id),
+        RUN);
+  }
+
   /** {@code DELETE /workflowrun/{id}/cancel}: cancel the run; the answer is its state after. */
   public WorkflowRun cancel(String id) {
     return api.delete(
