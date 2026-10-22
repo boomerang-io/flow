@@ -278,6 +278,12 @@ tag's release notes.
 
 ### Fixed
 
+- Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
+  `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
+  Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
+  the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
+  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.
 - A dispatcher whose registration the engine no longer holds (a database reset under a running dispatcher) is
   answered `404 DISPATCHER_NOT_REGISTERED` on its polls and heartbeats instead of a 500, and the dispatcher SDK
   registers again and carries on under the new id instead of failing every poll until restarted. A registration
