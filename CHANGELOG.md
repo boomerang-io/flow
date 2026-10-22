@@ -360,3 +360,6 @@ tag's release notes.
 - A dispatcher SDK poller no longer ends when its pool's free-slot supplier throws: the throw is logged, read as not
   due, and the poller asks again after its spacing. Before, every pool whose supplier failed during a store outage
   stopped claiming until the process restarted, while the dispatcher went on reporting itself running.
+- A dispatcher SDK task terminated while the engine was answering its start no longer runs: the runner registers the
+  task's context before the start call, so a terminate order arriving in that window is seen and the handler is
+  never called. Before, the task ran to completion and its end was refused.
