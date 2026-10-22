@@ -36,8 +36,10 @@ test("edit a template task's param, apply and save a version", async ({ page, re
 
   const taskModal = page.getByRole("dialog").filter({ hasText: "Edit Read File to Parameter" });
   await expect(taskModal).toBeVisible();
-  // The template's declared result is shown read-only.
-  await expect(taskModal.getByRole("button", { name: /^content:/ })).toBeVisible();
+  // The template's declared result is listed read-only on the Results tab.
+  await taskModal.getByRole("tab", { name: "Results" }).click();
+  await expect(taskModal.getByRole("list", { name: "Results" }).getByText("content", { exact: true })).toBeVisible();
+  await taskModal.getByRole("tab", { name: "Parameters" }).click();
   await taskModal.getByRole("textbox", { name: "File Path" }).fill("/workspace/after.txt");
   await taskModal.getByRole("button", { name: "Apply" }).click();
   await expect(taskModal).toBeHidden();
