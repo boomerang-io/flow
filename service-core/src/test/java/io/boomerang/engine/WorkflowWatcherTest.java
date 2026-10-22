@@ -30,6 +30,7 @@ import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -238,6 +239,16 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
             wfRun.getId());
     end.setDependencies(List.of(dependencyOn("work")));
     taskRunRepository.save(end);
+
+    // One sighting is what a run between a task's end and the next admission looks like: no
+    // advance until a later sweep finds the run empty again.
+    watcher.recoverStalledRuns();
+    awaitEngine("no advance on a single sighting")
+        .during(Duration.ofSeconds(2))
+        .until(
+            () ->
+                RunPhase.pending.equals(
+                    taskRunRepository.findById(end.getId()).orElseThrow().getPhase()));
 
     watcher.recoverStalledRuns();
 

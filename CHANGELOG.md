@@ -310,3 +310,6 @@ tag's release notes.
   without a host is `400 DISPATCHER_INVALID_REQ`.
 - A for-each item that ends with a declared result of no value leaves an empty slot in the parent's combined array;
   the parent used to throw on that item's end and on every recovery sweep, stranding the run as running.
+- The stalled-run recovery re-advances a run only after two consecutive sweeps find no task in flight; a run caught
+  in the instant between a task's end and the next admission was re-advanced on one sighting, with a "Task Status
+  invalid" error for every completed task.
