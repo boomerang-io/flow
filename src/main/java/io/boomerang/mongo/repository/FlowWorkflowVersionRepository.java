@@ -30,7 +30,7 @@ public interface FlowWorkflowVersionRepository
 	      "{'$sort':{'workFlowId': -1, version: -1}}",
 	      "{'$group': { _id: '$workFlowId', 'count': { $sum: 1 }}}"
 	})
-  @Meta(allowDiskUse = true)
+  @Meta(allowDiskUse = "true")
   List<WorkFlowRevisionCount> findWorkFlowVersionCounts(List<String> workflowIds);
 
   @Aggregation(pipeline = {
@@ -38,7 +38,7 @@ public interface FlowWorkflowVersionRepository
 	      "{'$sort':{'workFlowId': -1, version: -1}}",
 	      "{'$group': { _id: '$workFlowId', 'count': { $sum: 1 }, 'latestVersion': {$first: '$$ROOT'}}}"
 	})
-  @Meta(allowDiskUse = true)
+  @Meta(allowDiskUse = "true")
   List<WorkFlowRevisionCount> findWorkFlowVersionCountsAndLatestVersion(List<String> workflowIds);
 
 }

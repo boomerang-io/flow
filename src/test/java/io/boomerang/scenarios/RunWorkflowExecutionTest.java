@@ -22,7 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.mockito.Spy;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -46,7 +46,7 @@ import io.boomerang.tests.IntegrationTests;
 @Disabled
 public class RunWorkflowExecutionTest extends IntegrationTests {
 
-  @SpyBean
+  @Spy
   private TaskClient taskClient;
 
   @Test
