@@ -69,7 +69,28 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
   @BeforeEach
   void graphAllowsTheTask() {
     doReturn(true).when(dagUtility).canRunTask(anyList(), any());
+    cancelTaskRunsEarlierTestsLeftClaimable();
     wfRun = savedWorkflowRun("poll-wake-wf", RunStatus.running, RunPhase.running);
+  }
+
+  // A template task run an earlier test left claimable, or claimed and finished, would answer an
+  // unfiltered poll at once and the assertions on when a poll returns would measure that leftover
+  // instead; they end cancelled with no claim, which neither the claim page nor the termination
+  // pages pick up.
+  private void cancelTaskRunsEarlierTestsLeftClaimable() {
+    mongoTemplate.updateMulti(
+        Query.query(
+            new Criteria()
+                .orOperator(
+                    Criteria.where("status").is(RunStatus.ready).and("phase").is(RunPhase.pending),
+                    Criteria.where("claim.by").exists(true))),
+        new Update()
+            .set("status", RunStatus.cancelled)
+            .set("phase", RunPhase.completed)
+            .unset("claim.by")
+            .unset("claim.at")
+            .unset("claim.leaseExpiresAt"),
+        TaskRunEntity.class);
   }
 
   private String registerDispatcher(String name) {
