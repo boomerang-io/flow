@@ -387,9 +387,10 @@ public class DispatcherService {
     // and filter, not on every wake and not again on a poll re-opened right after a claim.
     ResidueKey residueKey = new ResidueKey(dispatcherId, filter);
     residueDue.values().removeIf(due -> due <= System.currentTimeMillis());
-    // Registered before the first look, so an admission that lands during a look is kept for the
-    // wait that follows; only an admission this filter can claim wakes the poll.
-    PollWakeups.TaskWaiter waiter = pollWakeups.register(filter);
+    // Registered before the first look, so a signal that lands during a look is kept for the wait
+    // that follows; only an admission this filter can claim, or a termination of a task this
+    // dispatcher holds under it, wakes the poll.
+    PollWakeups.TaskWaiter waiter = pollWakeups.register(dispatcherId, filter);
     try {
       return taskPoll(dispatcherId, filter, executionPage, residueKey, waiter, endTime);
     } finally {
@@ -406,7 +407,9 @@ public class DispatcherService {
       Instant endTime) {
     while (Instant.now().isBefore(endTime)) {
       long now = System.currentTimeMillis();
-      boolean residue = takeResidueTurn(residueKey, now);
+      // The termination pages run on their timed turn, or at once when a task this dispatcher
+      // holds became residue since the last look.
+      boolean residue = takeResidueTurn(residueKey, now) | pollWakeups.takeTerminationDue(waiter);
       LOGGER.debug(
           "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate

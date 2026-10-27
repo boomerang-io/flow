@@ -49,12 +49,15 @@ filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polli
   keyed: a held task poll registers its claim filter before its first look and an admission signals only the
   waiters whose filter can claim the task - its type, and its task and workflow when the poll filtered on them,
   the in-memory twin of the claim query's narrowing - while a run signal reaches the workflow polls alone
-  (`dispatcher/PollWakeups.java:34-110`, `dispatcher/DispatcherService.java:392-396`, `:552-574`). A signal that
+  (`dispatcher/PollWakeups.java:41-160`, `dispatcher/DispatcherService.java:393-397`, `:555-577`). A signal that
   lands during a look is kept on the waiter, so the wait that follows ends at once; the woken poll re-runs its
-  claim page, and its termination pages run once per re-check interval for the dispatcher and filter, not on a
-  wake (`:409`, `:436`). A for-each item admits through the same method, so items wake polls too. Work that
-  becomes claimable without an admission on that instance, a `retry.after` that elapses or an admission on another
-  instance, is found by the timed re-check.
+  claim page, and its termination pages run once per re-check interval for the dispatcher and filter, not on an
+  admission wake (`:412`, `:439`). A task a dispatcher holds that ends cancelled or timed out, or is parked for
+  retry, wakes that dispatcher's polls on the instance that wrote it, which then run the termination pages at
+  once (`engine/TaskRunService.java:616-631`, `:819`), so a cancel reaches the running task within the end round
+  trip. A for-each item admits through the same method, so items wake polls too. Work that becomes claimable
+  without an admission on that instance, a `retry.after` that elapses or an admission on another instance, and a
+  termination whose holder polls another instance, are found by the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`
   (`engine/TaskRunService.java:317-355`). A null result means another dispatcher won; the loser skips the candidate.

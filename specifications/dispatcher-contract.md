@@ -81,9 +81,12 @@ Both queue routes are long polls. The engine holds the request for up to 30 s, l
 task its filter can claim is admitted, or a run with a workspace is submitted to start, on the engine instance
 holding it and at least every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and
 answers as soon as it has claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:55-74`,
-`:261-299`, `:378-465`, `:552-574`, `dispatcher/PollWakeups.java:34-110`). Termination orders are looked for once per
-re-check interval for a dispatcher and filter, whichever of its successive polls looks first (`:409`, `:469-489`), so one reaches a held
-dispatcher within the interval and a poll re-opened after a claim does not look again. A task is therefore claimed about an end round trip, an admission
+`:261-299`, `:378-465`, `:555-577`, `dispatcher/PollWakeups.java:41-160`). Termination orders are looked for once per
+re-check interval for a dispatcher and filter, whichever of its successive polls looks first (`:412`, `:472-492`), and
+at once by the holding dispatcher's polls on the engine instance where its task ended cancelled or timed out or was
+parked for retry (`engine/TaskRunService.java:616-631`, `:819`), so a cancel reaches the dispatcher running the task
+within the end round trip, within the interval when it polls another instance, and a poll re-opened after a claim
+does not look again. A task is therefore claimed about an end round trip, an admission
 and a claim round trip after its predecessor ends, not up to a re-check interval later; on a multi-instance engine a
 poll held on another instance than the one that admitted the task finds it within the interval. One task answer claims at most 20 task runs to run and 40
 termination orders; one workflow answer at most 20 runs. A dispatcher's client read timeout MUST exceed 30 s. It

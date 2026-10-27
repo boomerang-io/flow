@@ -1,5 +1,6 @@
 package io.boomerang.dispatcher;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,12 +17,14 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A task poll's wait ends at an admission its filter can claim - by type, and by task and
- * workflow when it filtered on them - at the interval, or at an interrupt; an admission another
- * filter would claim leaves it waiting, and one that landed after the poll registered and before
- * it waited ends the wait at once. A run signal reaches the workflow waits alone.
+ * workflow when it filtered on them - at a termination of a task its dispatcher holds, at the
+ * interval, or at an interrupt; an admission another filter would claim, or a termination for
+ * another dispatcher, leaves it waiting, and a signal that landed after the poll registered and
+ * before it waited ends the wait at once. A run signal reaches the workflow waits alone.
  */
 class PollWakeupsTest {
 
+  private static final String DISPATCHER = "dispatcher-1";
   private static final String WORKFLOW = "wf-1";
   private static final String TASK = "task-1";
 
@@ -41,10 +44,16 @@ class PollWakeupsTest {
         });
   }
 
+  private long waitedMillis(TaskWaiter waiter, Duration interval) throws InterruptedException {
+    long started = System.nanoTime();
+    wakeups.awaitMatch(waiter, interval);
+    return Duration.ofNanos(System.nanoTime() - started).toMillis();
+  }
+
   @Test
   void aMatchingAdmissionEndsTheWaitBeforeTheInterval() throws Exception {
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     try {
       Future<Long> waited = waitInBackground(executor, waiter);
       Thread.sleep(100);
@@ -59,12 +68,10 @@ class PollWakeupsTest {
 
   @Test
   void anAdmissionOfAnotherTypeLeavesTheWaitRunning() throws Exception {
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     try {
-      long started = System.nanoTime();
       wakeups.taskAdmitted(TaskType.custom, TASK, WORKFLOW);
-      wakeups.awaitMatch(waiter, Duration.ofMillis(200));
-      long waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      long waitedMs = waitedMillis(waiter, Duration.ofMillis(200));
       assertTrue(waitedMs >= 190, "waited only " + waitedMs + " ms after a custom admission");
     } finally {
       wakeups.unregister(waiter);
@@ -74,22 +81,22 @@ class PollWakeupsTest {
   @Test
   void aTaskOrWorkflowFilterIsHonoured() throws Exception {
     TaskWaiter onTask =
-        wakeups.register(new ClaimFilter(List.of(TaskType.template), List.of(TASK), null));
+        wakeups.register(
+            DISPATCHER, new ClaimFilter(List.of(TaskType.template), List.of(TASK), null));
     TaskWaiter onWorkflow =
-        wakeups.register(new ClaimFilter(List.of(TaskType.template), null, List.of(WORKFLOW)));
+        wakeups.register(
+            DISPATCHER, new ClaimFilter(List.of(TaskType.template), null, List.of(WORKFLOW)));
     try {
       wakeups.taskAdmitted(TaskType.template, "other-task", "other-wf");
-      long started = System.nanoTime();
-      wakeups.awaitMatch(onTask, Duration.ofMillis(150));
-      wakeups.awaitMatch(onWorkflow, Duration.ofMillis(150));
-      long waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      long waitedMs =
+          waitedMillis(onTask, Duration.ofMillis(150))
+              + waitedMillis(onWorkflow, Duration.ofMillis(150));
       assertTrue(waitedMs >= 290, "waited only " + waitedMs + " ms: a filtered poll was woken");
 
       wakeups.taskAdmitted(TaskType.template, TASK, WORKFLOW);
-      started = System.nanoTime();
-      wakeups.awaitMatch(onTask, Duration.ofSeconds(5));
-      wakeups.awaitMatch(onWorkflow, Duration.ofSeconds(5));
-      waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      waitedMs =
+          waitedMillis(onTask, Duration.ofSeconds(5))
+              + waitedMillis(onWorkflow, Duration.ofSeconds(5));
       assertTrue(waitedMs < 1000, "waited " + waitedMs + " ms for a matching admission");
     } finally {
       wakeups.unregister(onTask);
@@ -99,17 +106,13 @@ class PollWakeupsTest {
 
   @Test
   void anAdmissionBetweenRegisteringAndWaitingEndsTheWaitAtOnce() throws Exception {
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     try {
       wakeups.taskAdmitted(TaskType.template, TASK, WORKFLOW);
-      long started = System.nanoTime();
-      wakeups.awaitMatch(waiter, Duration.ofSeconds(5));
-      long waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      long waitedMs = waitedMillis(waiter, Duration.ofSeconds(5));
       assertTrue(waitedMs < 1000, "waited " + waitedMs + " ms for an admission already landed");
       // The match is consumed: the next wait runs to its interval.
-      started = System.nanoTime();
-      wakeups.awaitMatch(waiter, Duration.ofMillis(200));
-      waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      waitedMs = waitedMillis(waiter, Duration.ofMillis(200));
       assertTrue(waitedMs >= 190, "a consumed match ended the next wait after " + waitedMs + " ms");
     } finally {
       wakeups.unregister(waiter);
@@ -117,19 +120,43 @@ class PollWakeupsTest {
   }
 
   @Test
+  void aTerminationForTheHolderEndsTheWaitAndIsTakenAtTheNextLook() throws Exception {
+    TaskWaiter holder = wakeups.register(DISPATCHER, templates());
+    TaskWaiter other = wakeups.register("dispatcher-2", templates());
+    try {
+      wakeups.terminationDue(DISPATCHER, TaskType.template, TASK, WORKFLOW);
+      long waitedMs = waitedMillis(holder, Duration.ofSeconds(5));
+      assertTrue(waitedMs < 1000, "the holder waited " + waitedMs + " ms past a termination");
+      assertTrue(wakeups.takeTerminationDue(holder), "the holder's next look runs the pages");
+      assertFalse(wakeups.takeTerminationDue(holder), "a termination is taken once");
+
+      waitedMs = waitedMillis(other, Duration.ofMillis(200));
+      assertTrue(waitedMs >= 190, "another dispatcher's poll was woken after " + waitedMs + " ms");
+      assertFalse(wakeups.takeTerminationDue(other), "another dispatcher's poll has no termination");
+
+      // A termination of a task outside the poll's filter is not its order to carry.
+      wakeups.terminationDue(DISPATCHER, TaskType.custom, TASK, WORKFLOW);
+      waitedMs = waitedMillis(holder, Duration.ofMillis(200));
+      assertTrue(waitedMs >= 190, "a custom termination woke a template poll after " + waitedMs + " ms");
+    } finally {
+      wakeups.unregister(holder);
+      wakeups.unregister(other);
+    }
+  }
+
+  @Test
   void anUnregisteredPollIsNotWoken() throws Exception {
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     wakeups.unregister(waiter);
     wakeups.taskAdmitted(TaskType.template, TASK, WORKFLOW);
-    long started = System.nanoTime();
-    wakeups.awaitMatch(waiter, Duration.ofMillis(200));
-    long waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+    wakeups.terminationDue(DISPATCHER, TaskType.template, TASK, WORKFLOW);
+    long waitedMs = waitedMillis(waiter, Duration.ofMillis(200));
     assertTrue(waitedMs >= 190, "waited only " + waitedMs + " ms after unregistering");
   }
 
   @Test
   void aRunSignalReachesTheWorkflowWaitAndNotTheTaskWait() throws Exception {
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     try {
       long seen = wakeups.runGeneration();
       wakeups.runProvisionable();
@@ -138,9 +165,7 @@ class PollWakeupsTest {
       long waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
       assertTrue(waitedMs < 1000, "the workflow wait ran " + waitedMs + " ms past a run signal");
 
-      started = System.nanoTime();
-      wakeups.awaitMatch(waiter, Duration.ofMillis(200));
-      waitedMs = Duration.ofNanos(System.nanoTime() - started).toMillis();
+      waitedMs = waitedMillis(waiter, Duration.ofMillis(200));
       assertTrue(waitedMs >= 190, "a run signal woke a task poll after " + waitedMs + " ms");
     } finally {
       wakeups.unregister(waiter);
@@ -150,7 +175,7 @@ class PollWakeupsTest {
   @Test
   void anInterruptEndsTheWait() throws Exception {
     ExecutorService executor = Executors.newSingleThreadExecutor();
-    TaskWaiter waiter = wakeups.register(templates());
+    TaskWaiter waiter = wakeups.register(DISPATCHER, templates());
     try {
       Future<Long> waiting = waitInBackground(executor, waiter);
       Thread.sleep(100);

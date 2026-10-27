@@ -33,6 +33,7 @@ import io.boomerang.workflow.WorkflowService;
 import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -272,6 +273,56 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
       // A lost wake would hold the poll for the whole one-second re-check interval.
       assertTrue(
           waitedMs < 500, "claimed " + waitedMs + " ms after the poll began, expected < 500");
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  /**
+   * A task a dispatcher holds that is cancelled is termination residue for it: the dispatcher's
+   * held poll returns the termination order well inside the re-check interval, and another
+   * dispatcher's held poll under the same type is not woken for it.
+   */
+  @Test
+  void aCancelOfAHeldTaskWakesTheHoldersPollAtOnce() throws Exception {
+    String holder = registerDispatcher("terminate-holder");
+    String other = registerDispatcher("terminate-other");
+    String taskId =
+        savedTaskRun(
+                "terminate-task",
+                TaskType.template,
+                RunStatus.ready,
+                RunPhase.pending,
+                wfRun.getWorkflowRef(),
+                wfRun.getId())
+            .getId();
+    assertTrue(
+        containsId(dispatcherService.getTaskQueue(holder, 1, null, null, null), taskId),
+        "the holder claims the task");
+
+    ExecutorService executor = Executors.newFixedThreadPool(2);
+    try {
+      Future<ResponseEntity<List<TaskRun>>> holderPoll =
+          executor.submit(() -> dispatcherService.getTaskQueue(holder, null, null, null, null));
+      Future<ResponseEntity<List<TaskRun>>> otherPoll =
+          executor.submit(() -> dispatcherService.getTaskQueue(other, null, null, null, null));
+      // Both polls' first looks find nothing and hold; the cancel lands mid-hold.
+      Thread.sleep(200);
+      long cancelledAt = System.nanoTime();
+      taskRunService.tryComplete(
+          taskId,
+          Optional.of(RunStatus.cancelled),
+          Optional.of("cancelled by the test"),
+          0,
+          Optional.empty(),
+          Optional.empty());
+
+      ResponseEntity<List<TaskRun>> response = holderPoll.get(5, TimeUnit.SECONDS);
+      long waitedMs = Duration.ofNanos(System.nanoTime() - cancelledAt).toMillis();
+      assertTrue(containsId(response, taskId), "the holder's poll carries the termination order");
+      // The wake and the termination claim; the one-second re-check alone would take about 800 ms.
+      assertTrue(waitedMs < 500, "terminated " + waitedMs + " ms after the cancel, expected < 500");
+      assertFalse(otherPoll.isDone(), "another dispatcher's poll is not woken for it");
     } finally {
       executor.shutdownNow();
     }

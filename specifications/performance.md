@@ -67,18 +67,21 @@ the run provision page), all on `claim_page`, and one request every 30 s per que
 second scale with its pools × 1000 / the interval. Admitting a task wakes the task polls held on that engine instance
 whose filter can claim it, by type and, when the poll filtered on them, task and workflow, and each re-runs its claim
 page at once; submitting a run with a workspace to start wakes the workflow polls alone
-(`dispatcher/PollWakeups.java:34-110`, `engine/TaskExecutionService.java:255-256`,
-`workflow/WorkflowRunService.java:820`, `dispatcher/DispatcherService.java:392-396`, `:552-574`): one indexed query
+(`dispatcher/PollWakeups.java:41-160`, `engine/TaskExecutionService.java:255-256`,
+`workflow/WorkflowRunService.java:820`, `dispatcher/DispatcherService.java:393-397`, `:555-577`): one indexed query
 per admission per poll that can claim the task, none for the others and none while nothing is admitted, so a
 dispatcher holding eight typed pools costs one find per admission, not eight
 (`DispatcherRequestDatabaseCommandsTest.anAdmissionWakesOnlyThePollsWhoseFilterMatches`). The two termination
-pages run once per re-check interval for a dispatcher and filter, never on a wake and
-not again on a poll re-opened within the interval: the due time lives in a map keyed by dispatcher and filter that
-successive polls share (`:409`, `:469-489`), so a held task poll's three looks - entry, a wake, the timed
-re-check - cost 3, 1 and 3 claim-page finds, a poll re-opened right after a claim costs 1 on its first look
-(`DispatcherRequestDatabaseCommandsTest`), and a termination still reaches the dispatcher within one interval. Under
-load, where a poll returns on every claim and is re-opened at once, that is the difference between one and three
-finds per claim. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
+pages run once per re-check interval for a dispatcher and filter, never on an admission wake and not again on a poll
+re-opened within the interval: the due time lives in a map keyed by dispatcher and filter that successive polls
+share (`:412`, `:472-492`), so a held task poll's three looks - entry, a wake, the timed re-check - cost 3, 1 and 3
+claim-page finds, and a poll re-opened right after a claim costs 1 on its first look
+(`DispatcherRequestDatabaseCommandsTest`). They also run at once when a task the dispatcher holds ends cancelled or
+timed out or is parked for retry on this instance, which wakes that dispatcher's polls alone
+(`engine/TaskRunService.java:616-631`, `:819`, `DispatcherPollWakeTest.aCancelOfAHeldTaskWakesTheHoldersPollAtOnce`),
+so a cancel reaches the running task within the end round trip and the timed turn is the safety net for a holder
+polling another instance. Under load, where a poll returns on every claim and is re-opened at once, the shared
+cadence is the difference between one and three finds per claim. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
 the interval. Measured by an embedder on one engine and one in-process dispatcher, the same 41-hop scenario before
 and after: the hop from a task's end to the next task's start fell from 0.88 s median and 1.03 s p90 to 0.05–0.11 s
 median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval bounds the wait for a task that becomes claimable without an admission

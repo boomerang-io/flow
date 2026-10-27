@@ -132,6 +132,9 @@ tag's release notes.
   workflow when the poll filtered on them), not every poll on the instance: a dispatcher holding eight typed pools
   costs one claim-page query per admission instead of eight. A run submitted with a workspace wakes the workflow
   polls alone. The timed re-check is unchanged and still covers a task admitted on another replica.
+- A cancel or timeout of a task a dispatcher is running, or a retry that parks it, reaches that dispatcher within
+  the end round trip rather than at its next timed re-check: the engine wakes the holding dispatcher's polls on
+  the instance that wrote the change. A holder polling another replica still hears within one interval.
 - `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
   (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
   queries per dispatcher: its idle queries per second are its pools × 1000 / the value.

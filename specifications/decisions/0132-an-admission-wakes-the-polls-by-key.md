@@ -5,9 +5,8 @@
 ## Context
 
 Admitting a task woke every poll held on the instance through one generation counter and `signalAll`, so each
-admission cost one claim-page query per held poll whatever its filter: a dispatcher holding eight typed pools paid
-eight finds for a task one of them could claim. The wake has to reach the polls that can claim the task, and a
-signal that lands while a poll is still looking must not be lost.
+admission cost one claim-page query per held poll whatever its filter: eight finds for a dispatcher holding eight
+typed pools. The wake has to reach the polls that can claim the task, and never be lost mid-look.
 
 ## Options
 
@@ -26,8 +25,10 @@ waiters for it run, and Java's own guidance is a wait-set per condition over `si
 its `ClaimFilter` under each of its types before its first look and waits on its own `Condition`; an admission
 signals the waiters under the task's type whose filter matches its task and workflow references, the in-memory
 twin of `TaskRunService.narrowed`; a match that lands during a look is kept on the waiter so the wait that follows
-ends at once (`dispatcher/PollWakeups.java:34-110`, `dispatcher/DispatcherService.java:392-396`,
-`engine/TaskExecutionService.java:255-256`). Run signals have their own counter and reach the workflow polls alone.
+ends at once (`dispatcher/PollWakeups.java:41-160`, `dispatcher/DispatcherService.java:393-397`,
+`engine/TaskExecutionService.java:255-256`). The same registry, indexed by dispatcher as well, carries the
+termination wake: a held task that ends cancelled or timed out or is parked signals its holder's matching polls
+(`engine/TaskRunService.java:616-631`). Run signals have their own counter and reach the workflow polls alone.
 
 ## Consequences
 

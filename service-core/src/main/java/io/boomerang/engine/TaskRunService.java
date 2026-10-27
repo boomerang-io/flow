@@ -1,6 +1,7 @@
 package io.boomerang.engine;
 import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -88,6 +89,8 @@ public class TaskRunService {
   private final ArtifactService artifactService;
   // An Update never reaches the save hook, so the admission write seals secret values itself.
   private final SecretValueMongoListener secretValues;
+  // A task a dispatcher holds that becomes termination residue wakes that dispatcher's polls.
+  private final PollWakeups pollWakeups;
 
   public TaskRunService(
       @Lazy TaskExecutionService taskExecutionService,
@@ -97,7 +100,8 @@ public class TaskRunService {
       ApplicationEventPublisher eventPublisher,
       ObjectMapper objectMapper,
       ArtifactService artifactService,
-      SecretValueMongoListener secretValues) {
+      SecretValueMongoListener secretValues,
+      PollWakeups pollWakeups) {
     this.taskExecutionService = taskExecutionService;
     this.logClient = logClient;
     this.taskRunRepository = taskRunRepository;
@@ -106,6 +110,7 @@ public class TaskRunService {
     this.objectMapper = objectMapper;
     this.artifactService = artifactService;
     this.secretValues = secretValues;
+    this.pollWakeups = pollWakeups;
   }
 
   // Return the page of TaskRuns eligible for claiming by an executor of the given types: ready,
@@ -569,7 +574,9 @@ public class TaskRunService {
     Update update = completion(duration);
     status.ifPresent(s -> update.set("status", s));
     statusMessage.ifPresent(m -> update.set("statusMessage", m));
-    return transition(Query.query(criteria), update, status.orElse(null), RunPhase.completed);
+    return wakeHolderOfResidue(
+        transition(Query.query(criteria), update, status.orElse(null), RunPhase.completed),
+        status.orElse(null));
   }
 
   // Completion Compare-And-Set carrying the outcome the engine decided, so the TaskRun ends in this
@@ -598,7 +605,29 @@ public class TaskRunService {
     if (outcome.decisionValue() != null) {
       update.set("decisionValue", outcome.decisionValue());
     }
-    return transition(Query.query(criteria), update, outcome.status(), RunPhase.completed);
+    return wakeHolderOfResidue(
+        transition(Query.query(criteria), update, outcome.status(), RunPhase.completed),
+        outcome.status());
+  }
+
+  // A completed task a dispatcher still holds is termination residue when it ended cancelled or
+  // timed out (a parked retry is the other shape, see tryRequeueWith): the holder's polls on this
+  // instance look for it now. Returns the pre-image unchanged, so the completion reads as before.
+  private TaskRunEntity wakeHolderOfResidue(TaskRunEntity preImage, RunStatus toStatus) {
+    if (RunStatus.cancelled.equals(toStatus) || RunStatus.timedout.equals(toStatus)) {
+      wakeHolder(preImage);
+    }
+    return preImage;
+  }
+
+  private void wakeHolder(TaskRunEntity preImage) {
+    if (preImage != null && preImage.getClaim() != null && preImage.getClaim().getBy() != null) {
+      pollWakeups.terminationDue(
+          preImage.getClaim().getBy(),
+          preImage.getType(),
+          preImage.getTaskRef(),
+          preImage.getWorkflowRef());
+    }
   }
 
   // What every completion writes: the phase and duration, and the end of the deadline and lease.
@@ -784,7 +813,12 @@ public class TaskRunService {
     } else {
       update.unset("claim.by").unset("claim.at");
     }
-    return transition(Query.query(criteria), update, toStatus, RunPhase.pending);
+    TaskRunEntity preImage = transition(Query.query(criteria), update, toStatus, RunPhase.pending);
+    if (claimed) {
+      // Parked under its holder: that dispatcher's polls look for the termination order now.
+      wakeHolder(preImage);
+    }
+    return preImage;
   }
 
   // Whether the run has any in-flight TaskRun: claimed/executing (phase queued/running) or
@@ -913,7 +947,16 @@ public class TaskRunService {
   // params, spec and results it carries.
   private TaskRunEntity transition(
       Query query, Update update, RunStatus toStatus, RunPhase toPhase) {
-    query.fields().include("workflowRunRef").include("type").include("status").include("phase");
+    // The holder and the task's references are what a residue wake needs; the rest is the event.
+    query
+        .fields()
+        .include("workflowRunRef")
+        .include("workflowRef")
+        .include("taskRef")
+        .include("type")
+        .include("status")
+        .include("phase")
+        .include("claim.by");
     return cas(query, update, toStatus, toPhase);
   }
 
