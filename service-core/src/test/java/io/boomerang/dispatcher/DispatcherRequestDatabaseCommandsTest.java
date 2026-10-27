@@ -151,6 +151,60 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
   }
 
   /**
+   * The termination-residue cadence belongs to the dispatcher and filter, not to one poll request:
+   * a poll re-opened within the re-check interval after a claim runs the claimable page alone on
+   * its first look, where a fresh poll runs it and the two termination pages, and a second
+   * dispatcher under the same filter keeps its own cadence. Under load a poll returns on every
+   * claim and the SDK re-opens it at once, so this is the cost of each claim.
+   */
+  @Test
+  void aPollReopenedAfterAClaimRunsTheClaimablePageAlone() throws Exception {
+    Ready ready = readyTask("db-reopen");
+    String dispatcherId = ready.dispatcherId();
+    List<TaskRun> claimed =
+        dispatcherService.getTaskQueue(dispatcherId, 1, null, null, ready.label()).getBody();
+    assertTrue(
+        claimed != null && claimed.stream().anyMatch(t -> ready.taskRunId().equals(t.getId())),
+        "the first poll claims the task");
+    String other =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "db-reopen-other-dispatcher", "db-reopen-other.local", List.of("template")));
+
+    assertEquals(
+        1,
+        Collections.frequency(firstLook(dispatcherId, ready.label()), "find task_runs"),
+        "the re-opened poll's first look is the claimable page alone");
+    assertEquals(
+        3,
+        Collections.frequency(firstLook(other, ready.label()), "find task_runs"),
+        "another dispatcher's first look under the same filter runs all three pages");
+  }
+
+  // The commands of a held poll's first look: the poll is cut 300 ms in, well inside the 1 s
+  // re-check, so no second look lands.
+  private List<String> firstLook(String dispatcherId, String label) throws Exception {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    try {
+      Future<Recorded<ResponseEntity<List<TaskRun>>>> poll =
+          executor.submit(
+              () ->
+                  DatabaseCommands.record(
+                      () -> dispatcherService.getTaskQueue(dispatcherId, null, null, null, label)));
+      Thread.sleep(300);
+      executor.shutdownNow();
+      List<String> names =
+          poll.get(2, TimeUnit.SECONDS).names().stream()
+              .map(name -> name.replace(" flowtest_", " "))
+              .toList();
+      System.out.printf("DB COMMANDS | first look of %s | %s%n", dispatcherId, names);
+      return names;
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  /**
    * Every TaskRun in the run carries a 64 KB spec, and only the two reads of the ending TaskRun
    * itself return one whole: the completion returns what it publishes and the graph advance reads
    * the graph's fields of the ended task's neighbourhood, so the end does not read back the run's

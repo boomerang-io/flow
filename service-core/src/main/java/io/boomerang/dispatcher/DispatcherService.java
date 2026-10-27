@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,6 +83,7 @@ public class DispatcherService {
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskService taskService;
   private final PollWakeups pollWakeups;
+  private final ConcurrentHashMap<ResidueKey, Long> residueDue = new ConcurrentHashMap<>();
 
   public DispatcherService(
       DispatcherRepository dispatcherRepository,
@@ -345,9 +347,10 @@ public class DispatcherService {
    * termination orders, which free slots rather than take them; no limit means a full page. The
    * poll is narrowed by optional filters: task types, task slugs, and a label on the workflow
    * definition (see {@link ClaimFilterService}). Termination orders follow the same filters, and
-   * their pages run on the first look and then at most once per re-check interval - never on a
-   * look an admission woke, which costs the claimable page alone. A filter that matches nothing
-   * answers at once with no content.
+   * their pages run at most once per re-check interval for a dispatcher and filter, across the
+   * polls it opens one after another - never on a look an admission woke, and not again on a poll
+   * re-opened right after a claim, which cost the claimable page alone. A filter that matches
+   * nothing answers at once with no content.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(
       String dispatcherId, Integer limit, String type, String task, String workflowLabel) {
@@ -380,12 +383,14 @@ public class DispatcherService {
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     // Residue - a task cancelled, timed out or parked while a dispatcher held it - changes rarely
-    // and is never fresh work, so its pages are due once per re-check interval, not on every wake.
-    long residueDue = 0;
+    // and is never fresh work, so its pages are due once per re-check interval for this dispatcher
+    // and filter, not on every wake and not again on a poll re-opened right after a claim.
+    ResidueKey residueKey = new ResidueKey(dispatcherId, filter);
+    residueDue.values().removeIf(due -> due <= System.currentTimeMillis());
     while (Instant.now().isBefore(endTime)) {
       long seen = pollWakeups.generation();
       long now = System.currentTimeMillis();
-      boolean residue = now >= residueDue;
+      boolean residue = takeResidueTurn(residueKey, now);
       LOGGER.debug(
           "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
@@ -413,7 +418,6 @@ public class DispatcherService {
         // claim release is what makes it one dispatcher's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
         if (residue) {
-          residueDue = now + recheckMillis();
           for (TaskRunEntity candidate :
               taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
             TaskRunEntity claimed =
@@ -443,6 +447,29 @@ public class DispatcherService {
   // The re-check interval, never under the floor.
   private long recheckMillis() {
     return Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs);
+  }
+
+  // A dispatcher's polls under one filter, which share the termination-residue cadence.
+  private record ResidueKey(String dispatcherId, ClaimFilter filter) {}
+
+  /**
+   * Whether this look runs the termination pages: true once per re-check interval for the key,
+   * whichever poll of that dispatcher and filter looks first, which then holds the next due time.
+   * Entries whose due time has passed are pruned at each poll's start - a key with no entry is
+   * simply due - so the map holds one entry per dispatcher and filter polling right now.
+   */
+  private boolean takeResidueTurn(ResidueKey key, long now) {
+    boolean[] taken = new boolean[1];
+    residueDue.compute(
+        key,
+        (k, due) -> {
+          if (due == null || now >= due) {
+            taken[0] = true;
+            return now + recheckMillis();
+          }
+          return due;
+        });
+    return taken[0];
   }
 
   /**

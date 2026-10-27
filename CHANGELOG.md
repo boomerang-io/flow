@@ -125,6 +125,9 @@ tag's release notes.
   is now the end, the admission and the claim round trips, about 100–200 ms, whatever
   `flow.dispatcher.poll.recheck-ms` is set to. The timed re-check still covers a task admitted on another replica
   or a retry whose backoff elapses.
+- A dispatcher poll re-opened after a claim no longer re-runs the termination pages: their once-per-interval
+  cadence belongs to the dispatcher and its filter, shared by its successive polls, so under load each claim costs
+  one claim-page query instead of three. A cancel or timeout still reaches a held dispatcher within one interval.
 - `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
   (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
   queries per dispatcher: its idle queries per second are its pools × 1000 / the value.

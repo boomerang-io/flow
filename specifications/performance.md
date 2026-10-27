@@ -67,11 +67,14 @@ the run provision page), all on `claim_page`, and one request every 30 s per que
 second scale with its pools × 1000 / the interval. Admitting a task, or submitting a run with a workspace to start,
 wakes every poll held on that engine instance, which re-runs its claim page at once
 (`dispatcher/PollWakeups.java:24-55`, `engine/TaskExecutionService.java:254`, `workflow/WorkflowRunService.java:815`,
-`dispatcher/DispatcherService.java:509-517`): one indexed query per held poll per admission, none while nothing is
-admitted. The two termination pages run on a task poll's first look and then once per re-check interval, never on
-a wake (`:384-425`): a held task poll's three looks - entry, a wake, the timed re-check - cost 3, 1 and 3 claim-page
-finds (`DispatcherRequestDatabaseCommandsTest`), 7 where every look cost 3, and a termination still reaches the
-dispatcher within one interval. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
+`dispatcher/DispatcherService.java:536-544`): one indexed query per held poll per admission, none while nothing is
+admitted. The two termination pages run once per re-check interval for a dispatcher and filter, never on a wake and
+not again on a poll re-opened within the interval: the due time lives in a map keyed by dispatcher and filter that
+successive polls share (`:388-393`, `:453-473`), so a held task poll's three looks - entry, a wake, the timed
+re-check - cost 3, 1 and 3 claim-page finds, a poll re-opened right after a claim costs 1 on its first look
+(`DispatcherRequestDatabaseCommandsTest`), and a termination still reaches the dispatcher within one interval. Under
+load, where a poll returns on every claim and is re-opened at once, that is the difference between one and three
+finds per claim. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
 the interval. Measured by an embedder on one engine and one in-process dispatcher, the same 41-hop scenario before
 and after: the hop from a task's end to the next task's start fell from 0.88 s median and 1.03 s p90 to 0.05–0.11 s
 median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval bounds the wait for a task that becomes claimable without an admission
