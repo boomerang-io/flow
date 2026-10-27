@@ -213,6 +213,18 @@ tag's release notes.
 - Spring Boot 4.1.1, with Tomcat 11.0.27, Jackson 2.21.8 and 3.1.8 and commons-io 2.22.0 ahead of it, and the
   latest chiseled JRE base image, for the critical and high CVEs fixed since 4.1.0. The webapp image has no npm or
   corepack: the server runs on node alone.
+- The Java images start from a JDK AOT cache (JEP 514/515) and run with compact object headers (JEP 519). Each
+  image build starts the application once on the runtime JRE, with no database or cluster, and records the loaded
+  and linked classes; a container start then reads them instead of redoing that work, which takes roughly 40 % off
+  the time to a healthy `service-core` and `service-dispatcher`. Compact object headers take 4 bytes off every
+  object on the heap. Both are set in the image's command, under any `JDK_JAVA_OPTIONS` a deployment adds; an
+  option there that changes the heap layout (another garbage collector, headers off) makes the JVM skip the cache
+  with a warning and start as before. The images ship the application extracted (`service.jar` plus `lib/`),
+  which the cache requires, and each is about 120 MB larger for the cache; the health probe and ports are
+  unchanged. The dispatcher handles requests on virtual threads, as `service-core` already did.
+- The chiseled JRE base image is refreshed to Canonical's current build (OpenJDK 25.0.4.1), which scans clean,
+  and the shipped dependencies with an open advisory are moved past it: `nimbus-jose-jwt` 10.3, the Slack client
+  1.45.3 (for its `okio` 3.4), `body-parser` 1.20.9, `axios` 1.20.0 and `dompurify` 3.4.17.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
 - `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
   running whenever the engine watcher was on.

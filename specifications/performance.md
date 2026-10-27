@@ -128,8 +128,9 @@ well under 10 fixed queries per second; per-row checks grow with in-flight runs.
 ## Virtual threads
 
 Request handling runs on virtual threads (`spring.threads.virtual.enabled=true`,
-`service-core/src/main/resources/application.properties:90`) because each connected dispatcher parks one request
-thread for its 30 s poll. **Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
+`service-core/src/main/resources/application.properties:96`) because each connected dispatcher parks one request
+thread for its 30 s poll; the dispatcher sets it too (`service-dispatcher/src/main/resources/application.properties:9`),
+where a live log stream parks its request thread for up to two hours. **Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
 drives 200 pollers through 10 cycles each under Java Flight Recorder and asserts carrier pinning stays under 1% of
 the poll cycles, so pins are one-time warm-up rather than per claim and dispatcher count is not bound by the
 platform-thread pool. **Not measured**: any before/after throughput comparison; the idle poll's database load
@@ -156,6 +157,37 @@ behind the reconcilers. `AsyncExecutorResolutionTest` pins the resolution.
 Nothing caps how many tasks run at once on any of them. What shapes load is the admission gate in
 `TaskExecutionService.queue`, the dispatcher's claim limits (20 per poll, `flow.dispatcher.task.max-in-flight` in
 flight), and quotas.
+
+## Start-up
+
+Both Java images start from a JDK AOT cache (JEP 514/515) recorded at image build. The build extracts the jar to
+`service.jar` plus `lib/`, which the cache requires (`service-core/Dockerfile:31-32`), then a train stage on the
+runtime JRE starts the application to context refresh with no database (`spring.context.exit=onRefresh`,
+migrations off, a placeholder encryption key, a Mongo URI that resolves nowhere with a 1 s selection timeout,
+the OTLP exporters excluded because BuildKit hands every build step `OTEL_TRACES_EXPORTER=otlp` and an endpoint
+on its own Unix socket) and writes `service.aot`: every class loaded in that start, linked, with its initialised
+state (`service-core/Dockerfile:61-66`). The dispatcher's train stage starts it against no cluster with a
+placeholder namespace (`service-dispatcher/Dockerfile:42-44`). The runtime command maps the cache and turns
+compact object headers on (`service-core/Dockerfile:84-85`), 4 bytes off every object. The train and runtime
+stages are the only per-platform stages, since a cache is tied to the JVM build that records it.
+
+**Measured**: `service-core` start to Boot's `Started Application` against a local Mongo 7, security off, on the
+same laptop as the throughput baseline but under a load average of 40 to 60 on 8 cores, which is why the figures
+are wide. Each pair ran back to back after one warm-up start.
+
+| Start | With the cache | Without it |
+| --- | --- | --- |
+| Boot's own figure, `Started Application in` | 46, 67, 85 s | 100, 216 s |
+| Same start on the host JVM, to refresh, no database | 48, 56 s | 76, 106 s |
+
+The cache took 40 to 60 % off every pair, and the JVM confirms the mapping at start (`-Xlog:aot=info`: `Opened
+AOT cache service.aot`, with the three region mappings) as uid 10001. **Not measured**: a quiet machine, the
+dispatcher's start, memory after compact headers. **The costs**: the train stage adds one application start to
+each image build per platform (270 s on that loaded laptop; the arm64 leg of a release runs it under emulation),
+and the cache adds about 120 MB to each image (`flow-service-core` 287 MB to 405 MB). The JVM checks the cache
+against its own build, the jar sizes and modification times and the heap-layout flags: a `JDK_JAVA_OPTIONS`
+that sets another garbage collector or turns compact headers off makes it skip the cache with one warning and
+start as before, never fail.
 
 ## HTTP client timeouts and the custom client requirement
 

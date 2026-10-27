@@ -60,7 +60,7 @@
     "@vitest/ui": "^1.6.1",
     "@xyflow/react": "^12.11.3",
     "autoprefixer": "^10.4.16",
-    "axios": "^1",
+    "axios": "^1.20.0",
     "c8": "^8.0.1",
     "change-case": "^4.1.2",
     "classnames": "^2.3.2",
@@ -150,6 +150,10 @@
     ]
   },
   "pnpm": {
+    "overrides": {
+      "body-parser@1": "^1.20.9",
+      "dompurify": "^3.4.17"
+    },
     "patchedDependencies": {
       "react-virtualized@9.22.5": "patches/react-virtualized@9.22.5.patch",
       "@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15": "patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch",
