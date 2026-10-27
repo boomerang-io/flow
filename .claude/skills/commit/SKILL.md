@@ -32,8 +32,7 @@ argument-hint: [optional message or scope hint]
 5. Write the commit message:
    - Subject: `<type>(<scope>): <imperative description>` — 50 chars max
    - Body (if needed): explain _why_, not _what_ — wrap at 72 chars
-   - Footer: reference issues if applicable (e.g., `Closes #42`). A merge into `feat-v5` does
-     not close the issue; close it by hand after the merge.
+   - Footer: reference issues if applicable (e.g., `Closes #42`); the merge into `main` closes it.
 6. If $ARGUMENTS is provided, use it as guidance for the message
 7. Present the draft message for confirmation before committing
 8. Run `git commit -m "message"` only after approval

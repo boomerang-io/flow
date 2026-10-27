@@ -55,3 +55,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0120 | [Flow hands out trace context; tasks export their own spans](0120-flow-hands-out-trace-context-and-tasks-export-their-own-spans.md) | accepted | 2026-10-19 |
 | 0128 | [A run's workspace is its workflow's owner, and task defaults land on the task run](0128-a-runs-workspace-is-its-workflows-owner.md) | accepted | 2026-10-21 |
 | 0130 | [Task runs are queried across runs, as slim rows](0130-task-runs-are-queried-across-runs.md) | accepted | 2026-10-21 |
+| 0131 | [The Java images ship a JDK AOT cache recorded at image build](0131-the-java-images-ship-an-aot-cache-recorded-at-image-build.md) | accepted | 2026-10-27 |
