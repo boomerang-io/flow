@@ -208,7 +208,7 @@
         <dependency>
             <groupId>com.nimbusds</groupId>
             <artifactId>nimbus-jose-jwt</artifactId>
-            <version>9.40</version>
+            <version>10.3</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -222,12 +222,12 @@
         <dependency>
             <groupId>com.slack.api</groupId>
             <artifactId>slack-api-client</artifactId>
-            <version>1.24.0</version>
+            <version>1.45.3</version>
         </dependency>
         <dependency>
             <groupId>com.slack.api</groupId>
             <artifactId>slack-app-backend</artifactId>
-            <version>1.24.0</version>
+            <version>1.45.3</version>
         </dependency>
         <dependency>
             <groupId>com.spotify</groupId>
