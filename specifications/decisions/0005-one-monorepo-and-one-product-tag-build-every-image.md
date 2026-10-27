@@ -4,9 +4,8 @@
 
 ## Context
 
-Flow's three images (core, dispatcher, webapp) and one library deploy together, a contract change touches the backend
-and the webapp at once, and operators need to know which images go together without a compatibility table. The
-vulnerability scan (`.github/workflows/sbom.yml`) reports every advisory in a base image's userland.
+Flow's three images and two libraries deploy together, a contract change touches the backend and the webapp at once,
+and operators need to know which images go together. The scan (`sbom.yml`) reports every advisory in a base's userland.
 
 ## Options
 
