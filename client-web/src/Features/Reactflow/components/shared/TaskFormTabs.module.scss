@@ -45,6 +45,12 @@
   padding: 0;
 }
 
+// Carbon hides an unselected panel with the hidden attribute alone, which the display above would
+// override and show every panel at once.
+.tabPanel[hidden] {
+  display: none;
+}
+
 .configure {
   display: flex;
   flex-direction: column;
