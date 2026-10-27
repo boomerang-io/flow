@@ -52,12 +52,17 @@ COPY --from=build /build/application ./
 # state - which the runtime stage reads so a start skips that work. It runs with no database:
 # migrations are off, the encryption key is a placeholder (nothing is encrypted during a refresh)
 # and the Mongo URI points nowhere with a short selection timeout, so the beans that open the
-# connection give up fast. The JVM flags that shape the cache (compact object headers) MUST match
-# the ENTRYPOINT's, or the JVM ignores the cache at start.
+# connection give up fast. The OTLP exporters are excluded: BuildKit hands every build step
+# OTEL_TRACES_EXPORTER=otlp and a traces endpoint on its own Unix socket (executor/oci/spec.go),
+# which Spring Boot maps over application.properties and the OTLP exporter refuses, so the train
+# run must not build one; a deployment without OTEL_* variables builds none either. The JVM flags
+# that shape the cache (compact object headers) MUST match the ENTRYPOINT's, or the JVM ignores
+# the cache at start.
 RUN ["java", "-XX:AOTCacheOutput=service.aot", "-XX:+UseCompactObjectHeaders", \
      "-Dspring.context.exit=onRefresh", "-Dflamingock.enabled=false", \
      "-Dflow.encrypt.secret=aot-training", "-Dflow.encrypt.salt=aot-training", \
      "-Dspring.mongodb.uri=mongodb://localhost:1/aot?serverSelectionTimeoutMS=1000&connectTimeoutMS=1000", \
+     "-Dspring.autoconfigure.exclude=org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpTracingAutoConfiguration,org.springframework.boot.opentelemetry.autoconfigure.logging.otlp.OtlpLoggingAutoConfiguration", \
      "-jar", "service.jar"]
 
 FROM ubuntu/jre:25-26.04_edge@sha256:d9de3bc0831ec1f753fe5e94ef5aa9cb3b3ba0388ae85a51328d1c83c06738a3
