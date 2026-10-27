@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import io.boomerang.common.entity.TaskRunEntity;
@@ -50,10 +50,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 /**
- * Admitting a task wakes the polls held on this instance: a poll whose filter matches returns with
- * the task well inside the re-check interval, one whose filter does not match looks again, finds
- * nothing and keeps holding, and a wake that lands while the poll is still looking is not lost.
- * Submitting a run with a workspace wakes the held workflow poll the same way.
+ * Admitting a task wakes the polls held on this instance that can claim it: a poll whose filter
+ * matches returns with the task well inside the re-check interval, one whose filter does not match
+ * is not woken and keeps holding on its timed re-check alone, and a wake that lands while the poll
+ * is still looking is not lost. Submitting a run with a workspace wakes the held workflow poll the
+ * same way.
  */
 class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
 
@@ -180,7 +181,7 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
   }
 
   @Test
-  void aHeldPollWhoseFilterDoesNotMatchWakesAndKeepsHolding() throws Exception {
+  void aHeldPollWhoseFilterDoesNotMatchIsNotWokenAndKeepsHolding() throws Exception {
     String dispatcher = registerDispatcher("wake-miss"); // template only
     String taskId = unadmittedTask("wake-miss-task", TaskType.custom);
 
@@ -191,15 +192,16 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
       Thread.sleep(100);
       taskExecutionService.queue(taskId);
 
-      // Within half the re-check interval the poll has looked twice: at entry and on the wake.
+      // Within half the re-check interval the poll has looked once, at entry: a custom task's
+      // admission does not wake a template poll.
       awaitEngine("the task to be admitted")
           .until(
               () ->
                   RunStatus.ready.equals(
                       taskRunRepository.findById(taskId).orElseThrow().getStatus()));
       assertThrows(TimeoutException.class, () -> poll.get(400, TimeUnit.MILLISECONDS));
-      verify(spiedTaskRunService, atLeast(2)).findClaimable(any(ClaimFilter.class), anyInt());
-      assertFalse(poll.isDone(), "a poll that found nothing on the wake keeps holding");
+      verify(spiedTaskRunService, times(1)).findClaimable(any(ClaimFilter.class), anyInt());
+      assertFalse(poll.isDone(), "a poll the admission does not concern keeps holding");
 
       executor.shutdownNow();
       assertEquals(HttpStatus.NO_CONTENT, poll.get(2, TimeUnit.SECONDS).getStatusCode());
@@ -216,21 +218,21 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
     AtomicBoolean admitted = new AtomicBoolean();
     String[] taskId = new String[1];
     // The admission lands inside the poll's first look: after the claim query ran and before the
-    // poll waits. The generation read before the look is what makes the wait return at once.
+    // poll waits. The waiter registered before the look is what makes the wait return at once.
     doAnswer(
             invocation -> {
               Object page = invocation.callRealMethod();
               if (admitted.compareAndSet(false, true)) {
-                taskId[0] =
+                TaskRunEntity task =
                     savedTaskRun(
-                            "wake-during-look-task",
-                            TaskType.template,
-                            RunStatus.ready,
-                            RunPhase.pending,
-                            wfRun.getWorkflowRef(),
-                            wfRun.getId())
-                        .getId();
-                pollWakeups.signal();
+                        "wake-during-look-task",
+                        TaskType.template,
+                        RunStatus.ready,
+                        RunPhase.pending,
+                        wfRun.getWorkflowRef(),
+                        wfRun.getId());
+                taskId[0] = task.getId();
+                pollWakeups.taskAdmitted(task.getType(), task.getTaskRef(), task.getWorkflowRef());
               }
               return page;
             })

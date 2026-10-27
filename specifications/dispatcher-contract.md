@@ -78,11 +78,11 @@ task poll (`dispatcher/DispatcherService.java:350-353`).
 ## Polling
 
 Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work whenever a
-task is admitted, or a run with a workspace is submitted to start, on the engine instance holding it and at least
-every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and answers as soon as it has
-claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:55-74`, `:261-297`, `:378-445`,
-`:536-544`, `dispatcher/PollWakeups.java:24-55`). Termination orders are looked for once per re-check interval for a
-dispatcher and filter, whichever of its successive polls looks first (`:388-393`, `:453-473`), so one reaches a held
+task its filter can claim is admitted, or a run with a workspace is submitted to start, on the engine instance
+holding it and at least every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and
+answers as soon as it has claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:55-74`,
+`:261-299`, `:378-465`, `:552-574`, `dispatcher/PollWakeups.java:34-110`). Termination orders are looked for once per
+re-check interval for a dispatcher and filter, whichever of its successive polls looks first (`:409`, `:469-489`), so one reaches a held
 dispatcher within the interval and a poll re-opened after a claim does not look again. A task is therefore claimed about an end round trip, an admission
 and a claim round trip after its predecessor ends, not up to a re-check interval later; on a multi-instance engine a
 poll held on another instance than the one that admitted the task finds it within the interval. One task answer claims at most 20 task runs to run and 40

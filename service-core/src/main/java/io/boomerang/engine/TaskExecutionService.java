@@ -250,8 +250,10 @@ public class TaskExecutionService {
         LOGGER.info("[{}] TaskRun already admitted. Nothing to do.", taskExecutionId);
         return;
       }
-      // The task is claimable: every poll held on this instance looks again now.
-      pollWakeups.signal();
+      // The task is claimable: the polls held on this instance whose filter can claim it look
+      // again now.
+      pollWakeups.taskAdmitted(
+          taskExecution.getType(), taskExecution.getTaskRef(), taskExecution.getWorkflowRef());
 
       // Auto start System related tasks skipping the start checks
       if (!TaskType.template.equals(taskExecution.getType())

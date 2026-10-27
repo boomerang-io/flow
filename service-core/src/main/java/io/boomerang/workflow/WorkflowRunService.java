@@ -815,8 +815,9 @@ public class WorkflowRunService {
       LOGGER.info(
           "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
           wfRunEntity.getId());
-      // The run is claimable for provisioning: every poll held on this instance looks again now.
-      pollWakeups.signal();
+      // The run is claimable for provisioning: every workflow poll held on this instance looks
+      // again now.
+      pollWakeups.runProvisionable();
     }
     if (start && !hasWorkspace) {
       return this.start(wfRunEntity.getId(), Optional.empty());
