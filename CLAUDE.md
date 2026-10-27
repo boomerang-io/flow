@@ -11,8 +11,9 @@ Java 25 / Spring Boot 4 Maven monorepo plus one pnpm/Vite frontend.
 | `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`. Its `TaskHandler` runs each task through a `TaskExecutor`: `tekton` (default) or `kube-jobs` (plain `batch/v1` Jobs); its `WorkflowHandler` provisions workspace volumes. |
 | `client-web` | React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11 webapp. Renders from the `/api/v2/features` flags, so it runs against any shape. |
 
-`main` is the release branch; `feat-v5` is the integration branch for the current major; work branches are
-`feat-v5-<topic>`. One product tag (`5.x.y`, `-beta.N`, `-rc.N`) builds every image.
+`main` is the integration and release branch: work branches are cut from it and merge back by pull request
+(two approving reviews), and `Fixes #n` closes the issue on merge. One product tag (`5.x.y`, `-beta.N`, `-rc.N`)
+on `main` builds every image.
 
 ## How to write (answers, reviews, specs, commits)
 

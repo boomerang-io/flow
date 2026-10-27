@@ -22,9 +22,8 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 - `<semver>` MUST match `^5\.[0-9]+\.[0-9]+(-(rc|beta)\.[0-9]+)?$` — the workflow triggers only
   on the `5.` product line. Pre-release suffixes push only `:<semver>` — `:latest` moves on
   stable tags alone.
-- A stable `5.x.y` tag is cut from `main`. A `-beta.N` or `-rc.N` tag is cut from `feat-v5`, the
-  integration branch for the current major, as the 5.0.0 betas have been. Either way the tree is
-  clean and pushed; any other branch needs an explicit user decision.
+- Every tag, stable or `-beta.N`/`-rc.N`, is cut from `main`, the integration and release branch.
+  The tree is clean and pushed; any other branch needs an explicit user decision.
 - One tag releases EVERYTHING — there is no partial release. If only one module changed, the
   whole set still rebuilds and ships at the new version.
 - The annotated tag MESSAGE is the human-facing release note — write it before tagging.
@@ -33,8 +32,7 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 
 ### 1. Validate
 - Parse and validate `<semver>`. Confirm the tag doesn't already exist (`git tag -l '<semver>'`).
-- `git status` clean; on the release branch for this tag (`main` for stable, `feat-v5` for a
-  pre-release); `git rev-parse HEAD` == `git rev-parse origin/<branch>` (fetch first). Other
+- `git status` clean; on `main`; `git rev-parse HEAD` == `git rev-parse origin/main` (fetch first). Other
   sessions may hold uncommitted work in the main checkout, so tag from a worktree of your own
   when `git status` is not clean.
 - The latest CI runs on HEAD are green for every module workflow (`ci-core.yml`,
