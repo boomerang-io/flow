@@ -20,16 +20,15 @@ vulnerability scan (`.github/workflows/sbom.yml`) reports every advisory in a ba
 
 ## Decision
 
-B and E. `client-web/` is a module here with its history, tested by `.github/workflows/ci-web.yml` and run as its own
-server-rendering Node server (`client-web/react-router.config.ts:12`), the browser's only origin, which calls
-`service-core` through `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:35`). A tag `5.x.y`,
-`5.x.y-beta.N` or `5.x.y-rc.N` triggers `.github/workflows/ci-release.yml:8-12`, which builds all three images from the
-checkout under that tag, adds `:latest` only for a stable tag (`:58-73`) and publishes `dispatcher-sdk` at the same
-version (`:96-123`); `sbom.yml:10-14` scans on the same tags. Both Java images run on Ubuntu's chiseled Java 25 runtime
-pinned by digest (`service-core/Dockerfile:68`, `service-dispatcher/Dockerfile:46`), the only base that pins the Java
-major, a long-term-support line, and drops the userland the service never calls. Java 26 and 27 add nothing the
-code uses: their two runtime gains, compact object headers and the AOT cache, are production features of 25
-(decision 0131).
+B and E. `client-web/` is a module here, tested by `.github/workflows/ci-web.yml` and run as its own server-rendering
+Node server (`client-web/react-router.config.ts:12`), the browser's only origin, which calls `service-core` through
+`CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:35`). A tag `5.x.y`, `5.x.y-beta.N` or
+`5.x.y-rc.N` triggers `.github/workflows/ci-release.yml:8-12`, which builds all three images from the checkout, adds
+`:latest` only for a stable tag (`:58-73`) and publishes the SDKs at the same version (`:96-123`); `sbom.yml:10-14`
+scans on the same tags. Both Java images run on Ubuntu's chiseled Java 25 runtime pinned by digest
+(`service-core/Dockerfile:68`, `service-dispatcher/Dockerfile:46`), the only base that pins the Java major, a
+long-term-support line, and drops the userland the service never calls. Java 26 and 27 add nothing the code uses: their
+two runtime gains, compact object headers and the AOT cache, are production features of 25 (decision 0131).
 
 ## Consequences
 
@@ -39,5 +38,4 @@ code uses: their two runtime gains, compact object headers and the AOT cache, ar
   time (`service-core/Dockerfile:76-77`), an internal certificate authority is a mounted truststore named there, and the
   compose healthcheck runs a compiled probe with the image's own `java` (`docker/health/Health.java`).
 - Revisit per-image tags if an embedder needs an engine-only pull line; the base when Canonical publishes a stable
-  `25-26.04` channel; the Java line at Java 29, the next long-term-support release (September 2027), when a Chainguard
-  subscription for its versioned tags is worth pricing.
+  `25-26.04` channel; the Java line at Java 29 (September 2027), when a Chainguard subscription is worth pricing.
