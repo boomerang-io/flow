@@ -39,7 +39,10 @@ test("edit a template task's param, apply and save a version", async ({ page, re
   // The template's declared result is listed read-only on the Results tab.
   await taskModal.getByRole("tab", { name: "Results" }).click();
   await expect(taskModal.getByRole("list", { name: "Results" }).getByText("content", { exact: true })).toBeVisible();
+  // One panel at a time: the selected tab's content replaces the others' rather than stacking under it.
+  await expect(taskModal.getByRole("textbox", { name: "File Path" })).toBeHidden();
   await taskModal.getByRole("tab", { name: "Parameters" }).click();
+  await expect(taskModal.getByRole("list", { name: "Results" })).toBeHidden();
   await taskModal.getByRole("textbox", { name: "File Path" }).fill("/workspace/after.txt");
   await taskModal.getByRole("button", { name: "Apply" }).click();
   await expect(taskModal).toBeHidden();
