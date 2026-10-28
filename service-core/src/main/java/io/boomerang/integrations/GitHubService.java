@@ -4,6 +4,7 @@ import com.spotify.github.v3.apps.InstallationRepositoriesResponse;
 import com.spotify.github.v3.checks.Installation;
 import com.spotify.github.v3.clients.GitHubClient;
 import com.spotify.github.v3.clients.GithubAppClient;
+import com.spotify.github.v3.clients.JwtTokenIssuer;
 import com.spotify.github.v3.clients.OrganisationClient;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
@@ -26,6 +27,7 @@ import io.jsonwebtoken.security.Keys;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -63,6 +65,9 @@ public class GitHubService {
 
   private static final String OAUTH_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
   private static final String USER_INSTALLATIONS_URL = "https://api.github.com/user/installations";
+  private static final String INSTALLATION_TOKEN_URL =
+      "https://api.github.com/app/installations/{id}/access_tokens";
+  private static final MediaType GITHUB_JSON = MediaType.parseMediaType("application/vnd.github+json");
   private static final String GITHUB_APP_TYPE = "github_app";
   private static final Duration STATE_TTL = Duration.ofMinutes(10);
 
@@ -131,16 +136,35 @@ public class GitHubService {
   }
 
   /*
-   * A fresh installation access token, valid for an hour, minted with the App's private key. It
-   * carries the App's permissions on that installation, and is never logged.
+   * A fresh installation access token, valid for an hour, carrying the App's permissions on that
+   * installation. It is asked for with a JWT signed by the App's private key, through the external
+   * client so the operator's proxy, trust and timeout settings apply. Neither is ever logged.
    */
   public String installationToken(String installationRef) {
+    Map<String, Object> body;
     try {
       Integer installationId = Integer.valueOf(installationRef);
-      return getGitHubAppClient(installationId).getAccessToken(installationId).join().token();
-    } catch (RuntimeException ex) {
+      Integer appId =
+          Integer.valueOf(settingsService.getSettingConfig("integration", "github.appId").getValue());
+      HttpHeaders headers = new HttpHeaders();
+      headers.setBearerAuth(JwtTokenIssuer.fromPrivateKey(getPEMBytes()).getToken(appId));
+      headers.setAccept(List.of(GITHUB_JSON));
+      body =
+          restTemplate
+              .exchange(
+                  INSTALLATION_TOKEN_URL,
+                  HttpMethod.POST,
+                  new HttpEntity<>(headers),
+                  new ParameterizedTypeReference<Map<String, Object>>() {},
+                  installationId)
+              .getBody();
+    } catch (GeneralSecurityException | RuntimeException ex) {
       throw new BoomerangException(ex, BoomerangError.INTEGRATION_TOKEN_FAILED, "GitHub");
     }
+    if (body != null && body.get("token") instanceof String token && !token.isBlank()) {
+      return token;
+    }
+    throw new BoomerangException(BoomerangError.INTEGRATION_TOKEN_FAILED, "GitHub");
   }
 
   /*
