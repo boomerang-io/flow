@@ -33,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +58,10 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkspaceService workspaceService;
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
   @Autowired private WorkflowWatcher workflowWatcher;
+
+  // Every run a test submitted, ended afterwards: a run left running with a task no dispatcher
+  // claims would otherwise sit in the stalled-run sweep's page for every later test class.
+  private final List<String> submitted = new java.util.concurrent.CopyOnWriteArrayList<>();
 
   @BeforeEach
   void seedFixtures() {
@@ -89,7 +94,21 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
   private WorkflowRun submit(String workspace, String workflow, boolean start) {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(TriggerEnum.manual);
-    return workflowService.submit(workspace, workflow, request, start);
+    WorkflowRun run = workflowService.submit(workspace, workflow, request, start);
+    submitted.add(run.getId());
+    return run;
+  }
+
+  @AfterEach
+  void endSubmittedRuns() {
+    for (String id : submitted) {
+      try {
+        workflowRunService.cancel(id);
+      } catch (RuntimeException ignored) {
+        // Already terminal, or gone.
+      }
+    }
+    submitted.clear();
   }
 
   private WorkflowRunEntity run(String id) {

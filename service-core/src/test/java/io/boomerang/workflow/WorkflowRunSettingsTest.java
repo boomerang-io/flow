@@ -24,6 +24,7 @@ import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,18 @@ class WorkflowRunSettingsTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private WorkflowRunService workflowRunService;
+
+  // The run the task-run test submits, ended afterwards so it leaves nothing in flight.
+  private String submitted;
+
+  @AfterEach
+  void endSubmittedRun() {
+    if (submitted != null) {
+      workflowRunService.cancel(submitted);
+      submitted = null;
+    }
+  }
 
   @BeforeEach
   void seedFixtures() {
@@ -126,6 +139,7 @@ class WorkflowRunSettingsTest extends AbstractEngineIntegrationTest {
     request.setTrigger(TriggerEnum.manual);
 
     WorkflowRun run = workflowService.submit(workspace, workflow.getName(), request, false);
+    submitted = run.getId();
 
     List<TaskRunEntity> tasks = taskRunRepository.findByWorkflowRunRef(run.getId());
     TaskRunEntity work = tasks.stream().filter(t -> "work".equals(t.getName())).findFirst().get();
