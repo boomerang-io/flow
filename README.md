@@ -20,7 +20,7 @@ Other top-level folders:
 |---|---|
 | [`contracts`](./contracts) | `dispatcher-v1.yaml`, the OpenAPI contract between `service-core` and any dispatcher. |
 | [`specifications`](./specifications) | Reference docs for each subsystem as it works today, and numbered decision records (`decisions/`). |
-| [`docker`](./docker) | Support files for the local stack and images: the IDPZero OIDC provider, Mongo seed scripts, SeaweedFS config, the kubeconfig for the dispatcher, and the shell-less container health probe (`health/Health.java`). |
+| [`docker`](./docker) | Support files for the local stack and images: the IDPZero OIDC provider's config, Mongo seed scripts, SeaweedFS config, the kubeconfig for the dispatcher, and the shell-less container health probe (`health/Health.java`). |
 | [`load`](./load) | A dependency-free Node load harness that submits runs against `service-core` and reports latency and throughput. |
 | [`scripts`](./scripts) | One-off operator scripts, such as a read-only `mongosh` audit of the tokens collection. |
 

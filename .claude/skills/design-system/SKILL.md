@@ -1,13 +1,13 @@
 ---
 name: design-system
-description: Boomerang Flow design system — IBM Carbon v11 + the Boomerang theme + Boomerang Carbon add-ons (@boomerang-io/carbon-addons-boomerang-react). Use this skill when creating or modifying ANY frontend/UI element for a Boomerang Flow surface — React components, SCSS, Carbon usage, colour tokens, typography, layout, status colours — or when reviewing UI for design consistency. This is NOT EY Motif (ARCHIE) and NOT the cheer.dev system. Read this before writing any UI code.
+description: Boomerang Flow design system — IBM Carbon v11 + the Boomerang theme + Boomerang Carbon add-ons (@boomerang-io/carbon-addons-boomerang-react). Use this skill when creating or modifying ANY frontend/UI element for a Boomerang Flow surface — React components, SCSS, Carbon usage, colour tokens, typography, layout, status colours — or when reviewing UI for design consistency. This is NOT the cheer.dev system or any other design system. Read this before writing any UI code.
 ---
 
 # Boomerang Flow Design System
 
 Boomerang Flow's UI is **IBM Carbon Design System v11** with the **Boomerang theme** layered on
 top and the **Boomerang Carbon add-ons** as the component library. Signature brand colour is
-**purple (`#6e32c9`)**. Do not use EY Motif (ARCHIE) or cheer.dev tokens/components here.
+**purple (`#6e32c9`)**. Do not use cheer.dev or any other system's tokens/components here.
 
 > The Boomerang Flow UI is `client-web/` in this repository: React 18 and React Router 7 in
 > framework mode with server-side rendering. It is the source of truth for every value below.
@@ -70,5 +70,5 @@ token value, a component API, or the theme setup, read it there rather than gues
 
 Flag: raw hex in components; Tailwind/CSS-in-JS creeping in; hand-rolled nav/modals/forms that the
 add-ons already provide; hardcoded font sizes or off-scale spacing; ad-hoc status colours; a
-missing/incorrect `data-carbon-theme="boomerang"`; or any EY Motif / cheer.dev leftover. Confirm
+missing/incorrect `data-carbon-theme="boomerang"`; or any cheer.dev or other design-system leftover. Confirm
 new colours resolve to a Carbon compat token, a Boomerang palette variable, or a Flow accent token.

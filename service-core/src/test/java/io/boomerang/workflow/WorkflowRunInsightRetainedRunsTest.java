@@ -154,10 +154,10 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
     String workflowRef = refOf(workflow);
     Date from = new Date(System.currentTimeMillis() - 60_000);
     Date to = new Date(System.currentTimeMillis() + 60_000);
-    labelledRun(workflowRef, "knowledge");
-    labelledRun(workflowRef, "eval");
+    labelledRun(workflowRef, "build");
+    labelledRun(workflowRef, "test");
     // URL-encoded key=value, as the run query takes it; the dot in the key is matched as stored.
-    Optional<List<String>> labels = Optional.of(List.of("archie.analysisType%3Dknowledge"));
+    Optional<List<String>> labels = Optional.of(List.of("example.stage%3Dbuild"));
 
     WorkflowRunInsightSummary summary =
         insightService.summary(
@@ -187,7 +187,7 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
                     workflow.getName(),
                     now,
                     now,
-                    Optional.of(List.of("archie.analysisType"))))
+                    Optional.of(List.of("example.stage"))))
         .isInstanceOf(BoomerangException.class)
         .extracting(ex -> ((BoomerangException) ex).getCode())
         .isEqualTo(BoomerangError.QUERY_INVALID_FILTERS.getCode());
@@ -548,9 +548,9 @@ class WorkflowRunInsightRetainedRunsTest extends AbstractEngineIntegrationTest {
         .get(0);
   }
 
-  private void labelledRun(String workflowRef, String analysisType) {
+  private void labelledRun(String workflowRef, String stage) {
     WorkflowRunEntity run = completedRun(workflowRef, RunStatus.succeeded, 1_000);
-    run.getLabels().put("archie.analysisType", analysisType);
+    run.getLabels().put("example.stage", stage);
     workflowRunRepository.save(run);
   }
 

@@ -109,9 +109,9 @@ class AuthExchangeServiceTest {
   }
 
   /*
-   * Azure-compatibility claim fallbacks (maintainer-approved 2026-08-31, following ARCHIE's
-   * proven chain): email -> emailAddress -> preferred_username, the last only when email-shaped,
-   * because Flow keys users and IDP activation on email. Names prefer the composite `name` claim
+   * Azure-compatibility claim fallbacks (maintainer-approved 2026-08-31): email -> emailAddress
+   * -> preferred_username, the last only when email-shaped, because Flow keys users and IDP
+   * activation on email. Names prefer the composite `name` claim
    * (split on the first space), falling back to given_name/family_name and the legacy aliases.
    */
   @Test

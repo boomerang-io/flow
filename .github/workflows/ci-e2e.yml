@@ -41,7 +41,7 @@ jobs:
       # client-web's runs pnpm, so no host-side build precedes this. Buildx builds the two images
       # docker-compose.yml builds (same context and Dockerfile) with GitHub's layer cache, one scope
       # per image, and loads them under the names compose gives them (project `flow` + service), so
-      # `up` starts these and builds only the small IDPZero image itself. This is the one
+      # `up` starts these and pulls the rest (Mongo, IDPZero, SeaweedFS). This is the one
       # pull-request build of the service-core image (ci-core.yml runs its tests).
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

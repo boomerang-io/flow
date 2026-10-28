@@ -39,7 +39,8 @@ services:
       retries: 20
     networks: [flow]
 
-  # Local OIDC provider (docker/idpzero/). The issuer URL must be ONE string that works from both
+  # Local OIDC provider: IDPZero's published image (github.com/idpzero/idpzero) with the config in
+  # docker/idpzero/server.yaml. The issuer URL must be ONE string that works from both
   # sides: the browser follows the authorize redirect to it and the SSR server fetches discovery
   # and tokens from it, and service-core fetches the discovery document and JWKS from it and then
   # requires the id_token's iss claim to equal the configured issuer byte for byte. idpzero derives
@@ -48,10 +49,16 @@ services:
   # *.localhost resolves to 127.0.0.1, where the published port lands on this container; on the
   # compose network the alias below resolves the same name for service-core. Port 4380 rather than
   # idpzero's usual 4379 so a host-run idpzero from another project cannot shadow this one.
+  # The config is mounted read-only and on its own: idpzero writes its signing key and state database
+  # to cache/ beside it, which stays in the image's /config volume rather than the repo and survives a
+  # recreate until `docker compose down -v`. Restart the service after editing server.yaml. The user
+  # is the image's unprivileged one; started as root, its entrypoint tries to chown the read-only
+  # file and logs a warning.
   idpzero:
-    build:
-      context: ./docker/idpzero
-      dockerfile: Dockerfile
+    image: ghcr.io/idpzero/idpzero:0.3.2
+    user: "65532:65532"
+    volumes:
+      - ./docker/idpzero/server.yaml:/config/server.yaml:ro
     ports:
       - "4380:4380"
     healthcheck:

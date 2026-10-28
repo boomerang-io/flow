@@ -8,8 +8,8 @@ import java.util.Map;
 /*
  * A permission GRANT's scope (what a {@link io.boomerang.core.security.model.
  * ResolvedPermissions} entry is anchored to) - split out of the former overloaded {@link
- * AuthScope}, which conflated this with the token's own class. Named after ARCHIE's {@code
- * PermissionScope} (see specifications/authorization.md).
+ * AuthScope}, which conflated this with the token's own class (see
+ * specifications/authorization.md).
  *
  * <p>Only two values exist because only two ever have: every {@code ResolvedPermissions} the
  * codebase builds is either anchored to a single workspace ({@code principal}=workspaceId) or

@@ -103,7 +103,7 @@ or not security is on. Being a `global` token, it is refused by `/api/v2/profile
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or
 `createWorkflowSchedulerToken` minted it (`core/TokenService.java:734-739`); a workflow name is only unique within
-its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:703`),
+its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:715`),
 and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
 (`workspace/WorkspaceService.java:354`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
 token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
@@ -206,7 +206,7 @@ is granted. `filter()` for `TASK` always anchors at `root` — the task catalogu
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:558-562,650-658`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:567-571,662-670`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
 parent (`workflow/WorkflowRunService.java:642-666,956,1023-1033`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).

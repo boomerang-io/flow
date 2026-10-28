@@ -92,6 +92,16 @@ tag's release notes.
 - **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
   integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
   refuse every request.
+- **Every GitHub App delivery requires GitHub's signature, and the GitHub trigger now works.** Set the App's
+  webhook secret in the integration settings (`github.webhookSecret`); with none set, every GitHub event is
+  refused with `401`, where before only `installation` events were. A GitHub event now starts the workflows whose
+  GitHub trigger is on (it used to read the webhook trigger's switch), its Events and Repository filters apply,
+  and one workflow refusing no longer stops the rest of the workspace. The run gains an `event` param,
+  `{type, id}`, beside `data`.
+- **The Slack tasks take their bot token and webhook URL as password fields.** Change unit
+  `_0030__SeedSlackCredentialRevisions` adds a new revision of each of the 13 Slack tasks, so a token typed into a
+  node is stored encrypted and read back as `*****`. Workflows keep the revision they pin until upgraded in the
+  editor; upgrading keeps the value, which is encrypted on the next save.
 - **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
   `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
   `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an

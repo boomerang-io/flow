@@ -62,7 +62,7 @@ public class TokenService {
   private Integer MAX_SESSION_TOKEN_DURATION;
 
   // Throttle window for lastUsedAt writes so a hot auth path (e.g. the dispatcher filter) doesn't
-  // write per request (the ARCHIE pattern).
+  // write per request.
   private static final long LAST_USED_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
   // Reuse window for filter-minted session tokens (see createSessionToken): bounds the
@@ -435,7 +435,7 @@ public class TokenService {
   /**
    * Best-effort "last used" stamp, throttled to at most one write per {@link
    * #LAST_USED_THROTTLE_MS} so a busy dispatcher/integration doesn't hammer Mongo on every
-   * request (the ARCHIE pattern).
+   * request.
    */
   public void touchLastUsed(TokenEntity token) {
     if (token == null) {
