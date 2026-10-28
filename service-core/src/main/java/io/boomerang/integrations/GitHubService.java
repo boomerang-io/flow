@@ -11,11 +11,14 @@ import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.AbstractParam;
+import io.boomerang.integrations.entity.IntegrationTemplateEntity;
 import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.integrations.enums.IntegrationStatus;
 import io.boomerang.integrations.model.GHInstallationsResponse;
 import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -33,6 +36,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -47,6 +51,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -67,16 +72,19 @@ public class GitHubService {
   private final SettingsService settingsService;
   private final RelationshipService relationshipService;
   private final IntegrationsRepository integrationsRepository;
+  private final IntegrationParameterService integrationParameterService;
   private final RestTemplate restTemplate;
 
   public GitHubService(
       SettingsService settingsService,
       RelationshipService relationshipService,
       IntegrationsRepository integrationsRepository,
+      IntegrationParameterService integrationParameterService,
       @Qualifier("externalRestTemplate") RestTemplate restTemplate) {
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
     this.integrationsRepository = integrationsRepository;
+    this.integrationParameterService = integrationParameterService;
     this.restTemplate = restTemplate;
   }
 
@@ -120,6 +128,58 @@ public class GitHubService {
       }
     }
     throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+  }
+
+  /*
+   * A fresh installation access token, valid for an hour, minted with the App's private key. It
+   * carries the App's permissions on that installation, and is never logged.
+   */
+  public String installationToken(String installationRef) {
+    try {
+      Integer installationId = Integer.valueOf(installationRef);
+      return getGitHubAppClient(installationId).getAccessToken(installationId).join().token();
+    } catch (RuntimeException ex) {
+      throw new BoomerangException(ex, BoomerangError.INTEGRATION_TOKEN_FAILED, "GitHub");
+    }
+  }
+
+  /*
+   * An installation token lives an hour, so every workspace sharing one gets a fresh token every
+   * 45 minutes, and once shortly after this instance starts. Every instance runs this; each mint is
+   * independent and any of them is valid, so a duplicate costs one GitHub call and one write.
+   */
+  @Scheduled(
+      initialDelayString = "#{T(java.util.concurrent.ThreadLocalRandom).current().nextLong(60000)}",
+      fixedDelay = 45,
+      timeUnit = TimeUnit.MINUTES)
+  public void refreshSharedTokens() {
+    IntegrationTemplateEntity template = integrationParameterService.template(GITHUB_APP_TYPE);
+    List<AbstractParam> credentials =
+        IntegrationParameterService.fields(template).stream()
+            .filter(field -> "password".equals(field.getType()))
+            .toList();
+    if (credentials.isEmpty()) {
+      return;
+    }
+    for (IntegrationsEntity installation : integrationsRepository.findByType(GITHUB_APP_TYPE)) {
+      WorkspaceEntity workspace =
+          integrationParameterService.workspace(
+              relationshipService.getParentByLabel(
+                  RelationshipLabel.HAS_INTEGRATION, RelationshipType.INTEGRATION, installation.getId()));
+      if (workspace == null || !integrationParameterService.isShared(workspace, template)) {
+        continue;
+      }
+      try {
+        String token = installationToken(installation.getRef());
+        credentials.forEach(field -> integrationParameterService.refresh(workspace, field, token));
+      } catch (RuntimeException ex) {
+        LOGGER.warn(
+            "GitHub installation {} - the token shared with workspace {} could not be refreshed: {}",
+            installation.getRef(),
+            workspace.getName(),
+            ex.getMessage());
+      }
+    }
   }
 
   private GithubAppClient getGitHubAppClient(Integer installationId) {
@@ -327,7 +387,7 @@ public class GitHubService {
   /*
    * Self-service unlink - keyed on the installation ref (a GitHub installation id is not a Mongo
    * _id) and guarded against unlinking an installation that does not belong to the requesting
-   * workspace.
+   * workspace. The parameters it managed in the workspace go with it.
    */
   public void unlinkAppInstallation(GHLinkRequest request) {
     LOGGER.debug("unlinkAppInstallation() - " + request.toString());
@@ -342,6 +402,11 @@ public class GitHubService {
           Optional.empty(),
           Optional.empty())) {
         throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);
+      }
+      WorkspaceEntity workspace = integrationParameterService.workspace(request.getWorkspace());
+      if (workspace != null) {
+        integrationParameterService.unshare(
+            workspace, integrationParameterService.template(GITHUB_APP_TYPE));
       }
       integrationsRepository.delete(entity);
       relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.INTEGRATION, entity.getId());

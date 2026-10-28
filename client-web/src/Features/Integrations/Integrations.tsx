@@ -47,7 +47,8 @@ export async function loader({
   }
 }
 
-export type ActionResult = { intent: "disconnect"; name: string } | ({ intent: "disconnect"; name: string } & ActionError);
+type ActionIntent = { intent: "disconnect"; name: string } | { intent: "share"; name: string; shared: boolean };
+export type ActionResult = ActionIntent | (ActionIntent & ActionError);
 
 // Each integration type unlinks through its own endpoint, keyed by the integration's display
 // name - mirrors the previous browser-side `unlinkResolverByIntegrationName` lookup in
@@ -56,6 +57,11 @@ export type ActionResult = { intent: "disconnect"; name: string } | ({ intent: "
 // of silently calling the wrong (or an undefined) resolver.
 const unlinkUrlByIntegrationName: Record<string, () => string> = {
   GitHub: serviceUrl.postGitHubAppUnlink,
+};
+
+// Sharing an integration's credentials with tasks, by display name; only GitHub shares any today.
+const shareUrlByIntegrationName: Record<string, () => string> = {
+  GitHub: serviceUrl.postGitHubShare,
 };
 
 // No explicit return-type annotation: `actionError` wraps the failure branches in RR's `data()`
@@ -86,6 +92,30 @@ export async function action({ request }: { request: Request }) {
         intent: "disconnect",
         name,
         error: formatErrorMessage({ error, defaultMessage: `Request to disable ${name.toLowerCase()} failed` }),
+      });
+    }
+  }
+
+  if (intent === "share") {
+    const shared = formData.get("shared") === "true";
+    const getShareUrl = shareUrlByIntegrationName[name];
+    if (!getShareUrl) {
+      return actionError({
+        intent: "share",
+        name,
+        shared,
+        error: { title: "Something's Wrong", message: `${name} has no credentials to share` },
+      });
+    }
+    try {
+      await serverFetch(request).post(getShareUrl(), { workspace: String(formData.get("workspace")), shared });
+      return { intent: "share", name, shared };
+    } catch (error) {
+      return actionError({
+        intent: "share",
+        name,
+        shared,
+        error: formatErrorMessage({ error, defaultMessage: `Request to change sharing for ${name} failed` }),
       });
     }
   }

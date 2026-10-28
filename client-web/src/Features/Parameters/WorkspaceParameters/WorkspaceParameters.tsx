@@ -14,7 +14,7 @@ import { useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { DataDrivenInput } from "Types";
+import { DataDrivenInput, Integration } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
 import CreateEditParametersModal from "../CreateEditParametersModal";
 import ParametersTable from "../ParametersTable";
@@ -38,6 +38,8 @@ import ParametersTable from "../ParametersTable";
 // on the workspace and merged in through PATCH /workspace/{workspace} (serviceUrl.resourceWorkspace).
 type LoaderData = {
   parameters: DataDrivenInput[];
+  // The integration managing each managed parameter, by parameter name.
+  managedBy: Record<string, string>;
   errorLoading: boolean;
 };
 
@@ -50,13 +52,31 @@ export async function loader({
   params: { workspace?: string };
   request: Request;
 }): Promise<LoaderData> {
+  const workspace = String(params.workspace);
   try {
-    const response = await serverFetch(request).get(
-      serviceUrl.resourceWorkspace({ workspace: String(params.workspace) }),
-    );
-    return { parameters: response.data?.parameters ?? [], errorLoading: false };
+    const [response, managedBy] = await Promise.all([
+      serverFetch(request).get(serviceUrl.resourceWorkspace({ workspace })),
+      managingIntegrations(request, workspace),
+    ]);
+    return { parameters: response.data?.parameters ?? [], managedBy, errorLoading: false };
   } catch (error) {
-    return { parameters: [], errorLoading: true };
+    return { parameters: [], managedBy: {}, errorLoading: true };
+  }
+}
+
+// Which integration manages which parameter: each integration sharing its credentials names its fields. Only
+// a label rides on it, so a failed read leaves the parameters to show as plain read-only.
+async function managingIntegrations(request: Request, workspace: string): Promise<Record<string, string>> {
+  try {
+    const response = await serverFetch(request).get(serviceUrl.getIntegrations({ workspace }));
+    const integrations: Array<Integration> = response.data ?? [];
+    return Object.fromEntries(
+      integrations
+        .filter((integration) => integration.shared)
+        .flatMap((integration) => (integration.fields ?? []).map((field) => [field.name, integration.name])),
+    );
+  } catch (error) {
+    return {};
   }
 }
 
@@ -107,7 +127,7 @@ function WorkspaceParameters() {
   // The workspace object stays a client-side concern (header breadcrumb only); the parameters the
   // table renders come from this route's loader, which is what a fetcher settle revalidates.
   const { workspace } = useWorkspaceContext();
-  const { parameters, errorLoading } = useLoaderData() as LoaderData;
+  const { parameters, managedBy, errorLoading } = useLoaderData() as LoaderData;
   // handleSubmit hands this component a `closeModal` at submit time; the fetcher settles
   // asynchronously (fetcher.state -> "idle"), so the callback is stashed here and invoked once the
   // create/update settles (success or failure both closed the modal before, see the effect below) -
@@ -218,6 +238,7 @@ function WorkspaceParameters() {
       <ParametersTable
         scope="workspace"
         parameters={parameters}
+        managedBy={managedBy}
         errorLoading={errorLoading}
         onAdd={() => setEditor({ isOpen: true })}
         onEdit={(parameter) => setEditor({ isOpen: true, parameter })}

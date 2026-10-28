@@ -228,3 +228,44 @@ describe("Task config form --- which task types can run for each item", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Parameters", "Configure"]);
   });
 });
+
+// A GitHub catalogue task's token defaults to the parameter the workspace's GitHub integration manages.
+describe("Task config form --- a password parameter defaulting to a reference", () => {
+  const githubTask = {
+    name: "get-github-repository",
+    displayName: "Get GitHub Repository",
+    version: 3,
+    spec: {
+      params: [
+        {
+          name: "token",
+          label: "Github Access Token",
+          type: "password",
+          default: "$(workspace.params.github-token)",
+        },
+      ],
+      results: [],
+    },
+  } as unknown as Task;
+
+  it("shows the reference as text, and masks a token typed over it", () => {
+    renderWithContext(
+      <TaskForm
+        availableParameters={[]}
+        closeModal={() => {}}
+        node={{ ...node, taskRef: "get-github-repository", taskVersion: 3 } as unknown as WorkflowNodeData}
+        onSave={() => {}}
+        otherTaskNames={[]}
+        task={githubTask}
+      />,
+    );
+
+    const token = screen.getByLabelText("Github Access Token");
+    expect(token).toHaveValue("$(workspace.params.github-token)");
+    expect(token).toHaveAttribute("type", "text");
+
+    fireEvent.change(token, { target: { value: "ghp_personal_token" } });
+
+    expect(screen.getByLabelText("Github Access Token")).toHaveAttribute("type", "password");
+  });
+});

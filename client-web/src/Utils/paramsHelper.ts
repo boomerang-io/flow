@@ -50,3 +50,12 @@ export function normaliseInputs(inputs: Array<any>): Array<any> {
     key: input.key ?? input.name, // Ensure key is set
   }));
 }
+
+// Exactly one Flow reference - $(params.x), $(<scope>.params.x) or $(tasks.t.results.r), each with an optional
+// path - and not shell text such as $(date); the same rule the server applies to secret values.
+const FLOW_REFERENCE =
+  /^\$\((?:params\.[\w-]+|(?:workflow|workspace|global|context|team)\.params\.[\w-]+|tasks\.[\w-]+\.results\.[\w-]+)(?:\.[^\s()]+)?\)$/i;
+
+export function isFlowReference(value: unknown): boolean {
+  return typeof value === "string" && FLOW_REFERENCE.test(value.trim());
+}

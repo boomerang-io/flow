@@ -38,7 +38,8 @@ class IntegrationServiceTest {
           relationships,
           settings,
           mock(GitHubService.class),
-          mock(IdentityService.class));
+          mock(IdentityService.class),
+          mock(IntegrationParameterService.class));
 
   private static IntegrationTemplateEntity template(String name, String type) {
     IntegrationTemplateEntity template = new IntegrationTemplateEntity();

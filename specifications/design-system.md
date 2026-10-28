@@ -116,7 +116,7 @@ collapse control), one search row with the filter and the task count in the plac
    `Creatable`, `CheckboxList`, `RadioGroup`, `TextInput`, `TextArea`, `Toggle`, `Loading`, `TooltipHover`,
    `ToastNotification`, `notify`, and the error surfaces `Error`, `Error403`, `Error404`, `ErrorFullPage`,
    `ErrorMessage`, `ErrorPage` and `ErrorDragon`. The library has no `AutoSuggest`, so the editor's parameter inputs
-   are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:16-33`). `UIShell` provides the header
+   are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:17-34`). `UIShell` provides the header
    and side-nav chrome; navigation is never hand-rolled.
 2. **Carbon** (`@carbon/react`) for anything the add-ons do not cover (`Button`, `DataTable`, `Tabs`, `Tag`,
    `ContentSwitcher`, `InlineNotification`, form inputs).
@@ -146,7 +146,7 @@ Content switchers are Boomerang blue, not the theme's inverse ink: one rule poin
 ### Parameters
 
 Workflow, workspace and global parameters share one table
-(`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,86-92`): Name first in monospace (what tasks
+(`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,90-96`): Name first in monospace (what tasks
 type), Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured
 tag, Description, and a menu with Edit, Copy reference and Delete (`:147-149`). Search and Add parameter sit in the
 table toolbar. The workflow has its own modal and the workspace and global scopes share one; both are titled "Edit
@@ -175,7 +175,7 @@ Task Manager's add and edit field form offers that list plus `time`
 
 | Input type | Renders as | Notes |
 | ---------- | ---------- | ----- |
-| `boolean` | add-ons `Toggle` | Vertical orientation (`src/Features/Reactflow/components/shared/inputs.tsx:152-154`). |
+| `boolean` | add-ons `Toggle` | Vertical orientation (`src/Features/Reactflow/components/shared/inputs.tsx:159-161`). |
 | `email`, `password`, `text`, `time`, `url` | add-ons `TextInput`, through the local `AutoSuggestInput` | `password` renders a masked field. |
 | `number` | the same, `type="number"` | `min`/`max` feed DynamicFormik's yup schema. |
 | `select` | add-ons `ComboBox` | Options are `{ key, value }` pairs. |
@@ -389,7 +389,7 @@ keep:
   `iconDescription` (the version buttons, `src/Features/WorkflowEditor/Header/Header.tsx:110,130`) or an `alt`
   (`src/Components/WorkflowEditButton/WorkflowEditButton.tsx:14`: "Workflow edit button").
 - Form inputs are named by their parameter label, not their key: the task-edit form renders `textbox "Shell
-  Interpreter"`, not `#shell` (`src/Features/Reactflow/components/shared/inputs.tsx:29`,
+  Interpreter"`, not `#shell` (`src/Features/Reactflow/components/shared/inputs.tsx:30`,
   `e2e/tests/foreach-ui.spec.ts:118`).
 
 The end-to-end suite (`e2e/`) locates elements in this order, which doubles as an accessibility check: a journey

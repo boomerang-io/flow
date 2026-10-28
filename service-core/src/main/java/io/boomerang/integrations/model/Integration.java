@@ -3,7 +3,9 @@ package io.boomerang.integrations.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.boomerang.common.model.AbstractParam;
 import io.boomerang.integrations.enums.IntegrationStatus;
+import java.util.List;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 
@@ -19,4 +21,8 @@ public class Integration {
   private String description;
   private String instructions;
   private String ref;
+  private List<AbstractParam> fields;
+  // Whether the workspace holds the integration's fields as managed parameters; absent when the
+  // integration has none or is not linked.
+  private Boolean shared;
 }

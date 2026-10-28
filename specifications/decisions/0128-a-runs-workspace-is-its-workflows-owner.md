@@ -6,7 +6,7 @@
 
 The engine needs a run's workspace to choose its parameter layer, the secret values to redact and the lock scope, and
 needs the operator's task settings (timeout, default image, deletion policy) for each task run. A workspace's name can
-change (`workspace/WorkspaceService.java:266-269`), and the engine decides only from typed fields (decision 0020).
+change (`workspace/WorkspaceService.java:270-273`), and the engine decides only from typed fields (decision 0020).
 
 ## Options
 

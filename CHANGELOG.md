@@ -102,6 +102,15 @@ tag's release notes.
   `_0030__SeedSlackCredentialRevisions` adds a new revision of each of the 13 Slack tasks, so a token typed into a
   node is stored encrypted and read back as `*****`. Workflows keep the revision they pin until upgraded in the
   editor; upgrading keeps the value, which is encrypted on the next save.
+- **The GitHub integration can share its installation token with tasks.** Once GitHub is connected, the
+  workspace's integration page offers "Share the installation token with tasks", which writes two read-only
+  workspace parameters, `github-token` (refreshed every 45 minutes) and `github-url`; workspace parameters must
+  be on. Change unit `_0031__SeedGitHubIntegrationParameters` gives the GitHub integration template those fields
+  and adds a revision of each of the 17 GitHub tasks whose `token` and `url` default to them; a token typed into a
+  node still wins. A task upgraded to the new revision and left on its default fails at admission in a workspace
+  that does not share the token. A read-only workspace parameter an integration manages can no longer be changed
+  or deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace
+  update is ignored.
 - **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
   `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
   `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an

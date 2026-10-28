@@ -38,7 +38,7 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `audit` | One flat event per audited attempt: a CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`, `actorName`, `actorType`), `workspaceId`, `action`, resource (`resourceType`, `resourceId`, `resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged` and `secretsCleared` names, never values). Run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) come from the engine's transitions (`core/audit/WorkflowRunAuditBridge.java:59`). Expires by time to live | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
-| `integrations`, `integration_templates` | Installed integrations and their catalogue | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
+| `integrations`, `integration_templates` | Installed integrations and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks (`parameters.md`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `migration/LegacyGenerationMarker.java:27`) |
 
 A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`,
@@ -47,7 +47,7 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
 (`workflow/QuotaService.java:136-168`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:197,294`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:201,298`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
 way back to absent (`workspace/WorkspaceControllerV2.java:308-319`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
@@ -309,6 +309,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0028__RunSettingsOutOfAnnotations` | all | Removes the `boomerang.io/*` run annotations (`workspace-name`, `task-*`, `*-params`) from runs and the workspace name from task runs; moves a pre-approved task run's `preApproved` flag and `status` annotation to `preApprovedStatus`; re-keys a held task lock from `<workspace name>:<key>` to `<workspace id>:<key>` |
 | `_0029__ClaimIndexKeysTheClaimant` | all | Rebuilds `task_runs.claim_page` as (type, status, phase, claim.by, creationDate) where it was built without `claim.by`; an empty or a v3 database already has the new keys from `_0021` |
 | `_0030__SeedSlackCredentialRevisions` | all | Inserts the revision of each of the 13 Slack tasks whose bot token or webhook URL is a `password` field, where an install holds the task but not that revision; earlier revisions are never touched, and an empty database has them from `_0017` |
+| `_0031__SeedGitHubIntegrationParameters` | all | Gives the GitHub integration template its `fields` where it has none, and inserts the revision of each of the 17 GitHub tasks whose `token` and `url` default to `$(workspace.params.github-token)` and `$(workspace.params.github-url)`, where an install holds the task but not that revision; an empty database has both from `_0020` and `_0017` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

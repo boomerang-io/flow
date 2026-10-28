@@ -6,6 +6,7 @@ import static io.boomerang.common.util.DataAdapterUtil.keepParamSpecValueByField
 import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
+import io.boomerang.integrations.IntegrationParameterService;
 import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
@@ -84,6 +85,7 @@ public class WorkspaceService {
   private final TaskService taskService;
   private final QuotaService quotaService;
   private final ParamLayerCache paramLayerCache;
+  private final IntegrationParameterService integrationParameterService;
   // flow.workspace.single: the seeded system workspace is the only one, so none is created or deleted.
   private final boolean single;
 
@@ -101,6 +103,7 @@ public class WorkspaceService {
       TaskService taskService,
       QuotaService quotaService,
       ParamLayerCache paramLayerCache,
+      IntegrationParameterService integrationParameterService,
       Environment environment) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
@@ -115,6 +118,7 @@ public class WorkspaceService {
     this.taskService = taskService;
     this.quotaService = quotaService;
     this.paramLayerCache = paramLayerCache;
+    this.integrationParameterService = integrationParameterService;
     this.single = FlowWorkspaceProperties.isSingle(environment);
   }
 
@@ -521,6 +525,17 @@ public class WorkspaceService {
               name -> {
                 throw new BoomerangException(BoomerangError.PARAM_INVALID_NAME, name);
               });
+      // Read-only is the server's to set: a parameter an integration manages is refused, and any
+      // other keeps the read-only it is stored with, so no client can make a managed parameter.
+      for (AbstractParam param : request) {
+        AbstractParam stored =
+            parameters.stream()
+                .filter(p -> p.getName().equalsIgnoreCase(param.getName()))
+                .findFirst()
+                .orElse(null);
+        refuseIfManaged(stored);
+        param.setReadOnly(stored != null && stored.isReadOnly());
+      }
       // A request param replaces the stored one of the same name in any case, as the keep step
       // above matches it.
       parameters =
@@ -536,6 +551,17 @@ public class WorkspaceService {
     }
     LOGGER.debug("Ending Parameters: {}", ParameterUtil.abstractParamNames(parameters));
     return parameters;
+  }
+
+  // A parameter an integration manages is changed or removed only through that integration.
+  private void refuseIfManaged(AbstractParam stored) {
+    integrationParameterService
+        .managedBy(stored)
+        .ifPresent(
+            template -> {
+              throw new BoomerangException(
+                  BoomerangError.PARAMS_MANAGED_BY_INTEGRATION, stored.getName(), template.getName());
+            });
   }
 
   /*
@@ -560,6 +586,7 @@ public class WorkspaceService {
       Optional<AbstractParam> optionalParameter =
           parameters.stream().filter(p -> p.getName().equals(name)).findAny();
       if (optionalParameter.isPresent()) {
+        refuseIfManaged(optionalParameter.get());
         parameters.remove(optionalParameter.get());
         workspaceEntity.setParameters(parameters);
         workspaceRepository.save(workspaceEntity);

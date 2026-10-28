@@ -43,6 +43,25 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
     if (fetcher.state !== "idle" || !fetcher.data) {
       return;
     }
+    if (fetcher.data.intent === "share") {
+      const { name, shared } = fetcher.data;
+      notify(
+        isActionError(fetcher.data) ? (
+          <ToastNotification kind="error" title={fetcher.data.error.title} subtitle={fetcher.data.error.message} />
+        ) : (
+          <ToastNotification
+            kind="success"
+            title={shared ? "Token shared" : "Token no longer shared"}
+            subtitle={
+              shared
+                ? `Tasks in this workspace can now use the ${name} token`
+                : `The ${name} parameters were removed from this workspace`
+            }
+          />
+        ),
+      );
+      return;
+    }
     if (!isActionError(fetcher.data)) {
       notify(
         <ToastNotification kind="success" title="Disconnected" subtitle={`${fetcher.data.name} is disconnected`} />,
@@ -65,6 +84,10 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
     fetcher.submit({ intent: "disconnect", name: data.name, workspace: workspaceName, ref: data.ref }, { method: "post" });
   };
 
+  const handleShare = (shared: boolean) => {
+    fetcher.submit({ intent: "share", name: data.name, workspace: workspaceName, shared }, { method: "post" });
+  };
+
   const handleEnable = async (closeModal: () => void) => {
     try {
       window.open(data.link, "_blank");
@@ -80,9 +103,12 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
   };
 
   const isConnected = data.status === "linked";
-  const isDisabling = fetcher.state !== "idle";
-  const disableError = Boolean(fetcher.data && isActionError(fetcher.data));
-  const disableErrorMessage = fetcher.data && isActionError(fetcher.data) ? fetcher.data.error : null;
+  const submitting = fetcher.state !== "idle" ? fetcher.formData?.get("intent") : undefined;
+  const isDisabling = submitting === "disconnect";
+  const isSharing = submitting === "share";
+  const disableError = Boolean(fetcher.data && fetcher.data.intent === "disconnect" && isActionError(fetcher.data));
+  const disableErrorMessage =
+    fetcher.data && fetcher.data.intent === "disconnect" && isActionError(fetcher.data) ? fetcher.data.error : null;
   const { Logo, adds } = known[String(data.name).toLowerCase()] ?? { Logo: Connect, adds: [] };
   const canConnect = isConnected || Boolean(data.link);
 
@@ -140,6 +166,8 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
           error={disableError}
           handleEnable={handleEnable}
           handleDisable={handleDisable}
+          handleShare={handleShare}
+          isSharing={isSharing}
           errorMessage={errorMessage ?? disableErrorMessage}
           data={data}
         />

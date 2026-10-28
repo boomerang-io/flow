@@ -105,7 +105,7 @@ human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the e
 `createWorkflowSchedulerToken` minted it (`core/TokenService.java:734-739`); a workflow name is only unique within
 its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:715`),
 and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
-(`workspace/WorkspaceService.java:354`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
+(`workspace/WorkspaceService.java:358`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
 token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
 database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:292`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`)
@@ -167,9 +167,9 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
-| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:280-286`) |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:307-313`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:76,837-849`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret (`:510-538`), with no state parameter |
-| `GET /api/v2/integration/slack/install` | Yes | A redirect to the configured install URL that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:62-67`) |
+| `GET /api/v2/integration/slack/install` | Yes | A redirect to the configured install URL that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:65-70`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:53`) |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
@@ -227,7 +227,7 @@ carry `actor.principal=system`.
 With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}`
 or `/api/v2/workspace/{workspace}/**` request whose segment is not `system`
 (`core/security/SingleWorkspaceInterceptor.java:32-45`, `SingleWorkspaceInterceptorConfiguration.java:22-27`), and
-`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:162,330`).
+`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:166,334`).
 
 ## Dispatcher endpoints
 

@@ -1,6 +1,8 @@
 package io.boomerang.integrations;
 
 import tools.jackson.databind.JsonNode;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -13,6 +15,7 @@ import io.boomerang.integrations.enums.IntegrationStatus;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.integrations.repository.IntegrationTemplateRepository;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import io.boomerang.workspace.entity.WorkspaceEntity;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
@@ -28,6 +31,7 @@ import org.springframework.stereotype.Service;
 public class IntegrationService {
 
   private static final Logger LOGGER = LogManager.getLogger();
+  private static final String GITHUB_APP_TYPE = "github_app";
 
   private final IntegrationTemplateRepository integrationTemplateRepository;
   private final IntegrationsRepository integrationsRepository;
@@ -35,6 +39,7 @@ public class IntegrationService {
   private final SettingsService settingsService;
   private final GitHubService gitHubService;
   private final IdentityService identityService;
+  private final IntegrationParameterService integrationParameterService;
 
   public IntegrationService(
       IntegrationTemplateRepository integrationTemplateRepository,
@@ -42,13 +47,15 @@ public class IntegrationService {
       RelationshipService relationshipService,
       SettingsService settingsService,
       GitHubService gitHubService,
-      IdentityService identityService) {
+      IdentityService identityService,
+      IntegrationParameterService integrationParameterService) {
     this.integrationTemplateRepository = integrationTemplateRepository;
     this.integrationsRepository = integrationsRepository;
     this.relationshipService = relationshipService;
     this.settingsService = settingsService;
     this.gitHubService = gitHubService;
     this.identityService = identityService;
+    this.integrationParameterService = integrationParameterService;
   }
 
   public List<Integration> get(String workspace) {
@@ -59,6 +66,7 @@ public class IntegrationService {
         relationshipService.refsInWorkspace(
             RelationshipType.INTEGRATION, workspace, Optional.empty());
     LOGGER.debug("Refs: " + refs.toString());
+    WorkspaceEntity workspaceEntity = integrationParameterService.workspace(workspace);
     templates.forEach(
         t -> {
           LOGGER.debug(t.toString());
@@ -72,6 +80,10 @@ public class IntegrationService {
                   ref -> {
                     i.setRef(ref);
                     i.setStatus(IntegrationStatus.linked);
+                    if (workspaceEntity != null
+                        && !IntegrationParameterService.fields(t).isEmpty()) {
+                      i.setShared(integrationParameterService.isShared(workspaceEntity, t));
+                    }
                   });
           if ("github".equals(i.getName().toLowerCase())) {
             String appName =
@@ -90,6 +102,37 @@ public class IntegrationService {
           integrations.add(i);
         });
     return integrations;
+  }
+
+  /*
+   * Share the GitHub App installation token with the workspace's tasks as managed workspace
+   * parameters, or stop sharing it. Sharing lets every workflow author in the workspace act with the
+   * App's permissions, so it is a choice made after linking, never part of it.
+   */
+  public void shareGitHub(String workspace, boolean shared) {
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+    }
+    WorkspaceEntity workspaceEntity = integrationParameterService.workspace(workspace);
+    IntegrationsEntity installation =
+        relationshipService
+            .refsInWorkspace(RelationshipType.INTEGRATION, workspace, Optional.empty())
+            .stream()
+            .map(ref -> integrationsRepository.findByIdAndType(ref, GITHUB_APP_TYPE))
+            .flatMap(Optional::stream)
+            .findFirst()
+            .orElse(null);
+    if (workspaceEntity == null || installation == null) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+    }
+    IntegrationTemplateEntity template = integrationParameterService.template(GITHUB_APP_TYPE);
+    if (shared) {
+      integrationParameterService.share(
+          workspaceEntity, template, () -> gitHubService.installationToken(installation.getRef()));
+    } else {
+      integrationParameterService.unshare(workspaceEntity, template);
+    }
   }
 
   public String getWorkspaceByRef(String ref) {
@@ -133,11 +176,22 @@ public class IntegrationService {
     return entity;
   }
 
+  /*
+   * The installation is gone: its record, its node, and the parameters it managed in the workspace
+   * it was linked to.
+   */
   public void delete(String type, JsonNode data) {
     Optional<IntegrationsEntity> optEntity =
         integrationsRepository.findByRef(data.get("id").asText());
     if (optEntity.isPresent()) {
       IntegrationsEntity entity = optEntity.get();
+      WorkspaceEntity workspace =
+          integrationParameterService.workspace(
+              relationshipService.getParentByLabel(
+                  RelationshipLabel.HAS_INTEGRATION, RelationshipType.INTEGRATION, entity.getId()));
+      if (workspace != null) {
+        integrationParameterService.unshare(workspace, integrationParameterService.template(type));
+      }
       integrationsRepository.delete(optEntity.get());
       relationshipService.removeNodeAndEdgeByRefOrSlug(
           RelationshipType.INTEGRATION, entity.getId());

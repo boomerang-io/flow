@@ -33,6 +33,31 @@ describe("IntegrationCard", () => {
     expect(screen.getByRole("button", { name: /Disconnect/, hidden: true })).toBeInTheDocument();
   });
 
+  it("offers to share the installation token with tasks once connected, showing whether it is shared", async () => {
+    const fields = [{ name: "github-token" }, { name: "github-url" }];
+    renderWithRouter(
+      <IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref", fields, shared: true }} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+
+    const share = await screen.findByRole("switch", { name: /Share the installation token with tasks/, hidden: true });
+    expect(share).toBeChecked();
+    expect(
+      screen.getByText(/Every workflow author in this workspace can then act with the GitHub App's permissions/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/\$\(workspace\.params\.github-token\) and \$\(workspace\.params\.github-url\)/)).toBeInTheDocument();
+  });
+
+  it("has no share switch for an integration with nothing to share", async () => {
+    renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+
+    expect(await screen.findByText("Connected to this workspace")).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { hidden: true })).not.toBeInTheDocument();
+  });
+
   it("can't connect an integration the platform has no install link for", () => {
     renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, name: "Slack", link: "" }} />);
 
