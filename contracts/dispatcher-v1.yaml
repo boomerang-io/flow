@@ -397,20 +397,61 @@ components:
           type: "string"
         accessMode:
           type: "string"
-    RunResult:
+    DispatchWorkflowRun:
       type: "object"
       properties:
-        name:
+        id:
           type: "string"
-        description:
+        status:
           type: "string"
-        value: {}
-    TaskEnvVar:
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+        phase:
+          type: "string"
+          enum:
+          - "queued"
+          - "pending"
+          - "running"
+          - "completed"
+        workflowRef:
+          type: "string"
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        workspace:
+          $ref: "#/components/schemas/WorkflowWorkspace"
+        statusReason:
+          type: "string"
+    TaskRunStartRequest:
       type: "object"
       properties:
-        name:
-          type: "string"
-        value:
+        labels:
+          type: "object"
+          additionalProperties:
+            type: "string"
+        annotations:
+          type: "object"
+          additionalProperties: {}
+        params:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunParam"
+        timeout:
+          type: "integer"
+          format: "int64"
+        preApproved:
+          type: "boolean"
+        dispatcherRef:
           type: "string"
     DispatchTaskRun:
       type: "object"
@@ -490,6 +531,64 @@ components:
         index:
           type: "integer"
           format: "int32"
+        statusReason:
+          type: "string"
+        attempt:
+          type: "integer"
+          format: "int32"
+        attempts:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/RunAttempt"
+    RunAttempt:
+      type: "object"
+      properties:
+        number:
+          type: "integer"
+          format: "int32"
+        claimedAt:
+          type: "string"
+          format: "date-time"
+        endedAt:
+          type: "string"
+          format: "date-time"
+        duration:
+          type: "integer"
+          format: "int64"
+        status:
+          type: "string"
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+        statusReason:
+          type: "string"
+        statusMessage:
+          type: "string"
+        dispatcherRef:
+          type: "string"
+    RunResult:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        description:
+          type: "string"
+        value: {}
+    TaskEnvVar:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        value:
+          type: "string"
     TaskRunSpec:
       type: "object"
       properties:
@@ -522,60 +621,6 @@ components:
           - "Never"
           - "OnSuccess"
           - "Always"
-    DispatchWorkflowRun:
-      type: "object"
-      properties:
-        id:
-          type: "string"
-        status:
-          type: "string"
-          enum:
-          - "notstarted"
-          - "ready"
-          - "running"
-          - "waiting"
-          - "succeeded"
-          - "failed"
-          - "invalid"
-          - "skipped"
-          - "cancelled"
-          - "timedout"
-        phase:
-          type: "string"
-          enum:
-          - "queued"
-          - "pending"
-          - "running"
-          - "completed"
-        workflowRef:
-          type: "string"
-        labels:
-          type: "object"
-          additionalProperties:
-            type: "string"
-        workspace:
-          $ref: "#/components/schemas/WorkflowWorkspace"
-    TaskRunStartRequest:
-      type: "object"
-      properties:
-        labels:
-          type: "object"
-          additionalProperties:
-            type: "string"
-        annotations:
-          type: "object"
-          additionalProperties: {}
-        params:
-          type: "array"
-          items:
-            $ref: "#/components/schemas/RunParam"
-        timeout:
-          type: "integer"
-          format: "int64"
-        preApproved:
-          type: "boolean"
-        dispatcherRef:
-          type: "string"
     TaskRunEndRequest:
       type: "object"
       properties:
@@ -607,6 +652,8 @@ components:
           type: "string"
         statusReason:
           type: "string"
+        retryable:
+          type: "boolean"
         dispatcherRef:
           type: "string"
     WorkspaceReleaseQuery:

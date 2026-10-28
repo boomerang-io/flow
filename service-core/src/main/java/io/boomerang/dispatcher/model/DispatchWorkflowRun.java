@@ -19,7 +19,9 @@ public record DispatchWorkflowRun(
     RunPhase phase,
     String workflowRef,
     Map<String, String> labels,
-    WorkflowWorkspace workspace) {
+    WorkflowWorkspace workspace,
+    // The typed cause the engine ended the run with, when it had one.
+    String statusReason) {
 
   /** The wire form of a workflow run. */
   public static DispatchWorkflowRun of(WorkflowRun workflowRun) {
@@ -29,6 +31,7 @@ public record DispatchWorkflowRun(
         workflowRun.getPhase(),
         workflowRun.getWorkflowRef(),
         workflowRun.getLabels(),
-        workflowRun.getWorkspace());
+        workflowRun.getWorkspace(),
+        workflowRun.getStatusReason());
   }
 }

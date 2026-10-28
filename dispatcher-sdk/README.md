@@ -60,6 +60,7 @@ That is a complete dispatcher. What the handler sees and must do:
 | It failed with a reason | Throw `new TaskFailure("OOMKilled", message)` or with the results written before the failure |
 | The runtime refused it for lack of capacity | Throw `TaskFailure.exceededQuota(message)`: the engine hands it back for another attempt |
 | Its work was created but never began | Throw `TaskFailure.startTimeout(message)`: handed back the same way |
+| It failed in a way a retry cannot change | Throw `TaskFailure.terminal("JobFailed", message)`: reported with `retryable: false`, so the engine ends the task now whatever the node's `retry` setting asks for |
 | Anything else is thrown | Reported as `DispatchError` |
 | The engine ordered it terminated | `context.isCancelled()` turns true and `context.onCancel(action)` runs; `cancel(task)` on your handler is called too. Stop and return; no end is reported |
 

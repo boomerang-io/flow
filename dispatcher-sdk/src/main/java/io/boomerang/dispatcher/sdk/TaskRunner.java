@@ -232,14 +232,15 @@ final class TaskRunner {
       return succeeded(handler.run(task, context));
     } catch (TaskFailure e) {
       observation.error(e);
-      return failed(e.getStatusReason(), e.getMessage(), e.getResults());
+      return failed(e.getStatusReason(), e.getMessage(), e.getResults(), e.getRetryable());
     } catch (Exception e) {
       observation.error(e);
       LOGGER.error("TaskRun (" + id + ") handler failed.", e);
       return failed(
           StatusReason.DISPATCH_ERROR,
           (e.getMessage() != null) ? e.getMessage() : e.toString(),
-          List.of());
+          List.of(),
+          null);
     } finally {
       observation.stop();
       if (capture != null) {
@@ -401,12 +402,13 @@ final class TaskRunner {
   }
 
   private static TaskRunEndRequest failed(
-      String statusReason, String message, List<RunResult> results) {
+      String statusReason, String message, List<RunResult> results, Boolean retryable) {
     TaskRunEndRequest end = new TaskRunEndRequest();
     end.setStatus(RunStatus.failed);
     end.setStatusReason(statusReason);
     end.setStatusMessage(message);
     end.setResults(results);
+    end.setRetryable(retryable);
     return end;
   }
 }
