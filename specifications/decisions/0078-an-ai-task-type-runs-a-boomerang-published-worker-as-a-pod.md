@@ -33,7 +33,7 @@ by itself the egress zone (decision 0042). The zone holds because a declared ima
 - An author fills the revision's params (20 on `ai-prompt`, 29 on `ai-agent`) and the canvas renders them. The
   dispatcher may supply the endpoint and token itself (`OPENAI_BASE_URL`, `OPENAI_API_KEY`; `TaskImageResolver.java:87-110`).
 - `token` is password-typed, so a value on the node or a workflow param is stamped secret, encrypted at rest and masked
-  on reads (decision 0043, `workflow/WorkflowService.java:1596-1602`); it reaches the pod as a plain `PARAM_TOKEN`.
+  on reads (decision 0043, `workflow/WorkflowService.java:1636-1642`); it reaches the pod as a plain `PARAM_TOKEN`.
 - `output` is an ordinary result under the results caps (4 KB on Kubernetes), so a long response fails with
   `RESULTS_TOO_LARGE`; it belongs in an artifact (decision 0067). Usage is flat results (`promptTokens` to `cost`)
   that a platform meters by summing over task runs.

@@ -30,11 +30,11 @@ retry, pause and the graph advance see nothing new, and the unique `{workflowRun
 
 - Dispatcher-run task types and `runworkflow` (one child per item, decision 0075) may run for each item. Saving refuses
   other types, a literal array over the `workflowrun` setting `max.foreach.items` (256), and a task that declares `item`
-  or `index` (`workflow/WorkflowService.java:126-137,1604-1648`); a resolved array over the cap fails the task.
+  or `index` (`workflow/WorkflowService.java:128-139,1644-1688`); a resolved array over the cap fails the task.
 - Any failed item fails the task, as in Tekton; an item that times out times out the run
   (`engine/TaskExecutionService.java:602-613`); combined results over 16 MB fail the task with `RESULTS_TOO_LARGE`.
 - A task name ending in `[<digits>]` is refused, so an item never collides with another task
-  (`workflow/WorkflowService.java:1401-1410`).
+  (`workflow/WorkflowService.java:1441-1450`).
 - Not built: batching, a failure-tolerance rule, a per-task parallel limit, rerunning only failed items, and a
   multi-task body (option B). Reopen with real workflows that need them.
 - The webapp's "For each" palette item just creates an ordinary task with the setting on (`design-system.md`).

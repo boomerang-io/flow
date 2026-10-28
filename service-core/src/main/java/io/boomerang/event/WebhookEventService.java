@@ -27,10 +27,10 @@ import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.data.PojoCloudEventData;
 import io.cloudevents.jackson.PojoCloudEventDataMapper;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -140,49 +140,56 @@ public class WebhookEventService {
   }
 
   /*
-
-  */
+   * A delivery from the GitHub App. Every one must carry GitHub's signature: the installation named
+   * in the body decides whose workflows run, so an unsigned event could start another workspace's.
+   * An installation event links or unlinks the installation; any other event is offered to every
+   * workflow in the linked workspace, and each workflow's GitHub trigger decides.
+   */
   public ResponseEntity<?> processGitHubWebhook(
-      String eventType, Optional<String> signature, String rawBody, JsonNode payload) {
-    LOGGER.debug("GitHub webhook received - {}: {}", eventType, payload.toString());
-    switch (eventType) {
-      case "installation" -> {
-        // The installation webhook manages the link itself (create/delete) - unlike ordinary
-        // trigger events, an unsigned or forged payload here could unlink another workspace's
-        // integration, so it must always carry a valid signature.
-        if (!gitHubService.verifyWebhookSignature(signature.orElse(null), rawBody)) {
-          LOGGER.warn("GitHub installation webhook rejected - missing or invalid signature.");
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        if (payload.get("action") != null) {
-          if ("created".equals(payload.get("action").asText())) {
-            integrationService.create("github_app", payload.get("installation"));
-          } else if ("deleted".equals(payload.get("action").asText())) {
-            integrationService.delete("github_app", payload.get("installation"));
-          }
-          return ResponseEntity.ok().build();
-        }
-      }
-      default -> {
-        // Events that come in will have installation.id and if related to a repo, a repository.name
-        LOGGER.debug("Installation ID: " + payload.get("installation").get("id"));
-        String teamRef =
-            integrationService.getWorkspaceByRef(payload.get("installation").get("id").asText());
-        if (!Objects.isNull(teamRef) && !teamRef.isBlank()) {
-          WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-          request.setTrigger(TriggerEnum.github);
-          request.setParams(payloadToRunParams(payload));
-
-          // Auto start is not needed when using the default handler
-          // As the default handler will pick up the queued Workflow and start the Workflow when
-          // ready.
-          // However if using the non-default Handler then this may be needed to be set to true.
-          workflowService.internalSubmitForWorkspace(teamRef, request, autoStart);
-        }
-        return ResponseEntity.ok().build();
-      }
+      String eventType,
+      Optional<String> deliveryId,
+      Optional<String> signature,
+      String rawBody,
+      JsonNode payload) {
+    if (!gitHubService.verifyWebhookSignature(signature.orElse(null), rawBody)) {
+      LOGGER.warn("GitHub {} webhook rejected - missing or invalid signature.", eventType);
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
-    return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+    LOGGER.debug("GitHub webhook received - {} ({})", eventType, deliveryId.orElse("no delivery id"));
+    // GitHub's ping, sent when the webhook is saved, names no installation.
+    JsonNode installation = payload == null ? null : payload.get("installation");
+    if (installation == null || installation.get("id") == null) {
+      return ResponseEntity.ok().build();
+    }
+    if ("installation".equals(eventType)) {
+      String action = payload.path("action").asText();
+      if ("created".equals(action)) {
+        integrationService.create("github_app", installation);
+      } else if ("deleted".equals(action)) {
+        integrationService.delete("github_app", installation);
+      }
+      return ResponseEntity.ok().build();
+    }
+    String workspace = integrationService.getWorkspaceByRef(installation.get("id").asText());
+    if (workspace != null && !workspace.isBlank()) {
+      workflowService.internalSubmitForWorkspace(
+          workspace, () -> gitHubSubmitRequest(eventType, deliveryId, payload), autoStart);
+    }
+    return ResponseEntity.ok().build();
+  }
+
+  // The payload as the run's data param, and the event GitHub named in its headers as its event.
+  private static WorkflowSubmitRequest gitHubSubmitRequest(
+      String eventType, Optional<String> deliveryId, JsonNode payload) {
+    Map<String, Object> event = new LinkedHashMap<>();
+    event.put("type", eventType);
+    deliveryId.ifPresent(id -> event.put("id", id));
+    List<RunParam> params = payloadToRunParams(payload);
+    params.add(new RunParam("event", event, ParamType.object));
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.github);
+    request.setParams(params);
+    return request;
   }
 
   // An eventId makes a redelivery of the same callback a no-op: the run's event inbox records it.
@@ -205,11 +212,12 @@ public class WebhookEventService {
   }
 
   /*
-   * Set the webhook payload as a parameter
+   * The webhook payload as the run's data param, stored as plain maps and lists: a JSON node would be
+   * written with its class and the run could not be read back.
    */
-  private List<RunParam> payloadToRunParams(JsonNode payload) {
+  private static List<RunParam> payloadToRunParams(JsonNode payload) {
     List<RunParam> params = new LinkedList<>();
-    params.add(new RunParam("data", (Object) payload, ParamType.object));
+    params.add(new RunParam("data", JSON.convertValue(payload, Object.class), ParamType.object));
     return params;
   }
 

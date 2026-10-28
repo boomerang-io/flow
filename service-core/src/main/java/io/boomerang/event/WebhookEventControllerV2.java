@@ -86,8 +86,7 @@ public class WebhookEventControllerV2 {
           @RequestParam(required = false)
           Optional<String> ref,
       @RequestHeader(value = "X-GitHub-Event", required = false) Optional<String> githubEvent,
-      @RequestHeader(value = "X-GitHub-Hook-Installation-Target-ID", required = false)
-          Optional<String> githubInstallationId,
+      @RequestHeader(value = "X-GitHub-Delivery", required = false) Optional<String> githubDelivery,
       @RequestHeader(value = "X-Hub-Signature-256", required = false) Optional<String> githubSignature,
       @RequestHeader(value = "x-slack-signature", required = false) Optional<String> slackSignature,
       @RequestBody String rawBody,
@@ -122,7 +121,8 @@ public class WebhookEventControllerV2 {
         return ResponseEntity.badRequest().build();
       }
     } else if (githubEvent.isPresent()) {
-      webhookEventService.processGitHubWebhook(githubEvent.get(), githubSignature, rawBody, payload);
+      return webhookEventService.processGitHubWebhook(
+          githubEvent.get(), githubDelivery, githubSignature, rawBody, payload);
     } else if (ref.isPresent()) {
       webhookEventService.processWebhook(ref.get(), payload);
     } else {

@@ -33,7 +33,7 @@ registers whether or not security is on. It is one property, and the hosts that 
 
 - Admin tooling MAY address any object under any workspace path; `key` tokens still walk from their own node.
 - Ownership writes MUST NOT trust the path segment for a global caller: a submit finds the workflow inside the named
-  workspace (`workflow/WorkflowService.java:558-569`), and a retry takes the owner from the run's or its workflow's
+  workspace (`workflow/WorkflowService.java:567-578`), and a retry takes the owner from the run's or its workflow's
   edge (`workflow/WorkflowRunService.java:483-498,613-666`).
 - The bootstrap token is full admin: it lives in a secret and rotates by changing the value and restarting. The
   webapp cannot use it, as `/api/v2/profile` accepts only session and user tokens

@@ -187,7 +187,7 @@ the run budget (`workflow/RunTimeoutPolicy.java:145-149`), so a gate that may si
 to ask for one.
 
 A run's timeout is settled at submit, on the path every run creation passes through
-(`workflow/WorkflowService.java:1827-1835`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
+(`workflow/WorkflowService.java:1867-1875`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
 revision's, else the run-duration quota itself, the workspace's own limit or else the platform
 `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the revision's critical path, the longest chain of
 declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306). The
@@ -333,12 +333,12 @@ A `runworkflow` task submits another workflow as a child run (`engine/TaskExecut
 task's own params minus `workflowRef` and `wait` (`:1204-1209`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares; saving
-refuses any other with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1568-1593`). A
+refuses any other with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1608-1633`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`,
 `futurePeriod`, `timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1319-1321`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
-typed pair the retry path uses (`workflow/WorkflowService.java:1866-1870`); a run has no `parentRef`. The single-run
+typed pair the retry path uses (`workflow/WorkflowService.java:1906-1910`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1278-1285`).
 
 **Wait.** `wait` defaults to `false`: the task records the child's id as its `workflowRunRef` result and ends
@@ -367,7 +367,7 @@ walk stops at the cap (`engine/TaskExecutionService.java:1125-1134`, `:1215-1257
 
 A task with `foreach` set runs once per item of an array, in parallel, in the same run. Only the types a
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow` may
-carry it; saving refuses it anywhere else, `start` and `end` included (`workflow/WorkflowService.java:128-137`,
+carry it; saving refuses it anywhere else, `start` and `end` included (`workflow/WorkflowService.java:130-139`,
 `:1414-1421`, `:1611-1619`). A for-each `runworkflow` task submits one child run per item. The graph still sees one
 task run per node: `DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef`
 (`engine/DAGUtility.java:131-181`), so items are never vertices.
@@ -384,7 +384,7 @@ An item that times out is a task timeout: it times out the whole run, which canc
 task runs, not the graph (`engine/WorkflowExecutionService.java:274`). Downstream, `$(tasks.<name>.results.<result>)`
 finds the parent, since the lookup is by exact name and items carry the bracketed suffix; a task name ending in
 `[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), while other brackets (`Deploy [prod]`) are
-allowed (`workflow/WorkflowService.java:1401-1410`).
+allowed (`workflow/WorkflowService.java:1441-1450`).
 
 ## Task locks
 
