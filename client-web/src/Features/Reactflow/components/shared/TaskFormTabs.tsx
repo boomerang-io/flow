@@ -46,7 +46,7 @@ interface TaskFormTabsProps {
   /** The node type of the task being edited; only FOREACH_TASK_TYPES (the types that retry too) get the Configure tab. */
   taskType?: string;
   /** The results the task declares, listed read-only on a Results tab; none means no tab. */
-  results?: Array<TaskResult>;
+  results?: Array<TaskResult> | null;
 }
 
 /**
@@ -57,7 +57,9 @@ interface TaskFormTabsProps {
  * spans every tab, so Apply saves them all. A type with nothing to configure and no results
  * has no tabs: the name alone sits above its inputs.
  */
-export default function TaskFormTabs({ inputs, formikProps, taskType, results = [] }: TaskFormTabsProps) {
+export default function TaskFormTabs({ inputs, formikProps, taskType, results: declaredResults }: TaskFormTabsProps) {
+  // A task that declares no results is read from the API with `results: null`, which a default does not replace.
+  const results = declaredResults ?? [];
   const { errors, values } = formikProps;
   const isNameInput = (input: React.ReactNode) => React.isValidElement(input) && input.key === TASK_NAME_KEY;
   const nameInputs = inputs.filter(isNameInput);

@@ -470,7 +470,8 @@ export interface TaskSpec {
   params?: Array<DataDrivenInput>;
   envs?: any;
   image?: string;
-  results?: Array<{ name: string; description: string }>;
+  // null for a task that declares none.
+  results?: Array<{ name: string; description: string }> | null;
   script?: number;
   workingDir?: string;
 }

@@ -3,12 +3,14 @@ package io.boomerang.workflow;
 import io.boomerang.common.entity.WorkflowTemplateEntity;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.workflow.repository.WorkflowTemplateRepository;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +26,8 @@ import org.springframework.stereotype.Service;
 /**
  * Read access to the Workflow Templates. Templates are content: the migrations seed them and a v3
  * upgrade imports them, so this service only reads. A Workflow is created from a template by
- * posting the template body to the workspace Workflow create route.
+ * posting the template body to the workspace Workflow create route, so a template is read with its
+ * tasks' slug forms, as a Workflow is.
  */
 @Service
 public class WorkflowTemplateService {
@@ -33,11 +36,15 @@ public class WorkflowTemplateService {
 
   private final WorkflowTemplateRepository wfTemplateRepository;
   private final MongoTemplate mongoTemplate;
+  private final TaskService taskService;
 
   public WorkflowTemplateService(
-      WorkflowTemplateRepository wfTemplateRepository, MongoTemplate mongoTemplate) {
+      WorkflowTemplateRepository wfTemplateRepository,
+      MongoTemplate mongoTemplate,
+      TaskService taskService) {
     this.wfTemplateRepository = wfTemplateRepository;
     this.mongoTemplate = mongoTemplate;
+    this.taskService = taskService;
   }
 
   /*
@@ -58,7 +65,7 @@ public class WorkflowTemplateService {
         throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, version.get());
       }
     }
-    return new WorkflowTemplate(wfTemplateEntity.get());
+    return withTaskSlugs(new WorkflowTemplate(wfTemplateEntity.get()));
   }
 
   /*
@@ -79,11 +86,30 @@ public class WorkflowTemplateService {
         mongoTemplate.find(query, WorkflowTemplateEntity.class);
 
     List<WorkflowTemplate> wfTemplates = new LinkedList<>();
-    wfTemplateEntities.forEach(e -> wfTemplates.add(new WorkflowTemplate(e)));
+    wfTemplateEntities.forEach(e -> wfTemplates.add(withTaskSlugs(new WorkflowTemplate(e))));
 
     Page<WorkflowTemplate> pages =
         PagingUtil.page(wfTemplates, pageable, mongoTemplate, query, WorkflowTemplateEntity.class);
 
     return pages;
+  }
+
+  // A template task is stored with the catalogue task's id; the create route takes its slug form.
+  private WorkflowTemplate withTaskSlugs(WorkflowTemplate template) {
+    List<WorkflowTask> nodes =
+        template.getTasks().stream()
+            .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
+            .toList();
+    Map<String, String> taskSlugs =
+        taskService.slugsByRef(nodes.stream().map(WorkflowTask::getTaskRef).toList());
+    nodes.forEach(
+        t -> {
+          if (!taskSlugs.containsKey(t.getTaskRef())) {
+            LOGGER.warn(
+                "TaskRef not found: {} : {} : {}", template.getName(), t.getName(), t.getTaskRef());
+          }
+          t.setTaskRef(taskSlugs.getOrDefault(t.getTaskRef(), ""));
+        });
+    return template;
   }
 }
