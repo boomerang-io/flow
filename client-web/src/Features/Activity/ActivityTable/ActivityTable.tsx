@@ -112,7 +112,13 @@ function ActivityTable(props: ActivityTableProps) {
   const { number, size, totalElements, content } = props.tableData;
   const { TableContainer, Table, TableHead, TableRow, TableBody, TableCell, TableHeader } = DataTable;
 
-  function renderCell(headerList, cellIndex, value) {
+  // A skipped or failed run says why under its status.
+  const statusReasonById: Record<string, string | undefined> = {};
+  for (const run of content) {
+    statusReasonById[run.id] = run.statusReason;
+  }
+
+  function renderCell(headerList, cellIndex, value, statusReason?: string) {
     const column = headerList[cellIndex];
 
     switch (column?.key) {
@@ -137,7 +143,10 @@ function ActivityTable(props: ActivityTableProps) {
         return (
           <div className={`${styles.status} ${styles[value]}`}>
             <Icon aria-label={value} className={styles.statusIcon} />
-            <p className={styles.statusText}>{ExecutionStatusCopy[value ? value : "notstarted"]}</p>
+            <div>
+              <p className={styles.statusText}>{ExecutionStatusCopy[value ? value : "notstarted"]}</p>
+              {statusReason ? <p className={styles.statusReason}>{statusReason}</p> : null}
+            </div>
           </div>
         );
       default:
@@ -187,7 +196,7 @@ function ActivityTable(props: ActivityTableProps) {
                         >
                           {row.cells.map((cell, cellIndex) => (
                             <TableCell key={cell.id}>
-                              <div className={styles.tableCell}>{renderCell(headerList, cellIndex, cell.value)}</div>
+                              <div className={styles.tableCell}>{renderCell(headerList, cellIndex, cell.value, statusReasonById[row.id])}</div>
                             </TableCell>
                           ))}
                         </TableRow>

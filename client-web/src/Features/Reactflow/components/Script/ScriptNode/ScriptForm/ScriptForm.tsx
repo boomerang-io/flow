@@ -7,6 +7,7 @@ import { NodeType } from "Constants";
 import { Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../../shared/TaskFormTabs";
 import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../../shared/foreach";
+import { retryInitialValues, retryValidationShape } from "../../../shared/retry";
 import {
   AutoSuggestInput,
   ResultsInput,
@@ -80,6 +81,7 @@ function ScriptForm(props: ScriptFormProps) {
       {} as Record<string, string>,
     ),
     ...foreachInitialValues(node.foreach),
+    ...retryInitialValues(node.retry),
   };
 
   return (
@@ -89,6 +91,7 @@ function ScriptForm(props: ScriptFormProps) {
       validationSchemaExtension={Yup.object().shape({
         taskName: taskNameSchema(otherTaskNames),
         ...foreachValidationShape,
+        ...retryValidationShape,
         results: Yup.array(),
       })}
       initialValues={initialValues}

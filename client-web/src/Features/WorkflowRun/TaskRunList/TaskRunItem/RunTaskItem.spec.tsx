@@ -123,6 +123,48 @@ describe("TaskItem --- RTL", () => {
   });
 });
 
+describe("TaskItem --- Attempts and reason", () => {
+  it("lists the superseded attempts, the current one and the reason in View Details", async () => {
+    const retried: TaskRun = {
+      ...taskRun,
+      attempt: 3,
+      statusReason: "OOMKilled",
+      attempts: [
+        {
+          number: 1,
+          endedAt: "2019-09-03T15:01:00.000+0000",
+          duration: 60000,
+          status: RunStatus.Failed,
+          statusReason: "Error",
+          statusMessage: "exit code 1",
+        },
+        { number: 2, endedAt: "2019-09-03T15:02:00.000+0000", duration: 30000, status: RunStatus.Failed },
+      ],
+    };
+    renderWithRouter(<TaskItem {...props} taskRun={retried} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View Details" }));
+
+    const attempts = await screen.findByLabelText("Attempts");
+    const rows = within(attempts).getAllByRole("listitem", { hidden: true });
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent(/^Attempt 1 · failed · Error · .+ · .+exit code 1$/);
+    expect(rows[1]).toHaveTextContent(/^Attempt 2 · failed · --- · /);
+    expect(rows[2]).toHaveTextContent("Attempt 3 · current");
+    expect(screen.getByText("Reason")).toBeInTheDocument();
+    expect(screen.getByText("OOMKilled")).toBeInTheDocument();
+  });
+
+  it("shows the Reason section with a placeholder and no Attempts for a first attempt", async () => {
+    renderWithRouter(<TaskItem {...props} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View Details" }));
+
+    expect(await screen.findByText("Reason")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Attempts")).not.toBeInTheDocument();
+  });
+});
+
 // A scoped retry starts from a task row, and marks the rows it carried over from the origin.
 describe("TaskItem --- Retry from", () => {
   it("offers 'Retry from here' on a finished task when the page can open the retry modal", () => {

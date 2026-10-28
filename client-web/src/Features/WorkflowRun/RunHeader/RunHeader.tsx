@@ -210,6 +210,11 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
                 <strong>{ExecutionStatusCopy[status] ?? status}</strong>
                 {runDuration ? ` ${runDuration}` : null}
               </Tag>
+              {workflowRun.statusReason ? (
+                <span className={styles.statusReason} data-testid="run-status-reason">
+                  {workflowRun.statusReason}
+                </span>
+              ) : null}
             </dd>
           </dl>
           {!showsPrimaryAction && (

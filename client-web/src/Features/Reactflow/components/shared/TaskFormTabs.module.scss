@@ -51,6 +51,26 @@
   display: none;
 }
 
+.group {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  margin: 0;
+  padding: 0;
+}
+
+.groupLegend {
+  @include type-style("heading-compact-01");
+  margin-bottom: $spacing-05;
+}
+
+.backoff {
+  display: grid;
+  gap: $spacing-05;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .configure {
   display: flex;
   flex-direction: column;

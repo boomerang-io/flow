@@ -14,6 +14,13 @@
   min-width: 0;
 }
 
+.statusReason {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  text-transform: none;
+}
+
 .statusTag {
   font-size: 0.875rem;
   margin: 0;

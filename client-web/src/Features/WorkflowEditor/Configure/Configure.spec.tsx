@@ -85,6 +85,7 @@ function renderConfigure(
 }
 
 const WORKSPACE_ROUTE = appLink.editorConfigureWorkspace({ workspace: WORKSPACE, workflow: WORKFLOW });
+const RUN_ROUTE = appLink.editorConfigureRun({ workspace: WORKSPACE, workflow: WORKFLOW });
 const ARTIFACTS_ROUTE = appLink.editorConfigureArtifacts({ workspace: WORKSPACE, workflow: WORKFLOW });
 
 /*
@@ -294,4 +295,57 @@ describe("Configure > Artifacts", () => {
     },
     TEST_TIMEOUT,
   );
+});
+
+describe("Configure > Execution", () => {
+  it(
+    "shows the workflow's concurrency limit and overflow choice",
+    async () => {
+      const { settingsRef } = renderConfigure(RUN_ROUTE, { concurrency: { limit: 3, overflow: "skip" } });
+
+      expect(await screen.findByLabelText("Concurrency limit", undefined, LOADER_WAIT)).toHaveValue(3);
+      expect(screen.getByText("Runs of this workflow in flight at once. Leave blank for no limit.")).toBeInTheDocument();
+      expect(screen.getByLabelText("Over the limit")).toHaveValue("skip");
+      expect(formatConfigureValues(settingsRef.current.values).concurrency).toEqual({ limit: 3, overflow: "skip" });
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "starts with no limit and the queue choice for a workflow with no concurrency, and emits nothing",
+    async () => {
+      const { settingsRef } = renderConfigure(RUN_ROUTE);
+
+      expect(await screen.findByLabelText("Concurrency limit", undefined, LOADER_WAIT)).toHaveValue(null);
+      expect(screen.getByLabelText("Over the limit")).toHaveValue("queue");
+      expect(formatConfigureValues(settingsRef.current.values)).not.toHaveProperty("concurrency");
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+describe("formatConfigureValues > concurrency", () => {
+  const base = {
+    config: [],
+    description: "",
+    icon: "",
+    labels: [],
+    name: "w",
+    displayName: "W",
+    workspace: { enabled: false, size: 1, mountPath: "" },
+    retries: null,
+    timeout: null,
+    triggers: workflow.triggers,
+  };
+
+  it("emits the object only when a limit is set", () => {
+    expect(
+      formatConfigureValues({ ...base, concurrencyLimit: 2, concurrencyOverflow: "queue" }).concurrency,
+    ).toEqual({ limit: 2, overflow: "queue" });
+
+    const cleared = formatConfigureValues({ ...base, concurrencyLimit: null, concurrencyOverflow: "skip" });
+    expect(cleared).not.toHaveProperty("concurrency");
+    expect(cleared).not.toHaveProperty("concurrencyLimit");
+    expect(cleared).not.toHaveProperty("concurrencyOverflow");
+  });
 });

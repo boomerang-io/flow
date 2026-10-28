@@ -229,6 +229,12 @@
       width: 1rem;
       margin-right: 0.5rem;
     }
+    .statusReason {
+      font-size: 0.75rem;
+      line-height: 1.33;
+      color: var(--cds-text-secondary);
+      margin: 0;
+    }
   }
 }
 
