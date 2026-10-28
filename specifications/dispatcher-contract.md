@@ -372,5 +372,5 @@ fields ignored, an unknown enum value read as `unknown`), and its `DispatcherCon
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim, the download verified against `sha256` (`sdk/ArtifactTransfer.java:83-131`) |
 
 It is the only Flow library published: to GitHub Packages as `io.boomerang:dispatcher-sdk`, versioned with the product
-tag (`https://maven.pkg.github.com/boomerang-io/flow`; `.github/workflows/ci-release.yml:96`, job `publish-sdk`).
+tag (`https://maven.pkg.github.com/boomerang-io/flow`; `.github/workflows/ci-release.yml:99`, job `publish-sdk`).
 Reading it needs a GitHub token with `read:packages`.

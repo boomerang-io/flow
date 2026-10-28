@@ -23,7 +23,7 @@ shell and a pod's filesystem does not outlive the pod.
 C. A `train` stage on the runtime image, not the Maven image, starts the application to context refresh with no
 database or cluster and writes `service.aot` (`service-core/Dockerfile:45-66`, `service-dispatcher/Dockerfile:34-44`);
 the runtime stage copies the extracted application and its cache with their timestamps, which the JVM checks, and the
-command maps the cache and sets compact object headers (`service-core/Dockerfile:84-85`). It took 40 to 60 % off every
+command maps the cache and sets compact object headers (`service-core/Dockerfile:89-90`). It took 40 to 60 % off every
 measured start (`performance.md`, "Start-up"), and the recording cost lands on the build, where it is paid once.
 
 ## Consequences

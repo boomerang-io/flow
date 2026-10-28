@@ -129,11 +129,15 @@ push to `main` and on pull requests (`.github/workflows/ci-core.yml:6-19`); `ci-
 dispatcher image without pushing it. `ci-e2e.yml` builds the core and webapp images and runs the browser suite
 against them; it is the only pull-request build of the core image (`.github/workflows/ci-e2e.yml:40-67`).
 Every image build reads GitHub's layer cache, one scope per image, and `ci-dispatcher.yml`, `ci-e2e.yml` and `ci-release.yml` write it
-(`ci-release.yml:85-86`), so a release starts from the layers `main` last built.
+(`ci-release.yml:88-89`), so a release starts from the layers `main` last built. The release hands each build
+the tag as `FLOW_VERSION` (`ci-release.yml:85`); the core image keeps it in its environment, where service-core
+reads it as `flow.version` and reports it as the platform version the webapp's About shows
+(`service-core/Dockerfile:82-83`, `core/ContextService.java:49,119`). A build without the argument, such as a
+local `docker compose build`, reports `dev`.
 
 | Image | Built from | Runtime | Leg of the `deploy` matrix job in `ci-release.yml` |
 | --- | --- | --- | --- |
-| `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` and extracts the jar to `service.jar` plus `lib/` (`service-core/Dockerfile:11-32`); a train stage on the runtime JRE starts the application once, with no database, to record the JDK AOT cache (`service-core/Dockerfile:45-66`, `performance.md`, "Start-up") | `ubuntu/jre:25-26.04_edge`, Canonical's chiseled Java runtime pinned by digest (`service-core/Dockerfile:68`): no shell, so Java options go in `JDK_JAVA_OPTIONS` and an internal certificate authority is a mounted truststore named there; the command reads the recorded cache and turns compact object headers on (`service-core/Dockerfile:84-85`); runs as uid 10001 in group 0; port 7700 (`service-core/src/main/resources/application.properties:1`) | `deploy-core` (`ci-release.yml:33`) |
+| `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` and extracts the jar to `service.jar` plus `lib/` (`service-core/Dockerfile:11-32`); a train stage on the runtime JRE starts the application once, with no database, to record the JDK AOT cache (`service-core/Dockerfile:45-66`, `performance.md`, "Start-up") | `ubuntu/jre:25-26.04_edge`, Canonical's chiseled Java runtime pinned by digest (`service-core/Dockerfile:68`): no shell, so Java options go in `JDK_JAVA_OPTIONS` and an internal certificate authority is a mounted truststore named there; the command reads the recorded cache and turns compact object headers on (`service-core/Dockerfile:89-90`); runs as uid 10001 in group 0; port 7700 (`service-core/src/main/resources/application.properties:1`) | `deploy-core` (`ci-release.yml:33`) |
 | `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:7-27`), with a train stage that starts it against no cluster (`service-dispatcher/Dockerfile:34-44`) | the same base and command; port 7702 (`service-dispatcher/src/main/resources/application.properties:1`) | `deploy-dispatcher` (`ci-release.yml:37`) |
 | `boomerangio/flow-client-web` | the `client-web/` sources: a build stage runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs the `dependencies` alone (`pnpm install --prod`), which are the serving packages, since the server bundle is self-contained (`client-web/Dockerfile:14-48`) | `node:24-alpine` running `react-router-serve build/server/index.js` on node alone, with npm and corepack removed and Alpine's packages upgraded at build; runs as uid 2000 in group 0; port 3000 (`client-web/Dockerfile:53-76`) | `deploy-webapp` (`ci-release.yml:41`) |
 
@@ -142,7 +146,7 @@ builder's own platform (`--platform=$BUILDPLATFORM`): a jar and a browser bundle
 so the compile happens once and only the train and runtime stages are built per platform, since an AOT cache is
 tied to the JVM build that records it. A root `.dockerignore` limits the
 Java context to the Maven modules. Every product image is built for `linux/amd64` and `linux/arm64`
-(`ci-release.yml:80`), so a tag runs on an Apple-silicon laptop as well as an x86 cluster; a Kubernetes pod spec
+(`ci-release.yml:81`), so a tag runs on an Apple-silicon laptop as well as an x86 cluster; a Kubernetes pod spec
 has no per-platform escape, so a single-architecture image fails to pull on the other.
 
 Task images are not product images: the catalogue images and the AI worker (`boomerangio/task-ai`, which the
@@ -152,7 +156,7 @@ allowed prefix (`dispatcher-kubernetes.md`).
 
 Two libraries are published beside the images, `io.boomerang:dispatcher-sdk` and `io.boomerang:flow-sdk`:
 the `publish-sdk` job runs once per library, sets its version from the same tag and deploys it to this
-repository's GitHub Packages Maven registry (`ci-release.yml:96-127`, `dispatcher-sdk/pom.xml:97-103`,
+repository's GitHub Packages Maven registry (`ci-release.yml:99-130`, `dispatcher-sdk/pom.xml:97-103`,
 `flow-sdk/pom.xml:87-93`). A library's version is therefore the server version it was built against; an
 application picks the `flow-sdk` of the server it runs against, and a newer server still serves an older
 library because `/api/v2` only gains routes and fields within 5.x (`api-contract.md`). No other module is
