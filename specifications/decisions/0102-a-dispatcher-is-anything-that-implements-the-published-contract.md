@@ -4,7 +4,7 @@
 
 ## Context
 
-Flow's Kubernetes dispatcher, an in-process dispatcher in a host product (ARCHIE) and planned serverless, microVM and
+Flow's Kubernetes dispatcher, an in-process dispatcher in a host product and planned serverless, microVM and
 Docker executors all take task runs from the engine. Each needs a protocol it can implement outside this repository, a
 wire that does not grow with every field the webapp reads, and a rule for when execution is a separate deployable.
 

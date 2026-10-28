@@ -117,7 +117,7 @@ class DispatcherClaimFilterTest extends AbstractEngineIntegrationTest {
     WorkflowEntity workflow = new WorkflowEntity();
     workflow.setName("filter-" + tag + "-" + workload);
     workflow.setStatus(WorkflowStatus.active);
-    workflow.getLabels().put("archie.io/workload", workload);
+    workflow.getLabels().put("example.io/workload", workload);
     String id = workflowRepository.save(workflow).getId();
     workflowIds.add(id);
     return id;
@@ -179,17 +179,16 @@ class DispatcherClaimFilterTest extends AbstractEngineIntegrationTest {
   @Test
   void aWorkflowLabelFilterClaimsOnlyRunsOfLabelledWorkflows() {
     String taskRef = task("filter-" + tag + "-shared");
-    String knowledge =
-        run(taskRef, workflow("knowledge-" + tag), RunStatus.ready, RunPhase.pending);
-    String analysis = run(taskRef, workflow("analysis-" + tag), RunStatus.ready, RunPhase.pending);
+    String gpu = run(taskRef, workflow("gpu-" + tag), RunStatus.ready, RunPhase.pending);
+    String cpu = run(taskRef, workflow("cpu-" + tag), RunStatus.ready, RunPhase.pending);
 
     List<String> delivered =
         ids(
             dispatcherService.getTaskQueue(
-                dispatcher(), null, null, null, "archie.io/workload=knowledge-" + tag));
+                dispatcher(), null, null, null, "example.io/workload=gpu-" + tag));
 
-    assertThat(delivered).containsExactly(knowledge);
-    assertThat(claimed(analysis)).isFalse();
+    assertThat(delivered).containsExactly(gpu);
+    assertThat(claimed(cpu)).isFalse();
   }
 
   @Test

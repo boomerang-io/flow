@@ -296,8 +296,8 @@ only document where this repo diverges from defaults.)
   condition is silently dropped. Assign it back (`criteria = criteria.and("x").is(y)`) or keep
   the whole condition one chained expression.
 - Agent asserts a library/framework incompatibility from jar metadata or docs → **check
-  the reference repos first** (ARCHIE at `~/Workspaces/tlawrie/asdr`, CHEER at
-  `~/Workspaces/cheerdev/cheer.dev`) — a working deployment beats inferred metadata
+  the reference repos first** (CHEER at `~/Workspaces/cheerdev/cheer.dev`, and any listed in
+  `CLAUDE.local.md`) — a working deployment beats inferred metadata
   (e.g. flamingock-springboot-integration was claimed Boot-3-only; CHEER runs it on Boot 4).
 
 ## Config / dependencies

@@ -146,7 +146,7 @@ public class ClaimFilterService {
         .toList();
   }
 
-  // "archie.io/workload=knowledge,eval": one key, then the values. A dot in the key is matched in
+  // "example.io/workload=gpu,batch": one key, then the values. A dot in the key is matched in
   // its stored, escaped form, as every label query does.
   private List<String> workflowIds(String workflowLabel) {
     int split = workflowLabel.indexOf('=');

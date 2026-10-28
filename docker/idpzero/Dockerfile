@@ -1,6 +1,5 @@
-# IDPZero - a single-binary local OIDC provider (github.com/idpzero/idpzero) - the same tool
-# ARCHIE uses for local full-stack auth (~/Workspaces/tlawrie/asdr: `.idpzero/server.yaml` +
-# a host-run `idpzero serve`). ARCHIE runs it as a brew-installed host binary; this stack
+# IDPZero - a single-binary local OIDC provider (github.com/idpzero/idpzero) for local
+# full-stack auth. It is usually run as a host binary (`idpzero serve`); this stack
 # containerises it because the compose stack IS the local deployment here, and no official
 # container image is published (releases are plain binaries), so this downloads the pinned
 # release tarball for the build platform.

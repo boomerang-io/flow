@@ -24,13 +24,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * io.boomerang.core.security.enums.TokenActorKind}), minted through the existing token API. No
  * new {@code AuthScope} value or token prefix was added: the dispatcher token is deliberately an
  * ordinary {@code bfg_} global token, an orthogonal discriminator field is the only difference
- * from any other global token (ARCHIE pattern, least deviation from the proven model).
+ * from any other global token.
  *
  * <p>Every request its filter chain claims is checked. {@link DispatcherSecurityConfiguration}'s
  * matcher is the one statement of which paths those are, so this filter keeps no path list of its
  * own that could drift from it.
  *
- * <p>Validation order mirrors ARCHIE: a cheap prefix-regex shape gate ({@link
+ * <p>Validation order: a cheap prefix-regex shape gate ({@link
  * TokenTypePrefix#isFlowToken}) runs BEFORE any Mongo lookup, so a bearer that isn't even shaped
  * like a Flow token never hits the database. A shaped-but-unknown/expired/wrong-kind token is
  * looked up once ({@link TokenService#validateActorToken}) and rejected. On success, {@code
@@ -75,7 +75,7 @@ public class DispatcherAuthFilter extends OncePerRequestFilter {
       return;
     }
     String presented = header.substring(BEARER_PREFIX.length());
-    // Cheap pre-DB gate (ARCHIE pattern): a bearer that isn't Flow-token-shaped never hits Mongo.
+    // Cheap pre-DB gate: a bearer that isn't Flow-token-shaped never hits Mongo.
     if (!TokenTypePrefix.isFlowToken(presented)) {
       response.setStatus(HttpStatus.UNAUTHORIZED.value());
       return;

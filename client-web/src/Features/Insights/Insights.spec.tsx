@@ -169,11 +169,11 @@ describe("Insights --- page", () => {
     const { history } = renderInsights();
     await screen.findByTestId("completed-insights");
 
-    userEvent.type(screen.getByLabelText("Filter by label"), "archie.analysisType=knowledge{enter}");
+    userEvent.type(screen.getByLabelText("Filter by label"), "example.stage=build{enter}");
 
     await waitFor(() =>
       expect(history.location.search).toBe(
-        "?" + queryString.stringify({ labels: "archie.analysisType=knowledge" }, queryStringOptions),
+        "?" + queryString.stringify({ labels: "example.stage=build" }, queryStringOptions),
       ),
     );
   });
@@ -275,11 +275,11 @@ describe("Insights --- loader", () => {
     await loader({
       params: { workspace: WORKSPACE },
       request: new Request(
-        `http://localhost/${WORKSPACE}/insights?workflow=w&labels=archie.analysisType%3Dknowledge,team%3Dai`,
+        `http://localhost/${WORKSPACE}/insights?workflow=w&labels=example.stage%3Dbuild,team%3Dai`,
       ),
     });
 
-    const expected = ["archie.analysisType=knowledge", "team=ai"];
+    const expected = ["example.stage=build", "team=ai"];
     expect(queryString.parse(captured.summary, queryStringOptions).labels).toEqual(expected);
     expect(queryString.parse(captured.detail, queryStringOptions).labels).toEqual(expected);
   });

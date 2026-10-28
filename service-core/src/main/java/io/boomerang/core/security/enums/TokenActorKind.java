@@ -2,8 +2,7 @@ package io.boomerang.core.security.enums;
 
 /**
  * Orthogonal discriminator for who/what a {@code key}/{@code global} token represents, layered on
- * top of {@link AuthScope} rather than a new scope value or token prefix (least deviation
- * from ARCHIE's proven model).
+ * top of {@link AuthScope} rather than a new scope value or token prefix.
  *
  * <p>Null on every human/pre-existing token (session/user-driven) — only a machine-minted token
  * sets it. The dispatcher token is an existing {@code global} ({@code bfg_}) token with

@@ -50,8 +50,8 @@ class QueryCriteriaTest {
 
   @Test
   void aDotInALabelKeyIsMatchedInItsStoredForm() {
-    assertThat(only(new QueryCriteria().labels(Optional.of(List.of("archie.workspaceId=w1")))))
-        .isEqualTo(new Document("labels.archie#workspaceId", "w1"));
+    assertThat(only(new QueryCriteria().labels(Optional.of(List.of("example.workspaceId=w1")))))
+        .isEqualTo(new Document("labels.example#workspaceId", "w1"));
   }
 
   @ParameterizedTest

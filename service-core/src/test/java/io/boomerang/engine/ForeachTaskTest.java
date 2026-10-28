@@ -80,7 +80,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   @Test
   void admittedItemsMatchTheRunsLabelsWhileInFlight() {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-    request.setLabels(new HashMap<>(Map.of("archie.io/analysis", "a-1")));
+    request.setLabels(new HashMap<>(Map.of("example.io/batch", "a-1")));
     String runId =
         workflowService
             .submit(workflow("foreach-labelled", "$(tasks.stage.results.batches)"), request, true)
@@ -89,7 +89,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     List<TaskRunEntity> items = awaitItemsReady(awaitParentRunning(runId), 3);
 
     // The stored form the label query matches (MongoConfiguration stores a dot as `#`).
-    Criteria label = Criteria.where("labels.archie#io/analysis").is("a-1");
+    Criteria label = Criteria.where("labels.example#io/batch").is("a-1");
     Query byLabel = Query.query(label.and("workflowRunRef").is(runId));
     List<String> matched =
         mongoTemplate.find(byLabel, TaskRunEntity.class).stream()
@@ -99,7 +99,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
         matched.containsAll(List.of("locate[0]", "locate[1]", "locate[2]")), matched.toString());
     TaskRunEntity item = taskRunRepository.findById(items.get(0).getId()).orElseThrow();
     assertEquals(
-        "a-1", item.getLabels().get("archie.io/analysis"), "the label reads back under its own key");
+        "a-1", item.getLabels().get("example.io/batch"), "the label reads back under its own key");
   }
 
   @Test
