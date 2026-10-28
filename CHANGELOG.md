@@ -359,6 +359,8 @@ tag's release notes.
 
 ### Fixed
 
+- The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
+  the edit pencil of 33 of the 89 seeded tasks.
 - A task node's `timeout` set through the API or YAML survives a save from the editor: the canvas now carries it
   on the node, as it carries the workspace opt-out.
 

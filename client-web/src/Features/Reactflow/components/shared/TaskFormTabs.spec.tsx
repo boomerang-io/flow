@@ -69,6 +69,14 @@ describe("Task form header block", () => {
     expect(tabNames()).toEqual(["Parameters", "Configure"]);
   });
 
+  it("reads a task the API sends with null results, such as the manual task, as declaring none", () => {
+    renderTabs({ taskType: "manual", results: null });
+
+    expect(screen.getByLabelText("Task name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Prompt")).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "Results" })).not.toBeInTheDocument();
+  });
+
   it("gives a type without Configure the name block and, with results, Parameters and Results", () => {
     renderTabs({ taskType: "approval", results });
 
