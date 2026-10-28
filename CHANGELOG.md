@@ -361,6 +361,9 @@ tag's release notes.
 
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
   the edit pencil of 33 of the 89 seeded tasks.
+- A suggested workflow on Home can be created: a workflow template's tasks now read in their slug forms, as a
+  workflow's do, so the create route accepts its body. Every seeded template was refused with
+  `WORKFLOW_INVALID_TASK_REF`.
 - A task node's `timeout` set through the API or YAML survives a save from the editor: the canvas now carries it
   on the node, as it carries the workspace opt-out.
 
