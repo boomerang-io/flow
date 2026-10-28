@@ -18,7 +18,13 @@ import {
   FlowWorkspace,
   WorkflowReactFlowInstance,
 } from "Types";
+import { groupTasksByName } from "Utils";
 import { isActionError } from "Utils/actionResult";
+import {
+  missingWorkspaceParams,
+  missingWorkspaceParamsMessage,
+  type MissingWorkspaceParam,
+} from "Utils/workspaceParamReferences";
 import ChangeLog from "./ChangeLog";
 import Configure from "./Configure";
 import Designer from "./Designer";
@@ -159,6 +165,9 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
    * See GlobalParameters.tsx for the reference version of this.
    */
   const createRevisionCallbackRef = useRef<(() => void) | null>(null);
+  // The workspace parameters the version being saved reads but the workspace does not provide; a warning once
+  // the save succeeds, never a reason to refuse it.
+  const missingWorkspaceParamsRef = useRef<Array<MissingWorkspaceParam>>([]);
 
   const handleCreateRevision = async ({ reason = "Update workflow", callback }: any) => {
     const configureValues = settingsRef?.current?.values ?? {};
@@ -174,6 +183,11 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
       };
 
       createRevisionCallbackRef.current = typeof callback === "function" ? callback : null;
+      missingWorkspaceParamsRef.current = missingWorkspaceParams(
+        workfowDagObject.nodes,
+        groupTasksByName(taskList),
+        availableParameters,
+      );
       fetcher.submit({ intent: "createRevision", revision: JSON.stringify(revision) }, { method: "post" });
     }
   };
@@ -190,6 +204,16 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
 
     const data = fetcher.data.workflow;
     notify(<ToastNotification kind="success" title="Create Version" subtitle="Successfully created workflow version" />);
+    const missing = missingWorkspaceParamsRef.current;
+    if (missing.length > 0) {
+      notify(
+        <ToastNotification
+          kind="warning"
+          title={missing.length > 1 ? "Workspace parameters missing" : "Workspace parameter missing"}
+          subtitle={missingWorkspaceParamsMessage(missing)}
+        />,
+      );
+    }
     createRevisionCallbackRef.current?.();
     createRevisionCallbackRef.current = null;
     revisionDispatch({ type: RevisionActionTypes.Set, data });
