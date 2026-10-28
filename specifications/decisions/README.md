@@ -59,3 +59,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0132 | [An admission wakes the held polls by key, each on a condition of its own](0132-an-admission-wakes-the-polls-by-key.md) | accepted | 2026-10-28 |
 | 0133 | [A task node retries a reported failure on its own budget, and every superseded attempt is recorded](0133-a-task-node-retries-a-reported-failure-on-its-own-budget.md) | accepted | 2026-10-28 |
 | 0134 | [A workflow limits its in-flight runs at admission, parking or skipping the rest](0134-a-workflow-limits-its-in-flight-runs-at-admission.md) | accepted | 2026-10-28 |
+| 0135 | [An integration shares its credentials as managed workspace parameters](0135-an-integration-shares-its-credentials-as-managed-workspace-parameters.md) | accepted | 2026-10-28 |

@@ -1,6 +1,7 @@
 package io.boomerang.engine;
 
 import io.boomerang.engine.repository.TaskRunRepository;
+import io.boomerang.integrations.GitHubService;
 import io.boomerang.workflow.repository.TaskRevisionRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
@@ -21,4 +22,5 @@ public abstract class AbstractSpiedEngineIntegrationTest extends AbstractEngineI
   @MockitoSpyBean protected TaskRunService spiedTaskRunService;
   @MockitoSpyBean protected TaskRunRepository spiedTaskRunRepository;
   @MockitoSpyBean protected TaskRevisionRepository spiedTaskRevisionRepository;
+  @MockitoSpyBean protected GitHubService spiedGitHubService;
 }

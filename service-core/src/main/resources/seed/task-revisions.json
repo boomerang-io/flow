@@ -233,6 +233,65 @@
    "parentRef": "add-issue-to-project"
   },
   {
+   "displayName": "Add Issue to Project",
+   "description": "Adds a GitHub issue to a GitHub Issue Project",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)"
+     },
+     {
+      "description": "",
+      "label": "Project ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The unique Node ID",
+      "readOnly": false,
+      "name": "projectId"
+     },
+     {
+      "description": "",
+      "label": "Issue ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Unique Node ID",
+      "readOnly": false,
+      "name": "issueId"
+     }
+    ],
+    "arguments": [
+     "github",
+     "addIssueToProject"
+    ],
+    "command": [],
+    "envs": [],
+    "image": null,
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "add-issue-to-project"
+  },
+  {
    "displayName": "Add Sheet",
    "description": "Add new sheet to a Google spreadsheet.",
    "category": "Google Sheets",
@@ -2663,6 +2722,175 @@
    "parentRef": "create-team-in-organization"
   },
   {
+   "displayName": "Create Team in Organization",
+   "description": "Creates a Github team in the organization identified by the organizationName parameter. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#create-a-team",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 4,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Team Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamName"
+     },
+     {
+      "description": "",
+      "label": "Team Description",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "description"
+     },
+     {
+      "description": "",
+      "label": "Maintainers",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "List of IDs for org members to become maintainers",
+      "readOnly": false,
+      "name": "maintainers"
+     },
+     {
+      "description": "",
+      "label": "Repository Names",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The full name of repositories to add the team to",
+      "readOnly": false,
+      "name": "repositoryNames"
+     },
+     {
+      "description": "",
+      "label": "Level of privacy",
+      "type": "select",
+      "options": [
+       {
+        "key": "secret",
+        "value": "secret"
+       },
+       {
+        "key": "closed",
+        "value": "closed"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Level of privacy this team should have",
+      "readOnly": false,
+      "name": "privacy"
+     },
+     {
+      "description": "",
+      "label": "Repository team's default permissions",
+      "type": "select",
+      "options": [
+       {
+        "key": "pull",
+        "value": "pull"
+       },
+       {
+        "key": "push",
+        "value": "push"
+       },
+       {
+        "key": "admin",
+        "value": "admin"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "permission"
+     },
+     {
+      "description": "",
+      "label": "The ID of a team to set as the parent team",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "parentTeamId"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "createTeamInOrg"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "The newly created team",
+      "name": "team"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "create-team-in-organization"
+  },
+  {
    "displayName": "Delete File",
    "description": "Deletes a file.",
    "category": "Google Drive",
@@ -3045,6 +3273,76 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Team Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamName"
+     }
+    ],
+    "arguments": [
+     "github",
+     "deleteTeamByNameInOrg"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "delete-team-from-organization"
+  },
+  {
+   "displayName": "Delete Team from Organization",
+   "description": "Deletes a Github team from a Github organization based on the teamName parameter. For further reading on the underlying API see https://docs.github.com/rest/reference/teams/#delete-a-team",
+   "category": "GitHub",
+   "icon": "Delete",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -4285,6 +4583,108 @@
    "parentRef": "find-issues-and-label"
   },
   {
+   "displayName": "Find Issues and Label",
+   "description": "Finds issues in a repository based on time since last activity and adds a label and a comment. This is useful for marking issues inactive or reminding users to update an issue.",
+   "category": "GitHub",
+   "icon": "Automated task",
+   "version": 4,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "API Endpoint",
+      "type": "url",
+      "required": true,
+      "placeholder": "e.g. https://github.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "API Token",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Owner or Organization",
+      "readOnly": false,
+      "name": "org"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Days Since Activity",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "30",
+      "readOnly": false,
+      "name": "daysSinceActivity"
+     },
+     {
+      "description": "",
+      "label": "Label",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Label to add to issue",
+      "readOnly": false,
+      "name": "label"
+     },
+     {
+      "description": "",
+      "label": "Ignore Label",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Issues with this label will be ignored",
+      "defaultValue": "ignore",
+      "readOnly": false,
+      "name": "ignoreLabel"
+     }
+    ],
+    "arguments": [
+     "github",
+     "findInactiveIssuesInOrgAndLabel"
+    ],
+    "command": [],
+    "envs": null,
+    "image": null,
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "find-issues-and-label"
+  },
+  {
    "displayName": "Find Issues and Remove",
    "description": "Finds github issues and removes with optional days since activity and labels",
    "category": "GitHub",
@@ -4344,6 +4744,96 @@
       "helpertext": "",
       "readOnly": false,
       "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Owner or Organization",
+      "readOnly": false,
+      "name": "org"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Days Since Activity",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "daysSinceActivity"
+     },
+     {
+      "description": "",
+      "label": "Issue Label",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. stale",
+      "helpertext": "A label to filter the issues by",
+      "readOnly": false,
+      "name": "label"
+     }
+    ],
+    "arguments": [
+     "github",
+     "findIssuesInOrgAndRemove"
+    ],
+    "command": [],
+    "envs": null,
+    "image": null,
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "find-issues-and-remove"
+  },
+  {
+   "displayName": "Find Issues and Remove",
+   "description": "Finds github issues and removes with optional days since activity and labels",
+   "category": "GitHub",
+   "icon": "Automated task",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "API Endpoint",
+      "type": "url",
+      "required": false,
+      "placeholder": "e.g. https://github.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)"
+     },
+     {
+      "description": "",
+      "label": "API Token",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)"
      },
      {
       "description": "",
@@ -4608,6 +5098,140 @@
       "placeholder": "",
       "readOnly": false,
       "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Org",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "org"
+     },
+     {
+      "description": "Specifies the types of repositories you want returned",
+      "label": "Visibility",
+      "type": "select",
+      "options": [
+       {
+        "key": "all",
+        "value": "all"
+       },
+       {
+        "key": "public",
+        "value": "public"
+       },
+       {
+        "key": "private",
+        "value": "private"
+       },
+       {
+        "key": "forks",
+        "value": "forks"
+       },
+       {
+        "key": "sources",
+        "value": "sources"
+       },
+       {
+        "key": "member",
+        "value": "member"
+       },
+       {
+        "key": "internal",
+        "value": "internal"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "all",
+      "readOnly": false,
+      "name": "visibility"
+     },
+     {
+      "description": "Newline delimited list",
+      "label": "Repositories to Skip",
+      "type": "textarea",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "skipRepos"
+     },
+     {
+      "description": "",
+      "label": "Number of Repositories to Retrieve",
+      "type": "number",
+      "required": false,
+      "placeholder": "Default: 30",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "numToRetrieve"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "findReposInOrg"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Filtered repositories list",
+      "name": "repositories"
+     },
+     {
+      "description": "Filtered list based repositories",
+      "name": "repositoriesPrettyPrint"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "find-repositories-in-org"
+  },
+  {
+   "displayName": "Find Repositories in Org",
+   "description": "Find Repositories in a GitHub organization",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 4,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares"
+     },
+     {
+      "description": "",
+      "label": "Token",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token"
      },
      {
       "description": "",
@@ -5056,6 +5680,82 @@
    "parentRef": "get-all-organizations"
   },
   {
+   "displayName": "Get All Organizations",
+   "description": "Lists all Github organizations, in the order that they were created on GitHub. For further reading on the underlying API see https://docs.github.com/rest/reference/orgs/#list-organizations",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "First organization ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "since"
+     },
+     {
+      "description": "",
+      "label": "Number of organizations",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The maximum returned number of organizations",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "maxNoOrg"
+     }
+    ],
+    "arguments": [
+     "github",
+     "listAllOrganizations"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "List of the organizations",
+      "name": "organizations"
+     }
+    ],
+    "script": "ls -la /tekton/results/",
+    "workingDir": ""
+   },
+   "parentRef": "get-all-organizations"
+  },
+  {
    "displayName": "Get All Teams in Organization",
    "description": "Lists all teams in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
    "category": "GitHub",
@@ -5173,6 +5873,101 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Page Number",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "pageNumber"
+     },
+     {
+      "description": "",
+      "label": "Number of teams per page",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamsPerPage"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "findTeamsInOrg"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "List of teams in the organization",
+      "name": "teams"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-all-teams-in-organization"
+  },
+  {
+   "displayName": "Get All Teams in Organization",
+   "description": "Lists all teams in an organization that are visible to the authenticated token. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -5644,6 +6439,81 @@
    "parentRef": "get-github-repository"
   },
   {
+   "displayName": "Get Github Repository",
+   "description": "Get the Gihub repository details based on the Github URL. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#get-a-repository",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)"
+     },
+     {
+      "description": "",
+      "label": "Repository URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/org-name/repo-name",
+      "helpertext": "The Github repository url to get the details for",
+      "readOnly": false,
+      "name": "repoURL"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "getRepositoryFromRepoURL"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Github repository details",
+      "name": "result"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-github-repository"
+  },
+  {
    "displayName": "Get Incidents",
    "description": "Get Incidents from ServiceNow with optional State",
    "category": "ServiceNow",
@@ -5835,6 +6705,81 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "getOrganization"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Github organization details",
+      "name": "organization"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-organization-info"
+  },
+  {
+   "displayName": "Get Organization Info",
+   "description": "Retrieves the details of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#get-an-organization",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -6424,6 +7369,91 @@
    "parentRef": "get-team-in-organization"
   },
   {
+   "displayName": "Get Team In Organization",
+   "description": "Retrieves the details of a team from a Github organization given the team name. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#list-teams",
+   "category": "GitHub",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Team Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamName"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "getTeamInOrgByName"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Github team details",
+      "name": "team"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-team-in-organization"
+  },
+  {
    "displayName": "Invite Collaborator to Project",
    "description": "Invites a Github user identified vie email to collaborate to a repository. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#add-a-repository-collaborator",
    "category": "GitHub",
@@ -6455,6 +7485,109 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Repository URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/org-name/repo-name",
+      "helpertext": "The Github repository url to add the collaborator",
+      "readOnly": false,
+      "name": "repoURL"
+     },
+     {
+      "description": "",
+      "label": "Collaborator Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "userEmail"
+     },
+     {
+      "description": "",
+      "label": "Permission",
+      "type": "select",
+      "options": [
+       {
+        "key": "pull",
+        "value": "pull"
+       },
+       {
+        "key": "push",
+        "value": "push"
+       },
+       {
+        "key": "admin",
+        "value": "admin"
+       },
+       {
+        "key": "maintain",
+        "value": "maintain"
+       },
+       {
+        "key": "triage",
+        "value": "triage"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The permission to grant the collaborator",
+      "readOnly": false,
+      "name": "permission"
+     }
+    ],
+    "arguments": [
+     "github",
+     "inviteCollaboratorToProject"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "invite-collaborator-to-project"
+  },
+  {
+   "displayName": "Invite Collaborator to Project",
+   "description": "Invites a Github user identified vie email to collaborate to a repository. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#add-a-repository-collaborator",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -6663,6 +7796,121 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Team Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamName"
+     },
+     {
+      "description": "",
+      "label": "User Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "userEmail"
+     },
+     {
+      "description": "",
+      "label": "User Role",
+      "type": "select",
+      "options": [
+       {
+        "key": "maintainer",
+        "value": "maintainer"
+       },
+       {
+        "key": "member",
+        "value": "member"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The role that this user should have in the team",
+      "readOnly": false,
+      "name": "role"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "inviteMemberToTeamInOrg"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Result containing the url, role and state of the action",
+      "name": "result"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "invite-member-to-team"
+  },
+  {
+   "displayName": "Invite Member to Team",
+   "description": "Invite a Github member to be a team member in the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#add-or-update-team-membership-for-a-user",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -7005,6 +8253,111 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "User Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "userEmail"
+     },
+     {
+      "description": "",
+      "label": "User Role",
+      "type": "select",
+      "options": [
+       {
+        "key": "admin",
+        "value": "admin"
+       },
+       {
+        "key": "member",
+        "value": "member"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The role to give the user in the organization",
+      "readOnly": false,
+      "name": "role"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File path to store the output response",
+      "readOnly": false,
+      "name": "outputFilePath"
+     }
+    ],
+    "arguments": [
+     "github",
+     "inviteMemberToOrg"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Result containing the details and outcome of the action",
+      "name": "result"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "invite-user-to-organization"
+  },
+  {
+   "displayName": "Invite User to Organization",
+   "description": "Invite an User to the member list of a Github organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/orgs#set-organization-membership-for-a-user",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -7514,6 +8867,70 @@
       "placeholder": "",
       "readOnly": false,
       "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Org",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "org"
+     },
+     {
+      "description": "New line delimited list.",
+      "label": "Repositories",
+      "type": "textarea",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "repos"
+     }
+    ],
+    "arguments": [
+     "github",
+     "makeReposInOrgPrivate"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "make-repositories-private"
+  },
+  {
+   "displayName": "Make Repositories Private",
+   "description": "Make Repositories Private.",
+   "category": "GitHub",
+   "icon": "Automated task",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares"
+     },
+     {
+      "description": "",
+      "label": "Token",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token"
      },
      {
       "description": "",
@@ -8162,6 +9579,76 @@
    "parentRef": "remove-collaborator-from-project"
   },
   {
+   "displayName": "Remove Collaborator From Project",
+   "description": "Removes a Github Collaborator from a repository. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#remove-a-repository-collaborator",
+   "category": "GitHub",
+   "icon": "Delete",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "$(workspace.params.github-url)"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Repository URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/org-name/repo-name",
+      "helpertext": "The Github repository url from where to remove",
+      "readOnly": false,
+      "name": "repoURL"
+     },
+     {
+      "description": "",
+      "label": "Collaborator Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "userEmail"
+     }
+    ],
+    "arguments": [
+     "github",
+     "removeCollaboratorFromProject"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "remove-collaborator-from-project"
+  },
+  {
    "displayName": "Remove Member from Channel",
    "description": "Removes a user from Slack conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.kick",
    "category": "Communication with Slack",
@@ -8326,6 +9813,86 @@
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
       "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Organization Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "organizationName"
+     },
+     {
+      "description": "",
+      "label": "Team Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "teamName"
+     },
+     {
+      "description": "",
+      "label": "User Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "userEmail"
+     }
+    ],
+    "arguments": [
+     "github",
+     "removeMemberFromTeamInOrg"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "remove-member-from-team"
+  },
+  {
+   "displayName": "Remove Member from Team",
+   "description": "Remove a member from a team within the organization. For further reading on the underlying API see https://docs.github.com/en/rest/reference/teams#remove-team-membership-for-a-user",
+   "category": "GitHub",
+   "icon": "Delete",
+   "version": 2,
+   "changelog": {
+    "reason": "The token and API URL default to the workspace parameters the GitHub integration manages, github-token and github-url",
+    "date": {
+     "$date": "2026-10-28T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://github.ibm.com/api/v3",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
       "readOnly": false,
       "name": "token"
      },

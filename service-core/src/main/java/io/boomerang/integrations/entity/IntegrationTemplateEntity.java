@@ -3,6 +3,8 @@ package io.boomerang.integrations.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.boomerang.common.model.AbstractParam;
+import java.util.List;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -21,4 +23,6 @@ public class IntegrationTemplateEntity {
   private String description;
   private String instructions;
   private String status;
+  // The workspace parameters the integration creates when its credentials are shared with tasks.
+  private List<AbstractParam> fields;
 }

@@ -63,11 +63,14 @@ interface ParametersTableProps {
   onAdd: () => void;
   onEdit: (parameter: DataDrivenInput) => void;
   onDelete: (parameter: DataDrivenInput) => void;
+  // The integration managing each read-only parameter that one manages, by parameter name.
+  managedBy?: Record<string, string>;
 }
 
 /**
  * One table for workflow, workspace and global parameters: the name as tasks type it, its label and value,
- * a Required, Read-only or Secured tag, and a menu to edit, copy the reference, or delete.
+ * a Required, Read-only, Managed by or Secured tag, and a menu to edit, copy the reference, or delete. A read-only
+ * parameter's menu only copies the reference.
  */
 const ParametersTable: React.FC<ParametersTableProps> = ({
   scope,
@@ -77,6 +80,7 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
   onAdd,
   onEdit,
   onDelete,
+  managedBy = {},
 }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -129,14 +133,19 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
         return <span className={styles.value}>{displayValue(parameter, value)}</span>;
       case "tag":
         if (parameter.readOnly) {
-          return <Tag size="sm" type="gray">Read-only</Tag>;
+          const integration = managedBy[parameter.name ?? ""];
+          return (
+            <Tag size="sm" type="gray">
+              {integration ? `Managed by ${integration}` : "Read-only"}
+            </Tag>
+          );
         }
         if (scope === "workflow") {
           return parameter.required ? <Tag size="sm" type="blue">Required</Tag> : null;
         }
         return parameter.type === InputType.Password ? <Tag size="sm" type="purple">Secured</Tag> : null;
       case "actions":
-        return parameter.readOnly ? null : (
+        return (
           <OverflowMenu
             align="left"
             aria-label={`Actions for ${parameter.name}`}
@@ -144,9 +153,11 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
             flipped
             iconDescription="Parameter actions"
           >
-            <OverflowMenuItem itemText="Edit" onClick={() => onEdit(parameter)} />
+            {!parameter.readOnly && <OverflowMenuItem itemText="Edit" onClick={() => onEdit(parameter)} />}
             <OverflowMenuItem itemText="Copy reference" onClick={() => copyReference(parameter)} />
-            <OverflowMenuItem hasDivider isDelete itemText="Delete" onClick={() => setToDelete(parameter)} />
+            {!parameter.readOnly && (
+              <OverflowMenuItem hasDivider isDelete itemText="Delete" onClick={() => setToDelete(parameter)} />
+            )}
           </OverflowMenu>
         );
       default:

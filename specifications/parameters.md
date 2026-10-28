@@ -20,7 +20,7 @@ the run's workflow and the revision it runs, so a version saved mid-run does not
 The layers and the revision are served from a per-instance cache for 10 seconds (`core/ParamLayerCache.java:41-49`,
 `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks admitted together share one read of each store.
 A global or workspace parameter, setting, workflow or revision write clears the cache on the instance that
-took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:212`,
+took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:216`,
 `core/SettingsService.java:166`, `workflow/WorkflowService.java:1384`); other instances see it within the cache
 lifetime. A task admitted after an edit gets the new value; each task run keeps the param values it was
 admitted with.
@@ -125,6 +125,28 @@ own run with a message naming the parameter. Names that are case or separator va
 save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at dispatch
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:142-155`).
 
+## Parameters an integration manages
+
+An integration whose template declares `fields` shares its credentials with a workspace's tasks as ordinary
+workspace parameters, so a task reads them as `$(workspace.params.<name>)` and the engine never calls an
+integration. GitHub declares `github-token`, the App's installation token, and `github-url`,
+`https://api.github.com` (`service-core/src/main/resources/seed/integration-templates.json`); its 17 catalogue
+tasks default `token` and `url` to them, and a value typed on the node wins.
+
+| Rule | Where |
+| --- | --- |
+| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:107-136` |
+| Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:84-118` |
+| A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:528-537,555-565,589` |
+| A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:60-74` |
+| Unlinking or uninstalling removes the managed parameters; a user's stay | `integrations/GitHubService.java:430-434`, `integrations/IntegrationService.java:179-199`, `integrations/IntegrationParameterService.java:120-134` |
+| An installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:170-207`, `integrations/IntegrationParameterService.java:136-157` |
+
+A GitHub task left on its default in a workspace that shares nothing fails at admission with
+`no such workspace param 'github-token'` (Admission checks, above). The editor shows a `password` field holding
+exactly one reference as text, so the default reads as written; anything typed over it is masked
+(`client-web/src/Features/Reactflow/components/shared/inputs.tsx:137-146`).
+
 ## Sensitive parameters
 
 A secret is a parameter type: `ParamType.secret` beside `string`, `array` and `object`
@@ -192,7 +214,7 @@ merge of node values over task specs is separate.
 | Task-run query rows | Nothing to filter: a row leaves out params, results, spec, annotations and status message (`workflow/WorkflowRunService.java:361-365`) |
 | Insights task view | No param is read; a row groups on labels and sums the usage results of `ai` task runs |
 | Server labels | Never written from a secret: `boomerang.io/model` is skipped when the `model` param is secret-typed, and `boomerang.io/item` when the item contains the value of any secret in the run's parameter layers (`engine/TaskExecutionService.java:228-238,747-755,1184-1188`, `engine/ParameterManager.java:354`) |
-| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:793-794`) |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:820-821`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:206-216`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
 | Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:295-319`, canvas `:775`). Duplicate copies the unfiltered workflow (`:752-758`) |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:235-238`); `internalGet`, which fires the run, is not filtered |

@@ -757,6 +757,11 @@ export interface Integration {
   instructions: string;
   link: string;
   status: string;
+  ref?: string;
+  // The workspace parameters the integration manages while its credentials are shared with tasks.
+  fields?: Array<DataDrivenInput>;
+  // Whether this workspace shares them; absent when the integration has none or is not connected.
+  shared?: boolean;
 }
 
 // Insights: statistics over the runs a workspace still holds. Durations and waits are

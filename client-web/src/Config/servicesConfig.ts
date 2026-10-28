@@ -105,6 +105,7 @@ export const serviceUrl = {
   getGitHubAppInstallationForWorkspace: ({ workspace }: WorkspaceArg) =>
     `${BASE_URL}/integration/github/installation${workspace ? "?workspace=" + workspace : ""}`,
   postGitHubAppUnlink: () => `${BASE_URL}/integration/github/unlink`,
+  postGitHubShare: () => `${BASE_URL}/integration/github/share`,
   schedule: {
     getCronValidation: ({ workspace, expression }) =>
       `${BASE_URL}/workspace/${workspace}/schedule/validate-cron?cron=${expression}`,

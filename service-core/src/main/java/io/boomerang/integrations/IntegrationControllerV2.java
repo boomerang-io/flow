@@ -2,7 +2,10 @@ package io.boomerang.integrations;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.integrations.model.GHLinkRequest;
+import io.boomerang.integrations.model.GHShareRequest;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.AuthExempt;
@@ -267,6 +270,30 @@ public class IntegrationControllerV2 {
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   void githubUnlink(@RequestBody GHLinkRequest request) throws IOException {
     githubService.unlinkAppInstallation(request);
+  }
+
+  @PostMapping(value = "/github/share")
+  @Operation(
+      summary =
+          "Shares the GitHub App installation token with the Workspace's tasks as managed Workspace"
+              + " parameters, or stops sharing it")
+  @AuthCriteria(
+      action = PermissionAction.WRITE,
+      resource = PermissionResource.INTEGRATION,
+      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session, AuthScope.global})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "integration",
+      resourceId = "'github_app'",
+      resourceName = "'GitHub'",
+      workspaceId = "#request.getWorkspace()")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  void githubShare(@RequestBody GHShareRequest request) {
+    integrationService.shareGitHub(request.getWorkspace(), request.isShared());
   }
 
   /**

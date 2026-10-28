@@ -4,6 +4,7 @@ import { json } from "d3";
 import { FormikProps, getIn } from "formik";
 import TextEditorModal from "Components/TextEditorModal";
 import { INPUT_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
+import { isFlowReference } from "Utils/paramsHelper";
 import { DataDrivenInput } from "Types";
 import styles from "./inputs.module.scss";
 
@@ -133,10 +134,16 @@ export const textInputProps =
     const { name, type, ...rest } = input;
     const itemConfig = getTypeConfig(INPUT_TYPES, type);
     const safeKey = `['${name}']`;
+    // A reference is not a secret: a password field holding exactly one, such as a catalogue default of
+    // $(workspace.params.github-token) the form shows until something is typed, reads as text so the author
+    // sees what it resolves from.
+    const current = values[name] || values[safeKey] || input.defaultValue;
+    const shownAsText = type === "password" && isFlowReference(current) ? { type: "text" } : {};
     return {
       autoSuggestions: formatAutoSuggestParameters(availableParameters),
       onChange: (value: React.FormEvent<HTMLInputElement>) => setFieldValue(safeKey, value),
       initialValue: values[name] || values[safeKey],
+      ...shownAsText,
       inputProps: {
         onBlur: handleBlur,
         invalid: touched[name] && Boolean(errors[name]),

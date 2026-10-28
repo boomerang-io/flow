@@ -576,6 +576,13 @@ components:
         workspace:
           type: "string"
       type: "object"
+    GHShareRequest:
+      properties:
+        shared:
+          type: "boolean"
+        workspace:
+          type: "string"
+      type: "object"
     HeaderFeatures:
       properties:
         consent.enabled:
@@ -843,6 +850,10 @@ components:
       properties:
         description:
           type: "string"
+        fields:
+          items:
+            $ref: "#/components/schemas/AbstractParam"
+          type: "array"
         icon:
           type: "string"
         id:
@@ -855,6 +866,8 @@ components:
           type: "string"
         ref:
           type: "string"
+        shared:
+          type: "boolean"
         status:
           enum:
           - "unlinked"
@@ -3885,6 +3898,24 @@ paths:
                 type: "object"
           description: "Bad Request"
       summary: "Retrieve the installation ID and store against a workspace"
+      tags:
+      - "Integrations"
+  /api/v2/integration/github/share:
+    post:
+      operationId: "githubShare"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GHShareRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+        "400":
+          description: "Bad Request"
+      summary: "Shares the GitHub App installation token with the Workspace's tasks\
+        \ as managed Workspace parameters, or stops sharing it"
       tags:
       - "Integrations"
   /api/v2/integration/github/unlink:
