@@ -58,6 +58,27 @@ describe("IntegrationCard", () => {
     expect(screen.queryByRole("switch", { hidden: true })).not.toBeInTheDocument();
   });
 
+  it("offers to share Slack's bot token with tasks once connected", async () => {
+    const slack = {
+      ...github,
+      id: "slack",
+      name: "Slack",
+      link: "https://slack.com/oauth/v2/authorize?client_id=1234&scope=chat:write&state=signed",
+      status: "linked",
+      ref: "slack-ref",
+      fields: [{ name: "slack-token" }],
+      shared: false,
+    };
+    renderWithRouter(<IntegrationCard workspaceName="cheer" data={slack} />);
+
+    expect(screen.getByText("Lets the Slack tasks use the app's bot token")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+
+    const share = await screen.findByRole("switch", { name: /Share the installation token with tasks/, hidden: true });
+    expect(share).not.toBeChecked();
+    expect(screen.getByText(/Tasks read it as \$\(workspace\.params\.slack-token\)\./)).toBeInTheDocument();
+  });
+
   it("can't connect an integration the platform has no install link for", () => {
     renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, name: "Slack", link: "" }} />);
 

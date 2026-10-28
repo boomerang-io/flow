@@ -130,20 +130,23 @@ save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at 
 An integration whose template declares `fields` shares its credentials with a workspace's tasks as ordinary
 workspace parameters, so a task reads them as `$(workspace.params.<name>)` and the engine never calls an
 integration. GitHub declares `github-token`, the App's installation token, and `github-url`,
-`https://api.github.com` (`service-core/src/main/resources/seed/integration-templates.json`); its 17 catalogue
-tasks default `token` and `url` to them, and a value typed on the node wins.
+`https://api.github.com`; Slack declares `slack-token`, the Flow app's bot token for the linked Slack team
+(`service-core/src/main/resources/seed/integration-templates.json`). The 17 GitHub catalogue tasks default `token`
+and `url` to GitHub's, and the 10 Slack tasks that call the Slack API default `token` to Slack's; a value typed
+on the node wins.
 
 | Rule | Where |
 | --- | --- |
-| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:107-136` |
+| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:118-156` |
+| A Slack bot token does not expire, so it is shared as stored and never refreshed; an installation with Slack's token rotation on, whose token expires with a refresh token, is refused with `400 INTEGRATION_TOKEN_ROTATES` (1909) | `integrations/SlackService.java:686-703` |
 | Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:84-118` |
 | A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:528-537,555-565,589` |
 | A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:60-74` |
-| Unlinking or uninstalling removes the managed parameters; a user's stay | `integrations/GitHubService.java:430-434`, `integrations/IntegrationService.java:179-199`, `integrations/IntegrationParameterService.java:120-134` |
-| An installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:170-207`, `integrations/IntegrationParameterService.java:136-157` |
+| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team | `integrations/GitHubService.java:386-390`, `integrations/IntegrationService.java:199-219`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:120-134` |
+| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:158-195`, `integrations/IntegrationParameterService.java:136-157` |
 
-A GitHub task left on its default in a workspace that shares nothing fails at admission with
-`no such workspace param 'github-token'` (Admission checks, above). The editor shows a `password` field holding
+A GitHub or Slack task left on its default in a workspace that shares nothing fails at admission with
+`no such workspace param 'github-token'` or `'slack-token'` (Admission checks, above). The editor shows a `password` field holding
 exactly one reference as text, so the default reads as written; anything typed over it is masked
 (`client-web/src/Features/Reactflow/components/shared/inputs.tsx:137-146`).
 

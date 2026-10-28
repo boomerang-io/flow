@@ -52,16 +52,18 @@ export type ActionResult = ActionIntent | (ActionIntent & ActionError);
 
 // Each integration type unlinks through its own endpoint, keyed by the integration's display
 // name - mirrors the previous browser-side `unlinkResolverByIntegrationName` lookup in
-// IntegrationCard.tsx, moved server-side now that the mutation is an action. Only GitHub has a
-// disconnect endpoint today; an integration name with no entry here fails informatively instead
-// of silently calling the wrong (or an undefined) resolver.
+// IntegrationCard.tsx, moved server-side now that the mutation is an action. An integration name
+// with no entry here fails informatively instead of silently calling the wrong (or an undefined)
+// resolver.
 const unlinkUrlByIntegrationName: Record<string, () => string> = {
   GitHub: serviceUrl.postGitHubAppUnlink,
+  Slack: serviceUrl.postSlackUnlink,
 };
 
-// Sharing an integration's credentials with tasks, by display name; only GitHub shares any today.
+// Sharing an integration's credentials with tasks, by display name.
 const shareUrlByIntegrationName: Record<string, () => string> = {
-  GitHub: serviceUrl.postGitHubShare,
+  GitHub: () => serviceUrl.postIntegrationShare({ integration: "github" }),
+  Slack: () => serviceUrl.postIntegrationShare({ integration: "slack" }),
 };
 
 // No explicit return-type annotation: `actionError` wraps the failure branches in RR's `data()`

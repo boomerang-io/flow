@@ -20,6 +20,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,11 +34,16 @@ public class IntegrationService {
   private static final Logger LOGGER = LogManager.getLogger();
   private static final String GITHUB_APP_TYPE = "github_app";
 
+  // The integrations that share credentials with tasks, by the name their routes use.
+  private static final Map<String, String> SHARING_TYPES =
+      Map.of("github", GITHUB_APP_TYPE, "slack", SlackService.EXTENSION_TYPE);
+
   private final IntegrationTemplateRepository integrationTemplateRepository;
   private final IntegrationsRepository integrationsRepository;
   private final RelationshipService relationshipService;
   private final SettingsService settingsService;
   private final GitHubService gitHubService;
+  private final SlackService slackService;
   private final IdentityService identityService;
   private final IntegrationParameterService integrationParameterService;
 
@@ -47,6 +53,7 @@ public class IntegrationService {
       RelationshipService relationshipService,
       SettingsService settingsService,
       GitHubService gitHubService,
+      SlackService slackService,
       IdentityService identityService,
       IntegrationParameterService integrationParameterService) {
     this.integrationTemplateRepository = integrationTemplateRepository;
@@ -54,6 +61,7 @@ public class IntegrationService {
     this.relationshipService = relationshipService;
     this.settingsService = settingsService;
     this.gitHubService = gitHubService;
+    this.slackService = slackService;
     this.identityService = identityService;
     this.integrationParameterService = integrationParameterService;
   }
@@ -67,6 +75,8 @@ public class IntegrationService {
             RelationshipType.INTEGRATION, workspace, Optional.empty());
     LOGGER.debug("Refs: " + refs.toString());
     WorkspaceEntity workspaceEntity = integrationParameterService.workspace(workspace);
+    Token identity = identityService.getCurrentIdentity();
+    String principal = identity == null ? null : identity.getPrincipal();
     templates.forEach(
         t -> {
           LOGGER.debug(t.toString());
@@ -85,19 +95,20 @@ public class IntegrationService {
                       i.setShared(integrationParameterService.isShared(workspaceEntity, t));
                     }
                   });
-          if ("github".equals(i.getName().toLowerCase())) {
+          if (GITHUB_APP_TYPE.equals(t.getType())) {
             String appName =
                 settingsService.getSettingConfig("integration", "github.appName").getValue();
             String link = i.getLink().replace("{app_name}", appName);
             // GitHub warns the installation_id callback parameter can be spoofed, so the state
             // that identifies who is installing and for which workspace is issued and signed
             // here, never trusted from the browser.
-            Token identity = identityService.getCurrentIdentity();
-            if (identity != null && identity.getPrincipal() != null) {
-              String state = gitHubService.createSignedState(workspace, identity.getPrincipal());
+            if (principal != null) {
+              String state = gitHubService.createSignedState(workspace, principal);
               link = link + "?state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
             }
             i.setLink(link);
+          } else if (SlackService.EXTENSION_TYPE.equals(t.getType())) {
+            i.setLink(slackService.installLink(t.getLink(), workspace, principal));
           }
           integrations.add(i);
         });
@@ -105,11 +116,15 @@ public class IntegrationService {
   }
 
   /*
-   * Share the GitHub App installation token with the workspace's tasks as managed workspace
-   * parameters, or stop sharing it. Sharing lets every workflow author in the workspace act with the
-   * App's permissions, so it is a choice made after linking, never part of it.
+   * Share an integration's credentials with the workspace's tasks as managed workspace parameters,
+   * or stop sharing them. Sharing lets every workflow author in the workspace act with the
+   * integration's permissions, so it is a choice made after linking, never part of it.
    */
-  public void shareGitHub(String workspace, boolean shared) {
+  public void share(String integration, String workspace, boolean shared) {
+    String type = SHARING_TYPES.get(integration);
+    if (type == null) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+    }
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
@@ -119,17 +134,22 @@ public class IntegrationService {
         relationshipService
             .refsInWorkspace(RelationshipType.INTEGRATION, workspace, Optional.empty())
             .stream()
-            .map(ref -> integrationsRepository.findByIdAndType(ref, GITHUB_APP_TYPE))
+            .map(ref -> integrationsRepository.findByIdAndType(ref, type))
             .flatMap(Optional::stream)
             .findFirst()
             .orElse(null);
     if (workspaceEntity == null || installation == null) {
       throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
     }
-    IntegrationTemplateEntity template = integrationParameterService.template(GITHUB_APP_TYPE);
+    IntegrationTemplateEntity template = integrationParameterService.template(type);
     if (shared) {
       integrationParameterService.share(
-          workspaceEntity, template, () -> gitHubService.installationToken(installation.getRef()));
+          workspaceEntity,
+          template,
+          () ->
+              (GITHUB_APP_TYPE.equals(type)
+                  ? gitHubService.installationToken(installation.getRef())
+                  : slackService.sharedToken(installation)));
     } else {
       integrationParameterService.unshare(workspaceEntity, template);
     }

@@ -20,10 +20,6 @@ import io.boomerang.integrations.model.GHInstallationsResponse;
 import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.repository.IntegrationsRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -31,16 +27,12 @@ import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import javax.crypto.Mac;
-import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +61,6 @@ public class GitHubService {
       "https://api.github.com/app/installations/{id}/access_tokens";
   private static final MediaType GITHUB_JSON = MediaType.parseMediaType("application/vnd.github+json");
   private static final String GITHUB_APP_TYPE = "github_app";
-  private static final Duration STATE_TTL = Duration.ofMinutes(10);
 
   @Value("${flow.apps.flow.url}")
   private String flowAppsUrl;
@@ -92,12 +83,6 @@ public class GitHubService {
     this.integrationParameterService = integrationParameterService;
     this.restTemplate = restTemplate;
   }
-
-  /*
-   * The claims recovered from a verified state - who asked for the installation, and for which
-   * workspace.
-   */
-  private record InstallState(String workspace, String userId) {}
 
   public ResponseEntity<?> getInstallation(Integer id) {
     final GithubAppClient appClient = getGitHubAppClient(id);
@@ -126,11 +111,14 @@ public class GitHubService {
   public ResponseEntity<?> getInstallationForWorkspace(String workspace) {
     List<String> refs =
         relationshipService.findNodeRefs(RelationshipType.WORKSPACE, workspace, RelationshipType.INTEGRATION);
-    if (!refs.isEmpty()) {
-      Optional<IntegrationsEntity> optEntity = integrationsRepository.findById(refs.get(0));
-      if (optEntity.isPresent()) {
-        return this.getInstallation(Integer.valueOf(optEntity.get().getRef()));
-      }
+    // A workspace may link other integrations too; only its GitHub App installation is looked up.
+    Optional<IntegrationsEntity> optEntity =
+        refs.stream()
+            .map(ref -> integrationsRepository.findByIdAndType(ref, GITHUB_APP_TYPE))
+            .flatMap(Optional::stream)
+            .findFirst();
+    if (optEntity.isPresent()) {
+      return this.getInstallation(Integer.valueOf(optEntity.get().getRef()));
     }
     throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
   }
@@ -242,47 +230,15 @@ public class GitHubService {
   /*
    * Issues a signed, short-lived state carrying the workspace and the requesting user - appended
    * to the install link so the callback never has to trust anything the browser sends back
-   * unverified.
+   * unverified. Signed with a key derived from the GitHub App private key already held in
+   * settings: server-held, shared across instances, and never exposed to a client.
    */
   public String createSignedState(String workspace, String userId) {
-    Instant now = Instant.now();
-    return Jwts.builder()
-        .claim("workspace", workspace)
-        .claim("userId", userId)
-        .issuedAt(Date.from(now))
-        .expiration(Date.from(now.plus(STATE_TTL)))
-        .signWith(stateSigningKey(), Jwts.SIG.HS256)
-        .compact();
+    return InstallStateUtils.sign(workspace, userId, appPrivateKey());
   }
 
-  private InstallState verifySignedState(String state) {
-    try {
-      Claims claims = Jwts.parser().verifyWith(stateSigningKey()).build().parseSignedClaims(state).getPayload();
-      String workspace = claims.get("workspace", String.class);
-      String userId = claims.get("userId", String.class);
-      if (workspace == null || workspace.isBlank() || userId == null || userId.isBlank()) {
-        throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_STATE);
-      }
-      return new InstallState(workspace, userId);
-    } catch (JwtException | IllegalArgumentException ex) {
-      throw new BoomerangException(ex, BoomerangError.INTEGRATION_INVALID_STATE);
-    }
-  }
-
-  /*
-   * Derives the HMAC signing key from the GitHub App private key already held in settings, rather
-   * than introducing a dedicated secret - it is server-held, shared across instances, and never
-   * exposed to a client. SHA-256 normalises it to a fixed-length key rather than using the PEM
-   * bytes directly.
-   */
-  private SecretKey stateSigningKey() {
-    final String pem = settingsService.getSettingConfig("integration", "github.jwt").getValue();
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      return Keys.hmacShaKeyFor(digest.digest(pem.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException ex) {
-      throw new IllegalStateException(ex);
-    }
+  private String appPrivateKey() {
+    return settingsService.getSettingConfig("integration", "github.jwt").getValue();
   }
 
   /*
@@ -292,7 +248,7 @@ public class GitHubService {
    * parameter can be spoofed, so it is never trusted on its own.
    */
   public ResponseEntity<?> handleInstallCallback(Integer installationId, String code, String state) {
-    InstallState installState = verifySignedState(state);
+    InstallStateUtils.InstallState installState = InstallStateUtils.verify(state, appPrivateKey());
 
     if (!relationshipService.hasNodes(
         RelationshipType.USER,

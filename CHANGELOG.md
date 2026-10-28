@@ -111,6 +111,17 @@ tag's release notes.
   that does not share the token. A read-only workspace parameter an integration manages can no longer be changed
   or deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace
   update is ignored.
+- **Slack is a workspace integration and can share its bot token with tasks.** The Integrations page now lists
+  Slack once `slack.clientId` and `slack.clientSecret` are set: Connect installs the Flow Slack app and links that
+  Slack team to the workspace, and "Share the installation token with tasks" writes a read-only `slack-token`
+  workspace parameter. In the Slack app's settings, set the OAuth redirect URL to
+  `<Flow API URL>/api/v2/integration/slack/auth`, add the bot scopes `channels:manage`, `channels:read`,
+  `chat:write`, `commands`, `files:write`, `groups:read`, `groups:write`, `users:read` and `users:read.email`, and
+  leave token rotation off, since a rotating token cannot be shared. The `slack.installURL` setting is no longer
+  read: `GET /api/v2/integration/slack/install` builds Slack's authorize URL itself. Change unit
+  `_0032__SeedSlackIntegrationParameters` makes the Slack template active and adds a revision of each of the 10
+  Slack tasks that call the Slack API whose `token` defaults to `$(workspace.params.slack-token)`. The share
+  route is now `POST /api/v2/integration/{github|slack}/share`; the GitHub URL is unchanged.
 - **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
   `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
   `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an
