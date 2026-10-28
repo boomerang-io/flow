@@ -11,7 +11,7 @@ import {
   SwitcherDivider,
   Tag,
 } from "@carbon/react";
-import { FlowData, ArrowsHorizontal, Settings } from "@carbon/react/icons";
+import { FlowData, ArrowsHorizontal, Book, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
@@ -21,11 +21,16 @@ import type { BootstrapData } from "Features/App/App";
 import { APP_ROOT, FeatureFlag } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
+import AboutFlowMenuItem from "./AboutFlow";
 import styles from "./navbar.module.scss";
 
 const skipToContentProps = {
   href: "#content",
 };
+
+// The shell always renders its own Docs and Release Notes help items; these are where they go.
+const DOCS_URL = "https://www.useboomerang.io/flow";
+const RELEASE_NOTES_URL = "https://github.com/boomerang-io/flow/releases";
 interface NavbarProps {
   handleOnTutorialClick: () => void;
   flowNavigationData: Array<FlowNavigationItem>;
@@ -63,6 +68,11 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
             ...contextData.platform,
             platformVersion: platform.version ?? "",
             platformVersionError: false,
+            docs: { url: DOCS_URL },
+            releaseNotesUrl: RELEASE_NOTES_URL,
+            // A platform name turns on the shell's own About, which reads a platform-version
+            // service Flow does not have; Flow's About is in the support items below.
+            name: undefined,
             ...sessionSignOut,
           },
         }}
@@ -73,13 +83,29 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
         productName={appName}
         skipToContentProps={skipToContentProps}
         // The shell's platform `User` requires a `teams` array; Flow's profile names it `workspaces`.
-        user={{ ...userData, teams: userData.workspaces ?? [] }}
+        // A user id turns on the shell's own profile row, which reads a launchpad user service
+        // Flow does not have and then repeats the name; Flow's row is in the profile items below.
+        user={{ ...userData, id: "", teams: userData.workspaces ?? [] }}
         supportMenuItems={[
-          <HeaderMenuItem type="button" onClick={handleOnTutorialClick} text="Tutorial" />,
-          <HeaderMenuItem type="link" kind="external" href="https://www.useboomerang.io/flow" text="Docs" />,
+          <HeaderMenuItem
+            key="tutorial"
+            type="button"
+            icon={<Book />}
+            onClick={handleOnTutorialClick}
+            text="Tutorial"
+          />,
+          <AboutFlowMenuItem key="about" name={appName} version={platform.version} />,
         ]}
         profileMenuItems={[
           <HeaderMenuItem
+            key="user"
+            type="user"
+            src=""
+            userName={userData.displayName || userData.name}
+            onClick={() => navigate(appLink.profile())}
+          />,
+          <HeaderMenuItem
+            key="account-settings"
             icon={<Settings />}
             type="link"
             kind="app"

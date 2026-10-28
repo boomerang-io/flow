@@ -117,7 +117,9 @@ collapse control), one search row with the filter and the task count in the plac
    `ToastNotification`, `notify`, and the error surfaces `Error`, `Error403`, `Error404`, `ErrorFullPage`,
    `ErrorMessage`, `ErrorPage` and `ErrorDragon`. The library has no `AutoSuggest`, so the editor's parameter inputs
    are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:16-33`). `UIShell` provides the header
-   and side-nav chrome; navigation is never hand-rolled.
+   and side-nav chrome; navigation is never hand-rolled. Flow feeds the shell's Docs and Release Notes, turns off its
+   launchpad About and profile row for its own (`src/Features/App/Navbar/Navbar.tsx:66-115`), and patches out its
+   fixed-colour help-menu rule (`client-web/patches/`).
 2. **Carbon** (`@carbon/react`) for anything the add-ons do not cover (`Button`, `DataTable`, `Tabs`, `Tag`,
    `ContentSwitcher`, `InlineNotification`, form inputs).
 3. **Custom** only when neither library has it, built from Carbon tokens and the spacing scale so it themes
