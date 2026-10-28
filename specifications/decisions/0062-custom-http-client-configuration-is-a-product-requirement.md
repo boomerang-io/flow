@@ -30,7 +30,6 @@ healthy log stream is not cut. "The framework default is fine" is not an accepta
 - Upgrade reviews MUST check proxy, trust, per-template timeouts and the streaming template explicitly; a move to
   `RestClient` is allowed only with the same settings exposed.
 - Trust-all is a deliberate weakening for internal endpoints, scoped to `insecureRestTemplate` and
-  `streamingRestTemplate`; it MUST NOT spread to `externalRestTemplate`, which the identity provider and the GitHub
-  calls use, the App's installation tokens included (`core/security/OidcTokenVerifier.java:68`,
-  `integrations/GitHubService.java:79,131-156`). The GitHub installation lookup still goes through the bundled GitHub
-  client, which reads none of these settings (`integrations/GitHubService.java:87,197-210`).
+  `streamingRestTemplate`; it MUST NOT spread to `externalRestTemplate`, which the identity provider and every GitHub
+  call use: the installation lookup, its repositories and the App's installation tokens
+  (`core/security/OidcTokenVerifier.java:68`, `integrations/GitHubService.java:78,91-144,166-189`).

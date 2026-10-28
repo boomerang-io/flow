@@ -60,28 +60,17 @@ creates a workflow from one by posting its body as read to `POST /api/v2/workspa
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
 run references the task (`workflow/TaskService.java:980-984`).
 
-**Integrations.** `POST /api/v2/integration/{integration}/share` with `{workspace, shared}`, where `integration` is
-`github` or `slack`, shares that integration's credentials with the workspace's tasks, or stops sharing them, and
-needs `integration/write`; any other name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:295-321`).
-Sharing writes the template's `fields` into the workspace as read-only parameters (`parameters.md`, "Parameters an
-integration manages"). It is `409 INTEGRATION_PARAM_EXISTS` over a parameter of the same name the workspace already
-holds, `400 INTEGRATION_PARAMS_DISABLED` while workspace parameters are off, `502 INTEGRATION_TOKEN_FAILED` when
-GitHub issues no token, and `400 INTEGRATION_TOKEN_ROTATES` for a Slack installation whose token expires; the
-first two are checked before a token is asked for (`integrations/IntegrationService.java:118-156`,
-`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each
-template's `fields` and, on a linked integration that has any, `shared` (`integrations/IntegrationService.java:92-97`);
-Slack's `link` is Slack's authorize URL with the app's client id and a signed state naming the workspace and the
-caller, blank while the Slack app is not configured (`integrations/SlackService.java:705-722`).
-
-Slack links like GitHub: its OAuth redirect, `GET /api/v2/integration/slack/auth`, verifies the state, checks the
-caller is a member of the workspace and exchanges the code before saving the installation for its Slack team and
-linking it, then returns the browser to the workspace's Integrations page; one started from Slack, without a
-state, is saved for the team and linked to no workspace (`integrations/SlackService.java:521-576`). Several
-workspaces may link one Slack team; a workspace links one, and a second is `409 INTEGRATION_ALREADY_LINKED`
-(1908, `:627-649`). `POST /api/v2/integration/slack/unlink` with `{ref, workspace}` disconnects one workspace and
-needs `integration/write` (`integrations/IntegrationControllerV2.java:125-140`). Each integration's state is signed
-with a key derived from its own server-held secret, the GitHub App's private key or Slack's client secret, so one's
-state is refused at the other's callback (`integrations/InstallStateUtils.java:17-70`).
+**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares that integration's
+credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"),
+or stops sharing them; it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF`
+(`integrations/IntegrationControllerV2.java:295-321`). It is `409 INTEGRATION_PARAM_EXISTS` over a parameter of that
+name the workspace holds and `400 INTEGRATION_PARAMS_DISABLED` while workspace parameters are off, both checked before a
+token is asked for, `502 INTEGRATION_TOKEN_FAILED` when GitHub issues none, and `400 INTEGRATION_TOKEN_ROTATES` for an
+expiring Slack token (`integrations/IntegrationService.java:118-156`, `integrations/IntegrationParameterService.java:84-118`).
+`GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked, and Slack's authorize URL
+with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`, `integrations/SlackService.java:705-722`).
+Slack's redirect links its team to that workspace, one team per workspace (`409 INTEGRATION_ALREADY_LINKED`), and
+`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`, `integrations/IntegrationControllerV2.java:125-140`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their

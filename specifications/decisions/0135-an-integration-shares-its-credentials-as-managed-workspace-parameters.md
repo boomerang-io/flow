@@ -21,7 +21,7 @@ B. Integrations become ordinary parameters to the engine, which never calls an i
 scope. An integration template's `fields` name the parameters it writes (`integrations/entity/IntegrationTemplateEntity.java:26-27`);
 sharing is a choice made after linking (`integrations/IntegrationService.java:118-156`); a managed parameter is stored
 read-only and refused to workspace writes and deletes (`workspace/WorkspaceService.java:528-537,555-565`); the GitHub
-token is replaced every 45 minutes by a targeted write (`integrations/GitHubService.java:158-195`,
+token is replaced every 45 minutes by a targeted write (`integrations/GitHubService.java:191-228`,
 `integrations/IntegrationParameterService.java:136-157`); Slack's bot token does not expire and is shared as stored
 (`integrations/SlackService.java:686-703`).
 

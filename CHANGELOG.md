@@ -108,7 +108,7 @@ tag's release notes.
   be on. Change unit `_0031__SeedGitHubIntegrationParameters` gives the GitHub integration template those fields
   and adds a revision of each of the 17 GitHub tasks whose `token` and `url` default to them; a token typed into a
   node still wins. A task upgraded to the new revision and left on its default fails at admission in a workspace
-  that does not share the token. A read-only workspace parameter an integration manages can no longer be changed
+  that does not share the token; the editor warns at save. A read-only workspace parameter an integration manages can no longer be changed
   or deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace
   update is ignored.
 - **Slack is a workspace integration and can share its bot token with tasks.** The Integrations page now lists
@@ -383,6 +383,8 @@ tag's release notes.
 
 ### Fixed
 
+- The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
+  the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
   the edit pencil of 33 of the 89 seeded tasks.
 - A suggested workflow on Home can be created: a workflow template's tasks now read in their slug forms, as a

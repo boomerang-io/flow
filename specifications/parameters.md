@@ -109,6 +109,13 @@ the task's own `x` first and the value can never resolve. `x: $(params.x)` fails
 $(workflow.params.x) for the workflow's param`; `x: $(params.y)` with `y: $(params.x)` fails both, with
 `params 'x' and 'y' reference each other in a cycle` (`engine/ParameterManager.java:171-174,649-699`).
 
+The editor warns when a saved version reads a workspace parameter the workspace does not provide, so such a run
+fails here. It reads `$(workspace.params.x)` and `$(team.params.x)` anywhere in a node's values, and in its task's
+defaults where the node leaves a param out (or leaves a `password` empty) and pins the task version the editor
+holds; names match in any case, and a parameter with no value, or any while workspace parameters are off, counts
+as missing. The save goes ahead (`client-web/src/Utils/workspaceParamReferences.ts:23-59`,
+`client-web/src/Features/WorkflowEditor/Editor.tsx:186-190,207-216`).
+
 ## Names
 
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold to
@@ -142,11 +149,12 @@ on the node wins.
 | Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:84-118` |
 | A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:528-537,555-565,589` |
 | A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:60-74` |
-| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team | `integrations/GitHubService.java:386-390`, `integrations/IntegrationService.java:199-219`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:120-134` |
-| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:158-195`, `integrations/IntegrationParameterService.java:136-157` |
+| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team | `integrations/GitHubService.java:404-408`, `integrations/IntegrationService.java:199-219`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:120-134` |
+| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:191-228`, `integrations/IntegrationParameterService.java:136-157` |
 
 A GitHub or Slack task left on its default in a workspace that shares nothing fails at admission with
-`no such workspace param 'github-token'` or `'slack-token'` (Admission checks, above). The editor shows a `password` field holding
+`no such workspace param 'github-token'` or `'slack-token'`, and the editor warns when the workflow is saved
+(Admission checks, above). The editor shows a `password` field holding
 exactly one reference as text, so the default reads as written; anything typed over it is masked
 (`client-web/src/Features/Reactflow/components/shared/inputs.tsx:137-146`).
 
