@@ -7,6 +7,9 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.dispatcher.PollWakeups;
+import io.boomerang.common.model.WorkflowConcurrency;
+import io.boomerang.common.model.StatusReason;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
@@ -53,6 +56,8 @@ public class WorkflowExecutionService {
 
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
 
+  @Autowired private PollWakeups pollWakeups;
+
 
   @Autowired
   @Lazy
@@ -80,10 +85,28 @@ public class WorkflowExecutionService {
           tasks.size(),
           tasks.stream().map(TaskRunEntity::getName).collect(Collectors.joining(", ")));
       if (dagUtility.validateWorkflow(wfRunEntity, tasks)) {
-        // Admission Compare-And-Set: notstarted/pending becomes ready, persisting the resolved
-        // params in the same guarded write. A duplicate queue loses and performs no side effects.
+        // The workflow's concurrency limit, checked before admission and again after it, the way
+        // the workspace quota is: a burst of simultaneous admissions cannot each pass the first
+        // count, and the recount keeps the oldest runs up to the limit and steps the rest back.
+        WorkflowConcurrency concurrency = wfRevisionEntity.getConcurrency();
+        boolean limited = concurrency != null && concurrency.limits();
+        if (limited
+            && workflowRunStateHelper.countInFlight(wfRunEntity.getWorkflowRef())
+                >= concurrency.getLimit()) {
+          overflow(wfRunEntity, concurrency);
+          return;
+        }
+        // Admission Compare-And-Set: notstarted/pending (or a parked run) becomes ready, persisting
+        // the resolved params in the same guarded write. A duplicate queue loses and performs no
+        // side effects.
         if (workflowRunStateHelper.tryAdmit(wfRunId, wfRunEntity.getParams()) == null) {
           LOGGER.info("[{}] WorkflowRun already admitted. Nothing to do.", wfRunId);
+          return;
+        }
+        if (limited
+            && !workflowRunStateHelper.holdsSlot(
+                wfRunId, wfRunEntity.getWorkflowRef(), concurrency.getLimit())) {
+          overflow(wfRunEntity, concurrency);
         }
         return;
       }
@@ -97,11 +120,66 @@ public class WorkflowExecutionService {
         wfRunEntity.getId(),
         List.of(RunPhase.pending, RunPhase.queued),
         RunStatus.invalid,
+        StatusReason.WORKFLOW_INVALID,
         "Failed to run workflow: incomplete, or invalid, workflow",
         0);
     LOGGER.error(
         "[{}] Failed to run workflow: incomplete, or invalid, workflow. Run marked invalid.",
         wfRunEntity.getId());
+  }
+
+  // A run over its workflow's limit: with overflow `queue` it parks until a run of the workflow
+  // ends; with `skip` it ends now, a normal terminal run to its triggers and callers. A park or a
+  // skip that loses its Compare-And-Set (a dispatcher claimed the run meanwhile) leaves the run
+  // in flight over the limit, which the log records.
+  private void overflow(WorkflowRunEntity wfRunEntity, WorkflowConcurrency concurrency) {
+    if (concurrency.skips()) {
+      if (workflowRunStateHelper.tryComplete(
+              wfRunEntity.getId(),
+              List.of(RunPhase.pending, RunPhase.queued),
+              RunStatus.cancelled,
+              StatusReason.CONCURRENCY_LIMIT,
+              "Skipped: the workflow's concurrency limit of "
+                  + concurrency.getLimit()
+                  + " in-flight runs is reached.",
+              0)
+          != null) {
+        LOGGER.info(
+            "[{}] Over the workflow's concurrency limit of {}. Skipped.",
+            wfRunEntity.getId(),
+            concurrency.getLimit());
+      }
+      return;
+    }
+    if (workflowRunStateHelper.tryPark(
+            wfRunEntity.getId(),
+            "Waiting for a slot: the workflow's concurrency limit of "
+                + concurrency.getLimit()
+                + " in-flight runs is reached.")
+        != null) {
+      LOGGER.info(
+          "[{}] Over the workflow's concurrency limit of {}. Parked for a slot.",
+          wfRunEntity.getId(),
+          concurrency.getLimit());
+    }
+  }
+
+  /**
+   * Re-drive a parked run through admission: when a run of its workflow ends, and on the sweep.
+   * Admitted with nothing to provision it starts here; with a workspace it is claimable for
+   * provisioning like any submit. Still over the limit, it stays parked.
+   */
+  public void readmit(String wfRunId) {
+    queue(wfRunId);
+    WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (run == null || !RunStatus.ready.equals(run.getStatus())) {
+      return;
+    }
+    if (run.getWorkspace() == null) {
+      start(wfRunId);
+    } else {
+      pollWakeups.runProvisionable();
+    }
   }
 
   public CompletableFuture<Boolean> start(String wfRunId) {
@@ -120,6 +198,14 @@ public class WorkflowExecutionService {
           BoomerangError.WORKFLOWRUN_INVALID_PHASE,
           wfRunEntity.getPhase(),
           RunPhase.pending + " or " + RunPhase.queued);
+    }
+    // A run parked for a slot of its workflow holds none: its re-admission starts it, never a
+    // caller's start.
+    if (RunStatus.waiting.equals(wfRunEntity.getStatus())) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOWRUN_INVALID_PHASE,
+          wfRunEntity.getPhase() + " (parked for a slot)",
+          RunPhase.pending + " and admitted");
     }
     final List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunEntity.getId());
     final TaskRunEntity start = dagUtility.getTaskByType(tasks, TaskType.start);
@@ -144,6 +230,7 @@ public class WorkflowExecutionService {
             wfRunId,
             List.of(RunPhase.pending, RunPhase.queued, RunPhase.running),
             RunStatus.cancelled,
+            null,
             "The WorkflowRun was requested to be cancelled.",
             duration)
         == null) {
@@ -195,6 +282,7 @@ public class WorkflowExecutionService {
             wfRunEntity.getId(),
             List.of(RunPhase.running),
             RunStatus.invalid,
+            StatusReason.WORKFLOW_INVALID,
             "Failed to run workflow: unable to process Workflow and queue all tasks.",
             RunTimeouts.executionMillis(wfRunEntity, new Date()));
         throw new BoomerangException(
@@ -236,6 +324,7 @@ public class WorkflowExecutionService {
             wfRunId,
             List.of(RunPhase.pending, RunPhase.running),
             RunStatus.timedout,
+            StatusReason.DEADLINE_EXCEEDED,
             statusMessage,
             duration)
         == null) {

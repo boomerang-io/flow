@@ -3,7 +3,10 @@ package io.boomerang.common;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.boomerang.common.entity.TaskRunEntity;
+import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.model.RunAttempt;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
@@ -149,6 +152,49 @@ class PublicRunModelSerialisationTest {
     assertThat(json.get("attempt").asInt()).isEqualTo(2);
     assertThat(json.propertyNames()).doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE);
     assertThat(serialise(new TaskRun(new TaskRunEntity())).has("attempt")).isFalse();
+  }
+
+  /**
+   * The attempts a requeue superseded are public history, not control state: they serialise on the
+   * task run while {@code retry}, the budget and backoff state they came from, stays on the entity.
+   */
+  @Test
+  void aTaskRunExposesItsSupersededAttemptsButNotItsRetryState() {
+    TaskRunEntity retried = new TaskRunEntity();
+    RunClaim claim = new RunClaim();
+    claim.setSeq(3L);
+    retried.setClaim(claim);
+    RunRetry retry = new RunRetry();
+    retry.setMax(2);
+    retry.setFailures(2);
+    retried.setRetry(retry);
+    RunAttempt first = new RunAttempt();
+    first.setNumber(1);
+    first.setStatus(RunStatus.failed);
+    first.setStatusReason("JobFailed");
+    RunAttempt second = new RunAttempt();
+    second.setNumber(2);
+    second.setStatus(RunStatus.failed);
+    retried.setAttempts(List.of(first, second));
+
+    ObjectNode json = serialise(new TaskRun(retried));
+
+    assertThat(json.get("attempts")).hasSize(2);
+    assertThat(json.get("attempts").get(0).get("statusReason").asText()).isEqualTo("JobFailed");
+    assertThat(json.get("attempt").asInt()).isEqualTo(3);
+    assertThat(json.propertyNames()).doesNotContainAnyElementsOf(FORBIDDEN_EXECUTION_STATE);
+  }
+
+  /** A workflow run carries the typed cause it ended with, as a task run does. */
+  @Test
+  void aWorkflowRunExposesItsTypedReason() {
+    WorkflowRunEntity entity = new WorkflowRunEntity();
+    entity.setStatus(RunStatus.cancelled);
+    entity.setStatusReason("ConcurrencyLimit");
+    WorkflowRun model = new WorkflowRun();
+    model.setStatusReason(entity.getStatusReason());
+
+    assertThat(serialise(model).get("statusReason").asText()).isEqualTo("ConcurrencyLimit");
   }
 
   @Test

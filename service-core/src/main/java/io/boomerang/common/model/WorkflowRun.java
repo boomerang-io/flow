@@ -23,6 +23,7 @@ import org.springframework.data.annotation.Id;
   "startTime",
   "duration",
   "statusMessage",
+  "statusReason",
   "error",
   "timeout",
   "retries",
@@ -54,6 +55,8 @@ public class WorkflowRun {
   private boolean paused;
 
   private String statusMessage;
+  // The typed cause the engine ended the run with, beside the human-readable statusMessage.
+  private String statusReason;
   private boolean isAwaitingApproval;
   private String workflowRef;
   private String workflowName;

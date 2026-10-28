@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowTaskForeach;
+import io.boomerang.common.model.WorkflowTaskRetry;
 
 public class CanvasNodeData {
   
@@ -22,6 +23,9 @@ public class CanvasNodeData {
   // Absent or true mounts the run's workspace; false opts the task out. Carried so an editor
   // save keeps an opt-out authored through the API or YAML.
   Boolean workspace;
+  // The task's own timeout, in minutes, and its retry setting: carried for the same reason.
+  Long timeout;
+  WorkflowTaskRetry retry;
 
   @JsonIgnore
   private Map<String, Object> additionalProperties = new HashMap<>();
@@ -36,6 +40,22 @@ public class CanvasNodeData {
 
   public void setWorkspace(Boolean workspace) {
     this.workspace = workspace;
+  }
+
+  public Long getTimeout() {
+    return timeout;
+  }
+
+  public void setTimeout(Long timeout) {
+    this.timeout = timeout;
+  }
+
+  public WorkflowTaskRetry getRetry() {
+    return retry;
+  }
+
+  public void setRetry(WorkflowTaskRetry retry) {
+    this.retry = retry;
   }
 
   public void setName(String label) {

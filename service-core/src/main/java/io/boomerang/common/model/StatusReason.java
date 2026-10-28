@@ -27,6 +27,10 @@ public abstract class StatusReason {
   public static final String START_TIMEOUT = "StartTimeout";
   public static final String RATE_LIMITED = "RateLimited";
 
+  // Written by the engine, on a workflow run.
+  public static final String CONCURRENCY_LIMIT = "ConcurrencyLimit";
+  public static final String WORKFLOW_INVALID = "WorkflowInvalid";
+
   // Written by the engine.
   public static final String DISPATCH_PREPARE_FAILED = "DispatchPrepareFailed";
   public static final String SPEC_FILL_FAILED = "SpecFillFailed";
@@ -43,6 +47,21 @@ public abstract class StatusReason {
 
   /** The reasons that mean the task never started, so it is requeued rather than failed. */
   public static final Set<String> REQUEUEABLE = Set.of(EXCEEDED_QUOTA, START_TIMEOUT, RATE_LIMITED);
+
+  /**
+   * The reasons a retry cannot change: the same input fails the same way, or the task never
+   * reached a dispatcher. A node's {@code retry} setting never retries one of these.
+   */
+  public static final Set<String> NOT_RETRIABLE =
+      Set.of(
+          IMAGE_NOT_ALLOWED,
+          ADMISSION_DENIED,
+          RESULTS_TOO_LARGE,
+          DISPATCH_PREPARE_FAILED,
+          SPEC_FILL_FAILED,
+          PARAM_UNRESOLVED,
+          ARTIFACT_NOT_FOUND,
+          ARTIFACT_REFUSED);
 
   private StatusReason() {}
 }

@@ -1,5 +1,6 @@
 package io.boomerang.engine;
 
+import io.boomerang.common.model.RunAttempt;
 import io.boomerang.common.model.StatusReason;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.WorkflowRetentionService;
@@ -179,6 +180,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("readmitParkedRuns", this::readmitParkedRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
@@ -408,6 +410,7 @@ public class WorkflowWatcher {
                   wfRun.getId(),
                   IN_FLIGHT_PHASES,
                   RunStatus.invalid,
+                  StatusReason.WORKFLOW_INVALID,
                   "The WorkflowRun's revision no longer resolves.",
                   duration)
               != null) {
@@ -459,6 +462,20 @@ public class WorkflowWatcher {
         (wfRun, ex) ->
             LOGGER.error(
                 "[{}] Stale provisioning-claim recovery failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Re-drive the runs parked for a slot of their workflow's concurrency limit, longest waiting
+   * first. The completion of a run of the workflow re-admits the oldest parked run at once; this
+   * sweep is the fallback for a re-admission lost with the instance that owed it. A run still over
+   * the limit stays parked: admission re-checks the count.
+   */
+  public void readmitParkedRuns() {
+    SweepRunner.forEachIsolated(
+        workflowRunStateHelper.findParked(PAGE_SIZE),
+        wfRun -> workflowExecutionService.readmit(wfRun.getId()),
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Parked-run re-admission failed: {}", wfRun.getId(), ex.getMessage()));
   }
 
   /**
@@ -527,7 +544,11 @@ public class WorkflowWatcher {
     int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
     if (REQUEUEABLE_TYPES.contains(taskRun.getType()) && attempts < MAX_RETRIES) {
       if (taskRunService.tryRequeue(
-              taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
+              taskRun.getId(),
+              observedSeq,
+              Backoff.nextRetryAt(attempts),
+              attempts + 1,
+              RunAttempt.ended(taskRun, RunStatus.timedout, statusReason, statusMessage))
           != null) {
         LOGGER.info(
             "[{}] {} Requeued as attempt {}.", taskRun.getId(), statusMessage, attempts + 1);

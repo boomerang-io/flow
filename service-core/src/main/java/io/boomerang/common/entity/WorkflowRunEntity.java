@@ -39,6 +39,9 @@ public class WorkflowRunEntity {
   private RunPhase phase = RunPhase.pending;
   private RunStatus statusOverride;
   private String statusMessage;
+  // The typed cause the engine ends a run with, beside the human-readable statusMessage; absent
+  // when the run ended for no cause of its own (succeeded, or cancelled on request).
+  private String statusReason;
   private boolean isAwaitingApproval;
   private String workflowRef;
   private Integer workflowVersion;

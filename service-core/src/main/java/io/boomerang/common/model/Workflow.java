@@ -30,6 +30,7 @@ import org.springframework.data.annotation.Id;
   "creationDate",
   "timeout",
   "retries",
+  "concurrency",
   "description",
   "labels",
   "annotations",
@@ -51,6 +52,7 @@ public class Workflow {
   private Map<String, Object> annotations = new HashMap<>();
   private Long timeout;
   private Long retries;
+  private WorkflowConcurrency concurrency;
   private boolean upgradesAvailable = false;
   private WorkflowTrigger triggers;
   private List<WorkflowTask> tasks = new LinkedList<>();

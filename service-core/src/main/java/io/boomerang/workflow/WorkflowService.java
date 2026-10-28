@@ -25,6 +25,7 @@ import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.*;
+import io.boomerang.engine.EngineConstants;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
@@ -450,6 +451,33 @@ public class WorkflowService {
     return workflow;
   }
 
+  /*
+   * A concurrency limit is at least one run; a task's retry setting asks for between zero and the
+   * engine's ceiling of attempts, with any backoff wait positive. Anything else is a bad request.
+   */
+  private static void validateRunSettings(WorkflowRevisionEntity wfRevisionEntity) {
+    WorkflowConcurrency concurrency = wfRevisionEntity.getConcurrency();
+    if (concurrency != null && concurrency.getLimit() != null && concurrency.getLimit() < 1) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+    }
+    for (WorkflowTask task : wfRevisionEntity.getTasks()) {
+      WorkflowTaskRetry retry = task.getRetry();
+      if (retry == null) {
+        continue;
+      }
+      if (retry.getMax() != null
+          && (retry.getMax() < 0 || retry.getMax() > EngineConstants.MAX_FAILURE_RETRIES)) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+      }
+      RetryBackoff backoff = retry.getBackoff();
+      if (backoff != null
+          && ((backoff.getInitial() != null && backoff.getInitial() < 1)
+              || (backoff.getMax() != null && backoff.getMax() < 1))) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+      }
+    }
+  }
+
   private static void validateAndSetDisplayName(Workflow request) {
     if (request.getDisplayName() == null || request.getDisplayName().isBlank()) {
       request.setDisplayName(request.getName());
@@ -660,9 +688,13 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
-    // A run with a workspace stays ready/pending for the dispatcher to provision and start -
-    // the same rule WorkflowRunService.run applies on the un-enforced path.
-    if (enforceQuotas && start && wfRun.getWorkspace() == null) {
+    // A run with a workspace stays ready/pending for the dispatcher to provision and start, and
+    // one not admitted (parked for a slot of its workflow, skipped, invalid) is returned as it
+    // stands - the same rules WorkflowRunService.run applies on the un-enforced path.
+    if (enforceQuotas
+        && start
+        && wfRun.getWorkspace() == null
+        && RunStatus.ready.equals(wfRun.getStatus())) {
       wfRun = workflowRunService.start(wfRun.getId(), Optional.empty());
     }
     return wfRun;
@@ -995,6 +1027,8 @@ public class WorkflowService {
           nodeData.setUpgradesAvailable(task.getUpgradesAvailable());
           nodeData.setForeach(task.getForeach());
           nodeData.setWorkspace(task.getWorkspace());
+          nodeData.setTimeout(task.getTimeout());
+          nodeData.setRetry(task.getRetry());
           node.setData(nodeData);
           nodes.add(node);
           taskNameToNodeId.put(task.getName(), node.getId());
@@ -1065,6 +1099,8 @@ public class WorkflowService {
           task.setTaskVersion(node.getData().getTaskVersion());
           task.setForeach(node.getData().getForeach());
           task.setWorkspace(node.getData().getWorkspace());
+          task.setTimeout(node.getData().getTimeout());
+          task.setRetry(node.getData().getRetry());
 
           List<WorkflowTaskDependency> dependencies = new LinkedList<>();
           edges.stream()
@@ -1392,6 +1428,8 @@ public class WorkflowService {
     }
     wfRevisionEntity.setTimeout(request.getTimeout());
     wfRevisionEntity.setRetries(request.getRetries());
+    wfRevisionEntity.setConcurrency(request.getConcurrency());
+    validateRunSettings(wfRevisionEntity);
 
     // Check Task Names are unique
     List<String> filteredNames =

@@ -811,7 +811,12 @@ public class WorkflowRunService {
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    if (start && hasWorkspace) {
+    // Only an admitted run goes on: one parked for a slot of its workflow, skipped over the
+    // workflow's limit, or found invalid is returned as it stands, and the response carries that
+    // status truthfully.
+    WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
+    boolean admitted = RunStatus.ready.equals(queued.getStatus());
+    if (start && hasWorkspace && admitted) {
       LOGGER.info(
           "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
           wfRunEntity.getId());
@@ -819,12 +824,10 @@ public class WorkflowRunService {
       // again now.
       pollWakeups.runProvisionable();
     }
-    if (start && !hasWorkspace) {
+    if (start && !hasWorkspace && admitted) {
       return this.start(wfRunEntity.getId(), Optional.empty());
     }
-    // Retrieve the refreshed status
-    return ConvertUtil.entityToModel(
-        workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
+    return ConvertUtil.entityToModel(queued, WorkflowRun.class);
   }
 
   public WorkflowRun start(String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {

@@ -70,7 +70,7 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
 
     assertNotNull(
         taskRunService.tryRequeue(
-            taskRunId, 1L, new Date(System.currentTimeMillis() - 1000), 1));
+            taskRunId, 1L, new Date(System.currentTimeMillis() - 1000), 1, null));
 
     assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB, null, null, null, null), taskRunId));
     assertTrue(containsId(dispatcherService.getTaskQueue(dispatcherB, null, null, null, null), taskRunId));
@@ -125,7 +125,7 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
     assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
     assertNotNull(
         taskRunService.tryRequeue(
-            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1));
+            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1, null));
     // The same dispatcher, back in contact, is handed the termination of the reaped attempt.
     assertTrue(containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
     TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
@@ -203,7 +203,7 @@ class ClaimFencingOnTheWireTest extends AbstractEngineIntegrationTest {
         containsId(dispatcherService.getTaskQueue(dispatcher, null, null, null, null), taskRunId));
     assertNotNull(
         taskRunService.tryRequeue(
-            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1));
+            taskRunId, 1L, new Date(System.currentTimeMillis() + 60_000), 1, null));
     return new String[] {taskRunId, dispatcher};
   }
 

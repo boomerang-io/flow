@@ -5,9 +5,11 @@ import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunAttempt;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -769,12 +772,27 @@ public class TaskRunService {
   //   is no pod to terminate, so parking it would strand a node no agent would ever release.
   //
   // Either way retry.after gates re-admission, so the backoff is served in full.
-  public TaskRunEntity tryRequeue(String id, Long observedClaimSeq, Date retryAfter, int retryCount) {
+  public TaskRunEntity tryRequeue(
+      String id, Long observedClaimSeq, Date retryAfter, int retryCount, RunAttempt attempt) {
+    return requeue(
+        id, observedClaimSeq, retryAfter, attempt, update -> update.set("retry.count", retryCount));
+  }
+
+  // The same requeue for a reported failure the node asked to retry: the attempt ran and failed,
+  // so it counts against the node's budget (retry.failures), never the engine's (retry.count).
+  public TaskRunEntity tryRequeueFailure(
+      String id, Long observedClaimSeq, Date retryAfter, RunAttempt attempt) {
+    return requeue(
+        id, observedClaimSeq, retryAfter, attempt, update -> update.inc("retry.failures", 1));
+  }
+
+  private TaskRunEntity requeue(
+      String id, Long observedClaimSeq, Date retryAfter, RunAttempt attempt, Consumer<Update> budget) {
     TaskRunEntity preImage =
-        tryRequeueWith(id, observedClaimSeq, true, RunStatus.waiting, retryAfter, retryCount);
+        tryRequeueWith(id, observedClaimSeq, true, RunStatus.waiting, retryAfter, attempt, budget);
     if (preImage == null) {
       preImage =
-          tryRequeueWith(id, observedClaimSeq, false, RunStatus.ready, retryAfter, retryCount);
+          tryRequeueWith(id, observedClaimSeq, false, RunStatus.ready, retryAfter, attempt, budget);
     }
     return preImage;
   }
@@ -789,7 +807,8 @@ public class TaskRunService {
       boolean claimed,
       RunStatus toStatus,
       Date retryAfter,
-      int retryCount) {
+      RunAttempt attempt,
+      Consumer<Update> budget) {
     Criteria criteria =
         Criteria.where("_id")
             .is(id)
@@ -803,9 +822,13 @@ public class TaskRunService {
             .set("status", toStatus)
             .set("phase", RunPhase.pending)
             .set("retry.after", retryAfter)
-            .set("retry.count", retryCount)
             .unset("claim.leaseExpiresAt")
             .unset("timeoutAt");
+    budget.accept(update);
+    // The superseded attempt joins the run's history; the run's own status is the next one.
+    if (attempt != null) {
+      update.push("attempts", attempt);
+    }
     if (claimed) {
       // The claim block survives as the pod-still-out-there marker; the seq bump supersedes the
       // sweeps that observed the attempt that timed out.
@@ -1141,34 +1164,62 @@ public class TaskRunService {
   }
 
   /**
-   * Requeue a task its dispatcher could not start, while its retry budget lasts, through the same
-   * fenced transition a timed-out claimant takes: the cluster refused it on quota, its pod never
-   * left Pending, or the runtime or a gateway behind it refused it for rate. Nothing ran, so it is
-   * handed back for another attempt on any dispatcher. Return false when the end must go ahead
-   * instead: any other reason, a type the engine does not requeue, a spent budget, or a lost race.
+   * Requeue a failed end for another attempt, through the same fenced transition a timed-out
+   * claimant takes, on one of two budgets. A task its dispatcher could not start (the cluster
+   * refused it on quota, its pod never left Pending, a gateway refused it for rate) never ran, so
+   * it is handed back on the engine's budget. A task that ran and failed is requeued only when its
+   * node asked for it ({@code retry.max}), while that budget lasts and the cause is one a retry can
+   * change. Return false when the end must go ahead instead: a type the engine does not requeue, a
+   * spent budget, a cause a retry cannot change, or a lost race.
    */
   private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
     if (!RunStatus.failed.equals(request.getStatus())
-        || request.getStatusReason() == null
-        || !StatusReason.REQUEUEABLE.contains(request.getStatusReason())) {
+        || !EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())) {
       return false;
     }
-    int attempts = (taskRun.getRetry() != null) ? taskRun.getRetry().getCount() : 0;
-    if (!EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())
-        || attempts >= EngineConstants.MAX_RETRIES) {
-      return false;
-    }
+    String reason = request.getStatusReason();
+    RunRetry retry = (taskRun.getRetry() != null) ? taskRun.getRetry() : new RunRetry();
     Long observedSeq = (taskRun.getClaim() != null) ? taskRun.getClaim().getSeq() : null;
-    if (tryRequeue(taskRun.getId(), observedSeq, Backoff.nextRetryAt(attempts), attempts + 1)
-        == null) {
+    RunAttempt attempt =
+        RunAttempt.ended(taskRun, RunStatus.failed, reason, request.getStatusMessage());
+    if (reason != null && StatusReason.REQUEUEABLE.contains(reason)) {
+      int attempts = retry.getCount();
+      if (attempts >= EngineConstants.MAX_RETRIES
+          || tryRequeue(
+                  taskRun.getId(),
+                  observedSeq,
+                  Backoff.nextRetryAt(attempts),
+                  attempts + 1,
+                  attempt)
+              == null) {
+        return false;
+      }
+      LOGGER.info(
+          "[{}] Dispatcher could not start the task ({}: {}). Requeued as attempt {}.",
+          taskRun.getId(),
+          reason,
+          request.getStatusMessage(),
+          attempt.getNumber() + 1);
+      return true;
+    }
+    if (retry.getMax() == null
+        || retry.getFailures() >= retry.getMax()
+        || (reason != null && StatusReason.NOT_RETRIABLE.contains(reason))
+        || tryRequeueFailure(
+                taskRun.getId(),
+                observedSeq,
+                Backoff.nextRetryAt(retry.getBackoff(), retry.getFailures()),
+                attempt)
+            == null) {
       return false;
     }
     LOGGER.info(
-        "[{}] Dispatcher could not start the task ({}: {}). Requeued as attempt {}.",
+        "[{}] The task failed ({}: {}). Retried as attempt {} of {} the node asked for.",
         taskRun.getId(),
-        request.getStatusReason(),
+        reason,
         request.getStatusMessage(),
-        attempts + 1);
+        attempt.getNumber() + 1,
+        retry.getMax() + 1);
     return true;
   }
 

@@ -5,6 +5,7 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.*;
 import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.WorkflowTask;
@@ -307,6 +308,18 @@ public class DAGUtility {
             timeout = wfRunEntity.getTimeout();
           }
           taskRunEntity.setTimeout(timeout);
+
+          // The node's retry setting travels with the task run, like its timeout, so the end path
+          // reads one document. The ceiling is the engine's.
+          if (wfRevisionTask.getRetry() != null
+              && wfRevisionTask.getRetry().getMax() != null
+              && wfRevisionTask.getRetry().getMax() > 0) {
+            RunRetry retry = new RunRetry();
+            retry.setMax(
+                Math.min(wfRevisionTask.getRetry().getMax(), EngineConstants.MAX_FAILURE_RETRIES));
+            retry.setBackoff(wfRevisionTask.getRetry().getBackoff());
+            taskRunEntity.setRetry(retry);
+          }
 
           // A Task mounts the run's workspace unless it opts out (workspace: false); a Task
           // authored on the canvas cannot opt out and always mounts it. The TaskRun carries its
