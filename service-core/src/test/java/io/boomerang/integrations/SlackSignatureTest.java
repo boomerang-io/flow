@@ -58,7 +58,7 @@ class SlackSignatureTest {
     SettingConfig blank = new SettingConfig();
     blank.setValue("");
     when(settings.getSettingConfig("integration", "slack.signingSecret")).thenReturn(blank);
-    SlackService slack = new SlackService(settings, null, null, null);
+    SlackService slack = new SlackService(settings, null, null, null, null, null);
 
     assertThat(slack.verifySignature(SIGNATURE, TIMESTAMP, BODY)).isFalse();
 

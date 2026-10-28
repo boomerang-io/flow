@@ -22,7 +22,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:38`, `workflow/WorkspaceWorkflowRunControllerV2.java:32`, `workflow/WorkspaceTaskRunControllerV2.java:25`, `workflow/WorkspaceTaskControllerV2.java:33`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
-| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:34` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:36`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:52` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:39` |
@@ -60,15 +60,17 @@ creates a workflow from one by posting its body as read to `POST /api/v2/workspa
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
 run references the task (`workflow/TaskService.java:980-984`).
 
-**Integrations.** `POST /api/v2/integration/github/share` with `{workspace, shared}` shares the GitHub App's
-installation token with the workspace's tasks, or stops sharing it, and needs `integration/write`
-(`integrations/IntegrationControllerV2.java:275-297`). Sharing writes the template's `fields` into the workspace as
-read-only parameters (`parameters.md`, "Parameters an integration manages"). It is `409 INTEGRATION_PARAM_EXISTS`
-over a parameter of the same name the workspace already holds, `400 INTEGRATION_PARAMS_DISABLED` while workspace
-parameters are off, and `502 INTEGRATION_TOKEN_FAILED` when GitHub issues no token; the first two are checked
-before a token is asked for (`integrations/IntegrationService.java:107-136`,
-`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each
-template's `fields` and, on a linked integration that has any, `shared` (`integrations/IntegrationService.java:82-87`).
+**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares that integration's
+credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"),
+or stops sharing them; it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF`
+(`integrations/IntegrationControllerV2.java:295-321`). It is `409 INTEGRATION_PARAM_EXISTS` over a parameter of that
+name the workspace holds and `400 INTEGRATION_PARAMS_DISABLED` while workspace parameters are off, both checked before a
+token is asked for, `502 INTEGRATION_TOKEN_FAILED` when GitHub issues none, and `400 INTEGRATION_TOKEN_ROTATES` for an
+expiring Slack token (`integrations/IntegrationService.java:118-156`, `integrations/IntegrationParameterService.java:84-118`).
+`GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked, and Slack's authorize URL
+with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`, `integrations/SlackService.java:705-722`).
+Slack's redirect links its team to that workspace, one team per workspace (`409 INTEGRATION_ALREADY_LINKED`), and
+`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`, `integrations/IntegrationControllerV2.java:125-140`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their
@@ -116,7 +118,7 @@ sends `WWW-Authenticate: Bearer`.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-121`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,113`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-123`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,113`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 
@@ -250,23 +252,20 @@ Every route here needs `webhook/action` permission and accepts `session`, `user`
 | `POST /api/v2/event` | CloudEvents 1.0 in structured mode (`application/cloudevents+json`, attributes in the body) or binary mode (attributes in `ce-*` headers, the body its data), as the `Content-Type` says; a request that is neither is `WORKFLOW_INVALID_REQ` | `?ref=`, a workflow id, or with `?workspace=` its name in that workspace; without `ref`, the first segment of the `subject`, so `/<workflow>/<topic>` names `<workflow>`; with neither, `WORKFLOW_INVALID_REQ`. By id, a caller with no relationship to the workflow gets `PERMISSION_DENIED`; by name, a workflow the caller cannot reach in that workspace is `WORKFLOW_INVALID_REFERENCE` (`event/WebhookEventControllerV2.java:244-283`; `event/WebhookEventService.java:76-98,214-223`) |
 | `POST\|GET /api/v2/callback?ref={workflowrun}&topic=&status=&eventId=` | Resumes the run's "Wait For Event" tasks on `topic`; a `POST` body becomes their `data` result | `ref` is the workflow run. An `eventId` makes a repeat of the same callback for that run a no-op for 7 days, the `events_inbox` expiry; without one, each delivery is applied (`event/WebhookEventService.java:186-202`; `workflow/WorkflowRunService.java:1311-1328`; `migration/_0021__Indexes.java:118-122`) |
 
-An event's run params are `event`, its attributes and extensions as the CloudEvents JSON format writes them
-(`specversion`, `id`, `source`, `type`, `subject`, `time`, ...), and `data`, its data: JSON as it was sent, `text/*`
-as a string, anything else as base64 text. An event without data gives only `event`. Both hold plain maps, lists and
-values, so a task reads `$(params.data.tag)` (`event/WebhookEventService.java:225-271`). The `event` trigger's
-conditions read the event as it was sent: each field is a JSON path into its attributes with its data under
-`data` (`type`, `data.tag`), and a field with no value matches nothing (`workflow/WorkflowService.java:961-978,1001-1038`).
+An event's run params are `event`, its attributes and extensions as CloudEvents JSON writes them, and `data`, its data
+(JSON as sent, `text/*` a string, else base64; absent with none), read as `$(params.data.tag)`
+(`event/WebhookEventService.java:225-271`). Conditions are JSON paths into the event as sent, data under `data`
+(`type`, `data.tag`); a missing field matches nothing (`workflow/WorkflowService.java:961-978,1001-1038`).
 
-A GitHub App delivery carries GitHub's `X-Hub-Signature-256` over the `github.webhookSecret` setting, or it is
-`401` and starts nothing; the installation in its body, not the caller, picks the workspace
-(`event/WebhookEventService.java:138-169`). The `ping` GitHub sends when the webhook is saved names no
-installation and is accepted. An `installation` event links or unlinks the installation. Any other event is
-offered to every workflow in the linked workspace, each submitted on its own, so one that refuses never stops
-the rest (`workflow/WorkflowService.java:589-603`). A workflow runs when its `github` trigger is on and every
-condition holds: `events` is the `X-GitHub-Event` name, `repositories` the repository's name, and any other
-field a JSON path into the payload; a field with no value matches nothing (`workflow/WorkflowService.java:944-1006`).
-The run's params are `data`, the payload, and `event`, `{type, id}` from `X-GitHub-Event` and
-`X-GitHub-Delivery` (`event/WebhookEventService.java:172-183`).
+A GitHub App delivery carries GitHub's `X-Hub-Signature-256` over the `github.webhookSecret` setting, or it is `401`
+and starts nothing; the installation in its body, not the caller, picks the workspace
+(`event/WebhookEventService.java:138-169`). GitHub's `ping` names no installation and is accepted; an `installation`
+event links or unlinks the installation. Any other event is offered to every workflow in the linked workspace, each
+submitted on its own, so one that refuses never stops the rest (`workflow/WorkflowService.java:589-603`). A workflow
+runs when its `github` trigger is on and every condition holds: `events` is the `X-GitHub-Event` name, `repositories`
+the repository's name, and any other field a JSON path into the payload; a field with no value matches nothing
+(`workflow/WorkflowService.java:944-1006`). The run's params are `data`, the payload, and `event`, `{type, id}` from
+`X-GitHub-Event` and `X-GitHub-Delivery` (`event/WebhookEventService.java:172-183`).
 
 ### Events out
 

@@ -32,4 +32,4 @@ healthy log stream is not cut. "The framework default is fine" is not an accepta
 - Trust-all is a deliberate weakening for internal endpoints, scoped to `insecureRestTemplate` and
   `streamingRestTemplate`; it MUST NOT spread to `externalRestTemplate`, which the identity provider and every GitHub
   call use: the installation lookup, its repositories and the App's installation tokens
-  (`core/security/OidcTokenVerifier.java:68`, `integrations/GitHubService.java:87,106-159,178-201`).
+  (`core/security/OidcTokenVerifier.java:68`, `integrations/GitHubService.java:78,91-144,166-189`).

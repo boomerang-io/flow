@@ -3853,24 +3853,6 @@ paths:
       summary: "Retrieve the installation ID and store against a workspace"
       tags:
       - "Integrations"
-  /api/v2/integration/github/share:
-    post:
-      operationId: "githubShare"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GHShareRequest"
-        required: true
-      responses:
-        "200":
-          description: "OK"
-        "400":
-          description: "Bad Request"
-      summary: "Shares the GitHub App installation token with the Workspace's tasks\
-        \ as managed Workspace parameters, or stops sharing it"
-      tags:
-      - "Integrations"
   /api/v2/integration/github/unlink:
     post:
       operationId: "githubUnlink"
@@ -3895,6 +3877,11 @@ paths:
         required: true
         schema:
           type: "string"
+      - in: "query"
+        name: "state"
+        required: false
+        schema:
+          type: "string"
       responses:
         "200":
           content:
@@ -3902,6 +3889,12 @@ paths:
               schema:
                 type: "object"
           description: "OK"
+        "302":
+          content:
+            '*/*':
+              schema:
+                type: "object"
+          description: "Found"
         "400":
           content:
             '*/*':
@@ -4018,6 +4011,48 @@ paths:
                 type: "object"
           description: "Bad Request"
       summary: "Receive Slack Interactivity"
+      tags:
+      - "Integrations"
+  /api/v2/integration/slack/unlink:
+    post:
+      operationId: "slackUnlink"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GHLinkRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+      summary: "Disconnects the Slack installation from a Workspace"
+      tags:
+      - "Integrations"
+  /api/v2/integration/{integration}/share:
+    post:
+      operationId: "shareCredentials"
+      parameters:
+      - in: "path"
+        name: "integration"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GHShareRequest"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+        "400":
+          description: "Bad Request"
+        "404":
+          description: "Not Found"
+      summary: "Shares an integration's credentials (GitHub's installation token,\
+        \ Slack's bot token) with the Workspace's tasks as managed Workspace parameters,\
+        \ or stops sharing them"
       tags:
       - "Integrations"
   /api/v2/navigation:
