@@ -1,8 +1,8 @@
-# IDPZero configuration for the compose stack (see docker/idpzero/Dockerfile - baked into the
-# image, rebuild after editing). Written for idpzero v0.3.0's schema (`auth_method` replaced
-# the old `client_type`/`pkce_required` fields) and for Flow's server-side public-client code
-# flow with PKCE (remix-auth v4 - see client-web/src/Features/Auth/oidc.server.ts; the SSR
-# action performs the exchange).
+# IDPZero configuration for the compose stack, mounted read-only into IDPZero's published image
+# (see the idpzero service in docker-compose.yml - restart it after editing). Written for idpzero
+# 0.3's schema (`auth_method` replaced the old `client_type`/`pkce_required` fields) and for
+# Flow's server-side public-client code flow with PKCE (remix-auth v4 - see
+# client-web/src/Features/Auth/oidc.server.ts; the SSR action performs the exchange).
 #
 # The issuer is NOT configured here - idpzero derives it per-request from the Host header, which
 # is exactly what lets one issuer string (http://idp.localhost:4380) serve both the browser and
