@@ -38,6 +38,7 @@ class IntegrationServiceTest {
           relationships,
           settings,
           mock(GitHubService.class),
+          mock(SlackService.class),
           mock(IdentityService.class),
           mock(IntegrationParameterService.class));
 
@@ -53,13 +54,13 @@ class IntegrationServiceTest {
   @Test
   void linksEachIntegrationByTheRefOfItsOwnType() {
     when(templates.findAllByStatus("active"))
-        .thenReturn(List.of(template("GitHub", "github_app"), template("Slack", "slack")));
+        .thenReturn(List.of(template("GitHub", "github_app"), template("Slack", "slack_auth")));
     when(relationships.refsInWorkspace(any(RelationshipType.class), anyString(), any()))
         .thenReturn(List.of("slack-ref", "github-ref"));
     when(integrations.findByIdAndType(anyString(), anyString())).thenReturn(Optional.empty());
     when(integrations.findByIdAndType("github-ref", "github_app"))
         .thenReturn(Optional.of(new IntegrationsEntity()));
-    when(integrations.findByIdAndType("slack-ref", "slack"))
+    when(integrations.findByIdAndType("slack-ref", "slack_auth"))
         .thenReturn(Optional.of(new IntegrationsEntity()));
     SettingConfig appName = new SettingConfig();
     appName.setValue("flowabl-io");
@@ -79,7 +80,7 @@ class IntegrationServiceTest {
 
   @Test
   void leavesAnIntegrationWithNoRefOfItsTypeUnlinked() {
-    when(templates.findAllByStatus("active")).thenReturn(List.of(template("Slack", "slack")));
+    when(templates.findAllByStatus("active")).thenReturn(List.of(template("Slack", "slack_auth")));
     when(relationships.refsInWorkspace(any(RelationshipType.class), anyString(), any()))
         .thenReturn(List.of("github-ref"));
     when(integrations.findByIdAndType(anyString(), anyString())).thenReturn(Optional.empty());

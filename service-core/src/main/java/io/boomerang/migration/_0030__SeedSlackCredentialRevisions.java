@@ -18,10 +18,11 @@ import org.springframework.core.env.Environment;
 
 /**
  * Adds the revision of each Slack task whose bot token or webhook URL is a password field, so the
- * credential is stored encrypted and read back masked. Each task's newest revision in {@code
- * seed/task-revisions.json} is inserted where the install holds the task but not that revision;
- * earlier revisions, which workflows may pin, are never touched, and a task the install does not
- * hold gets nothing.
+ * credential is stored encrypted and read back masked. Each of the task's revisions in {@code
+ * seed/task-revisions.json} is inserted where the install holds the task but not that revision, so
+ * a later revision of the same task in the seed never takes this one's place; revisions the install
+ * holds, which workflows may pin, are never touched, and a task the install does not hold gets
+ * nothing.
  *
  * <p>An empty database receives these revisions from {@link _0017__SeedTaskCatalogue}, which seeds
  * every revision in the file, and this unit then finds nothing to add.
@@ -60,22 +61,23 @@ public class _0030__SeedSlackCredentialRevisions {
         LOG.info("No {} task on this install; its credential revision is not added", name);
         continue;
       }
-      Document revision =
-          revisions.stream()
-              .filter(candidate -> name.equals(candidate.getString("parentRef")))
-              .max(Comparator.comparingInt(candidate -> candidate.getInteger("version", 0)))
-              .orElseThrow();
       String taskId = task.get("_id").toString();
-      int version = revision.getInteger("version");
-      // In the seed, parentRef names the task; stored, it is the task's id.
-      revision.put("parentRef", taskId);
-      if (SeedResources.insertIfAbsent(
-          db,
-          names.resolve("task_revisions"),
-          Filters.and(Filters.eq("parentRef", taskId), Filters.eq("version", version)),
-          revision)) {
-        LOG.info("Inserted the {} task revision {}", name, version);
-      }
+      revisions.stream()
+          .filter(candidate -> name.equals(candidate.getString("parentRef")))
+          .sorted(Comparator.comparingInt(candidate -> candidate.getInteger("version", 0)))
+          .forEach(
+              revision -> {
+                int version = revision.getInteger("version");
+                // In the seed, parentRef names the task; stored, it is the task's id.
+                Document stored = new Document(revision).append("parentRef", taskId);
+                if (SeedResources.insertIfAbsent(
+                    db,
+                    names.resolve("task_revisions"),
+                    Filters.and(Filters.eq("parentRef", taskId), Filters.eq("version", version)),
+                    stored)) {
+                  LOG.info("Inserted the {} task revision {}", name, version);
+                }
+              });
     }
   }
 

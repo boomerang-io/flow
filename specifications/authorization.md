@@ -150,7 +150,7 @@ unannotated handler and both placements of `@AuthExempt`.
 
 | Admits | Handlers | Routes |
 | --- | --- | --- |
-| `global`, `key`, `user`, `session` | 78 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
+| `global`, `key`, `user`, `session` | 80 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
 | `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, workflow templates, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
 | `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |
@@ -167,9 +167,9 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
-| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:313-319`) |
-| `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:76,837-849`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret (`:510-538`), with no state parameter |
-| `GET /api/v2/integration/slack/install` | Yes | A redirect to the configured install URL that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:65-70`) |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:337-343`) |
+| `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:84,1001-1013`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret, and links the installation to a workspace only under a valid signed state naming a member of it (`:521-576`) |
+| `GET /api/v2/integration/slack/install` | Yes | A redirect to Slack's authorize URL for the configured app, linked to no workspace, that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:66-71`, `integrations/SlackService.java:983-994`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:53`) |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a

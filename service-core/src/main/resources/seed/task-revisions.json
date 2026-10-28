@@ -1977,6 +1977,83 @@
    "parentRef": "create-slack-channel"
   },
   {
+   "displayName": "Create Slack Channel",
+   "description": "Create a Slack channel using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.create",
+   "category": "Communication with Slack",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "Channel names may only contain lowercase letters, numbers, hyphens, and underscores, and must be 80 characters or less.",
+      "label": "Channel Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Name of the public or private channel to create",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "name"
+     },
+     {
+      "description": "",
+      "label": "Private Channel",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "isPrivate"
+     },
+     {
+      "description": "Required if organisation token is used",
+      "label": "Team",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Encoded team id to create the channel in",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "team"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "createChannel"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "The newly created slack channel",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "create-slack-channel"
+  },
+  {
    "displayName": "Create Spreadsheet",
    "description": "Create a new Google Spreadsheet with the provided name.",
    "category": "Google Sheets",
@@ -3207,6 +3284,61 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. C1234567890",
+      "helpertext": "ID of conversation to archive",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "deleteChannel"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Status of the delete slack channel action",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "delete-slack-channel"
+  },
+  {
+   "displayName": "Delete Slack Channel",
+   "description": "Archives a Slack conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.archive",
+   "category": "Communication with Slack",
+   "icon": "Delete",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -5494,6 +5626,61 @@
    "parentRef": "find-slack-member-by-email"
   },
   {
+   "displayName": "Find Slack Member By Email",
+   "description": "Find a Slack user based on the provided email address using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.lookupByEmail",
+   "category": "Communication with Slack",
+   "icon": "Search",
+   "version": 4,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "Token is associated with the slack app tied to a workspace",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Email Address",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. spengler@ghostbusters.example.com",
+      "helpertext": "An email belonging to a user in the workspace",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "emailAddress"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "lookUpUser"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "The slack user id",
+      "name": "slackUserId"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "find-slack-member-by-email"
+  },
+  {
    "displayName": "Find Slack Member By Id",
    "description": "Find a Slack user based on the provided user id using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.info",
    "category": "Communication with Slack",
@@ -5570,6 +5757,61 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "User",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. W1234567890",
+      "helpertext": "User id to get info on",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "user"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "getUser"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Slack user details",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "find-slack-member-by-id"
+  },
+  {
+   "displayName": "Find Slack Member By Id",
+   "description": "Find a Slack user based on the provided user id using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/users.info",
+   "category": "Communication with Slack",
+   "icon": "Search",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -6933,6 +7175,61 @@
    "parentRef": "get-slack-channel-info"
   },
   {
+   "displayName": "Get Slack Channel Info",
+   "description": "Retrieves the Slack channel information using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.info",
+   "category": "Communication with Slack",
+   "icon": "Message",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. C1234567890",
+      "helpertext": "Conversation ID to learn more about",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "getChannelInfo"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Slack channel details",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-slack-channel-info"
+  },
+  {
    "displayName": "Get Slack Channel Members",
    "description": "Retrieve the Slack channel members using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.members",
    "category": "Communication with Slack",
@@ -7009,6 +7306,61 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. C1234567890",
+      "helpertext": "Conversation ID to learn more about",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "getChannelMembers"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "The list of the channel's member ids",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-slack-channel-members"
+  },
+  {
+   "displayName": "Get Slack Channel Members",
+   "description": "Retrieve the Slack channel members using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.members",
+   "category": "Communication with Slack",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -7147,6 +7499,89 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "Required if token belongs to org-wide app",
+      "label": "Team",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Encoded team id to list channels in",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "team"
+     },
+     {
+      "description": "",
+      "label": " Channel Types",
+      "type": "select",
+      "options": [
+       {
+        "key": "public_channel",
+        "value": "public_channel"
+       },
+       {
+        "key": "private_channel",
+        "value": "private_channel"
+       },
+       {
+        "key": "mpim",
+        "value": "mpim"
+       },
+       {
+        "key": "im",
+        "value": "im"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Channel types: private, public, mpim, im",
+      "readOnly": false,
+      "name": "types"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "getChannels"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "List of limited channel-like conversation objects",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-slack-channels"
+  },
+  {
+   "displayName": "Get Slack Channels",
+   "description": "Retrieves the Slack channels using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.list",
+   "category": "Communication with Slack",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -8081,6 +8516,72 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. C1234567890",
+      "helpertext": "The ID of the channel to invite user(s) to",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     },
+     {
+      "description": "Up to 1000 users may be listed",
+      "label": "Users",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. W1234567890,U2345678901,U3456789012",
+      "helpertext": "A comma separated list of user IDs",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "users"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "inviteChannelMembers"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "Details of the extended invitation",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "invite-members-to-channel"
+  },
+  {
+   "displayName": "Invite Members to Channel",
+   "description": "Invite Slack users to a conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.invite",
+   "category": "Communication with Slack",
+   "icon": "Automated task",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -9736,6 +10237,72 @@
       "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
       "helpertext": "The token is associated with the slack application",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "ID of conversation to remove user from.",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     },
+     {
+      "description": "",
+      "label": "User",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. W1234567890",
+      "helpertext": "User ID to be removed",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "user"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "removeChannelMember"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "",
+    "results": [
+     {
+      "description": "The result of the removal action",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "remove-member-from-channel"
+  },
+  {
+   "displayName": "Remove Member from Channel",
+   "description": "Removes a user from Slack conversation using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/conversations.kick",
+   "category": "Communication with Slack",
+   "icon": "Delete",
+   "version": 3,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Authentication API Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "e.g. xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "The token is associated with the slack application",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },
@@ -13195,6 +13762,119 @@
       "placeholder": "xxxx-xxxxxxxxx-xxxx",
       "helpertext": "",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": false,
+      "placeholder": "#channel-name",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     },
+     {
+      "description": "",
+      "label": "Message",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Your message here.",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "message"
+     },
+     {
+      "description": "",
+      "label": "File Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "foo.txt",
+      "helpertext": "Filename of file.",
+      "readOnly": false,
+      "name": "fileName"
+     },
+     {
+      "description": "If omitting this parameter, you must provide a File Path",
+      "label": "File Content",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "File contents via a POST variable",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileContent"
+     },
+     {
+      "description": "Enable if File Content provided is base64 encoded ",
+      "label": "Decode File Content",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "encoded"
+     },
+     {
+      "description": "",
+      "label": "File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "/workflow/your_file.txt",
+      "helpertext": "Full path to desired file",
+      "readOnly": false,
+      "name": "filePath"
+     },
+     {
+      "description": "",
+      "label": "File Title",
+      "type": "text",
+      "required": false,
+      "placeholder": "My File",
+      "helpertext": "Title of file.",
+      "readOnly": false,
+      "name": "fileTitle"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "uploadFileMessage"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "upload-slack-file-with-message"
+  },
+  {
+   "displayName": "Upload Slack File with Message",
+   "description": "Upload a message to Slack using a Slack application through Bot tokens. For further reading on the underlying API see https://api.slack.com/methods/files.upload",
+   "category": "Communication with Slack",
+   "icon": "Upload",
+   "version": 4,
+   "changelog": {
+    "reason": "The token defaults to the workspace parameter the Slack integration manages, slack-token",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "Token is associated with the slack app tied to a workspace",
+      "label": "Token",
+      "type": "password",
+      "required": false,
+      "placeholder": "xxxx-xxxxxxxxx-xxxx",
+      "helpertext": "",
+      "defaultValue": "$(workspace.params.slack-token)",
       "readOnly": false,
       "name": "token"
      },

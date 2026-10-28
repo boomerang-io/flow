@@ -77,7 +77,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
               </div>
             )}
             <p className={styles.note}>
-              {`Disconnecting stops ${data.name} starting or updating workflows in this workspace. Anything installed on ${data.name}'s side stays until you remove it there.`}
+              {`Disconnecting removes ${data.name} from this workspace, with any parameters it shares here. Anything installed on ${data.name}'s side stays until you remove it there.`}
             </p>
           </>
         ) : (

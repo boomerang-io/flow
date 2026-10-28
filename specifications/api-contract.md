@@ -22,7 +22,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:38`, `workflow/WorkspaceWorkflowRunControllerV2.java:32`, `workflow/WorkspaceTaskRunControllerV2.java:25`, `workflow/WorkspaceTaskControllerV2.java:33`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
-| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:50`, `event/WebhookEventControllerV2.java:30` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:30` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:36`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:52` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:39` |
@@ -60,29 +60,26 @@ creates a workflow from one by posting its body as read to `POST /api/v2/workspa
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
 run references the task (`workflow/TaskService.java:980-984`).
 
-**Integrations.** `POST /api/v2/integration/github/share` with `{workspace, shared}` shares the GitHub App's
-installation token with the workspace's tasks, or stops sharing it, and needs `integration/write`
-(`integrations/IntegrationControllerV2.java:281-303`). Sharing writes the template's `fields` into the workspace as
-read-only parameters (`parameters.md`, "Parameters an integration manages"). It is `409 INTEGRATION_PARAM_EXISTS`
-over a parameter of the same name the workspace already holds, `400 INTEGRATION_PARAMS_DISABLED` while workspace
-parameters are off, and `502 INTEGRATION_TOKEN_FAILED` when GitHub issues no token; the first two are checked
-before a token is asked for (`integrations/IntegrationService.java:107-136`,
-`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each
-template's `fields` and, on a linked integration that has any, `shared` (`integrations/IntegrationService.java:82-87`).
-`POST /api/v2/integration/github/unlink` with `{workspace, ref}` disconnects the workspace's GitHub App
-installation, named by its integration record id, as `GET /api/v2/integration` returns it in `ref`, or by its GitHub
-installation id. A workspace the caller cannot reach is `404 WORKSPACE_INVALID_REF`, an installation it does not own
-`403 INTEGRATION_UNAUTHORIZED`, and an unknown one `404 INTEGRATION_INVALID_REF`; the record, its link and the
-parameters it managed are removed, and the request is audited (`integrations/IntegrationControllerV2.java:264-279`,
-`integrations/GitHubService.java:434-463`).
+**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares, or stops sharing, that integration's credentials
+with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"); it needs `integration/write`, and another
+name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:301-327`). A parameter of that name the workspace holds is `409
+INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`, both checked before a token is asked for; GitHub issuing
+none is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES` (`integrations/IntegrationService.java:118-156`,
+`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked,
+and Slack's authorize URL with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`,
+`integrations/SlackService.java:705-722`). Slack's redirect links its team to that workspace, one team per workspace (`409
+INTEGRATION_ALREADY_LINKED`); `POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`,
+`integrations/IntegrationControllerV2.java:125-140`). `POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s
+`ref`) or installation id: an unreachable workspace is `404 WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown
+installation `404 INTEGRATION_INVALID_REF`; it is audited and removes the record, link and parameters
+(`integrations/IntegrationControllerV2.java:284-299`, `integrations/GitHubService.java:390-419`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
-100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their
-status or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and
-answers `{"replayed": n}` (`event/OutboxControllerV2.java:41-92`, `event/OutboxService.java:58-82`). A row that
-failed delivery carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`;
-a replay clears both (`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system`
-permission.
+100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status
+or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and answers
+`{"replayed": n}` (`event/OutboxControllerV2.java:41-92`, `event/OutboxService.java:58-82`). A row that failed delivery
+carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`; a replay clears both
+(`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system` permission.
 
 **Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts
 the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays`
@@ -122,7 +119,7 @@ sends `WWW-Authenticate: Bearer`.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-121`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,113`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-123`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,113`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 
@@ -169,9 +166,8 @@ last entry is the latest (`workflow/TaskControllerV2.java:229`, `workflow/Worksp
 
 `WorkflowRun` and `TaskRun` (`service-core/src/main/java/io/boomerang/common/model/`) are the public shapes; the
 entities are separate classes and MUST NOT be returned from a controller. The dispatcher wire has its own models,
-`DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out"). Both public models
-are `@JsonInclude(NON_NULL)`: a null field is absent (`common/model/WorkflowRun.java:37`,
-`common/model/TaskRun.java:27`).
+`DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out"). Both public models are
+`@JsonInclude(NON_NULL)`: a null field is absent (`common/model/WorkflowRun.java:37`, `common/model/TaskRun.java:27`).
 
 | Rule | Where |
 | --- | --- |
