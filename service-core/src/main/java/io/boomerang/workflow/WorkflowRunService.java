@@ -23,6 +23,7 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.UserService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.PollWakeups;
@@ -113,6 +114,7 @@ public class WorkflowRunService {
   private final QuotaService quotaService;
   private final ParamLayerService paramLayerService;
   private final PollWakeups pollWakeups;
+  private final UserService userService;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -131,7 +133,8 @@ public class WorkflowRunService {
       ObjectMapper objectMapper,
       QuotaService quotaService,
       ParamLayerService paramLayerService,
-      PollWakeups pollWakeups) {
+      PollWakeups pollWakeups,
+      UserService userService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -149,6 +152,7 @@ public class WorkflowRunService {
     this.quotaService = quotaService;
     this.paramLayerService = paramLayerService;
     this.pollWakeups = pollWakeups;
+    this.userService = userService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -703,6 +707,7 @@ public class WorkflowRunService {
       WorkflowRun wfRun = ConvertUtil.entityToModel(wfRunEntity.get(), WorkflowRun.class);
       updateWorkflowDetails(wfRunEntity.get(), wfRun);
       resolveInitiatingRun(wfRunEntity.get(), wfRun);
+      nameInitiators(List.of(wfRun));
       if (withTasks) {
         wfRun.setTasks(getTaskRuns(wfRunId));
       }
@@ -748,6 +753,7 @@ public class WorkflowRunService {
           updateWorkflowDetails(e, wfRun);
           wfRuns.add(wfRun);
         });
+    nameInitiators(wfRuns);
 
     Page<WorkflowRun> pages =
         PagingUtil.page(wfRuns, pageable, mongoTemplate, query, WorkflowRunEntity.class);
@@ -1305,6 +1311,28 @@ public class WorkflowRunService {
           .findById(wfRunEntity.getInitiatedByRef())
           .ifPresent(taskRun -> wfRun.setInitiatedByWorkflowRunRef(taskRun.getWorkflowRunRef()));
     }
+  }
+
+  // The triggers whose initiatedByRef is lineage (the schedule, the submitting task run, the origin
+  // run) rather than who started the run.
+  private static final Set<String> LINEAGE_TRIGGERS =
+      Set.of(TriggerEnum.schedule.getTrigger(), TriggerEnum.task.getTrigger(), TriggerEnum.retry.getTrigger());
+
+  /*
+   * Name who started each run a person or a token started: a user id in initiatedByRef reads as
+   * the user's display name, anything else (a token's name) as itself. One user lookup per page.
+   */
+  private void nameInitiators(List<WorkflowRun> wfRuns) {
+    List<WorkflowRun> started =
+        wfRuns.stream()
+            .filter(r -> r.getInitiatedByRef() != null && !LINEAGE_TRIGGERS.contains(r.getTrigger()))
+            .toList();
+    if (started.isEmpty()) {
+      return;
+    }
+    Map<String, String> names =
+        userService.displayNamesByIds(started.stream().map(WorkflowRun::getInitiatedByRef).collect(Collectors.toSet()));
+    started.forEach(r -> r.setInitiatedByName(names.getOrDefault(r.getInitiatedByRef(), r.getInitiatedByRef())));
   }
 
   private void updateWorkflowDetails(WorkflowRunEntity wfRunEntity, WorkflowRun wfRun) {

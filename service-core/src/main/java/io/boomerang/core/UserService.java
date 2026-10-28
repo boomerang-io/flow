@@ -17,7 +17,9 @@ import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.security.enums.PermissionScope;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -200,6 +202,25 @@ public class UserService {
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * Return each user's display name, or their name when they have none, keyed by user id. An id
+   * that is not a user is absent. One query for the local store; the external service has no batch
+   * read, so each id is looked up.
+   */
+  public Map<String, String> displayNamesByIds(Collection<String> userIds) {
+    Map<String, String> names = new HashMap<>();
+    if (externalUserUrl.isBlank()) {
+      userRepository.findAllById(userIds).forEach(u -> names.put(u.getId(), displayName(u.getDisplayName(), u.getName())));
+    } else {
+      userIds.forEach(id -> getUserByID(id).ifPresent(u -> names.put(id, displayName(u.getDisplayName(), u.getName()))));
+    }
+    return names;
+  }
+
+  private static String displayName(String displayName, String name) {
+    return (displayName == null || displayName.isBlank()) ? name : displayName;
   }
 
   public Optional<User> getUserByEmail(String userEmail) {

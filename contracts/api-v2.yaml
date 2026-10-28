@@ -2324,6 +2324,9 @@ components:
           - "partner"
           - "advisor"
           type: "string"
+        workspaceMemberCount:
+          format: "int64"
+          type: "integer"
         workspaces:
           items:
             $ref: "#/components/schemas/WorkspaceSummary"
@@ -2613,6 +2616,8 @@ components:
           format: "int64"
           type: "integer"
         id:
+          type: "string"
+        initiatedByName:
           type: "string"
         initiatedByRef:
           type: "string"

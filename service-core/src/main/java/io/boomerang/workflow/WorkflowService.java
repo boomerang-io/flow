@@ -574,20 +574,21 @@ public class WorkflowService {
   }
 
   /*
-   * Submit Workflow to Run
+   * Submit Workflow to Run as the current caller: a person or a token starting a run (the API, a
+   * webhook, an event, Slack) is its initiator, stamped as initiatedByRef.
    */
   public WorkflowRun submit(
       String workspace, String name, WorkflowSubmitRequest request, boolean start) {
-    return submit(workspace, name, request, start, null);
+    return submit(workspace, name, request, start, taskService.currentActorRef());
   }
 
   /*
    * Submit Workflow to Run, internally stamping lineage
    *
    * initiatedByRef is NOT sourced from the request - WorkflowSubmitRequest is a public API model
-   * and lineage must not be spoofable by API callers. Callers that need it (e.g. ScheduleJob,
-   * with the firing Schedule's id) pass it directly; every other caller goes through the 4-arg
-   * overload above and gets null, matching prior behaviour.
+   * and lineage must not be spoofable by API callers. Callers with lineage (ScheduleJob, with the
+   * firing Schedule's id) pass it directly; every other caller goes through the 4-arg overload
+   * above and is stamped with who it is.
    */
   public WorkflowRun submit(
       String workspace, String name, WorkflowSubmitRequest request, boolean start,
@@ -1455,6 +1456,10 @@ public class WorkflowService {
         changelog.setDate(request.getChangelog().getDate());
       }
     }
+    // The webapp sends no author: the change is the caller's.
+    if (changelog.getAuthor() == null) {
+      changelog.setAuthor(taskService.currentActorRef());
+    }
     wfRevisionEntity.setChangelog(changelog);
     wfRevisionEntity.setMarkdown(request.getMarkdown());
     wfRevisionEntity.setParams(request.getParams());
@@ -2009,6 +2014,7 @@ public class WorkflowService {
             cl.setAuthor(wfRevision.getChangelog().getAuthor());
             cl.setReason(wfRevision.getChangelog().getReason());
             cl.setDate(wfRevision.getChangelog().getDate());
+            taskService.switchChangeLogAuthorToUserName(cl);
             changelogs.add(cl);
           });
       return ResponseEntity.ok(changelogs);

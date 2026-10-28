@@ -444,6 +444,17 @@ public class TaskService {
       changelog = new ChangeLog();
     }
     changelog.setDate(new Date());
+    String author = currentActorRef();
+    if (author != null) {
+      changelog.setAuthor(author);
+    }
+  }
+
+  /**
+   * Return who the current caller is, for the records that name one - a task or workflow version's
+   * changelog author, the initiator of a run a person or a token starts - or {@code null} for none.
+   */
+  String currentActorRef() {
     // No identity or principal leaves the author unset. The security-off synthetic token is
     // treated the same: its name ("system") must not appear as a changelog author - it would read
     // as the platform itself making the change.
@@ -451,21 +462,20 @@ public class TaskService {
     if (identity == null
         || identity.getPrincipal() == null
         || identity instanceof UnauthenticatedGlobalToken) {
-      return;
+      return null;
     }
     // A user or session principal is a user id and is resolved to the user's name on read. Any
     // other token's principal (key = workspace ref, global = varies) is NOT a user id, so record
     // the token's own name; a token without a name leaves the author unset rather than inventing
     // one from its scope.
     if (AuthScope.user.equals(identity.getType()) || AuthScope.session.equals(identity.getType())) {
-      changelog.setAuthor(identity.getPrincipal());
-    } else if (identity.getName() != null && !identity.getName().isBlank()) {
-      changelog.setAuthor(identity.getName());
+      return identity.getPrincipal();
     }
+    return (identity.getName() != null && !identity.getName().isBlank()) ? identity.getName() : null;
   }
 
   // TODO - need to make more performant
-  private void switchChangeLogAuthorToUserName(ChangeLog changelog) {
+  void switchChangeLogAuthorToUserName(ChangeLog changelog) {
     if (changelog != null && changelog.getAuthor() != null) {
       Optional<User> user = userService.getUserByID(changelog.getAuthor());
       if (user.isPresent()) {

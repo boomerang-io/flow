@@ -43,11 +43,13 @@ import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.QuotaService;
 import io.boomerang.workflow.TaskService;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -755,7 +757,19 @@ public class WorkspaceService {
    * source createSessionToken uses - not from here.
    */
   public List<WorkspaceSummary> getWorkspaceMembershipSummary(Map<String, String> teamRefsAndRoles) {
+    return membershipOverview(teamRefsAndRoles).summaries();
+  }
+
+  /** The summaries of some memberships, and how many people belong to any of them, each once. */
+  public record MembershipOverview(List<WorkspaceSummary> summaries, long distinctMembers) {}
+
+  /*
+   * The membership summaries above, with the members counted across the workspaces in the same
+   * pass: a person in two of them is one member, not two.
+   */
+  public MembershipOverview membershipOverview(Map<String, String> teamRefsAndRoles) {
     List<WorkspaceSummary> teamSummaries = new LinkedList<>();
+    Set<String> members = new HashSet<>();
     teamRefsAndRoles.forEach(
         (k, v) -> {
           Optional<WorkspaceEntity> workspaceEntity = workspaceRepository.findById(k);
@@ -765,6 +779,7 @@ public class WorkspaceService {
             WorkspaceSummaryInsights tsi = new WorkspaceSummaryInsights();
             Map<String, String> membersAndRoles = relationshipService.membersAndRoles(k);
             tsi.setMembers(Long.valueOf(membersAndRoles.size()));
+            members.addAll(membersAndRoles.keySet());
             List<String> workflowRefs =
                 relationshipService.filter(
                     RelationshipType.WORKFLOW,
@@ -776,7 +791,7 @@ public class WorkspaceService {
             teamSummaries.add(ts);
           }
         });
-    return teamSummaries;
+    return new MembershipOverview(teamSummaries, members.size());
   }
 
   /*

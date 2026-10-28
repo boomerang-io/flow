@@ -71,6 +71,11 @@ public class WorkflowRun {
   // stored - the entity keeps only the lineage pair above.
   private String initiatedByWorkflowRunRef;
 
+  // Who started the run when a person or a token did (a manual, webhook or event run): the user's
+  // display name for a user id in initiatedByRef, otherwise the token name stamped there. Derived
+  // on read, never stored.
+  private String initiatedByName;
+
   // Where a scoped retry started from. Absent on a plain retry and on every other run.
   private RetryFrom retryFrom;
 

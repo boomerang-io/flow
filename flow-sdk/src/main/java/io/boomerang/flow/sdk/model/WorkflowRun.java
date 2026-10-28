@@ -36,6 +36,7 @@ public record WorkflowRun(
     String trigger,
     String initiatedByRef,
     String initiatedByWorkflowRunRef,
+    String initiatedByName,
     RetryFrom retryFrom,
     Map<String, String> labels,
     Map<String, Object> annotations,

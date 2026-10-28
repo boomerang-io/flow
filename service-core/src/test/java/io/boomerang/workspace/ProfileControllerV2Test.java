@@ -49,7 +49,7 @@ class ProfileControllerV2Test {
     UserEntity anonymous = new UserEntity();
     when(userService.getCurrentProfileEntity()).thenReturn(anonymous);
     when(userService.getWorkspaceRefsAndRolesForUser(null)).thenReturn(Map.of());
-    when(workspaceService.getWorkspaceMembershipSummary(Map.of())).thenReturn(List.of());
+    when(workspaceService.membershipOverview(Map.of())).thenReturn(new WorkspaceService.MembershipOverview(List.of(), 0));
     when(tokenService.resolvePermissionsForUser(any(UserEntity.class))).thenReturn(List.of());
 
     UserProfile profile = controller.getProfile();
@@ -57,6 +57,7 @@ class ProfileControllerV2Test {
     assertThat(profile).isNotNull();
     assertThat(profile.getId()).isNull();
     assertThat(profile.getWorkspaces()).isEmpty();
+    assertThat(profile.getWorkspaceMemberCount()).isZero();
     assertThat(profile.getPermissions()).isEmpty();
   }
 }

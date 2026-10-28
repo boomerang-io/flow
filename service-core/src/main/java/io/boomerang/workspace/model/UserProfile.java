@@ -21,6 +21,10 @@ public class UserProfile extends UserEntity {
 
   List<WorkspaceSummary> workspaces;
 
+  // How many people belong to any of the workspaces above, each counted once; a workspace's own
+  // count is on its summary. Derived for the profile, never stored.
+  Long workspaceMemberCount;
+
   List<ResolvedPermissions> permissions;
 
   public UserProfile() {}

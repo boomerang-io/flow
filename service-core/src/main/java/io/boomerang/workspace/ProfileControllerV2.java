@@ -64,7 +64,9 @@ public class ProfileControllerV2 {
     UserProfile profile = new UserProfile(baseEntity);
     Map<String, String> workspaceRefsAndRoles =
         userService.getWorkspaceRefsAndRolesForUser(profile.getId());
-    profile.setWorkspaces(workspaceService.getWorkspaceMembershipSummary(workspaceRefsAndRoles));
+    WorkspaceService.MembershipOverview memberships = workspaceService.membershipOverview(workspaceRefsAndRoles);
+    profile.setWorkspaces(memberships.summaries());
+    profile.setWorkspaceMemberCount(memberships.distinctMembers());
     profile.setPermissions(tokenService.resolvePermissionsForUser(baseEntity));
     return profile;
   }

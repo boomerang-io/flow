@@ -60,3 +60,6 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0133 | [A task node retries a reported failure on its own budget, and every superseded attempt is recorded](0133-a-task-node-retries-a-reported-failure-on-its-own-budget.md) | accepted | 2026-10-28 |
 | 0134 | [A workflow limits its in-flight runs at admission, parking or skipping the rest](0134-a-workflow-limits-its-in-flight-runs-at-admission.md) | accepted | 2026-10-28 |
 | 0135 | [An integration shares its credentials as managed workspace parameters](0135-an-integration-shares-its-credentials-as-managed-workspace-parameters.md) | accepted | 2026-10-28 |
+| 0136 | [Due waits are polled every second and claimed with a lease](0136-due-waits-are-polled-every-second-and-claimed-with-a-lease.md) | accepted | 2026-10-29 |
+| 0137 | [A dispatcher reports a failed provisioning attempt](0137-a-dispatcher-reports-a-failed-provisioning-attempt.md) | accepted | 2026-10-29 |
+| 0138 | [A run records the person or token that started it](0138-a-run-records-the-person-or-token-that-started-it.md) | accepted | 2026-10-29 |

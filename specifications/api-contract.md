@@ -160,7 +160,9 @@ on every route that takes it, and no filter matches everything (`:100-105`):
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:229`, `workflow/WorkspaceTaskControllerV2.java:295`,
 `workflow/WorkspaceWorkflowControllerV2.java:207`; sorted by `workflow/repository/TaskRevisionRepository.java:13` and
-`workflow/repository/WorkflowRevisionRepository.java:16`).
+`workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it,
+a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1452`).
+`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once (`workspace/ProfileControllerV2.java:69`).
 
 ## Public run models
 
@@ -172,7 +174,7 @@ entities are separate classes and MUST NOT be returned from a controller. The di
 | Rule | Where |
 | --- | --- |
 | No execution state is serialised. Entity-only on a workflow run: `claim`, `timeoutAt`, `pauseRequestedAt`, `waitingSince`, `retryCount`, `statusOverride`; on a task run: `claim`, `timeoutAt`, `retry`, `waitUntil`, `foreach`, `dependencies`, `preApprovedStatus`, `decisionValue` | `common/entity/WorkflowRunEntity.java:40,50,54,58,69,76`; `common/entity/TaskRunEntity.java:51-53,71,76,80,84,88`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:56-91` |
-| Lineage is public: `trigger`, `initiatedByRef`, the derived `initiatedByWorkflowRunRef`, and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run | `common/model/WorkflowRun.java:63-72`; `common/model/TaskRun.java:57-59` |
+| Lineage is public: `trigger`, `initiatedByRef` (what started the run: the schedule, the origin run, the submitting task run, or the user or token that submitted it, stamped by the server), the derived `initiatedByWorkflowRunRef` and `initiatedByName` (a user's display name or a token's name, one lookup per page), and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run | `common/model/WorkflowRun.java:67-77`; `workflow/WorkflowService.java:582`; `workflow/WorkflowRunService.java:1325`; `common/model/TaskRun.java:57-59` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `common/model/WorkflowRunRetryRequest.java:11-24`; `workflow/WorkspaceWorkflowRunControllerV2.java:344-369` |
 | A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:611,656`; `workflow/WorkflowRunService.java:172-180`; `workflow/WorkflowService.java:1136-1149,1200-1215`; `workflow/WorkflowRunInsightService.java:263-270`; `event/EventSinkService.java:72-78` |
 | A task a dispatcher has claimed shows `attempt`: 1, plus one per requeue for any cause, so a requeued task waiting out its backoff already shows the next one. An approval, a wait or a reused task has none. `attempts` lists the superseded attempts, oldest first, each with `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage` and `dispatcherRef`; the task run's own fields are the current attempt | `common/model/TaskRun.java:60-67`, `:75-80`; `common/model/RunAttempt.java:20-27` |
