@@ -670,9 +670,9 @@ class V3DumpMigrationTest {
 
     // 131 real v3 revisions migrated 1:1, plus the additions _0017__SeedTaskCatalogue reconciles
     // (the seed catalogue's Manual Approval v2, absent from this install's own older snapshot,
-    // and the ai-prompt and ai-agent tasks' versions 1 and 2) and the two artifact tasks' version 1
-    // (_0018__SeedArtifactTasks).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(138);
+    // the ai-prompt and ai-agent tasks' versions 1 and 2, and the 13 Slack tasks' password-credential
+    // revisions) and the two artifact tasks' version 1 (_0018__SeedArtifactTasks).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(151);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();

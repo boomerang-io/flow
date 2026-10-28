@@ -29,7 +29,7 @@ and task defaults are derived, not stamped (decision 0128). `ServerLabel` reserv
 is secret (`engine/TaskExecutionService.java:228-238`); the fan-out sets `boomerang.io/item` on each item task run, and the run-workflow task
 on a for-each child, when the item is text holding no secret value of the run's parameter layers (`:747-755`, `:1179-1188`,
 `engine/ParameterManager.java:350-354`); every client-set label under the prefix is dropped
-(`workflow/WorkflowRunService.java:825`, `workflow/WorkflowService.java:631`). The engine reads neither label to decide
+(`workflow/WorkflowRunService.java:825`, `workflow/WorkflowService.java:643`). The engine reads neither label to decide
 anything. Kubernetes (spec and status versus annotations), Tekton, Argo and Temporal draw the same line.
 
 ## Consequences

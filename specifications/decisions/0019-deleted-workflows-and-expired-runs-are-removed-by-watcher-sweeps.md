@@ -18,7 +18,7 @@ not orphan its in-flight runs, finished runs must not pile up forever, and a run
 
 ## Decision
 
-The tombstone and the sweep. `WorkflowService.delete` is one guarded update to `deleted` (`workflow/WorkflowService.java:1935-1947`);
+The tombstone and the sweep. `WorkflowService.delete` is one guarded update to `deleted` (`workflow/WorkflowService.java:1975-1987`);
 the scoped delete also removes schedules, tokens, actions and the relationship node at once (`:691-708`), and submit
 refuses a non-active workflow (`:1786-1788`). The watcher's 30-second sweep cancels a deleted workflow's in-flight runs
 (`engine/WorkflowWatcher.java:336-351`); once none is in flight, `pruneDeletedWorkflows` purges each run, then the

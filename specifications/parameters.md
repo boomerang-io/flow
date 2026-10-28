@@ -21,7 +21,7 @@ The layers and the revision are served from a per-instance cache for 10 seconds 
 `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks admitted together share one read of each store.
 A global or workspace parameter, setting, workflow or revision write clears the cache on the instance that
 took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:212`,
-`core/SettingsService.java:166`, `workflow/WorkflowService.java:1344`); other instances see it within the cache
+`core/SettingsService.java:166`, `workflow/WorkflowService.java:1384`); other instances see it within the cache
 lifetime. A task admitted after an edit gets the new value; each task run keeps the param values it was
 admitted with.
 
@@ -114,14 +114,14 @@ $(workflow.params.x) for the workflow's param`; `x: $(params.y)` with `y: $(para
 Names MUST match `^[a-zA-Z_][a-zA-Z0-9_-]*$`, and any variant of `names` is reserved because it would fold to
 `PARAM_NAMES` (`common/util/ParameterUtil.java:173-179`). `item` and `index` are reserved on a for-each task:
 the engine adds both to each item, so a workflow whose for-each task's template declares either is refused on
-save with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1637-1647`). Matching is
+save with `WORKFLOW_INVALID_TASK_FOREACH` (`workflow/WorkflowService.java:1677-1687`). Matching is
 case-insensitive everywhere: `$(params.myparam)` resolves a param declared `MyParam`
 (`engine/ParameterManager.java:877`), and the node-value merge keeps the declared casing
 (`common/util/ParameterUtil.java:123-144`). An empty or absent value is valid and survives save unchanged:
 emptiness can be meaningful, and a substitution can resolve to empty; a task that requires a value fails its
 own run with a message naming the parameter. Names that are case or separator variants of each other
 (`my-key`, `MY_KEY`) are rejected with `PARAM_NAME_COLLISION` (code 1209,
-`common/error/BoomerangError.java:55`) at workflow save (`workflow/WorkflowService.java:1531-1539`) and task
+`common/error/BoomerangError.java:55`) at workflow save (`workflow/WorkflowService.java:1571-1579`) and task
 save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at dispatch
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:142-155`).
 
@@ -134,9 +134,9 @@ and the container see the real value.
 
 | How a param becomes `secret` | Where |
 | --- | --- |
-| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1818`) and each task run (`engine/DAGUtility.java:275`) are built |
+| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1858`) and each task run (`engine/DAGUtility.java:275`) are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`common/util/ParameterUtil.java:130-140`) |
-| A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:1430,1600-1602` and `schedule/ScheduleService.java:228-231` |
+| A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:1470,1640-1642` and `schedule/ScheduleService.java:228-231` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParamLayers` (`engine/ParameterManager.java:196-201`) |
 
 Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`,
@@ -147,7 +147,7 @@ and workspace layers are read from their typed stores (`workflow/ParamLayerServi
 password-typed global or workspace parameter is a secret too: `$(global.params.registryToken)`,
 `$(workspace.params.dbPass)` and the flat `$(params.<name>)` that one of them wins all taint. At submit, start
 and retry, a secret whose value is not a string is rejected with `PARAM_SECRET_NOT_STRING` (1217,
-`workflow/WorkflowService.java:1885-1895`), and an unknown `type` with `PARAM_INVALID_TYPE` (1216,
+`workflow/WorkflowService.java:1925-1935`), and an unknown `type` with `PARAM_INVALID_TYPE` (1216,
 `core/RestExceptionHandler.java:101`).
 
 Every layer that holds a secret (global and workspace parameters, a workflow's param defaults and node values,
@@ -177,16 +177,16 @@ write lists none (`core/audit/SecretChangeHolder.java:63`, collected around each
 A stored value is matched by param name in any case, a node's by node name and then param name, and a
 setting's by key; a workspace PATCH replaces a case variant rather than adding a second entry. A node secret
 left with no value is dropped from the node so the task's default applies
-(`workflow/WorkflowService.java:1495-1498`). A run request (submit, start, retry) follows the same rule against
+(`workflow/WorkflowService.java:1535-1538`). A run request (submit, start, retry) follows the same rule against
 the declared defaults or the stored run: a param sent with no value, or as `*****` for a secret, leaves the
 value in place and `""` sets it empty (`ParameterUtil.suppliedParams`, `common/util/ParameterUtil.java:215-232`,
-called at `workflow/WorkflowService.java:1851` and `workflow/WorkflowRunService.java:832,1004`); the engine's own
+called at `workflow/WorkflowService.java:1891` and `workflow/WorkflowRunService.java:832,1004`); the engine's own
 merge of node values over task specs is separate.
 
 | Read | Filter |
 | --- | --- |
 | Workspace-scoped run `get` and `query` | Name join, value scrub, then type (`workflow/WorkflowRunService.java:199-223`) |
-| Submit, start, cancel, pause, resume and retry responses | Type (`workflow/WorkflowService.java:565`, `workflow/WorkflowRunService.java:229-232`) |
+| Submit, start, cancel, pause, resume and retry responses | Type (`workflow/WorkflowService.java:574`, `workflow/WorkflowRunService.java:229-232`) |
 | `full` status events | A value scrub of the run's own secret values from results, status message, annotations and spec, then type (`event/model/RunStatusSummary.java:53-71`) |
 | Task log stream; manual action instructions | Value scrub (`workflow/WorkflowRunService.java:533-586`; `workflow/ActionService.java:325-341`, which keeps the instructions' text and hides only the secret) |
 | Task-run query rows | Nothing to filter: a row leaves out params, results, spec, annotations and status message (`workflow/WorkflowRunService.java:361-365`) |
@@ -194,7 +194,7 @@ merge of node values over task specs is separate.
 | Server labels | Never written from a secret: `boomerang.io/model` is skipped when the `model` param is secret-typed, and `boomerang.io/item` when the item contains the value of any secret in the run's parameter layers (`engine/TaskExecutionService.java:228-238,747-755,1184-1188`, `engine/ParameterManager.java:354`) |
 | Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:793-794`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:206-216`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:286-310`, canvas `:775`). Duplicate copies the unfiltered workflow (`:752-758`) |
+| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:295-319`, canvas `:775`). Duplicate copies the unfiltered workflow (`:752-758`) |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:235-238`); `internalGet`, which fires the run, is not filtered |
 | Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:183-189`) |
 

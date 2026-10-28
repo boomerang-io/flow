@@ -24,7 +24,7 @@ B and D. The nine groups are what `service-core/src/main/resources/seed/settings
 Customization, Features, Integrations, Tasks, Quotas, Run limits, Audit), built on every install by
 `migration/_0016__BuildSettingsFromSeed.java`, which maps a v3 `workspaces` or `teams` key onto `quotas` (`:54`). A
 volume's size comes from the workflow's workspace, defaulted and capped at save from `max.workspace.storage`
-(`workflow/WorkflowService.java:466-484`); its class and access mode default in the dispatcher
+(`workflow/WorkflowService.java:475-493`); its class and access mode default in the dispatcher
 (`service-dispatcher/.../dispatcher/WorkspaceService.java:25-32`). Customization stays apart from Features: its values
 are strings the platform context reads (`core/ContextService.java:110-115`), not flags. `PATCH /api/v2/settings` takes
 `{"<group>": {"<key>": value}}` (`core/SettingsService.java:73`) and `PATCH /api/v2/parameters/{name}` the members to

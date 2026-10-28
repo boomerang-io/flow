@@ -25,7 +25,7 @@ The lineage pair, the snapshot and the node's params. `TaskExecutionService.runW
 run and `start=true` (`engine/TaskExecutionService.java:1110-1197,1233-1257`). The child gets copies of the task's
 params minus `workflowRef` and `wait` (`:1199-1209`) and the parent run's timeout, retries, labels and annotations, not
 its workspace; saving checks that the child's latest revision declares each forwarded param
-(`workflow/WorkflowService.java:1563-1593`). `wait=true` arms the task `waiting` with no `waitUntil` before the submit,
+(`workflow/WorkflowService.java:1603-1633`). `wait=true` arms the task `waiting` with no `waitUntil` before the submit,
 so a fast child cannot outrun it (`engine/TaskRunService.java:853-858`). `ChildWorkflowRunListener` ends the task
 through the dispatcher's own end, whose compare-and-set absorbs a redelivered event: a succeeded child hands it the
 run's results beside `workflowRunRef`, any other status fails it with `CHILD_RUN_FAILED`, and a cancelled or timed-out
@@ -34,7 +34,7 @@ with only `workflowRunRef`. What decided it: no new field or held thread, and re
 
 ## Consequences
 
-- A for-each `runworkflow` (`workflow/WorkflowService.java:126-137`, decision 0082) submits a child per item with `item`
+- A for-each `runworkflow` (`workflow/WorkflowService.java:128-139`, decision 0082) submits a child per item with `item`
   and `index`; the parent collects results into arrays in item order (`engine/TaskExecutionService.java:852-865`).
 - The cascade reads `workflow_runs {initiatedByRef, phase}` (`migration/_0021__Indexes.java:91-93`). Pause does not
   cascade (decision 0013); a parent's secrets reach a child only when its node passes them.

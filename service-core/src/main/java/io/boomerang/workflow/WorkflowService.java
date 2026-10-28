@@ -2,10 +2,10 @@ package io.boomerang.workflow;
 
 import static java.util.stream.Collectors.groupingBy;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.JsonPathException;
 import com.jayway.jsonpath.Option;
 import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import com.jayway.jsonpath.spi.mapper.JacksonMappingProvider;
@@ -63,6 +63,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.math.NumberUtils;
@@ -166,6 +168,13 @@ public class WorkflowService {
   // bean - so validateTriggerConditions() needs its own Jackson 2 mapper.
   private static final com.fasterxml.jackson.databind.ObjectMapper JSON_PATH_MAPPER =
       com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
+
+  private static final Configuration JSON_PATH_CONFIGURATION =
+      Configuration.builder()
+          .mappingProvider(new JacksonMappingProvider())
+          .jsonProvider(new JacksonJsonNodeJsonProvider())
+          .options(Option.DEFAULT_PATH_LEAF_TO_NULL)
+          .build();
 
   public WorkflowService(
       WorkflowRepository workflowRepository,
@@ -574,20 +583,23 @@ public class WorkflowService {
   }
 
   /*
-   * Submit WorkflowRun Internally by Workspace
-   *
-   * Used by TriggerService
-   *
-   * TODO: surely there is a better way to do this
+   * Submit a fresh request to every workflow in the workspace. Each workflow's trigger decides for
+   * itself: a workflow that refuses the trigger, or fails to submit, never stops the rest.
    */
-  public void internalSubmitForWorkspace(String workspace, WorkflowSubmitRequest request, boolean start) {
-    // This should return IDs as the next method requires to take in the Workflow ID
-    List<String> wfRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
-    wfRefs.forEach(
-        r -> {
-          this.internalSubmit(workspace, r, request, start);
-        });
+  public void internalSubmitForWorkspace(
+      String workspace, Supplier<WorkflowSubmitRequest> request, boolean start) {
+    for (String workflowId :
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty())) {
+      try {
+        internalSubmit(workspace, workflowId, request.get(), start);
+      } catch (BoomerangException e) {
+        if (!BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED.getReason().equals(e.getReason())) {
+          LOGGER.warn("Workflow {} not submitted: {}", workflowId, e.getReason());
+        }
+      } catch (RuntimeException e) {
+        LOGGER.warn("Workflow {} not submitted", workflowId, e);
+      }
+    }
   }
 
   /*
@@ -906,9 +918,8 @@ public class WorkflowService {
           Trigger trigger = triggers.getEvent();
           validateTriggerConditions(ParameterUtil.getValue(params, "event"), trigger);
           return;
-        } else if (TriggerEnum.github.equals(runTrigger) && triggers.getWebhook().getEnabled()) {
-          Trigger trigger = triggers.getWebhook();
-          validateTriggerConditions(ParameterUtil.getValue(params, "payload"), trigger);
+        } else if (TriggerEnum.github.equals(runTrigger) && triggers.getGithub().getEnabled()) {
+          validateGitHubConditions(params, triggers.getGithub());
           return;
         }
         throw new BoomerangException(BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED);
@@ -917,43 +928,72 @@ public class WorkflowService {
   }
 
   /*
-   * Implements the logic checks for each WorkflowTriggerCondition operation type
+   * Each condition's field is a JSON path into the event, which is read only when there are any.
    */
   private void validateTriggerConditions(Object data, Trigger trigger) {
     if (!trigger.getConditions().isEmpty()) {
-      // Convert Object to JsonNode and configure for JsonPath
-      JsonNode jData = JSON_PATH_MAPPER.valueToTree(data);
-      Configuration jsonConfig =
-          Configuration.builder()
-              .mappingProvider(new JacksonMappingProvider())
-              .jsonProvider(new JacksonJsonNodeJsonProvider())
-              .options(Option.DEFAULT_PATH_LEAF_TO_NULL)
-              .build();
-      DocumentContext jsonContext = JsonPath.using(jsonConfig).parse(jData);
-
-      // Determine all conditions match
-      trigger
-          .getConditions()
-          .forEach(
-              con -> {
-                Boolean canRun = Boolean.TRUE;
-                String field = jsonContext.read(con.getField());
-                switch (con.getOperation()) {
-                  case matches -> {
-                    canRun = field.matches(con.getValue());
-                  }
-                  case equals -> {
-                    canRun = field.equals(con.getValue());
-                  }
-                  case in -> {
-                    canRun = con.getValues().contains(field);
-                  }
-                }
-                if (!canRun) {
-                  throw new BoomerangException(BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED);
-                }
-              });
+      validateTriggerConditions(trigger, jsonPathValues(data));
     }
+  }
+
+  /*
+   * The GitHub trigger form filters on two named fields: "events", the event named in GitHub's
+   * X-GitHub-Event header, and "repositories", the repository's name. Any other field is a JSON path
+   * into the event's payload.
+   */
+  private void validateGitHubConditions(List<RunParam> params, Trigger trigger) {
+    if (trigger.getConditions().isEmpty()) {
+      return;
+    }
+    Function<String, String> payload = jsonPathValues(ParameterUtil.getValue(params, "data"));
+    String eventType = jsonPathValues(ParameterUtil.getValue(params, "event")).apply("$.type");
+    validateTriggerConditions(
+        trigger,
+        field ->
+            switch (field) {
+              case "events" -> eventType;
+              case "repositories" -> payload.apply("$.repository.name");
+              default -> payload.apply(field);
+            });
+  }
+
+  /*
+   * Every condition must hold. A field with no value - absent, an invalid path, or no event data -
+   * matches no condition.
+   */
+  private void validateTriggerConditions(Trigger trigger, Function<String, String> valueOf) {
+    for (TriggerCondition condition : trigger.getConditions()) {
+      String value = condition.getField() == null ? null : valueOf.apply(condition.getField());
+      boolean holds =
+          value != null
+              && condition.getOperation() != null
+              && switch (condition.getOperation()) {
+                case matches -> condition.getValue() != null && value.matches(condition.getValue());
+                case equals -> value.equals(condition.getValue());
+                case in -> condition.getValues() != null && condition.getValues().contains(value);
+              };
+      if (!holds) {
+        throw new BoomerangException(BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED);
+      }
+    }
+  }
+
+  // Reads a value by JSON path as text; a path that is absent or invalid, or no data, reads null.
+  private static Function<String, String> jsonPathValues(Object data) {
+    if (data == null) {
+      return path -> null;
+    }
+    DocumentContext document =
+        JsonPath.using(JSON_PATH_CONFIGURATION).parse(JSON_PATH_MAPPER.valueToTree(data));
+    return path -> {
+      try {
+        // A leaf reads as a JSON node; unwrapped, text is the bare string rather than quoted JSON.
+        Object value = JSON_PATH_CONFIGURATION.jsonProvider().unwrap(document.read(path));
+        return value == null ? null : value.toString();
+      } catch (JsonPathException | IllegalArgumentException e) {
+        return null;
+      }
+    };
   }
 
   /*

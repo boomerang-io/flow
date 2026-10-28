@@ -55,7 +55,7 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1203-1219`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1243-1259`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. `workflow_templates` keeps `version` on the one document
@@ -100,11 +100,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1332,1727,1873`, `workflow/TaskService.java:709,797` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1057` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1372,1767,1913`, `workflow/TaskService.java:709,797` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1097` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:630-631`, `workflow/WorkflowRunService.java:825-827`). The engine
+it dropped (`workflow/WorkflowService.java:642-643`, `workflow/WorkflowRunService.java:825-827`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -302,6 +302,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0027__RenameWorkspaceTaskNodes` | all | Moves each `teamtask` node to `workspacetask` under its new `_id` and re-points the edges naming it; only a database that ran a v5 beta holds one |
 | `_0028__RunSettingsOutOfAnnotations` | all | Removes the `boomerang.io/*` run annotations (`workspace-name`, `task-*`, `*-params`) from runs and the workspace name from task runs; moves a pre-approved task run's `preApproved` flag and `status` annotation to `preApprovedStatus`; re-keys a held task lock from `<workspace name>:<key>` to `<workspace id>:<key>` |
 | `_0029__ClaimIndexKeysTheClaimant` | all | Rebuilds `task_runs.claim_page` as (type, status, phase, claim.by, creationDate) where it was built without `claim.by`; an empty or a v3 database already has the new keys from `_0021` |
+| `_0030__SeedSlackCredentialRevisions` | all | Inserts the revision of each of the 13 Slack tasks whose bot token or webhook URL is a `password` field, where an install holds the task but not that revision; earlier revisions are never touched, and an empty database has them from `_0017` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

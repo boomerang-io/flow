@@ -31,6 +31,6 @@ decided it: nothing new is stored, and a rename cannot move a run.
 - A rename keeps a run in flight on its workspace's parameters and lock scope.
 - The task settings apply as they stand when the run is queued; a run submitted without starting takes them at start.
 - Run annotations hold user metadata and the `boomerang.io/generation` and `kind` markers
-  (`workflow/WorkflowService.java:1873-1874`); a client's keys under `boomerang.io/` are dropped
+  (`workflow/WorkflowService.java:1913-1914`); a client's keys under `boomerang.io/` are dropped
   (`workflow/WorkflowRunService.java:826-828`).
 - Revisit if a run ever needs a workspace other than its workflow's.

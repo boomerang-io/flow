@@ -78,7 +78,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(136);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(149);
     assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
@@ -95,7 +95,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(136);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(149);
     assertThat(collection(db, "workspaces").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_nodes").countDocuments()).isEqualTo(nodes);
     assertThat(collection(db, "rel_edges").countDocuments()).isEqualTo(edges);
@@ -208,7 +208,7 @@ class MigrationChainTest {
     MongoCollection<Document> tasks = collection(db, "tasks");
     MongoCollection<Document> revisions = collection(db, "task_revisions");
     assertThat(tasks.countDocuments()).isEqualTo(93);
-    assertThat(revisions.countDocuments()).isEqualTo(137);
+    assertThat(revisions.countDocuments()).isEqualTo(150);
     assertThat(collection(db, "task_templates").countDocuments()).isZero();
     assertThat(tasks.find(Filters.eq("_id", minimalTaskId)).first().getString("name")).isEqualTo("legacy-task");
     Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
@@ -266,7 +266,7 @@ class MigrationChainTest {
     migrate("v3");
     assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(93);
-    assertThat(revisions.countDocuments()).isEqualTo(137);
+    assertThat(revisions.countDocuments()).isEqualTo(150);
     assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasApproverGroup"))).isEqualTo(1);
     assertThat(collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first().getString("taskRef"))
@@ -466,7 +466,7 @@ class MigrationChainTest {
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(137);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(150);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
     assertAiTaskFamilySeeded(db);
     assertThat(collection(db, "tasks").find(Filters.eq("_id", legacyAiId)).first()).isNotNull();
@@ -475,7 +475,7 @@ class MigrationChainTest {
 
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(92);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(137);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(150);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
   }
 
@@ -526,11 +526,11 @@ class MigrationChainTest {
         revisions
             .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 1)))
             .first();
-    assertThat(revisions.countDocuments()).isEqualTo(133);
+    assertThat(revisions.countDocuments()).isEqualTo(146);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0024__SeedAiImageInputRevisions().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(134);
+    assertThat(revisions.countDocuments()).isEqualTo(147);
     Document promptRevisionTwo =
         revisions
             .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 2)))
@@ -550,7 +550,59 @@ class MigrationChainTest {
     assertThat(collection(db, "tasks").find(Filters.eq("name", "ai-agent")).first()).isNull();
 
     new _0024__SeedAiImageInputRevisions().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(134);
+    assertThat(revisions.countDocuments()).isEqualTo(147);
+  }
+
+  /**
+   * A database whose Slack tasks take their credential as plain text receives the revision that
+   * makes it a password field from its own unit, leaves the earlier revisions as they were, adds
+   * nothing for a task the install does not hold, and inserts nothing on a second run.
+   */
+  @Test
+  void aDatabaseWithPlainTextSlackCredentialsReceivesThePasswordRevisions() {
+    MongoDatabase db = migrate("slack-credential-revisions");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    MongoCollection<Document> tasks = collection(db, "tasks");
+    for (String name : _0030__SeedSlackCredentialRevisions.TASKS) {
+      String taskId = tasks.find(Filters.eq("name", name)).first().get("_id").toString();
+      Document newest =
+          revisions.find(Filters.eq("parentRef", taskId)).sort(new Document("version", -1)).first();
+      revisions.deleteOne(Filters.eq("_id", newest.get("_id")));
+    }
+    // An install that dropped get-slack-channels: its revisions have no task to attach to.
+    Document dropped = tasks.find(Filters.eq("name", "get-slack-channels")).first();
+    revisions.deleteMany(Filters.eq("parentRef", dropped.get("_id").toString()));
+    tasks.deleteOne(Filters.eq("_id", dropped.get("_id")));
+    String channelTaskId = tasks.find(Filters.eq("name", "create-slack-channel")).first().get("_id").toString();
+    Document channelRevisionOne =
+        revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 1))).first();
+    assertThat(revisions.countDocuments()).isEqualTo(135);
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0030__SeedSlackCredentialRevisions().execute(db, environment);
+    assertThat(revisions.countDocuments()).isEqualTo(147);
+    Document channelRevisionTwo =
+        revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 2))).first();
+    assertThat(channelRevisionTwo.get("spec", Document.class).getList("params", Document.class))
+        .filteredOn(param -> "token".equals(param.getString("name")))
+        .extracting(param -> param.getString("type"))
+        .containsExactly("password");
+    String webhookTaskId =
+        tasks.find(Filters.eq("name", "send-simple-slack-message")).first().get("_id").toString();
+    Document webhookRevisionTwo =
+        revisions.find(Filters.and(Filters.eq("parentRef", webhookTaskId), Filters.eq("version", 2))).first();
+    assertThat(webhookRevisionTwo.get("spec", Document.class).getList("params", Document.class))
+        .filteredOn(param -> "url".equals(param.getString("name")))
+        .extracting(param -> param.getString("type"))
+        .containsExactly("password");
+    assertThat(
+            revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 1))).first())
+        .as("revision 1 is left as it was")
+        .isEqualTo(channelRevisionOne);
+    assertThat(tasks.find(Filters.eq("name", "get-slack-channels")).first()).isNull();
+
+    new _0030__SeedSlackCredentialRevisions().execute(db, environment);
+    assertThat(revisions.countDocuments()).isEqualTo(147);
   }
 
   /**
