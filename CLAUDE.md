@@ -144,7 +144,6 @@ Codes: `io.boomerang.common.error.BoomerangError`; messages: `messages.propertie
 
 Open work is the GitHub issue tracker of `boomerang-io/flow` (Issue Types Bug / Feature / Task; labels
 `frontend`, `backend`, `needs-triage`, `needs-info`, `claude`) and the org project board. There is no
-separate roadmap document beyond `ROADMAP.md`. Two reference codebases exist for patterns only — adopt the
-pattern, never the code: `/Users/tysonlawrie/Workspaces/tlawrie/asdr` and
-`/Users/tysonlawrie/Workspaces/cheerdev/cheer.dev`; the pre-monorepo webapp is at
-`/Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web`.
+separate roadmap document beyond `ROADMAP.md`. Reference codebases exist for patterns only — adopt the
+pattern, never the code: `/Users/tysonlawrie/Workspaces/cheerdev/cheer.dev`, and any listed in the untracked
+`CLAUDE.local.md`; the pre-monorepo webapp is at `/Users/tysonlawrie/Workspaces/boomerang-io/flow.client.web`.

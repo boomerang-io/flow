@@ -87,13 +87,13 @@ class FlowTest {
 
   @Test
   void aHostsClientIsKeptWithItsTransport() {
-    RestClient.Builder builder = RestClient.builder().defaultHeader("X-Host", "archie");
+    RestClient.Builder builder = RestClient.builder().defaultHeader("X-Host", "host-app");
     MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
     server
         .expect(
             requestTo(
                 "https://flow.example.com/api/v2/workspace/ws/workflowrun/r1?withTasks=true"))
-        .andExpect(header("X-Host", "archie"))
+        .andExpect(header("X-Host", "host-app"))
         .andExpect(header("Authorization", "Bearer tok-2"))
         .andRespond(withSuccess("{\"id\":\"r1\"}", MediaType.APPLICATION_JSON));
 

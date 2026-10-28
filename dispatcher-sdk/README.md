@@ -114,7 +114,7 @@ TaskLogCapture taskLogs = new TaskLogCapture();            // 64 KB head + 64 KB
 TaskLogAppender.attach(taskLogs);                          // logback; see "Logs" for log4j2
 Dispatcher.builder()
     .client(new DispatcherClient(hostRestClient, engineUrl, token))
-    .name("archie").taskTypes(List.of("ai"))
+    .name("in-process").taskTypes(List.of("ai"))
     .tasks(handler, () -> 4)
     .captureTaskLogs(taskLogs)
     .observationRegistry(observationRegistry)
