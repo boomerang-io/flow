@@ -113,9 +113,9 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
   /**
    * A held poll that finds nothing runs the claimable page and the two termination pages on its
    * first look and on each timed re-check, and the claimable page alone on a look an admission
-   * woke: an admission costs one query per held poll, and a termination still reaches the
-   * dispatcher within one re-check interval (1 s here). Three looks are recorded: the first, the
-   * one a signal 0.2 s later wakes, and the timed re-check 1 s after that.
+   * woke: an admission costs one query per held poll it concerns, and a termination still reaches
+   * the dispatcher within one re-check interval (1 s here). Three looks are recorded: the first,
+   * the one a matching admission 0.2 s later wakes, and the timed re-check 1 s after that.
    */
   @Test
   void aHeldPollWokenByAnAdmissionRunsTheClaimablePageAlone() throws Exception {
@@ -132,7 +132,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
                   DatabaseCommands.record(
                       () -> dispatcherService.getTaskQueue(dispatcherId, null, null, null, label)));
       Thread.sleep(200);
-      pollWakeups.signal();
+      pollWakeups.taskAdmitted(TaskType.template, "any-task", workflowRefOf(label));
       Thread.sleep(1400);
       executor.shutdownNow();
       Recorded<ResponseEntity<List<TaskRun>>> recorded = poll.get(2, TimeUnit.SECONDS);
@@ -148,6 +148,81 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  /**
+   * An admission wakes only the held polls whose filter can claim the task. Three polls are held
+   * under one workflow label and one admission of a template task under another task id lands:
+   * the template poll looks again (one claim-page find on top of its first look's three), the
+   * custom poll is not woken, and the template poll filtered on a different task id is not woken.
+   */
+  @Test
+  void anAdmissionWakesOnlyThePollsWhoseFilterMatches() throws Exception {
+    String label = idleWorkflowLabel("wake-match");
+    String matching =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "wake-match-dispatcher", "wake-match.local", List.of("template")));
+    String otherType =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "wake-match-custom-dispatcher", "wake-match-custom.local", List.of("custom")));
+    String otherTask =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "wake-match-task-dispatcher", "wake-match-task.local", List.of("template")));
+    ExecutorService executor = Executors.newFixedThreadPool(3);
+    try {
+      Future<Recorded<ResponseEntity<List<TaskRun>>>> matchingPoll =
+          executor.submit(() -> heldPoll(matching, null, label));
+      Future<Recorded<ResponseEntity<List<TaskRun>>>> otherTypePoll =
+          executor.submit(() -> heldPoll(otherType, null, label));
+      Future<Recorded<ResponseEntity<List<TaskRun>>>> otherTaskPoll =
+          executor.submit(() -> heldPoll(otherTask, TASK_SLUG, label));
+      Thread.sleep(300);
+      pollWakeups.taskAdmitted(TaskType.template, "another-task", workflowRefOf(label));
+      Thread.sleep(300);
+      executor.shutdownNow();
+
+      assertEquals(
+          4,
+          Collections.frequency(names(matchingPoll), "find task_runs"),
+          "the matching poll looks again: its first look's three pages and the claim page");
+      assertEquals(
+          3,
+          Collections.frequency(names(otherTypePoll), "find task_runs"),
+          "a poll for another type is not woken");
+      assertEquals(
+          3,
+          Collections.frequency(names(otherTaskPoll), "find task_runs"),
+          "a poll filtered on another task is not woken");
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  private Recorded<ResponseEntity<List<TaskRun>>> heldPoll(
+      String dispatcherId, String task, String label) {
+    return DatabaseCommands.record(
+        () -> dispatcherService.getTaskQueue(dispatcherId, null, null, task, label));
+  }
+
+  private static List<String> names(Future<Recorded<ResponseEntity<List<TaskRun>>>> poll)
+      throws Exception {
+    List<String> names =
+        poll.get(2, TimeUnit.SECONDS).names().stream()
+            .map(name -> name.replace(" flowtest_", " "))
+            .toList();
+    System.out.printf("DB COMMANDS | held poll under an admission | %s%n", names);
+    return names;
+  }
+
+  // The workflow a label filter resolves to, as the admission's workflowRef.
+  private String workflowRefOf(String label) {
+    return claimFilterService
+        .resolve(List.of(TaskType.template), null, null, label)
+        .workflowRefs()
+        .get(0);
   }
 
   /**

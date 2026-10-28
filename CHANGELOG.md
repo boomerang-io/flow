@@ -128,6 +128,10 @@ tag's release notes.
 - A dispatcher poll re-opened after a claim no longer re-runs the termination pages: their once-per-interval
   cadence belongs to the dispatcher and its filter, shared by its successive polls, so under load each claim costs
   one claim-page query instead of three. A cancel or timeout still reaches a held dispatcher within one interval.
+- Admitting a task wakes only the held dispatcher polls whose filter can claim it (its type, and the task and
+  workflow when the poll filtered on them), not every poll on the instance: a dispatcher holding eight typed pools
+  costs one claim-page query per admission instead of eight. A run submitted with a workspace wakes the workflow
+  polls alone. The timed re-check is unchanged and still covers a task admitted on another replica.
 - `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
   (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
   queries per dispatcher: its idle queries per second are its pools × 1000 / the value.

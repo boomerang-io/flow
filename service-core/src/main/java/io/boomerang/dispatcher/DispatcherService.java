@@ -264,7 +264,7 @@ public class DispatcherService {
     Instant endTime = Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     while (Instant.now().isBefore(endTime)) {
-      long seen = pollWakeups.generation();
+      long seen = pollWakeups.runGeneration();
       LOGGER.debug("Checking queue for dispatcher: {}", dispatcherId);
       // The claimed pre-images carry the wire shape the dispatcher acts on: pending/ready to
       // provision and start. Runs claimed before an error are still handed out.
@@ -291,7 +291,7 @@ public class DispatcherService {
       if (!workflowRuns.isEmpty()) {
         return ResponseEntity.ok(workflowRuns);
       }
-      if (!pauseBeforeRecheck(seen)) {
+      if (!pauseWorkflowPoll(seen)) {
         break;
       }
     }
@@ -387,8 +387,24 @@ public class DispatcherService {
     // and filter, not on every wake and not again on a poll re-opened right after a claim.
     ResidueKey residueKey = new ResidueKey(dispatcherId, filter);
     residueDue.values().removeIf(due -> due <= System.currentTimeMillis());
+    // Registered before the first look, so an admission that lands during a look is kept for the
+    // wait that follows; only an admission this filter can claim wakes the poll.
+    PollWakeups.TaskWaiter waiter = pollWakeups.register(filter);
+    try {
+      return taskPoll(dispatcherId, filter, executionPage, residueKey, waiter, endTime);
+    } finally {
+      pollWakeups.unregister(waiter);
+    }
+  }
+
+  private ResponseEntity<List<TaskRun>> taskPoll(
+      String dispatcherId,
+      ClaimFilter filter,
+      int executionPage,
+      ResidueKey residueKey,
+      PollWakeups.TaskWaiter waiter,
+      Instant endTime) {
     while (Instant.now().isBefore(endTime)) {
-      long seen = pollWakeups.generation();
       long now = System.currentTimeMillis();
       boolean residue = takeResidueTurn(residueKey, now);
       LOGGER.debug(
@@ -436,7 +452,7 @@ public class DispatcherService {
         slugTaskRefs(taskRuns);
         return ResponseEntity.ok(taskRuns);
       }
-      if (!pauseBeforeRecheck(seen)) {
+      if (!pauseTaskPoll(waiter)) {
         break;
       }
     }
@@ -526,16 +542,30 @@ public class DispatcherService {
   }
 
   /**
-   * Wait for an admission on this instance to wake the poll - one since {@code seen}, the
-   * generation read before the look that found nothing, so a signal during that look counts - or
-   * one re-check interval ({@code flow.dispatcher.poll.recheck-ms}, never under the floor), before
-   * the poll looks again - after an error too, so a query that fails fast is not re-run in a tight
-   * loop for the rest of the window. Return false when the thread is interrupted, so the poll
-   * ends and the thread can stop.
+   * Wait for an admission on this instance that the poll's filter can claim - one since its last
+   * wait, so one that landed during the look that found nothing counts - or one re-check interval
+   * ({@code flow.dispatcher.poll.recheck-ms}, never under the floor), before the poll looks again
+   * - after an error too, so a query that fails fast is not re-run in a tight loop for the rest
+   * of the window. Return false when the thread is interrupted, so the poll ends and the thread
+   * can stop.
    */
-  private boolean pauseBeforeRecheck(long seen) {
+  private boolean pauseTaskPoll(PollWakeups.TaskWaiter waiter) {
     try {
-      pollWakeups.awaitChange(seen, Duration.ofMillis(recheckMillis()));
+      pollWakeups.awaitMatch(waiter, Duration.ofMillis(recheckMillis()));
+      return true;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+  }
+
+  /**
+   * The workflow poll's wait: a run submitted with a workspace on this instance since {@code
+   * seen}, the generation read before the look that found nothing, or one re-check interval.
+   */
+  private boolean pauseWorkflowPoll(long seen) {
+    try {
+      pollWakeups.awaitRun(seen, Duration.ofMillis(recheckMillis()));
       return true;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
