@@ -35,6 +35,6 @@ infrastructure, the cluster knows what it still holds, and a named artifact work
 ## Consequences
 
 - A run with a workspace needs a connected dispatcher to start; with none it waits at `ready` until cancelled. A v3
-  workflow that declared Workflow storage is refused at submit until saved again (`workflow/WorkflowService.java:1846-1848`).
+  workflow that declared Workflow storage is refused at submit until saved again (`workflow/WorkflowService.java:1855-1857`).
 - The engine cannot say whether a volume was released. Artifact limits are checked after upload, since the link
   precedes the file: an upload that breaks one is deleted and its task fails.

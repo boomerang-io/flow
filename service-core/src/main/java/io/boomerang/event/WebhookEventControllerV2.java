@@ -2,13 +2,17 @@ package io.boomerang.event;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.integrations.model.SlackEventPayload;
 import io.cloudevents.CloudEvent;
-import io.cloudevents.spring.http.CloudEventHttpUtils;
+import io.cloudevents.core.format.EventDeserializationException;
+import io.cloudevents.http.HttpMessageFactory;
+import io.cloudevents.rw.CloudEventRWException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -70,7 +74,8 @@ public class WebhookEventControllerV2 {
    *
    * <h4>Sample</h4>
    *
-   * <code>/webhook?ref={workflow}&access_token={access_token}</code>
+   * <code>/webhook?ref={workflow id}&access_token={access_token}</code>, or
+   * <code>/webhook?workspace={workspace}&ref={workflow name}&access_token={access_token}</code>
    */
   @PostMapping(value = "/webhook", consumes = "application/json; charset=utf-8")
   @AuthCriteria(
@@ -80,8 +85,14 @@ public class WebhookEventControllerV2 {
   @Operation(summary = "Accept Webhook payloads from various sources.")
   public ResponseEntity<?> acceptWebhook(
       @Parameter(
+              name = "workspace",
+              description = "The workspace whose workflow ref names",
+              required = false)
+          @RequestParam(required = false)
+          Optional<String> workspace,
+      @Parameter(
               name = "ref",
-              description = "Workflow reference the request relates to",
+              description = "The workflow: its id, or with workspace its name",
               required = false)
           @RequestParam(required = false)
           Optional<String> ref,
@@ -123,6 +134,8 @@ public class WebhookEventControllerV2 {
     } else if (githubEvent.isPresent()) {
       return webhookEventService.processGitHubWebhook(
           githubEvent.get(), githubDelivery, githubSignature, rawBody, payload);
+    } else if (ref.isPresent() && workspace.isPresent()) {
+      webhookEventService.processWebhook(workspace.get(), ref.get(), payload);
     } else if (ref.isPresent()) {
       webhookEventService.processWebhook(ref.get(), payload);
     } else {
@@ -220,32 +233,14 @@ public class WebhookEventControllerV2 {
   }
 
   /**
-   * Accepts any JSON Cloud Event. This will map to the custom trigger but the topic will come from
-   * the CloudEvent subject.
-   *
-   * <p>ce attributes are in the body
+   * Accepts a CloudEvent in structured mode ({@code application/cloudevents+json}, attributes in
+   * the body) or binary mode (attributes in {@code ce-*} headers, the body its data), as the
+   * Content-Type says. {@code ref} names the workflow: its id, or with {@code workspace} its name
+   * in that workspace; without {@code ref}, the first segment of the event's subject does.
    *
    * @see https://github.com/cloudevents/spec/blob/v1.0/json-format.md
    * @see https://github.com/cloudevents/spec/blob/v1.0/http-protocol-binding.md
    */
-  @PostMapping(value = "/event", consumes = "application/cloudevents+json; charset=utf-8")
-  @AuthCriteria(
-      action = PermissionAction.ACTION,
-      resource = PermissionResource.WEBHOOK,
-      assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
-  @Operation(summary = "Accept CloudEvent")
-  public ResponseEntity<?> accept(
-      @Parameter(
-              name = "ref",
-              description = "The Workflow reference the request relates to",
-              required = false)
-          @RequestParam(required = false)
-          Optional<String> ref,
-      @RequestBody CloudEvent event) {
-    return ResponseEntity.ok(webhookEventService.processEvent(event, ref));
-  }
-
-  /** Accepts a Cloud Event with ce attributes are in the header */
   @PostMapping("/event")
   @AuthCriteria(
       action = PermissionAction.ACTION,
@@ -254,14 +249,36 @@ public class WebhookEventControllerV2 {
   @Operation(summary = "Accept CloudEvent")
   public ResponseEntity<?> acceptEvent(
       @Parameter(
+              name = "workspace",
+              description = "The workspace whose workflow ref names",
+              required = false)
+          @RequestParam(required = false)
+          Optional<String> workspace,
+      @Parameter(
               name = "ref",
-              description = "The Workflow reference the request relates to",
+              description = "The workflow: its id, or with workspace its name",
               required = false)
           @RequestParam(required = false)
           Optional<String> ref,
       @RequestHeader HttpHeaders headers,
-      @RequestBody String data) {
-    CloudEvent event = CloudEventHttpUtils.toReader(headers, () -> data.getBytes()).toEvent();
-    return ResponseEntity.ok(webhookEventService.processEvent(event, ref));
+      @RequestBody(required = false) byte[] body) {
+    CloudEvent event = readEvent(headers, body == null ? new byte[0] : body);
+    return ResponseEntity.ok(
+        workspace.isPresent()
+            ? webhookEventService.processEvent(workspace.get(), event, ref)
+            : webhookEventService.processEvent(event, ref));
+  }
+
+  // Read with the plain HTTP binding: the Spring one reads HttpHeaders as a Map, which it no longer is.
+  private static CloudEvent readEvent(HttpHeaders headers, byte[] body) {
+    try {
+      return HttpMessageFactory.createReader(
+              header ->
+                  headers.forEach((name, values) -> values.forEach(value -> header.accept(name, value))),
+              body)
+          .toEvent();
+    } catch (CloudEventRWException | EventDeserializationException e) {
+      throw new BoomerangException(e, BoomerangError.WORKFLOW_INVALID_REQ);
+    }
   }
 }

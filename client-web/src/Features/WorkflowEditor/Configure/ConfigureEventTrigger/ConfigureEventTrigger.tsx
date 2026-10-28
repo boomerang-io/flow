@@ -11,7 +11,7 @@ const EXAMPLE_CLOUD_EVENT = `{
   "subject": "Hello World",
   "source": "/australia",
   "id": "C234-1234-1234",
-  "time": "223-10-24T17:31:00Z",
+  "time": "2023-10-24T17:31:00Z",
   "datacontenttype": "application/json",
   "data": {
     "images": ["645e2bc24c223dc1cc3", "10196e304f6634cc582"],
@@ -24,11 +24,13 @@ const EXAMPLE_CLOUD_EVENT = `{
 type Props = {
   closeModal: (...args: any) => void;
   workflowRef: string;
+  workspace: string;
 };
 
-export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
+export default function ConfigureStorage({ closeModal, workflowRef, workspace }: Props) {
   const resourceUrl = serviceUrl.resourceTrigger();
-  const webhookURL = `${resourceUrl}/event?ref=${workflowRef}`;
+  // The workflow by its name in the workspace; ref alone takes a workflow id.
+  const webhookURL = `${resourceUrl}/event?workspace=${workspace}&ref=${workflowRef}`;
 
   return (
     <ModalForm>
@@ -49,11 +51,14 @@ export default function ConfigureStorage({ closeModal, workflowRef }: Props) {
           className={styles.codeSnippet}
         >
           POST{"  "}
-          {`${resourceUrl}/event?ref=${workflowRef}&access_token=TOKEN`}
+          {`${webhookURL}&access_token=TOKEN`}
         </CodeSnippet>
         <h2 className={styles.sectionHeader}>Example Payload</h2>
         <p>
-          In the following example CloudEvent the filters apply to the <b>'type'</b> and <b>'subject'</b> fields.
+          A filter's field is a path into the event as it is sent: an attribute such as <b>type</b> or{" "}
+          <b>subject</b>, or the data, such as <b>data.tag</b>. The run receives the attributes as the{" "}
+          <b>event</b> parameter and the data as the <b>data</b> parameter, so a task reads{" "}
+          <b>$(params.data.tag)</b>.
         </p>
         <CodeSnippet type="multi" hideCopyButton className={styles.codeSnippet}>
           {EXAMPLE_CLOUD_EVENT}
