@@ -30,6 +30,7 @@ import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.Async;
@@ -57,6 +58,10 @@ public class WorkflowExecutionService {
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
 
   @Autowired private PollWakeups pollWakeups;
+
+  // How long a run whose dispatcher reported a failed provisioning attempt waits for its next one.
+  @Value("${flow.watcher.provision-retry-ms:60000}")
+  private long provisionRetryMillis;
 
 
   @Autowired
@@ -354,6 +359,50 @@ public class WorkflowExecutionService {
     }
   }
 
+
+  /*
+   * A dispatcher could not provision a run it claimed. While attempts remain the claim is held, the
+   * reason shown on the run, until a short lease ends and the stale-claim sweep releases it for the
+   * next attempt; the last attempt fails the run with the reason. A report for a run this
+   * dispatcher no longer holds is ignored. Returns whether it was applied.
+   */
+  public boolean reportProvisionFailure(String workflowRunId, String dispatcherId, String message) {
+    WorkflowRunEntity wfRun = workflowRunRepository.findById(workflowRunId).orElse(null);
+    if (wfRun == null
+        || !RunStatus.ready.equals(wfRun.getStatus())
+        || !RunPhase.queued.equals(wfRun.getPhase())
+        || wfRun.getClaim() == null
+        || !Objects.equals(dispatcherId, wfRun.getClaim().getBy())) {
+      return false;
+    }
+    long attempt = wfRun.getClaim().getSeq();
+    String reason = (message == null || message.isBlank()) ? "no reason given" : message.strip();
+    reason = reason.length() > 500 ? reason.substring(0, 500) + "…" : reason;
+    if (attempt >= EngineConstants.MAX_PROVISION_ATTEMPTS) {
+      String failed = "Workspace provisioning failed after " + attempt + " attempts: " + reason;
+      if (workflowRunStateHelper.tryFailProvision(workflowRunId, attempt, failed) == null) {
+        return false;
+      }
+      LOGGER.error("[{}] {} Run failed.", workflowRunId, failed);
+      cancelPendingAndRunningTasks(wfRun);
+      return true;
+    }
+    long retrySeconds = provisionRetryMillis / 1000;
+    String retryIn =
+        (retrySeconds % 60 == 0)
+            ? (retrySeconds / 60) + (retrySeconds == 60 ? " minute" : " minutes")
+            : retrySeconds + " s";
+    String held =
+        "Workspace provisioning failed: " + reason + ". Retrying in " + retryIn + " (attempt " + attempt + " of "
+            + EngineConstants.MAX_PROVISION_ATTEMPTS + ").";
+    boolean applied =
+        workflowRunStateHelper.tryHoldFailedProvision(
+            workflowRunId, attempt, held, new Date(System.currentTimeMillis() + provisionRetryMillis));
+    if (applied) {
+      LOGGER.warn("[{}] {}", workflowRunId, held);
+    }
+    return applied;
+  }
 
   // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
   // running and queued ones are ended, pending ones queued so the admission gate skips them.

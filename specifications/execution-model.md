@@ -115,13 +115,13 @@ is re-admitted through the same `queue`, which drops the message, and started wh
 (`engine/ConcurrencyAdmissionListener.java:33`, `readmit` `:172`, `tryAdmit` `engine/WorkflowRunStateHelper.java:160`),
 the `readmitParkedRuns` sweep being the fallback. A limit below 1 is refused at save (`workflow/WorkflowService.java:467`).
 
-A dispatcher that fails to provision, or dies holding the claim, tells the engine nothing; the run stays
-`ready/queued` and claimed (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:38-49`).
-The `recoverStaleProvisionClaims` sweep releases a claim older than `flow.watcher.provision-claim-grace-ms`
-(5 minutes) for the next poll, and once `claim.seq` shows the third claim went stale it completes the run `failed`
-with "Workspace provisioning did not complete after 3 attempts." in `statusMessage` and no `statusReason`, both
-writes fenced on the observed `claim.seq` so a start or a fresh claim wins (`engine/WorkflowWatcher.java:411-442`,
-`engine/WorkflowRunStateHelper.java:108-156`).
+A dispatcher that fails to provision reports the cause (`dispatcher/DispatcherControllerV1.java:187`,
+`dispatcher-sdk/.../WorkflowRunner.java:56-72`). Below the third attempt the engine keeps the claim, says "Retrying in 1
+minute (attempt n of 3)" in `statusMessage` and ends the claim's lease after `flow.watcher.provision-retry-ms` (60 s);
+the third fails the run with the cause (`engine/WorkflowExecutionService.java:369`). A claim a dispatcher dies holding
+is released by `recoverStaleProvisionClaims` once older than `flow.watcher.provision-claim-grace-ms` (5 minutes) or past
+its lease, failing the run after a third (`engine/WorkflowWatcher.java:434`). Every write is fenced on `claim.seq`; a
+start clears `statusMessage` (`engine/WorkflowRunStateHelper.java:140,256`).
 
 ## The watcher sweeps
 
@@ -131,13 +131,17 @@ Most sweeps page 50 documents (`EngineConstants.SWEEP_PAGE_SIZE`), and each runs
 the rest (`:159-175`). The stalled-run, for-each and stray-action sweeps resume where their last page ended and wrap
 to the oldest, each instance keeping its own cursors (`engine/SweepCursor.java:12-20`), so candidates a sweep leaves alone cannot hide the ones behind them.
 
+Due waits (a finished sleep, an `acquirelock` retry) skip the 30 s sweep: `DueWaitPoller` resumes them every
+`flow.watcher.wait-interval-ms` (1 s) on its own thread (`engine/DueWaitPoller.java:21,60`). A resume claims a wait by
+moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engine/TaskRunService.java:941`).
+
 | Sweep | Selects | Does |
 | --- | --- | --- |
 | `reapTaskTimeouts` (`WorkflowWatcher.java:218`) | `queued`/`running` task runs past `timeoutAt` (`TaskRunService.java:607-618`) | requeue or abandon (`WorkflowWatcher.java:504-521`): a requeueable type with fewer than 3 requeues is requeued (`TaskRunService.java:735`); otherwise it is marked `timedout` with `DeadlineExceeded`, only while its deadline has passed (`TaskRunService.java:693-713`), and ended |
 | `reapWorkflowTimeouts` (`WorkflowWatcher.java:238`) | `pending` and `running` runs past `timeoutAt`, neither paused nor waiting (`WorkflowRunStateHelper.java:299-315`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:915`) |
 | `recoverStalledRuns` (`WorkflowWatcher.java:248`) | unpaused `running` runs started over 60 s ago (`WorkflowRunStateHelper.java:315-333`) with no task run in flight on two consecutive sweeps, checked for the page in one read (`TaskRunService.java:675-686`); one empty sighting is what a run between a task's end and the next admission looks like | re-drives the graph advance (`TaskExecutionService.java:643-663`) |
 | `recoverForeachTasks` (`WorkflowWatcher.java:281`) | for-each parents in the `running` phase for over 60 s, whatever their status (`TaskRunService.java:462-485`) | ends a parent whose outcome is recorded; re-runs the idempotent fan-out (`TaskExecutionService.java:704-739`) for one with no item in flight (`TaskRunService.java:509-519`) in an unpaused run. A paused run is skipped, since the pause gate would refuse every item; resume re-runs the fan-out |
-| `resumeDueWaitingTasks` (`WorkflowWatcher.java:319`) | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:825-832`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:873-881`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1075-1100`) |
+| `resumeDueWaitingTasks` (`WorkflowWatcher.java:341`), run by `DueWaitPoller` every second rather than in the sweep | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:891-897`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:941`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1111-1135`) |
 | `cancelDeletedWorkflowRuns` (`WorkflowWatcher.java:336`) | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel |
 | `pruneDeletedWorkflows` (`WorkflowWatcher.java:357`) | a page of deleted workflows with no run in flight (`WorkflowRetentionService.java:137-170`) | purges each run as retention does (`WorkflowRetentionService.java:194-201`), then deletes the workflow's artifacts, leftover task runs, revisions, schedules, actions and relationship node, then the workflow; audit records stay |
 | `reapRunsWithMissingRevision` (`WorkflowWatcher.java:367`) | in-flight runs whose `workflowRevisionRef` no longer resolves: the distinct in-flight refs minus those that exist, then a page of the runs holding them (`WorkflowRunStateHelper.java:372-392`) | completes the run `invalid` and winds its stored task runs down as a cancel does: queued and running ones are ended, pending ones queued so they skip (`WorkflowExecutionService.java:265-303`) |
@@ -181,18 +185,17 @@ and moves `timeoutAt` forward by the time waited (`:268-293`, called at `:352`, 
 `duration` is execution time (`engine/RunTimeouts.java:28-42`); a gate nobody answers leaves the run active until cancelled.
 
 **A wait is indefinite unless its task declares a timeout.** A waiting-type task's budget is its own declared timeout
-alone (`engine/TaskExecutionService.java:342-345`, `:431-446`); one that declares none has no `timeoutAt`, and one
-that does is reaped like any task and times out its run. That timeout is left out of the critical path that floors
-the run budget (`workflow/RunTimeoutPolicy.java:145-149`), so a gate that may sit for an hour does not force the run
-to ask for one.
+alone (`engine/TaskExecutionService.java:342-345`, `:431-446`): without one it has no `timeoutAt`; with one it is reaped
+like any task and times out its run. That timeout is left out of the critical path that floors the run budget
+(`workflow/RunTimeoutPolicy.java:145-149`), so an hour-long gate does not make the run ask for an hour.
 
 A run's timeout is settled at submit, on the path every run creation passes through
 (`workflow/WorkflowService.java:1876-1884`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
 revision's, else the run-duration quota itself, the workspace's own limit or else the platform
 `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the revision's critical path, the longest chain of
 declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's
-maximum run duration then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting
-no maximum (`:83-93`).
+maximum run duration then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no
+maximum (`:83-93`).
 
 ## Retry
 
@@ -311,13 +314,12 @@ dead by default, and `PUT /api/v2/system/outbox/replay` puts the named rows, or 
 Cron and run-once schedules fire from `ScheduleWatcher` on every instance: once at boot, then every
 `flow.schedule.watcher.interval-ms` (30 s) after a random start delay, behind its own switch
 `flow.schedule.watcher.enabled` (`schedule/ScheduleWatcher.java:44-77`). `fireDueSchedules` wins each due fire with
-`tryClaimFire`, a compare-and-set fenced on the observed `nextFireAt` that advances it to the next occurrence from
-now, so a backlog collapses to one fire (`:110-126`, `schedule/ScheduleService.java:477-490`); a failed submit is
-re-armed with the shared backoff, 3 attempts in all (`schedule/ScheduleWatcher.java:134-158`). Occurrences use
-cron-utils' five-field UNIX definition: `CronService.toUnix` reads a stored cron in any form, a six- or seven-field
-Quartz expression (the v3 form) or a `cron` schedule's "0 mm HH * DAYS" order (`schedule/CronService.java:31-49`),
-when a schedule is saved, fired and drawn on the calendar (`schedule/ScheduleService.java:305-306`, `:421-446`). An
-expression it cannot read never fires.
+`tryClaimFire`, a compare-and-set fenced on the observed `nextFireAt` that advances it to the next occurrence from now,
+so a backlog collapses to one fire (`:110-126`, `schedule/ScheduleService.java:477-490`); a failed submit is re-armed
+with the shared backoff, 3 attempts in all (`schedule/ScheduleWatcher.java:134-158`). Occurrences use cron-utils'
+five-field UNIX definition: `CronService.toUnix` reads any stored form, six- or seven-field Quartz (the v3 form) or a
+`cron` schedule's "0 mm HH * DAYS" (`schedule/CronService.java:31-49`), on save, fire and calendar
+(`schedule/ScheduleService.java:305-306`, `:421-446`); an expression it cannot read never fires.
 
 ## Child workflows
 
@@ -343,13 +345,13 @@ before the submit, so a child that finishes at once finds its parent waiting (`e
 
 **Ending the parent.** `ChildWorkflowRunListener` handles each `WorkflowRunTransition` into `completed`: when the run
 has `trigger=task` and the named task run is still `waiting`, it calls `TaskRunService.end`, so the completion
-compare-and-set ends the task once however often the transition arrives. A `succeeded` child succeeds the task and
-hands it the child's results, so a downstream `$(tasks.x.results.y)` reads them; any other status fails it with
-"Child run `<id>` ended `<status>`" and `ChildRunFailed` (`engine/ChildWorkflowRunListener.java:61-127`). A for-each
-item is ended the same way. When a run ends `cancelled` or `timedout`, the same listener cancels every child run
-whose `initiatedByRef` is one of its task-run ids and whose phase is still `pending`, `queued` or `running`, read
-through the `initiated_by_phase` index (`:134-155`); a cancelled child publishes its own transition, so a nested chain
-unwinds from the top. Pause does not cascade.
+compare-and-set ends the task once however often the transition arrives. A `succeeded` child succeeds the task and hands
+it the child's results, so a downstream `$(tasks.x.results.y)` reads them; any other status fails it with "Child run
+`<id>` ended `<status>`" and `ChildRunFailed` (`engine/ChildWorkflowRunListener.java:61-127`). A for-each item is ended
+the same way. When a run ends `cancelled` or `timedout`, the same listener cancels every child run whose
+`initiatedByRef` is one of its task-run ids and whose phase is still `pending`, `queued` or `running`, read through the
+`initiated_by_phase` index (`:134-155`); a cancelled child publishes its own transition, so a nested chain unwinds from
+the top. Pause does not cascade.
 
 ## For-each tasks
 

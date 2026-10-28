@@ -1,8 +1,10 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
@@ -27,6 +29,7 @@ class StaleProvisionClaimTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowRunStateHelper workflowRunStateHelper;
   @Autowired private WorkflowWatcher workflowWatcher;
+  @Autowired private WorkflowExecutionService workflowExecutionService;
   @Autowired private MongoTemplate mongoTemplate;
 
   @Test
@@ -84,9 +87,85 @@ class StaleProvisionClaimTest extends AbstractEngineIntegrationTest {
         "a failed run is never claimable again");
   }
 
+  @Test
+  void aReportedFailureHoldsTheClaimWithItsReasonUntilTheRetryDelayEnds() {
+    String runId = claimableRun("reported-provision-hold");
+    assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER));
+
+    assertTrue(workflowExecutionService.reportProvisionFailure(runId, DISPATCHER, "Connection refused"));
+
+    WorkflowRunEntity held = workflowRunRepository.findById(runId).orElseThrow();
+    assertEquals(RunPhase.queued, held.getPhase());
+    assertEquals(DISPATCHER, held.getClaim().getBy());
+    assertEquals(
+        "Workspace provisioning failed: Connection refused. Retrying in 1 minute (attempt 1 of 3).",
+        held.getStatusMessage());
+    assertTrue(held.getClaim().getLeaseExpiresAt().after(new Date()), "the next attempt waits out the delay");
+    workflowWatcher.recoverStaleProvisionClaims();
+    assertEquals(RunPhase.queued, workflowRunRepository.findById(runId).orElseThrow().getPhase());
+
+    endLease(runId);
+    workflowWatcher.recoverStaleProvisionClaims();
+
+    WorkflowRunEntity released = workflowRunRepository.findById(runId).orElseThrow();
+    assertEquals(RunPhase.pending, released.getPhase());
+    assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER), "the next poll retries");
+  }
+
+  @Test
+  void theLastReportedFailureFailsTheRunWithItsReason() {
+    String runId = claimableRun("reported-provision-fail");
+    for (int attempt = 1; attempt < 3; attempt++) {
+      assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER));
+      assertTrue(workflowExecutionService.reportProvisionFailure(runId, DISPATCHER, "Connection refused"));
+      endLease(runId);
+      workflowWatcher.recoverStaleProvisionClaims();
+    }
+    assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER));
+
+    assertTrue(workflowExecutionService.reportProvisionFailure(runId, DISPATCHER, "Connection refused"));
+
+    WorkflowRunEntity failed = workflowRunRepository.findById(runId).orElseThrow();
+    assertEquals(RunStatus.failed, failed.getStatus());
+    assertEquals(RunPhase.completed, failed.getPhase());
+    assertEquals("Workspace provisioning failed after 3 attempts: Connection refused", failed.getStatusMessage());
+  }
+
+  @Test
+  void aReportForARunTheDispatcherNoLongerHoldsIsIgnored() {
+    String runId = claimableRun("reported-provision-other");
+    assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER));
+
+    assertFalse(workflowExecutionService.reportProvisionFailure(runId, "another-dispatcher", "Connection refused"));
+
+    WorkflowRunEntity run = workflowRunRepository.findById(runId).orElseThrow();
+    assertNull(run.getStatusMessage());
+    assertNull(run.getClaim().getLeaseExpiresAt());
+  }
+
+  @Test
+  void aStartClearsTheRetryingMessage() {
+    String runId = claimableRun("reported-provision-start");
+    assertNotNull(workflowRunStateHelper.tryClaimForProvision(runId, DISPATCHER));
+    assertTrue(workflowExecutionService.reportProvisionFailure(runId, DISPATCHER, "Connection refused"));
+
+    assertNotNull(workflowRunStateHelper.tryStart(runId, new Date(), null));
+
+    assertNull(workflowRunRepository.findById(runId).orElseThrow().getStatusMessage());
+  }
+
+  private void endLease(String runId) {
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(runId)),
+        new Update().set("claim.leaseExpiresAt", new Date(System.currentTimeMillis() - 1000)),
+        WorkflowRunEntity.class);
+  }
+
   private String claimableRun(String workflowRef) {
     WorkflowRunEntity run = new WorkflowRunEntity();
     run.setWorkflowRef(workflowRef);
+    // A revision that does not resolve: a failed run winds down what is stored.
+    run.setWorkflowRevisionRef("missing-revision");
     run.setStatus(RunStatus.ready);
     run.setPhase(RunPhase.pending);
     run.setCreationDate(new Date());

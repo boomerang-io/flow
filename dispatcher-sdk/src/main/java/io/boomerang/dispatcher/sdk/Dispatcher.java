@@ -340,7 +340,7 @@ public final class Dispatcher implements AutoCloseable {
       pollers.add(fullPoll);
     }
     if (workflowHandler != null) {
-      WorkflowRunner runner = new WorkflowRunner(client, workflowHandler, work);
+      WorkflowRunner runner = new WorkflowRunner(client, workflowHandler, work, () -> id);
       pollers.add(
           new QueuePoller<WorkflowRun>(
               "workflows",

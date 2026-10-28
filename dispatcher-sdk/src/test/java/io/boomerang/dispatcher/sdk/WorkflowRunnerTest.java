@@ -34,7 +34,8 @@ class WorkflowRunnerTest {
               assertThat(engine.workflowStarts).isEmpty();
               provisioned.add(run.getId());
             },
-            Runnable::run)
+            Runnable::run,
+            () -> "d-1")
         .accept(workflowRun(RunPhase.queued));
 
     assertThat(provisioned).containsExactly("wf-1");
@@ -44,7 +45,7 @@ class WorkflowRunnerTest {
   @Test
   void aCompletedRunIsIgnored() {
     // Storage is released by asking the engine which owners are finished, not by the queue.
-    new WorkflowRunner(engine, run -> provisioned.add(run.getId()), Runnable::run)
+    new WorkflowRunner(engine, run -> provisioned.add(run.getId()), Runnable::run, () -> "d-1")
         .accept(workflowRun(RunPhase.completed));
 
     assertThat(provisioned).isEmpty();
@@ -52,16 +53,19 @@ class WorkflowRunnerTest {
   }
 
   @Test
-  void aRunThatCannotBeProvisionedIsNotStarted() {
-    // The engine releases the stale claim after a grace and hands the run out again.
+  void aRunThatCannotBeProvisionedIsNotStartedAndItsCauseIsReported() {
+    // The engine shows the innermost cause on the run and decides whether to retry.
     new WorkflowRunner(
             engine,
             run -> {
-              throw new IllegalStateException("PVC refused");
+              throw new IllegalStateException(
+                  "An error has occurred.", new java.net.ConnectException("Connection refused"));
             },
-            Runnable::run)
+            Runnable::run,
+            () -> "d-1")
         .accept(workflowRun(RunPhase.queued));
 
     assertThat(engine.workflowStarts).isEmpty();
+    assertThat(engine.provisionFailures).containsExactly("d-1 wf-1: Connection refused");
   }
 }

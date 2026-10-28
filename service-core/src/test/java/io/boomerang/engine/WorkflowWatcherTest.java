@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -362,6 +363,61 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
                 assertEquals(
                     RunStatus.succeeded,
                     taskRunRepository.findById(taskRunId).orElseThrow().getStatus()));
+  }
+
+  @Test
+  void aWaitClaimedByAnInstanceThatStoppedIsResumedOnceTheLeasePasses() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("lease-wf", RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun("napper", TaskType.sleep, RunStatus.waiting, RunPhase.running, wfRun.getWorkflowRef(), wfRun.getId())
+            .getId();
+    setWaitUntil(taskRunId, new Date(System.currentTimeMillis() - 1000));
+
+    // An instance claims the due wait and stops before resuming it: the claim moves waitUntil a
+    // lease ahead, so a second claim loses until the lease passes.
+    assertTrue(taskRunService.tryStartWaitingResume(taskRunId));
+    Date leased = taskRunRepository.findById(taskRunId).orElseThrow().getWaitUntil();
+    assertTrue(leased.after(new Date()), "the claim moves waitUntil a lease ahead");
+    assertFalse(taskRunService.tryStartWaitingResume(taskRunId));
+
+    setWaitUntil(taskRunId, new Date(System.currentTimeMillis() - 1000));
+    watcher.resumeDueWaitingTasks();
+
+    awaitEngine("the stranded sleep to complete once its lease passed")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = taskRunRepository.findById(taskRunId).orElseThrow();
+              assertEquals(RunStatus.succeeded, task.getStatus());
+              assertNull(task.getWaitUntil(), "the end clears waitUntil, keeping the sparse index to open waits");
+            });
+  }
+
+  @Test
+  void theDueWaitPollerEndsASleepOnTimeNotAtTheNextSweep() {
+    WorkflowRunEntity wfRun = savedWorkflowRun("poller-wf", RunStatus.running, RunPhase.running);
+    String taskRunId =
+        savedTaskRun("napper", TaskType.sleep, RunStatus.waiting, RunPhase.running, wfRun.getWorkflowRef(), wfRun.getId())
+            .getId();
+    long due = System.currentTimeMillis() + 500;
+    setWaitUntil(taskRunId, new Date(due));
+    // The context's watcher is switched off for tests; this poller runs as production's does.
+    DueWaitPoller poller = new DueWaitPoller(watcher, true, 100);
+    poller.start();
+    try {
+      Awaitility.await("the sleep to end within about a second of its due time")
+          .atMost(Duration.ofSeconds(2))
+          .pollInterval(Duration.ofMillis(50))
+          .untilAsserted(
+              () -> assertEquals(RunStatus.succeeded, taskRunRepository.findById(taskRunId).orElseThrow().getStatus()));
+    } finally {
+      poller.stop();
+    }
+    assertTrue(System.currentTimeMillis() >= due, "not before its due time");
+  }
+
+  private void setWaitUntil(String taskRunId, Date waitUntil) {
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(taskRunId)), new Update().set("waitUntil", waitUntil), TaskRunEntity.class);
   }
 
   @Test

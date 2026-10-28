@@ -58,6 +58,7 @@ security-off synthetic identity, independent of `flow.security.enabled` (`author
 | Register once at startup | `POST /register` | the dispatcher id, used in every later path and request |
 | Ask for storage work | `GET /{id}/workflows` (long poll) | workflow runs to provision |
 | Report storage ready | `PUT /workflowrun/{id}/start` | — |
+| Report storage failed | `PUT /{id}/workflowrun/{workflowRunId}/provision-failed` `{message}` | — (204); retried after a delay or the run failed |
 | Ask for task work | `GET /{id}/tasks` (long poll) | task runs to run or to terminate |
 | Say a task is starting | `PUT /taskrun/{id}/start` | the task run, which says whether to go on |
 | Keep long tasks alive | `PUT /{id}/heartbeat` | — |
@@ -282,8 +283,14 @@ carried on the wire; the SDK derives it, and gives none when either id is not 24
 
 `GET /{id}/workflows` hands out workflow runs that declare a workspace, claimed for provisioning
 (`engine/WorkflowRunStateHelper.java:57-73`); the dispatcher provisions the run's one volume and calls
-`PUT /workflowrun/{id}/start`. A provisioning failure is reported by not starting: the engine releases the claim after
-a grace and fails the run after three attempts (`engine/WorkflowWatcher.java:61-62`). `POST /workspaces/releasable`
+`PUT /workflowrun/{id}/start`. A dispatcher that cannot provision SHOULD report it with
+`PUT /{id}/workflowrun/{workflowRunId}/provision-failed` and the cause in `message` (`dispatcher/DispatcherControllerV1.java:187`):
+the run shows the cause, the claim is released for the next attempt after `flow.watcher.provision-retry-ms` (60 s),
+and the third attempt fails the run (`engine/WorkflowExecutionService.java:369`). A report for a run the dispatcher
+does not hold is ignored. One that never reports, or dies holding the claim, is released after a 5-minute grace and the
+run failed after three attempts (`engine/WorkflowWatcher.java:434`). The SDK reports the innermost cause of a failed
+`WorkflowHandler.provision` (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:56-72`).
+`POST /workspaces/releasable`
 takes the run ids the dispatcher holds volumes for (500 at most, else 400) and answers with those whose run is
 completed or gone (`dispatcher/DispatcherService.java:61`, `:498-531`). A dispatcher that runs nothing on shared
 storage MAY skip both.

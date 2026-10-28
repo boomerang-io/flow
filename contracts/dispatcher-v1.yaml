@@ -10,6 +10,39 @@ tags:
   description: "Manage Dispatcher operations. Register dispatcher. Check for WorkflowRuns\
     \ and TaskRuns"
 paths:
+  /dispatcher/v1/{id}/workflowrun/{workflowRunId}/provision-failed:
+    put:
+      tags:
+      - "Dispatcher"
+      summary: "Report that a claimed WorkflowRun's workspace could not be provisioned.\
+        \ The reason shows on the run; the engine retries after a delay or, on the\
+        \ last attempt, fails the run. A report for a run the dispatcher no longer\
+        \ holds is ignored."
+      operationId: "provisionFailed"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Dispatcher ID"
+        required: true
+        schema:
+          type: "string"
+      - name: "workflowRunId"
+        in: "path"
+        description: "ID of the claimed WorkflowRun"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionFailureRequest"
+        required: true
+      responses:
+        "204":
+          description: "No Content"
+        "400":
+          description: "Bad Request"
   /dispatcher/v1/{id}/heartbeat:
     put:
       tags:
@@ -342,6 +375,11 @@ paths:
                   $ref: "#/components/schemas/DispatchTaskRun"
 components:
   schemas:
+    ProvisionFailureRequest:
+      type: "object"
+      properties:
+        message:
+          type: "string"
     HeartbeatRequest:
       type: "object"
       properties:

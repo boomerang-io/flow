@@ -102,9 +102,10 @@ public class WorkflowRunStateHelper {
     return preImage;
   }
 
-  // Return the page of provisioning claims taken before claimedBefore that never reached start,
-  // oldest first. Served by claim_page {status, phase, creationDate}; claim.at filters the small
-  // ready/queued bucket.
+  // Return the page of provisioning claims that never reached start and are done with: taken
+  // before claimedBefore, or held after a reported failure until a lease that has now ended.
+  // Oldest first. Served by claim_page {status, phase, creationDate}; the claim times filter the
+  // small ready/queued bucket.
   public List<WorkflowRunEntity> findStaleProvisionClaims(Date claimedBefore, int limit) {
     Query query =
         Query.query(
@@ -112,8 +113,9 @@ public class WorkflowRunStateHelper {
                     .is(RunStatus.ready)
                     .and("phase")
                     .is(RunPhase.queued)
-                    .and("claim.at")
-                    .lte(claimedBefore))
+                    .orOperator(
+                        Criteria.where("claim.at").lte(claimedBefore),
+                        Criteria.where("claim.leaseExpiresAt").lte(new Date())))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
@@ -130,6 +132,14 @@ public class WorkflowRunStateHelper {
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");
     return cas(provisionClaimed(id, observedSeq), update, null, RunPhase.pending);
+  }
+
+  // Hold a provisioning claim whose dispatcher reported the attempt failed: the reason goes on the
+  // run, and the claim's lease ends at retryAt, when the stale-claim sweep releases it for the next
+  // attempt. Fenced like the release; status and phase are unchanged, so no transition fires.
+  public boolean tryHoldFailedProvision(String id, long observedSeq, String statusMessage, Date retryAt) {
+    Update update = new Update().set("statusMessage", statusMessage).set("claim.leaseExpiresAt", retryAt);
+    return mongoTemplate.updateFirst(provisionClaimed(id, observedSeq), update, WorkflowRunEntity.class).getModifiedCount() > 0;
   }
 
   // Fail a run whose provisioning attempts are spent, fenced like the release.
@@ -253,6 +263,8 @@ public class WorkflowRunStateHelper {
             .set("status", RunStatus.running)
             .set("phase", RunPhase.running)
             .set("startTime", startTime)
+            // A provisioning attempt's 'retrying' message is over once the run starts.
+            .unset("statusMessage")
             .unset("claim.by")
             .unset("claim.at")
             .unset("claim.leaseExpiresAt");

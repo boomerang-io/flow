@@ -265,6 +265,19 @@ class DispatcherClientTest {
   }
 
   @Test
+  void reportProvisionFailureSendsTheCauseForTheDispatchersClaim() {
+    server
+        .expect(requestTo(ENGINE + "/d-1/workflowrun/w-1/provision-failed"))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(jsonBody("{\"message\":\"Connection refused\"}"))
+        .andRespond(withSuccess());
+
+    client.reportProvisionFailure("d-1", "w-1", "Connection refused");
+
+    server.verify();
+  }
+
+  @Test
   void releasableAsksWithTheHeldOwnersAndReadsTheAnswer() {
     server
         .expect(requestTo(ENGINE + "/workspaces/releasable"))

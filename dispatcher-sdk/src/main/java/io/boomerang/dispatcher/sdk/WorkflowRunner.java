@@ -4,13 +4,15 @@ import io.boomerang.dispatcher.sdk.model.RunPhase;
 import io.boomerang.dispatcher.sdk.model.RunStatus;
 import io.boomerang.dispatcher.sdk.model.WorkflowRun;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
  * One claimed workflow run: provision it on a virtual thread, then tell the engine it may start.
  * A run arrives already {@code queued} - the claim is the pickup - so only a queued, ready run is
- * provisioned; a failure reports nothing and the engine hands the run out again after a grace.
+ * provisioned. A failure is reported with its cause, and the engine decides whether to hand the
+ * run out again.
  */
 final class WorkflowRunner {
 
@@ -19,11 +21,13 @@ final class WorkflowRunner {
   private final DispatcherClient client;
   private final WorkflowHandler handler;
   private final Executor executor;
+  private final Supplier<String> dispatcherId;
 
-  WorkflowRunner(DispatcherClient client, WorkflowHandler handler, Executor executor) {
+  WorkflowRunner(DispatcherClient client, WorkflowHandler handler, Executor executor, Supplier<String> dispatcherId) {
     this.client = client;
     this.handler = handler;
     this.executor = executor;
+    this.dispatcherId = dispatcherId;
   }
 
   /** Take one claim off a poll. Returns at once; the work runs on a virtual thread. */
@@ -42,9 +46,28 @@ final class WorkflowRunner {
       handler.provision(run);
       client.startWorkflowRun(run.getId());
     } catch (Exception e) {
-      // The run stays claimed; the engine releases a stale provisioning claim for another attempt
-      // and fails the run once its attempts are spent.
       LOGGER.error("WorkflowRun (" + run.getId() + ") could not be provisioned.", e);
+      report(run, e);
     }
+  }
+
+  // Best effort: an engine without the route, or one out of reach, leaves the run claimed, and the
+  // engine releases the stale claim after its grace as it always has.
+  private void report(WorkflowRun run, Exception failure) {
+    try {
+      client.reportProvisionFailure(dispatcherId.get(), run.getId(), rootCause(failure));
+    } catch (Exception e) {
+      LOGGER.warn("WorkflowRun (" + run.getId() + ") provisioning failure could not be reported: " + e.getMessage());
+    }
+  }
+
+  // The innermost cause is the one a person can act on ("Connection refused"), not the client
+  // library's wrapper ("An error has occurred.").
+  static String rootCause(Throwable failure) {
+    Throwable root = failure;
+    while (root.getCause() != null && root.getCause() != root) {
+      root = root.getCause();
+    }
+    return (root.getMessage() != null && !root.getMessage().isBlank()) ? root.getMessage() : root.getClass().getSimpleName();
   }
 }

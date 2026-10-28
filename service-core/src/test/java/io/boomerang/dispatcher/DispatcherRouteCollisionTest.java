@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.WorkflowExecutionService;
 import io.boomerang.workflow.WorkflowRunService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +59,8 @@ class DispatcherRouteCollisionTest {
     when(dispatcherService.startTaskRun(any(), any())).thenReturn(ResponseEntity.ok(new TaskRun()));
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new DispatcherControllerV1(dispatcherService, workflowRunService, taskRunService))
+                new DispatcherControllerV1(
+                    dispatcherService, workflowRunService, taskRunService, mock(WorkflowExecutionService.class)))
             .build();
   }
 

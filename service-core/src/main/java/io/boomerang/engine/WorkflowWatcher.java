@@ -71,7 +71,7 @@ public class WorkflowWatcher {
   private static final int MAX_RETRIES = EngineConstants.MAX_RETRIES;
 
   // A run is provisioned at most this many times; a stale claim on the last attempt fails it.
-  private static final int MAX_PROVISION_ATTEMPTS = 3;
+  private static final int MAX_PROVISION_ATTEMPTS = EngineConstants.MAX_PROVISION_ATTEMPTS;
 
   private static final List<RunPhase> IN_FLIGHT_PHASES =
       List.of(RunPhase.pending, RunPhase.queued, RunPhase.running);
@@ -175,7 +175,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("reapWorkflowTimeouts", this::reapWorkflowTimeouts, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStalledRuns", this::recoverStalledRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverForeachTasks", this::recoverForeachTasks, WorkflowWatcher::logSweepFailure);
-    SweepRunner.runIsolated("resumeDueWaitingTasks", this::resumeDueWaitingTasks, WorkflowWatcher::logSweepFailure);
+    // Due waits are not swept here: DueWaitPoller resumes them about once a second.
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);

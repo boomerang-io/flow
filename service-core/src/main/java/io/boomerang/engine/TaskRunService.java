@@ -639,6 +639,7 @@ public class TaskRunService {
         .set("phase", RunPhase.completed)
         .set("duration", duration)
         .unset("timeoutAt")
+        .unset("waitUntil")
         .unset("claim.leaseExpiresAt");
   }
 
@@ -933,16 +934,16 @@ public class TaskRunService {
     return mongoTemplate.updateFirst(query, update, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
-  // Claim a due waiting TaskRun for resume: clears waitUntil so a second instance's sweep skips
-  // it. Returns whether this caller won (the winner resumes).
+  // Claim a due waiting TaskRun for resume by moving waitUntil a lease ahead, so another
+  // instance's poll skips it while this one resumes, and any instance resumes it once the lease
+  // passes if this one stops before the task ends (its end clears waitUntil). Returns whether
+  // this caller won (the winner resumes).
   public boolean tryStartWaitingResume(String id) {
+    Date now = new Date();
     Query query =
-        Query.query(
-            Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(new Date()));
-    return mongoTemplate
-            .updateFirst(query, new Update().unset("waitUntil"), TaskRunEntity.class)
-            .getModifiedCount()
-        > 0;
+        Query.query(Criteria.where("_id").is(id).and("status").is(RunStatus.waiting).and("waitUntil").lte(now));
+    Update lease = new Update().set("waitUntil", new Date(now.getTime() + EngineConstants.WAIT_RESUME_LEASE_MILLIS));
+    return mongoTemplate.updateFirst(query, lease, TaskRunEntity.class).getModifiedCount() > 0;
   }
 
   // The in-memory view of the claim block after a winning claim Compare-And-Set (by/at set, seq

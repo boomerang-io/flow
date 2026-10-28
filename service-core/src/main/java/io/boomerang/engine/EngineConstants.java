@@ -16,6 +16,12 @@ public final class EngineConstants {
   public static final int SWEEP_PAGE_SIZE = 50;
 
   /**
+   * How long a claimed due wait (a sleep, an acquirelock retry) stays claimed: an instance that
+   * stops before the task ends leaves it due again after this, for any instance to resume.
+   */
+  public static final long WAIT_RESUME_LEASE_MILLIS = 60_000L;
+
+  /**
    * The dispatched types the engine requeues for another attempt: on timeout (the crash recovery
    * for a killed claimant), and when a dispatcher reports it could not start the task. Gates,
    * waits and inline system tasks time out terminally, as they always have.
@@ -32,6 +38,9 @@ public final class EngineConstants {
 
   /** Attempts a requeueable task gets beyond its first before it fails. */
   public static final int MAX_RETRIES = 3;
+
+  /** Claims a workflow run's workspace provisioning gets before the run fails. */
+  public static final int MAX_PROVISION_ATTEMPTS = 3;
 
   /** The most retries of a reported failure a task node may ask for ({@code retry.max}). */
   public static final int MAX_FAILURE_RETRIES = 10;

@@ -34,6 +34,7 @@ class FakeEngine extends DispatcherClient {
   final Map<String, List<TaskRunEndRequest>> ends = new ConcurrentHashMap<>();
   final List<List<String>> heartbeats = new CopyOnWriteArrayList<>();
   final List<String> workflowStarts = new CopyOnWriteArrayList<>();
+  final List<String> provisionFailures = new CopyOnWriteArrayList<>();
   final List<String> taskPollIds = new CopyOnWriteArrayList<>();
   final List<Integer> taskPollLimits = new CopyOnWriteArrayList<>();
   final List<TaskFilter> taskPollFilters = new CopyOnWriteArrayList<>();
@@ -153,5 +154,10 @@ class FakeEngine extends DispatcherClient {
   @Override
   public void startWorkflowRun(String workflowRunId) {
     workflowStarts.add(workflowRunId);
+  }
+
+  @Override
+  public void reportProvisionFailure(String dispatcherId, String workflowRunId, String message) {
+    provisionFailures.add(dispatcherId + " " + workflowRunId + ": " + message);
   }
 }

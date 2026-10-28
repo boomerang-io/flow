@@ -3,6 +3,7 @@ package io.boomerang.dispatcher;
 import io.boomerang.core.security.AuthExempt;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.HeartbeatRequest;
+import io.boomerang.common.model.ProvisionFailureRequest;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
 import io.boomerang.common.model.WorkflowRunRequest;
@@ -11,6 +12,7 @@ import io.boomerang.common.model.WorkspaceReleaseResponse;
 import io.boomerang.dispatcher.model.DispatchTaskRun;
 import io.boomerang.dispatcher.model.DispatchWorkflowRun;
 import io.boomerang.engine.TaskRunService;
+import io.boomerang.engine.WorkflowExecutionService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -63,14 +65,17 @@ public class DispatcherControllerV1 {
   private final DispatcherService dispatcherService;
   private final WorkflowRunService workflowRunService;
   private final TaskRunService taskRunService;
+  private final WorkflowExecutionService workflowExecutionService;
 
   public DispatcherControllerV1(
       DispatcherService dispatcherService,
       WorkflowRunService workflowRunService,
-      TaskRunService taskRunService) {
+      TaskRunService taskRunService,
+      WorkflowExecutionService workflowExecutionService) {
     this.dispatcherService = dispatcherService;
     this.workflowRunService = workflowRunService;
     this.taskRunService = taskRunService;
+    this.workflowExecutionService = workflowExecutionService;
   }
 
   @PostMapping(value = "/register")
@@ -177,6 +182,28 @@ public class DispatcherControllerV1 {
           String workflowRunId,
       @RequestBody Optional<WorkflowRunRequest> runRequest) {
     return DispatchWorkflowRun.of(workflowRunService.start(workflowRunId, runRequest));
+  }
+
+  @PutMapping(value = "/{id}/workflowrun/{workflowRunId}/provision-failed")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Operation(
+      summary =
+          "Report that a claimed WorkflowRun's workspace could not be provisioned. The reason shows on"
+              + " the run; the engine retries after a delay or, on the last attempt, fails the run. A"
+              + " report for a run the dispatcher no longer holds is ignored.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "204", description = "No Content"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public void provisionFailed(
+      @Parameter(name = "id", description = "Dispatcher ID", required = true) @PathVariable
+          String id,
+      @Parameter(name = "workflowRunId", description = "ID of the claimed WorkflowRun", required = true)
+          @PathVariable
+          String workflowRunId,
+      @RequestBody ProvisionFailureRequest request) {
+    workflowExecutionService.reportProvisionFailure(workflowRunId, id, request.message());
   }
 
   @PostMapping(value = "/workspaces/releasable")

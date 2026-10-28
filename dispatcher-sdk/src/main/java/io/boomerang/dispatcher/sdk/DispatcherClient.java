@@ -2,6 +2,7 @@ package io.boomerang.dispatcher.sdk;
 
 import io.boomerang.dispatcher.sdk.model.DispatcherRegistrationRequest;
 import io.boomerang.dispatcher.sdk.model.HeartbeatRequest;
+import io.boomerang.dispatcher.sdk.model.ProvisionFailureRequest;
 import io.boomerang.dispatcher.sdk.model.TaskRun;
 import io.boomerang.dispatcher.sdk.model.TaskRunEndRequest;
 import io.boomerang.dispatcher.sdk.model.TaskRunStartRequest;
@@ -171,6 +172,19 @@ public class DispatcherClient {
         .uri("/{id}/heartbeat", dispatcherId)
         .contentType(MediaType.APPLICATION_JSON)
         .body(json(new HeartbeatRequest(taskRunIds)))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  /**
+   * {@code PUT /{id}/workflowrun/{workflowRunId}/provision-failed}: report that a claimed workflow
+   * run's storage could not be provisioned, and why.
+   */
+  public void reportProvisionFailure(String dispatcherId, String workflowRunId, String message) {
+    http.put()
+        .uri("/{id}/workflowrun/{workflowRunId}/provision-failed", dispatcherId, workflowRunId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(json(new ProvisionFailureRequest(message)))
         .retrieve()
         .toBodilessEntity();
   }
