@@ -12,7 +12,9 @@ import java.util.Map;
  * A task run as the engine hands it out, the contract's {@code DispatchTaskRun}: on a task poll and
  * as the start and end answers. With {@code phase} {@code queued} and {@code status} {@code ready}
  * it is an order to run; with {@code phase} {@code completed} and {@code status} {@code cancelled}
- * or {@code timedout} it is an order to terminate.
+ * or {@code timedout} it is an order to terminate. {@code attempt} says which attempt a run order
+ * is for and {@code attempts} how the earlier ones ended, so a dispatcher that applies its own
+ * retry budget can count them.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -33,6 +35,9 @@ public class TaskRun {
   private String workflowRef;
   private String workflowRunRef;
   private Integer index;
+  private String statusReason;
+  private Integer attempt;
+  private List<RunAttempt> attempts;
 
   /** Whether this is an order to run the task. */
   @JsonIgnore
@@ -194,6 +199,33 @@ public class TaskRun {
 
   public void setIndex(Integer index) {
     this.index = index;
+  }
+
+  /** On a terminate order, why the task ended; absent on a run order. */
+  public String getStatusReason() {
+    return statusReason;
+  }
+
+  public void setStatusReason(String statusReason) {
+    this.statusReason = statusReason;
+  }
+
+  /** The attempt this order is for: 1, plus one per requeue of any cause. */
+  public Integer getAttempt() {
+    return attempt;
+  }
+
+  public void setAttempt(Integer attempt) {
+    this.attempt = attempt;
+  }
+
+  /** The attempts a requeue superseded, oldest first; absent on a first attempt. */
+  public List<RunAttempt> getAttempts() {
+    return attempts;
+  }
+
+  public void setAttempts(List<RunAttempt> attempts) {
+    this.attempts = attempts;
   }
 
   // Params are left out: a param may carry a password.

@@ -139,6 +139,10 @@ tag's release notes.
 
 ### Added
 
+- The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
+  ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
+  and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever
+  the node's `retry` setting. The SDK's `TaskFailure.terminal` sends it. Additive, protocol version 1.
 - A task node can retry a failure its dispatcher reports: `retry: {max, backoff: {type, initial, max}}` on the
   node, edited on the task's Configure tab. The engine requeues the task on that budget with that backoff, never
   for a cause a retry cannot change (`ImageNotAllowed`, `AdmissionDenied`, `ResultsTooLarge` or an engine-written
@@ -368,6 +372,11 @@ tag's release notes.
 
 ### Fixed
 
+- The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
+  the edit pencil of 33 of the 89 seeded tasks.
+- A suggested workflow on Home can be created: a workflow template's tasks now read in their slug forms, as a
+  workflow's do, so the create route accepts its body. Every seeded template was refused with
+  `WORKFLOW_INVALID_TASK_REF`.
 - A task node's `timeout` set through the API or YAML survives a save from the editor: the canvas now carries it
   on the node, as it carries the workspace opt-out.
 
@@ -428,3 +437,6 @@ tag's release notes.
   interrupts a periodic upload in flight when the handler returns; it finishes first and the final log is the last
   one stored. The engine's log store replaces the record an overlapping upload stored instead of answering 500 on
   the run-and-name unique index.
+- The header's help menu lists Docs, Release Notes, Tutorial and About once each, each with an icon; it showed a
+  stray line, a second Docs, and Tutorial and Docs without icons. The profile menu names the user once.
+- About shows Flow's version, licence and source link; it opened empty.

@@ -71,6 +71,7 @@ jobs:
             *) TAGS="${TAGS},${IMAGE}:latest" ;;
           esac
           echo "TAGS=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@v6
@@ -80,6 +81,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: ${{ startsWith(github.ref, 'refs/tags/') }}
           tags: ${{ steps.get_version.outputs.TAGS }}
+          # service-core reports it as flow.version; the other two images ignore it.
+          build-args: FLOW_VERSION=${{ steps.get_version.outputs.VERSION }}
           # GitHub's layer cache, one scope per image, shared with the image builds in ci-e2e.yml
           # and ci-dispatcher.yml (a tag reads what main wrote).
           cache-from: type=gha,scope=${{ matrix.repo }}

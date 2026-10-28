@@ -20,6 +20,7 @@ public class WorkflowRun {
   private String workflowRef;
   private Map<String, String> labels = new HashMap<>();
   private WorkflowWorkspace workspace;
+  private String statusReason;
 
   public String getId() {
     return id;
@@ -67,6 +68,15 @@ public class WorkflowRun {
 
   public void setWorkspace(WorkflowWorkspace workspace) {
     this.workspace = workspace;
+  }
+
+  /** The typed cause the engine ended the run with, when it had one. */
+  public String getStatusReason() {
+    return statusReason;
+  }
+
+  public void setStatusReason(String statusReason) {
+    this.statusReason = statusReason;
   }
 
   @Override

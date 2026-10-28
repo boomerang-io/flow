@@ -77,6 +77,11 @@ COPY --from=train --chown=10001:0 $BMRG_HOME ./
 COPY --from=build --chown=10001:0 --chmod=0664 /build/health/Health.class Health.class
 USER 10001
 
+# The product tag the release built this image from; read as flow.version, it is the version the
+# webapp's About shows.
+ARG FLOW_VERSION=dev
+ENV FLOW_VERSION=$FLOW_VERSION
+
 EXPOSE 7700
 # No shell, so no `java $JAVA_OPTS`: the launcher reads JDK_JAVA_OPTIONS from the environment
 # instead, which is where a deployment puts heap and GC flags. Compact object headers (JEP 519)

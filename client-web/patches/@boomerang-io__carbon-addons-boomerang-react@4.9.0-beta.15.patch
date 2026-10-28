@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/components/FeatureNavTab/FeatureNavTab.js b/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
-index be79cbd27b27e83b41b5b6593ca722fc73c5f7e4..064acf023eaa9b9d7d0597f74d2965d40d9036a3 100644
+index be79cbd27b27e83b41b5b6593ca722fc73c5f7e4..41bd6b6aad0fd6b84ec330cdfbb71e486d53f358 100644
 --- a/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
 +++ b/dist/cjs/components/FeatureNavTab/FeatureNavTab.js
 @@ -23,8 +23,11 @@ function FeatureNavTab({ activeClassName = "", className = "", disabled = false,
@@ -16,7 +16,7 @@ index be79cbd27b27e83b41b5b6593ca722fc73c5f7e4..064acf023eaa9b9d7d0597f74d2965d4
  
  exports.default = FeatureNavTab;
 diff --git a/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js b/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
-index acacb7c32c1379c10d6ea1979c0b510a7c747724..2652091ab54f20ab022a2d9b103232e2ceb48bc9 100644
+index acacb7c32c1379c10d6ea1979c0b510a7c747724..d0e2b2e76de2c09c67d6cfe8d3165b3013ca542e 100644
 --- a/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
 +++ b/dist/cjs/components/FeatureSideNavLink/FeatureSideNavLink.js
 @@ -19,8 +19,11 @@ IBM Confidential
@@ -32,8 +32,22 @@ index acacb7c32c1379c10d6ea1979c0b510a7c747724..2652091ab54f20ab022a2d9b103232e2
              Icon && React__default.default.createElement(Icon, { ...iconProps }),
              React__default.default.createElement("div", { className: `${settings.prefix}--bmrg-feature-sidenav-link-content` }, children)),
          hasDivider && React__default.default.createElement("hr", { className: `${settings.prefix}--bmrg-feature-sidenav-link-divider` })));
+diff --git a/dist/cjs/components/UIShell/UIShell.js b/dist/cjs/components/UIShell/UIShell.js
+index e2be99d6989b8f7642407725475ec3c29a0ea1cd..473e43e01d8c5b26075d4cb348246858b026bb5e 100644
+--- a/dist/cjs/components/UIShell/UIShell.js
++++ b/dist/cjs/components/UIShell/UIShell.js
+@@ -91,7 +91,8 @@ function UIShell({ analyticsHelpers, baseEnvUrl, carbonTheme = "g10", config, cr
+                 //   text="Legal Terms"
+                 //   type="link"
+                 // />,
+-                React__default.default.createElement("span", { style: { borderBottom: "1px solid #b8c1c1" } }),
++                // A fixed-colour rule drawn under Release Notes whatever follows it - removed here
++                // (rather than upstream) so the help menu reads as one list.
+                 isCommunityEnabled && (React__default.default.createElement(HeaderMenuItem.default, { key: "community", href: platform?.communityUrl, icon: React__default.default.createElement(icons.Forum, null), kind: "external", text: "Community", type: "link" })),
+                 isFeedbackEnabled && (React__default.default.createElement(Feedback.FeedbackMenuItem, { key: "feedback", platformName: platform?.platformName, platformOrganization: platform?.platformOrganization, sendIdeasUrl: sendIdeasUrl, sendBluePointsAwardUrl: sendBluePointsAwardUrl })),
+                 !isPartnerUser && askICAEnabled ? (React__default.default.createElement(HeaderMenuItem.default, { key: "chat-launch", href: platform?.askICAUrl, icon: React__default.default.createElement(icons.ChatLaunch, null), "data-testid": "askICA-chatlaunch", kind: "external", text: "AskICA", type: "link" })) : null,
 diff --git a/dist/esm/components/FeatureNavTab/FeatureNavTab.js b/dist/esm/components/FeatureNavTab/FeatureNavTab.js
-index 4c9f8cb68fc934cf63806584075082f7a9c3de55..2137fabf52d579c73de4a74da512f463d77e4ec7 100644
+index 4c9f8cb68fc934cf63806584075082f7a9c3de55..126a0fd2bce577c4bf7bb048b01153e7b73fe8de 100644
 --- a/dist/esm/components/FeatureNavTab/FeatureNavTab.js
 +++ b/dist/esm/components/FeatureNavTab/FeatureNavTab.js
 @@ -14,8 +14,11 @@ function FeatureNavTab({ activeClassName = "", className = "", disabled = false,
@@ -50,7 +64,7 @@ index 4c9f8cb68fc934cf63806584075082f7a9c3de55..2137fabf52d579c73de4a74da512f463
  
  export { FeatureNavTab as default };
 diff --git a/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js b/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
-index b308a953b707e5dd5178ce28f918cb27b086cc6e..0a053e896b70ac99d960a67f02d4b86e535fefc8 100644
+index b308a953b707e5dd5178ce28f918cb27b086cc6e..40e09f7a02467aeacd5f6697b2333070f29ccbd0 100644
 --- a/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
 +++ b/dist/esm/components/FeatureSideNavLink/FeatureSideNavLink.js
 @@ -10,8 +10,11 @@ IBM Confidential
@@ -66,3 +80,17 @@ index b308a953b707e5dd5178ce28f918cb27b086cc6e..0a053e896b70ac99d960a67f02d4b86e
              Icon && React.createElement(Icon, { ...iconProps }),
              React.createElement("div", { className: `${prefix}--bmrg-feature-sidenav-link-content` }, children)),
          hasDivider && React.createElement("hr", { className: `${prefix}--bmrg-feature-sidenav-link-divider` })));
+diff --git a/dist/esm/components/UIShell/UIShell.js b/dist/esm/components/UIShell/UIShell.js
+index 86152d3f00374778cca3baa8a2a6873e99716cf5..4bc0f81caa3a7f9ec97a83843d34f984237eed5b 100644
+--- a/dist/esm/components/UIShell/UIShell.js
++++ b/dist/esm/components/UIShell/UIShell.js
+@@ -83,7 +83,8 @@ function UIShell({ analyticsHelpers, baseEnvUrl, carbonTheme = "g10", config, cr
+                 //   text="Legal Terms"
+                 //   type="link"
+                 // />,
+-                React.createElement("span", { style: { borderBottom: "1px solid #b8c1c1" } }),
++                // A fixed-colour rule drawn under Release Notes whatever follows it - removed here
++                // (rather than upstream) so the help menu reads as one list.
+                 isCommunityEnabled && (React.createElement(HeaderMenuItem, { key: "community", href: platform?.communityUrl, icon: React.createElement(Forum, null), kind: "external", text: "Community", type: "link" })),
+                 isFeedbackEnabled && (React.createElement(FeedbackMenuItem, { key: "feedback", platformName: platform?.platformName, platformOrganization: platform?.platformOrganization, sendIdeasUrl: sendIdeasUrl, sendBluePointsAwardUrl: sendBluePointsAwardUrl })),
+                 !isPartnerUser && askICAEnabled ? (React.createElement(HeaderMenuItem, { key: "chat-launch", href: platform?.askICAUrl, icon: React.createElement(ChatLaunch, null), "data-testid": "askICA-chatlaunch", kind: "external", text: "AskICA", type: "link" })) : null,
