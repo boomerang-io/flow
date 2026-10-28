@@ -37,4 +37,4 @@ claims work and hands it to a runtime rather than hosting it: wire `/dispatcher/
 - Every rename of a settings key, stored enum value or query parameter MUST ship with the change unit that moves the
   stored value, as `_0027__RenameWorkspaceTaskNodes` does for `teamtask` nodes.
 - Core names no dispatcher in its properties: a dispatcher registers its own log route (decision 0112). The `teamRef`
-  parameters in `event/WebhookEventService.java:110` and `schedule/ScheduleJob.java:51` are cosmetic leftovers.
+  parameters in `event/WebhookEventService.java:102` and `schedule/ScheduleJob.java:51` are cosmetic leftovers.
