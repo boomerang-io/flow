@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunAttempt;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRun;
@@ -35,7 +36,13 @@ public record DispatchTaskRun(
     String workflowRef,
     String workflowRunRef,
     // Set only on an item of a for-each task: its position from 0.
-    Integer index) {
+    Integer index,
+    // On a terminate order, why the task ended; absent on a run order.
+    String statusReason,
+    // The attempt this order is for: 1, plus one per requeue of any cause.
+    Integer attempt,
+    // The attempts a requeue superseded, oldest first; absent on a first attempt.
+    List<RunAttempt> attempts) {
 
   /** The wire form of a task run the engine has already prepared for hand-out. */
   public static DispatchTaskRun of(TaskRun taskRun) {
@@ -54,6 +61,9 @@ public record DispatchTaskRun(
         taskRun.getTaskRef(),
         taskRun.getWorkflowRef(),
         taskRun.getWorkflowRunRef(),
-        taskRun.getIndex());
+        taskRun.getIndex(),
+        taskRun.getStatusReason(),
+        taskRun.getAttempt(),
+        taskRun.getAttempts());
   }
 }

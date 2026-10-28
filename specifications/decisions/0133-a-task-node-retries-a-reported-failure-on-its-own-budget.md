@@ -31,7 +31,9 @@ beside `attempt`; `retry` stays on the entity. The ceiling is `EngineConstants.M
 
 - An author's retries are Flow's: bounded, backed off, visible as attempts, and `RateLimited` goes back to meaning
   "the task never started".
-- A failure the engine refuses to retry is a fixed list, not a per-node choice; a per-reason selector can be added
-  later without a migration, since an absent selector means every retriable failure.
+- A failure the engine refuses to retry is a fixed list, not a per-node choice; the dispatcher that saw a failure
+  marks it final with `retryable: false` on the end (`engine/TaskRunService.java:1179`), so a dispatcher that
+  classifies failures itself applies its whole budget through the engine's requeue, counting the attempts the wire
+  hands it (`dispatcher/model/DispatchTaskRun.java:41-45`).
 - The webapp's task panel edits the setting and the run's task view lists the attempts; the dispatcher contract is
   unchanged.

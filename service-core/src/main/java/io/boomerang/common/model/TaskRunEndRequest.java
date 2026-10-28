@@ -30,6 +30,13 @@ public class TaskRunEndRequest {
   private String statusReason;
 
   /**
+   * Whether a retry could change this failure, as the dispatcher that saw it judges: {@code false}
+   * marks the failure final, so the engine never requeues it on any budget, whatever the reason or
+   * the node's retry setting; absent or {@code true} leaves the decision to the engine's rules.
+   */
+  private Boolean retryable;
+
+  /**
    * The registered id of the dispatcher making the request - the value the engine wrote to {@code
    * claim.by} when it claimed the TaskRun. The engine fences on it: a request from a dispatcher
    * that no longer holds the claim is rejected instead of overwriting the current claimant's

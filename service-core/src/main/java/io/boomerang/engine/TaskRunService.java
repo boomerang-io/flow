@@ -1170,11 +1170,13 @@ public class TaskRunService {
    * it is handed back on the engine's budget. A task that ran and failed is requeued only when its
    * node asked for it ({@code retry.max}), while that budget lasts and the cause is one a retry can
    * change. Return false when the end must go ahead instead: a type the engine does not requeue, a
-   * spent budget, a cause a retry cannot change, or a lost race.
+   * spent budget, a cause a retry cannot change, a failure the dispatcher marked final, or a lost
+   * race.
    */
   private boolean requeuedForRetry(TaskRunEntity taskRun, TaskRunEndRequest request) {
     if (!RunStatus.failed.equals(request.getStatus())
-        || !EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())) {
+        || !EngineConstants.REQUEUEABLE_TYPES.contains(taskRun.getType())
+        || Boolean.FALSE.equals(request.getRetryable())) {
       return false;
     }
     String reason = request.getStatusReason();

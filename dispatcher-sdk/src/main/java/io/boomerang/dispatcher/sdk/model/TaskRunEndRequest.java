@@ -9,8 +9,9 @@ import java.util.Map;
 /**
  * Report how a task ended. {@code status} is succeeded, failed or invalid; {@code statusReason}
  * types a failure ({@code ExceededQuota}, {@code StartTimeout} and {@code RateLimited} mean the task
- * never started, and the engine requeues it); {@code dispatcherRef} is the registered dispatcher id, fenced against
- * the claim. Fields left null are not sent.
+ * never started, and the engine requeues it); {@code retryable} {@code false} marks a failure final;
+ * {@code dispatcherRef} is the registered dispatcher id, fenced against the claim. Fields left null
+ * are not sent.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,6 +23,7 @@ public class TaskRunEndRequest {
   private List<RunResult> results = new ArrayList<>();
   private String statusMessage;
   private String statusReason;
+  private Boolean retryable;
   private String dispatcherRef;
 
   public RunStatus getStatus() {
@@ -70,6 +72,18 @@ public class TaskRunEndRequest {
 
   public void setStatusReason(String statusReason) {
     this.statusReason = statusReason;
+  }
+
+  /**
+   * Whether a retry could change this failure: {@code false} marks it final and the engine never
+   * requeues it, whatever the reason or the node's retry setting; null leaves it to the engine.
+   */
+  public Boolean getRetryable() {
+    return retryable;
+  }
+
+  public void setRetryable(Boolean retryable) {
+    this.retryable = retryable;
   }
 
   public String getDispatcherRef() {

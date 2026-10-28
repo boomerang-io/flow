@@ -327,6 +327,25 @@ class TaskRunnerTest {
   }
 
   @Test
+  void aTerminalFailureIsReportedAsNotRetryable() {
+    RecordingObservations observations = new RecordingObservations();
+
+    runner(
+            (task, context) -> {
+              throw TaskFailure.terminal("JobFailed", "400 from the gateway");
+            },
+            Runnable::run,
+            null,
+            Duration.ZERO,
+            observations.registry)
+        .accept(runOrder());
+
+    assertThat(soleEnd().getStatusReason()).isEqualTo("JobFailed");
+    assertThat(soleEnd().getRetryable()).isFalse();
+    assertThat(new TaskFailure("JobFailed", "exited with code 1").getRetryable()).isNull();
+  }
+
+  @Test
   void withoutTheOptionsNothingIsUploadedAndNoObservationIsOpened() {
     RecordingObservations observations = new RecordingObservations();
     AtomicReference<String> tag = new AtomicReference<>("unset");

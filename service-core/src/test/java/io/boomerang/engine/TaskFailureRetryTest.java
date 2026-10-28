@@ -178,6 +178,25 @@ class TaskFailureRetryTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aFailureTheDispatcherMarksFinalEndsTheTaskWhateverTheNodeAskedFor() {
+    String[] claimed = claimedTask("retry-final", 2);
+    TaskRunEndRequest request = failed("JobFailed", claimed[1]);
+    request.setRetryable(Boolean.FALSE);
+
+    taskRunService.end(claimed[0], Optional.of(request));
+
+    awaitEngine("the task to fail without a retry")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
+              assertEquals(RunPhase.completed, after.getPhase());
+              assertEquals(RunStatus.failed, after.getStatus());
+              assertEquals("JobFailed", after.getStatusReason());
+              assertNull(after.getAttempts());
+            });
+  }
+
+  @Test
   void aTaskWithoutTheSettingFailsOnItsFirstReportedFailure() {
     String[] claimed = claimedTask("no-retry", null);
 
