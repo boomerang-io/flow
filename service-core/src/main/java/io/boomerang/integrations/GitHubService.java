@@ -383,32 +383,39 @@ public class GitHubService {
   }
 
   /*
-   * Self-service unlink - keyed on the installation ref (a GitHub installation id is not a Mongo
-   * _id) and guarded against unlinking an installation that does not belong to the requesting
-   * workspace. The parameters it managed in the workspace go with it.
+   * Self-service unlink of a workspace's GitHub installation, named by its integration record id as
+   * the webapp sends it, or by the GitHub installation id. The caller must reach the workspace, and
+   * the workspace must own the installation. The parameters it managed in the workspace go with it.
    */
   public void unlinkAppInstallation(GHLinkRequest request) {
     LOGGER.debug("unlinkAppInstallation() - " + request.toString());
-    Optional<IntegrationsEntity> optEntity = integrationsRepository.findByRef(request.getRef());
-    if (optEntity.isPresent()) {
-      IntegrationsEntity entity = optEntity.get();
-      if (!relationshipService.hasNodes(
-          RelationshipType.WORKSPACE,
-          request.getWorkspace(),
-          RelationshipType.INTEGRATION,
-          Optional.of(List.of(entity.getId())),
-          Optional.empty(),
-          Optional.empty())) {
-        throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);
-      }
-      WorkspaceEntity workspace = integrationParameterService.workspace(request.getWorkspace());
-      if (workspace != null) {
-        integrationParameterService.unshare(
-            workspace, integrationParameterService.template(GITHUB_APP_TYPE));
-      }
-      integrationsRepository.delete(entity);
-      relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.INTEGRATION, entity.getId());
+    if (request.getWorkspace() == null
+        || !relationshipService.check(
+            RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
+    String ref = request.getRef() == null ? "" : request.getRef();
+    IntegrationsEntity entity =
+        integrationsRepository
+            .findByIdAndType(ref, GITHUB_APP_TYPE)
+            .or(() -> integrationsRepository.findByRef(ref).filter(e -> GITHUB_APP_TYPE.equals(e.getType())))
+            .orElseThrow(() -> new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF));
+    if (!relationshipService.hasNodes(
+        RelationshipType.WORKSPACE,
+        request.getWorkspace(),
+        RelationshipType.INTEGRATION,
+        Optional.of(List.of(entity.getId())),
+        Optional.empty(),
+        Optional.empty())) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);
+    }
+    WorkspaceEntity workspace = integrationParameterService.workspace(request.getWorkspace());
+    if (workspace != null) {
+      integrationParameterService.unshare(
+          workspace, integrationParameterService.template(GITHUB_APP_TYPE));
+    }
+    integrationsRepository.delete(entity);
+    relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.INTEGRATION, entity.getId());
   }
 
   /*
