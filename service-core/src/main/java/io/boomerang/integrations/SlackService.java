@@ -31,10 +31,18 @@ import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.integrations.entity.IntegrationTemplateEntity;
 import io.boomerang.integrations.entity.IntegrationsEntity;
+import io.boomerang.integrations.model.GHLinkRequest;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import io.boomerang.workspace.entity.WorkspaceEntity;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -49,6 +57,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -60,10 +69,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 
 /*
- * Handles the Slack app slash command and interactivity interactions
- *
- * The Slack app needs the following oauth scopes: - chat:write - commands - users:read -
- * users:read:email
+ * Handles the Slack app: its installation into a Slack team and link to Flow workspaces, the slash
+ * command and interactivity, and the bot token it shares with the Slack tasks. The bot scopes it
+ * asks for are in the Slack integration template's link.
  *
  * Inbound Slack requests are checked against the signing secret first (verifySignature).
  */
@@ -81,7 +89,8 @@ public class SlackService {
   private static final String MODAL_TEXT_FOOTER =
       ":bulb: If your workflows require parameters, make sure they have a default value. You also need to be a registered user with access to the Workflow.";
 
-  private static final String EXTENSION_TYPE = "slack_auth";
+  // The type of a Slack installation, and of the Slack integration template.
+  static final String EXTENSION_TYPE = "slack_auth";
 
   @Value("${flow.apps.flow.url}")
   private String flowAppsUrl;
@@ -90,16 +99,22 @@ public class SlackService {
   private final IntegrationsRepository extensionsRepository;
   private final WorkflowService workflowService;
   private final ObjectMapper objectMapper;
+  private final RelationshipService relationshipService;
+  private final IntegrationParameterService integrationParameterService;
 
   public SlackService(
       SettingsService settingsService,
       WorkflowService workflowService,
       IntegrationsRepository extensionsRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      RelationshipService relationshipService,
+      IntegrationParameterService integrationParameterService) {
     this.settingsService = settingsService;
     this.objectMapper = objectMapper;
     this.workflowService = workflowService;
     this.extensionsRepository = extensionsRepository;
+    this.relationshipService = relationshipService;
+    this.integrationParameterService = integrationParameterService;
   }
 
   /*
@@ -504,65 +519,212 @@ public class SlackService {
   }
 
   /*
-   * Handles the Slack OAuth2 redirect flow. Upon successful code / token exchange will redirect
-   * user to the slack app in the workspace.
+   * Handles the Slack OAuth2 redirect. An install started from a Flow workspace's Integrations page
+   * carries a signed state: it is verified, and the installing user's membership of the workspace
+   * checked, before the code is exchanged; the installation is then linked to that workspace and
+   * the browser returned to it. An install started from Slack carries none: the installation is
+   * saved unlinked and the browser sent to the app in Slack.
    */
-  public ResponseEntity<?> handleAuth(String code) {
-    final String appId = settingsService.getSettingConfig("integration", "slack.appId").getValue();
-    final String clientId =
-        settingsService.getSettingConfig("integration", "slack.clientId").getValue();
-    final String clientSecret =
-        settingsService.getSettingConfig("integration", "slack.clientSecret").getValue();
-
-    Slack slack = Slack.getInstance();
-    try {
-      OAuthV2AccessResponse authResponse =
-          slack
-              .methods()
-              .oauthV2Access(req -> req.clientId(clientId).clientSecret(clientSecret).code(code));
-      LOGGER.debug(
-          "Slack OAuth response: ok={}, team={}",
-          authResponse.isOk(),
-          (authResponse.getTeam() != null) ? authResponse.getTeam().getId() : null);
-      if (authResponse.isOk()) {
-        saveSlackAuthToken(authResponse);
+  public ResponseEntity<?> handleAuth(String code, String state) {
+    InstallStateUtils.InstallState installState = null;
+    if (state != null && !state.isBlank()) {
+      installState = InstallStateUtils.verify(state, setting("slack.clientSecret"));
+      if (!relationshipService.hasNodes(
+          RelationshipType.USER,
+          installState.userId(),
+          RelationshipType.WORKSPACE,
+          Optional.of(List.of(installState.workspace())),
+          Optional.empty(),
+          Optional.empty())) {
+        LOGGER.warn(
+            "Slack callback - user {} is not a member of workspace {}",
+            installState.userId(),
+            installState.workspace());
+        throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);
       }
-      // TODO: return different response if not ok and redirect somewhere else.
-      return ResponseEntity.status(HttpStatus.FOUND)
-          .location(new URI("slack://app?team=" + authResponse.getTeam().getId() + "&id=" + appId))
-          .build();
-    } catch (IOException | SlackApiException | URISyntaxException e) {
-      LOGGER.error(e.toString());
     }
-
-    return ResponseEntity.ok().build();
+    OAuthV2AccessResponse authResponse = exchangeCode(code);
+    LOGGER.debug(
+        "Slack OAuth response: ok={}, team={}",
+        authResponse != null && authResponse.isOk(),
+        (authResponse != null && authResponse.getTeam() != null) ? authResponse.getTeam().getId() : null);
+    if (authResponse == null || !authResponse.isOk()) {
+      if (installState != null) {
+        throw new BoomerangException(BoomerangError.INTEGRATION_TOKEN_FAILED, "Slack");
+      }
+      return ResponseEntity.ok().build();
+    }
+    IntegrationsEntity installation = saveSlackAuthToken(authResponse);
+    try {
+      if (installState == null) {
+        return ResponseEntity.status(HttpStatus.FOUND)
+            .location(
+                new URI(
+                    "slack://app?team="
+                        + authResponse.getTeam().getId()
+                        + "&id="
+                        + setting("slack.appId")))
+            .build();
+      }
+      linkToWorkspace(installation, installState.workspace());
+      return ResponseEntity.status(HttpStatus.FOUND)
+          .location(new URI(flowAppsUrl + "/" + installState.workspace() + "/integrations"))
+          .build();
+    } catch (URISyntaxException e) {
+      throw new BoomerangException(e, BoomerangError.INTEGRATION_INVALID_STATE);
+    }
   }
 
   /*
-   * Helper method to save the Slack Auth. It will check if the team already has an auth object.
-   *
-   * @param OAuthV2AccessResponse
+   * Exchanges the OAuth code Slack redirected with for the installation's tokens; null when Slack
+   * cannot be reached.
    */
-  private void saveSlackAuthToken(OAuthV2AccessResponse authResponse) {
-    IntegrationsEntity authExtension = new IntegrationsEntity();
+  public OAuthV2AccessResponse exchangeCode(String code) {
+    final String clientId = setting("slack.clientId");
+    final String clientSecret = setting("slack.clientSecret");
+    try {
+      return Slack.getInstance()
+          .methods()
+          .oauthV2Access(req -> req.clientId(clientId).clientSecret(clientSecret).code(code));
+    } catch (IOException | SlackApiException e) {
+      LOGGER.error("Slack OAuth code exchange failed: {}", e.toString());
+      return null;
+    }
+  }
+
+  /*
+   * Saves a Slack team's installation, replacing the one already saved for that team. The team id is
+   * its ref, and the installation is a relationship node so workspaces can link it.
+   */
+  private IntegrationsEntity saveSlackAuthToken(OAuthV2AccessResponse authResponse) {
+    String teamId = authResponse.getTeam().getId();
     Map<String, Object> payload =
         objectMapper.convertValue(authResponse, new TypeReference<Map<String, Object>>() {});
-
-    List<IntegrationsEntity> authsList = checkExistingAuthExtension(authResponse.getTeam().getId());
-    if (!authsList.isEmpty()) {
+    IntegrationsEntity authExtension =
+        checkExistingAuthExtension(teamId).stream().findFirst().orElse(null);
+    if (authExtension != null) {
       LOGGER.debug("Overriding existing Slack Team Auth");
-      authExtension = authsList.get(0);
-      authExtension.setData(payload);
     } else {
       LOGGER.debug("Saving new Slack Team Auth");
+      authExtension = new IntegrationsEntity();
       authExtension.setType(EXTENSION_TYPE);
-      authExtension.setData(payload);
       Map<String, String> labels = new HashMap<>();
-      labels.put("teamId", authResponse.getTeam().getId());
+      labels.put("teamId", teamId);
       authExtension.setLabels(labels);
     }
-    extensionsRepository.save(authExtension);
+    authExtension.setRef(teamId);
+    authExtension.setData(payload);
+    authExtension = extensionsRepository.save(authExtension);
+    if (!relationshipService.doesSlugOrRefExistForType(
+        RelationshipType.INTEGRATION, authExtension.getId())) {
+      relationshipService.createNode(
+          RelationshipType.INTEGRATION, authExtension.getId(), "", Optional.empty());
+    }
     LOGGER.debug("Saved Slack Team Auth {}", authExtension.getId());
+    return authExtension;
+  }
+
+  /*
+   * Links a Slack installation to a Flow workspace. Several workspaces may link one Slack team, but
+   * a workspace links one Slack team at most: another is refused until the first is disconnected.
+   */
+  private void linkToWorkspace(IntegrationsEntity installation, String workspace) {
+    List<String> linked =
+        relationshipService.findNodeRefs(
+            RelationshipType.WORKSPACE, workspace, RelationshipType.INTEGRATION);
+    if (linked.contains(installation.getId())) {
+      return;
+    }
+    if (linked.stream()
+        .anyMatch(ref -> extensionsRepository.findByIdAndType(ref, EXTENSION_TYPE).isPresent())) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_ALREADY_LINKED, "Slack");
+    }
+    relationshipService.createEdge(
+        RelationshipType.WORKSPACE,
+        workspace,
+        RelationshipLabel.HAS_INTEGRATION,
+        RelationshipType.INTEGRATION,
+        installation.getId(),
+        Optional.empty());
+  }
+
+  /*
+   * Disconnects a Slack installation from one workspace: the link and the parameters it managed
+   * there go, while the installation stays for the Slack team and any other workspace linking it.
+   */
+  public void unlink(GHLinkRequest request) {
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+    }
+    // The Integrations page names the installation by its record id; the Slack team id works too.
+    IntegrationsEntity installation =
+        extensionsRepository
+            .findByIdAndType(request.getRef(), EXTENSION_TYPE)
+            .or(() -> checkExistingAuthExtension(request.getRef()).stream().findFirst())
+            .orElseThrow(() -> new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF));
+    if (!relationshipService.hasNodes(
+        RelationshipType.WORKSPACE,
+        request.getWorkspace(),
+        RelationshipType.INTEGRATION,
+        Optional.of(List.of(installation.getId())),
+        Optional.empty(),
+        Optional.empty())) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);
+    }
+    WorkspaceEntity workspace = integrationParameterService.workspace(request.getWorkspace());
+    if (workspace != null) {
+      integrationParameterService.unshare(workspace, integrationParameterService.template(EXTENSION_TYPE));
+    }
+    relationshipService.removeEdge(
+        RelationshipType.WORKSPACE,
+        request.getWorkspace(),
+        RelationshipType.INTEGRATION,
+        installation.getId());
+  }
+
+  /*
+   * The bot token an installation shares with tasks. Slack bot tokens do not expire unless the app
+   * has token rotation on, which issues a token that expires within 12 hours with a refresh token;
+   * Flow does not refresh Slack tokens, so a rotating one is refused rather than shared.
+   */
+  public String sharedToken(IntegrationsEntity installation) {
+    if (!(installation.getData() instanceof Map<?, ?> data)) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_TOKEN_FAILED, "Slack");
+    }
+    if (data.get("refreshToken") != null
+        || (data.get("expiresIn") instanceof Number expiresIn && expiresIn.longValue() > 0)) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_TOKEN_ROTATES, "Slack");
+    }
+    if (data.get("accessToken") instanceof String token && !token.isBlank()) {
+      return token;
+    }
+    throw new BoomerangException(BoomerangError.INTEGRATION_TOKEN_FAILED, "Slack");
+  }
+
+  /*
+   * Slack's authorize URL from the template link, with the app's client id and, for an install
+   * started from a Flow workspace, a signed state naming the workspace and the user. Blank when the
+   * Slack app is not configured, so the Integrations page offers nothing to connect.
+   */
+  public String installLink(String link, String workspace, String userId) {
+    String clientId = setting("slack.clientId");
+    String clientSecret = setting("slack.clientSecret");
+    if (link == null || link.isBlank() || clientId.isBlank() || clientSecret.isBlank()) {
+      return "";
+    }
+    String url = link.replace("{client_id}", URLEncoder.encode(clientId, StandardCharsets.UTF_8));
+    if (workspace != null && userId != null) {
+      String state = InstallStateUtils.sign(workspace, userId, clientSecret);
+      url = url + "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
+    }
+    return url;
+  }
+
+  // An integration setting's value; blank when it is not set.
+  private String setting(String key) {
+    String value = settingsService.getSettingConfig("integration", key).getValue();
+    return value == null ? "" : value;
   }
 
   /*
@@ -593,22 +755,16 @@ public class SlackService {
   }
 
   /*
-   * Helper method to retrieve a saved Auth for a Slack Team (org)
+   * A Slack team's saved installation: by its ref, the team id, or by the teamId label an
+   * installation saved before it carried one holds.
    */
   private List<IntegrationsEntity> checkExistingAuthExtension(String teamId) {
-    List<IntegrationsEntity> authExtensions = new LinkedList<>();
-    extensionsRepository
-        .findByType(EXTENSION_TYPE)
-        .forEach(
-            e -> {
-              Map<String, String> executionProperties = e.getLabels();
-              if (executionProperties.containsKey("teamId")
-                  && teamId.equals(executionProperties.get("teamId"))) {
-                authExtensions.add(e);
-                LOGGER.debug("Found matching Slack Team Auth");
-              }
-            });
-    return authExtensions;
+    return extensionsRepository.findByType(EXTENSION_TYPE).stream()
+        .filter(
+            e ->
+                teamId.equals(e.getRef())
+                    || (e.getLabels() != null && teamId.equals(e.getLabels().get("teamId"))))
+        .toList();
   }
 
   /*
@@ -805,28 +961,36 @@ public class SlackService {
   public Supplier<Boolean> appUninstalled(JsonNode jsonPayload) {
     return () -> {
       final String teamId = jsonPayload.get("team_id").asText();
-      extensionsRepository
-          .findByType(EXTENSION_TYPE)
-          .forEach(
-              e -> {
-                Map<String, String> executionProperties = e.getLabels();
-                if (executionProperties.containsKey("teamId")
-                    && teamId.equals(executionProperties.get("teamId"))) {
-                  extensionsRepository.delete(e);
-                  LOGGER.debug("Deleted Slack Team: " + executionProperties.get("teamId"));
-                }
-              });
+      IntegrationTemplateEntity template = integrationParameterService.template(EXTENSION_TYPE);
+      for (IntegrationsEntity installation : checkExistingAuthExtension(teamId)) {
+        // Every workspace linking the team loses the parameters it shared, then the links go.
+        relationshipService
+            .getParentsByLabel(
+                RelationshipLabel.HAS_INTEGRATION, RelationshipType.INTEGRATION, installation.getId())
+            .stream()
+            .map(integrationParameterService::workspace)
+            .filter(Objects::nonNull)
+            .forEach(workspace -> integrationParameterService.unshare(workspace, template));
+        extensionsRepository.delete(installation);
+        relationshipService.removeNodeAndEdgeByRefOrSlug(
+            RelationshipType.INTEGRATION, installation.getId());
+        LOGGER.debug("Deleted Slack Team: " + teamId);
+      }
       return true;
     };
   }
 
   /*
-   * Utility method for responding to the install redirect query needed for a Slack App
+   * The install link Slack's own "Add to Slack" points at: the authorize URL with no Flow workspace,
+   * so the installation is saved for the Slack team and linked to no workspace.
    */
   public ResponseEntity<?> installRedirect() throws URISyntaxException {
-    final String installURL =
-        settingsService.getSettingConfig("integration", "slack.installURL").getValue();
-    return ResponseEntity.status(HttpStatus.FOUND).location(new URI(installURL)).build();
+    IntegrationTemplateEntity template = integrationParameterService.template(EXTENSION_TYPE);
+    String link = installLink(template == null ? null : template.getLink(), null, null);
+    if (link.isBlank()) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+    }
+    return ResponseEntity.status(HttpStatus.FOUND).location(new URI(link)).build();
   }
 
   /*

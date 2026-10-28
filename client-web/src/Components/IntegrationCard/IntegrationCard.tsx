@@ -23,7 +23,7 @@ const known: Record<string, { Logo: React.ComponentType<any>; adds: Array<string
   },
   slack: {
     Logo: LogoSlack,
-    adds: ["A slash command to run a workflow", "Approve or reject actions from a message"],
+    adds: ["A slash command to run a workflow", "Lets the Slack tasks use the app's bot token"],
   },
 };
 

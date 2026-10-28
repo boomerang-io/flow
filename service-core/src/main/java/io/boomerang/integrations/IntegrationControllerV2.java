@@ -34,6 +34,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -63,11 +64,11 @@ public class IntegrationControllerV2 {
           + " itself - the Slack signature, or the OAuth code exchange against Slack.";
 
   // The install redirect checks nothing, so it is not on the permit list: it answers only a
-  // signed-in caller, with the configured install URL.
+  // signed-in caller, with Slack's authorize URL for no Flow workspace.
   private static final String SLACK_INSTALL_EXEMPT_REASON =
-      "Meant for a browser, which may hold a Flow session. Nothing to protect: it redirects to the"
-          + " configured install URL and takes no input, but it is kept behind sign-in because it"
-          + " carries no check of its own.";
+      "Meant for a browser, which may hold a Flow session. Nothing to protect: it redirects to"
+          + " Slack's authorize URL for the configured app and takes no input, but it is kept behind"
+          + " sign-in because it carries no check of its own.";
 
   // The headers Slack signs every request with.
   private static final String SLACK_TIMESTAMP_HEADER = "x-slack-request-timestamp";
@@ -101,11 +102,9 @@ public class IntegrationControllerV2 {
    */
 
   /**
-   * Slack Auth Endpoint
-   *
-   * @param request
-   * @param code
-   * @return
+   * Slack's OAuth redirect after the app is installed into a Slack team. An install started from a
+   * Flow workspace carries the signed state that workspace's Integrations page issued, and links
+   * the installation to it; one started from Slack carries none.
    */
   @AuthExempt(reason = SLACK_EXEMPT_REASON)
   @GetMapping(value = "/slack/auth")
@@ -113,10 +112,31 @@ public class IntegrationControllerV2 {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "302", description = "Found"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  ResponseEntity<?> receiveSlackAuth(HttpServletRequest request, @RequestParam String code) {
-    return slackService.handleAuth(code);
+  ResponseEntity<?> receiveSlackAuth(
+      HttpServletRequest request,
+      @RequestParam String code,
+      @RequestParam(required = false) String state) {
+    return slackService.handleAuth(code, state);
+  }
+
+  @PostMapping(value = "/slack/unlink")
+  @Operation(summary = "Disconnects the Slack installation from a Workspace")
+  @AuthCriteria(
+      action = PermissionAction.WRITE,
+      resource = PermissionResource.INTEGRATION,
+      assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session, AuthScope.global})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "integration",
+      resourceId = "#request.getRef()",
+      resourceName = "'Slack'",
+      workspaceId = "#request.getWorkspace()")
+  @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
+  void slackUnlink(@RequestBody GHLinkRequest request) {
+    slackService.unlink(request);
   }
 
   @AuthExempt(reason = SLACK_INSTALL_EXEMPT_REASON)
@@ -272,11 +292,14 @@ public class IntegrationControllerV2 {
     githubService.unlinkAppInstallation(request);
   }
 
-  @PostMapping(value = "/github/share")
+  /*
+   * Integration credentials, for the integrations that share them: github and slack.
+   */
+  @PostMapping(value = "/{integration}/share")
   @Operation(
       summary =
-          "Shares the GitHub App installation token with the Workspace's tasks as managed Workspace"
-              + " parameters, or stops sharing it")
+          "Shares an integration's credentials (GitHub's installation token, Slack's bot token) with"
+              + " the Workspace's tasks as managed Workspace parameters, or stops sharing them")
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
@@ -284,16 +307,17 @@ public class IntegrationControllerV2 {
   @Audited(
       action = AuditAction.UPDATE,
       resourceType = "integration",
-      resourceId = "'github_app'",
-      resourceName = "'GitHub'",
+      resourceId = "#integration",
+      resourceName = "#integration",
       workspaceId = "#request.getWorkspace()")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "404", description = "Not Found")
       })
-  void githubShare(@RequestBody GHShareRequest request) {
-    integrationService.shareGitHub(request.getWorkspace(), request.isShared());
+  void shareCredentials(@PathVariable String integration, @RequestBody GHShareRequest request) {
+    integrationService.share(integration, request.getWorkspace(), request.isShared());
   }
 
   /**

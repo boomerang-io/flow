@@ -26,12 +26,20 @@
     },
     {
       "name": "Slack",
-      "type": "slack",
-      "description": "Send a message to Slack",
+      "type": "slack_auth",
+      "description": "Run workflows from Slack, and let the Slack tasks post and manage channels as the Flow app",
       "icon": "https://assets-global.website-files.com/621c8d7ad9e04933c4e51ffb/622b2930098c680e60fe39f7_mark.png",
-      "instructions": "",
-      "link": "",
-      "status": "inactive"
+      "instructions": "### Enable\n\nTo enable this integration, you will be asked to:\n- choose the Slack workspace to install the Flow app into, and\n- allow the app's permissions.\n\nOnce Slack has installed the app, you are returned here with Slack connected to this workspace. Several Flow workspaces can connect the same Slack workspace.\n\nThe app asks Slack for these bot scopes:\n- `chat:write`, `commands`, `users:read` and `users:read.email` - the slash command that runs a workflow, and the find member tasks\n- `channels:read` and `groups:read` - the get channel tasks\n- `channels:manage` and `groups:write` - the create, delete, invite and remove channel tasks\n- `files:write` - the upload file task\n\n### Disable\n\nTo disable this integration, you can either\n- disconnect it here, which removes it from this Flow workspace only, or\n- remove the Flow app from your Slack workspace, which disconnects every Flow workspace using it",
+      "link": "https://slack.com/oauth/v2/authorize?client_id={client_id}&scope=channels:manage,channels:read,chat:write,commands,files:write,groups:read,groups:write,users:read,users:read.email",
+      "status": "active",
+      "fields": [
+        {
+          "name": "slack-token",
+          "label": "Slack token",
+          "type": "password",
+          "description": "The Flow app's bot token for the connected Slack workspace"
+        }
+      ]
     }
   ]
 }

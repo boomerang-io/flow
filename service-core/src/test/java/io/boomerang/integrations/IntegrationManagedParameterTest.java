@@ -59,7 +59,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
   void sharingWritesTheManagedParametersWithTheTokenEncryptedAtRest() {
     String workspace = linkedWorkspace("managed-share-ws", 5101);
 
-    integrationService.shareGitHub(workspace, true);
+    integrationService.share("github", workspace, true);
 
     WorkspaceEntity stored = workspace(workspace);
     assertThat(param(stored, "github-token"))
@@ -78,7 +78,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
     assertThat(github.getShared()).isTrue();
     assertThat(github.getFields()).extracting(AbstractParam::getName).containsExactly("github-token", "github-url");
 
-    integrationService.shareGitHub(workspace, false);
+    integrationService.share("github", workspace, false);
 
     assertThat(workspace(workspace).getParameters())
         .extracting(AbstractParam::getName)
@@ -90,14 +90,14 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
     String workspace = linkedWorkspace("managed-refused-ws", 5102);
     patch(workspace, userParam("github-token", "my-personal-token"));
 
-    assertThatThrownBy(() -> integrationService.shareGitHub(workspace, true))
+    assertThatThrownBy(() -> integrationService.share("github", workspace, true))
         .isInstanceOfSatisfying(
             BoomerangException.class, e -> assertThat(e.getReason()).isEqualTo("INTEGRATION_PARAM_EXISTS"));
     assertThat(param(workspace(workspace), "github-token").getValue()).isEqualTo("my-personal-token");
 
     String other = linkedWorkspace("managed-flag-off-ws", 5103);
     setFeatureSetting("workspaceParameters", false);
-    assertThatThrownBy(() -> integrationService.shareGitHub(other, true))
+    assertThatThrownBy(() -> integrationService.share("github", other, true))
         .isInstanceOfSatisfying(
             BoomerangException.class, e -> assertThat(e.getReason()).isEqualTo("INTEGRATION_PARAMS_DISABLED"));
     // Both checks come first: no token is minted for a share that is refused.
@@ -107,7 +107,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
   @Test
   void aManagedParameterIsNeverChangedOrRemovedThroughTheWorkspace() {
     String workspace = linkedWorkspace("managed-protected-ws", 5104);
-    integrationService.shareGitHub(workspace, true);
+    integrationService.share("github", workspace, true);
 
     assertThatThrownBy(() -> patch(workspace, userParam("github-token", "overwritten")))
         .isInstanceOfSatisfying(
@@ -131,7 +131,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
   @Test
   void unlinkingOrUninstallingRemovesOnlyTheManagedParameters() {
     String unlinked = linkedWorkspace("managed-unlink-ws", 5105);
-    integrationService.shareGitHub(unlinked, true);
+    integrationService.share("github", unlinked, true);
     patch(unlinked, userParam("kept", "mine"));
     GHLinkRequest unlink = new GHLinkRequest();
     unlink.setRef("5105");
@@ -142,7 +142,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
     assertThat(workspace(unlinked).getParameters()).extracting(AbstractParam::getName).containsExactly("kept");
 
     String uninstalled = linkedWorkspace("managed-uninstall-ws", 5106);
-    integrationService.shareGitHub(uninstalled, true);
+    integrationService.share("github", uninstalled, true);
 
     integrationService.delete("github_app", JSON.readTree("{\"id\":5106}"));
 
@@ -152,7 +152,7 @@ class IntegrationManagedParameterTest extends AbstractSpiedEngineIntegrationTest
   @Test
   void theRefresherReplacesOnlyTheTokenInPlace() {
     String shared = linkedWorkspace("managed-refresh-ws", 5107);
-    integrationService.shareGitHub(shared, true);
+    integrationService.share("github", shared, true);
     patch(shared, userParam("untouched", "as-is"));
     String notShared = linkedWorkspace("managed-not-shared-ws", 5108);
     doReturn("ghs_second_token").when(spiedGitHubService).installationToken(anyString());

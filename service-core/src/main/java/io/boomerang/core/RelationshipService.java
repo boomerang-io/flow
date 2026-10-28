@@ -539,6 +539,13 @@ public class RelationshipService {
     return parent;
   }
 
+  /** Return the refs of every parent reached by an incoming edge with the label. */
+  public List<String> getParentsByLabel(RelationshipLabel label, RelationshipType type, String ref) {
+    return edgeRepository.findByToAndLabel(type.getLabel() + ":" + ref, label.getLabel()).stream()
+        .map(edge -> edge.getFrom().split(":")[1])
+        .toList();
+  }
+
   /*
    * Retrieve the Teams and Roles for current Principal
    */
