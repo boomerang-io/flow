@@ -372,6 +372,11 @@ tag's release notes.
 
 ### Fixed
 
+- Disconnecting GitHub on the Integrations page disconnects it: the page sent the integration's record id, which
+  the unlink looked up as a GitHub installation id, so nothing happened. `POST /api/v2/integration/github/unlink`
+  now takes either id, refuses a caller who cannot reach the workspace (integration write permission in any
+  workspace could unlink another workspace's GitHub by its installation id), answers `404` for an unknown
+  installation instead of nothing, and is audited.
 - The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
   the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on

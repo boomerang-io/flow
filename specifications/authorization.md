@@ -167,7 +167,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
-| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:307-313`) |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:313-319`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:76,837-849`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret (`:510-538`), with no state parameter |
 | `GET /api/v2/integration/slack/install` | Yes | A redirect to the configured install URL that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:65-70`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:53`) |

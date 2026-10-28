@@ -62,13 +62,19 @@ run references the task (`workflow/TaskService.java:980-984`).
 
 **Integrations.** `POST /api/v2/integration/github/share` with `{workspace, shared}` shares the GitHub App's
 installation token with the workspace's tasks, or stops sharing it, and needs `integration/write`
-(`integrations/IntegrationControllerV2.java:275-297`). Sharing writes the template's `fields` into the workspace as
+(`integrations/IntegrationControllerV2.java:281-303`). Sharing writes the template's `fields` into the workspace as
 read-only parameters (`parameters.md`, "Parameters an integration manages"). It is `409 INTEGRATION_PARAM_EXISTS`
 over a parameter of the same name the workspace already holds, `400 INTEGRATION_PARAMS_DISABLED` while workspace
 parameters are off, and `502 INTEGRATION_TOKEN_FAILED` when GitHub issues no token; the first two are checked
 before a token is asked for (`integrations/IntegrationService.java:107-136`,
 `integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each
 template's `fields` and, on a linked integration that has any, `shared` (`integrations/IntegrationService.java:82-87`).
+`POST /api/v2/integration/github/unlink` with `{workspace, ref}` disconnects the workspace's GitHub App
+installation, named by its integration record id, as `GET /api/v2/integration` returns it in `ref`, or by its GitHub
+installation id. A workspace the caller cannot reach is `404 WORKSPACE_INVALID_REF`, an installation it does not own
+`403 INTEGRATION_UNAUTHORIZED`, and an unknown one `404 INTEGRATION_INVALID_REF`; the record, its link and the
+parameters it managed are removed, and the request is audited (`integrations/IntegrationControllerV2.java:264-279`,
+`integrations/GitHubService.java:434-463`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their
