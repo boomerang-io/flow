@@ -57,3 +57,5 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0130 | [Task runs are queried across runs, as slim rows](0130-task-runs-are-queried-across-runs.md) | accepted | 2026-10-21 |
 | 0131 | [The Java images ship a JDK AOT cache recorded at image build](0131-the-java-images-ship-an-aot-cache-recorded-at-image-build.md) | accepted | 2026-10-27 |
 | 0132 | [An admission wakes the held polls by key, each on a condition of its own](0132-an-admission-wakes-the-polls-by-key.md) | accepted | 2026-10-28 |
+| 0133 | [A task node retries a reported failure on its own budget, and every superseded attempt is recorded](0133-a-task-node-retries-a-reported-failure-on-its-own-budget.md) | accepted | 2026-10-28 |
+| 0134 | [A workflow limits its in-flight runs at admission, parking or skipping the rest](0134-a-workflow-limits-its-in-flight-runs-at-admission.md) | accepted | 2026-10-28 |

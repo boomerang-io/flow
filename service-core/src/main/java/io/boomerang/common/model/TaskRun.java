@@ -63,6 +63,8 @@ public class TaskRun {
   // The attempt a dispatcher holds, last held or is handed next: 1, plus one per requeue. Absent
   // on a task no dispatcher has claimed - an approval, a wait, a task a scoped retry reused.
   private Integer attempt;
+  // The attempts a requeue superseded, oldest first; absent on a task on its first attempt.
+  private List<RunAttempt> attempts;
 
   public TaskRun() {}
 
@@ -70,7 +72,11 @@ public class TaskRun {
     BeanUtils.copyProperties(entity, this);
     this.foreach = (entity.getForeach() != null) ? Boolean.TRUE : null;
     if (entity.getClaim() != null) {
-      this.attempt = ((entity.getRetry() != null) ? entity.getRetry().getCount() : 0) + 1;
+      int superseded =
+          (entity.getAttempts() != null)
+              ? entity.getAttempts().size()
+              : ((entity.getRetry() != null) ? entity.getRetry().getCount() : 0);
+      this.attempt = superseded + 1;
     }
   }
 }

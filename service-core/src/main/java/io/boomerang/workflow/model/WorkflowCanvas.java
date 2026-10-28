@@ -24,6 +24,7 @@ public class WorkflowCanvas {
   private Map<String, Object> annotations = new HashMap<>();
   private Long timeout;
   private Long retries;
+  private WorkflowConcurrency concurrency;
   private boolean upgradesAvailable = false;
   private WorkflowTrigger triggers;
   private WorkflowWorkspace workspace;
@@ -150,6 +151,14 @@ public class WorkflowCanvas {
 
   public void setRetries(Long retries) {
     this.retries = retries;
+  }
+
+  public WorkflowConcurrency getConcurrency() {
+    return concurrency;
+  }
+
+  public void setConcurrency(WorkflowConcurrency concurrency) {
+    this.concurrency = concurrency;
   }
 
   public boolean isUpgradesAvailable() {

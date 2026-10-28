@@ -464,6 +464,7 @@ interface TaskRunDetailModalProps {
 }
 
 function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
+  const attempts = taskRun.attempts ?? [];
   let paramList: { id: string; key: string; value: string; description?: string }[] = [];
   taskRun.params.forEach((result, index) =>
     paramList.push({
@@ -497,6 +498,30 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
         <span className={styles.sectionHeader}>Message</span>
         <p className={styles.sectionDetail}>{taskRun.statusMessage || "---"}</p>
       </section>
+      <section className={styles.detailedSection}>
+        <span className={styles.sectionHeader}>Reason</span>
+        <p className={styles.sectionDetail}>{taskRun.statusReason || "---"}</p>
+      </section>
+      {attempts.length > 0 ? (
+        <section className={styles.detailedSection}>
+          <span className={styles.sectionHeader}>Attempts</span>
+          <ul className={styles.attemptList} aria-label="Attempts">
+            {attempts.map((attempt) => (
+              <li key={attempt.number} className={styles.attempt}>
+                <span className={styles.sectionDetail}>
+                  {`Attempt ${attempt.number} · ${attempt.status} · ${attempt.statusReason || "---"} · ${
+                    attempt.duration ? formatDuration(attempt.duration) : "---"
+                  } · ${attempt.endedAt ? moment(attempt.endedAt).format(DATETIME_DISPLAY_FORMAT) : "---"}`}
+                </span>
+                {attempt.statusMessage ? <span className={styles.attemptMessage}>{attempt.statusMessage}</span> : null}
+              </li>
+            ))}
+            <li className={styles.attempt}>
+              <span className={styles.sectionDetail}>{`Attempt ${attempts.length + 1} · current`}</span>
+            </li>
+          </ul>
+        </section>
+      ) : null}
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Params</span>
         <p>

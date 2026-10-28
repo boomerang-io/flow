@@ -358,7 +358,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
  * Update the `workspace` and `labels` to be in the right format
  */
 export function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Partial<WorkflowCanvas> {
-  const { workspace: workspaceForm, ...optionalConfigureValues } = configureValues;
+  const { workspace: workspaceForm, concurrencyLimit, concurrencyOverflow, ...optionalConfigureValues } = configureValues;
 
   // Format labels
   const labelsKVObject = configureValues.labels.reduce(
@@ -387,6 +387,12 @@ export function formatConfigureValues(configureValues: ConfigureWorkflowFormValu
     timeout: configureValues.timeout ?? undefined,
     retries: configureValues.retries ?? undefined,
   };
+
+  // The limit and the overflow choice are two form fields; the API takes them as one object, and
+  // only when a limit is set.
+  if (concurrencyLimit !== null && concurrencyLimit !== undefined && String(concurrencyLimit) !== "") {
+    formattedWorkflowConfig.concurrency = { limit: Number(concurrencyLimit), overflow: concurrencyOverflow ?? "queue" };
+  }
 
   return formattedWorkflowConfig;
 }

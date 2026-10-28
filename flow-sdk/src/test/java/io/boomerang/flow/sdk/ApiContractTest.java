@@ -7,6 +7,7 @@ import io.boomerang.flow.sdk.model.ActionStatus;
 import io.boomerang.flow.sdk.model.ActionType;
 import io.boomerang.flow.sdk.model.Actioner;
 import io.boomerang.flow.sdk.model.RetryFrom;
+import io.boomerang.flow.sdk.model.RunAttempt;
 import io.boomerang.flow.sdk.model.RunParam;
 import io.boomerang.flow.sdk.model.RunPhase;
 import io.boomerang.flow.sdk.model.RunResult;
@@ -76,6 +77,7 @@ class ApiContractTest {
     MODELLED.put("RunParam", type(RunParam.class));
     MODELLED.put("RunResult", type(RunResult.class));
     MODELLED.put("RetryFrom", type(RetryFrom.class));
+    MODELLED.put("RunAttempt", type(RunAttempt.class));
     MODELLED.put("WorkflowWorkspace", type(WorkflowWorkspace.class));
     MODELLED.put("WorkflowSubmitRequest", type(SubmitRequest.class));
     MODELLED.put("WorkflowRunRetryRequest", type(Retry.class));

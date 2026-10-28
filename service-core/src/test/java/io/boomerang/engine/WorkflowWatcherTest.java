@@ -209,7 +209,9 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
   @Test
   void stalledRunWithNoInFlightTasksIsRecovered() {
     WorkflowRunEntity wfRun = savedWorkflowRun("stalled-wf", RunStatus.running, RunPhase.running);
-    wfRun.setStartTime(new Date(System.currentTimeMillis() - 120000));
+    // The oldest candidate there is, and the cursor reset before each sweep, so the run heads
+    // the page both times whatever other classes left running in the shared database.
+    wfRun.setStartTime(new Date(0));
     workflowRunRepository.save(wfRun);
     savedTaskRun(
         "start",
@@ -242,6 +244,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
 
     // One sighting is what a run between a task's end and the next admission looks like: no
     // advance until a later sweep finds the run empty again.
+    watcher.resetSweepCursors();
     watcher.recoverStalledRuns();
     awaitEngine("no advance on a single sighting")
         .during(Duration.ofSeconds(2))
@@ -250,6 +253,7 @@ class WorkflowWatcherTest extends AbstractEngineIntegrationTest {
                 RunPhase.pending.equals(
                     taskRunRepository.findById(end.getId()).orElseThrow().getPhase()));
 
+    watcher.resetSweepCursors();
     watcher.recoverStalledRuns();
 
     awaitEngine("the recovered advance to finish the run")

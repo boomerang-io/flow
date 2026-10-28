@@ -328,10 +328,15 @@ components:
           items:
             $ref: "#/components/schemas/ResultSpec"
           type: "array"
+        retry:
+          $ref: "#/components/schemas/WorkflowTaskRetry"
         taskRef:
           type: "string"
         taskVersion:
           format: "int32"
+          type: "integer"
+        timeout:
+          format: "int64"
           type: "integer"
         upgradesAvailable:
           type: "boolean"
@@ -1410,6 +1415,20 @@ components:
         name:
           type: "string"
       type: "object"
+    RetryBackoff:
+      properties:
+        initial:
+          format: "int64"
+          type: "integer"
+        max:
+          format: "int64"
+          type: "integer"
+        type:
+          enum:
+          - "fixed"
+          - "exponential"
+          type: "string"
+      type: "object"
     RetryFrom:
       properties:
         nodes:
@@ -1513,6 +1532,40 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
+    RunAttempt:
+      properties:
+        claimedAt:
+          format: "date-time"
+          type: "string"
+        dispatcherRef:
+          type: "string"
+        duration:
+          format: "int64"
+          type: "integer"
+        endedAt:
+          format: "date-time"
+          type: "string"
+        number:
+          format: "int32"
+          type: "integer"
+        status:
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+          type: "string"
+        statusMessage:
+          type: "string"
+        statusReason:
+          type: "string"
+      type: "object"
     RunParam:
       properties:
         name:
@@ -1539,7 +1592,15 @@ components:
         after:
           format: "date-time"
           type: "string"
+        backoff:
+          $ref: "#/components/schemas/RetryBackoff"
         count:
+          format: "int32"
+          type: "integer"
+        failures:
+          format: "int32"
+          type: "integer"
+        max:
           format: "int32"
           type: "integer"
       type: "object"
@@ -1816,6 +1877,10 @@ components:
         attempt:
           format: "int32"
           type: "integer"
+        attempts:
+          items:
+            $ref: "#/components/schemas/RunAttempt"
+          type: "array"
         creationDate:
           format: "date-time"
           type: "string"
@@ -2353,6 +2418,8 @@ components:
           type: "object"
         changelog:
           $ref: "#/components/schemas/ChangeLog"
+        concurrency:
+          $ref: "#/components/schemas/WorkflowConcurrency"
         creationDate:
           format: "date-time"
           type: "string"
@@ -2411,6 +2478,8 @@ components:
           type: "object"
         changelog:
           $ref: "#/components/schemas/ChangeLog"
+        concurrency:
+          $ref: "#/components/schemas/WorkflowConcurrency"
         config:
           items:
             $ref: "#/components/schemas/AbstractParam"
@@ -2466,6 +2535,17 @@ components:
           type: "integer"
         workspace:
           $ref: "#/components/schemas/WorkflowWorkspace"
+      type: "object"
+    WorkflowConcurrency:
+      properties:
+        limit:
+          format: "int32"
+          type: "integer"
+        overflow:
+          enum:
+          - "queue"
+          - "skip"
+          type: "string"
       type: "object"
     WorkflowResponsePage:
       properties:
@@ -2615,6 +2695,8 @@ components:
           - "timedout"
           type: "string"
         statusMessage:
+          type: "string"
+        statusReason:
           type: "string"
         tasks:
           items:
@@ -2965,6 +3047,8 @@ components:
           items:
             $ref: "#/components/schemas/ResultSpec"
           type: "array"
+        retry:
+          $ref: "#/components/schemas/WorkflowTaskRetry"
         taskRef:
           type: "string"
         taskVersion:
@@ -3020,6 +3104,14 @@ components:
     WorkflowTaskForeach:
       properties:
         items: {}
+      type: "object"
+    WorkflowTaskRetry:
+      properties:
+        backoff:
+          $ref: "#/components/schemas/RetryBackoff"
+        max:
+          format: "int32"
+          type: "integer"
       type: "object"
     WorkflowTemplate:
       properties:
@@ -4894,7 +4986,7 @@ paths:
         schema:
           type: "string"
       - in: "header"
-        name: "X-GitHub-Hook-Installation-Target-ID"
+        name: "X-GitHub-Delivery"
         required: false
         schema:
           type: "string"

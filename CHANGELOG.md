@@ -130,6 +130,16 @@ tag's release notes.
 
 ### Added
 
+- A task node can retry a failure its dispatcher reports: `retry: {max, backoff: {type, initial, max}}` on the
+  node, edited on the task's Configure tab. The engine requeues the task on that budget with that backoff, never
+  for a cause a retry cannot change (`ImageNotAllowed`, `AdmissionDenied`, `ResultsTooLarge` or an engine-written
+  cause), and records every superseded attempt on the task run as `attempts`, which the run's task view lists. A
+  task without the setting runs once, as before; the engine's own requeues of an attempt that never ran keep their
+  separate budget.
+- A workflow can limit its runs in flight: `concurrency: {limit, overflow}` on the workflow, edited under
+  Configure → Execution. A run over the limit is parked as `waiting` until a run of the workflow ends (`queue`, the
+  default) or ends at once as `cancelled` with reason `ConcurrencyLimit` (`skip`). The workspace quota keeps
+  precedence. A workflow run now carries `statusReason` beside `statusMessage`, as a task run does.
 - Admitting a task, or submitting a run with a workspace, wakes the dispatcher polls held on that engine instance,
   so the work is claimed as soon as it is ready instead of at the poll's next re-check: a hop in a sequential chain
   is now the end, the admission and the claim round trips, about 100–200 ms, whatever
@@ -348,6 +358,9 @@ tag's release notes.
   one interval.
 
 ### Fixed
+
+- A task node's `timeout` set through the API or YAML survives a save from the editor: the canvas now carries it
+  on the node, as it carries the workspace opt-out.
 
 - A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
   ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher

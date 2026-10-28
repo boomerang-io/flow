@@ -55,9 +55,9 @@ class ClaimSeqFencedReapTest extends AbstractEngineIntegrationTest {
   void aRequeueThatObservedAnOlderClaimChangesNothing() {
     String id = claimedTask("fence-requeue");
 
-    assertNull(taskRunService.tryRequeue(id, STALE_SEQ, new Date(), 1));
+    assertNull(taskRunService.tryRequeue(id, STALE_SEQ, new Date(), 1, null));
     assertUntouched(id);
-    assertNotNull(taskRunService.tryRequeue(id, CURRENT_SEQ, new Date(), 1));
+    assertNotNull(taskRunService.tryRequeue(id, CURRENT_SEQ, new Date(), 1, null));
   }
 
   @Test

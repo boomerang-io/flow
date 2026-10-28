@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.model.RunAttempt;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunRetry;
@@ -82,6 +83,11 @@ public class TaskRunEntity {
   // Retry state. Absent = fully eligible; retry.after gates claim eligibility until the backoff
   // elapses. Written only by the fenced requeue, which never clears claim.seq.
   @JsonIgnore private RunRetry retry;
+
+  // The attempts a requeue superseded, oldest first, each with how it ended and who held it. The
+  // run's own status, reason, message and duration are the current attempt. Absent until the first
+  // requeue, so every task run that never retried reads as its first attempt.
+  private List<RunAttempt> attempts;
 
   // Wake time for a durable wait (sleep, or an acquirelock backoff). A waiting row is re-driven by
   // the watcher when waitUntil elapses - never a held thread. Absent = not a timed wait.

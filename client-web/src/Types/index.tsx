@@ -212,6 +212,17 @@ export interface WorkflowTask {
   /** Absent or true mounts the run's shared workspace into this task; false opts the task out. */
   workspace?: boolean;
   foreach?: WorkflowTaskForeach;
+  retry?: WorkflowTaskRetry;
+}
+
+/**
+ * Retries of a reported failure beyond the first attempt. Times are seconds; an absent field
+ * takes the engine default (10 s doubling to 300 s).
+ */
+export interface WorkflowTaskRetry {
+  /** 0 to 10; absent means none. */
+  max?: number;
+  backoff?: { type?: "fixed" | "exponential"; initial?: number; max?: number };
 }
 
 /**
@@ -222,6 +233,12 @@ export interface WorkflowTaskForeach {
   items: string | Array<unknown>;
 }
 
+/** Runs of a workflow in flight at once, and what happens to a run over the limit. */
+export interface WorkflowConcurrency {
+  limit?: number;
+  overflow?: "queue" | "skip";
+}
+
 export interface Workflow {
   id?: string;
   name: string;
@@ -230,6 +247,8 @@ export interface Workflow {
   status: WorkflowStatus;
   timeout?: number;
   retries?: number;
+  /** Absent means no limit. */
+  concurrency?: WorkflowConcurrency;
   version: number;
   description: string;
   icon: string;
@@ -372,6 +391,8 @@ export type WorkflowNodeData = {
   params: Array<{ name: string; value: string }>;
   results: Array<{ name: string; description: string }>;
   foreach?: WorkflowTaskForeach;
+  timeout?: number;
+  retry?: WorkflowTaskRetry;
 };
 // xyflow's `Node<Data>`/`Edge<Data>` require `Data extends Record<string, unknown>`. The
 // intersection is applied here (at the xyflow boundary) rather than on `WorkflowNodeData`/
@@ -1001,6 +1022,8 @@ export interface ConfigureWorkflowFormValues {
   };
   retries: number | null;
   timeout: number | null;
+  concurrencyLimit: number | null;
+  concurrencyOverflow: "queue" | "skip";
   triggers: WorkflowCanvas["triggers"];
 }
 
@@ -1030,6 +1053,8 @@ export interface WorkflowRun {
   startTime: string;
   status: RunStatus;
   statusMessage: string;
+  /** Why the run ended or waits as it does, e.g. `ConcurrencyLimit`; absent when there is none. */
+  statusReason?: string;
   tasks: Array<TaskRun>;
   timeout: number;
   trigger: string;
@@ -1038,6 +1063,18 @@ export interface WorkflowRun {
   workflowRef: string;
   workflowRevisionRef: string;
   workflowVersion: number;
+}
+
+export interface TaskRunAttempt {
+  number: number;
+  claimedAt?: string;
+  endedAt?: string;
+  /** Milliseconds. */
+  duration: number;
+  status: RunStatus;
+  statusReason?: string;
+  statusMessage?: string;
+  dispatcherRef?: string;
 }
 
 export interface TaskRun {
@@ -1073,6 +1110,8 @@ export interface TaskRun {
   reusedFromRef?: string;
   /** The attempt a dispatcher holds or last held: 1, plus one per requeue. Absent when no dispatcher claimed it. */
   attempt?: number;
+  /** The superseded attempts, oldest first; the task run's own status is the current attempt. */
+  attempts?: Array<TaskRunAttempt>;
 }
 
 /** What a retry re-runs: the whole graph, the tasks that did not succeed and after, or named tasks and after. */

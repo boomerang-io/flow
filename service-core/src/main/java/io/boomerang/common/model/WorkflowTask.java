@@ -24,7 +24,7 @@ import org.springframework.data.annotation.Transient;
   "templateVersion",
   "templateUpgradesAvailable",
   "timeout",
-  "retries",
+  "retry",
   "dependencies"
 })
 public class WorkflowTask {
@@ -35,7 +35,8 @@ public class WorkflowTask {
   private Integer taskVersion;
   @JsonInclude() @Transient private Boolean upgradesAvailable = false;
   private Long timeout;
-  // private long retries = -1;
+  // Optional - retry a failure the dispatcher reports: how many times and after what backoff.
+  private WorkflowTaskRetry retry;
   private List<WorkflowTaskDependency> dependencies = new LinkedList<>();
   private Map<String, String> labels = new HashMap<>();
   private Map<String, Object> annotations = new HashMap<>();

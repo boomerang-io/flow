@@ -15,6 +15,7 @@ import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
 import { splitForeachValues } from "../../shared/foreach";
+import { splitRetryValues } from "../../shared/retry";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
 
@@ -77,13 +78,15 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
     results?: Array<{ name: string; description: string }>,
   ) => {
     // The for-each setting shares the form with the params but is not a param.
-    const { foreach, rest } = splitForeachValues(inputs);
+    const { foreach, rest: withoutForeach } = splitForeachValues(inputs);
+    // So is the retry setting; none saves as an absent `retry`.
+    const { retry, rest } = splitRetryValues(withoutForeach);
     const nameAndParamListRecord = inputRecordToNameAndParamListRecord(rest);
     const newNodes = nodes.map((node) => {
       if (node.id === props.id) {
         return {
           ...node,
-          data: { ...node.data, ...nameAndParamListRecord, results: results ?? node.data.results, foreach },
+          data: { ...node.data, ...nameAndParamListRecord, results: results ?? node.data.results, foreach, retry },
         };
       } else {
         return node;

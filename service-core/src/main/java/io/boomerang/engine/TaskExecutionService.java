@@ -1522,7 +1522,7 @@ public class TaskExecutionService {
     // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
     // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
     if (workflowRunStateHelper.tryComplete(
-            wfRunEntity.getId(), List.of(RunPhase.running), status, null, duration)
+            wfRunEntity.getId(), List.of(RunPhase.running), status, null, null, duration)
         == null) {
       LOGGER.info(
           "[{}] WorkflowRun already completed. Only the completion winner finishes.",

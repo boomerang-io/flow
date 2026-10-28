@@ -6,6 +6,7 @@ import { normaliseInputs } from "Utils/paramsHelper";
 import type { DataDrivenInput, Task, WorkflowNodeData } from "Types";
 import TaskFormTabs from "../../../shared/TaskFormTabs";
 import { foreachInitialValues, foreachValidationShape, taskNameSchema } from "../../../shared/foreach";
+import { retryInitialValues, retryValidationShape } from "../../../shared/retry";
 import {
   AutoSuggestInput,
   TextAreaSuggestInput,
@@ -70,6 +71,7 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       {} as Record<string, string>,
     ),
     ...foreachInitialValues(node.foreach),
+    ...retryInitialValues(node.retry),
   };
 
   return (
@@ -79,6 +81,7 @@ function WorkflowTaskForm(props: WorkflowTaskFormProps) {
       validationSchemaExtension={Yup.object().shape({
         taskName: taskNameSchema(otherTaskNames),
         ...foreachValidationShape,
+        ...retryValidationShape,
       })}
       initialValues={initialValues}
       inputs={inputs}

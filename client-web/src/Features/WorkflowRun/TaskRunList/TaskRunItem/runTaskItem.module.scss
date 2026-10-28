@@ -354,3 +354,23 @@
     right: -8%;
   }
 }
+
+.attemptList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.attempt {
+  display: flex;
+  flex-direction: column;
+}
+
+.attemptMessage {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}

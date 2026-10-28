@@ -33,6 +33,9 @@ public final class EngineConstants {
   /** Attempts a requeueable task gets beyond its first before it fails. */
   public static final int MAX_RETRIES = 3;
 
+  /** The most retries of a reported failure a task node may ask for ({@code retry.max}). */
+  public static final int MAX_FAILURE_RETRIES = 10;
+
   /**
    * The types whose execution is a wait on something outside the engine's control: a person, an
    * event, a child run, the clock, a lock. While every in-flight task of a run is one of these the

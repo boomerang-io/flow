@@ -10,7 +10,8 @@ import java.util.Map;
  * One task's run inside a workflow run. {@code parentRef} and {@code index} are set on an item of
  * a for-each task and {@code foreach} is {@code true} on its parent, the run that stands for the
  * items and never runs itself; {@code reusedFromRef} on a task a scoped retry carried over instead of running;
- * {@code attempt} counts the dispatcher's attempts, absent on a task no dispatcher claimed. A row
+ * {@code attempt} counts the dispatcher's attempts, absent on a task no dispatcher claimed, and
+ * {@code attempts} lists the ones a requeue superseded, oldest first. A row
  * from {@code TaskRuns.query} leaves out params, results, spec, annotations and the status
  * message.
  */
@@ -44,6 +45,7 @@ public record TaskRun(
     Integer index,
     String reusedFromRef,
     Integer attempt,
+    List<RunAttempt> attempts,
     Boolean foreach) {
 
   // Params and the spec are left out: either may carry a secret.

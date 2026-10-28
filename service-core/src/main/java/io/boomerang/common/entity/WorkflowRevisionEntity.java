@@ -35,6 +35,7 @@ public class WorkflowRevisionEntity {
   private Boolean legacyWorkflowStorage;
   private Long timeout;
   private Long retries;
+  private WorkflowConcurrency concurrency;
 
   @Override
   public String toString() {

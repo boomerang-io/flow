@@ -1,6 +1,6 @@
 import { quantityToGb } from "Utils/storageQuantity";
 import React from "react";
-import { Tag, MultiSelect, InlineNotification, Button, Dropdown } from "@carbon/react";
+import { Tag, MultiSelect, InlineNotification, Button, Dropdown, Select, SelectItem } from "@carbon/react";
 import { Launch, Popup, TrashCan, Add } from "@carbon/react/icons";
 import {
   ComposedModal,
@@ -117,6 +117,8 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
           displayName: workflow.displayName ?? "",
           timeout: workflow.timeout ?? null,
           retries: workflow.retries ?? null,
+          concurrencyLimit: workflow.concurrency?.limit ?? null,
+          concurrencyOverflow: workflow.concurrency?.overflow ?? "queue",
           labels: workflow.labels ? Object.entries(workflow.labels).map(([key, value]) => ({ key, value })) : [],
           triggers: workflow.triggers ?? {},
           config: workflow.config ?? [],
@@ -158,6 +160,12 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
             ),
           displayName: Yup.string().optional(),
           retries: Yup.number().min(0),
+          concurrencyLimit: Yup.number()
+            .nullable()
+            .transform((value, original) => (original === "" || original === null ? null : value))
+            .integer("Enter a whole number")
+            .min(1, "The limit must be at least 1"),
+          concurrencyOverflow: Yup.string().oneOf(["queue", "skip"]),
           timeout: workspaceQuotasEnabled && isQuotaLimited(workspace.quotas.maxWorkflowRunDuration)
             ? Yup.number()
                 .min(0)
@@ -743,6 +751,28 @@ function Configure(props: ConfigureProps) {
                   invalid={Boolean(errors.retries && touched.retries)}
                   invalidText={errors.retries}
                 />
+                <TextInput
+                  id="concurrencyLimit"
+                  label="Concurrency limit"
+                  helperText="Runs of this workflow in flight at once. Leave blank for no limit."
+                  value={values.concurrencyLimit ?? ""}
+                  onBlur={handleBlur}
+                  onChange={(e) => props.formikProps.handleChange(e)}
+                  invalid={Boolean(errors.concurrencyLimit && touched.concurrencyLimit)}
+                  invalidText={errors.concurrencyLimit}
+                  type="number"
+                  min={1}
+                />
+                <Select
+                  id="concurrencyOverflow"
+                  name="concurrencyOverflow"
+                  labelText="Over the limit"
+                  value={values.concurrencyOverflow}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => props.formikProps.handleChange(e)}
+                >
+                  <SelectItem value="queue" text="Queue until a run ends" />
+                  <SelectItem value="skip" text="Skip the run" />
+                </Select>
               </div>
             </div>
           </Section>
