@@ -1,11 +1,6 @@
 package io.boomerang.integrations;
 
-import com.spotify.github.v3.apps.InstallationRepositoriesResponse;
-import com.spotify.github.v3.checks.Installation;
-import com.spotify.github.v3.clients.GitHubClient;
-import com.spotify.github.v3.clients.GithubAppClient;
 import com.spotify.github.v3.clients.JwtTokenIssuer;
-import com.spotify.github.v3.clients.OrganisationClient;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -35,6 +30,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HexFormat;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -65,8 +61,11 @@ public class GitHubService {
 
   private static final String OAUTH_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
   private static final String USER_INSTALLATIONS_URL = "https://api.github.com/user/installations";
+  private static final String INSTALLATION_URL = "https://api.github.com/app/installations/{id}";
   private static final String INSTALLATION_TOKEN_URL =
       "https://api.github.com/app/installations/{id}/access_tokens";
+  private static final String INSTALLATION_REPOSITORIES_URL =
+      "https://api.github.com/installation/repositories?per_page=100&page={page}";
   private static final MediaType GITHUB_JSON = MediaType.parseMediaType("application/vnd.github+json");
   private static final String GITHUB_APP_TYPE = "github_app";
   private static final Duration STATE_TTL = Duration.ofMinutes(10);
@@ -99,28 +98,64 @@ public class GitHubService {
    */
   private record InstallState(String workspace, String userId) {}
 
+  /*
+   * The installation, read with the App's JWT, and every repository it can reach, read with an
+   * installation token. Both go through the external client, so the operator's proxy, trust and
+   * timeout settings apply.
+   */
   public ResponseEntity<?> getInstallation(Integer id) {
-    final GithubAppClient appClient = getGitHubAppClient(id);
     try {
-      Installation installation = appClient.getInstallation(id).join();
-      LOGGER.debug("GitHub Installation: " + installation.toString());
-
-      InstallationRepositoriesResponse repositories =
-          appClient.listAccessibleRepositories(installation.id()).join();
+      Map<String, Object> installation = getJson(INSTALLATION_URL, appJwt(), id);
+      Map<?, ?> account = (Map<?, ?>) installation.get("account");
 
       GHInstallationsResponse response = new GHInstallationsResponse();
-      response.setAppId(Integer.valueOf(installation.appId()));
-      response.setInstallationId(Integer.valueOf(installation.id()));
-      response.setOrgSlug(installation.account().login());
-      response.setOrgUrl(installation.account().htmlUrl().toString());
-      response.setOrgId(Integer.valueOf(installation.account().id()));
-      response.setOrgType(installation.account().type());
-      response.setEvents(installation.events());
-      response.setRepositories(repositories.repositories().stream().map(r -> r.name()).toList());
+      response.setAppId(((Number) installation.get("app_id")).intValue());
+      response.setInstallationId(((Number) installation.get("id")).intValue());
+      response.setOrgSlug((String) account.get("login"));
+      response.setOrgUrl((String) account.get("html_url"));
+      response.setOrgId(((Number) account.get("id")).intValue());
+      response.setOrgType((String) account.get("type"));
+      response.setEvents(
+          ((List<?>) installation.get("events")).stream().map(String::valueOf).toList());
+      response.setRepositories(repositories(installationToken(String.valueOf(id))));
       return ResponseEntity.ok(response);
-    } catch (Exception ex) {
+    } catch (GeneralSecurityException | RuntimeException ex) {
       throw new BoomerangException(ex, BoomerangError.INTEGRATION_INVALID_REF);
     }
+  }
+
+  // Every repository the installation can reach, a page of 100 at a time until all are read.
+  private List<String> repositories(String installationToken) {
+    List<String> names = new LinkedList<>();
+    for (int page = 1; ; page++) {
+      Map<String, Object> body = getJson(INSTALLATION_REPOSITORIES_URL, installationToken, page);
+      List<?> repositories = (List<?>) body.get("repositories");
+      repositories.forEach(repository -> names.add((String) ((Map<?, ?>) repository).get("name")));
+      if (repositories.isEmpty() || names.size() >= ((Number) body.get("total_count")).intValue()) {
+        return names;
+      }
+    }
+  }
+
+  private Map<String, Object> getJson(String url, String bearer, Object... uriVariables) {
+    HttpHeaders headers = new HttpHeaders();
+    headers.setBearerAuth(bearer);
+    headers.setAccept(List.of(GITHUB_JSON));
+    return restTemplate
+        .exchange(
+            url,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            new ParameterizedTypeReference<Map<String, Object>>() {},
+            uriVariables)
+        .getBody();
+  }
+
+  // A short-lived JWT the App's private key signs, with the App id as issuer: how an App calls GitHub.
+  private String appJwt() throws GeneralSecurityException {
+    Integer appId =
+        Integer.valueOf(settingsService.getSettingConfig("integration", "github.appId").getValue());
+    return JwtTokenIssuer.fromPrivateKey(getPEMBytes()).getToken(appId);
   }
 
   public ResponseEntity<?> getInstallationForWorkspace(String workspace) {
@@ -144,10 +179,8 @@ public class GitHubService {
     Map<String, Object> body;
     try {
       Integer installationId = Integer.valueOf(installationRef);
-      Integer appId =
-          Integer.valueOf(settingsService.getSettingConfig("integration", "github.appId").getValue());
       HttpHeaders headers = new HttpHeaders();
-      headers.setBearerAuth(JwtTokenIssuer.fromPrivateKey(getPEMBytes()).getToken(appId));
+      headers.setBearerAuth(appJwt());
       headers.setAccept(List.of(GITHUB_JSON));
       body =
           restTemplate
@@ -204,21 +237,6 @@ public class GitHubService {
             ex.getMessage());
       }
     }
-  }
-
-  private GithubAppClient getGitHubAppClient(Integer installationId) {
-    final String appId = settingsService.getSettingConfig("integration", "github.appId").getValue();
-    final GitHubClient githubClient =
-        GitHubClient.create(
-            URI.create("https://api.github.com/"),
-            this.getPEMBytes(),
-            Integer.valueOf(appId),
-            installationId);
-
-    final OrganisationClient orgClient = githubClient.createOrganisationClient("");
-
-    final GithubAppClient appClient = orgClient.createGithubAppClient();
-    return appClient;
   }
 
   private byte[] getPEMBytes() {
