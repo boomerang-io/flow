@@ -947,8 +947,7 @@ public class WorkflowService {
         } else if (TriggerEnum.webhook.equals(runTrigger) && triggers.getWebhook().getEnabled()) {
           return;
         } else if (TriggerEnum.event.equals(runTrigger) && triggers.getEvent().getEnabled()) {
-          Trigger trigger = triggers.getEvent();
-          validateTriggerConditions(ParameterUtil.getValue(params, "event"), trigger);
+          validateEventConditions(params, triggers.getEvent());
           return;
         } else if (TriggerEnum.github.equals(runTrigger) && triggers.getGithub().getEnabled()) {
           validateGitHubConditions(params, triggers.getGithub());
@@ -960,12 +959,22 @@ public class WorkflowService {
   }
 
   /*
-   * Each condition's field is a JSON path into the event, which is read only when there are any.
+   * Each condition's field is a JSON path into the event as it was sent: its attributes, with its
+   * data under "data", so "type" and "data.tag" both read.
    */
-  private void validateTriggerConditions(Object data, Trigger trigger) {
-    if (!trigger.getConditions().isEmpty()) {
-      validateTriggerConditions(trigger, jsonPathValues(data));
+  private void validateEventConditions(List<RunParam> params, Trigger trigger) {
+    if (trigger.getConditions().isEmpty()) {
+      return;
     }
+    Map<String, Object> event = new LinkedHashMap<>();
+    if (ParameterUtil.getValue(params, "event") instanceof Map<?, ?> attributes) {
+      attributes.forEach((name, value) -> event.put(String.valueOf(name), value));
+    }
+    Object data = ParameterUtil.getValue(params, "data");
+    if (data != null) {
+      event.put("data", data);
+    }
+    validateTriggerConditions(trigger, jsonPathValues(event));
   }
 
   /*

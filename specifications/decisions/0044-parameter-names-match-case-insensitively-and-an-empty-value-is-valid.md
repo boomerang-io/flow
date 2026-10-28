@@ -24,10 +24,10 @@ emptiness can mean something to a workflow.
 Case-insensitive names with variants rejected, and empty values accepted. References resolve over a case-insensitive
 view of the layers (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:877-878`); the node-value
 merge keeps the declared casing (`common/util/ParameterUtil.java:123-144`); names that fold alike fail with
-`PARAM_NAME_COLLISION` at workflow save (`workflow/WorkflowService.java:1571-1579`) and catalogue task save
+`PARAM_NAME_COLLISION` at workflow save (`workflow/WorkflowService.java:1580-1588`) and catalogue task save
 (`workflow/TaskService.java:362-372`). GitHub Actions, the one mainstream system with a folded channel, pairs
 insensitivity with the same rule. Save checks names only (invalid, colliding, undeclared); a value may be empty or
-absent (`workflow/WorkflowService.java:1556-1601`). A run-workflow node with no target fails its own run with
+absent (`workflow/WorkflowService.java:1565-1610`). A run-workflow node with no target fails its own run with
 "Parameter 'workflowRef' resolved to no value" (`engine/TaskExecutionService.java:1116-1123`).
 
 ## Consequences
