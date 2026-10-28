@@ -178,7 +178,7 @@ the OTLP exporters excluded because BuildKit hands every build step `OTEL_TRACES
 on its own Unix socket) and writes `service.aot`: every class loaded in that start, linked, with its initialised
 state (`service-core/Dockerfile:61-66`). The dispatcher's train stage starts it against no cluster with a
 placeholder namespace (`service-dispatcher/Dockerfile:42-44`). The runtime command maps the cache and turns
-compact object headers on (`service-core/Dockerfile:84-85`), 4 bytes off every object. The train and runtime
+compact object headers on (`service-core/Dockerfile:89-90`), 4 bytes off every object. The train and runtime
 stages are the only per-platform stages, since a cache is tied to the JVM build that records it.
 
 **Measured**: `service-core` start to Boot's `Started Application` against a local Mongo 7, security off, on the

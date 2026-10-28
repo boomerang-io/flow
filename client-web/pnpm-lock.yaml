@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15':
-    hash: eeacece13b1d04bbedf9de1a2cf5e4d3a984bae7290856b1f39edbed6fddf408
+    hash: f0554649098c98fbd1760d74dd01885d21f2c51592579e8b18b70cba41fa173d
     path: patches/@boomerang-io__carbon-addons-boomerang-react@4.9.0-beta.15.patch
   '@boomerang-io/utils@1.1.0':
     hash: f5b69c02eb6c4c7bb14af024239851a1c263adfcfc54359b65f864b10dc177f1
@@ -32,7 +32,7 @@ importers:
     devDependencies:
       '@boomerang-io/carbon-addons-boomerang-react':
         specifier: 4.9.0-beta.15
-        version: 4.9.0-beta.15(patch_hash=eeacece13b1d04bbedf9de1a2cf5e4d3a984bae7290856b1f39edbed6fddf408)(@carbon/grid@11.60.0)(@carbon/layout@11.57.0)(@carbon/motion@11.50.0)(@carbon/react@1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0))(@carbon/themes@11.79.0)(@carbon/type@11.65.0)(@tanstack/react-query@5.101.4(react@18.3.1))(axios@1.20.0)(formik@2.4.9(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)
+        version: 4.9.0-beta.15(patch_hash=f0554649098c98fbd1760d74dd01885d21f2c51592579e8b18b70cba41fa173d)(@carbon/grid@11.60.0)(@carbon/layout@11.57.0)(@carbon/motion@11.50.0)(@carbon/react@1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0))(@carbon/themes@11.79.0)(@carbon/type@11.65.0)(@tanstack/react-query@5.101.4(react@18.3.1))(axios@1.20.0)(formik@2.4.9(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)
       '@boomerang-io/styles':
         specifier: 1.1.0
         version: 1.1.0
@@ -8754,7 +8754,7 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
-  '@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15(patch_hash=eeacece13b1d04bbedf9de1a2cf5e4d3a984bae7290856b1f39edbed6fddf408)(@carbon/grid@11.60.0)(@carbon/layout@11.57.0)(@carbon/motion@11.50.0)(@carbon/react@1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0))(@carbon/themes@11.79.0)(@carbon/type@11.65.0)(@tanstack/react-query@5.101.4(react@18.3.1))(axios@1.20.0)(formik@2.4.9(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)':
+  '@boomerang-io/carbon-addons-boomerang-react@4.9.0-beta.15(patch_hash=f0554649098c98fbd1760d74dd01885d21f2c51592579e8b18b70cba41fa173d)(@carbon/grid@11.60.0)(@carbon/layout@11.57.0)(@carbon/motion@11.50.0)(@carbon/react@1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0))(@carbon/themes@11.79.0)(@carbon/type@11.65.0)(@tanstack/react-query@5.101.4(react@18.3.1))(axios@1.20.0)(formik@2.4.9(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)(yup@0.32.11)':
     dependencies:
       '@carbon/ibm-products': 2.57.1(@carbon/grid@11.60.0)(@carbon/layout@11.57.0)(@carbon/motion@11.50.0)(@carbon/react@1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0))(@carbon/themes@11.79.0)(@carbon/type@11.65.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@carbon/react': 1.75.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.102.0)

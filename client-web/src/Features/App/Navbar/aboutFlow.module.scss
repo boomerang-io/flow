@@ -1,0 +1,17 @@
+@use "@carbon/react/scss/spacing" as *;
+@use "@carbon/react/scss/type" as *;
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.version {
+  @include type-style("heading-compact-02");
+}
+
+.text {
+  @include type-style("body-compact-01");
+  color: var(--cds-text-secondary);
+}

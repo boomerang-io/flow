@@ -419,3 +419,6 @@ tag's release notes.
   interrupts a periodic upload in flight when the handler returns; it finishes first and the final log is the last
   one stored. The engine's log store replaces the record an overlapping upload stored instead of answering 500 on
   the run-and-name unique index.
+- The header's help menu lists Docs, Release Notes, Tutorial and About once each, each with an icon; it showed a
+  stray line, a second Docs, and Tutorial and Docs without icons. The profile menu names the user once.
+- About shows Flow's version, licence and source link; it opened empty.
