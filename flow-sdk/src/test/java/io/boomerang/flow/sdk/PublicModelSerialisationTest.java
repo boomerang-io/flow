@@ -76,11 +76,11 @@ class PublicModelSerialisationTest {
         new TaskRun(
             "t1", null, "review", null, null, null, null, null, null, List.of(secret), null, null,
             spec, null, null, null, null, null, null, null, null, null, null, null, null, null,
-            null, null);
+            null, null, null);
     WorkflowRun run =
         new WorkflowRun(
             "r1", null, null, null, null, null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null, List.of(secret), null, null,
+            null, null, null, null, null, null, null, null, null, null, List.of(secret), null, null,
             List.of(task));
 
     assertThat(List.of(secret, spec, spec.envs().getFirst(), task, run).toString())

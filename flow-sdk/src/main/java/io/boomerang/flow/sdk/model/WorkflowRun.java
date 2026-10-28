@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * A workflow run as the public API answers it: the execution record of one submission. {@code
  * status} is the outcome a caller acts on; {@code phase} is where the run is in its lifecycle.
- * {@code tasks} is present only when read with them. A secret param's value reads as the server's
+ * {@code statusReason} is the typed cause the engine ended it with, when it had one. {@code tasks} is present only when read with them. A secret param's value reads as the server's
  * redaction marker.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -23,6 +23,7 @@ public record WorkflowRun(
     Instant startTime,
     Long duration,
     String statusMessage,
+    String statusReason,
     Boolean awaitingApproval,
     Long timeout,
     Long retries,
