@@ -3,8 +3,19 @@
 .section {
   display: flex;
   flex-direction: column;
+  // Fills the page, through the container's bottom padding, so the save bar rests at its bottom rather
+  // than under a short form.
+  flex-grow: 1;
+  margin-bottom: -3rem;
   gap: 1.5rem;
   max-width: 44rem;
+
+  :global(.cds--bmrg-dynamic-formik) {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 1.5rem;
+  }
 }
 
 .header {
@@ -52,11 +63,12 @@
   align-items: center;
   background-color: var(--cds-layer-01, var(--cds-ui-01));
   border-top: 1px solid var(--cds-border-subtle-01, var(--cds-ui-03));
-  bottom: 0;
+  // A stuck bar keeps inside its scroll container's padding; this cancels the container's 3rem.
+  bottom: -3rem;
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
-  margin: 0 -2rem -3rem;
+  margin: auto -2rem 0;
   padding: 0.75rem 2rem;
   position: sticky;
 }

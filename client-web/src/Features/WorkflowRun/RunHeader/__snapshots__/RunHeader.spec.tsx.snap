@@ -117,7 +117,11 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
                 <strong>
                   Succeeded
                 </strong>
-                 in 5 min
+                <span
+                  data-testid="run-active-time"
+                >
+                   · 5 min active
+                </span>
               </span>
             </div>
           </dd>
@@ -160,6 +164,7 @@ exports[`RunHeader --- Snapshot > Capturing Snapshot of RunHeader 1`] = `
           </dt>
           <dd
             class="_dataValue_268f38"
+            data-testid="initiated-by-name"
           >
             Tim Bula
           </dd>

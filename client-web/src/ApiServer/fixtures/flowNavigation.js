@@ -61,10 +61,13 @@ const flowNavigation = [
     link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/parameters",
   },
   {
-    name: "Manage Workspace",
+    name: "Manage workspace",
     type: "link",
     icon: "SettingsAdjust",
     link: "/BMRG_APP_ROOT_CONTEXT/admin-flowabl-io-personal-workspace/manage",
+  },
+  {
+    type: "divider",
   },
   {
     name: "Admin",

@@ -49,7 +49,8 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, stats }) => {
   const fetcher = useFetcher<LeaveWorkspaceActionResult>();
 
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) {
+    // On the result, not once idle: the revalidation this action starts can remove this component first.
+    if (!fetcher.data) {
       return;
     }
     if (!isActionError(fetcher.data)) {
@@ -59,7 +60,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, stats }) => {
     } else {
       notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to leave workspace failed`} />);
     }
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const handleLeaveWorkspace = () => {
     fetcher.submit({ intent: "leave-workspace", workspace: workspace.name, displayName: workspace.displayName }, { method: "post" });
@@ -76,7 +77,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, stats }) => {
     { itemText: "View Actions", onClick: () => navigate(appLink.actions(workspaceArg)) },
     ...(activityEnabled ? [{ itemText: "View Activity", onClick: () => navigate(appLink.activity(workspaceArg)) }] : []),
     ...(workspaceManagementEnabled
-      ? [{ itemText: "Manage Workspace", onClick: () => navigate(appLink.manageWorkspace(workspaceArg)) }]
+      ? [{ itemText: "Manage workspace", onClick: () => navigate(appLink.manageWorkspace(workspaceArg)) }]
       : []),
     // The only workspace cannot be left.
     ...(!singleWorkspaceEnabled

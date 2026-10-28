@@ -3,15 +3,14 @@ import {
   Button,
   DataTable,
   DataTableSkeleton,
-  OverflowMenu,
-  OverflowMenuItem,
+  IconButton,
   Pagination,
   Tag,
   TableToolbar,
   TableToolbarContent,
   TableToolbarSearch,
 } from "@carbon/react";
-import { Add } from "@carbon/react/icons";
+import { Add, Copy, Edit, TrashCan } from "@carbon/react/icons";
 import { ConfirmModal, Error, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import { matchSorter } from "match-sorter";
 import EmptyState from "Components/EmptyState";
@@ -145,20 +144,31 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
         }
         return parameter.type === InputType.Password ? <Tag size="sm" type="purple">Secured</Tag> : null;
       case "actions":
+        // A read-only parameter keeps only Copy reference, so its reference can still be copied. Tooltips
+        // open to the left: the table's scroll container clips anything above the row.
         return (
-          <OverflowMenu
-            align="left"
-            aria-label={`Actions for ${parameter.name}`}
-            data-testid="parameter-menu-button"
-            flipped
-            iconDescription="Parameter actions"
-          >
-            {!parameter.readOnly && <OverflowMenuItem itemText="Edit" onClick={() => onEdit(parameter)} />}
-            <OverflowMenuItem itemText="Copy reference" onClick={() => copyReference(parameter)} />
+          <div className={styles.rowActions} data-testid="parameter-actions">
             {!parameter.readOnly && (
-              <OverflowMenuItem hasDivider isDelete itemText="Delete" onClick={() => setToDelete(parameter)} />
+              <IconButton kind="ghost" label="Edit" size="sm" align="left" onClick={() => onEdit(parameter)}>
+                <Edit />
+              </IconButton>
             )}
-          </OverflowMenu>
+            <IconButton kind="ghost" label="Copy reference" size="sm" align="left" onClick={() => copyReference(parameter)}>
+              <Copy />
+            </IconButton>
+            {!parameter.readOnly && (
+              <IconButton
+                className={styles.deleteAction}
+                kind="ghost"
+                label="Delete"
+                size="sm"
+                align="left"
+                onClick={() => setToDelete(parameter)}
+              >
+                <TrashCan />
+              </IconButton>
+            )}
+          </div>
         );
       default:
         return value ? <span className={styles.text}>{value}</span> : <span className={styles.none}>—</span>;

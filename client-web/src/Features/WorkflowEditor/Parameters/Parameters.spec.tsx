@@ -81,11 +81,10 @@ describe("Inputs --- RTL", () => {
     expect(await screen.findByText("Add parameter", { selector: "h2, h3" })).toBeInTheDocument();
   });
 
-  it("opens the edit modal from the row menu, with the name shown as its reference", async () => {
+  it("opens the edit modal from the row's Edit button, with the name shown as its reference", async () => {
     renderWithContext(<Inputs {...props} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Parameter actions" }));
-    fireEvent.click(await screen.findByText("Edit"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 
     expect(await screen.findByText("Edit parameter", { selector: "h2, h3" })).toBeInTheDocument();
     expect(screen.getByText(/Tasks read it as \$\(params\.tim-parameter\)/)).toBeInTheDocument();

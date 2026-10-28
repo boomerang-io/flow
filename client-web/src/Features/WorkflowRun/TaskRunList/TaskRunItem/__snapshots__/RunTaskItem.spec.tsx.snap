@@ -82,7 +82,8 @@ exports[`TaskItem --- Snapshot > Capturing Snapshot of TaskItem 1`] = `
           03:00:00 PM
         </time>
          
-        in 
+        in
+         
         <time
           class="_timeValue_fe6a3c"
         >

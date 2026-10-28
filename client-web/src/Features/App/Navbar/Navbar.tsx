@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   SideNav,
   SideNavDivider,
@@ -11,17 +11,18 @@ import {
   SwitcherDivider,
   Tag,
 } from "@carbon/react";
-import { FlowData, ArrowsHorizontal, Book, Settings } from "@carbon/react/icons";
+import { FlowData, ArrowsHorizontal, Information, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Link, useLocation, useNavigate, useRouteLoaderData } from "react-router-dom";
+import ClientOnly from "Components/ClientOnly";
 import * as navigationIcons from "Utils/navigationIcons";
 import type { BootstrapData } from "Features/App/App";
 import { APP_ROOT, FeatureFlag } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
-import AboutFlowMenuItem from "./AboutFlow";
+import AboutFlowModal, { PRODUCT_NAME } from "./AboutFlow";
 import styles from "./navbar.module.scss";
 
 const skipToContentProps = {
@@ -32,14 +33,14 @@ const skipToContentProps = {
 const DOCS_URL = "https://www.useboomerang.io/flow";
 const RELEASE_NOTES_URL = "https://github.com/boomerang-io/flow/releases";
 interface NavbarProps {
-  handleOnTutorialClick: () => void;
   flowNavigationData: Array<FlowNavigationItem>;
   contextData: ContextConfig;
   userData: FlowUser;
 }
 
-export default function Navbar({ handleOnTutorialClick, flowNavigationData, contextData, userData }: NavbarProps) {
+export default function Navbar({ flowNavigationData, contextData, userData }: NavbarProps) {
   const { platform } = contextData;
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const appTitle = getAppTitle(platform);
   const appName = platform.appName || "Boomerang Flow";
   const platformName = platform.platformName;
@@ -88,13 +89,13 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
         user={{ ...userData, id: "", teams: userData.workspaces ?? [] }}
         supportMenuItems={[
           <HeaderMenuItem
-            key="tutorial"
+            key="about"
             type="button"
-            icon={<Book />}
-            onClick={handleOnTutorialClick}
-            text="Tutorial"
+            icon={<Information />}
+            text={`About ${PRODUCT_NAME}`}
+            onClick={() => setIsAboutOpen(true)}
+            data-testid="about-flow"
           />,
-          <AboutFlowMenuItem key="about" name={appName} version={platform.version} />,
         ]}
         profileMenuItems={[
           <HeaderMenuItem
@@ -141,6 +142,7 @@ export default function Navbar({ handleOnTutorialClick, flowNavigationData, cont
               }
         }
       />
+      <AboutFlowModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} version={platform.version} />
     </>
   );
 }
@@ -155,7 +157,7 @@ type SideNavElemProps = { to: string; element: React.ElementType; onClick: Funct
 
 // FlowNavigationItemChild#renderIcon is typed as SVGElement in Types (a DOM node, not
 // a component) - the actual value is always an icon component, so type it correctly here.
-type SideNavLinkSharedProps = Pick<FlowNavigationItemChild, "large"> & { renderIcon: React.ComponentType; key: string };
+type SideNavLinkSharedProps = Pick<FlowNavigationItemChild, "large"> & { renderIcon: React.ComponentType };
 
 function isInternalLink(navUrl?: string) {
   return navUrl?.includes(APP_ROOT);
@@ -200,7 +202,15 @@ function getSideNavMenuItemProps(item: FlowNavigationItemChild, close: () => voi
   return { href: item.link, onClick: close };
 }
 
+// The side nav starts closed, so it is rendered in the browser only. Carbon's SideNav marks a
+// closed nav `inert` unless the viewport is large, which the server cannot know: the server's
+// `inert` survived hydration on a wide screen (React keeps an attribute the client did not
+// render) and left the opened nav unclickable.
 function AppSideNav(props: AppSideNavProps) {
+  return <ClientOnly>{() => <AppSideNavContent {...props} />}</ClientOnly>;
+}
+
+function AppSideNavContent(props: AppSideNavProps) {
   const location = useLocation();
   return (
     <SideNav
@@ -252,12 +262,11 @@ function AppSideNav(props: AppSideNavProps) {
             const sharedProps: SideNavLinkSharedProps = {
               large: true,
               renderIcon: itemIcon,
-              key: item.name,
             };
 
             if (item.disabled) {
               return (
-                <SideNavLink className={styles.disabledSidenavLink} {...sharedProps}>
+                <SideNavLink key={item.name} className={styles.disabledSidenavLink} {...sharedProps}>
                   {item.name} {item.beta ? <Tag>beta</Tag> : ""}
                 </SideNavLink>
               );
@@ -265,7 +274,7 @@ function AppSideNav(props: AppSideNavProps) {
 
             const elemProps = getSideNavElemProps(item, props.close);
             return (
-              <SideNavLink {...sharedProps} {...elemProps} isActive={isNavLinkActive(location.pathname, item.link)}>
+              <SideNavLink key={item.name} {...sharedProps} {...elemProps} isActive={isNavLinkActive(location.pathname, item.link)}>
                 {item.name} {item.beta ? <Tag>beta</Tag> : ""}
               </SideNavLink>
             );

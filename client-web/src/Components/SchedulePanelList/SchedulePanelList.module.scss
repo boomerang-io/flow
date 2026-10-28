@@ -12,11 +12,13 @@
   align-items: center;
   border-bottom: 1px solid var(--cds-border-subtle);
   display: flex;
+  gap: 0.5rem;
   min-height: 3rem;
+  padding: 0.25rem;
 }
 
 .search {
-  max-width: 20rem;
+  width: 20rem;
 }
 
 .statusFilter {
@@ -90,12 +92,6 @@
 .actionsCell {
   text-align: right;
   width: 3rem;
-}
-
-.empty {
-  color: var(--cds-text-secondary);
-  font-size: 0.875rem;
-  padding: 1.5rem 1rem;
 }
 
 .listItemSkeleton {

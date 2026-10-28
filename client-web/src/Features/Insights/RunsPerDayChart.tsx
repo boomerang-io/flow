@@ -1,6 +1,7 @@
 import React from "react";
 import { StackedBarChart } from "@carbon/charts-react";
 import { ScaleTypes } from "@carbon/charts";
+import "@carbon/charts-react/styles.css";
 import { InsightsDay } from "Types";
 import { OutcomeKey, outcomeLabel, useStatusColors } from "./statusColors";
 
@@ -31,7 +32,8 @@ export default function RunsPerDayChart({ daily }: { daily: Array<InsightsDay> }
         height: "20rem",
         axes: {
           left: { title: "Runs", stacked: true },
-          bottom: { title: "Date", mapsTo: "date", scaleType: ScaleTypes.TIME },
+          // No title: the month ticks say it, and Carbon Charts lays the legend over a bottom title.
+          bottom: { mapsTo: "date", scaleType: ScaleTypes.TIME },
         },
         color: { scale },
         tooltip: { groupLabel: "Outcome" },

@@ -4,6 +4,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun, WorkflowStatus } from "Types";
+import { profile } from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
 import RunHeader from "./RunHeader";
 
@@ -71,7 +72,11 @@ const workflow: WorkflowCanvas = {
   config: [],
 };
 
-function renderRunHeader(overrides: Partial<WorkflowRun> = {}, workflowOverrides: Partial<WorkflowCanvas> = {}) {
+function renderRunHeader(
+  overrides: Partial<WorkflowRun> = {},
+  workflowOverrides: Partial<WorkflowCanvas> = {},
+  contextValue?: Record<string, unknown>,
+) {
   // RunHeader uses useFetcher, so it needs to sit on a real route of the data router rather than
   // the helper's catch-all - same shape as app/routes/run.tsx.
   return renderWithContext(
@@ -86,7 +91,7 @@ function renderRunHeader(overrides: Partial<WorkflowRun> = {}, workflowOverrides
         />
       }
     />,
-    { route: appLink.execution({ workspace, runId }) },
+    { route: appLink.execution({ workspace, runId }), contextValue },
   );
 }
 
@@ -155,6 +160,13 @@ describe("RunHeader --- Initiated by", () => {
     expect(screen.getByTestId("retry-from")).toHaveTextContent("from the tasks that did not succeed");
   });
 
+  it("names the person who started a manual run, not their user id", () => {
+    renderRunHeader({ trigger: "manual", initiatedByRef: "6ae1b97cd2dff450cf021561", initiatedByName: "Grace Hopper" });
+
+    expect(screen.getByTestId("initiated-by-name")).toHaveTextContent("Grace Hopper");
+    expect(screen.queryByText("6ae1b97cd2dff450cf021561")).not.toBeInTheDocument();
+  });
+
   it("falls back to the robot glyph for a schedule-triggered run with no recorded initiatedByRef", () => {
     renderRunHeader({ trigger: "schedule", initiatedByRef: undefined as unknown as string });
 
@@ -189,10 +201,44 @@ describe("RunHeader --- Initiated by", () => {
 // `:workflow` route param that AppPath.Run (/:workspace/activity/:runId) does not supply, so the
 // user was shown - and copied - `boomerang.io/workflow-ref=undefined`.
 describe("RunHeader --- status and controls", () => {
-  it("leads the run facts with the status tag, duration included", () => {
+  // The fixture user carries no grants; this one may act on any run.
+  const operator = { ...profile, permissions: [{ scope: "global", principal: "**", actions: ["**"] }] };
+
+  it("leads the run facts with the status tag, its active time included", () => {
     renderRunHeader({ status: RunStatus.Succeeded, phase: RunPhase.Completed, duration: 21000 });
 
-    expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+in 21/);
+    expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+·\s+21 s active/);
+  });
+
+  it("offers Start run for a run without a workspace that waits to be started", () => {
+    renderRunHeader({ status: RunStatus.Ready, phase: RunPhase.Pending, duration: 0 }, {}, { user: operator });
+
+    expect(screen.getByRole("button", { name: /Start run/ })).toBeInTheDocument();
+    expect(screen.queryByTestId("run-waits-for-dispatcher")).not.toBeInTheDocument();
+  });
+
+  it("says a run with a workspace waits for a dispatcher, and does not offer to start it", () => {
+    renderRunHeader(
+      { status: RunStatus.Ready, phase: RunPhase.Pending, duration: 0, workspace: { size: "1Gi" } },
+      {},
+      { user: operator },
+    );
+
+    expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-waits-for-dispatcher")).toHaveTextContent(
+      "Waiting for a dispatcher to provision its workspace",
+    );
+  });
+
+  it("says a dispatcher is provisioning the workspace once it has claimed the run", () => {
+    renderRunHeader(
+      { status: RunStatus.Ready, phase: RunPhase.Queued, duration: 0, workspace: { size: "1Gi" } },
+      {},
+      { user: operator },
+    );
+
+    expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("run-waits-for-dispatcher")).toHaveTextContent("A dispatcher is provisioning its workspace");
   });
 });
 

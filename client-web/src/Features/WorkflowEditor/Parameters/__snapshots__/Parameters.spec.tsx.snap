@@ -408,8 +408,9 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                   <td
                     class="_actions_9d297e"
                   >
-                    <span
-                      class="cds--overflow-menu__wrapper"
+                    <div
+                      class="_rowActions_9d297e"
+                      data-testid="parameter-actions"
                     >
                       <span
                         class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
@@ -418,39 +419,25 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                           class="cds--tooltip-trigger__wrapper"
                         >
                           <button
-                            aria-expanded="false"
-                            aria-haspopup="true"
                             aria-labelledby="tooltip-[generated-id]"
-                            class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--md cds--btn cds--btn--md cds--layout--size-md cds--btn--ghost"
-                            data-testid="parameter-menu-button"
+                            class="cds--btn--icon-only cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
                             type="button"
                           >
                             <svg
-                              aria-label="Parameter actions"
-                              class="cds--overflow-menu__icon"
+                              aria-hidden="true"
                               fill="currentColor"
                               focusable="false"
                               height="16"
                               preserveAspectRatio="xMidYMid meet"
-                              role="img"
                               viewBox="0 0 32 32"
                               width="16"
                               xmlns="http://www.w3.org/2000/svg"
                             >
-                              <circle
-                                cx="16"
-                                cy="8"
-                                r="2"
+                              <path
+                                d="M2 26H30V28H2z"
                               />
-                              <circle
-                                cx="16"
-                                cy="16"
-                                r="2"
-                              />
-                              <circle
-                                cx="16"
-                                cy="24"
-                                r="2"
+                              <path
+                                d="M25.4,9c0.8-0.8,0.8-2,0-2.8c0,0,0,0,0,0l-3.6-3.6c-0.8-0.8-2-0.8-2.8,0c0,0,0,0,0,0l-15,15V24h6.4L25.4,9z M20.4,4L24,7.6 l-3,3L17.4,7L20.4,4z M6,22v-3.6l10-10l3.6,3.6l-10,10H6z"
                               />
                             </svg>
                           </button>
@@ -464,14 +451,112 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                           <span
                             class="cds--popover-content cds--tooltip-content"
                           >
-                            Parameter actions
+                            Edit
                           </span>
                           <span
                             class="cds--popover-caret"
                           />
                         </span>
                       </span>
-                    </span>
+                      <span
+                        class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
+                      >
+                        <div
+                          class="cds--tooltip-trigger__wrapper"
+                        >
+                          <button
+                            aria-labelledby="tooltip-[generated-id]"
+                            class="cds--btn--icon-only cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                            type="button"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M28,10V28H10V10H28m0-2H10a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10a2,2,0,0,0-2-2Z"
+                              />
+                              <path
+                                d="M4,18H2V4A2,2,0,0,1,4,2H18V4H4Z"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          class="cds--popover"
+                          id="tooltip-[generated-id]"
+                          role="tooltip"
+                        >
+                          <span
+                            class="cds--popover-content cds--tooltip-content"
+                          >
+                            Copy reference
+                          </span>
+                          <span
+                            class="cds--popover-caret"
+                          />
+                        </span>
+                      </span>
+                      <span
+                        class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--left cds--tooltip cds--icon-tooltip"
+                      >
+                        <div
+                          class="cds--tooltip-trigger__wrapper"
+                        >
+                          <button
+                            aria-labelledby="tooltip-[generated-id]"
+                            class="cds--btn--icon-only _deleteAction_9d297e cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                            type="button"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              fill="currentColor"
+                              focusable="false"
+                              height="16"
+                              preserveAspectRatio="xMidYMid meet"
+                              viewBox="0 0 32 32"
+                              width="16"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M12 12H14V24H12z"
+                              />
+                              <path
+                                d="M18 12H20V24H18z"
+                              />
+                              <path
+                                d="M4,6V8H6V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V8h2V6ZM8,28V8H24V28Z"
+                              />
+                              <path
+                                d="M12 2H20V4H12z"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                        <span
+                          aria-hidden="true"
+                          class="cds--popover"
+                          id="tooltip-[generated-id]"
+                          role="tooltip"
+                        >
+                          <span
+                            class="cds--popover-content cds--tooltip-content"
+                          >
+                            Delete
+                          </span>
+                          <span
+                            class="cds--popover-caret"
+                          />
+                        </span>
+                      </span>
+                    </div>
                   </td>
                 </tr>
               </tbody>

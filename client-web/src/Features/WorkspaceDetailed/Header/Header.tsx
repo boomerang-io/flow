@@ -63,7 +63,7 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
       header={
         <div className={styles.infoContainer}>
           <div>
-            <HeaderTitle>Manage Workspace</HeaderTitle>
+            <HeaderTitle>Manage workspace</HeaderTitle>
             <HeaderSubtitle>Workspace Owners & Administrators can manage this workspace.</HeaderSubtitle>
           </div>
           {workspace && (

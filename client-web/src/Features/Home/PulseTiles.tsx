@@ -24,15 +24,14 @@ interface TileProps {
   label: string;
   value: React.ReactNode;
   detail: React.ReactNode;
-  accent?: boolean;
   /** The number could not be read: say so instead of showing a zero that looks real. */
   unavailable?: boolean;
   testId: string;
 }
 
-function Tile({ to, label, value, detail, accent = false, unavailable = false, testId }: TileProps) {
+function Tile({ to, label, value, detail, unavailable = false, testId }: TileProps) {
   return (
-    <Link to={to} className={cx(styles.tile, { [styles.tileAccent]: accent && !unavailable })} data-testid={testId}>
+    <Link to={to} className={styles.tile} data-testid={testId}>
       <span>
         <span className={styles.label}>{label}</span>
         <span className={styles.value}>{unavailable ? "---" : value}</span>
@@ -91,7 +90,6 @@ export default function PulseTiles(props: PulseTilesProps) {
         to={appLink.actions({ workspace: attentionWorkspace })}
         label="Waiting on you"
         value={attentionTotal}
-        accent={attentionTotal > 0}
         unavailable={degraded.attention}
         testId="home-pulse-attention"
         detail={`${count(attentionApprovals, "approval")} · ${count(attentionManual, "manual task")}`}

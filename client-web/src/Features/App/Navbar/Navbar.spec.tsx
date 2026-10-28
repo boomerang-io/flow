@@ -1,7 +1,6 @@
 import React from "react";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { vi } from "vitest";
 import { profile } from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
 import { ContextConfig, FlowUser } from "Types";
@@ -16,7 +15,7 @@ const contextData = {
   features: {},
   navigation: [],
   platform: {
-    appName: "Boomerang Flow",
+    appName: "Acme Automation",
     baseEnvUrl: "http://localhost:3000",
     baseServicesUrl: "http://localhost:7700/api/v2",
     displayLogo: false,
@@ -33,7 +32,6 @@ const contextData = {
 function renderNavbar() {
   return renderWithRouter(
     <Navbar
-      handleOnTutorialClick={vi.fn()}
       flowNavigationData={[]}
       contextData={contextData}
       userData={profile as unknown as FlowUser}
@@ -42,18 +40,14 @@ function renderNavbar() {
 }
 
 describe("Navbar menus", () => {
-  it("lists Docs, Release Notes, Tutorial and About once each in the help menu, every one with an icon", () => {
+  it("lists Docs, Release Notes and About once each in the help menu, every one with an icon", () => {
     renderNavbar();
     fireEvent.click(screen.getByTestId("header-support-link"));
 
     const menu = screen.getByRole("menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent?.trim())).toEqual([
-      "Docs",
-      "Release Notes",
-      "Tutorial",
-      "About Boomerang Flow",
-    ]);
+    // About names the product, not the install's own app name.
+    expect(items.map((item) => item.textContent?.trim())).toEqual(["Docs", "Release Notes", "About Boomerang Flow"]);
     // Carbon icons are aria-hidden, so no role query reaches them.
     // eslint-disable-next-line testing-library/no-node-access
     items.forEach((item) => expect(item.querySelector("svg")).not.toBeNull());
@@ -62,11 +56,14 @@ describe("Navbar menus", () => {
     expect(within(items[1]).getByRole("link")).toHaveAttribute("href", "https://github.com/boomerang-io/flow/releases");
   });
 
-  it("shows Flow's own version in About", () => {
+  it("opens About with Flow's own version, and keeps it open once the help menu closes", () => {
     renderNavbar();
     fireEvent.click(screen.getByTestId("header-support-link"));
     fireEvent.click(screen.getByTestId("about-flow"));
+    // A browser closes the menu on an item click, unmounting its items.
+    fireEvent.click(screen.getByTestId("header-support-link"));
 
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.getByText("Version 5.0.0-beta.34")).toBeInTheDocument();
     expect(screen.getByText("Source code on GitHub")).toHaveAttribute("href", "https://github.com/boomerang-io/flow");
   });

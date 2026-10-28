@@ -12,6 +12,7 @@ import {
 import workflowIcons from "Assets/workflowIcons";
 import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
+import capitalize from "lodash/capitalize";
 import cloneDeep from "lodash/cloneDeep";
 import { useFetcher, Link, useNavigate } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
@@ -66,7 +67,8 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const isExecuting = submittingIntent === "execute";
 
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) {
+    // On the result, not once idle: the revalidation this action starts can remove this component first.
+    if (!fetcher.data) {
       return;
     }
     const data = fetcher.data;
@@ -74,7 +76,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     if (data.intent === "delete") {
       if (!isActionError(data)) {
         notify(
-          <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${viewType} successfully deleted`} />,
+          <ToastNotification kind="success" title={`Delete ${viewType}`} subtitle={`${capitalize(viewType)} successfully deleted`} />,
         );
       } else {
         notify(
@@ -131,7 +133,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
       }
       executeRef.current = null;
     }
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   /**
    * Format properties to be edited in form by Formik. It doesn't work with property notation :(
@@ -308,7 +310,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
               composedModalProps={{ containerClassName: `${styles.executeWorkflow}` }}
               modalHeaderProps={{
                 title: `Execute ${viewType}`,
-                subtitle: `"Run and View" will navigate you to the ${viewType.toLowerCase()} exeuction view.`,
+                subtitle: `"Run and View" will navigate you to the ${viewType.toLowerCase()} execution view.`,
               }}
               modalTrigger={({ openModal }: ModalTriggerProps) => (
                 <Button

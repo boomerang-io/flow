@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Add } from "@carbon/react/icons";
 import { ComposedModal, notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
+import capitalize from "lodash/capitalize";
 import { useFetcher, useNavigate } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import { FeatureFlag } from "Config/appConfig";
@@ -45,7 +46,7 @@ const CreateWorkflow: React.FC<CreateWorkflowProps> = ({ workspace, hasReachedWo
     if (!isActionError(data)) {
       navigate(appLink.editorCanvas({ workspace: workspace?.name!, workflow: data.workflow.name }));
       notify(
-        <ToastNotification kind="success" title={`${data.intent === "create" ? "Create" : "Import"} ${viewType}`} subtitle={`${viewType} successfully ${data.intent === "create" ? "created" : "imported"}`} />,
+        <ToastNotification kind="success" title={`${data.intent === "create" ? "Create" : "Import"} ${viewType}`} subtitle={`${capitalize(viewType)} successfully ${data.intent === "create" ? "created" : "imported"}`} />,
       );
       if (data.intent === "import") {
         closeModalRef.current?.();

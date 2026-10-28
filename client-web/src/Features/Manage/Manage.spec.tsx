@@ -32,11 +32,11 @@ function renderManage(permissions: RoutePermissions, route = "/admin/settings", 
   );
 }
 
-describe("Manage", () => {
+describe("Admin", () => {
   test("shows one tab per area the caller may read, in order", async () => {
     renderManage(everything);
 
-    expect(await screen.findByRole("heading", { name: "Manage" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Admin" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("link", { name: /Settings|Workspaces|Users|Parameters|Tokens|Tasks|Audit/ });
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       "Settings",
@@ -53,7 +53,7 @@ describe("Manage", () => {
   test("hides the tabs the caller's grants do not cover", async () => {
     renderManage({ ...everything, canReadSettings: false, canReadUsers: false, canReadAudit: false }, "/admin/audit");
 
-    await screen.findByRole("heading", { name: "Manage" });
+    await screen.findByRole("heading", { name: "Admin" });
     expect(screen.queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Users" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Audit" })).not.toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("Manage", () => {
   test("hides Tokens when security is off, whatever the caller may read", async () => {
     renderManage(everything, "/admin/settings", false);
 
-    expect(await screen.findByRole("heading", { name: "Manage" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Admin" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Tokens" })).not.toBeInTheDocument();
   });
 });

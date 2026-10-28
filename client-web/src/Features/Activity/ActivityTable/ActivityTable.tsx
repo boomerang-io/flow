@@ -35,7 +35,7 @@ const PAGE_SIZES = [10, 20, 25, 50, 100];
 const HeadersKey = {
   WorkflowName: "workflowName",
   Trigger: "trigger",
-  InitiatedBy: "initiatedByUserName",
+  InitiatedBy: "initiatedByName",
   CreationDate: "creationDate",
   Duration: "duration",
   Status: "status",
@@ -60,7 +60,7 @@ const headers = [
     key: HeadersKey.CreationDate,
   },
   {
-    header: "Duration",
+    header: "Active time",
     key: HeadersKey.Duration,
   },
   {

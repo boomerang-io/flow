@@ -126,7 +126,7 @@ describe("SchedulePanelList", () => {
 
     await userEvent.type(screen.getByPlaceholderText("Search schedules"), "no such schedule");
 
-    expect(await screen.findByText("No matching schedules found")).toBeInTheDocument();
+    expect(await screen.findByText("No matching schedules")).toBeInTheDocument();
   });
 
   // The two writes, migrated off react-query: each submits its intent through its own

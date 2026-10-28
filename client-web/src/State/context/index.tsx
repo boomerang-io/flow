@@ -25,8 +25,6 @@ export const [useAppContext, AppContextProvider] = createContext<AppContext>();
 
 type AppContext = {
   communityUrl: string;
-  isTutorialActive: boolean;
-  setIsTutorialActive: (isActive: boolean) => void;
   workspaces: FlowWorkspaceSummary[] | null; // TODO - check if we need this
   user: FlowUser;
   name: string;

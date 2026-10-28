@@ -27,7 +27,8 @@ export default function AttentionList({ items, total }: AttentionListProps) {
   const pendingId = fetcher.state !== "idle" ? String(fetcher.formData?.get("actionId") ?? "") : "";
 
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "putAction") {
+    // On the result, not once idle: the revalidation this action starts can remove this component first.
+    if (!fetcher.data || fetcher.data.intent !== "putAction") {
       return;
     }
     if (!isActionError(fetcher.data)) {
@@ -35,7 +36,7 @@ export default function AttentionList({ items, total }: AttentionListProps) {
     } else {
       notify(<ToastNotification kind="error" title={fetcher.data.error.title} subtitle={fetcher.data.error.message} />);
     }
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const decide = (action: HomeAction, approved: boolean) => {
     fetcher.submit(

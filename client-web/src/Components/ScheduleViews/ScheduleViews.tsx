@@ -97,7 +97,7 @@ export default function ScheduleViews(props: ScheduleViewsProps) {
           <Switch key={option.id} name={option.id} text={option.label} />
         ))}
       </ContentSwitcher>
-      <Button className={styles.create} renderIcon={Add} size="lg" onClick={() => props.setIsCreatorOpen(true)}>
+      <Button className={styles.create} renderIcon={Add} size="md" onClick={() => props.setIsCreatorOpen(true)}>
         Create schedule
       </Button>
     </>

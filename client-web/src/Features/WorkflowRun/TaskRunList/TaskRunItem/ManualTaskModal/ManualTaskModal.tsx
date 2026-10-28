@@ -20,8 +20,10 @@ function TaskApprovalModal({ actionId, closeModal, instructions }: Props) {
   const approvalsIsLoading = fetcher.state !== "idle";
   const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
 
+  // Raised when the result lands, not when the fetcher is idle again: the revalidation in between
+  // ends the task's wait, which unmounts this modal before it could raise its toast.
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || isActionError(fetcher.data)) {
+    if (!fetcher.data || isActionError(fetcher.data)) {
       return;
     }
     notify(
@@ -33,7 +35,7 @@ function TaskApprovalModal({ actionId, closeModal, instructions }: Props) {
     );
     closeModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const handleSubmit = (approvalValue: boolean) => {
     fetcher.submit(
@@ -61,10 +63,10 @@ function TaskApprovalModal({ actionId, closeModal, instructions }: Props) {
         <Button kind="secondary" type="button" onClick={closeModal}>
           Cancel
         </Button>
-        <Button disabled={approvalsIsLoading} type="submit" kind="danger" onClick={() => handleSubmit(false)}>
+        <Button disabled={approvalsIsLoading} type="button" kind="danger" onClick={() => handleSubmit(false)}>
           Complete Unsuccessfully
         </Button>
-        <Button disabled={approvalsIsLoading} type="submit" onClick={() => handleSubmit(true)}>
+        <Button disabled={approvalsIsLoading} type="button" onClick={() => handleSubmit(true)}>
           Complete Successfully
         </Button>
       </ModalFooter>

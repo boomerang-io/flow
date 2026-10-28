@@ -99,8 +99,8 @@ exports[`ActivityTable --- Snapshot > Capturing Snapshot of ActivityTable 1`] = 
                     </div>
                   </th>
                   <th
-                    class="_tableHeadHeader_8eafaf _initiatedByUserName_8eafaf"
-                    id="initiatedByUserName"
+                    class="_tableHeadHeader_8eafaf _initiatedByName_8eafaf"
+                    id="initiatedByName"
                     scope="col"
                   >
                     <div
@@ -134,7 +134,7 @@ exports[`ActivityTable --- Snapshot > Capturing Snapshot of ActivityTable 1`] = 
                     <div
                       class="cds--table-header-label"
                     >
-                      Duration
+                      Active time
                       <div
                         class="cds--table-header-label--decorator-inner"
                       />

@@ -88,8 +88,8 @@ class NavigationServiceTest {
             .toList();
 
     assertThat(names)
-        .contains("Workflows", "Activity", "Actions", "Manage")
-        .doesNotContain("Insights", "Schedules", "Integrations", "Manage Workspace");
+        .contains("Workflows", "Activity", "Actions", "Admin")
+        .doesNotContain("Insights", "Schedules", "Integrations", "Manage workspace");
   }
 
   @Test

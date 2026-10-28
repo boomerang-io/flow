@@ -24,7 +24,9 @@ describe("ParametersTable", () => {
 
     expect(screen.getByText("Managed by GitHub")).toBeInTheDocument();
     expect(screen.getByText("Read-only")).toBeInTheDocument();
-    // Every row keeps a menu, so a managed parameter's reference can still be copied.
-    expect(screen.getAllByTestId("parameter-menu-button")).toHaveLength(3);
+    // Every row keeps Copy reference; only the editable row offers Edit and Delete.
+    expect(screen.getAllByRole("button", { name: "Copy reference" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Delete" })).toHaveLength(1);
   });
 });

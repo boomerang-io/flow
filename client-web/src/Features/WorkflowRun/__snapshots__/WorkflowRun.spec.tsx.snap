@@ -120,7 +120,11 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   <strong>
                     Succeeded
                   </strong>
-                   in 5 min
+                  <span
+                    data-testid="run-active-time"
+                  >
+                     · 5 min active
+                  </span>
                 </span>
               </div>
             </dd>
@@ -578,7 +582,8 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   03:00:00 PM
                 </time>
                  
-                in 
+                in
+                 
                 <time
                   class="_timeValue_fe6a3c"
                 >

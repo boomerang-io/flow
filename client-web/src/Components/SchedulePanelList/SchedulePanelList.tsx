@@ -15,6 +15,7 @@ import {
   Tag,
 } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
+import EmptyState from "Components/EmptyState";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
@@ -93,7 +94,7 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
 
     const schedules = props.schedulesData?.content ?? [];
     if (schedules.length === 0) {
-      return <p className={styles.empty}>No schedules yet. Create one to run this on a timetable.</p>;
+      return <EmptyState title="No schedules yet" message="Create one to run this on a timetable." />;
     }
 
     const filteredSchedules = Boolean(filterQuery)
@@ -115,7 +116,7 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
     }
 
     if (selectedSchedules.length === 0) {
-      return <p className={styles.empty}>No matching schedules found</p>;
+      return <EmptyState title="No matching schedules" message="Try another search or status." />;
     }
 
     return (
@@ -176,14 +177,16 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
   return (
     <section className={styles.listContainer} aria-label="Schedules list">
       <div className={styles.toolbar}>
-        <Search
-          className={styles.search}
-          id="schedules-filter"
-          labelText="Filter schedules"
-          placeholder="Search schedules"
-          size="lg"
-          onChange={(e: { target: HTMLInputElement; type: "change" }) => setFilterQuery(e.target.value)}
-        />
+        {/* Layers, so the fields take the next layer's colour and read as fields on the white toolbar. */}
+        <Layer className={styles.search}>
+          <Search
+            id="schedules-filter"
+            labelText="Filter schedules"
+            placeholder="Search schedules"
+            size="md"
+            onChange={(e: { target: HTMLInputElement; type: "change" }) => setFilterQuery(e.target.value)}
+          />
+        </Layer>
         {props.includeStatusFilter && (
           <Layer className={styles.statusFilter}>
             <MultiSelect
@@ -196,7 +199,7 @@ export default function SchedulePanelList(props: SchedulePanelListProps) {
               }
               items={scheduleStatusOptions}
               selectedItems={scheduleStatusOptions.filter((option) => selectedStatuses.includes(option.value))}
-              size="lg"
+              size="md"
               titleText="Filter by status"
             />
           </Layer>

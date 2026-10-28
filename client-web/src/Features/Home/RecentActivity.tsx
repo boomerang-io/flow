@@ -54,7 +54,7 @@ export default function RecentActivity({ runs, unavailable = false }: { runs: Ar
             <TableHeader>Workflow</TableHeader>
             <TableHeader className={styles.wide}>Workspace</TableHeader>
             <TableHeader className={styles.wide}>Trigger</TableHeader>
-            <TableHeader className={styles.wide}>Duration</TableHeader>
+            <TableHeader className={styles.wide}>Active time</TableHeader>
             <TableHeader className={styles.started}>Started</TableHeader>
           </TableRow>
         </TableHead>

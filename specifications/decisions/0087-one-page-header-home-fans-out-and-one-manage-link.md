@@ -25,8 +25,8 @@ with its route; a page inside one object is titled with its name and ends its br
 (`client-web/src/Features/WorkflowEditor/Header/Header.tsx:75-81`). Home's loader reads the profile, then fires
 `workflowrun/count`, `workflowrun/query`, `action/query` and `schedule/query` for every workspace in one wave and merges
 them (`client-web/src/Features/Home/homeLoader.ts:150-182`), adding nothing to the data model or to other routes; a
-failed read marks only its part as not loaded, never zero. Admins get one "Manage" link
-(`core/NavigationService.java:170-177`) to a layout route (`client-web/app/routes.ts:53-62`) whose seven tabs, Settings
+failed read marks only its part as not loaded, never zero. Admins get one "Admin" link
+(`core/NavigationService.java:171-179`) to a layout route (`client-web/app/routes.ts:53-62`) whose seven tabs, Settings
 to Audit, each show only when the caller's grant and the feature flags allow
 (`client-web/src/Features/Manage/manageTabs.ts:27-36`).
 

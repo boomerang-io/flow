@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Dropdown, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@carbon/react";
+import { Dropdown, Layer, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@carbon/react";
 import { TextInput } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
@@ -212,7 +212,8 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
           workflow, label and date filters apply
         </span>
       </div>
-      <div className={styles.taskControls}>
+      {/* A layer, so the fields take the next layer's colour and stand out on the white panel. */}
+      <Layer className={styles.taskControls}>
         <Dropdown
           id="insights-tasks-group"
           titleText="Group by"
@@ -246,7 +247,7 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
           value={spanKey}
           apply={(key) => update({ taskSpanBy: key ? `label:${key}` : undefined })}
         />
-      </div>
+      </Layer>
       {body}
     </section>
   );

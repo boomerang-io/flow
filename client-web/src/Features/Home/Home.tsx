@@ -266,7 +266,11 @@ export default function Home() {
 
   const hasWorkspaces = sortedWorkspaces.length > 0;
   const workflowCount = sortedWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.workflows ?? 0), 0);
-  const memberCount = sortedWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.members ?? 0), 0);
+  // People, not memberships: someone in two of your workspaces is one member. An older server
+  // sends only each workspace's count.
+  const memberCount =
+    user.workspaceMemberCount ??
+    sortedWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.members ?? 0), 0);
   // Where the hero's "Create workflow" and the tiles go when nothing more specific applies: the
   // workspace that ran most recently, else the first by name.
   const primaryWorkspace = data.recentRuns[0]?.workspace ?? sortedWorkspaces[0]?.name ?? "";

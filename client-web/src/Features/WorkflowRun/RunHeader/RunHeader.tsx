@@ -15,12 +15,13 @@ import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { Link, useFetcher, useLocation } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
+import ClientOnly from "Components/ClientOnly";
 import ErrorModal from "Components/ErrorModal";
 import { useAppContext, useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
 import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
-import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
+import { ACTIVE_TIME_DESCRIPTION, ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
 import { isActionError } from "Utils/actionResult";
@@ -83,7 +84,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
   // queryClient.invalidateQueries(getWorkflowRun) each of these mutations used to run onSuccess.
   const fetcher = useFetcher<ActionResult>();
 
-  const { initiatedByRef, initiatedByWorkflowRunRef, trigger, creationDate, status, phase, paused, workflowName } =
+  const { initiatedByRef, initiatedByWorkflowRunRef, initiatedByName, trigger, creationDate, status, phase, paused, workflowName } =
     workflowRun;
   // Ruled design (#359, Option A): a schedule-fired run stamps the firing Schedule's id into the
   // existing initiatedByRef field (mirrors the retry path's convention). The Schedules page has
@@ -106,9 +107,12 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status) && Boolean(onRetry);
+  // A run with a workspace is started by the dispatcher that provisions its storage; starting it
+  // here would run it with nothing provisioned. Start is for a run without one, submitted unstarted.
+  const waitsForDispatcher = startPhaseTypes.includes(phase) && Boolean(workflowRun.workspace);
   // Start only admits a run still waiting to begin. An absent `paused` (older backends) is
   // treated as not paused, so Pause is the one shown rather than both or neither.
-  const displayStartButton = startPhaseTypes.includes(phase);
+  const displayStartButton = startPhaseTypes.includes(phase) && !waitsForDispatcher;
   const displayPauseButton = phase === RunPhase.Running && !paused;
   const displayResumeButton = Boolean(paused);
   // Workspace is the fact that gives way when a primary run action needs the room.
@@ -116,13 +120,17 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
     canActionWorkflowRun && (displayStartButton || displayRetryButton || displayPauseButton || displayResumeButton);
   // The overflow's items open these modals, which cannot sit inside a menu item themselves.
   const [openModal, setOpenModal] = React.useState<"advanced" | "cancel" | null>(null);
-  // "in 21 s" once finished, "for 2 min 10 s" while running, nothing before it starts.
-  const runDuration =
+  // "· 21 s active" once finished: a run's duration is execution only, its waits and pauses left
+  // out. "for 2 min 10 s" while running is the time since it started. Nothing before it starts.
+  const activeDuration =
     phase === RunPhase.Completed && typeof workflowRun.duration === "number"
-      ? `in ${formatDuration(workflowRun.duration)}`
-      : status === RunStatus.Running && workflowRun.startTime
-        ? `for ${dateHelper.durationFromThenToNow(workflowRun.startTime)}`
-        : "";
+      ? `· ${formatDuration(workflowRun.duration)} active`
+      : "";
+  const runDuration =
+    activeDuration ||
+    (status === RunStatus.Running && workflowRun.startTime
+      ? `for ${dateHelper.durationFromThenToNow(workflowRun.startTime)}`
+      : "");
 
   // The fetcher settles asynchronously, so the toast is raised from an effect once the result
   // lands rather than from an awaited mutate call.
@@ -162,6 +170,12 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
   const handlePauseWorkflow = () => submitTransition("pause");
   const handleResumeWorkflow = () => submitTransition("resume");
 
+  const activityCrumb = (
+    <BreadcrumbItem>
+      <Link to={appLink.activity({ workspace: workspace.name })}>Activity</Link>
+    </BreadcrumbItem>
+  );
+
   return (
     <Header
       className={styles.container}
@@ -170,11 +184,19 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           <BreadcrumbItem>
             <Link to={appLink.home()}>Home</Link>
           </BreadcrumbItem>
-          <BreadcrumbItem>
-            <Link to={state ? state.fromUrl : appLink.activity({ workspace: workspace.name })}>
-              {state ? capitalize(state.fromText) : "Activity"}
-            </Link>
-          </BreadcrumbItem>
+          {/* The page the run was opened from is history state, which a reload keeps in the browser
+              but the server never sees: it replaces Activity only after hydration. */}
+          <ClientOnly fallback={activityCrumb}>
+            {() =>
+              state ? (
+                <BreadcrumbItem>
+                  <Link to={state.fromUrl}>{capitalize(state.fromText)}</Link>
+                </BreadcrumbItem>
+              ) : (
+                activityCrumb
+              )
+            }
+          </ClientOnly>
           <BreadcrumbItem isCurrentPage>
             <p>Activity detail</p>
           </BreadcrumbItem>
@@ -208,11 +230,25 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
                 type={statusTagType[status] ?? "gray"}
               >
                 <strong>{ExecutionStatusCopy[status] ?? status}</strong>
-                {runDuration ? ` ${runDuration}` : null}
+                {/* A running run's duration is read from the clock, so the browser's differs from the server's. */}
+                {activeDuration ? (
+                  <TooltipHover direction="bottom" content={ACTIVE_TIME_DESCRIPTION}>
+                    <span data-testid="run-active-time">{` ${activeDuration}`}</span>
+                  </TooltipHover>
+                ) : runDuration ? (
+                  <span suppressHydrationWarning>{` ${runDuration}`}</span>
+                ) : null}
               </Tag>
               {workflowRun.statusReason ? (
                 <span className={styles.statusReason} data-testid="run-status-reason">
                   {workflowRun.statusReason}
+                </span>
+              ) : waitsForDispatcher ? (
+                <span className={styles.statusReason} data-testid="run-waits-for-dispatcher">
+                  {/* Queued: a dispatcher has claimed the run and is provisioning its storage. */}
+                  {phase === RunPhase.Queued
+                    ? "A dispatcher is provisioning its workspace"
+                    : "Waiting for a dispatcher to provision its workspace"}
                 </span>
               ) : null}
             </dd>
@@ -261,8 +297,10 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
                   </span>
                 ) : null}
               </dd>
-            ) : initiatedByRef ? (
-              <dd className={styles.dataValue}>{initiatedByRef}</dd>
+            ) : initiatedByName || initiatedByRef ? (
+              <dd className={styles.dataValue} data-testid="initiated-by-name">
+                {initiatedByName ?? initiatedByRef}
+              </dd>
             ) : (
               <dd aria-label="robot" aria-hidden={false} role="img">
                 {"🤖"}

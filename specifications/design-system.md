@@ -150,7 +150,9 @@ Content switchers are Boomerang blue, not the theme's inverse ink: one rule poin
 Workflow, workspace and global parameters share one table
 (`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,90-96`): Name first in monospace (what tasks
 type), Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured
-tag, Description, and a menu with Edit, Copy reference and Delete (`:147-149`). Search and Add parameter sit in the
+tag, Description, and icon buttons rather than a menu: a pencil for Edit, a copy icon for Copy reference and a trash
+can in the error colour for Delete, each with a tooltip that opens left because the table clips above the row; a
+read-only parameter keeps only Copy reference (`:146-172`). Search and Add parameter sit in the
 table toolbar. The workflow has its own modal and the workspace and global scopes share one; both are titled "Edit
 parameter" or "Add parameter" (`src/Features/WorkflowEditor/Parameters/PropertiesModal/PropertiesModal.tsx:24`,
 `src/Features/Parameters/CreateEditParametersModal/CreateEditParametersModal.tsx:73`), show the name as text with its
@@ -161,7 +163,9 @@ optional, falling back to the name. The workflow modal previews the field a run 
 
 A workflow's Schedules tab and the workspace Schedules page share `src/Components/ScheduleViews`: a content switcher
 over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30 days), Week and
-Month (`ScheduleViews.tsx:13-23`). The calendar views share a toolbar: Today as a ghost button with the calendar icon,
+Month (`ScheduleViews.tsx:13-23`). The list's toolbar holds the search, the status filter, the switcher and Create
+schedule at one height (`ScheduleViews.tsx:88-103`), and an empty list shows `EmptyState`
+(`src/Components/SchedulePanelList/SchedulePanelList.tsx:97,119`). The calendar views share a toolbar: Today as a ghost button with the calendar icon,
 then previous, next and the dates shown (`ScheduleViews.tsx:142-150`). The schedule form's When offers Once, Hourly,
 Daily, Weekdays, Weekly and Custom (cron), stored as the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`),
 with a line under the time zone saying what will happen and when it next runs.
@@ -345,11 +349,11 @@ theme's values as fallbacks (`statusColors.ts`); everything else is tokens. Outc
 legends. Run labels are a typed `key=value` filter beside the others, applied on Enter or blur so typing does not
 reload the page (`Insights.tsx:420-436`).
 
-### Manage
+### Admin
 
-The platform's administration is one side-nav link, "Manage" with the cog, to one tabbed page
-(`src/Features/Manage/Manage.tsx`); the server sends the single link
-(`service-core/src/main/java/io/boomerang/core/NavigationService.java:168-177`). The tabs are Settings, Workspaces,
+The platform's administration is one side-nav link, "Admin" with the cog, to one tabbed page
+(`src/Features/Manage/Manage.tsx`); the server sends the single link below a divider, set apart from the
+workspace's own "Manage workspace" link (`service-core/src/main/java/io/boomerang/core/NavigationService.java:158-179`). The tabs are Settings, Workspaces,
 Users, Parameters, Tokens, Tasks and Audit, each a nested route with its own loader (`app/routes.ts:53-62`), shown
 only when the caller's grants and the feature flags allow it (`src/Features/Manage/manageTabs.ts:29-35`); the area's
 root sends the caller to the first tab they may see. The layout's header carries the breadcrumb, the title and the

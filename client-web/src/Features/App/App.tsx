@@ -1,12 +1,9 @@
 import React, { lazy, useState, Suspense } from "react";
-import { Button } from "@carbon/react";
-import { ArrowRight, ArrowLeft, Close } from "@carbon/react/icons";
 import { DelayedRender, Error403, Loading, NotificationsContainer } from "@boomerang-io/carbon-addons-boomerang-react";
 import axios from "axios";
 import { detect } from "detect-browser";
 import { FlagsProvider, useFeature } from "flagged";
 import sortBy from "lodash/sortBy";
-import Joyride, { CallBackProps, TooltipRenderProps, STATUS } from "react-joyride";
 import { Outlet, useRevalidator, useRouteLoaderData } from "react-router-dom";
 import type { ShouldRevalidateFunctionArgs } from "react-router-dom";
 import ErrorBoundary from "Components/ErrorBoundary";
@@ -305,7 +302,6 @@ export default function App() {
   const [shouldShowBrowserWarning, setShouldShowBrowserWarning] = useState(
     browser?.type === "browser" && !supportedBrowsers.includes(browser.name),
   );
-  const [isTutorialActive, setIsTutorialActive] = useState(false);
   const [showActivatePlatform, setShowActivatePlatform] = React.useState(bootstrap?.status === "activationRequired");
   const [activationCode, setActivationCode] = React.useState<string>();
 
@@ -364,18 +360,12 @@ export default function App() {
       <FlagsProvider features={buildFeatureFlags(feature)}>
         <Navbar
           flowNavigationData={bootstrap.navigation}
-          handleOnTutorialClick={() => setIsTutorialActive(true)}
           contextData={contextData}
           userData={bootstrap.user}
         />
-        {
-          //<OnBoardExpContainer isTutorialActive={isTutorialActive} setIsTutorialActive={setIsTutorialActive} />
-        }
         <ErrorBoundary>
           <Main
-            isTutorialActive={isTutorialActive}
             contextData={contextData}
-            setIsTutorialActive={setIsTutorialActive}
             setShouldShowBrowserWarning={setShouldShowBrowserWarning}
             shouldShowBrowserWarning={shouldShowBrowserWarning}
             userData={bootstrap.user}
@@ -389,9 +379,7 @@ export default function App() {
 }
 
 interface MainProps {
-  isTutorialActive: boolean;
   contextData: ContextConfig;
-  setIsTutorialActive: (isTutorialActive: boolean) => void;
   setShouldShowBrowserWarning: (shouldShowBrowserWarning: boolean) => void;
   shouldShowBrowserWarning: boolean;
   userData: FlowUser;
@@ -399,9 +387,7 @@ interface MainProps {
 }
 
 function Main({
-  isTutorialActive,
   contextData,
-  setIsTutorialActive,
   setShouldShowBrowserWarning,
   shouldShowBrowserWarning,
   userData,
@@ -421,8 +407,6 @@ function Main({
   return (
     <AppContextProvider
       value={{
-        isTutorialActive,
-        setIsTutorialActive,
         communityUrl: contextData?.platform?.communityUrl ?? "",
         name: contextData?.platform?.name ?? "",
         workspaces: sortBy(userData.workspaces, "name"),
@@ -482,106 +466,8 @@ const AppFeatures = React.memo(function AppFeatures() {
         }
       >
         <Outlet context={routePermissions} />
-        <Tutorial />
       </Suspense>
       <NotificationsContainer enableMultiContainer />
     </main>
   );
 });
-
-/**
- * TODO: MOVE THIS TO OWN COMPONENT
- * AND DETERMINE WHEN TO RENDER WHICH TUTORIAL
- * BASED ON THE PATH
- */
-// const home_steps = [
-//   {
-//     disableBeacon: true,
-//     target: "#your-workspaces",
-//     content: "This is my awesome feature!",
-//   },
-//   {
-//     disableBeacon: true,
-//     target: "#explore",
-//     content: "This is my awesome again!",
-//   },
-// ];
-
-const workflows_steps = [
-  {
-    disableBeacon: true,
-    target: "#my-workflows",
-    content: "This is my awesome feature!",
-  },
-];
-
-// const stepMapper = {
-//   ":workspace/workflows": workflows_steps,
-// };
-
-function Tutorial() {
-  const { setIsTutorialActive, isTutorialActive } = useAppContext();
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { action, status } = data;
-
-    if (action === "close") {
-      setIsTutorialActive(false);
-    }
-
-    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      setIsTutorialActive(false);
-    }
-  };
-
-  if (!isTutorialActive) {
-    return null;
-  }
-
-  return (
-    <Joyride
-      continuous
-      callback={handleJoyrideCallback}
-      steps={workflows_steps}
-      tooltipComponent={({
-        continuous,
-        index,
-        step,
-        backProps,
-        primaryProps,
-        closeProps,
-        tooltipProps,
-      }: TooltipRenderProps) => {
-        return (
-          <div
-            {...tooltipProps}
-            style={{
-              background: "white",
-              padding: "1rem",
-              borderRadius: "0.25rem",
-              height: "10rem",
-              width: "20rem",
-            }}
-          >
-            {step.title && <h2>{step.title}</h2>}
-            <div>{step.content}</div>
-            <footer>
-              {index > 0 && (
-                <Button {...backProps} renderIcon={ArrowLeft} size="sm" kind="secondary">
-                  Back
-                </Button>
-              )}
-              {continuous && (
-                <Button {...primaryProps} renderIcon={ArrowRight} size="sm">
-                  Next
-                </Button>
-              )}
-              <Button {...closeProps} hasIconOnly renderIcon={Close} iconDescription="Close" size="sm">
-                Close
-              </Button>
-            </footer>
-          </div>
-        );
-      }}
-    />
-  );
-}

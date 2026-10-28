@@ -56,7 +56,8 @@ function Form({ action, closeModal }: FormProps) {
   const closeModalRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) {
+    // On the result, not once idle: the revalidation this action starts can remove this component first.
+    if (!fetcher.data) {
       return;
     }
     if (!isActionError(fetcher.data)) {
@@ -72,7 +73,7 @@ function Form({ action, closeModal }: FormProps) {
     }
     // failures leave the modal open - the InlineNotification below (driven off
     // approvalsError/fetcher.data) surfaces the error inline, matching the previous behaviour.
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const approvalsIsLoading = fetcher.state !== "idle";
   const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
@@ -126,10 +127,10 @@ function Form({ action, closeModal }: FormProps) {
         <Button kind="secondary" type="button" onClick={closeModal}>
           Cancel
         </Button>
-        <Button disabled={approvalsIsLoading} type="submit" kind="danger" onClick={() => handleSubmit(false)}>
+        <Button disabled={approvalsIsLoading} type="button" kind="danger" onClick={() => handleSubmit(false)}>
           Complete Unsuccessfully
         </Button>
-        <Button disabled={approvalsIsLoading} type="submit" onClick={() => handleSubmit(true)}>
+        <Button disabled={approvalsIsLoading} type="button" onClick={() => handleSubmit(true)}>
           Complete Successfully
         </Button>
       </ModalFooter>

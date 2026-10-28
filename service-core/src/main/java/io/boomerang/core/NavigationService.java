@@ -157,7 +157,7 @@ public class NavigationService {
 
       if (((Boolean) features.getFeatures().get("workspace.management"))) {
         Navigation management = new Navigation();
-        management.setName("Manage Workspace");
+        management.setName("Manage workspace");
         management.setType(NavigationType.link);
         management.setDisabled(disabled);
         management.setIcon("SettingsAdjust");
@@ -165,11 +165,13 @@ public class NavigationService {
         response.add(management);
       }
 
-      // One link: the Manage area is a tabbed page, and the webapp decides which tabs to show
-      // from the caller's grants and the feature flags (client-web Features/Manage).
+      // One link, set apart from the workspace's own items: the Admin area is a tabbed page, and the
+      // webapp decides which tabs to show from the caller's grants and the feature flags (client-web
+      // Features/Manage).
       if (isUserAdmin) {
+        response.add(divider);
         Navigation manage = new Navigation();
-        manage.setName("Manage");
+        manage.setName("Admin");
         manage.setType(NavigationType.link);
         manage.setIcon("Settings");
         manage.setLink(flowAppsUrl + "/admin");

@@ -261,6 +261,17 @@ tag's release notes.
 
 ### Changed
 
+- A sleep and an acquire-lock retry end within about a second of their due time
+  (`flow.watcher.wait-interval-ms`, 1000); they waited for the next 30-second watcher sweep, so a 2-second sleep could
+  take 30.
+- A dispatcher reports a failed workspace provisioning: the run shows the cause at once and retries after a minute
+  (`flow.watcher.provision-retry-ms`, 60000), failing on the third attempt, instead of sitting in Ready with no reason
+  for about 15 minutes. A dispatcher built on an older SDK keeps the old behaviour.
+- A run a person or a token starts records who started it in `initiatedByRef`, and reads name them in the new
+  `initiatedByName`; the run page and Activity's Initiated By column show the name.
+- A run's duration is labelled as active time on the run page and in Activity: it never counted waits for approvals,
+  manual tasks and sleeps, or pauses.
+- Home counts each member of your workspaces once (the profile's new `workspaceMemberCount`), not once per workspace.
 - The task edit modal keeps its description to one line and moves the task name and the tabs into its header, and
   lists a task's declared results on a Results tab instead of as tags under the parameters, so the fields get the
   height.
@@ -401,6 +412,25 @@ tag's release notes.
   installation instead of nothing, and is audited.
 - The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
   the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
+- The side navigation can be clicked on a wide screen: the whole nav stayed inert after it opened.
+- The side navigation's dividers show; they were drawn in the nav's own background colour. "Manage" is now "Admin",
+  set apart by a divider from the workspace's "Manage workspace".
+- Insights scrolls once, with every panel at full height: its results scrolled inside the page and squeezed each
+  panel to its title. The runs-per-day chart loads its styles, and the Task runs fields stand out on their panel.
+- A scrolling modal's last field clears the fade at its bottom once scrolled to the end.
+- A parameter's Edit, Copy reference and Delete are icon buttons with tooltips; the row menu opened under the next
+  row's.
+- The Schedules toolbar's controls share one height, "Upcoming" fits its switch, and an empty list shows the empty
+  state.
+- Help › About opens its modal, titled "About Boomerang Flow"; it opened nothing. The help menu's Tutorial, an
+  unfinished placeholder, is removed.
+- The run page no longer fails to hydrate on a reload while a run is running, which re-rendered it in the browser.
+- A confirmation shows after approving or completing a task from a run, the Actions page or Home, after deleting a
+  workflow and after leaving a workspace; the page that raised it was removed before it could. Completing a manual
+  task no longer reloads the page.
+- The run page no longer offers Start run for a run waiting for a dispatcher to provision its workspace, which
+  started it with nothing provisioned; it says the run is waiting.
+- A workflow version records who made it; the Change Log showed no author for any version.
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
   the edit pencil of 33 of the 89 seeded tasks.
 - A suggested workflow on Home can be created: a workflow template's tasks now read in their slug forms, as a

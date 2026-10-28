@@ -82,6 +82,8 @@ export interface FlowUser extends Omit<User, "teams"> {
   // Only present on the profile response; carries the caller's resolved workspace
   // memberships and permissions alongside the base user record.
   workspaces?: Array<FlowWorkspaceSummary>;
+  // How many people belong to any of those workspaces, each counted once.
+  workspaceMemberCount?: number;
   permissions?: Array<ResolvedPermissions>;
 }
 
@@ -1043,6 +1045,9 @@ export interface WorkflowRun {
   // The run that owns the TaskRun in initiatedByRef, resolved server-side for a task-triggered
   // (child) run so the header can link back to the parent. Absent on every other trigger.
   initiatedByWorkflowRunRef?: string;
+  // Who started a run a person or a token started (manual, webhook, event): a user's display name
+  // or a token's name, resolved server-side.
+  initiatedByName?: string;
   labels: Record<string, string>;
   params: Array<Param>;
   // Populated on the wire (WorkflowRunService#get copies the entity's phase across).

@@ -110,7 +110,8 @@ function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalReje
   const pendingNotificationRef = useRef<{ title: string; subtitle: string } | null>(null);
 
   useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data) {
+    // On the result, not once idle: the revalidation this action starts can remove this component first.
+    if (!fetcher.data) {
       return;
     }
     setApproveLoading(false);
@@ -131,7 +132,7 @@ function Form({ actions, closeModal, isAlreadyApproved, onSuccessfulApprovalReje
     }
     // failures leave the modal open - the InlineNotification below (driven off
     // actionsPutError/fetcher.data) surfaces the error inline, matching the previous behaviour.
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const actionsIsLoading = fetcher.state !== "idle";
   const actionsPutError = Boolean(fetcher.data && isActionError(fetcher.data));

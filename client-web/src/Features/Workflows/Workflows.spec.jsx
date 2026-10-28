@@ -27,9 +27,7 @@ describe("WorkflowsHome --- Snapshot", () => {
       />,
       {
         contextValue: {
-          isTutorialActive: false,
           communityUrl: "www.ibm.com",
-          setIsTutorialActive: () => {},
           user: profile,
           workspaces,
         },
@@ -60,9 +58,7 @@ describe("WorkflowsHome --- quotas off", () => {
       />,
       {
         contextValue: {
-          isTutorialActive: false,
           communityUrl: "www.ibm.com",
-          setIsTutorialActive: () => {},
           user: profile,
           workspaces,
         },

@@ -70,7 +70,11 @@ const NavPanel: React.FC<NavPanelProps> = ({ workspace, workflowRef }) => {
     <SideNav className={styles.container} border="right">
       <SideNavLinks>
         {navigationItems.map((item) => {
-          return <SideNavLink to={item.path}>{item.name}</SideNavLink>;
+          return (
+            <SideNavLink key={item.path} to={item.path}>
+              {item.name}
+            </SideNavLink>
+          );
         })}
       </SideNavLinks>
     </SideNav>

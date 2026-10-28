@@ -55,6 +55,18 @@ a {
   }
 }
 
+/* The add-ons' dark shell gives its border token the nav's own background (#161616), which hides
+   the side nav's dividers; draw them in Carbon's dark subtle border instead. */
+.cds--side-nav__divider {
+  background-color: colors.$gray-80 !important;
+}
+
+/* Carbon fades the last 80px of a scrolling modal body and relies on the body's padding to clear it;
+   a body with less padding, or laid out in columns, ends under the fade even scrolled to the bottom. */
+.cds--modal-content.cds--modal-scroll-content {
+  padding-block-end: 5rem !important;
+}
+
 #app {
   //overwrite carbon components
   .cds--list-box__label {

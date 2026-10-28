@@ -72,6 +72,10 @@ export const ExecutionStatusCopy: Record<RunStatus, string> = {
   [RunStatus.TimedOut]: "Timed Out",
 } as const;
 
+// What a run's duration measures: the run's timeout budget counts the same time.
+export const ACTIVE_TIME_DESCRIPTION =
+  "Time spent executing. Waits for approvals, manual tasks and sleeps, and pauses, are not counted.";
+
 export const InputProperty = {
   DefaultValue: "default",
   Description: "description",
@@ -325,7 +329,7 @@ export const yamlInstructions = `  # Getting started
   ### Metadata
   This is the area where we store a series of annotations related to the end user experience and are automatically populated when defining a task view the UI. See below section on understanding the Boomerang Flow specific metadata.
   ### Params
-  This is where you define Parametes that are needed for the exeuction of the task. These are linked to, or overlayed with, the information for parameters in the annotations.
+  This is where you define Parameters that are needed for the execution of the task. These are linked to, or overlayed with, the information for parameters in the annotations.
   ### Steps
   Steps are what define the actions a Task will perform. A task must always have atleast one step and is a reference to a container image that executes on specific input and produces output. The order in which the Steps appear in this list is the order in which they will execute.
   A basic step is made up as follows and is the necessary container contract details to use.

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@carbon/react";
+import { Button, Layer } from "@carbon/react";
 import { DynamicFormik } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Save } from "@carbon/react/icons";
 import { FormikProps } from "formik";
@@ -66,7 +66,8 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ onSave, settingsGroup
         {({ inputs, formikProps }: { inputs: React.ReactNode[]; formikProps: FormikProps<any> }) => {
           return (
             <>
-              <div className={styles.form}>{inputs}</div>
+              {/* A layer, so the fields take the next layer's colour and stand out on the white panel. */}
+              <Layer className={styles.form}>{inputs}</Layer>
               {!isOperator && (
                 <footer className={styles.saveBar}>
                   <span className={styles.saveHint}>

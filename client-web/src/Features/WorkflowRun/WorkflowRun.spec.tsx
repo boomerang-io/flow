@@ -149,8 +149,6 @@ describe("Execution --- Snapshot", () => {
       <Route path={AppPath.Run} loader={loader} element={<WorkflowExecutionContainer />} />,
       {
         contextValue: {
-          isTutorialActive: false,
-          setIsTutorialActive: () => {},
           user: profile,
           workspaces,
         },

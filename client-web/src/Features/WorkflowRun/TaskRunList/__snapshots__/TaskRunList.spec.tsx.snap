@@ -390,7 +390,8 @@ exports[`ExecutionTaskLog --- Snapshot > Capturing Snapshot of ExecutionTaskLog 
               03:01:00 PM
             </time>
              
-            in 
+            in
+             
             <time
               class="_timeValue_fe6a3c"
             >
@@ -491,7 +492,8 @@ exports[`ExecutionTaskLog --- Snapshot > Capturing Snapshot of ExecutionTaskLog 
               03:00:00 PM
             </time>
              
-            in 
+            in
+             
             <time
               class="_timeValue_fe6a3c"
             >

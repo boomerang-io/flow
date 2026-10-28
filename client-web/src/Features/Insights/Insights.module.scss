@@ -121,6 +121,13 @@
 
 // ── Panels ─────────────────────────────────────────────────────────────────
 
+// The page's container scrolls; the results only stack, so no panel is squeezed to fit its height.
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 .panel {
   @include border-radius();
   background-color: var(--cds-layer-01, var(--cds-ui-01));

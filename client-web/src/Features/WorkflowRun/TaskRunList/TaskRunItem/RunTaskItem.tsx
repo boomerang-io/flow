@@ -135,7 +135,11 @@ function RunTaskItem({
               {calculatedDuration !== "---" && (
                 <>
                   {" "}
-                  in <time className={styles.timeValue}>{calculatedDuration}</time>
+                  {/* A running task's duration is read from the clock, so the browser's differs from the server's. */}
+                  in{" "}
+                  <time className={styles.timeValue} suppressHydrationWarning>
+                    {calculatedDuration}
+                  </time>
                 </>
               )}
             </>
@@ -336,7 +340,7 @@ function ForeachItemRow({ item, parentName }: { item: TaskRun; parentName: strin
       ) : null}
       <div className={styles.itemFooter}>
         <p className={styles.itemDuration}>
-          <time>{taskRunDuration(item)}</time>
+          <time suppressHydrationWarning>{taskRunDuration(item)}</time>
           {attempt && <span data-testid="foreach-item-attempt">, attempt {attempt}</span>}
         </p>
         {hasLog(item) && <TaskExecutionLog taskrunId={item.id} taskName={item.name} />}

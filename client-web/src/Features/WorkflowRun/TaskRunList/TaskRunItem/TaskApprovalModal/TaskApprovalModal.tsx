@@ -35,10 +35,11 @@ function TaskApprovalModal({ actionId, closeModal }: Props) {
   const approvalsError = Boolean(fetcher.data && isActionError(fetcher.data));
   const approvedRef = React.useRef(false);
 
-  // The fetcher settles asynchronously, so the modal stays open with its spinner and closes only
-  // once the submission actually succeeds - the same behaviour the awaited mutateAsync had.
+  // The modal stays open with its spinner and closes only once the submission succeeds. That is
+  // when the result lands, not when the fetcher is idle again: the revalidation in between ends
+  // the task's wait, which unmounts this modal before it could raise its toast.
   React.useEffect(() => {
-    if (fetcher.state !== "idle" || !fetcher.data || isActionError(fetcher.data)) {
+    if (!fetcher.data || isActionError(fetcher.data)) {
       return;
     }
     notify(
@@ -52,7 +53,7 @@ function TaskApprovalModal({ actionId, closeModal }: Props) {
     );
     closeModal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetcher.state, fetcher.data]);
+  }, [fetcher.data]);
 
   const handleSubmit = (values: { status: string; comment: string }) => {
     const approved = values.status === GateStatus.Approved;

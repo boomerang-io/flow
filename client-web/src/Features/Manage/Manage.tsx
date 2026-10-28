@@ -51,7 +51,7 @@ export default function Manage() {
   return (
     <div className={styles.container}>
       <Helmet>
-        <title>Manage</title>
+        <title>Admin</title>
       </Helmet>
       <Header
         includeBorder
@@ -62,13 +62,13 @@ export default function Manage() {
               <Link to={appLink.home()}>Home</Link>
             </BreadcrumbItem>
             <BreadcrumbItem isCurrentPage>
-              <p>Manage</p>
+              <p>Admin</p>
             </BreadcrumbItem>
           </Breadcrumb>
         }
-        header={<HeaderTitle>Manage</HeaderTitle>}
+        header={<HeaderTitle>Admin</HeaderTitle>}
         footer={
-          <Tabs ariaLabel="Manage pages">
+          <Tabs ariaLabel="Admin pages">
             {tabs.map((tab) => (
               <Tab key={tab.label} label={tab.label} to={tab.to} />
             ))}

@@ -219,7 +219,7 @@ export default function Insights() {
     );
   } else {
     body = (
-      <div className={styles.container} data-testid="completed-insights">
+      <div className={styles.results} data-testid="completed-insights">
         <HeadlineTiles summary={summary} compare={compare} />
         <div className={styles.chart}>
           <RunsPerDayChart daily={summary.daily} />

@@ -53,6 +53,13 @@ describe("Home", () => {
     expect(screen.getAllByTestId("workspace-card")).toHaveLength(3);
   });
 
+  test("counts each person in your workspaces once, not once per membership", async () => {
+    // The fixture's workspaces each report their own members; the profile counts the people.
+    renderHome(rollup(), { user: { ...fixtures.profile, workspaceMemberCount: 1 } });
+
+    expect(await screen.findByTestId("home-pulse-workspaces")).toHaveTextContent(/· 1 member$/);
+  });
+
   const oneApproval = rollup({
     attentionTotal: 1,
     attentionApprovals: 1,
