@@ -24,10 +24,8 @@ import io.boomerang.core.model.*;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
-import io.boomerang.core.model.Token;
 import io.boomerang.core.security.FlowWorkspaceProperties;
 import io.boomerang.core.security.IdentityService;
-import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.ApproverGroup;
@@ -860,12 +858,6 @@ public class WorkspaceService {
    */
   private Workspace convertWorkspaceEntityToWorkspace(WorkspaceEntity workspaceEntity) {
     Workspace team = new Workspace(workspaceEntity);
-    // The embedding product's own id is the product's to read, through its global token; a
-    // workspace-scoped reader, and the webapp, never see it.
-    Token identity = identityService.getCurrentIdentity();
-    if (identity == null || !AuthScope.global.equals(identity.getType())) {
-      team.setExternalRef(null);
-    }
 
     // Get Members
     team.setMembers(getUsersForWorkspace(workspaceEntity.getName()));

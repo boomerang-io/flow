@@ -43,7 +43,7 @@ class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
     String ref = "tenant-" + System.nanoTime();
     signInAsGlobalReader();
     Workspace first = workspaceService.create(request("mirror-a-" + System.nanoTime(), ref));
-    assertThat(first.getExternalRef()).as("the global caller reads it").isEqualTo(ref);
+    assertThat(first.getExternalRef()).isEqualTo(ref);
 
     assertThatThrownBy(() -> workspaceService.create(request("mirror-b-" + System.nanoTime(), ref)))
         .isInstanceOf(BoomerangException.class)
@@ -82,13 +82,12 @@ class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aWorkspaceScopedReaderNeverSeesTheReferenceAndCannotChangeIt() {
+  void aWorkspaceScopedReaderSeesTheReferenceAndCannotChangeIt() {
     String ref = "tenant-" + System.nanoTime();
-    // With security off the caller is the synthetic global admin, so the create answers the ref.
     Workspace created = workspaceService.create(request("mirror-e-" + System.nanoTime(), ref));
     signInAsMemberOf(created.getName());
 
-    assertThat(workspaceService.get(created.getName()).getExternalRef()).isNull();
+    assertThat(workspaceService.get(created.getName()).getExternalRef()).isEqualTo(ref);
     WorkspaceRequest patch = new WorkspaceRequest();
     patch.setExternalRef("other-" + System.nanoTime());
     workspaceService.patch(created.getName(), patch);
