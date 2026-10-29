@@ -297,7 +297,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
 | `_0017__SeedTaskCatalogue` | all | Seeds the 105 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
 | `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
-| `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
+| `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image onto `boomerangio/task-flow:3.3.0`; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates (by name and version) and the integration templates (by name) |
 | `_0021__Indexes` | all | Dedupes, then builds the index inventory (above) |
 | `_0022__ReencryptSettingsAesGcm` | all | Re-encrypts v3's AES/CBC secured settings values (decrypted with the `mongo.encrypt.*` pair) and encrypts plaintext ones under the `flow.encrypt.*` key; stops on a value it cannot decrypt (or blanks it when `flow.migration.reset-unreadable-settings=true`) or on a blank key (`authorization.md`, "Secured settings at rest") |
@@ -314,6 +314,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0033__SeedSendGridTemplateRevision` | all | Inserts the SendGrid template task's revision 3, whose `apiKey` has no placeholder default and whose `templateId` is a `text` field, where an install holds the task but not that revision; an empty database has it from `_0017` |
 | `_0034__SeedFormIntegrations` | all | Sets each integration template's `kind` (`app` for GitHub and Slack) where it has none, and inserts the Google and Microsoft `form` templates where an install holds none of their type; an empty database has them from `_0020` |
 | `_0035__SeedTaskFlowIntegrationTasks` | all | Adds task-flow 3.3.0's catalogue: the 16 GitHub, Microsoft Teams, SharePoint and Google Drive tasks an install lacks, with their graph node and root edge, and every seed revision of those and of the Sheets, Drive and Artifactory tasks the install lacks; a seeded task an install dropped gets nothing, and the GitHub integration template's instructions gain the App permissions the GitHub tasks need. An empty database has all of it from `_0017` and `_0020` |
+| `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left, and an empty database or a v3 upgrade has `3.3.0` from the seed |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

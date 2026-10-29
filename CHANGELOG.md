@@ -7,6 +7,20 @@ tag's release notes.
 
 ### Upgrading
 
+- **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.3.0`** (the `task` settings'
+  `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change unit
+  `_0036__DefaultTaskImageTaskFlow33` moves an install whose setting still holds 3.1.0; an image an operator chose is
+  kept. What changes for those tasks:
+  - Script tasks run on Alpine 3.24 with Node 24 (was 20), npm 11 at `/usr/local/bin/npm` (`/usr/bin/npm` is gone),
+    GNU tar, OpenSSL 3.5, curl 8.23 and bash 5.3.
+  - Tasks that exited successfully having done nothing now do their work, or fail visibly: Append Data (Sheets)
+    appends its rows, Copy File (Drive) copies, and the Artifactory download and upload tasks run at all. The
+    download needs a destination path, relative paths resolve against `/workspace`, Basic auth is sent encoded, and
+    the upload verifies TLS, so a self-signed Artifactory fails until its CA is trusted.
+  - The Drive tasks reach shared drives, and List Files honours its corpora and drive ID.
+  - The mail, ServiceNow and Slack tasks work when `HTTP_PROXY` is set, and JSONPath To Parameter no longer
+    crashes with `module is not defined`.
+  - Task logs no longer print param values, and Google errors no longer include the request's bearer token.
 - **The GitHub tasks need GitHub App permissions.** The GitHub catalogue tasks act with the GitHub App's
   installation token when a workspace shares it; between them they need Issues: write, Pull requests: write,
   Contents: read or write, Commit statuses: write and Actions: write on the App. Each task's description names its

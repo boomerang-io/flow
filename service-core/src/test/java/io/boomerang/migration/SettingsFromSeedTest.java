@@ -93,7 +93,7 @@ class SettingsFromSeedTest {
 
     // Values carried through the earlier keys; the retired timeout and image take the seed's.
     assertThat(value(db, "task", "debug")).isEqualTo("false");
-    assertThat(value(db, "task", "default.image")).isEqualTo("boomerangio/task-flow:3.1.0");
+    assertThat(value(db, "task", "default.image")).isEqualTo("boomerangio/task-flow:3.3.0");
     assertThat(value(db, "task", "deletion.policy")).isEqualTo("Always");
     assertThat(value(db, "task", "edit.verified")).isEqualTo("true");
     assertThat(value(db, "task", "default.timeout")).isEqualTo("0");
