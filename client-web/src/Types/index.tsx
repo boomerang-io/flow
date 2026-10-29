@@ -752,13 +752,17 @@ export interface FlowFeatures {
 export interface Integration {
   id: string;
   name: string;
+  type: string;
+  // app: Flow installs it and fills the credential it shares; form: the workspace enters every field.
+  kind?: "app" | "form";
   description: string;
   icon: string;
   instructions: string;
   link: string;
   status: string;
   ref?: string;
-  // The workspace parameters the integration manages while its credentials are shared with tasks.
+  // The workspace parameters the integration manages while its credentials are shared with tasks; a
+  // connected form integration's carry the values held, a set secret as the redaction marker.
   fields?: Array<DataDrivenInput>;
   // Whether this workspace shares them; absent when the integration has none or is not connected.
   shared?: boolean;

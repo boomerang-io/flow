@@ -1,5 +1,4 @@
 import React from "react";
-import { useNavigate, Link, useLoaderData } from "react-router-dom";
 import { Breadcrumb, BreadcrumbItem } from "@carbon/react";
 import {
   FeatureHeader as Header,
@@ -8,12 +7,13 @@ import {
   Error,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
+import { useNavigate, Link, useLoaderData } from "react-router-dom";
 import IntegrationCard from "Components/IntegrationCard";
 import { useWorkspaceContext } from "Hooks";
-import { appLink } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
-import { serverFetch } from "Config/serverFetch";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { appLink } from "Config/appConfig";
+import { serverFetch } from "Config/serverFetch";
+import { serviceUrl } from "Config/servicesConfig";
 import { FlowWorkspace, Integration } from "Types";
 import styles from "./integrations.module.scss";
 
@@ -47,7 +47,10 @@ export async function loader({
   }
 }
 
-type ActionIntent = { intent: "disconnect"; name: string } | { intent: "share"; name: string; shared: boolean };
+type ActionIntent =
+  | { intent: "connect"; name: string }
+  | { intent: "disconnect"; name: string }
+  | { intent: "share"; name: string; shared: boolean };
 export type ActionResult = ActionIntent | (ActionIntent & ActionError);
 
 // Each integration type unlinks through its own endpoint, keyed by the integration's display
@@ -74,6 +77,32 @@ export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const intent = String(formData.get("intent"));
   const name = String(formData.get("name"));
+
+  // A form integration is connected, edited and disconnected through its share route by type: the
+  // values the workspace entered are what it shares.
+  if (formData.get("kind") === "form") {
+    const shareUrl = serviceUrl.postIntegrationShare({ integration: String(formData.get("type")) });
+    const workspace = String(formData.get("workspace"));
+    const connecting = intent === "connect";
+    try {
+      await serverFetch(request).post(
+        shareUrl,
+        connecting
+          ? { workspace, shared: true, values: JSON.parse(String(formData.get("values") ?? "{}")) }
+          : { workspace, shared: false },
+      );
+      return connecting ? { intent: "connect" as const, name } : { intent: "disconnect" as const, name };
+    } catch (error) {
+      return actionError({
+        intent: connecting ? ("connect" as const) : ("disconnect" as const),
+        name,
+        error: formatErrorMessage({
+          error,
+          defaultMessage: connecting ? `Request to connect ${name} failed` : `Request to disconnect ${name} failed`,
+        }),
+      });
+    }
+  }
 
   if (intent === "disconnect") {
     const getUnlinkUrl = unlinkUrlByIntegrationName[name];

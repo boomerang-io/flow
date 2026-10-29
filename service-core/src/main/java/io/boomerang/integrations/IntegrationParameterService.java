@@ -3,16 +3,21 @@ package io.boomerang.integrations;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.core.SecretCipher;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.integrations.entity.IntegrationTemplateEntity;
 import io.boomerang.integrations.repository.IntegrationTemplateRepository;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.repository.WorkspaceRepository;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -29,6 +34,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class IntegrationParameterService {
+
+  private static final String PASSWORD = DataAdapterUtil.FieldType.PASSWORD.value();
 
   private final IntegrationTemplateRepository integrationTemplateRepository;
   private final WorkspaceRepository workspaceRepository;
@@ -89,6 +96,75 @@ public class IntegrationParameterService {
    */
   public void share(
       WorkspaceEntity workspace, IntegrationTemplateEntity template, Supplier<String> credential) {
+    checkShareable(workspace, template);
+    String secret = credential.get();
+    write(
+        workspace,
+        template,
+        field -> (PASSWORD.equals(field.getType()) ? secret : field.getDefaultValue()));
+  }
+
+  /**
+   * Write a form integration's fields from the values the workspace entered. A secret sent as the
+   * redaction marker, or left out, keeps the one stored, and any other field left out keeps its
+   * stored value or takes its default, so the same call edits the values later. A name the template
+   * does not declare is refused, and every required field must end with a value.
+   */
+  public void share(
+      WorkspaceEntity workspace, IntegrationTemplateEntity template, Map<String, String> values) {
+    checkShareable(workspace, template);
+    List<AbstractParam> fields = fields(template);
+    values.keySet().stream()
+        .filter(name -> fields.stream().noneMatch(field -> field.getName().equalsIgnoreCase(name)))
+        .findFirst()
+        .ifPresent(
+            name -> {
+              throw new BoomerangException(
+                  BoomerangError.INTEGRATION_FIELD_UNKNOWN, name, template.getName());
+            });
+    Map<String, Object> resolved = new HashMap<>();
+    for (AbstractParam field : fields) {
+      Object stored = stored(workspace, field.getName()).filter(AbstractParam::isReadOnly).map(AbstractParam::getValue).orElse(null);
+      String incoming =
+          values.entrySet().stream()
+              .filter(entry -> entry.getKey().equalsIgnoreCase(field.getName()))
+              .map(Map.Entry::getValue)
+              .findFirst()
+              .orElse(null);
+      Object value =
+          PASSWORD.equals(field.getType())
+              ? DataAdapterUtil.keepSecretValue(incoming, stored)
+              : (incoming != null ? incoming : stored != null ? stored : field.getDefaultValue());
+      if (Boolean.TRUE.equals(field.getRequired()) && (value == null || value.toString().isBlank())) {
+        throw new BoomerangException(
+            BoomerangError.INTEGRATION_FIELD_REQUIRED, field.getName(), template.getName());
+      }
+      resolved.put(field.getName(), value);
+    }
+    write(workspace, template, field -> resolved.get(field.getName()));
+  }
+
+  /** Remove the template's managed parameters from the workspace; parameters a user made stay. */
+  public void unshare(WorkspaceEntity workspace, IntegrationTemplateEntity template) {
+    List<AbstractParam> fields = fields(template);
+    List<AbstractParam> parameters = new LinkedList<>(parameters(workspace));
+    Map<String, Object> secretsBefore = SecretChangeHolder.secretValues("", parameters, PASSWORD);
+    boolean removed =
+        parameters.removeIf(
+            p ->
+                p.isReadOnly()
+                    && fields.stream().anyMatch(field -> field.getName().equalsIgnoreCase(p.getName())));
+    if (removed) {
+      SecretChangeHolder.compare(secretsBefore, SecretChangeHolder.secretValues("", parameters, PASSWORD));
+      workspace.setParameters(parameters);
+      workspaceRepository.save(workspace);
+      paramLayerCache.evictAll();
+    }
+  }
+
+  // Workspace parameters must be on, and a parameter a user made under a field's name is never
+  // overwritten.
+  private void checkShareable(WorkspaceEntity workspace, IntegrationTemplateEntity template) {
     if (!settingsService.getSettingConfig("features", "workspaceParameters").getBooleanValue()) {
       throw new BoomerangException(BoomerangError.INTEGRATION_PARAMS_DISABLED, template.getName());
     }
@@ -101,36 +177,46 @@ public class IntegrationParameterService {
                     BoomerangError.INTEGRATION_PARAM_EXISTS, existing.getName(), template.getName());
               });
     }
-    String secret = credential.get();
+  }
+
+  // Replace the template's fields with managed parameters holding these values; the audit event of
+  // the call names the secrets that changed, never their values.
+  private void write(
+      WorkspaceEntity workspace,
+      IntegrationTemplateEntity template,
+      Function<AbstractParam, Object> valueOf) {
     List<AbstractParam> parameters = new LinkedList<>(parameters(workspace));
+    Map<String, Object> secretsBefore = SecretChangeHolder.secretValues("", parameters, PASSWORD);
     for (AbstractParam field : fields(template)) {
       parameters.removeIf(p -> p.getName().equalsIgnoreCase(field.getName()));
       AbstractParam managed = new AbstractParam();
       BeanUtils.copyProperties(field, managed);
-      managed.setValue("password".equals(field.getType()) ? secret : field.getDefaultValue());
+      managed.setValue(valueOf.apply(field));
       managed.setDefaultValue(null);
       managed.setReadOnly(true);
       parameters.add(managed);
     }
+    SecretChangeHolder.compare(secretsBefore, SecretChangeHolder.secretValues("", parameters, PASSWORD));
     workspace.setParameters(parameters);
     workspaceRepository.save(workspace);
     paramLayerCache.evictAll();
   }
 
-  /** Remove the template's managed parameters from the workspace; parameters a user made stay. */
-  public void unshare(WorkspaceEntity workspace, IntegrationTemplateEntity template) {
-    List<AbstractParam> fields = fields(template);
-    List<AbstractParam> parameters = new LinkedList<>(parameters(workspace));
-    boolean removed =
-        parameters.removeIf(
-            p ->
-                p.isReadOnly()
-                    && fields.stream().anyMatch(field -> field.getName().equalsIgnoreCase(p.getName())));
-    if (removed) {
-      workspace.setParameters(parameters);
-      workspaceRepository.save(workspace);
-      paramLayerCache.evictAll();
+  /**
+   * Return a form integration's fields with the values the workspace holds, a set secret as the
+   * redaction marker. Copies, so the template is never changed.
+   */
+  public List<AbstractParam> fieldValues(WorkspaceEntity workspace, IntegrationTemplateEntity template) {
+    List<AbstractParam> fields = new LinkedList<>();
+    for (AbstractParam field : fields(template)) {
+      AbstractParam shown = new AbstractParam();
+      BeanUtils.copyProperties(field, shown);
+      Object value =
+          stored(workspace, field.getName()).filter(AbstractParam::isReadOnly).map(AbstractParam::getValue).orElse(null);
+      shown.setValue(PASSWORD.equals(field.getType()) ? DataAdapterUtil.maskSecretValue(value) : value);
+      fields.add(shown);
     }
+    return fields;
   }
 
   /**
@@ -146,7 +232,7 @@ public class IntegrationParameterService {
                 .is(workspace.getId())
                 .and("parameters")
                 .elemMatch(Criteria.where("name").is(field.getName()).and("readOnly").is(true)));
-    Object stored = "password".equals(field.getType()) ? cipher.encrypt(value) : value;
+    Object stored = PASSWORD.equals(field.getType()) ? cipher.encrypt(value) : value;
     boolean updated =
         mongoTemplate
                 .updateFirst(query, new Update().set("parameters.$.value", stored), WorkspaceEntity.class)

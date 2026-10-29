@@ -142,15 +142,24 @@ integration. GitHub declares `github-token`, the App's installation token, and `
 and `url` to GitHub's, and the 10 Slack tasks that call the Slack API default `token` to Slack's; a value typed
 on the node wins.
 
+A template's `kind` says where the values come from. GitHub and Slack are `app`: Flow installs them and fills the
+credential. Google (`google-service-account-key`, a service account's whole JSON key) and Microsoft
+(`microsoft-tenant-id`, `microsoft-client-id`, `microsoft-client-secret`, an Entra app's) are `form`: the
+workspace enters every field, and that is the link, with no install, record or relationship edge; the integration
+is linked while the workspace holds its fields (`integrations/enums/IntegrationKind.java:3-10`,
+`integrations/IntegrationService.java:86-96`).
+
 | Rule | Where |
 | --- | --- |
-| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:118-156` |
+| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:130-187` |
 | A Slack bot token does not expire, so it is shared as stored and never refreshed; an installation with Slack's token rotation on, whose token expires with a refresh token, is refused with `400 INTEGRATION_TOKEN_ROTATES` (1909) | `integrations/SlackService.java:686-703` |
-| Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:84-118` |
+| Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:91-105,165-180` |
+| A form integration's `values` are checked against its fields: an unknown name is `400 INTEGRATION_FIELD_UNKNOWN` (1911), a required field left without a value `400 INTEGRATION_FIELD_REQUIRED` (1910), and values sent to an `app` integration `400 INTEGRATION_VALUES_NOT_ACCEPTED` (1912). A secret sent as `*****`, or left out, keeps the stored one and any other field left out keeps its value, so sharing again edits them | `integrations/IntegrationParameterService.java:107-145`, `integrations/IntegrationService.java:137-187` |
+| The share's audit event names each secret it set, replaced or cleared, never a value | `integrations/IntegrationParameterService.java:148-163,182-203` |
 | A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:528-537,555-565,589` |
-| A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:60-74` |
-| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team | `integrations/GitHubService.java:404-408`, `integrations/IntegrationService.java:199-219`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:120-134` |
-| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:191-228`, `integrations/IntegrationParameterService.java:136-157` |
+| A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:67-81` |
+| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team | `integrations/GitHubService.java:404-408`, `integrations/IntegrationService.java:230-250`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:147-163`. A form integration is disconnected by sharing off |
+| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:191-228`, `integrations/IntegrationParameterService.java:222-243` |
 
 A GitHub or Slack task left on its default in a workspace that shares nothing fails at admission with
 `no such workspace param 'github-token'` or `'slack-token'`, and the editor warns when the workflow is saved

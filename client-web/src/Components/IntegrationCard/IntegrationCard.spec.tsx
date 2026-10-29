@@ -24,7 +24,9 @@ describe("IntegrationCard", () => {
   });
 
   it("offers Manage when connected, and Disconnect inside it", async () => {
-    renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref" }} />);
+    renderWithRouter(
+      <IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref" }} />,
+    );
 
     expect(screen.getByText("Connected")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Manage" }));
@@ -36,7 +38,10 @@ describe("IntegrationCard", () => {
   it("offers to share the installation token with tasks once connected, showing whether it is shared", async () => {
     const fields = [{ name: "github-token" }, { name: "github-url" }];
     renderWithRouter(
-      <IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref", fields, shared: true }} />,
+      <IntegrationCard
+        workspaceName="cheer"
+        data={{ ...github, status: "linked", ref: "github-ref", fields, shared: true }}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Manage" }));
@@ -46,11 +51,15 @@ describe("IntegrationCard", () => {
     expect(
       screen.getByText(/Every workflow author in this workspace can then act with the GitHub App's permissions/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/\$\(workspace\.params\.github-token\) and \$\(workspace\.params\.github-url\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/\$\(workspace\.params\.github-token\) and \$\(workspace\.params\.github-url\)/),
+    ).toBeInTheDocument();
   });
 
   it("has no share switch for an integration with nothing to share", async () => {
-    renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref" }} />);
+    renderWithRouter(
+      <IntegrationCard workspaceName="cheer" data={{ ...github, status: "linked", ref: "github-ref" }} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Manage" }));
 
@@ -83,5 +92,55 @@ describe("IntegrationCard", () => {
     renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, name: "Slack", link: "" }} />);
 
     expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+  });
+  const microsoft = {
+    id: "microsoft",
+    name: "Microsoft",
+    type: "microsoft",
+    kind: "form",
+    description: "Let the Teams and SharePoint tasks call Microsoft Graph as a Microsoft Entra app",
+    instructions: "### Enable\n\nRegister an app in Microsoft Entra ID.",
+    status: "unlinked",
+    fields: [
+      { name: "microsoft-tenant-id", label: "Directory (tenant) ID", type: "text", required: true },
+      { name: "microsoft-client-id", label: "Application (client) ID", type: "text", required: true },
+      { name: "microsoft-client-secret", label: "Client secret", type: "password", required: true },
+    ],
+  };
+
+  it("connects a form integration with the fields its template declares, once every required one is filled", async () => {
+    renderWithRouter(<IntegrationCard workspaceName="cheer" data={microsoft} />);
+
+    expect(screen.getByText("Lets the Teams and SharePoint tasks use a Microsoft Entra app")).toBeInTheDocument();
+    // A form integration has no install link and can still be connected.
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    // The card's own Connect opened the dialog; the dialog's is the last.
+    await screen.findByText("Register an app in Microsoft Entra ID.");
+    const connect = screen.getAllByRole("button", { name: "Connect", hidden: true }).at(-1)!;
+    expect(connect).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Directory (tenant) ID (required)"), { target: { value: "tenant-1" } });
+    fireEvent.change(screen.getByLabelText("Application (client) ID (required)"), { target: { value: "client-1" } });
+    fireEvent.change(screen.getByLabelText("Client secret (required)"), { target: { value: "secret-1" } });
+    expect(connect).toBeEnabled();
+    expect(screen.getByText(/Tasks read them as \$\(workspace\.params\.microsoft-tenant-id\), /)).toBeInTheDocument();
+  });
+
+  it("edits a connected form integration with its stored secret kept, and offers Disconnect", async () => {
+    const fields = microsoft.fields.map((field) => ({
+      ...field,
+      value: field.type === "password" ? "*****" : `${field.name}-value`,
+    }));
+    renderWithRouter(
+      <IntegrationCard workspaceName="cheer" data={{ ...microsoft, status: "linked", shared: true, fields }} />,
+    );
+
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
+
+    expect(await screen.findByDisplayValue("microsoft-tenant-id-value")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Set")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save", hidden: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Disconnect/, hidden: true })).toBeInTheDocument();
   });
 });
