@@ -37,4 +37,5 @@ decided it: a status marker and a sweep wind work down safely, and lineage is a 
 - Purging begins at first start and no value turns it off, so upgraders export history first (`README.md:171-175`).
 - The monthly run quota is the larger of the audit count and the live count (`workflow/QuotaService.java:222-230`,
   decision 0070); the 60-day floor keeps a month's live count whole. Workflow-scoped artifacts are never purged here.
-- Not built, each waiting for a case: a per-workspace retention, a hold on one run, and purging one run by API.
+- Purging one run on request reuses the per-run purge (decision 0140). Not built, each waiting for a case: a
+  per-workspace retention and a hold on one run.

@@ -331,6 +331,17 @@ public class WorkflowRunStateHelper {
         > 0;
   }
 
+  // Purge request: stamps the run once, whatever its phase. A second request is a no-op, so the
+  // first request's time bounds how long a dispatcher's release of the run's tasks is waited for.
+  public boolean tryRequestPurge(String id) {
+    Query query = Query.query(Criteria.where("_id").is(id).and("purgeRequestedAt").exists(false));
+    return mongoTemplate
+            .updateFirst(
+                query, new Update().set("purgeRequestedAt", new Date()), WorkflowRunEntity.class)
+            .getModifiedCount()
+        > 0;
+  }
+
   // Resume Compare-And-Set: clears the pause flag and moves the deadline forward by the time
   // paused. Returns whether this caller won.
   public boolean tryResume(String id) {

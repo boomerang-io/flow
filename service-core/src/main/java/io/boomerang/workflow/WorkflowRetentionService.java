@@ -3,6 +3,7 @@ package io.boomerang.workflow;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.SweepRunner;
 import io.boomerang.core.RelationshipService;
@@ -10,17 +11,25 @@ import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.EngineConstants;
 import io.boomerang.engine.TaskExecutionService;
+import io.boomerang.engine.WorkflowExecutionService;
+import io.boomerang.engine.WorkflowRunStateHelper;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.TaskRunRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -51,6 +60,16 @@ public class WorkflowRetentionService {
   // sweeps on time; a backlog drains over several passes.
   private static final int MAX_PURGE_PAGES = 20;
 
+  // A requested purge waits for the run's tasks to settle - a cancel ends them off the caller's
+  // thread, and a dispatcher releases a terminated task on its next poll - so a pod is told to
+  // stop before its order disappears; past this grace the run goes regardless.
+  public static final long PURGE_RELEASE_GRACE_MILLIS = TimeUnit.MINUTES.toMillis(10);
+
+  private static final List<RunStatus> TERMINATED = List.of(RunStatus.cancelled, RunStatus.timedout);
+
+  /** The runs one purge request removed now and the ones it left to the sweep. */
+  public record PurgeOutcome(List<String> purged, List<String> scheduled) {}
+
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRepository workflowRepository;
   private final WorkflowRevisionRepository workflowRevisionRepository;
@@ -61,6 +80,8 @@ public class WorkflowRetentionService {
   private final ArtifactService artifactService;
   private final SettingsService settingsService;
   private final WorkflowService workflowService;
+  private final WorkflowExecutionService workflowExecutionService;
+  private final WorkflowRunStateHelper workflowRunStateHelper;
 
   public WorkflowRetentionService(
       WorkflowRunRepository workflowRunRepository,
@@ -72,7 +93,9 @@ public class WorkflowRetentionService {
       RelationshipService relationshipService,
       ArtifactService artifactService,
       SettingsService settingsService,
-      WorkflowService workflowService) {
+      WorkflowService workflowService,
+      @Lazy WorkflowExecutionService workflowExecutionService,
+      WorkflowRunStateHelper workflowRunStateHelper) {
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -83,6 +106,100 @@ public class WorkflowRetentionService {
     this.artifactService = artifactService;
     this.settingsService = settingsService;
     this.workflowService = workflowService;
+    this.workflowExecutionService = workflowExecutionService;
+    this.workflowRunStateHelper = workflowRunStateHelper;
+  }
+
+  /**
+   * Purge one run on request, with its lineage: the retries that point at it and the children its
+   * task runs started, found through {@code initiatedByRef} and removed deepest first so no run
+   * outlives one that points at it. A run still in flight is cancelled first. A run is removed now
+   * when its tasks have settled; otherwise it is stamped for the purge sweep, which removes it once
+   * every task has ended and the dispatcher's terminate poll has released the ones it held, or
+   * after the grace. A run that does not exist is nothing to do.
+   */
+  public PurgeOutcome purge(String wfRunId) {
+    List<String> purged = new ArrayList<>();
+    List<String> scheduled = new ArrayList<>();
+    List<WorkflowRunEntity> lineage = lineageOf(wfRunId);
+    for (int i = lineage.size() - 1; i >= 0; i--) {
+      WorkflowRunEntity wfRun = lineage.get(i);
+      if (RunPhase.completed != wfRun.getPhase()) {
+        workflowRunStateHelper.tryRequestPurge(wfRun.getId());
+        workflowExecutionService.cancel(wfRun.getId());
+        LOGGER.info("[{}] Purge requested on a run in flight. Cancelled.", wfRun.getId());
+      }
+      if (unsettled(wfRun.getId())) {
+        workflowRunStateHelper.tryRequestPurge(wfRun.getId());
+        scheduled.add(wfRun.getId());
+        LOGGER.info("[{}] The run's tasks have not settled. Purged by the sweep.", wfRun.getId());
+        continue;
+      }
+      purgeRun(wfRun.getId());
+      purged.add(wfRun.getId());
+      LOGGER.info("[{}] Purged on request.", wfRun.getId());
+    }
+    return new PurgeOutcome(purged, scheduled);
+  }
+
+  /**
+   * Remove the runs a purge was requested for whose tasks have settled, and any whose request is
+   * older than the grace. A run found in flight again (its cancel lost to a transition) is
+   * cancelled again. One page a sweep.
+   */
+  public int purgeRequestedRuns() {
+    Date graceCutoff = new Date(System.currentTimeMillis() - PURGE_RELEASE_GRACE_MILLIS);
+    int purged = 0;
+    for (WorkflowRunEntity wfRun :
+        workflowRunRepository.findByPurgeRequestedAtNotNullOrderByPurgeRequestedAtAsc(
+            PageRequest.of(0, PAGE_SIZE))) {
+      try {
+        if (RunPhase.completed != wfRun.getPhase()) {
+          workflowExecutionService.cancel(wfRun.getId());
+          continue;
+        }
+        if (unsettled(wfRun.getId()) && wfRun.getPurgeRequestedAt().after(graceCutoff)) {
+          continue;
+        }
+        purgeRun(wfRun.getId());
+        purged++;
+        LOGGER.info("[{}] Purged as requested.", wfRun.getId());
+      } catch (RuntimeException ex) {
+        LOGGER.error("[{}] Requested purge failed: {}", wfRun.getId(), ex.getMessage());
+      }
+    }
+    return purged;
+  }
+
+  // The run and every run that points at it or at one of its task runs, transitively, in
+  // discovery order: a run before its retries and children. Empty when the run does not exist.
+  private List<WorkflowRunEntity> lineageOf(String wfRunId) {
+    Set<String> seen = new LinkedHashSet<>();
+    List<WorkflowRunEntity> lineage = new ArrayList<>();
+    Deque<String> pending = new ArrayDeque<>();
+    pending.add(wfRunId);
+    while (!pending.isEmpty()) {
+      String id = pending.poll();
+      if (!seen.add(id)) {
+        continue;
+      }
+      WorkflowRunEntity wfRun = workflowRunRepository.findById(id).orElse(null);
+      if (wfRun == null) {
+        continue;
+      }
+      lineage.add(wfRun);
+      List<String> refs = new ArrayList<>();
+      refs.add(id);
+      taskRunRepository.findIdsByWorkflowRunRef(id).forEach(task -> refs.add(task.getId()));
+      workflowRunRepository
+          .findByInitiatedByRefIn(refs)
+          .forEach(pointing -> pending.add(pointing.getId()));
+    }
+    return lineage;
+  }
+
+  private boolean unsettled(String wfRunId) {
+    return taskRunRepository.existsUnsettledTask(wfRunId, TERMINATED);
   }
 
   /**

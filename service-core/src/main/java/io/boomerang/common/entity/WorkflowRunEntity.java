@@ -71,6 +71,10 @@ public class WorkflowRunEntity {
   // moves forward by the time spent here. Absent = executing. Never on the public model.
   @JsonIgnore private Date waitingSince;
 
+  // Set by a purge request on a run a dispatcher still holds: the run is cancelled and the purge
+  // sweep removes it once its terminated tasks are released. Absent = not requested.
+  @JsonIgnore private Date purgeRequestedAt;
+
   private String trigger;
   private String initiatedByRef;
 

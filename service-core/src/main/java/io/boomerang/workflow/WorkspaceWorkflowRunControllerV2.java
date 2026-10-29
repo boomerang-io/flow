@@ -2,8 +2,12 @@ package io.boomerang.workflow;
 
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
+import io.boomerang.common.model.WorkflowRunPurge;
 import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkflowRunRetryRequest;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -283,6 +287,84 @@ public class WorkspaceWorkflowRunControllerV2 {
           @PathVariable(required = true)
           String workflowRunId) {
     return workflowRunService.cancel(workspace, workflowRunId);
+  }
+
+  @DeleteMapping(value = "/{workflowRunId}")
+  @AuthCriteria(
+      action = PermissionAction.DELETE,
+      resource = PermissionResource.WORKFLOWRUN,
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "workflowrun",
+      resourceId = "#workflowRunId",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
+  @Operation(
+      summary =
+          "Purge a WorkflowRun with everything it owns and its lineage: its retries, its child"
+              + " runs, their task runs, actions, artifacts and logs. A run in flight is"
+              + " cancelled first. Audit records stay.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public ResponseEntity<WorkflowRunPurge> purge(
+      @Parameter(
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
+              required = true)
+          @PathVariable
+          String workspace,
+      @Parameter(
+              name = "workflowRunId",
+              description = "ID of WorkflowRun to purge",
+              required = true)
+          @PathVariable(required = true)
+          String workflowRunId) {
+    return ResponseEntity.ok(workflowRunService.purge(workspace, workflowRunId));
+  }
+
+  @DeleteMapping
+  @AuthCriteria(
+      action = PermissionAction.DELETE,
+      resource = PermissionResource.WORKFLOWRUN,
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "workflowrun",
+      resourceName = "#labels.toString()",
+      workspaceId = "#workspace",
+      level = AuditLevel.DESTRUCTIVE)
+  @Operation(
+      summary =
+          "Purge the WorkflowRuns matching every label, oldest first, each with its lineage. One"
+              + " call takes a page of matches and reports how many remain; repeat until none.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request")
+      })
+  public ResponseEntity<WorkflowRunPurge> purgeByLabels(
+      @Parameter(
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
+              required = true)
+          @PathVariable
+          String workspace,
+      @Parameter(
+              name = "labels",
+              description =
+                  "List of url encoded labels, all of which a run must carry. For example"
+                      + " Organization=Boomerang,customKey=test would be encoded as"
+                      + " Organization%3DBoomerang,customKey%3Dtest)",
+              required = true)
+          @RequestParam
+          List<String> labels) {
+    return ResponseEntity.ok(workflowRunService.purgeByLabels(workspace, Optional.of(labels)));
   }
 
   @PutMapping(value = "/{workflowRunId}/pause")

@@ -64,3 +64,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0137 | [A dispatcher reports a failed provisioning attempt](0137-a-dispatcher-reports-a-failed-provisioning-attempt.md) | accepted | 2026-10-29 |
 | 0138 | [A run records the person or token that started it](0138-a-run-records-the-person-or-token-that-started-it.md) | accepted | 2026-10-29 |
 | 0139 | [A task param reads the layers it inherits, never the task's own params](0139-a-task-param-reads-the-layers-it-inherits.md) | accepted | 2026-10-29 |
+| 0140 | [A run purge takes the lineage, cancels what is in flight, and waits for the dispatcher to let go](0140-a-run-purge-cancels-what-is-in-flight-and-waits-for-the-dispatcher.md) | accepted | 2026-10-29 |
