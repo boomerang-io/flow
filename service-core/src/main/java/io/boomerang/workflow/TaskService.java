@@ -479,10 +479,10 @@ public class TaskService {
     if (changelog != null && changelog.getAuthor() != null) {
       Optional<User> user = userService.getUserByID(changelog.getAuthor());
       if (user.isPresent()) {
+        // A user signed in through a provider that sends no display name reads by name.
+        String displayName = user.get().getDisplayName();
         changelog.setAuthor(
-            user.get().getDisplayName().isEmpty()
-                ? user.get().getName()
-                : user.get().getDisplayName());
+            (displayName != null && !displayName.isBlank()) ? displayName : user.get().getName());
       }
       // Not a user id: the author is a token's name (or a pre-existing non-user id) stamped by
       // stampChangeLog - keep it as recorded rather than masking it.
