@@ -140,7 +140,11 @@ class TaskFailureRetryTest extends AbstractEngineIntegrationTest {
     assertEquals(2, after.getRetry().getFailures());
     assertEquals(2, after.getAttempts().size());
 
-    releaseAndReclaim(claimed[0], claimed[1]);
+    TaskRun last = releaseAndReclaim(claimed[0], claimed[1]);
+    assertEquals(
+        new TaskRunRetry(2, 2),
+        DispatchTaskRun.of(last).retry(),
+        "the third order is the last: failures has reached max, so a failure now is final");
     taskRunService.end(claimed[0], Optional.of(succeeded(claimed[1])));
     awaitEngine("the task to succeed on its third attempt")
         .untilAsserted(

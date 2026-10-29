@@ -7,7 +7,8 @@ import io.boomerang.common.model.RunRetry;
  * The node's retry budget as the engine holds it when a task is handed out: {@code max} is the
  * node's {@code retry.max}, absent when the node asked for no retry, and {@code failures} how many
  * reported failures the engine has already retried. The engine's own requeues of an attempt that
- * never ran are not in it. A dispatcher reads {@code failures + 1 >= max} as the last attempt.
+ * never ran are not in it. The engine retries while {@code failures < max}, so a node gets
+ * {@code max + 1} attempts and a dispatcher reads {@code failures >= max} as the last one.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record TaskRunRetry(Integer max, int failures) {

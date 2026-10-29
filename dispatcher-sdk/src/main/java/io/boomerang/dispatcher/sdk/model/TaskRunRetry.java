@@ -34,12 +34,13 @@ public class TaskRunRetry {
   }
 
   /**
-   * Whether a failure reported now would be the node's last: the engine will not retry it. True
-   * when the node asked for no retry, so a handler that keys its last-failure action off this
-   * needs no budget of its own.
+   * Whether a failure reported now would be the node's last: the engine retries a reported failure
+   * while {@code failures < max}, so a node gets {@code max + 1} attempts and this attempt is the
+   * last once {@code failures >= max}. True when the node asked for no retry, so a handler that
+   * keys its last-failure action off this needs no budget of its own.
    */
   @JsonIgnore
   public boolean isLastAttempt() {
-    return max == null || (failures != null ? failures : 0) + 1 >= max;
+    return max == null || (failures != null ? failures : 0) >= max;
   }
 }
