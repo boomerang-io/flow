@@ -578,6 +578,8 @@ components:
           type: "array"
           items:
             $ref: "#/components/schemas/RunAttempt"
+        retry:
+          $ref: "#/components/schemas/TaskRunRetry"
     RunAttempt:
       type: "object"
       properties:
@@ -627,6 +629,15 @@ components:
           type: "string"
         value:
           type: "string"
+    TaskRunRetry:
+      type: "object"
+      properties:
+        max:
+          type: "integer"
+          format: "int32"
+        failures:
+          type: "integer"
+          format: "int32"
     TaskRunSpec:
       type: "object"
       properties:

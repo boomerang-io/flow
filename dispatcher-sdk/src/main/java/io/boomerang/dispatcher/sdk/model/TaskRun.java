@@ -14,7 +14,8 @@ import java.util.Map;
  * it is an order to run; with {@code phase} {@code completed} and {@code status} {@code cancelled}
  * or {@code timedout} it is an order to terminate. {@code attempt} says which attempt a run order
  * is for and {@code attempts} how the earlier ones ended, so a dispatcher that applies its own
- * retry budget can count them.
+ * retry budget can count them; {@code retry} says what the node's own budget is and how much of it
+ * the engine has spent, so a handler can tell whether a failure it reports now will be retried.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -38,6 +39,7 @@ public class TaskRun {
   private String statusReason;
   private Integer attempt;
   private List<RunAttempt> attempts;
+  private TaskRunRetry retry;
 
   /** Whether this is an order to run the task. */
   @JsonIgnore
@@ -226,6 +228,24 @@ public class TaskRun {
 
   public void setAttempts(List<RunAttempt> attempts) {
     this.attempts = attempts;
+  }
+
+  /**
+   * The node's retry budget and how much of it is spent; absent when the engine holds none, which
+   * reads as a node that asked for no retry.
+   */
+  public TaskRunRetry getRetry() {
+    return retry;
+  }
+
+  public void setRetry(TaskRunRetry retry) {
+    this.retry = retry;
+  }
+
+  /** Whether a failure reported now would be the node's last attempt (see {@link TaskRunRetry}). */
+  @JsonIgnore
+  public boolean isLastAttempt() {
+    return retry == null || retry.isLastAttempt();
   }
 
   // Params are left out: a param may carry a password.

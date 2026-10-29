@@ -42,9 +42,14 @@ public record DispatchTaskRun(
     // The attempt this order is for: 1, plus one per requeue of any cause.
     Integer attempt,
     // The attempts a requeue superseded, oldest first; absent on a first attempt.
-    List<RunAttempt> attempts) {
+    List<RunAttempt> attempts,
+    // The node's retry budget and how much of it is spent; absent when the engine holds none.
+    TaskRunRetry retry) {
 
-  /** The wire form of a task run the engine has already prepared for hand-out. */
+  /**
+   * The wire form of a task run the engine has already prepared for hand-out. The retry state
+   * rides on the {@link HandOutTaskRun} the dispatcher service builds; a plain model carries none.
+   */
   public static DispatchTaskRun of(TaskRun taskRun) {
     return new DispatchTaskRun(
         taskRun.getId(),
@@ -64,6 +69,7 @@ public record DispatchTaskRun(
         taskRun.getIndex(),
         taskRun.getStatusReason(),
         taskRun.getAttempt(),
-        taskRun.getAttempts());
+        taskRun.getAttempts(),
+        (taskRun instanceof HandOutTaskRun handOut) ? TaskRunRetry.of(handOut.getRetry()) : null);
   }
 }

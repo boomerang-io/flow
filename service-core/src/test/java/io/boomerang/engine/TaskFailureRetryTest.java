@@ -17,6 +17,8 @@ import io.boomerang.common.model.RunRetry;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.dispatcher.DispatcherService;
+import io.boomerang.dispatcher.model.DispatchTaskRun;
+import io.boomerang.dispatcher.model.TaskRunRetry;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -94,14 +96,19 @@ class TaskFailureRetryTest extends AbstractEngineIntegrationTest {
 
   // After a requeue of a claimed attempt: the holder's next poll carries the termination order
   // and releases the claim; the backoff is then taken as served so the next poll claims again.
-  private void releaseAndReclaim(String taskRunId, String dispatcher) {
+  private TaskRun releaseAndReclaim(String taskRunId, String dispatcher) {
     assertTrue(containsId(poll(dispatcher), taskRunId), "the termination order");
     TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
     assertEquals(RunStatus.ready, released.getStatus());
     assertNull(released.getClaim().getBy());
     released.getRetry().setAfter(new Date(System.currentTimeMillis() - 1000));
     taskRunRepository.save(released);
-    assertTrue(containsId(poll(dispatcher), taskRunId), "the next attempt's claim");
+    ResponseEntity<List<TaskRun>> reclaim = poll(dispatcher);
+    assertTrue(containsId(reclaim, taskRunId), "the next attempt's claim");
+    return reclaim.getBody().stream()
+        .filter(t -> taskRunId.equals(t.getId()))
+        .findFirst()
+        .orElseThrow();
   }
 
   @Test
@@ -123,7 +130,11 @@ class TaskFailureRetryTest extends AbstractEngineIntegrationTest {
     assertEquals(claimed[1], after.getAttempts().get(0).getDispatcherRef());
     assertEquals(2, new TaskRun(after).getAttempt(), "the public attempt counts the superseded one");
 
-    releaseAndReclaim(claimed[0], claimed[1]);
+    TaskRun reclaimed = releaseAndReclaim(claimed[0], claimed[1]);
+    assertEquals(
+        new TaskRunRetry(2, 1),
+        DispatchTaskRun.of(reclaimed).retry(),
+        "the next order states the node's budget and the one failure spent on it");
     taskRunService.end(claimed[0], Optional.of(failed("JobFailed", claimed[1])));
     after = taskRunRepository.findById(claimed[0]).orElseThrow();
     assertEquals(2, after.getRetry().getFailures());

@@ -12,6 +12,8 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.dispatcher.model.DispatchTaskRun;
 import io.boomerang.dispatcher.model.DispatchWorkflowRun;
+import io.boomerang.dispatcher.model.HandOutTaskRun;
+import io.boomerang.dispatcher.model.TaskRunRetry;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +55,31 @@ class DispatchWireModelTest {
     assertThat(wire.attempts()).extracting(RunAttempt::getStatusReason)
         .containsExactly("JobFailed", "LeaseExpired");
     assertThat(wire.statusReason()).isEqualTo("ConcurrencyLimit");
+    assertThat(wire.retry()).as("a plain model carries no retry state").isNull();
+  }
+
+  @Test
+  void aHandOutCarriesTheNodesBudgetAndWhatIsSpentButNotTheRest() {
+    TaskRunEntity entity = new TaskRunEntity();
+    entity.setId("t2");
+    RunRetry retry = new RunRetry();
+    retry.setMax(3);
+    retry.setFailures(1);
+    retry.setCount(2);
+    retry.setAfter(new java.util.Date());
+    entity.setRetry(retry);
+
+    DispatchTaskRun wire = DispatchTaskRun.of(new HandOutTaskRun(entity));
+
+    assertThat(wire.retry()).isEqualTo(new TaskRunRetry(3, 1));
+    TaskRun answered = new TaskRun(entity);
+    answered.setTaskRef("echo");
+    assertThat(DispatchTaskRun.of(new HandOutTaskRun(answered, entity.getRetry())).retry())
+        .as("an engine answer wrapped with the entity's retry state carries it too")
+        .isEqualTo(new TaskRunRetry(3, 1));
+    assertThat(DispatchTaskRun.of(new HandOutTaskRun(new TaskRunEntity())).retry())
+        .as("a node that asked for no retry and was never requeued holds none")
+        .isNull();
   }
 
   @Test

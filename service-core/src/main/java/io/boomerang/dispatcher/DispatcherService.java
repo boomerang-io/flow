@@ -25,6 +25,7 @@ import io.boomerang.engine.ParameterManager;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowRunStateHelper;
 import io.boomerang.engine.model.ClaimFilter;
+import io.boomerang.dispatcher.model.HandOutTaskRun;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ArtifactService;
 import io.boomerang.workflow.TaskService;
@@ -108,22 +109,28 @@ public class DispatcherService {
     this.pollWakeups = pollWakeups;
   }
 
-  /** The start answer, with the task reference in its slug form. */
+  /** The start answer, with the task reference in its slug form and the retry state beside it. */
   public ResponseEntity<TaskRun> startTaskRun(
       String taskRunId, Optional<TaskRunStartRequest> request) {
-    return slugTaskRef(taskRunService.start(taskRunId, request));
+    return handOut(taskRunService.start(taskRunId, request));
   }
 
-  /** The end answer, with the task reference in its slug form. */
+  /** The end answer, with the task reference in its slug form and the retry state beside it. */
   public ResponseEntity<TaskRun> endTaskRun(String taskRunId, Optional<TaskRunEndRequest> request) {
-    return slugTaskRef(taskRunService.end(taskRunId, request));
+    return handOut(taskRunService.end(taskRunId, request));
   }
 
-  private ResponseEntity<TaskRun> slugTaskRef(ResponseEntity<TaskRun> answer) {
-    if (answer.getBody() != null) {
-      slugTaskRefs(List.of(answer.getBody()));
+  // An engine answer becomes a hand-out: the retry state the public model never carries is read
+  // from the entity, so the wire can state the node's budget on every order a dispatcher holds.
+  private ResponseEntity<TaskRun> handOut(ResponseEntity<TaskRun> answer) {
+    TaskRun body = answer.getBody();
+    if (body == null) {
+      return answer;
     }
-    return answer;
+    TaskRunEntity stored = mongoTemplate.findById(body.getId(), TaskRunEntity.class);
+    HandOutTaskRun handOut = new HandOutTaskRun(body, (stored != null) ? stored.getRetry() : null);
+    slugTaskRefs(List.of(handOut));
+    return ResponseEntity.status(answer.getStatusCode()).headers(answer.getHeaders()).body(handOut);
   }
 
   // On the protocol a task reference is the task's slug form, resolved once per batch; a task the
@@ -442,7 +449,7 @@ public class DispatcherService {
             TaskRunEntity claimed =
                 taskRunService.tryClaimForTermination(candidate.getId(), dispatcherId);
             if (claimed != null) {
-              taskRuns.add(new TaskRun(claimed));
+              taskRuns.add(new HandOutTaskRun(claimed));
             }
           }
         }
@@ -498,7 +505,7 @@ public class DispatcherService {
    */
   private TaskRun prepare(TaskRunEntity claimed) {
     try {
-      TaskRun taskRun = new TaskRun(claimed);
+      TaskRun taskRun = new HandOutTaskRun(claimed);
       if (!fillSpec(claimed, taskRun)) {
         return null;
       }

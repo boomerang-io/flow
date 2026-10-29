@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.boomerang.dispatcher.sdk.model.DispatcherRegistrationRequest;
 import io.boomerang.dispatcher.sdk.model.HeartbeatRequest;
 import io.boomerang.dispatcher.sdk.model.ProvisionFailureRequest;
+import io.boomerang.dispatcher.sdk.model.TaskRunRetry;
 import io.boomerang.dispatcher.sdk.model.RunAttempt;
 import io.boomerang.dispatcher.sdk.model.RunParam;
 import io.boomerang.dispatcher.sdk.model.RunResult;
@@ -62,6 +63,7 @@ class DispatcherContractTest {
     MODELLED.put("RunParam", RunParam.class);
     MODELLED.put("RunResult", RunResult.class);
     MODELLED.put("RunAttempt", RunAttempt.class);
+    MODELLED.put("TaskRunRetry", TaskRunRetry.class);
     MODELLED.put("TaskEnvVar", TaskEnvVar.class);
     MODELLED.put("TaskRunSpec", TaskRunSpec.class);
     MODELLED.put("TaskRunStartRequest", TaskRunStartRequest.class);
