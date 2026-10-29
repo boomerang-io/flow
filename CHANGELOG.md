@@ -206,6 +206,8 @@ tag's release notes.
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
   Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
   whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
+- A purge by labels leaves out the runs an earlier call already handed to the sweep, from its page and from
+  `remaining`, so a caller repeating until `remaining` is 0 always makes progress.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
   ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
   and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever

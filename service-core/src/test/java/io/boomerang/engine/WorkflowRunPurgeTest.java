@@ -249,11 +249,18 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
     retryOfFirst.setInitiatedByRef(first.getId());
     workflowRunRepository.save(retryOfFirst);
     WorkflowRunEntity other = labelledRun(workflow.getId(), Map.of(label, "no"));
+    // Already scheduled for the sweep by an earlier call: the sweep's, not this call's.
+    WorkflowRunEntity settling = labelledRun(workflow.getId(), Map.of(label, "yes"));
+    settling.setPurgeRequestedAt(new Date());
+    workflowRunRepository.save(settling);
 
     WorkflowRunPurge result =
         workflowRunService.purgeByLabels(workspace, Optional.of(List.of(label + "=yes")));
 
-    assertThat(result).isEqualTo(new WorkflowRunPurge(3, 0, 0));
+    assertThat(result)
+        .as("a run the sweep already holds is neither re-read nor counted as remaining")
+        .isEqualTo(new WorkflowRunPurge(3, 0, 0));
+    assertThat(workflowRunRepository.existsById(settling.getId())).isTrue();
     assertThat(workflowRunRepository.existsById(first.getId())).isFalse();
     assertThat(workflowRunRepository.existsById(second.getId())).isFalse();
     assertThat(workflowRunRepository.existsById(retryOfFirst.getId()))

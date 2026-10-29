@@ -497,8 +497,15 @@ public class WorkflowRunService {
     if (wfRefs.isEmpty()) {
       return WorkflowRunPurge.NONE;
     }
+    // A run already scheduled for the sweep is the sweep's: it leaves the page and the count, so
+    // every call makes progress and `remaining` is what another call can still reach.
     Query query =
-        new Query(new QueryCriteria().labels(labels).in("workflowRef", wfRefs).build());
+        new Query(
+            new QueryCriteria()
+                .labels(labels)
+                .in("workflowRef", wfRefs)
+                .add(Criteria.where("purgeRequestedAt").exists(false))
+                .build());
     long matching = mongoTemplate.count(query, WorkflowRunEntity.class);
     query.with(PageRequest.of(0, EngineConstants.SWEEP_PAGE_SIZE, Sort.by(Direction.ASC, "creationDate")));
     List<WorkflowRunEntity> page = mongoTemplate.find(query, WorkflowRunEntity.class);

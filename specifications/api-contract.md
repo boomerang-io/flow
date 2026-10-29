@@ -65,7 +65,7 @@ run references the task (`workflow/TaskService.java:980-984`).
 lineage, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
 for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0045). `DELETE
 …/workflowrun?labels=k%3Dv` does the same for the workspace's runs carrying every label, oldest first, a page of 50 a
-call (`workflow/WorkflowRunService.java:492-518`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged,
+call, runs the sweep already holds left out (`workflow/WorkflowRunService.java:492-525`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged,
 scheduled, remaining}` (`common/model/WorkflowRunPurge.java`): runs removed now, runs left to the sweep, and matches
 left for the next call. A run that does not exist counts in neither, so a repeated call answers the same; one in
 another workspace is `404 WORKFLOWRUN_INVALID_REFERENCE`. Both need `workflowrun/delete` (the owner and admin roles;
