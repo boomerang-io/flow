@@ -258,6 +258,12 @@ export default function Settings() {
                 </TooltipHover>
               </dd>
             </div>
+            {workspace.externalRef ? (
+              <div className={styles.detailedListGridItem}>
+                <dt className={styles.detailedListTitle}>External Reference</dt>
+                <dd className={styles.detailedListDescription}>{workspace.externalRef}</dd>
+              </div>
+            ) : null}
           </div>
         </dl>
       </SettingSection>

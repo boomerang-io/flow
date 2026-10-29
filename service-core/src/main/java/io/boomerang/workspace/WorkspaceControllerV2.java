@@ -124,6 +124,12 @@ public class WorkspaceControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> names,
+      @Parameter(
+              name = "externalRef",
+              description = "The one workspace carrying this external reference.",
+              required = false)
+          @RequestParam(required = false)
+          Optional<String> externalRef,
       @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
           @RequestParam(required = false)
           Optional<Integer> limit,
@@ -144,7 +150,7 @@ public class WorkspaceControllerV2 {
               required = false)
           @RequestParam(defaultValue = "name")
           Optional<String> sort) {
-    return workspaceService.query(page, limit, order, sort, search, labels, statuses, names);
+    return workspaceService.query(page, limit, order, sort, search, labels, statuses, names, externalRef);
   }
 
   @PostMapping(value = "")

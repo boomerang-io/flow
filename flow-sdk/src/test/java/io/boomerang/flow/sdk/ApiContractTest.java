@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.boomerang.flow.sdk.model.Action;
 import io.boomerang.flow.sdk.model.ActionStatus;
 import io.boomerang.flow.sdk.model.ActionType;
+import io.boomerang.flow.sdk.model.Workspace;
+import io.boomerang.flow.sdk.model.WorkspaceStatus;
 import io.boomerang.flow.sdk.model.Actioner;
 import io.boomerang.flow.sdk.model.RetryFrom;
 import io.boomerang.flow.sdk.model.RunAttempt;
@@ -88,6 +90,8 @@ class ApiContractTest {
     MODELLED.put("Actioner", type(Actioner.class));
     MODELLED.put("ActionRequest", type(ActionDecision.class));
     MODELLED.put("PageAction", Actions.ACTION_PAGE);
+    MODELLED.put("Workspace", type(Workspace.class));
+    MODELLED.put("WorkspaceRequest", type(WorkspaceRequest.class));
     MODELLED.put("WorkflowRunInsightSummary", type(WorkflowRunInsightSummary.class));
     MODELLED.put("Totals", type(WorkflowRunInsightSummary.Totals.class));
     MODELLED.put("Day", type(WorkflowRunInsightSummary.Day.class));
@@ -108,12 +112,19 @@ class ApiContractTest {
           // They restate the request's paging and sort, which the caller already holds.
           "PageWorkflowRun", Set.of("pageable", "sort"),
           "PageTaskRun", Set.of("pageable", "sort"),
-          "PageAction", Set.of("pageable", "sort"));
+          "PageAction", Set.of("pageable", "sort"),
+          // Members, quotas, parameters, approver groups and workflows have their own routes; the
+          // workspace page is not modelled here because its rows would carry them in the sample.
+          "Workspace", Set.of("approverGroups", "members", "parameters", "quotas", "workflows"),
+          // A create names the workspace, its display name, its external reference and labels; the
+          // caller is its owner and the rest is set through the workspace's own routes.
+          "WorkspaceRequest",
+          Set.of("approverGroups", "id", "members", "parameters", "quotas", "status", "type"));
 
   // Bodies the SDK writes and never reads: the properties and enums are checked here, and the
   // JSON each builder writes is pinned in RunsTest.
   private static final Set<String> WRITTEN_ONLY =
-      Set.of("WorkflowSubmitRequest", "WorkflowRunRetryRequest", "ActionRequest");
+      Set.of("WorkflowSubmitRequest", "WorkflowRunRetryRequest", "ActionRequest", "WorkspaceRequest");
 
   // Each query route the SDK calls, with a builder carrying every filter it offers.
   private static final Map<String, Params> QUERY_ROUTES = new LinkedHashMap<>();
@@ -172,6 +183,17 @@ class ApiContractTest {
             .bucket(Bucket.day)
             .spanByLabel("k")
             .slowest(1);
+    QUERY_ROUTES.put(
+        "/api/v2/workspace/query",
+        WorkspaceQuery.all()
+            .search("ac")
+            .labels("a=b")
+            .statuses(WorkspaceStatus.active)
+            .names("ws")
+            .externalRef("ext")
+            .page(0, 1)
+            .sort("name", Order.ASC)
+            .params());
     QUERY_ROUTES.put(WORKSPACE + "/insights", insights.summaryParams());
     QUERY_ROUTES.put(WORKSPACE + "/insights/tasks", insights.tasksParams());
     QUERY_ROUTES.put(WORKSPACE + "/insights/workflow/{workflow}", insights.workflowParams());
@@ -328,7 +350,8 @@ class ApiContractTest {
               .properties()
               .forEach(
                   entry -> {
-                    if (entry.getValue().has("enum")) {
+                    if (entry.getValue().has("enum")
+                        && !NOT_CARRIED.getOrDefault(schema, Set.of()).contains(entry.getKey())) {
                       Class<?> type = properties.get(entry.getKey()).getRawClass();
                       assertThat(type.isEnum())
                           .as("%s.%s is an enum", schema, entry.getKey())

@@ -149,6 +149,7 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                 Optional.empty(),
                 NO_LABEL_VALUE,
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty()));
   }
 

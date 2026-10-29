@@ -184,6 +184,11 @@ tag's release notes.
 
 ### Added
 
+- A workspace can be found by `externalRef`, an embedding product's own id for the record it mirrors:
+  `GET /api/v2/workspace/query?externalRef=` answers the one workspace carrying it, within the caller's access, and a
+  create naming a reference a workspace already carries is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's
+  name, so a retried create is idempotent. The reference is set once at create and never patched; every reader of the
+  workspace sees it, and the webapp shows it on Settings. A unique sparse index, `external_ref`, joins the inventory.
 - Templates are workflows of the system workspace. A workflow carries a `type`: `workflow` (the default), `template`
   or `starter`, and the last two can be created, versioned and edited only in the system workspace, through its
   ordinary workflow routes. A workspace runs a template by reference: a workflow created with `templateRef: {name,
