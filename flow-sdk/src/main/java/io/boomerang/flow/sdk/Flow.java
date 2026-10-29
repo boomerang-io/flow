@@ -49,6 +49,11 @@ public final class Flow {
     return new Insights(api, workspace);
   }
 
+  /** Workspaces: create, ensure by external reference, read, query, delete. */
+  public Workspaces workspaces() {
+    return new Workspaces(api);
+  }
+
   /** The manual and approval actions of one workspace: read, query and decide. */
   public Actions actions(String workspace) {
     return new Actions(api, workspace);

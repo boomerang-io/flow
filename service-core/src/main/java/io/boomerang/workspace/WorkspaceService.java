@@ -172,6 +172,17 @@ public class WorkspaceService {
       // Validate name - will throw exception if not valid
       WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
       this.validateName(checkRequest);
+      // An embedding product's own id is carried once: a create retried after a crash, or for a
+      // record that already has its mirror, is answered with the workspace that holds it.
+      if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
+        workspaceRepository
+            .findByExternalRef(request.getExternalRef())
+            .ifPresent(
+                existing -> {
+                  throw new BoomerangException(
+                      BoomerangError.WORKSPACE_EXTERNAL_REF_TAKEN, existing.getName());
+                });
+      }
 
       /*
        * Create WorkspaceEntity & Copy majority of fields.
@@ -394,6 +405,28 @@ public class WorkspaceService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryTeams) {
+    return query(
+        queryPage,
+        queryLimit,
+        queryOrder,
+        querySort,
+        querySearch,
+        queryLabels,
+        queryStatus,
+        queryTeams,
+        Optional.empty());
+  }
+
+  public Page<Workspace> query(
+      Optional<Integer> queryPage,
+      Optional<Integer> queryLimit,
+      Optional<Direction> queryOrder,
+      Optional<String> querySort,
+      Optional<String> querySearch,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryTeams,
+      Optional<String> queryExternalRef) {
     List<String> teamRefs = new LinkedList<>();
     teamRefs =
         relationshipService.filter(
@@ -401,7 +434,15 @@ public class WorkspaceService {
     LOGGER.debug("TeamRefs: " + teamRefs.toString());
 
     return findByCriteria(
-        queryPage, queryLimit, queryOrder, querySort, querySearch, queryLabels, queryStatus, teamRefs);
+        queryPage,
+        queryLimit,
+        queryOrder,
+        querySort,
+        querySearch,
+        queryLabels,
+        queryStatus,
+        queryExternalRef,
+        teamRefs);
   }
 
   private Page<Workspace> findByCriteria(
@@ -412,11 +453,16 @@ public class WorkspaceService {
       Optional<String> querySearch,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
+      Optional<String> queryExternalRef,
       List<String> teamRefs) {
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
 
     QueryCriteria criteria = new QueryCriteria();
+    // The one workspace mirroring an embedding product's record, within the caller's access.
+    queryExternalRef
+        .filter(ref -> !ref.isBlank())
+        .ifPresent(ref -> criteria.add(Criteria.where("externalRef").is(ref)));
     if (querySearch.isPresent() && !querySearch.get().isBlank()) {
       // Anchored prefix match (not an unanchored `.*term.*` scan) so a future index on name /
       // displayName can actually serve this - no such index exists yet on the workspaces
