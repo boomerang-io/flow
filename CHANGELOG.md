@@ -200,7 +200,10 @@ tag's release notes.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
   ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
   and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever
-  the node's `retry` setting. The SDK's `TaskFailure.terminal` sends it. Additive, protocol version 1.
+  the node's `retry` setting. The SDK's `TaskFailure.terminal` sends it. A task order also carries `retry: {max,
+  failures}`, the node's budget and how much of it the engine has spent, so a handler that acts differently on a
+  failure Flow will not retry needs no count of its own; the SDK's `TaskRun.isLastAttempt()` reads it. Additive,
+  protocol version 1.
 - A task node can retry a failure its dispatcher reports: `retry: {max, backoff: {type, initial, max}}` on the
   node, edited on the task's Configure tab. The engine requeues the task on that budget with that backoff, never
   for a cause a retry cannot change (`ImageNotAllowed`, `AdmissionDenied`, `ResultsTooLarge` or an engine-written
