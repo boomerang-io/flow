@@ -20,8 +20,7 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 
 | Collection | Holds | Entity (package) |
 | --- | --- | --- |
-| `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations) + one document per version (tasks, params, workspace, timeout, retries) | `WorkflowEntity`, `WorkflowRevisionEntity` (`common.entity`) |
-| `workflow_templates` | Starter workflow templates, `version` on the single document. Read-only content written only by migrations (`_0020__SeedTemplates`, `_0026__SeedAiWorkflowTemplate`, and `_0011__V3ExtractWorkflowTemplates` for a v3 database's `scope=template` workflows), never by the API | `WorkflowTemplateEntity` (`common.entity`) |
+| `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations, `type`: `workflow` when absent, `template` or `starter` in the system workspace only, and `templateRef` on a workflow that runs a template by reference) + one document per version (tasks, params, workspace, timeout, retries; a link's holds no tasks) | `WorkflowEntity`, `WorkflowRevisionEntity` (`common.entity`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`common.entity`) |
 | `workflow_runs` | The execution record of one workflow run | `WorkflowRunEntity` (`common.entity`) |
 | `task_runs` | The execution record of one task in a run; the claim queue | `TaskRunEntity` (`common.entity`) |
@@ -58,8 +57,8 @@ Workflows and tasks are a parent document (fields with limited change scope) plu
 joined on read by the domain services (`workflow/WorkflowService.java:1252-1268`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
-new child insert. `workflow_templates` keeps `version` on the one document
-(`common/entity/WorkflowTemplateEntity.java:30`).
+new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1448-1452`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -144,8 +143,7 @@ added; the stored value changes shape. A secret is recognised by the type stored
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled
 in on the claim payload only. An unlabelled stored value loads as it is and is encrypted on its next save; no
 migration encrypts it sooner, so a Slack integration with unlabelled tokens keeps them until it is next saved,
-which re-linking Slack does. Not encrypted: `workflow_templates` (`params[].defaultValue`, `tasks[].params[]`)
-and task `results`. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java`
+which re-linking Slack does. Not encrypted: task `results`. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java`
 with the same cipher (`:169-172`); the settings API reads it by the one secret rule, `*****` when set and
 nothing when unset (`:183-189`), and engine and integration reads get plaintext. A stored value that will not
 decrypt is kept as stored, on load and on the next save of its group, never written back as nothing
@@ -175,7 +173,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | --- | --- |
 | `task_runs` | `claim_page` (type, status, phase, claim.by, creationDate); `run_tasks`; sparse `lease_sweep`, `timeout_sweep`, `wait_sweep`; `claimed_sweep`; unique `node_uniqueness` (workflowRunRef, name); sparse `parent_index` (a for-each parent's items); `label_wildcard` (`labels.$**`) |
 | `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`, `purge_sweep`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard` |
-| `workflows`, `workflow_revisions`, `workflow_templates`, `workflow_schedules` | `status_lookup`, `name_lookup`, `creation_date_sort`; `workflow_ref_version`; `name_version`; `fire_sweep`, `workflow_lookup` |
+| `workflows`, `workflow_revisions`, `workflow_schedules` | `status_lookup`, `name_lookup`, `creation_date_sort`; `workflow_ref_version`; `fire_sweep`, `workflow_lookup` |
 | `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
 | `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
 | `actions` | `task_run`, unique where `taskRunRef` exists (`:130-137`); `status_sweep` |
@@ -319,6 +317,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0035__SeedTaskFlowIntegrationTasks` | all | Adds task-flow 3.3.0's catalogue: the 16 GitHub, Microsoft Teams, SharePoint and Google Drive tasks an install lacks, with their graph node and root edge, and every seed revision of those and of the Sheets, Drive and Artifactory tasks the install lacks; a seeded task an install dropped gets nothing, and the GitHub integration template's instructions gain the App permissions the GitHub tasks need. An empty database has all of it from `_0017` and `_0020` |
 | `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left, and an empty database or a v3 upgrade has `3.3.0` from the seed |
 | `_0037__SeedGoogleKeyDefaultRevisions` | all | Inserts the revision of each of the 8 Google Sheets and 4 Drive tasks whose `serviceAccountKey` defaults to `$(workspace.params.google-service-account-key)`, where an install holds the task but not that revision; an empty database has them from `_0017` |
+| `_0038__WorkflowTemplatesIntoSystem` | all | Moves every `workflow_templates` document (the seeds of `_0020` and `_0026`, and a v3 install's own from `_0011`) into the system workspace as a `starter` workflow with a revision per version and its `hasWorkflow` edge, a name the workspace already holds left as it is, then drops the collection |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

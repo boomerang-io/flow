@@ -1,115 +1,42 @@
 package io.boomerang.workflow;
 
-import io.boomerang.common.entity.WorkflowTemplateEntity;
-import io.boomerang.common.error.BoomerangError;
-import io.boomerang.common.error.BoomerangException;
-import io.boomerang.common.model.WorkflowTask;
-import io.boomerang.common.model.WorkflowTemplate;
-import io.boomerang.common.util.PagingUtil;
-import io.boomerang.common.util.QueryCriteria;
-import io.boomerang.workflow.repository.WorkflowTemplateRepository;
-import java.util.LinkedList;
+import io.boomerang.common.model.Workflow;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
-import org.springframework.data.domain.Sort.Order;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 /**
- * Read access to the Workflow Templates. Templates are content: the migrations seed them and a v3
- * upgrade imports them, so this service only reads. A Workflow is created from a template by
- * posting the template body to the workspace Workflow create route, so a template is read with its
- * tasks' slug forms, as a Workflow is.
+ * Read access to the templates and starters every workspace may use: the system workspace's
+ * workflows of type {@code template} and {@code starter}. A template is run by reference, through
+ * a workflow created with a {@code templateRef}; a starter is copied, by posting its body with
+ * {@code type} set to {@code workflow} to the workspace Workflow create route. Authoring is the
+ * system workspace's ordinary workflow routes.
  */
 @Service
 public class WorkflowTemplateService {
 
-  private static final Logger LOGGER = LogManager.getLogger();
+  private final WorkflowService workflowService;
 
-  private final WorkflowTemplateRepository wfTemplateRepository;
-  private final MongoTemplate mongoTemplate;
-  private final TaskService taskService;
-
-  public WorkflowTemplateService(
-      WorkflowTemplateRepository wfTemplateRepository,
-      MongoTemplate mongoTemplate,
-      TaskService taskService) {
-    this.wfTemplateRepository = wfTemplateRepository;
-    this.mongoTemplate = mongoTemplate;
-    this.taskService = taskService;
+  public WorkflowTemplateService(WorkflowService workflowService) {
+    this.workflowService = workflowService;
   }
 
-  /*
-   * Get WorklfowTemplate
-   */
-  public WorkflowTemplate get(String name, Optional<Integer> version, boolean withTasks) {
-    Optional<WorkflowTemplateEntity> wfTemplateEntity;
-    if (version.isEmpty()) {
-      wfTemplateEntity = wfTemplateRepository.findByNameAndLatestVersion(name);
-      if (wfTemplateEntity.isEmpty()) {
-        // TODO change to correct error
-        throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, "latest");
-      }
-    } else {
-      wfTemplateEntity = wfTemplateRepository.findByNameAndVersion(name, version.get());
-      if (wfTemplateEntity.isEmpty()) {
-        // TODO change to correct error
-        throw new BoomerangException(BoomerangError.TASK_INVALID_REF, name, version.get());
-      }
-    }
-    return withTaskSlugs(new WorkflowTemplate(wfTemplateEntity.get()));
+  /** A template or starter by name, its tasks in their slug forms; latest unless a version is given. */
+  public Workflow get(String name, Optional<Integer> version) {
+    return workflowService.getShared(name, version);
   }
 
-  /*
-   * Query for Workflow Templates.
-   */
-  public Page<WorkflowTemplate> query(
+  /** The templates and starters, narrowed by labels, names and types (both when none is given). */
+  public Page<Workflow> query(
       Optional<Integer> queryLimit,
       Optional<Integer> queryPage,
       Optional<Direction> querySort,
       Optional<List<String>> queryLabels,
-      Optional<List<String>> queryNames) {
-    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
-    Query query =
-        new Query(new QueryCriteria().labels(queryLabels).in("name", queryNames).build());
-    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
-
-    List<WorkflowTemplateEntity> wfTemplateEntities =
-        mongoTemplate.find(query, WorkflowTemplateEntity.class);
-
-    List<WorkflowTemplate> wfTemplates = new LinkedList<>();
-    wfTemplateEntities.forEach(e -> wfTemplates.add(withTaskSlugs(new WorkflowTemplate(e))));
-
-    Page<WorkflowTemplate> pages =
-        PagingUtil.page(wfTemplates, pageable, mongoTemplate, query, WorkflowTemplateEntity.class);
-
-    return pages;
-  }
-
-  // A template task is stored with the catalogue task's id; the create route takes its slug form.
-  private WorkflowTemplate withTaskSlugs(WorkflowTemplate template) {
-    List<WorkflowTask> nodes =
-        template.getTasks().stream()
-            .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
-            .toList();
-    Map<String, String> taskSlugs =
-        taskService.slugsByRef(nodes.stream().map(WorkflowTask::getTaskRef).toList());
-    nodes.forEach(
-        t -> {
-          if (!taskSlugs.containsKey(t.getTaskRef())) {
-            LOGGER.warn(
-                "TaskRef not found: {} : {} : {}", template.getName(), t.getName(), t.getTaskRef());
-          }
-          t.setTaskRef(taskSlugs.getOrDefault(t.getTaskRef(), ""));
-        });
-    return template;
+      Optional<List<String>> queryNames,
+      Optional<List<String>> queryTypes) {
+    return workflowService.queryShared(
+        queryLimit, queryPage, querySort, queryLabels, queryNames, queryTypes);
   }
 }

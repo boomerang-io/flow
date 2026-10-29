@@ -639,6 +639,8 @@ export interface WorkflowTemplate {
   creationDate: string;
   markdown: string;
   version: Number;
+  // A system-workspace definition: a starter is copied into a workspace, a template run by reference.
+  type?: "workflow" | "template" | "starter";
   labels?: Record<string, string>;
   annotations?: Record<string, object>;
   params?: Array<DataDrivenInput>;

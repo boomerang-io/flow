@@ -15,7 +15,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
 /**
- * Slug rule for Task / WorkflowTemplate names: alphanumeric and hyphen, case-insensitive.
+ * Slug rule for Task and template names: alphanumeric and hyphen, case-insensitive.
  *
  * <p>The single source of truth for the regex - replaces {@code TaskService.java:90}'s {@code
  * "^([0-9a-zA-Z\\-]+)$"} and {@code WorkflowTemplateService.java:45}'s double-escaped {@code

@@ -30,13 +30,11 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 The prefix says who the caller is, so whatever fronts `service-core` can route by it. A front door SHOULD route
 `/api/v2/**` only, and `/dispatcher/v1/**` as well when a dispatcher runs outside core's network. `/internal/v1/**`
 MUST NOT be routed from outside: only the webapp's server calls it, at `CORE_SERVICE_INTERNAL_ORIGIN`
-(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc
-leaves it out (`service-core/src/main/resources/application.properties:163`). The prefix is a routing boundary, not a
+(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:163`). The prefix is a routing boundary, not a
 credential: a caller that reaches `service-core` directly reaches it too.
 
 `{workspace}` is the workspace's name; there is no `/api/v2/team/...` route. With `flow.workspace.single=true` a
-workspace-scoped request naming any workspace but `system` is `404 WORKSPACE_INVALID_REF`
-(`core/security/SingleWorkspaceInterceptor.java:37-44`). `GET /api/v2/taskrun/{id}/log` has no workspace segment:
+workspace-scoped request naming any workspace but `system` is `404 WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:37-44`). `GET /api/v2/taskrun/{id}/log` has no workspace segment:
 it is authorised through the owning run, serves the origin task run's log for a task a scoped retry carried over,
 and is scrubbed of the run's secret values (`workflow/WorkflowRunService.java:517-551`).
 
@@ -48,11 +46,16 @@ expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:613-625`), and with no
 ARTIFACTS_NOT_CONFIGURED` (`:598-603`). The workspace list is largest first and takes `statuses` (default `available`),
 `scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:479-512`).
 
-**Workflow templates** are read-only: `GET /api/v2/workflowtemplate/{name}` and `GET …/query` are the whole surface
-(`workflow/WorkflowTemplateControllerV2.java:43,73`). A migration seeds them and the v3 upgrade imports them
-(`migration/_0020__SeedTemplates.java`, `migration/_0011__V3ExtractWorkflowTemplates.java`). A template's tasks read in
-their slug forms, as a workflow's do (`workflow/WorkflowTemplateService.java:68,89,97-113`), so a client creates a workflow
-from one by posting its body as read to `POST /api/v2/workspace/{workspace}/workflow` (`client-web/src/Features/Home/Home.tsx:74-90`).
+**Workflow templates** are the system workspace's workflows of `type` `template` or `starter`, authored through its
+ordinary workflow routes; that `type` on a body to any other workspace is `400 WORKFLOW_TEMPLATE_SYSTEM_ONLY`
+(`workflow/WorkflowService.java:424,2132-2140`). `GET /api/v2/workflowtemplate/{name}` and `GET …/query?types=` read them for
+every workspace, secrets hidden and task references in slug form (`workflow/WorkflowTemplateControllerV2.java:43,66`, `workflow/WorkflowService.java:2078-2126`).
+A starter is copied: its body, with `type` set to `workflow`, posted to the workspace's `POST …/workflow`
+(`client-web/src/Components/WorkflowTemplateHomeCard/WorkflowTemplateHomeCard.tsx:52`). A template is run by reference: a
+workflow created with `templateRef: {name, version}` shows the template's tasks and params read-only under its own name,
+labels and triggers, takes run-time values for the params the template declares, and each submit runs the template's pinned
+or latest revision as the workflow's own run (`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`,
+and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
@@ -228,8 +231,7 @@ monthly quotas read the audit trail instead (`workflow/WorkflowRunInsightService
 `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens` and `cost`,
 and the same per `model` result in `byModel`, most tokens first (`workflow/WorkflowRunInsightService.java:443-511`). An
 empty or non-numeric result adds nothing, so `cost` is `null` when no task reported one (`:513-526`). A for-each parent,
-which holds its items' results as arrays, is left out and its items counted under its name. Every read projects only
-the fields it needs, and the task view streams one small document per task run (`:369-410`).
+which holds its items' results as arrays, is left out and its items counted under its name. Every read projects only the fields it needs, and the task view streams one small document per task run (`:369-410`).
 
 ## YAML content negotiation
 
@@ -348,8 +350,7 @@ keeps the stored value, because there a missing member and a `null` member canno
 `labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>` (`common/model/Workflow.java:50-51`,
 `common/model/WorkflowRun.java:41-42`). Keys under `boomerang.io/` are the server's; every other key is the
 client's, free-form, and MAY carry a `prefix/name` form. A dot in a label key is stored as `#`. Label updates differ
-by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:287-291`),
-while `PUT /workflow` merges unless `replace=true`.
+by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:287-291`), while `PUT /workflow` merges unless `replace=true`.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |

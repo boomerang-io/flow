@@ -10,6 +10,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import org.bson.conversions.Bson;
 import com.mongodb.client.model.IndexOptions;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -79,7 +80,8 @@ class MigrationChainTest {
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(107);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(219);
-    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
+    assertThat(collection(db, "workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
+    assertThat(collection(db, "workflow_templates").countDocuments()).as("moved and dropped").isZero();
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(4);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
     assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(107);
@@ -255,7 +257,8 @@ class MigrationChainTest {
                         Filters.eq("to", "approvergroup:" + group.get("_id")))))
         .isEqualTo(1);
 
-    assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
+    assertThat(collection(db, "workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
+    assertThat(collection(db, "workflow_templates").countDocuments()).as("moved and dropped").isZero();
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(4);
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "parameters").countDocuments()).isZero();
@@ -481,26 +484,42 @@ class MigrationChainTest {
 
   /**
    * A database seeded before the AI example template joined the seed receives it from its own unit,
-   * with its tasks pointing at live catalogue ids; a second run inserts nothing.
+   * with its tasks pointing at live catalogue ids, and the move into the system workspace carries
+   * it over as a starter; a second run of both inserts nothing.
    */
   @Test
   void aDatabaseSeededBeforeTheAiWorkflowTemplateReceivesItFromItsOwnUnit() {
     MongoDatabase db = migrate("ai-template-upgrade");
-    MongoCollection<Document> templates = collection(db, "workflow_templates");
-    templates.deleteOne(Filters.eq("name", _0026__SeedAiWorkflowTemplate.TEMPLATE));
-    assertThat(templates.countDocuments()).isEqualTo(2);
+    MongoCollection<Document> workflows = collection(db, "workflows");
+    Bson aiStarter =
+        Filters.and(
+            Filters.eq("name", _0026__SeedAiWorkflowTemplate.TEMPLATE), Filters.eq("type", "starter"));
+    Document seeded = workflows.find(aiStarter).first();
+    assertThat(seeded).isNotNull();
+    workflows.deleteOne(aiStarter);
+    collection(db, "workflow_revisions").deleteMany(Filters.eq("workflowRef", seeded.getObjectId("_id").toString()));
+    collection(db, "rel_nodes").deleteOne(Filters.eq("_id", "workflow:" + seeded.getObjectId("_id")));
+    collection(db, "rel_edges").deleteMany(Filters.eq("to", "workflow:" + seeded.getObjectId("_id")));
+    assertThat(workflows.countDocuments(Filters.eq("type", "starter"))).isEqualTo(2);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0026__SeedAiWorkflowTemplate().execute(db, environment);
-    assertThat(templates.countDocuments()).isEqualTo(3);
-    Document template = templates.find(Filters.eq("name", _0026__SeedAiWorkflowTemplate.TEMPLATE)).first();
+    new _0038__WorkflowTemplatesIntoSystem().execute(db, environment);
+    assertThat(workflows.countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
+    Document starter = workflows.find(aiStarter).first();
+    Document revision =
+        collection(db, "workflow_revisions")
+            .find(Filters.eq("workflowRef", starter.getObjectId("_id").toString()))
+            .first();
     String aiPromptId =
         collection(db, "tasks").find(Filters.eq("name", "ai-prompt")).first().get("_id").toString();
-    assertThat(template.getList("tasks", Document.class))
+    assertThat(revision.getList("tasks", Document.class))
         .anySatisfy(task -> assertThat(task.getString("taskRef")).isEqualTo(aiPromptId));
+    assertThat(collection(db, "workflow_templates").countDocuments()).isZero();
 
     new _0026__SeedAiWorkflowTemplate().execute(db, environment);
-    assertThat(templates.countDocuments()).isEqualTo(3);
+    new _0038__WorkflowTemplatesIntoSystem().execute(db, environment);
+    assertThat(workflows.countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
   }
 
   /**
@@ -1046,12 +1065,16 @@ class MigrationChainTest {
           .as("revision %s v%s points at a live task", revision.getString("displayName"), revision.get("version"))
           .isNotNull();
     }
-    for (Document template : collection(db, "workflow_templates").find()) {
-      for (Document task : template.getList("tasks", Document.class)) {
-        if (task.getString("taskRef") != null) {
-          assertThat(tasks.find(Filters.eq("_id", new ObjectId(task.getString("taskRef")))).first())
-              .as("template %s task %s points at a live task", template.getString("name"), task.getString("name"))
-              .isNotNull();
+    for (Document starter : collection(db, "workflows").find(Filters.eq("type", "starter"))) {
+      for (Document revision :
+          collection(db, "workflow_revisions")
+              .find(Filters.eq("workflowRef", starter.getObjectId("_id").toString()))) {
+        for (Document task : revision.getList("tasks", Document.class)) {
+          if (task.getString("taskRef") != null) {
+            assertThat(tasks.find(Filters.eq("_id", new ObjectId(task.getString("taskRef")))).first())
+                .as("starter %s task %s points at a live task", starter.getString("name"), task.getString("name"))
+                .isNotNull();
+          }
         }
       }
     }
