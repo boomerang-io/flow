@@ -23,7 +23,7 @@ per environment string, a 4096-byte termination message), so without a Flow cap 
 
 Per-param variables with engine substitution, and engine caps. The engine resolves a task's params before admission
 and fills the spec's references into the copy a dispatcher receives at claim
-(`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:146-247,297-323`). The dispatcher exports
+(`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:144-238,288-314`). The dispatcher exports
 `PARAM_<NAME>` and `PARAM_NAMES`, task-defined variables winning on a clash
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:124-163`). Resolved params over
 `flow.engine.task.params.max-bytes` (16384) end the task `invalid` before it is claimable

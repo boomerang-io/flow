@@ -151,8 +151,8 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 
 | What | When | Stored |
 | --- | --- | --- |
-| The task run's own parameter values | At admission (`engine/ParameterManager.java:146`, called at `engine/TaskExecutionService.java:200-201`) | Yes: frozen by the admission compare-and-set (`engine/TaskRunService.java:362-378`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`engine/ParameterManager.java:297`, called at `dispatcher/DispatcherService.java:451-471`) | No: the stored spec keeps its references; only the copy on the claim carries values |
+| The task run's own parameter values | At admission (`engine/ParameterManager.java:144`, called at `engine/TaskExecutionService.java:200-201`) | Yes: frozen by the admission compare-and-set (`engine/TaskRunService.java:362-378`), secret values encrypted |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`engine/ParameterManager.java:288`, called at `dispatcher/DispatcherService.java:451-471`) | No: the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is written into a stored spec; the termination order, the start and end answers and every
 consumer read carry the stored spec. Admission has checked every reference, so the fill-in fails only for a workspace

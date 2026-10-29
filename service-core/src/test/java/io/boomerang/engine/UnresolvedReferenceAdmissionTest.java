@@ -252,27 +252,34 @@ class UnresolvedReferenceAdmissionTest extends AbstractEngineIntegrationTest {
         "echo $(params.nothing)", parameterManager.fillSpec(currentRun(), after).getScript());
   }
 
-  // $(params.x) reads the nearest layer, which for a task param x is x itself.
+  // A task param resolves from the layers it inherits, so x: $(params.x) reads the workflow's x.
   @Test
-  void aTaskParamReferencingItselfFailsTheTask() {
+  void aTaskParamNamedAfterAWorkflowParamReadsTheWorkflowValue() {
     wfRun.setParams(new LinkedList<>(List.of(param("analysisId", "abc"))));
     workflowRunRepository.save(wfRun);
     TaskRunEntity task = deployTask(List.of(param("analysisId", "$(params.analysisId)")));
     taskRunRepository.save(task);
 
-    TaskRunEntity after = queueAndAwaitCompleted(task.getId());
-
-    assertEquals(RunStatus.failed, after.getStatus());
-    assertEquals("ParamUnresolved", after.getStatusReason());
-    assertEquals(
-        "Task 'deploy': param 'analysisId' references $(params.analysisId): refers to itself; use"
-            + " $(workflow.params.analysisId) for the workflow's param",
-        after.getStatusMessage());
+    TaskRunEntity after = queueAndAwaitAdmitted(task.getId());
+    assertEquals("abc", after.getParams().get(0).getValue());
   }
 
+  // A workflow secret passed through by name is admitted and the task param stays secret.
   @Test
-  void taskParamsReferencingEachOtherFailTheTask() {
-    TaskRunEntity task = deployTask(List.of(param("x", "$(params.y)-a"), param("y", "$(params.X)")));
+  void aWorkflowSecretPassedThroughByNameIsAdmittedAsSecret() {
+    wfRun.setParams(new LinkedList<>(List.of(new RunParam("apiKey", "sk-live-0001", ParamType.secret))));
+    workflowRunRepository.save(wfRun);
+    TaskRunEntity task = deployTask(List.of(param("apiKey", "$(params.apiKey)")));
+    taskRunRepository.save(task);
+
+    TaskRunEntity after = queueAndAwaitAdmitted(task.getId());
+    assertEquals(ParamType.secret, after.getParams().get(0).getType());
+  }
+
+  // Task params never read each other, so with no outer y the reference names nothing.
+  @Test
+  void taskParamsDoNotReadEachOther() {
+    TaskRunEntity task = deployTask(List.of(param("x", "$(params.y)-a"), param("y", "b")));
     taskRunRepository.save(task);
 
     TaskRunEntity after = queueAndAwaitCompleted(task.getId());
@@ -280,9 +287,7 @@ class UnresolvedReferenceAdmissionTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.failed, after.getStatus());
     assertEquals("ParamUnresolved", after.getStatusReason());
     assertEquals(
-        "Task 'deploy': param 'x' references $(params.y): params 'x' and 'y' reference each other"
-            + " in a cycle; param 'y' references $(params.X): params 'y' and 'x' reference each"
-            + " other in a cycle",
+        "Task 'deploy': param 'x' references $(params.y): no such param 'y'",
         after.getStatusMessage());
   }
 
@@ -302,7 +307,7 @@ class UnresolvedReferenceAdmissionTest extends AbstractEngineIntegrationTest {
     assertEquals("abc-v", after.getParams().get(1).getValue());
   }
 
-  // Reference text inside a supplied value is a value, so it closes no cycle.
+  // Reference text inside a supplied value is a value, inserted as written.
   @Test
   void aSuppliedValueThatLooksLikeASelfReferenceIsInsertedAsWritten() {
     wfRun.setTrigger(TriggerEnum.webhook.getTrigger());

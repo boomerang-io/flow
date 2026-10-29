@@ -25,10 +25,8 @@ import io.boomerang.engine.repository.WorkflowRunRepository;
 import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.TaskService;
 import java.lang.reflect.Array;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -145,11 +143,11 @@ public class ParameterManager {
    */
   public Map<String, Set<String>> resolveParamLayers(
       WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
-    Layers paramLayers = buildParameterLayering(wfRun, optTaskRun);
+    // A task's params resolve from the layers they inherit, never from each other: $(params.x) in
+    // a task param x reads the context, workflow, workspace or global x.
+    Layers paramLayers = buildParameterLayering(wfRun, optTaskRun, false);
     Map<String, Set<String>> unresolved = new LinkedHashMap<>();
     Set<String> secretKeys = secretReferenceKeys(wfRun, optTaskRun, paramLayers.paramLayers());
-    Map<String, Set<String>> cycles =
-        optTaskRun.isPresent() ? referenceCycles(paramLayers.paramLayers()) : new HashMap<>();
     Upstream upstream = new Upstream();
     List<RunParam> runParams;
     String wfRunId = wfRun.getId();
@@ -164,13 +162,6 @@ public class ParameterManager {
               // A supplied value is a run input that arrived from outside the workspace: it is kept
               // as it arrived, never resolved.
               if (optTaskRun.isEmpty() && isSuppliedParam(p.getName(), paramLayers)) {
-                return;
-              }
-              // A task param on a reference cycle can never resolve: it is left as written and
-              // fails admission, naming the cycle.
-              Set<String> cycle = cycles.get(p.getName());
-              if (cycle != null) {
-                collector(unresolved, optTaskRun, p).addAll(cycle);
                 return;
               }
               // Name and type only: a secret's value must never reach a log.
@@ -458,8 +449,9 @@ public class ParameterManager {
 
   /*
    * The flat reference keys whose value is a secret, following the same precedence
-   * ParamLayers.getFlatMap applies to the values: global, workspace, workflow, task, then context,
-   * each later layer winning `params.<name>`, and a null value never written (so never winning).
+   * ParamLayers.getFlatMap applies to the values: global, workspace, workflow, task (when the layers
+   * carry it), then context, each later layer winning `params.<name>`, and a null value never
+   * written (so never winning).
    * The global and workspace layers are read from their typed stores, so a password-typed global
    * or workspace parameter is a secret (ParamLayers.getSecretGlobalParams); the workflow and task
    * layers carry their own type.
@@ -476,7 +468,11 @@ public class ParameterManager {
         ParamLayers.WORKSPACE_SCOPE,
         ParamLayers.DEPRECATED_WORKSPACE_SCOPE);
     markSecretKeys(secretByKey, wfRun.getParams(), "workflow");
-    optTaskRun.ifPresent(taskRun -> markSecretKeys(secretByKey, taskRun.getParams(), null));
+    // The task layer counts only where the values carry it (the spec), so a task param never
+    // hides the taint of the outer param a sibling's reference reads.
+    optTaskRun
+        .filter(taskRun -> !paramLayers.getTaskParams().isEmpty())
+        .ifPresent(taskRun -> markSecretKeys(secretByKey, taskRun.getParams(), null));
     markLayer(secretByKey, paramLayers.getContextParams(), Set.of(), "context");
     Set<String> secretKeys = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
     secretByKey.forEach(
@@ -537,6 +533,13 @@ public class ParameterManager {
    */
   private Layers buildParameterLayering(
       WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun) {
+    return buildParameterLayering(wfRun, optTaskRun, true);
+  }
+
+  // The TaskRun's own params join the layers only when asked: the spec reads them, the params
+  // themselves do not.
+  private Layers buildParameterLayering(
+      WorkflowRunEntity wfRun, Optional<TaskRunEntity> optTaskRun, boolean withTaskParams) {
     WorkflowRevisionEntity revision = paramLayerService.getRevision(wfRun.getWorkflowRevisionRef());
     ParamLayers paramLayers = paramLayerService.buildParamLayers(wfRun.getWorkflowRef(), revision);
 
@@ -558,7 +561,8 @@ public class ParameterManager {
     if (wfRun.getParams() != null && !wfRun.getParams().isEmpty()) {
       paramLayers.setWorkflowParams(ParameterUtil.runParamListToMap(wfRun.getParams()));
     }
-    if (optTaskRun.isPresent()
+    if (withTaskParams
+        && optTaskRun.isPresent()
         && optTaskRun.get().getParams() != null
         && !optTaskRun.get().getParams().isEmpty()) {
       paramLayers.setTaskParams(ParameterUtil.runParamListToMap(optTaskRun.get().getParams()));
@@ -638,98 +642,6 @@ public class ParameterManager {
 
   private static boolean definesIgnoringCase(Map<String, Object> layer, String name) {
     return layer != null && layer.keySet().stream().anyMatch(key -> key.equalsIgnoreCase(name));
-  }
-
-  /*
-   * Why each task param on a reference cycle among the task's own params can never resolve, by
-   * name. $(params.y) reads the nearest layer holding y, which is the task's own y when it has a
-   * value and no context param shadows it: x: $(params.x) refers to itself, and x: $(params.y) with
-   * y: $(params.x) go round. Recorded as "$(<body>): <why>" for each reference that closes a cycle.
-   */
-  private static Map<String, Set<String>> referenceCycles(ParamLayers layers) {
-    Map<String, Object> taskParams = new LinkedHashMap<>();
-    layers
-        .getTaskParams()
-        .forEach(
-            (name, value) -> {
-              if (value != null && !definesIgnoringCase(layers.getContextParams(), name)) {
-                taskParams.put(name, value);
-              }
-            });
-    // Each task param's references to the others, as reference body to the param it reads.
-    Map<String, Map<String, String>> reads = new LinkedHashMap<>();
-    taskParams.forEach(
-        (name, value) -> {
-          Map<String, String> targets = new LinkedHashMap<>();
-          Matcher m = DOT_NOTATION_PATTERN.matcher(value.toString());
-          while (m.find()) {
-            String[] separatedKey = m.group(0).split("\\.");
-            if (separatedKey.length >= 2 && "params".equalsIgnoreCase(separatedKey[0])) {
-              taskParams.keySet().stream()
-                  .filter(separatedKey[1]::equalsIgnoreCase)
-                  .findFirst()
-                  .ifPresent(target -> targets.put(m.group(0), target));
-            }
-          }
-          reads.put(name, targets);
-        });
-    Map<String, Set<String>> cycles = new HashMap<>();
-    reads.forEach(
-        (name, targets) ->
-            targets.forEach(
-                (body, target) -> {
-                  List<String> back = pathBetween(target, name, reads);
-                  if (back == null) {
-                    return;
-                  }
-                  String why =
-                      target.equals(name)
-                          ? "refers to itself; use $(workflow.params." + name + ") for the"
-                              + " workflow's param"
-                          : "params "
-                              + cycleNames(name, back)
-                              + " reference each other in a cycle";
-                  cycles
-                      .computeIfAbsent(name, k -> new LinkedHashSet<>())
-                      .add("$(" + body + "): " + why);
-                }));
-    return cycles;
-  }
-
-  // The shortest chain of task params from one to another along their references, both ends
-  // included; null when there is none.
-  private static List<String> pathBetween(
-      String from, String to, Map<String, Map<String, String>> reads) {
-    Map<String, String> previous = new HashMap<>();
-    previous.put(from, null);
-    Deque<String> frontier = new ArrayDeque<>(List.of(from));
-    while (!frontier.isEmpty()) {
-      String current = frontier.removeFirst();
-      if (current.equals(to)) {
-        LinkedList<String> path = new LinkedList<>();
-        for (String step = current; step != null; step = previous.get(step)) {
-          path.addFirst(step);
-        }
-        return path;
-      }
-      for (String next : reads.getOrDefault(current, Map.of()).values()) {
-        if (!previous.containsKey(next)) {
-          previous.put(next, current);
-          frontier.add(next);
-        }
-      }
-    }
-    return null;
-  }
-
-  // 'x' and 'y', or 'x', 'y' and 'z': the cycle from name, round the chain back to it.
-  private static String cycleNames(String name, List<String> back) {
-    List<String> names = new LinkedList<>();
-    names.add("'" + name + "'");
-    back.subList(0, back.size() - 1).forEach(step -> names.add("'" + step + "'"));
-    return String.join(", ", names.subList(0, names.size() - 1))
-        + " and "
-        + names.get(names.size() - 1);
   }
 
   /*

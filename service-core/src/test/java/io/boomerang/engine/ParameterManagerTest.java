@@ -1,8 +1,10 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -29,6 +31,7 @@ import io.boomerang.common.model.TaskSpec;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.workflow.ParamLayerService;
 import io.boomerang.workflow.TaskService;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -249,19 +252,21 @@ class ParameterManagerTest {
     assertEquals("echo says $(workspace.params.w1)", spec.getScript());
   }
 
-  // A param written in terms of another still composes in the spec.
+  // A task param reads the layers it inherits, never a sibling: p's $(params.q) is the workflow's
+  // q. The spec reads the task's own params, so its $(params.q) is the task's q.
   @Test
-  void specReadsAParamComposedFromAnother() {
+  void aTaskParamReadsTheWorkflowLayerAndTheSpecReadsTheTask() {
     workspaceStore.put("w1", "wv");
-    WorkflowRunEntity run = run();
+    WorkflowRunEntity run = run(str("q", "from-workflow"));
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(List.of(str("q", "$(workspace.params.w1)"), str("p", "hi $(params.q)")));
-    task.getSpec().setScript("echo $(params.p)");
+    task.getSpec().setScript("echo $(params.p) $(params.q)");
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
     TaskRunSpec spec = parameterManager.fillSpec(run, task);
 
-    assertEquals("echo hi wv", spec.getScript());
+    assertEquals("hi from-workflow", taskValue(task, "p"));
+    assertEquals("echo hi from-workflow wv", spec.getScript());
   }
 
   // A task param is frozen at admission; a workspace or global reference written straight into
@@ -334,12 +339,11 @@ class ParameterManagerTest {
   @Test
   void aDeclaredReferenceWithoutAValueIsAnEmptyString() {
     stubTask("t1", new RunResult("r1", Map.of("field", "fv")));
-    WorkflowRunEntity run = run();
+    WorkflowRunEntity run =
+        run(object("cfg", Map.of("region", "eu")), new RunParam("optional", null, ParamType.string));
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(
         List.of(
-            object("cfg", Map.of("region", "eu")),
-            new RunParam("optional", null, ParamType.string),
             str("ok", "$(params.cfg.region) $(tasks.t1.results.r1.field)"),
             str("empty", "[$(params.cfg.zone)][$(tasks.t1.results.r1.nope)][$(params.optional)]"),
             str("bad", "$(params.nocfg.zone)")));
@@ -806,10 +810,10 @@ class ParameterManagerTest {
     }
   }
 
-  // $(params.x) reads the nearest layer: when the task defines x itself, its own value - written in
-  // the workflow - resolves even though the run's x was supplied.
+  // A task param reads the run's x even when the task has an x of its own, and a supplied x is
+  // inserted as it arrived.
   @Test
-  void aTasksOwnParamShadowsASuppliedRunParam() {
+  void aTaskParamReadsTheSuppliedRunParamNotASiblingOfTheSameName() {
     globalStore.put("g1", "GV");
     WorkflowRunEntity run = run(str("data", "supplied $(global.params.g1)"));
     run.setTrigger("webhook");
@@ -818,7 +822,8 @@ class ParameterManagerTest {
 
     parameterManager.resolveParamLayers(run, Optional.of(task));
 
-    assertEquals("authored GV", task.getParams().get(1).getValue());
+    assertEquals("authored GV", task.getParams().get(0).getValue());
+    assertEquals("supplied $(global.params.g1)", task.getParams().get(1).getValue());
   }
 
   // Escaping keeps a value's own "$$(" sequences as they were.
@@ -914,10 +919,10 @@ class ParameterManagerTest {
     assertEquals(ParamType.object, type(run, "cfg"));
   }
 
-  // The task layer: a task param referencing a workflow secret becomes a secret; a task param of
-  // the same name shadows the workflow secret, exactly as it shadows its value.
+  // A task param referencing a workflow secret becomes a secret, and a task param of the same name
+  // does not shadow it: the reference reads the workflow layer, so it carries the secret's taint.
   @Test
-  void aTaskParamTakesTheTaintOfTheLayerThatWins() {
+  void aTaskParamTakesTheTaintOfTheLayerItReads() {
     WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"), secret("shadowed", "wf-secret-1"));
     TaskRunEntity task = new TaskRunEntity();
     task.setParams(
@@ -930,8 +935,10 @@ class ParameterManagerTest {
 
     assertEquals("X-Key: sk-live-0001", taskValue(task, "header"));
     assertEquals(ParamType.secret, taskType(task, "header"));
-    assertEquals("task-value", taskValue(task, "uses"));
-    assertEquals(ParamType.string, taskType(task, "uses"));
+    assertEquals("wf-secret-1", taskValue(task, "uses"));
+    assertEquals(ParamType.secret, taskType(task, "uses"));
+    assertEquals("task-value", taskValue(task, "shadowed"));
+    assertEquals(ParamType.string, taskType(task, "shadowed"));
   }
 
   // The global and workspace layers are read from their typed stores, so a password-typed global or
@@ -972,6 +979,244 @@ class ParameterManagerTest {
 
     assertEquals("public", resolved(run, "uses"));
     assertEquals(ParamType.string, type(run, "uses"));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // The layering contract. $(params.x) is the flattened view of the global, workspace, workflow and
+  // context layers, each overriding the one before; $(<scope>.params.x) reads one layer. A task's
+  // own params are not a layer: a task param's value reads the flattened layers, and only the
+  // task's spec (script, command, arguments, env) reads the task's params.
+  // ---------------------------------------------------------------------------------------------
+
+  // Each layer overrides the one before it: workflow over workspace over global.
+  @Test
+  void aTaskParamReadsTheNearestOuterLayer() {
+    globalStore.put("x", "global");
+    workspaceStore.put("x", "workspace");
+    globalStore.put("y", "global");
+    workspaceStore.put("y", "workspace");
+    globalStore.put("z", "global");
+    WorkflowRunEntity run = run(str("x", "workflow"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("a", "$(params.x)"), str("b", "$(params.y)"), str("c", "$(params.z)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("workflow", taskValue(task, "a"));
+    assertEquals("workspace", taskValue(task, "b"));
+    assertEquals("global", taskValue(task, "c"));
+  }
+
+  // Context is the last layer flattened, so it overrides a workflow param of the same name.
+  @Test
+  void theContextLayerOverridesTheWorkflowLayer() {
+    contextStore.put("x", "context");
+    WorkflowRunEntity run = run(str("x", "workflow"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("a", "$(params.x)"), str("b", "$(workflow.params.x)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("context", taskValue(task, "a"));
+    assertEquals("workflow", taskValue(task, "b"));
+  }
+
+  // A scope reaches its own layer past every override, the deprecated team spelling included.
+  @Test
+  void eachScopeReadsItsOwnLayer() {
+    globalStore.put("x", "global");
+    workspaceStore.put("x", "workspace");
+    contextStore.put("x", "context");
+    WorkflowRunEntity run = run(str("x", "workflow"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("g", "$(global.params.x)"),
+            str("w", "$(workspace.params.x)"),
+            str("t", "$(team.params.x)"),
+            str("f", "$(workflow.params.x)"),
+            str("c", "$(context.params.x)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("global", taskValue(task, "g"));
+    assertEquals("workspace", taskValue(task, "w"));
+    assertEquals("workspace", taskValue(task, "t"));
+    assertEquals("workflow", taskValue(task, "f"));
+    assertEquals("context", taskValue(task, "c"));
+  }
+
+  // The common authoring pattern: a task param named after the workflow param it passes through.
+  @Test
+  void aTaskParamNamedAfterAWorkflowParamPassesItThrough() {
+    WorkflowRunEntity run = run(str("url", "https://example.com"), str("model", "m-1"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("url", "$(params.url)"),
+            str("model", "$(params.model)"),
+            str("prompt", "Summarise $(params.url) with $(params.model)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(Map.of(), unresolved);
+    assertEquals("https://example.com", taskValue(task, "url"));
+    assertEquals("m-1", taskValue(task, "model"));
+    assertEquals("Summarise https://example.com with m-1", taskValue(task, "prompt"));
+  }
+
+  // A task param naming only a sibling names nothing in the layers, so it is reported.
+  @Test
+  void aTaskParamCannotReadASibling() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("y", "b"), str("x", "$(params.y)-a")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(Map.of("param 'x'", Set.of("$(params.y): no such param 'y'")), unresolved);
+    assertEquals("$(params.y)-a", taskValue(task, "x"));
+  }
+
+  // Two task params naming each other read the outer layers, so there is no cycle to refuse.
+  @Test
+  void taskParamsNamingEachOtherReadTheOuterLayers() {
+    WorkflowRunEntity run = run(str("x", "wx"), str("y", "wy"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("x", "$(params.y)"), str("y", "$(params.x)")));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(Map.of(), unresolved);
+    assertEquals("wy", taskValue(task, "x"));
+    assertEquals("wx", taskValue(task, "y"));
+  }
+
+  // The spec reads the task's own params first (as Tekton does), and a scope still reaches past.
+  @Test
+  void theSpecReadsTheTasksOwnParamsAndAScopeReachesPast() {
+    WorkflowRunEntity run = run(str("x", "workflow"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("x", "task")));
+    task.getSpec().setScript("echo $(params.x) $(workflow.params.x)");
+    task.getSpec().setEnvs(new ArrayList<>(List.of(new TaskEnvVar("X", "$(params.x)"))));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+    TaskRunSpec spec = parameterManager.fillSpec(run, task);
+
+    assertEquals("echo task workflow", spec.getScript());
+    assertEquals("task", spec.getEnvs().get(0).getValue());
+  }
+
+  // Secrets follow the same layers as values: the taint is the winning layer's, never a task
+  // sibling's. A pass-through by name is the case the layering exists for, so it must stay secret.
+  @Test
+  void aWorkflowSecretPassedThroughByNameStaysSecret() {
+    WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("apiKey", "$(params.apiKey)"), str("auth", "Bearer $(params.apiKey)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("sk-live-0001", taskValue(task, "apiKey"));
+    assertEquals(ParamType.secret, taskType(task, "apiKey"));
+    assertEquals("Bearer sk-live-0001", taskValue(task, "auth"));
+    assertEquals(ParamType.secret, taskType(task, "auth"));
+  }
+
+  // Password-typed global and workspace parameters taint a task param that reads them, by the
+  // flattened name or by scope.
+  @Test
+  void globalAndWorkspaceSecretsPassedThroughByNameStaySecret() {
+    globalStore.put("registryToken", "g-secret");
+    globalSecrets.add("registryToken");
+    workspaceStore.put("dbPass", "w-secret");
+    workspaceSecrets.add("dbPass");
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(
+        List.of(
+            str("registryToken", "$(params.registryToken)"),
+            str("dbPass", "$(workspace.params.dbPass)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("g-secret", taskValue(task, "registryToken"));
+    assertEquals(ParamType.secret, taskType(task, "registryToken"));
+    assertEquals("w-secret", taskValue(task, "dbPass"));
+    assertEquals(ParamType.secret, taskType(task, "dbPass"));
+  }
+
+  // The taint is the winning layer's: a plain workflow x over a secret global x resolves plain,
+  // and the scoped read of the global stays secret.
+  @Test
+  void theTaintFollowsTheLayerThatWins() {
+    globalStore.put("x", "g-secret");
+    globalSecrets.add("x");
+    WorkflowRunEntity run = run(str("x", "plain"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("x", "$(params.x)"), str("g", "$(global.params.x)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("plain", taskValue(task, "x"));
+    assertEquals(ParamType.string, taskType(task, "x"));
+    assertEquals("g-secret", taskValue(task, "g"));
+    assertEquals(ParamType.secret, taskType(task, "g"));
+  }
+
+  // A secret-typed task param keeps its type when it reads a plain value; the spec reads it.
+  @Test
+  void aSecretTypedTaskParamStaysSecretAndTheSpecReadsIt() {
+    WorkflowRunEntity run = run(str("token", "from-workflow"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(secret("token", "$(params.token)")));
+    task.getSpec().setScript("login $(params.token)");
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("from-workflow", taskValue(task, "token"));
+    assertEquals(ParamType.secret, taskType(task, "token"));
+    assertEquals("login from-workflow", parameterManager.fillSpec(run, task).getScript());
+  }
+
+  // A passed-through secret reaches the spec only when it is filled in at claim: the stored spec
+  // keeps the reference, so the value is never written into it.
+  @Test
+  void aPassedThroughSecretFillsTheSpecAtClaimAndIsNeverStoredInIt() {
+    WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("apiKey", "$(params.apiKey)")));
+    task.getSpec().setEnvs(new ArrayList<>(List.of(new TaskEnvVar("API_KEY", "$(params.apiKey)"))));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals("$(params.apiKey)", task.getSpec().getEnvs().get(0).getValue());
+    assertEquals("sk-live-0001", parameterManager.fillSpec(run, task).getEnvs().get(0).getValue());
+  }
+
+  // Text carrying a passed-through secret's value is recognised as secret, so it is never a label.
+  @Test
+  void textCarryingAPassedThroughSecretIsRecognised() {
+    WorkflowRunEntity run = run(secret("apiKey", "sk-live-0001"));
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParams(List.of(str("apiKey", "$(params.apiKey)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertTrue(parameterManager.carriesSecret(run, task, "deployed with sk-live-0001"));
+    assertFalse(parameterManager.carriesSecret(run, task, "deployed"));
+  }
+
+  // A run's own params resolve against the layers too: a workflow param reads the workspace's.
+  @Test
+  void aWorkflowParamReadsTheWorkspaceLayer() {
+    workspaceStore.put("region", "eu");
+    WorkflowRunEntity run = run(str("target", "deploy-$(params.region)"));
+
+    parameterManager.resolveParamLayers(run, Optional.empty());
+
+    assertEquals("deploy-eu", resolved(run, "target"));
   }
 
   private void stubTask(String name, RunResult result) {

@@ -445,6 +445,10 @@ tag's release notes.
 
 ### Fixed
 
+- A task param named after a workflow param passes it through again: `url: $(params.url)` reads the workflow's `url`,
+  as in v3. Task param values resolve from the global, workspace, workflow and context layers only, and the task's
+  own params are read by its spec; upgraded v3 workflows and the seeded Summarise and MongoDB templates failed
+  their tasks with `ParamUnresolved`. A task param naming only a sibling is reported as undeclared.
 - The two Artifactory tasks failed with "Could not find method": their command module was commented out in the
   task image. Their new revisions (download 2, upload 3) run on `boomerangio/task-flow:3.3.0` and add access-token
   login; a workflow moves to them when it is upgraded in the editor.

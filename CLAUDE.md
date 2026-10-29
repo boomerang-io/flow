@@ -85,8 +85,8 @@ choosing between designs, add a decision (use the `spec-maintenance` skill).
   (one global claim switch, `flow.queue.enabled`, exists). Reopen them with evidence — load tests or a
   reproduced incident — not speculation.
 
-Two review gates on every change: (1) if it touches `DAGUtility` or `TaskExecutionService`, list the exact
-methods and semantics and get review first; (2) present any data-model change (fields, indexes, collections,
+Two review gates on every change: (1) if it touches `DAGUtility`, `TaskExecutionService` or `ParameterManager`
+(parameter layering and `resolveParamLayers`), list the exact methods and semantics and get review first; (2) present any data-model change (fields, indexes, collections,
 migrations) for discussion before implementing it.
 
 ## Build, run, test

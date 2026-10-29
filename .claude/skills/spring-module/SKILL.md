@@ -123,8 +123,11 @@ public class TokenService {
   create a step's task run when a succeeded one exists.
 - `ApplicationEventPublisher` between feature packages. Outbound CloudEvents (webhooks, event
   sinks) go through the outbox in `io.boomerang.event`.
-- **Execution review gate:** a change to `DAGUtility` or `TaskExecutionService` lists the exact
-  methods and semantics it touches and gets review before implementation.
+- **Execution review gate:** a change to `DAGUtility`, `TaskExecutionService` or `ParameterManager`
+  (parameter layering, `resolveParamLayers`) lists the exact methods and semantics it touches and
+  gets review before implementation. Parameter layering is the v3 contract: `$(params.x)` is the
+  flattened global, workspace, workflow and context layers; a task's own params are read only by
+  its spec.
 
 ## Controller Pattern
 

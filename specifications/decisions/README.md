@@ -63,3 +63,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0136 | [Due waits are polled every second and claimed with a lease](0136-due-waits-are-polled-every-second-and-claimed-with-a-lease.md) | accepted | 2026-10-29 |
 | 0137 | [A dispatcher reports a failed provisioning attempt](0137-a-dispatcher-reports-a-failed-provisioning-attempt.md) | accepted | 2026-10-29 |
 | 0138 | [A run records the person or token that started it](0138-a-run-records-the-person-or-token-that-started-it.md) | accepted | 2026-10-29 |
+| 0139 | [A task param reads the layers it inherits, never the task's own params](0139-a-task-param-reads-the-layers-it-inherits.md) | accepted | 2026-10-29 |

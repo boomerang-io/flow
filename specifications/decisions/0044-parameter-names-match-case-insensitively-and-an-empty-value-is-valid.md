@@ -22,7 +22,7 @@ emptiness can mean something to a workflow.
 ## Decision
 
 Case-insensitive names with variants rejected, and empty values accepted. References resolve over a case-insensitive
-view of the layers (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:877-878`); the node-value
+view of the layers (`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:789-790`); the node-value
 merge keeps the declared casing (`common/util/ParameterUtil.java:123-144`); names that fold alike fail with
 `PARAM_NAME_COLLISION` at workflow save (`workflow/WorkflowService.java:1580-1588`) and catalogue task save
 (`workflow/TaskService.java:362-372`). GitHub Actions, the one mainstream system with a folded channel, pairs
