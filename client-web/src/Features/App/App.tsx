@@ -22,6 +22,7 @@ import {
   PaginatedResponse,
   WorkflowTemplate,
 } from "Types";
+import { lastWorkspaceFrom } from "Utils/lastWorkspace";
 import { hasPermission } from "Utils/permissionHelper";
 import type { RoutePermissions } from "./AppRoutes";
 import Navbar from "./Navbar";
@@ -162,16 +163,31 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   }
 
   const pathname = stripAppRoot(new URL(request.url).pathname);
-  const workspaceName = resolveWorkspaceName(pathname);
-  const navigationUrl = serviceUrl.getNavigation({ query: workspaceName ? `?workspace=${workspaceName}` : "" });
+  const pathWorkspace = resolveWorkspaceName(pathname);
+  const rememberedWorkspace = pathWorkspace ? null : lastWorkspaceFrom(request);
+
+  // The side nav is scoped to the workspace in the path; outside one (Home, Admin, Profile) to the
+  // last workspace opened, while the caller can still read it - the server builds the links from
+  // whatever name it is given. With neither, the workspace links stay disabled.
+  const loadNavigation = async () => {
+    let workspace = pathWorkspace;
+    if (!workspace && rememberedWorkspace) {
+      const readable = await settle(api.get(serviceUrl.resourceWorkspace({ workspace: rememberedWorkspace })));
+      workspace = readable.ok ? rememberedWorkspace : null;
+    }
+    return settle(
+      api.get<Array<FlowNavigationItem>>(
+        serviceUrl.getNavigation({ query: workspace ? `?workspace=${encodeURIComponent(workspace)}` : "" }),
+      ),
+    );
+  };
 
   // Genuinely dependent, so these two stay behind the profile fetch: they mirror the old queries'
   // `enabled: Boolean(userQuery.data?.id)` gate - user-scoped, and never fetched without a
-  // resolved user (the navigation URL is also workspace-scoped off the request path). `null`
-  // means "not attempted", which is not an error.
+  // resolved user. `null` means "not attempted", which is not an error.
   const [contextResult, navigationResult] = await Promise.all([
     user?.id ? settle(api.get<ContextConfig>(getContextUrl)) : Promise.resolve(null),
-    user?.id ? settle(api.get<Array<FlowNavigationItem>>(navigationUrl)) : Promise.resolve(null),
+    user?.id ? loadNavigation() : Promise.resolve(null),
   ]);
   const [featuresResult, templatesResult] = await Promise.all([featuresPromise, templatesPromise]);
 
