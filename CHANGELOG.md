@@ -279,6 +279,9 @@ tag's release notes.
 
 ### Changed
 
+- The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
+  runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
+  pins `flow.dispatcher.artifact.image` keeps their own value.
 - A sleep and an acquire-lock retry end within about a second of their due time
   (`flow.watcher.wait-interval-ms`, 1000); they waited for the next 30-second watcher sweep, so a 2-second sleep could
   take 30.
