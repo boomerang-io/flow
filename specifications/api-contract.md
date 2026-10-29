@@ -56,9 +56,10 @@ with `templateRef: {name, version}` shows the template's tasks and params read-o
 values for the params the template declares, and each submit runs the template's pinned or latest revision as the workflow's own run
 (`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`, and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`).
 
-**Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: `GET /api/v2/workspace/query?externalRef=`
+**Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors, set once at create, never
+patched, and read only by a `global` token: a workspace-scoped read, the webapp's included, omits it. `GET /api/v2/workspace/query?externalRef=`
 answers the one carrying it within the caller's access, and a create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that
-workspace's name, so a retried create reads it instead (`workspace/WorkspaceService.java:175-184,441-443`; unique sparse index `external_ref`).
+workspace's name, so a retried create reads it instead (`workspace/WorkspaceService.java:175-184,294-295,443-445,862-868`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task

@@ -13,6 +13,7 @@ import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.model.Workspace;
+import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private WorkspaceRepository workspaceRepository;
 
   @AfterEach
   void clearIdentity() {
@@ -39,8 +41,9 @@ class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
   @Test
   void aSecondCreateWithTheSameExternalRefAnswersTheExistingWorkspace() {
     String ref = "tenant-" + System.nanoTime();
+    signInAsGlobalReader();
     Workspace first = workspaceService.create(request("mirror-a-" + System.nanoTime(), ref));
-    assertThat(first.getExternalRef()).isEqualTo(ref);
+    assertThat(first.getExternalRef()).as("the global caller reads it").isEqualTo(ref);
 
     assertThatThrownBy(() -> workspaceService.create(request("mirror-b-" + System.nanoTime(), ref)))
         .isInstanceOf(BoomerangException.class)
@@ -78,12 +81,48 @@ class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
         .isEmpty();
   }
 
+  @Test
+  void aWorkspaceScopedReaderNeverSeesTheReferenceAndCannotChangeIt() {
+    String ref = "tenant-" + System.nanoTime();
+    // With security off the caller is the synthetic global admin, so the create answers the ref.
+    Workspace created = workspaceService.create(request("mirror-e-" + System.nanoTime(), ref));
+    signInAsMemberOf(created.getName());
+
+    assertThat(workspaceService.get(created.getName()).getExternalRef()).isNull();
+    WorkspaceRequest patch = new WorkspaceRequest();
+    patch.setExternalRef("other-" + System.nanoTime());
+    workspaceService.patch(created.getName(), patch);
+    assertThat(workspaceRepository.findByExternalRef(ref))
+        .as("the reference is set once, at create")
+        .isPresent();
+  }
+
   private static WorkspaceRequest request(String name, String externalRef) {
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName(name);
     request.setDisplayName(name);
     request.setExternalRef(externalRef);
     return request;
+  }
+
+  private void signInAsMemberOf(String workspace) {
+    String principal = "ext-member-" + System.nanoTime();
+    relationshipService.createNode(RelationshipType.USER, principal, principal, Optional.empty());
+    relationshipService.createEdge(
+        RelationshipType.USER,
+        principal,
+        RelationshipLabel.MEMBER_OF,
+        RelationshipType.WORKSPACE,
+        workspace,
+        Optional.empty());
+    Token token = new Token(AuthScope.session);
+    token.setPrincipal(principal);
+    token.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.workspace, workspace, List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(principal, null);
+    authentication.setDetails(token);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 
   private void signInAsGlobalReader() {
