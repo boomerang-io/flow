@@ -2828,6 +2828,18 @@ components:
         workflowRef:
           type: "string"
       type: "object"
+    WorkflowRunPurge:
+      properties:
+        purged:
+          format: "int32"
+          type: "integer"
+        remaining:
+          format: "int64"
+          type: "integer"
+        scheduled:
+          format: "int32"
+          type: "integer"
+      type: "object"
     WorkflowRunRequest:
       properties:
         annotations:
@@ -7318,6 +7330,47 @@ paths:
         \ execution."
       tags:
       - "Workflows"
+  /api/v2/workspace/{workspace}/workflowrun:
+    delete:
+      operationId: "purgeByLabels"
+      parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "List of url encoded labels, all of which a run must carry. For\
+          \ example Organization=Boomerang,customKey=test would be encoded as Organization%3DBoomerang,customKey%3Dtest)"
+        in: "query"
+        name: "labels"
+        required: true
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunPurge"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunPurge"
+          description: "Bad Request"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      summary: "Purge the WorkflowRuns matching every label, oldest first, each with\
+        \ its lineage. One call takes a page of matches and reports how many remain;\
+        \ repeat until none."
+      tags:
+      - "WorkflowRuns"
   /api/v2/workspace/{workspace}/workflowrun/count:
     get:
       operationId: "count"
@@ -7513,6 +7566,43 @@ paths:
       tags:
       - "WorkflowRuns"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}:
+    delete:
+      operationId: "purge"
+      parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "ID of WorkflowRun to purge"
+        in: "path"
+        name: "workflowRunId"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunPurge"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunPurge"
+          description: "Bad Request"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      summary: "Purge a WorkflowRun with everything it owns and its lineage: its retries,\
+        \ its child runs, their task runs, actions, artifacts and logs. A run in flight\
+        \ is cancelled first. Audit records stay."
+      tags:
+      - "WorkflowRuns"
     get:
       operationId: "get_2"
       parameters:
