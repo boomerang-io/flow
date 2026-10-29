@@ -279,6 +279,11 @@ tag's release notes.
 
 ### Changed
 
+- A catalogue task without an image of its own runs on `boomerangio/task-flow:3.3.0` (the `task` settings'
+  `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. 3.3.0 runs on a patched
+  base, and fixes the mail, ServiceNow and Slack tasks, which failed when `HTTP_PROXY` was set, and JSONPath To
+  Parameter, which crashed with `module is not defined`. Change unit `_0036__DefaultTaskImageTaskFlow33` moves an install whose
+  setting still holds 3.1.0; an image an operator chose is kept.
 - The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
   runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
   pins `flow.dispatcher.artifact.image` keeps their own value.

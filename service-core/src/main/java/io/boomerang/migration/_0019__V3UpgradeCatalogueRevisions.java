@@ -44,7 +44,7 @@ public class _0019__V3UpgradeCatalogueRevisions {
   private static final Logger LOG =
       LoggerFactory.getLogger(_0019__V3UpgradeCatalogueRevisions.class);
 
-  static final String TARGET_IMAGE = "boomerangio/task-flow:3.1.0";
+  static final String TARGET_IMAGE = "boomerangio/task-flow:3.3.0";
   private static final String RETIRED_IMAGE = "worker-flow";
   private static final List<String> CHILD_RUN_TASKS = List.of("run-workflow", "run-scheduled-workflow");
 

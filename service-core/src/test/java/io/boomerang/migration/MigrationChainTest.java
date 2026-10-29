@@ -1203,6 +1203,43 @@ class MigrationChainTest {
     }
   }
 
+  /**
+   * An install whose default task image is still the one an earlier seed set moves to task-flow
+   * 3.3.0 from its own unit; an image an operator chose is left as it is, and a second run changes
+   * nothing.
+   */
+  @Test
+  void aDefaultTaskImageStillOnTheEarlierSeedMovesToTaskFlow33() {
+    MongoDatabase db = migrate("default-task-image");
+    MongoCollection<Document> settings = collection(db, "settings");
+    Environment environment = MigrationRunner.environment(PREFIX);
+    assertThat(defaultImage(settings)).isEqualTo(_0036__DefaultTaskImageTaskFlow33.IMAGE);
+
+    setDefaultImage(settings, _0036__DefaultTaskImageTaskFlow33.PREVIOUS_IMAGE);
+    new _0036__DefaultTaskImageTaskFlow33().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo(_0036__DefaultTaskImageTaskFlow33.IMAGE);
+    new _0036__DefaultTaskImageTaskFlow33().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo(_0036__DefaultTaskImageTaskFlow33.IMAGE);
+
+    setDefaultImage(settings, "registry.acme.internal/task-flow:3.1.0");
+    new _0036__DefaultTaskImageTaskFlow33().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo("registry.acme.internal/task-flow:3.1.0");
+  }
+
+  private static Object defaultImage(MongoCollection<Document> settings) {
+    return settings.find(Filters.eq("key", "task")).first().getList("config", Document.class).stream()
+        .filter(entry -> "default.image".equals(entry.getString("key")))
+        .map(entry -> entry.get("value"))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static void setDefaultImage(MongoCollection<Document> settings, String image) {
+    settings.updateOne(
+        Filters.and(Filters.eq("key", "task"), Filters.eq("config.key", "default.image")),
+        new Document("$set", new Document("config.$.value", image)));
+  }
+
   private static MongoDatabase migrate(String database) {
     assertThatCode(() -> MigrationRunner.run(uriOf(database), PREFIX)).doesNotThrowAnyException();
     return database(database);
