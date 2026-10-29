@@ -390,6 +390,10 @@ tag's release notes.
 
 ### Fixed
 
+- The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
+  template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
+  `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the
+  editor.
 - The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
   the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
