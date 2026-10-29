@@ -60,25 +60,26 @@ creates a workflow from one by posting its body as read to `POST /api/v2/workspa
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
 run references the task (`workflow/TaskService.java:980-984`).
 
-**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares that integration's
-credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"),
-or stops sharing them; it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF`
-(`integrations/IntegrationControllerV2.java:295-321`). It is `409 INTEGRATION_PARAM_EXISTS` over a parameter of that
-name the workspace holds and `400 INTEGRATION_PARAMS_DISABLED` while workspace parameters are off, both checked before a
-token is asked for, `502 INTEGRATION_TOKEN_FAILED` when GitHub issues none, and `400 INTEGRATION_TOKEN_ROTATES` for an
-expiring Slack token (`integrations/IntegrationService.java:118-156`, `integrations/IntegrationParameterService.java:84-118`).
-`GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked, and Slack's authorize URL
-with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`, `integrations/SlackService.java:705-722`).
-Slack's redirect links its team to that workspace, one team per workspace (`409 INTEGRATION_ALREADY_LINKED`), and
-`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`, `integrations/IntegrationControllerV2.java:125-140`).
+**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares, or stops sharing, that integration's credentials
+with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"); it needs `integration/write`, and another
+name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:301-327`). A parameter of that name the workspace holds is `409
+INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`, both checked before a token is asked for; GitHub issuing
+none is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES` (`integrations/IntegrationService.java:118-156`,
+`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked,
+and Slack's authorize URL with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`,
+`integrations/SlackService.java:705-722`). Slack's redirect links its team to that workspace, one team per workspace (`409
+INTEGRATION_ALREADY_LINKED`); `POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`,
+`integrations/IntegrationControllerV2.java:125-140`). `POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s
+`ref`) or installation id: an unreachable workspace is `404 WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown
+installation `404 INTEGRATION_INVALID_REF`; it is audited and removes the record, link and parameters
+(`integrations/IntegrationControllerV2.java:284-299`, `integrations/GitHubService.java:390-419`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
-100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their
-status or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and
-answers `{"replayed": n}` (`event/OutboxControllerV2.java:41-92`, `event/OutboxService.java:58-82`). A row that
-failed delivery carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`;
-a replay clears both (`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system`
-permission.
+100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status
+or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and answers
+`{"replayed": n}` (`event/OutboxControllerV2.java:41-92`, `event/OutboxService.java:58-82`). A row that failed delivery
+carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`; a replay clears both
+(`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system` permission.
 
 **Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts
 the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays`
@@ -165,9 +166,8 @@ last entry is the latest (`workflow/TaskControllerV2.java:229`, `workflow/Worksp
 
 `WorkflowRun` and `TaskRun` (`service-core/src/main/java/io/boomerang/common/model/`) are the public shapes; the
 entities are separate classes and MUST NOT be returned from a controller. The dispatcher wire has its own models,
-`DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out"). Both public models
-are `@JsonInclude(NON_NULL)`: a null field is absent (`common/model/WorkflowRun.java:37`,
-`common/model/TaskRun.java:27`).
+`DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out"). Both public models are
+`@JsonInclude(NON_NULL)`: a null field is absent (`common/model/WorkflowRun.java:37`, `common/model/TaskRun.java:27`).
 
 | Rule | Where |
 | --- | --- |
