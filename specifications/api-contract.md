@@ -55,11 +55,14 @@ A starter is copied: its body, with `type` set to `workflow`, posted to the work
 workflow created with `templateRef: {name, version}` shows the template's tasks and params read-only under its own name,
 labels and triggers, takes run-time values for the params the template declares, and each submit runs the template's pinned
 or latest revision as the workflow's own run (`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`,
-and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`).
+and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`). `POST
+/api/v2/workspace/{workspace}/workflowtemplate/{template}/submit` runs a template by name with the ordinary submit body: the run is
+the workspace's link to it, created under the template's name on first use, so no link need exist before the first run
+(`workflow/WorkspaceWorkflowTemplateControllerV2.java:41`, `workflow/WorkflowService.java:2158-2170,2200-2233`); a starter or an
+unknown name is `400 WORKFLOW_TEMPLATE_INVALID_REF`, and it needs `workflow/action`, as a submit does.
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
-(`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
-run references the task (`workflow/TaskService.java:980-984`).
+(`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:980-984`).
 
 **Run purge.** `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes a run with everything it owns and its
 lineage, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
@@ -69,8 +72,7 @@ call (`workflow/WorkflowRunService.java:492-518`); no `labels` is `400 QUERY_INV
 scheduled, remaining}` (`common/model/WorkflowRunPurge.java`): runs removed now, runs left to the sweep, and matches
 left for the next call. A run that does not exist counts in neither, so a repeated call answers the same; one in
 another workspace is `404 WORKFLOWRUN_INVALID_REFERENCE`. Both need `workflowrun/delete` (the owner and admin roles;
-`editor` and `operator` have no delete, `seed/roles.json:16-28`) and are audited `DESTRUCTIVE` with the id or the
-labels, never a value.
+`editor` and `operator` have no delete, `seed/roles.json:16-28`) and are audited `DESTRUCTIVE` with the id or the labels, never a value.
 
 **Integrations.** `POST /api/v2/integration/{github|slack|google|microsoft}/share` with `{workspace, shared}`, plus a form integration's `values` by field
 name, shares, or stops sharing, those credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration
@@ -240,8 +242,7 @@ paths (`workflow/TaskControllerV2.java:65,157,204,248`; `workflow/WorkspaceTaskC
 through a Jackson `YAMLMapper` that writes multi-line strings such as `spec.script` as `|` blocks
 (`workflow/config/YamlJacksonHttpMessageConverter.java:11-15`); with no `Accept` header JSON wins
 (`workflow/config/YamlConfiguration.java:32-35`). The YAML is a Tekton task whose `boomerang.io/params` annotation
-carries each param's other fields, so a read applied back unchanged leaves the task as it was
-(`workflow/tekton/TektonConverter.java:33-49`).
+carries each param's other fields, so a read applied back unchanged leaves the task as it was (`workflow/tekton/TektonConverter.java:33-49`).
 
 ## Webhook and event endpoints
 
@@ -282,8 +283,7 @@ event describes the transition it was recorded for: its subject and `data.status
 transition's, and the rest of `data` is the run as it stands when the event is sent (`:93-115`). A task event is
 sent for every task the run executes; the start and end nodes send none, and the run's own event reports its end
 (`event/CloudEventsBridge.java:15-19,35-36`). A skipped task, or one admission refuses, completes in one write and
-sends one event, as does a run timeout (`engine/TaskExecutionService.java:197-199,264-266`,
-`engine/WorkflowRunStateHelper.java:414-417`).
+sends one event, as does a run timeout (`engine/TaskExecutionService.java:197-199,264-266`, `engine/WorkflowRunStateHelper.java:414-417`).
 
 | Envelope field | Value |
 | --- | --- |

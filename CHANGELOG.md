@@ -193,6 +193,11 @@ tag's release notes.
   workflows cannot be deleted. A starter is copied, as the Home page has always done. `GET /api/v2/workflowtemplate`
   lists both by `types`. Change unit `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3
   install's own into the system workspace as starters and drops the `workflow_templates` collection.
+- A template runs in a workspace by name: `POST /api/v2/workspace/{workspace}/workflowtemplate/{template}/submit`
+  takes the ordinary submit body, and the run is the workspace's link to the template, created under the template's
+  name the first time, so a workspace needs no link of its own before its first run. A template's `runworkflow` task
+  that names another template runs it the same way, as the run's workspace's link, so a template's children never run
+  in the system workspace on a workspace's behalf. The SDK's `Runs.submitTemplate` calls the route.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
   tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50

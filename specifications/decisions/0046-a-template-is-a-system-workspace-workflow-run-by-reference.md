@@ -33,6 +33,8 @@ unit from inputs alone, which is how Argo's `workflowTemplateRef`, GitHub's `use
 
 - One editor and one model for workflows, templates and starters; admins version a template like any workflow and
   every link follows it at its next submit, or stays on its pinned version.
-- A link is read-only in its tasks and params; its name, labels and triggers are the workspace's.
+- A link is read-only in its tasks and params; its name, labels and triggers are the workspace's. A workspace need not
+  make one: a submit of a template by name, and a template's `runworkflow` task naming another template, adopt the
+  workspace's link under the template's name on first use (`workflow/WorkflowService.java:2158-2233`).
 - Not built: a link that re-points to another template, a template outside the system workspace, and a starter
   that remembers its source. Revisit when a workspace asks to publish its own templates.

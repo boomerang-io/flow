@@ -1,6 +1,8 @@
 package io.boomerang.workflow;
 
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowRun;
+import io.boomerang.common.model.WorkflowSubmitRequest;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -26,6 +28,15 @@ public class WorkflowTemplateService {
   /** A template or starter by name, its tasks in their slug forms; latest unless a version is given. */
   public Workflow get(String name, Optional<Integer> version) {
     return workflowService.getShared(name, version);
+  }
+
+  /**
+   * Submit a template into a workspace: the run is the workspace's link to it, adopted on first
+   * use. A starter, or no template of the name, is {@code WORKFLOW_TEMPLATE_INVALID_REF}.
+   */
+  public WorkflowRun submit(
+      String workspace, String name, WorkflowSubmitRequest request, boolean start) {
+    return workflowService.submitTemplate(workspace, name, request, start);
   }
 
   /** The templates and starters, narrowed by labels, names and types (both when none is given). */

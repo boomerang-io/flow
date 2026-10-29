@@ -7890,6 +7890,55 @@ paths:
         \ queued."
       tags:
       - "WorkflowRuns"
+  /api/v2/workspace/{workspace}/workflowtemplate/{template}/submit:
+    post:
+      operationId: "submit"
+      parameters:
+      - description: "Workspace the run belongs to."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "Name of the Workflow Template"
+        example: "my-amazing-template"
+        in: "path"
+        name: "template"
+        required: true
+        schema:
+          type: "string"
+      - description: "Start the WorkflowRun after submission (default). Pass start=false\
+          \ to park the run at ready for a later PUT /workflowrun/{id}/start."
+        in: "query"
+        name: "start"
+        required: false
+        schema:
+          default: true
+          type: "boolean"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowSubmitRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRun"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRun"
+          description: "Bad Request"
+      summary: "Submit a Workflow Template to be run in the workspace. The workspace's\
+        \ link to the template is created on first use."
+      tags:
+      - "Workflow Templates"
 tags:
 - description: "Listen for Events or Webhook requests to trigger Workflows and provide\
     \ the ability to resolve Wait For Event TaskRuns."

@@ -42,6 +42,24 @@ public final class Runs {
         RUN);
   }
 
+  /**
+   * {@code POST /workflowtemplate/{template}/submit}: run a template in the workspace by name.
+   * The run is the workspace's link to the template, created on first use.
+   */
+  public WorkflowRun submitTemplate(String template, SubmitRequest request) {
+    return submitTemplate(template, request, true);
+  }
+
+  /** {@code POST /workflowtemplate/{template}/submit?start=}: as {@link #submitTemplate}. */
+  public WorkflowRun submitTemplate(String template, SubmitRequest request, boolean start) {
+    return api.post(
+        "/workspace/{workspace}/workflowtemplate/{template}/submit",
+        Map.of("workspace", workspace, "template", template),
+        Params.none().add("start", start),
+        request,
+        RUN);
+  }
+
   /** {@code GET /workflowrun/{id}}: the run with its task runs. */
   public WorkflowRun get(String id) {
     return get(id, true);
