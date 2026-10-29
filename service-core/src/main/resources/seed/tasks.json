@@ -1245,6 +1245,230 @@
         "$date": "2026-10-16T00:00:00Z"
       },
       "type": "ai"
+    },
+    {
+      "name": "add-teams-member",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "comment-on-github-issue",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-github-issue",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-github-pull-request",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-github-release",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "create-teams-channel",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "dispatch-github-workflow",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "download-google-drive-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "download-sharepoint-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "get-github-file-contents",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "list-sharepoint-files",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "send-teams-message",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "set-github-commit-status",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "share-google-drive-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "upload-google-drive-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
+    },
+    {
+      "name": "upload-sharepoint-file",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-10-29T00:00:00Z"
+      },
+      "type": "template"
     }
   ]
 }

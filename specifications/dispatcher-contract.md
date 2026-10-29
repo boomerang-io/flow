@@ -323,12 +323,13 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 ## Catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
-migrations seed 89 tasks and their 134 revisions from `service-core/src/main/resources/seed/tasks.json` and
+migrations seed 105 tasks and their 205 revisions from `service-core/src/main/resources/seed/tasks.json` and
 `task-revisions.json` (`migration/_0017__SeedTaskCatalogue.java`), and the two artifact tasks from their own change
 unit (`migration/_0018__SeedArtifactTasks.java`). A seed inserts only what is absent, so a task or revision added to
 the seed later needs a change unit of its own to reach an existing database (`data-model.md`, "Migrations"). A
 `template` or `script` task without an image takes the `task` settings' `default.image` (seeded as
-`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:327-332`).
+`boomerangio/task-flow:3.1.0`) when its task run is created (`engine/DAGUtility.java:327-332`); the tasks and
+revisions added with task-flow 3.3.0 pin `boomerangio/task-flow:3.3.0`, as their commands are not in the default image.
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
 (`workflow/WorkflowService.java:1473-1474`), and the task run records it (`engine/DAGUtility.java:238-242`), so a new

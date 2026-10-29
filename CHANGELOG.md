@@ -7,6 +7,12 @@ tag's release notes.
 
 ### Upgrading
 
+- **The GitHub tasks need GitHub App permissions.** The GitHub catalogue tasks act with the GitHub App's
+  installation token when a workspace shares it; between them they need Issues: write, Pull requests: write,
+  Contents: read or write, Commit statuses: write and Actions: write on the App. Each task's description names its
+  own, and an organisation approves the App again when its permissions change. The Teams and SharePoint tasks
+  default to the Microsoft integration's parameters, and the new Google Drive tasks to the Google integration's;
+  in a workspace that has not connected the integration, enter the credentials in the task instead.
 - **The Java images have no shell.** `flow-service-core` and `flow-service-dispatcher` run on Ubuntu's chiseled
   JRE: no shell, package manager or `keytool`. Set JVM flags in `JDK_JAVA_OPTIONS` (the `JAVA_OPTS` variable and
   the `sh -c java …` command the v3 chart used no longer apply), and trust an internal CA by mounting a
@@ -164,6 +170,11 @@ tag's release notes.
 
 ### Added
 
+- 16 catalogue tasks from `boomerangio/task-flow:3.3.0`: GitHub (create an issue, comment on an issue or pull
+  request, create a pull request, set a commit status, dispatch a workflow, create a release, get file contents),
+  Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
+  Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
+  whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
   ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
   and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever
@@ -408,6 +419,9 @@ tag's release notes.
 
 ### Fixed
 
+- The two Artifactory tasks failed with "Could not find method": their command module was commented out in the
+  task image. Their new revisions (download 2, upload 3) run on `boomerangio/task-flow:3.3.0` and add access-token
+  login; a workflow moves to them when it is upgraded in the editor.
 - The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
   template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
   `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the

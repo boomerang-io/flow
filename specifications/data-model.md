@@ -295,7 +295,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections |
 | `_0015__SeedRoles` | all | Seeds the five roles |
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
-| `_0017__SeedTaskCatalogue` | all | Seeds the 89 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
+| `_0017__SeedTaskCatalogue` | all | Seeds the 105 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
 | `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates (by name and version) and the integration templates (by name) |
@@ -313,6 +313,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0032__SeedSlackIntegrationParameters` | all | Makes the seeded Slack integration template, inactive and typed `slack`, the active `slack_auth` template its installations are stored as, with its install link, instructions and `fields` (`slack-token`), and inserts the revisions of each of the 10 Slack token tasks the install lacks, whose newest defaults `token` to `$(workspace.params.slack-token)`; an empty database has both from `_0020` and `_0017` |
 | `_0033__SeedSendGridTemplateRevision` | all | Inserts the SendGrid template task's revision 3, whose `apiKey` has no placeholder default and whose `templateId` is a `text` field, where an install holds the task but not that revision; an empty database has it from `_0017` |
 | `_0034__SeedFormIntegrations` | all | Sets each integration template's `kind` (`app` for GitHub and Slack) where it has none, and inserts the Google and Microsoft `form` templates where an install holds none of their type; an empty database has them from `_0020` |
+| `_0035__SeedTaskFlowIntegrationTasks` | all | Adds task-flow 3.3.0's catalogue: the 16 GitHub, Microsoft Teams, SharePoint and Google Drive tasks an install lacks, with their graph node and root edge, and every seed revision of those and of the Sheets, Drive and Artifactory tasks the install lacks; a seeded task an install dropped gets nothing, and the GitHub integration template's instructions gain the App permissions the GitHub tasks need. An empty database has all of it from `_0017` and `_0020` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

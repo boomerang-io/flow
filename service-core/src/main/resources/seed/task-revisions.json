@@ -471,6 +471,89 @@
    "parentRef": "add-sheet"
   },
   {
+   "displayName": "Add Sheet",
+   "description": "Add new sheet to a Google spreadsheet.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "",
+      "label": "Sheet Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The title of the new sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "addSheet"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "add-sheet"
+  },
+  {
    "displayName": "Add User To Box Folder",
    "description": "Adds an user to the specified Box folder.",
    "category": "Box",
@@ -872,6 +955,105 @@
    "parentRef": "append-data"
   },
   {
+   "displayName": "Append Data",
+   "description": "Append data to an existing Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them; the task no longer fails on an undeclared variable",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "The input range is used to search for existing data and find a \"table\" within that range. Values will be appended to the next row of the table, starting with the first column of the table.",
+      "label": "Data Range",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7",
+      "helpertext": "The desired data range",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "range"
+     },
+     {
+      "description": "Split each data row with an endline and each cell value with a semicolon",
+      "label": "Cell Data",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Val1;Val2;Val3",
+      "helpertext": "Input data",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "values"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "append"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "Append information",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "append-data"
+  },
+  {
    "displayName": "Artifactory File Download",
    "description": "Artifactory File Download",
    "category": "Artifactory",
@@ -934,6 +1116,113 @@
     "envs": null,
     "image": "",
     "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "artifactory-file-download"
+  },
+  {
+   "displayName": "Artifactory File Download",
+   "description": "Artifactory File Download",
+   "category": "Artifactory",
+   "icon": "Download",
+   "version": 2,
+   "changelog": {
+    "reason": "Access Token (Bearer) auth, since JFrog no longer issues API keys; the task runs again (it was disabled), streams, and checks checksums",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": "",
+      "required": true,
+      "helpertext": "The artifact's full URL, e.g. https://acme.jfrog.io/artifactory/libs-release/com/acme/widget/1.0/widget-1.0.jar"
+     },
+     {
+      "description": "",
+      "label": "Destination Path",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "destinationPath",
+      "defaultValue": "",
+      "required": true,
+      "helpertext": "A workspace file or directory, absolute or relative to /workspace. A directory (or a path ending in /) keeps the artifact's name"
+     },
+     {
+      "description": "",
+      "label": "Access Token",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A JFrog access token, sent as a Bearer token. Preferred over API Key and Username/Password",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "accessToken"
+     },
+     {
+      "description": "",
+      "label": "API Key",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "apiKey",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "An existing JFrog API key; JFrog no longer issues them, so prefer Access Token"
+     },
+     {
+      "description": "",
+      "label": "Username",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "username",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "With Password, when there is no Access Token"
+     },
+     {
+      "description": "",
+      "label": "Password",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "password",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "With Username, when there is no Access Token"
+     }
+    ],
+    "arguments": [
+     "artifactory",
+     "downloadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The absolute path of the downloaded file",
+      "name": "path"
+     },
+     {
+      "description": "The file's size in bytes",
+      "name": "size"
+     },
+     {
+      "description": "The file's SHA-256, checked against the checksum Artifactory sends",
+      "name": "sha256"
+     }
+    ],
     "script": null,
     "workingDir": null
    },
@@ -1076,6 +1365,113 @@
     "envs": null,
     "image": "",
     "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "artifactory-file-upload"
+  },
+  {
+   "displayName": "Artifactory File Upload",
+   "description": "Upload file to Artifactory",
+   "category": "Artifactory",
+   "icon": "Upload",
+   "version": 3,
+   "changelog": {
+    "reason": "Access Token (Bearer) auth, since JFrog no longer issues API keys; the task runs again (it was disabled), streams, and checks checksums",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "artifactory.url/folder/test.txt",
+      "helpertext": "The artifact's full URL, e.g. https://acme.jfrog.io/artifactory/libs-release/com/acme/widget/1.0/widget-1.0.jar",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "File",
+      "type": "text",
+      "required": true,
+      "placeholder": "/data/test.txt",
+      "helpertext": "The workspace file to upload, absolute or relative to /workspace",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "file"
+     },
+     {
+      "description": "",
+      "label": "Access Token",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A JFrog access token, sent as a Bearer token. Preferred over API Key and Username/Password",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "accessToken"
+     },
+     {
+      "description": "",
+      "label": "API Key",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "apiKey",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "An existing JFrog API key; JFrog no longer issues them, so prefer Access Token"
+     },
+     {
+      "description": "",
+      "label": "Username",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "username",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "With Password, when there is no Access Token"
+     },
+     {
+      "description": "",
+      "label": "Password",
+      "type": "password",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "password",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "With Username, when there is no Access Token"
+     }
+    ],
+    "arguments": [
+     "artifactory",
+     "uploadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The artifact's URL, as Artifactory reports it",
+      "name": "downloadUri"
+     },
+     {
+      "description": "The file's SHA-256, checked against the checksum Artifactory stored",
+      "name": "sha256"
+     },
+     {
+      "description": "The file's size in bytes",
+      "name": "size"
+     }
+    ],
     "script": null,
     "workingDir": null
    },
@@ -1365,6 +1761,89 @@
    "parentRef": "clear-data"
   },
   {
+   "displayName": "Clear Data",
+   "description": "Clear the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Delete",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Ranges",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7,Sheet2",
+      "helpertext": "The data ranges to clear separated by a comma",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "ranges"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "clearData"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "clear-data"
+  },
+  {
    "displayName": "Copy File",
    "description": "Creates a copy of a file. Folders cannot be copied.\n\nThe file will be owned by the Service Account used. We recommend providing a shared parent folder or adding new permissions after the copy.",
    "category": "Google Drive",
@@ -1440,6 +1919,136 @@
     "command": [],
     "envs": [],
     "image": null,
+    "results": [
+     {
+      "description": "The ID of the file.",
+      "name": "id"
+     },
+     {
+      "description": "The name of the file.",
+      "name": "name"
+     },
+     {
+      "description": "The IDs of the parent folders which contain the file.",
+      "name": "parents"
+     },
+     {
+      "description": "The time at which the file was created",
+      "name": "createdTime"
+     },
+     {
+      "description": "The last time the file was modified by anyone",
+      "name": "modifiedTime"
+     },
+     {
+      "description": "The owner of this file.",
+      "name": "owners"
+     },
+     {
+      "description": "The full list of permissions for the file. This is only available if the requesting user can share the file. Not populated for items in shared drives.",
+      "name": "permissions"
+     },
+     {
+      "description": "Whether the file is shared",
+      "name": "shared"
+     },
+     {
+      "description": "A link for opening the file in a relevant Google editor or viewer in a browser.",
+      "name": "webViewLink"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "copy-file"
+  },
+  {
+   "displayName": "Copy File",
+   "description": "Creates a copy of a file. Folders cannot be copied.\n\nThe file will be owned by the Service Account used. We recommend providing a shared parent folder or adding new permissions after the copy.",
+   "category": "Google Drive",
+   "icon": "Add",
+   "version": 2,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them; the task no longer fails on an undeclared variable",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     },
+     {
+      "description": "The IDs of the parent folders which contain the file. If not specified the file will be placed directly in the user's My Drive folder.",
+      "label": "Parent Folders",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "New line delimited list of folder IDs",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "parents"
+     },
+     {
+      "description": "If not specified the file will end up being being prefixed with 'Copy of' and then the current name.",
+      "label": "New Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The name to set on the copied file",
+      "readOnly": false,
+      "name": "fileName"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "copyFile"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The ID of the file.",
@@ -1678,6 +2287,100 @@
     "command": [],
     "envs": [],
     "image": null,
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "copy-sheet-to-another-spreadsheet"
+  },
+  {
+   "displayName": "Copy Sheet To Another Spreadsheet",
+   "description": "Copy a sheet from a spreadsheet to another.",
+   "category": "Google Sheets",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Source Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the spreadsheet containing the sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fromSpreadsheetId"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Destination Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the spreadsheet where we copy the sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "toSpreadsheetId"
+     },
+     {
+      "description": "You can find the sheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Sheet ID",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the sheet we want to copy",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "sheetId"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "copySheetTo"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -2174,6 +2877,83 @@
     "command": [],
     "envs": [],
     "image": null,
+    "results": [
+     {
+      "description": "Newly created spreadsheet information",
+      "name": "spreadsheet"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "create-spreadsheet"
+  },
+  {
+   "displayName": "Create Spreadsheet",
+   "description": "Create a new Google Spreadsheet with the provided name.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "",
+      "label": "Spreadsheet Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The new spreadsheet's title",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "create"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Newly created spreadsheet information",
@@ -3029,6 +3809,78 @@
    "parentRef": "delete-file"
   },
   {
+   "displayName": "Delete File",
+   "description": "Deletes a file.",
+   "category": "Google Drive",
+   "icon": "Delete",
+   "version": 2,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "deleteFile"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "delete-file"
+  },
+  {
    "displayName": "Delete Sheet",
    "description": "Delete a sheet from a Google spreadsheet.",
    "category": "Google Sheets",
@@ -3201,6 +4053,89 @@
     "command": [],
     "envs": [],
     "image": null,
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "delete-sheet"
+  },
+  {
+   "displayName": "Delete Sheet",
+   "description": "Delete a sheet from a Google spreadsheet.",
+   "category": "Google Sheets",
+   "icon": "Delete",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "You can find the sheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Sheet ID",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the sheet to delete",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "sheetId"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "deleteSheet"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -6545,6 +7480,90 @@
    "parentRef": "get-data"
   },
   {
+   "displayName": "Get Data",
+   "description": "Get the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "API/HTTP call",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=0",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Ranges",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7,Sheet2",
+      "helpertext": "The desired data ranges separated by comma",
+      "readOnly": false,
+      "name": "ranges"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "getData"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The list of row cell data from the provided ranges",
+      "name": "rows"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-data"
+  },
+  {
    "displayName": "Get Github Repository",
    "description": "Get the Gihub repository details based on the Github URL. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#get-a-repository",
    "category": "GitHub",
@@ -9255,6 +10274,83 @@
    "parentRef": "list-file-permissions"
   },
   {
+   "displayName": "List File Permissions",
+   "description": "List a file's permissions.",
+   "category": "Google Drive",
+   "icon": "Filter",
+   "version": 2,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "listFilePermissions"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The resulting array of permissions associated with the file",
+      "name": "permissions"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "list-file-permissions"
+  },
+  {
    "displayName": "List Files",
    "description": "Lists or searches files.\n\nThis method returns all files by default, including deleted files. Use the 'trashed=false' query parameter to filter trashed files from the results.",
    "category": "Google Drive",
@@ -9328,6 +10424,102 @@
     "command": [],
     "envs": [],
     "image": null,
+    "results": [
+     {
+      "description": "An array of file objects based on the listing query.",
+      "name": "results"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "list-files"
+  },
+  {
+   "displayName": "List Files",
+   "description": "Lists or searches files.\n\nThis method returns all files by default, including deleted files. Use the 'trashed=false' query parameter to filter trashed files from the results.",
+   "category": "Google Drive",
+   "icon": "Search",
+   "version": 2,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them; Corpora and Drive ID now reach the request, so a shared drive can be listed",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "",
+      "label": "Query",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A query for filtering the file results",
+      "readOnly": false,
+      "name": "query"
+     },
+     {
+      "description": "Supported groupings are: 'user', 'drive', 'domain', and 'allDrives' (A combination of 'user' and 'drive' for all drives where the user is a member).",
+      "label": "Corpora",
+      "type": "text",
+      "required": false,
+      "placeholder": "user",
+      "helpertext": "Groupings of files to which the query applies.",
+      "readOnly": false,
+      "name": "corpora"
+     },
+     {
+      "description": "",
+      "label": "Drive ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "ID of the shared drive to search.",
+      "readOnly": false,
+      "name": "driveId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "listFiles"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "An array of file objects based on the listing query.",
@@ -13442,6 +14634,105 @@
    "parentRef": "update-data"
   },
   {
+   "displayName": "Update Data",
+   "description": "Update cell data from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Edit",
+   "version": 3,
+   "changelog": {
+    "reason": "Service Account Key takes the whole JSON key file; Client Email and Private Key stay for revisions that use them",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Range",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!1:3",
+      "helpertext": "The desired data range",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "range"
+     },
+     {
+      "description": "Split each data row with an endline and each cell value with a semicolon",
+      "label": "Cell Data",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Val1;Val2;Val3",
+      "helpertext": "Input data",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "values"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "update"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "Update information",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "update-data"
+  },
+  {
    "displayName": "Update Incidents",
    "description": "Update Incidents from ServiceNow",
    "category": "ServiceNow",
@@ -15485,6 +16776,1998 @@
     "workingDir": null
    },
    "parentRef": "ai-agent"
+  },
+  {
+   "displayName": "Add Teams Member",
+   "description": "Adds a user to a team as a member or an owner through Microsoft Graph. The app registration needs the TeamMember.ReadWrite.All application permission (TeamMember.ReadWriteNonOwnerRole.All for members only). Guests cannot be added with application permissions. See https://learn.microsoft.com/en-us/graph/api/team-post-members",
+   "category": "Microsoft Teams",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the tenant ID the workspace's Microsoft integration shares; or enter the Directory (tenant) ID of an Entra app registration",
+      "defaultValue": "$(workspace.params.microsoft-tenant-id)",
+      "readOnly": false,
+      "name": "tenantId"
+     },
+     {
+      "description": "",
+      "label": "Client ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client ID the workspace's Microsoft integration shares; or enter the app registration's Application (client) ID",
+      "defaultValue": "$(workspace.params.microsoft-client-id)",
+      "readOnly": false,
+      "name": "clientId"
+     },
+     {
+      "description": "",
+      "label": "Client Secret",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client secret the workspace's Microsoft integration shares; or enter one of the app registration's. The task gets its own app-only Microsoft Graph token with it",
+      "defaultValue": "$(workspace.params.microsoft-client-secret)",
+      "readOnly": false,
+      "name": "clientSecret"
+     },
+     {
+      "description": "",
+      "label": "Team ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The team's ID (its Microsoft 365 group ID)",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "teamId"
+     },
+     {
+      "description": "",
+      "label": "User",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The user's user principal name (e.g. jo@contoso.com) or object ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "user"
+     },
+     {
+      "description": "",
+      "label": "Role",
+      "type": "select",
+      "options": [
+       {
+        "key": "member",
+        "value": "member"
+       },
+       {
+        "key": "owner",
+        "value": "owner"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "member",
+      "readOnly": false,
+      "name": "role"
+     }
+    ],
+    "arguments": [
+     "teams",
+     "addMember"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The membership's ID",
+      "name": "membershipId"
+     },
+     {
+      "description": "The user's object ID",
+      "name": "userId"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "add-teams-member"
+  },
+  {
+   "displayName": "Comment on GitHub Issue or Pull Request",
+   "description": "Adds a comment to an issue or a pull request, which share one numbering. Works with a GitHub App installation token (Issues: write, or Pull requests: write for a pull request) or a personal access token. See https://docs.github.com/en/rest/issues/comments#create-an-issue-comment",
+   "category": "GitHub",
+   "icon": "Message",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Issue or Pull Request Number",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "number"
+     },
+     {
+      "description": "",
+      "label": "Comment",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The comment text, in Markdown",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "body"
+     }
+    ],
+    "arguments": [
+     "github",
+     "commentOnIssueOrPullRequest"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The comment's ID",
+      "name": "commentId"
+     },
+     {
+      "description": "The comment's web URL",
+      "name": "commentUrl"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "comment-on-github-issue"
+  },
+  {
+   "displayName": "Create GitHub Issue",
+   "description": "Opens an issue in a repository. Works with a GitHub App installation token (Issues: write) or a personal access token. See https://docs.github.com/en/rest/issues/issues#create-an-issue",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     },
+     {
+      "description": "",
+      "label": "Body",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The issue text, in Markdown",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "body"
+     },
+     {
+      "description": "",
+      "label": "Labels",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Label names, comma- or newline-separated. GitHub drops labels, assignees and milestone silently without push access",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "labels"
+     },
+     {
+      "description": "",
+      "label": "Assignees",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Logins, comma- or newline-separated",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "assignees"
+     },
+     {
+      "description": "",
+      "label": "Milestone",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The milestone number",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "milestone"
+     }
+    ],
+    "arguments": [
+     "github",
+     "createIssue"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The new issue's number",
+      "name": "issueNumber"
+     },
+     {
+      "description": "The issue's web URL",
+      "name": "issueUrl"
+     },
+     {
+      "description": "The issue's ID",
+      "name": "issueId"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "create-github-issue"
+  },
+  {
+   "displayName": "Create GitHub Pull Request",
+   "description": "Opens a pull request from one branch into another. Works with a GitHub App installation token (Pull requests: write) or a personal access token. See https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     },
+     {
+      "description": "",
+      "label": "Head Branch",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The branch with the changes; owner:branch for a branch in a fork",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "head"
+     },
+     {
+      "description": "",
+      "label": "Base Branch",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The branch to merge into, e.g. main",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "base"
+     },
+     {
+      "description": "",
+      "label": "Body",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The description, in Markdown",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "body"
+     },
+     {
+      "description": "",
+      "label": "Draft",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Open the pull request as a draft",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "draft"
+     }
+    ],
+    "arguments": [
+     "github",
+     "createPullRequest"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The new pull request's number",
+      "name": "pullRequestNumber"
+     },
+     {
+      "description": "The pull request's web URL",
+      "name": "pullRequestUrl"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "create-github-pull-request"
+  },
+  {
+   "displayName": "Create GitHub Release",
+   "description": "Creates a release, and its tag when the tag does not exist yet. Works with a GitHub App installation token (Contents: write) or a personal access token. See https://docs.github.com/en/rest/releases/releases#create-a-release",
+   "category": "GitHub",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Tag",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The release's tag, e.g. v1.2.0",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "tagName"
+     },
+     {
+      "description": "",
+      "label": "Target",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The branch or commit SHA a new tag is created from. Blank is the default branch",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "targetCommitish"
+     },
+     {
+      "description": "",
+      "label": "Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The release title. Blank uses the tag",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "name"
+     },
+     {
+      "description": "",
+      "label": "Notes",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The release notes, in Markdown",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "body"
+     },
+     {
+      "description": "",
+      "label": "Draft",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "draft"
+     },
+     {
+      "description": "",
+      "label": "Pre-release",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "prerelease"
+     },
+     {
+      "description": "",
+      "label": "Generate Release Notes",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Have GitHub write the notes from the merged pull requests, after any notes given",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "generateReleaseNotes"
+     },
+     {
+      "description": "",
+      "label": "Make Latest",
+      "type": "select",
+      "options": [
+       {
+        "key": "true",
+        "value": "true"
+       },
+       {
+        "key": "false",
+        "value": "false"
+       },
+       {
+        "key": "legacy",
+        "value": "legacy"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Whether this becomes the latest release. Blank is GitHub's default, true",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "makeLatest"
+     }
+    ],
+    "arguments": [
+     "github",
+     "createRelease"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The release's ID",
+      "name": "releaseId"
+     },
+     {
+      "description": "The release's web URL",
+      "name": "releaseUrl"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "create-github-release"
+  },
+  {
+   "displayName": "Create Teams Channel",
+   "description": "Creates a standard or private channel in a team through Microsoft Graph. The app registration needs the Channel.Create application permission. See https://learn.microsoft.com/en-us/graph/api/channel-post",
+   "category": "Microsoft Teams",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the tenant ID the workspace's Microsoft integration shares; or enter the Directory (tenant) ID of an Entra app registration",
+      "defaultValue": "$(workspace.params.microsoft-tenant-id)",
+      "readOnly": false,
+      "name": "tenantId"
+     },
+     {
+      "description": "",
+      "label": "Client ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client ID the workspace's Microsoft integration shares; or enter the app registration's Application (client) ID",
+      "defaultValue": "$(workspace.params.microsoft-client-id)",
+      "readOnly": false,
+      "name": "clientId"
+     },
+     {
+      "description": "",
+      "label": "Client Secret",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client secret the workspace's Microsoft integration shares; or enter one of the app registration's. The task gets its own app-only Microsoft Graph token with it",
+      "defaultValue": "$(workspace.params.microsoft-client-secret)",
+      "readOnly": false,
+      "name": "clientSecret"
+     },
+     {
+      "description": "",
+      "label": "Team ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The team's ID (its Microsoft 365 group ID)",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "teamId"
+     },
+     {
+      "description": "",
+      "label": "Channel Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Up to 50 characters",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "displayName"
+     },
+     {
+      "description": "",
+      "label": "Description",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "description"
+     },
+     {
+      "description": "",
+      "label": "Membership",
+      "type": "select",
+      "options": [
+       {
+        "key": "standard",
+        "value": "standard"
+       },
+       {
+        "key": "private",
+        "value": "private"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A standard channel is open to the whole team; a private one to its members",
+      "defaultValue": "standard",
+      "readOnly": false,
+      "name": "membershipType"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Required for a private channel: the owner's user principal name (e.g. jo@contoso.com) or object ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     }
+    ],
+    "arguments": [
+     "teams",
+     "createChannel"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The new channel's ID",
+      "name": "channelId"
+     },
+     {
+      "description": "The channel's link in Teams",
+      "name": "channelUrl"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "create-teams-channel"
+  },
+  {
+   "displayName": "Dispatch GitHub Workflow",
+   "description": "Triggers a GitHub Actions workflow that has a workflow_dispatch trigger. Works with a GitHub App installation token (Actions: write) or a personal access token. See https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event",
+   "category": "GitHub",
+   "icon": "Launch",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Workflow",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The workflow's file name (e.g. deploy.yml) or numeric ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "workflow"
+     },
+     {
+      "description": "",
+      "label": "Ref",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The branch or tag to run the workflow on",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "ref"
+     },
+     {
+      "description": "",
+      "label": "Inputs",
+      "type": "json",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A JSON object of the workflow's inputs, e.g. {\"environment\": \"staging\"}",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "inputs"
+     }
+    ],
+    "arguments": [
+     "github",
+     "dispatchWorkflow"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The workflow run's ID, when the server reports it (github.com does); empty otherwise",
+      "name": "runId"
+     },
+     {
+      "description": "The workflow run's web URL, when the server reports it; empty otherwise",
+      "name": "runUrl"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "dispatch-github-workflow"
+  },
+  {
+   "displayName": "Download Google Drive File",
+   "description": "Downloads a Google Drive file to the workspace with a service account. A Google Docs, Sheets, Slides or Drawings file is exported (up to 10 MB), by default as .docx, .xlsx, .pptx or .png.",
+   "category": "Google Drive",
+   "icon": "Download",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the key the workspace's Google integration shares; or paste a service account's whole JSON key file as-is",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     },
+     {
+      "description": "",
+      "label": "Destination",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "A workspace file or directory, absolute or relative to /workspace. A directory (or a path ending in /) keeps the file's name",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "destinationPath"
+     },
+     {
+      "description": "",
+      "label": "Export Format",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "For a Google Docs file only: the MIME type to export as, e.g. application/pdf. Blank is the Office format",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "exportMimeType"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "downloadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The absolute path of the downloaded file",
+      "name": "path"
+     },
+     {
+      "description": "The file's size in bytes",
+      "name": "size"
+     },
+     {
+      "description": "The downloaded file's MIME type",
+      "name": "mimeType"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "download-google-drive-file"
+  },
+  {
+   "displayName": "Download SharePoint File",
+   "description": "Downloads a file from a SharePoint document library to the workspace through Microsoft Graph. The app registration needs the Sites.Read.All or Files.Read.All application permission, or Sites.Selected with a grant on the site.",
+   "category": "SharePoint",
+   "icon": "Download",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the tenant ID the workspace's Microsoft integration shares; or enter the Directory (tenant) ID of an Entra app registration",
+      "defaultValue": "$(workspace.params.microsoft-tenant-id)",
+      "readOnly": false,
+      "name": "tenantId"
+     },
+     {
+      "description": "",
+      "label": "Client ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client ID the workspace's Microsoft integration shares; or enter the app registration's Application (client) ID",
+      "defaultValue": "$(workspace.params.microsoft-client-id)",
+      "readOnly": false,
+      "name": "clientId"
+     },
+     {
+      "description": "",
+      "label": "Client Secret",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client secret the workspace's Microsoft integration shares; or enter one of the app registration's. The task gets its own app-only Microsoft Graph token with it",
+      "defaultValue": "$(workspace.params.microsoft-client-secret)",
+      "readOnly": false,
+      "name": "clientSecret"
+     },
+     {
+      "description": "",
+      "label": "Site",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://contoso.sharepoint.com/sites/Engineering",
+      "helpertext": "The site's URL (any page under the site will do) or its Graph site ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "site"
+     },
+     {
+      "description": "",
+      "label": "Document Library",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The library's name, e.g. Documents. Blank is the site's default library",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "library"
+     },
+     {
+      "description": "",
+      "label": "File Path",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The file's path in the library, e.g. Releases/2026/notes.md",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "path"
+     },
+     {
+      "description": "",
+      "label": "Destination",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "A workspace file or directory, absolute or relative to /workspace. A directory (or a path ending in /) keeps the file's name",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "destinationPath"
+     }
+    ],
+    "arguments": [
+     "sharepoint",
+     "downloadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The absolute path of the downloaded file",
+      "name": "path"
+     },
+     {
+      "description": "The file's size in bytes",
+      "name": "size"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "download-sharepoint-file"
+  },
+  {
+   "displayName": "Get GitHub File Contents",
+   "description": "Reads one file from a repository at a branch, tag or commit. Works with a GitHub App installation token (Contents: read) or a personal access token. See https://docs.github.com/en/rest/repos/contents#get-repository-content",
+   "category": "GitHub",
+   "icon": "Download",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "File Path",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The file's path in the repository, e.g. config/app.yaml",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "path"
+     },
+     {
+      "description": "",
+      "label": "Ref",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The branch, tag or commit SHA. Blank is the default branch",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "ref"
+     },
+     {
+      "description": "",
+      "label": "Output File",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A workspace path to write the file to, absolute or relative to /workspace. Needed for a file over 3000 bytes or one that is not UTF-8 text",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "outputFile"
+     }
+    ],
+    "arguments": [
+     "github",
+     "getFileContents"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The file's text, when it is UTF-8 and fits in a result (3000 bytes); otherwise empty and the file is in Output File",
+      "name": "content"
+     },
+     {
+      "description": "The file's blob SHA",
+      "name": "sha"
+     },
+     {
+      "description": "The file's size in bytes",
+      "name": "size"
+     },
+     {
+      "description": "The absolute path of Output File, when set",
+      "name": "outputPath"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "get-github-file-contents"
+  },
+  {
+   "displayName": "List SharePoint Files",
+   "description": "Lists the files and folders in one folder of a SharePoint document library through Microsoft Graph. The app registration needs the Sites.Read.All or Files.Read.All application permission, or Sites.Selected with a grant on the site.",
+   "category": "SharePoint",
+   "icon": "Search",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the tenant ID the workspace's Microsoft integration shares; or enter the Directory (tenant) ID of an Entra app registration",
+      "defaultValue": "$(workspace.params.microsoft-tenant-id)",
+      "readOnly": false,
+      "name": "tenantId"
+     },
+     {
+      "description": "",
+      "label": "Client ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client ID the workspace's Microsoft integration shares; or enter the app registration's Application (client) ID",
+      "defaultValue": "$(workspace.params.microsoft-client-id)",
+      "readOnly": false,
+      "name": "clientId"
+     },
+     {
+      "description": "",
+      "label": "Client Secret",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client secret the workspace's Microsoft integration shares; or enter one of the app registration's. The task gets its own app-only Microsoft Graph token with it",
+      "defaultValue": "$(workspace.params.microsoft-client-secret)",
+      "readOnly": false,
+      "name": "clientSecret"
+     },
+     {
+      "description": "",
+      "label": "Site",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://contoso.sharepoint.com/sites/Engineering",
+      "helpertext": "The site's URL (any page under the site will do) or its Graph site ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "site"
+     },
+     {
+      "description": "",
+      "label": "Document Library",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The library's name, e.g. Documents. Blank is the site's default library",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "library"
+     },
+     {
+      "description": "",
+      "label": "Folder",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The folder in the library. Blank is the library's root",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "folder"
+     },
+     {
+      "description": "",
+      "label": "Output File",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A workspace path to write the listing to as JSON, absolute or relative to /workspace. Needed when the listing is over 3000 bytes",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "outputFile"
+     }
+    ],
+    "arguments": [
+     "sharepoint",
+     "listFiles"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "A JSON array of {name, path, type, size, lastModified, webUrl}, when it fits in a result (3000 bytes); otherwise empty and the listing is in Output File",
+      "name": "files"
+     },
+     {
+      "description": "How many files and folders the folder holds",
+      "name": "count"
+     },
+     {
+      "description": "The absolute path of Output File, when set",
+      "name": "outputPath"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "list-sharepoint-files"
+  },
+  {
+   "displayName": "Send Teams Message",
+   "description": "Posts a message to a Teams channel or chat through a Teams Workflows webhook (the 'Post to a channel when a webhook request is received' template), as an Adaptive Card. The retired Office 365 connector webhooks are not supported.",
+   "category": "Microsoft Teams",
+   "icon": "Message",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Webhook URL",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The workflow's HTTP POST URL. It carries the webhook's signature, so it is kept like a password",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "webhookUrl"
+     },
+     {
+      "description": "",
+      "label": "Title",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Shown large and bold above the message",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     },
+     {
+      "description": "",
+      "label": "Message",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The message text; Teams renders a subset of Markdown",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "message"
+     },
+     {
+      "description": "",
+      "label": "Adaptive Card",
+      "type": "json",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A whole Adaptive Card (type AdaptiveCard), or a whole webhook message (type message), sent instead of Title and Message",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "card"
+     }
+    ],
+    "arguments": [
+     "teams",
+     "sendMessage"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "send-teams-message"
+  },
+  {
+   "displayName": "Set GitHub Commit Status",
+   "description": "Sets a commit status (the check shown on a commit and its pull requests). Works with a GitHub App installation token (Commit statuses: write) or a personal access token. See https://docs.github.com/en/rest/commits/statuses#create-a-commit-status",
+   "category": "GitHub",
+   "icon": "Validate",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://api.github.com",
+      "helpertext": "Defaults to the GitHub API URL the workspace's GitHub integration shares",
+      "defaultValue": "$(workspace.params.github-url)",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Github Access Token",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the token the workspace's GitHub integration shares; or enter a personal access token",
+      "defaultValue": "$(workspace.params.github-token)",
+      "readOnly": false,
+      "name": "token"
+     },
+     {
+      "description": "",
+      "label": "Owner",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The organization or user that owns the repository",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "owner"
+     },
+     {
+      "description": "",
+      "label": "Repository",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The repository name, without the owner",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "repo"
+     },
+     {
+      "description": "",
+      "label": "Commit SHA",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "sha"
+     },
+     {
+      "description": "",
+      "label": "State",
+      "type": "select",
+      "options": [
+       {
+        "key": "pending",
+        "value": "pending"
+       },
+       {
+        "key": "success",
+        "value": "success"
+       },
+       {
+        "key": "failure",
+        "value": "failure"
+       },
+       {
+        "key": "error",
+        "value": "error"
+       }
+      ],
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "state"
+     },
+     {
+      "description": "",
+      "label": "Context",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The status's name, e.g. flow/build. Blank is GitHub's 'default'; each context is its own status",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "context"
+     },
+     {
+      "description": "",
+      "label": "Target URL",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Where the status links, e.g. the Flow run",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "targetUrl"
+     },
+     {
+      "description": "",
+      "label": "Description",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A short summary; GitHub takes 140 characters, so a longer one is shortened",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "description"
+     }
+    ],
+    "arguments": [
+     "github",
+     "setCommitStatus"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The status's ID",
+      "name": "statusId"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "set-github-commit-status"
+  },
+  {
+   "displayName": "Share Google Drive File",
+   "description": "Shares a Google Drive file or folder with a user, a group, a domain, or anyone with the link, with a service account.",
+   "category": "Google Drive",
+   "icon": "Add",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the key the workspace's Google integration shares; or paste a service account's whole JSON key file as-is",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     },
+     {
+      "description": "",
+      "label": "Share With",
+      "type": "select",
+      "options": [
+       {
+        "key": "user",
+        "value": "user"
+       },
+       {
+        "key": "group",
+        "value": "group"
+       },
+       {
+        "key": "domain",
+        "value": "domain"
+       },
+       {
+        "key": "anyone",
+        "value": "anyone"
+       }
+      ],
+      "required": true,
+      "placeholder": "",
+      "helpertext": "anyone means anyone with the link",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "type"
+     },
+     {
+      "description": "",
+      "label": "Role",
+      "type": "select",
+      "options": [
+       {
+        "key": "reader",
+        "value": "reader"
+       },
+       {
+        "key": "commenter",
+        "value": "commenter"
+       },
+       {
+        "key": "writer",
+        "value": "writer"
+       }
+      ],
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "role"
+     },
+     {
+      "description": "",
+      "label": "Email Address",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The user's or group's email; required to share with a user or group",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "emailAddress"
+     },
+     {
+      "description": "",
+      "label": "Domain",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The domain, e.g. acme.com; required to share with a domain",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "domain"
+     },
+     {
+      "description": "",
+      "label": "Send Notification Email",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Email a user or group that the file is shared with them",
+      "defaultValue": "true",
+      "readOnly": false,
+      "name": "sendNotificationEmail"
+     },
+     {
+      "description": "",
+      "label": "Email Message",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A message for the notification email",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "emailMessage"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "shareFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The new permission's ID",
+      "name": "permissionId"
+     },
+     {
+      "description": "The file's link in Drive",
+      "name": "webViewLink"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "share-google-drive-file"
+  },
+  {
+   "displayName": "Upload Google Drive File",
+   "description": "Uploads a workspace file to Google Drive with a service account. A service account has no Drive storage of its own, so upload into a shared drive folder it is a member of.",
+   "category": "Google Drive",
+   "icon": "Upload",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the key the workspace's Google integration shares; or paste a service account's whole JSON key file as-is",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "File",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The workspace file to upload, absolute or relative to /workspace",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "filePath"
+     },
+     {
+      "description": "",
+      "label": "Folder ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The ID of the Drive folder to upload into, in a shared drive",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "folderId"
+     },
+     {
+      "description": "",
+      "label": "File Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The name in Drive. Blank keeps the file's own name",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileName"
+     },
+     {
+      "description": "",
+      "label": "MIME Type",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The file's content type, e.g. text/csv. Blank lets Drive detect it",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "mimeType"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "uploadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The new file's ID",
+      "name": "fileId"
+     },
+     {
+      "description": "The file's name in Drive",
+      "name": "fileName"
+     },
+     {
+      "description": "The file's link in Drive",
+      "name": "webViewLink"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "upload-google-drive-file"
+  },
+  {
+   "displayName": "Upload SharePoint File",
+   "description": "Uploads a workspace file to a SharePoint document library through Microsoft Graph; a file over 4 MB goes through a resumable upload session. The app registration needs the Sites.ReadWrite.All or Files.ReadWrite.All application permission, or Sites.Selected with a grant on the site.",
+   "category": "SharePoint",
+   "icon": "Upload",
+   "version": 1,
+   "changelog": {
+    "reason": "First revision",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Tenant ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the tenant ID the workspace's Microsoft integration shares; or enter the Directory (tenant) ID of an Entra app registration",
+      "defaultValue": "$(workspace.params.microsoft-tenant-id)",
+      "readOnly": false,
+      "name": "tenantId"
+     },
+     {
+      "description": "",
+      "label": "Client ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client ID the workspace's Microsoft integration shares; or enter the app registration's Application (client) ID",
+      "defaultValue": "$(workspace.params.microsoft-client-id)",
+      "readOnly": false,
+      "name": "clientId"
+     },
+     {
+      "description": "",
+      "label": "Client Secret",
+      "type": "password",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Defaults to the client secret the workspace's Microsoft integration shares; or enter one of the app registration's. The task gets its own app-only Microsoft Graph token with it",
+      "defaultValue": "$(workspace.params.microsoft-client-secret)",
+      "readOnly": false,
+      "name": "clientSecret"
+     },
+     {
+      "description": "",
+      "label": "Site",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. https://contoso.sharepoint.com/sites/Engineering",
+      "helpertext": "The site's URL (any page under the site will do) or its Graph site ID",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "site"
+     },
+     {
+      "description": "",
+      "label": "Document Library",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The library's name, e.g. Documents. Blank is the site's default library",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "library"
+     },
+     {
+      "description": "",
+      "label": "File",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The workspace file to upload, absolute or relative to /workspace",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "filePath"
+     },
+     {
+      "description": "",
+      "label": "Folder",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The folder in the library, e.g. Releases/2026. Created if missing. Blank is the library's root",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "folder"
+     },
+     {
+      "description": "",
+      "label": "File Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The name in SharePoint. Blank keeps the file's own name",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileName"
+     },
+     {
+      "description": "",
+      "label": "If the File Exists",
+      "type": "select",
+      "options": [
+       {
+        "key": "replace",
+        "value": "replace"
+       },
+       {
+        "key": "fail",
+        "value": "fail"
+       },
+       {
+        "key": "rename",
+        "value": "rename"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "replace",
+      "readOnly": false,
+      "name": "conflictBehavior"
+     }
+    ],
+    "arguments": [
+     "sharepoint",
+     "uploadFile"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The uploaded item's ID",
+      "name": "itemId"
+     },
+     {
+      "description": "The file's SharePoint URL",
+      "name": "webUrl"
+     },
+     {
+      "description": "The file's name in SharePoint, which differs from File Name after a rename",
+      "name": "name"
+     }
+    ],
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "upload-sharepoint-file"
   }
  ]
 }
