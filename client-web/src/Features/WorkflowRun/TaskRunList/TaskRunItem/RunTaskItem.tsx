@@ -180,7 +180,7 @@ function RunTaskItem({
             renderIcon={Redo}
             size="sm"
           >
-            Retry from here
+            Retry
           </Button>
         )}
         {items.length > 0 && (

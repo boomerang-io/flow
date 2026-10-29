@@ -59,7 +59,7 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
           size="md"
           data-testid="add-members-button"
         >
-          Add Members
+          Add members
         </Button>
       )}
       composedModalProps={{ containerClassName: styles.modal }}

@@ -465,6 +465,14 @@ tag's release notes.
 - Insights scrolls once, with every panel at full height: its results scrolled inside the page and squeezed each
   panel to its title. The runs-per-day chart loads its styles, and the Task runs fields stand out on their panel.
 - A scrolling modal's last field clears the fade at its bottom once scrolled to the end.
+- A schedule's "Runs every…" summary and the retry modal's warnings scroll with their form; they were pinned over the
+  fade at the bottom of the modal.
+- A schedule row's Edit, Disable or Enable, and Delete are icon buttons, and the toggle names what it will do; a
+  completed schedule said Disable and then asked to enable it.
+- The Parameters toolbar matches the Schedules toolbar: a 40px search and Add parameter.
+- A task row's retry is "Retry", on one line; the retry modal says which task it starts from.
+- A quota card grows to fit its usage note instead of running past its edge. "Add members" and "Add existing
+  members" are sentence case.
 - A parameter's Edit, Copy reference and Delete are icon buttons with tooltips; the row menu opened under the next
   row's.
 - The Schedules toolbar's controls share one height, "Upcoming" fits its switch, and an empty list shows the empty

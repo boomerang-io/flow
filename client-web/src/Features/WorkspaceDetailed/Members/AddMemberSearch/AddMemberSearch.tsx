@@ -31,7 +31,7 @@ function AddMemberSearch({ memberList, handleSubmit, isSubmitting, error }: AddM
           size="md"
           data-testid="add-members-button"
         >
-          Add Existing Members
+          Add existing members
         </Button>
       )}
       composedModalProps={{ containerClassName: styles.modal }}

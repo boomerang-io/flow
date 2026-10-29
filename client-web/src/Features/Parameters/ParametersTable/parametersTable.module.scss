@@ -51,3 +51,18 @@
 .deleteAction {
   --cds-icon-primary: var(--cds-support-error);
 }
+
+.toolbar {
+  align-items: center;
+  background: var(--cds-layer);
+  border-bottom: 1px solid var(--cds-border-subtle);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 3rem;
+  padding: 0.25rem;
+}
+
+.search {
+  width: 20rem;
+}

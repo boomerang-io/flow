@@ -16,16 +16,17 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
         <div
           class="cds--data-table-container"
         >
-          <section
+          <div
             aria-label="Parameters toolbar"
-            class="cds--table-toolbar"
+            class="_toolbar_9d297e"
+            role="toolbar"
           >
             <div
-              class="cds--toolbar-content"
+              class="cds--layer-two _search_9d297e"
             >
               <div
                 aria-label="Search parameters"
-                class="cds--search cds--search--lg cds--toolbar-search-container-persistent"
+                class="cds--search cds--search--md"
                 role="search"
               >
                 <div
@@ -50,18 +51,17 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                 </div>
                 <label
                   class="cds--label"
-                  for="table-toolbar-search-[generated-id]"
-                  id="table-toolbar-search-[generated-id]-search"
+                  for="parameters-search"
+                  id="parameters-search-search"
                 >
-                  Filter table
+                  Search parameters
                 </label>
                 <input
                   autocomplete="off"
                   class="cds--search-input"
-                  id="table-toolbar-search-[generated-id]"
+                  id="parameters-search"
                   placeholder="Search parameters"
                   role="searchbox"
-                  tabindex="0"
                   type="text"
                   value=""
                 />
@@ -87,30 +87,30 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                   </svg>
                 </button>
               </div>
-              <button
-                class="cds--btn cds--btn--primary"
-                data-testid="create-parameter-button"
-                type="button"
-              >
-                Add parameter
-                <svg
-                  aria-hidden="true"
-                  class="cds--btn__icon"
-                  fill="currentColor"
-                  focusable="false"
-                  height="16"
-                  preserveAspectRatio="xMidYMid meet"
-                  viewBox="0 0 32 32"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
-                  />
-                </svg>
-              </button>
             </div>
-          </section>
+            <button
+              class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+              data-testid="create-parameter-button"
+              type="button"
+            >
+              Add parameter
+              <svg
+                aria-hidden="true"
+                class="cds--btn__icon"
+                fill="currentColor"
+                focusable="false"
+                height="16"
+                preserveAspectRatio="xMidYMid meet"
+                viewBox="0 0 32 32"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M17 15 17 8 15 8 15 15 8 15 8 17 15 17 15 24 17 24 17 17 24 17 24 15z"
+                />
+              </svg>
+            </button>
+          </div>
           <div
             class="cds--data-table-content"
           >

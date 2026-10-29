@@ -13,7 +13,8 @@
 .cardContainer {
   background: var(--cds-ui-01);
   padding: 1.5rem;
-  height: 15.0625rem;
+  // A floor, not a fixed height: a card with a usage note grows, and its row grows with it.
+  min-height: 15.0625rem;
   width: 20.625rem;
 }
 

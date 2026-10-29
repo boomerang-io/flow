@@ -252,11 +252,10 @@ describe("Schedules --- loader", () => {
     await screen.findByText("Trigger");
     const initialSchedulesRequests = schedulesRequests;
 
-    // Cards sort by name (Daily event, Deleted Daily event, Trigger) - index 2 is "Trigger",
-    // the one active schedule, whose menu therefore offers "Disable". The menu button's
-    // accessible name is its iconDescription tooltip (see SchedulePanelList.spec.tsx).
-    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[2]);
-    await userEvent.click(await screen.findByText("Disable"));
+    // "Trigger" is the one active schedule, so its row's Disable is the only one enabled.
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Disable" }).find((button) => !(button as HTMLButtonElement).disabled)!,
+    );
 
     expect(await screen.findByText("Disable Schedule?")).toBeInTheDocument();
     const disableButtons = screen.getAllByRole("button", { name: "Disable", hidden: true });

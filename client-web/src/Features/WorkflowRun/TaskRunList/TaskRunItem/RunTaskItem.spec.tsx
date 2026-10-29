@@ -167,7 +167,7 @@ describe("TaskItem --- Attempts and reason", () => {
 
 // A scoped retry starts from a task row, and marks the rows it carried over from the origin.
 describe("TaskItem --- Retry from", () => {
-  it("offers 'Retry from here' on a finished task when the page can open the retry modal", () => {
+  it("offers Retry on a finished task when the page can open the retry modal", () => {
     const onRetryFrom = vi.fn();
     renderWithRouter(<TaskItem {...props} onRetryFrom={onRetryFrom} />);
 

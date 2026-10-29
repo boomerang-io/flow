@@ -105,9 +105,14 @@
   width: 23.5rem;
 }
 
+// The add-ons pin a modal form's inline notifications above the footer, for submit errors; this one
+// is part of the form, so it stays in the flow and scrolls with it.
 .summary {
   margin-top: 1rem;
-  max-width: 100%;
+  bottom: auto !important;
+  max-width: 100% !important;
+  position: relative !important;
+  width: 100% !important;
 }
 
 .parameters {

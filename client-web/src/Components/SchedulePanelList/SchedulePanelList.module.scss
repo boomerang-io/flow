@@ -90,8 +90,20 @@
 }
 
 .actionsCell {
+  // The table clips its cells; the action buttons' tooltips open past this one's edge.
+  overflow: visible !important;
   text-align: right;
-  width: 3rem;
+  width: 7.5rem;
+}
+
+.rowActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Carbon fills a ghost icon button's icon with the primary icon token; this one draws in the error colour.
+.deleteAction {
+  --cds-icon-primary: var(--cds-support-error);
 }
 
 .listItemSkeleton {

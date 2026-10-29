@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  IconButton,
   Layer,
   MultiSelect,
-  OverflowMenu,
-  OverflowMenuItem,
   Search,
   SkeletonPlaceholder,
   Table,
@@ -16,6 +15,7 @@ import {
 } from "@carbon/react";
 import { ConfirmModal, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
 import EmptyState from "Components/EmptyState";
+import { Edit, PauseOutline, PlayOutline, TrashCan } from "@carbon/react/icons";
 import { matchSorter } from "match-sorter";
 import moment from "moment-timezone";
 import { useFetcher } from "react-router-dom";
@@ -318,35 +318,46 @@ function ScheduleRowActions(props: ScheduleRowActionsProps) {
     toggleFetcher.submit({ intent: "toggleSchedule", schedule: JSON.stringify(body) }, { method: "post" });
   };
 
-  // Set up the Oveflow menu options
-  let menuOptions = [
-    {
-      itemText: "Edit",
-      onClick: () => {
-        props.setActiveSchedule(props.schedule);
-        props.setIsEditorOpen(true);
-      },
-    },
-    {
-      disabled: props.schedule.status === "trigger_disabled" || props.schedule.status === "error",
-      itemText: props.schedule.status === "inactive" ? "Enable" : "Disable",
-      onClick: () => setIsToggleStatusModalOpen(true),
-    },
-    {
-      hasDivider: true,
-      itemText: "Delete",
-      isDelete: true,
-      onClick: () => setIsDeleteModalOpen(true),
-    },
-  ];
+  // A schedule the trigger switch or an error stopped cannot be toggled from here.
+  const canToggle = props.schedule.status !== "trigger_disabled" && props.schedule.status !== "error";
 
   return (
     <>
-      <OverflowMenu align="left" flipped aria-label="Schedule menu" iconDescription="Schedule menu icon" size="md">
-        {menuOptions.map(({ onClick, itemText, ...rest }, index) => (
-          <OverflowMenuItem onClick={onClick} itemText={itemText} key={`${itemText}-${index}`} {...rest} />
-        ))}
-      </OverflowMenu>
+      {/* Tooltips open to the left: the table clips anything above the row. */}
+      <div className={styles.rowActions} data-testid="schedule-actions">
+        <IconButton
+          kind="ghost"
+          label="Edit"
+          size="sm"
+          align="left"
+          onClick={() => {
+            props.setActiveSchedule(props.schedule);
+            props.setIsEditorOpen(true);
+          }}
+        >
+          <Edit />
+        </IconButton>
+        <IconButton
+          disabled={!canToggle}
+          kind="ghost"
+          label={isActive ? "Disable" : "Enable"}
+          size="sm"
+          align="left"
+          onClick={() => setIsToggleStatusModalOpen(true)}
+        >
+          {isActive ? <PauseOutline /> : <PlayOutline />}
+        </IconButton>
+        <IconButton
+          className={styles.deleteAction}
+          kind="ghost"
+          label="Delete"
+          size="sm"
+          align="left"
+          onClick={() => setIsDeleteModalOpen(true)}
+        >
+          <TrashCan />
+        </IconButton>
+      </div>
       {isToggleStatusModalOpen && (
         <ConfirmModal
           affirmativeAction={handleToggleStatus}

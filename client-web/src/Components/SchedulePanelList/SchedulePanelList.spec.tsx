@@ -143,10 +143,8 @@ describe("SchedulePanelList", () => {
 
     renderList();
 
-    // Two cards render, one overflow menu each (accessible name = the iconDescription tooltip,
-    // not the ariaLabel prop); list is name-sorted so index 0 = "Nightly Backup" (id "1").
-    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[0]);
-    await userEvent.click(await screen.findByText("Delete"));
+    // Each row has its own Delete button; the list is name-sorted, so index 0 = "Nightly Backup" (id "1").
+    await userEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
 
     expect(await screen.findByText("Delete Schedule?")).toBeInTheDocument();
     // The affirmative button is kind="danger", and Carbon's danger buttons prepend a hidden
@@ -169,9 +167,8 @@ describe("SchedulePanelList", () => {
 
     renderList();
 
-    // "Nightly Backup" (id "1") is active, so its menu offers "Disable".
-    await userEvent.click(screen.getAllByRole("button", { name: "Schedule menu icon" })[0]);
-    await userEvent.click(await screen.findByText("Disable"));
+    // "Nightly Backup" (id "1") is active, so its row offers "Disable".
+    await userEvent.click(screen.getAllByRole("button", { name: "Disable" })[0]);
 
     expect(await screen.findByText("Disable Schedule?")).toBeInTheDocument();
     // Same last-match click as the delete test above.

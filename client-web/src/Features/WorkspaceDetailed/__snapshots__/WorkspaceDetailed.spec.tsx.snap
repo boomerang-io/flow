@@ -285,7 +285,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               data-testid="add-members-button"
               type="button"
             >
-              Add Existing Members
+              Add existing members
               <svg
                 aria-hidden="true"
                 aria-label="Add members"
@@ -309,7 +309,7 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
               data-testid="add-members-button"
               type="button"
             >
-              Add Members
+              Add members
               <svg
                 aria-hidden="true"
                 aria-label="Add members"

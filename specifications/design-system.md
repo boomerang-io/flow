@@ -148,13 +148,14 @@ Content switchers are Boomerang blue, not the theme's inverse ink: one rule poin
 ### Parameters
 
 Workflow, workspace and global parameters share one table
-(`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,90-96`): Name first in monospace (what tasks
-type), Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured
-tag, Description, and icon buttons rather than a menu: a pencil for Edit, a copy icon for Copy reference and a trash
-can in the error colour for Delete, each with a tooltip that opens left because the table clips above the row; a
-read-only parameter keeps only Copy reference (`:146-172`). Search and Add parameter sit in the
-table toolbar. The workflow has its own modal and the workspace and global scopes share one; both are titled "Edit
-parameter" or "Add parameter" (`src/Features/WorkflowEditor/Parameters/PropertiesModal/PropertiesModal.tsx:24`,
+(`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,90-96`): Name first in monospace (what tasks type),
+Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured tag,
+Description, and icon buttons rather than a menu: a pencil for Edit, a copy icon for Copy reference and a trash can in
+the error colour for Delete, each with a tooltip that opens left because the table clips above the row; a read-only
+parameter keeps only Copy reference (`:145-171`). Above the table, the Schedules list's toolbar: a layered search and
+Add parameter at one height (`:193`). The workflow has its own modal and the workspace and global scopes share one; both
+are titled "Edit parameter" or "Add parameter"
+(`src/Features/WorkflowEditor/Parameters/PropertiesModal/PropertiesModal.tsx:24`,
 `src/Features/Parameters/CreateEditParametersModal/CreateEditParametersModal.tsx:73`), show the name as text with its
 reference once it exists (`$(params.x)`, `$(workspace.params.x)`, `$(global.params.x)`), and treat the label as
 optional, falling back to the name. The workflow modal previews the field a run shows.
@@ -164,11 +165,12 @@ optional, falling back to the name. The workflow modal previews the field a run 
 A workflow's Schedules tab and the workspace Schedules page share `src/Components/ScheduleViews`: a content switcher
 over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30 days), Week and
 Month (`ScheduleViews.tsx:13-23`). The list's toolbar holds the search, the status filter, the switcher and Create
-schedule at one height (`ScheduleViews.tsx:88-103`), and an empty list shows `EmptyState`
-(`src/Components/SchedulePanelList/SchedulePanelList.tsx:97,119`). The calendar views share a toolbar: Today as a ghost button with the calendar icon,
-then previous, next and the dates shown (`ScheduleViews.tsx:142-150`). The schedule form's When offers Once, Hourly,
-Daily, Weekdays, Weekly and Custom (cron), stored as the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`),
-with a line under the time zone saying what will happen and when it next runs.
+schedule at one height (`ScheduleViews.tsx:88-103`); a row's Edit, Disable or Enable, and Delete are icon buttons, as on
+the parameters table (`src/Components/SchedulePanelList/SchedulePanelList.tsx:327`), and an empty list shows
+`EmptyState` (`:97,119`). The calendar views share a toolbar: Today as a ghost button with the calendar icon, then
+previous, next and the dates shown (`ScheduleViews.tsx:142-150`). The schedule form's When offers Once, Hourly, Daily,
+Weekdays, Weekly and Custom (cron), stored as the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`), with a
+line under the time zone saying what will happen and when it next runs.
 
 ### Task parameter inputs
 

@@ -4,11 +4,10 @@ import {
   DataTable,
   DataTableSkeleton,
   IconButton,
+  Layer,
   Pagination,
+  Search,
   Tag,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
 } from "@carbon/react";
 import { Add, Copy, Edit, TrashCan } from "@carbon/react/icons";
 import { ConfirmModal, Error, ToastNotification, notify } from "@boomerang-io/carbon-addons-boomerang-react";
@@ -190,21 +189,24 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
             headers={headers}
             render={({ rows, headers, getHeaderProps }: { rows: any; headers: any; getHeaderProps: any }) => (
               <TableContainer>
-                <TableToolbar aria-label="Parameters toolbar">
-                  <TableToolbarContent>
-                    <TableToolbarSearch
-                      persistent
+                {/* The Schedules list's toolbar: a layered search and the primary action, one height. */}
+                <div className={styles.toolbar} aria-label="Parameters toolbar" role="toolbar">
+                  <Layer className={styles.search}>
+                    <Search
+                      id="parameters-search"
+                      labelText="Search parameters"
                       placeholder="Search parameters"
-                      onChange={(event: any) => {
-                        setQuery(event?.target?.value ?? "");
+                      size="md"
+                      onChange={(event: { target: HTMLInputElement }) => {
+                        setQuery(event.target.value ?? "");
                         setPage(1);
                       }}
                     />
-                    <Button data-testid="create-parameter-button" renderIcon={Add} onClick={onAdd}>
-                      Add parameter
-                    </Button>
-                  </TableToolbarContent>
-                </TableToolbar>
+                  </Layer>
+                  <Button data-testid="create-parameter-button" renderIcon={Add} size="md" onClick={onAdd}>
+                    Add parameter
+                  </Button>
+                </div>
                 {filtered.length > 0 ? (
                   <Table isSortable className={styles.table}>
                     <TableHead>

@@ -610,7 +610,7 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                   data-testid="retry-from-task"
                   type="button"
                 >
-                  Retry from here
+                  Retry
                   <svg
                     aria-hidden="true"
                     class="cds--btn__icon"

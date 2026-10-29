@@ -20,7 +20,7 @@ import styles from "./RetryRunModal.module.scss";
 type Props = {
   workflowRun: WorkflowRun;
   isOpen: boolean;
-  // Task names preselected under "from selected tasks" - a task row's "Retry from here" passes
+  // Task names preselected under "from selected tasks" - a task row's Retry passes
   // its own; the header passes none.
   initialNodes: Array<string>;
   onClose: () => void;
@@ -117,6 +117,12 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
         <ModalFlowForm onSubmit={handleSubmit}>
           <ModalBody>
             {isSubmitting && <Loading />}
+            {initialNodes.length > 0 && (
+              <p className={styles.from} data-testid="retry-from">
+                Starting from <strong>{initialNodes.join(", ")}</strong>: the tasks before it keep their results, and it
+                and everything after it run again. Choose another option below to retry differently.
+              </p>
+            )}
             <RadioButtonGroup
               legendText="Re-run"
               name="retry-scope"

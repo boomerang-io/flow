@@ -4,7 +4,16 @@
   margin-top: $spacing-05;
 }
 
+// The add-ons pin a modal form's inline notifications above the footer, for submit errors; these
+// warnings are part of the choice, so they stay in the flow and scroll with it.
 .notice {
   margin-top: $spacing-05;
-  max-width: 100%;
+  bottom: auto !important;
+  max-width: 100% !important;
+  position: relative !important;
+  width: 100% !important;
+}
+
+.from {
+  margin-bottom: $spacing-05;
 }
