@@ -219,7 +219,8 @@ public class UserService {
     return names;
   }
 
-  private static String displayName(String displayName, String name) {
+  /** The name a user reads by: their display name, or their name when they have none. */
+  public static String displayName(String displayName, String name) {
     return (displayName == null || displayName.isBlank()) ? name : displayName;
   }
 
