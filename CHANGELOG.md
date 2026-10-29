@@ -279,6 +279,9 @@ tag's release notes.
 
 ### Changed
 
+- The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
+  runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
+  pins `flow.dispatcher.artifact.image` keeps their own value.
 - Outside a workspace (Home, Admin, Profile) the side navigation points at the last workspace opened in this
   browser, while you can still open it; its workspace links were disabled until a workspace was chosen.
 - A sleep and an acquire-lock retry end within about a second of their due time
