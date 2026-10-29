@@ -465,6 +465,8 @@ tag's release notes.
 
 ### Fixed
 
+- A workflow's changelog, and the editor that reads it, no longer fail with a 500 when a version's author is a
+  user with no display name, as a user signed in through a provider that sends none; the author reads by name.
 - A task param named after a workflow param passes it through again: `url: $(params.url)` reads the workflow's `url`,
   as in v3. Task param values resolve from the global, workspace, workflow and context layers only, and the task's
   own params are read by its spec; upgraded v3 workflows and the seeded Summarise and MongoDB templates failed

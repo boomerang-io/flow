@@ -479,10 +479,9 @@ public class TaskService {
     if (changelog != null && changelog.getAuthor() != null) {
       Optional<User> user = userService.getUserByID(changelog.getAuthor());
       if (user.isPresent()) {
+        // The one rule for a user's name, shared with the run initiator names.
         changelog.setAuthor(
-            user.get().getDisplayName().isEmpty()
-                ? user.get().getName()
-                : user.get().getDisplayName());
+            UserService.displayName(user.get().getDisplayName(), user.get().getName()));
       }
       // Not a user id: the author is a token's name (or a pre-existing non-user id) stamped by
       // stampChangeLog - keep it as recorded rather than masking it.

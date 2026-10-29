@@ -63,6 +63,33 @@ class WorkflowChangelogAuthorTest extends AbstractEngineIntegrationTest {
         .containsExactly("Grace Hopper");
   }
 
+  @Test
+  void aUserWithoutADisplayNameReadsByName() {
+    String suffix = UUID.randomUUID().toString().substring(0, 8);
+    WorkspaceRequest workspaceRequest = new WorkspaceRequest();
+    workspaceRequest.setName("changelog-noname-" + suffix);
+    workspaceRequest.setDisplayName(workspaceRequest.getName());
+    String workspace = workspaceService.create(workspaceRequest).getName();
+
+    // A provider that sends no display name, as the local identity picker does.
+    UserEntity user = new UserEntity();
+    user.setName("ada-" + suffix + "@example.com");
+    user.setEmail(user.getName());
+    String userId = userRepository.save(user).getId();
+    relationshipService.createNode(RelationshipType.USER, userId, user.getName(), Optional.empty());
+    relationshipService.createEdge(
+        RelationshipType.USER, userId, RelationshipLabel.MEMBER_OF, RelationshipType.WORKSPACE, workspace, Optional.empty());
+    signInAs(userId);
+
+    Workflow request = new Workflow();
+    request.setName("changelog-noname-" + suffix);
+    Workflow created = workflowService.create(workspace, request);
+
+    assertThat(workflowService.changelog(workspace, created.getName()).getBody())
+        .extracting(ChangeLogVersion::getAuthor)
+        .containsExactly(user.getName());
+  }
+
   private static void signInAs(String userId) {
     Token principal = new Token(AuthScope.session);
     principal.setPrincipal(userId);
