@@ -323,7 +323,7 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 ## Catalogue
 
 Catalogue tasks are built from the `boomerang-io/tasks` monorepo into the `boomerangio/task-flow` image. The
-migrations seed 105 tasks and their 205 revisions from `service-core/src/main/resources/seed/tasks.json` and
+migrations seed 105 tasks and their 217 revisions from `service-core/src/main/resources/seed/tasks.json` and
 `task-revisions.json` (`migration/_0017__SeedTaskCatalogue.java`), and the two artifact tasks from their own change
 unit (`migration/_0018__SeedArtifactTasks.java`). A seed inserts only what is absent, so a task or revision added to
 the seed later needs a change unit of its own to reach an existing database (`data-model.md`, "Migrations"). A

@@ -279,6 +279,13 @@ tag's release notes.
 
 ### Changed
 
+- The Google Sheets (revision 4) and Drive (revision 3) tasks default their service-account key to
+  `$(workspace.params.google-service-account-key)`, the Google integration's parameter, as the Drive file tasks
+  do. A workflow moves when it is upgraded in the editor. Upgraded, a node that still signs in with Client Email
+  and Private Key in a workspace without the Google integration fails at admission with no such workspace
+  parameter, and the editor warns at save; type the key into Service Account Key, or connect Google. Where the
+  workspace has the parameter, its key is used ahead of Client Email and Private Key. Change unit
+  `_0037__SeedGoogleKeyDefaultRevisions` adds the revisions to existing installs.
 - A catalogue task without an image of its own runs on `boomerangio/task-flow:3.3.0` (the `task` settings'
   `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. 3.3.0 runs on a patched
   base, and fixes the mail, ServiceNow and Slack tasks, which failed when `HTTP_PROXY` was set, and JSONPath To

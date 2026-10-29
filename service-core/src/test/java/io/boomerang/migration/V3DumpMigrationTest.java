@@ -674,9 +674,10 @@ class V3DumpMigrationTest {
     // the ai-prompt and ai-agent tasks' versions 1 and 2, the 13 Slack tasks' password-credential
     // revisions, the 17 GitHub and 10 Slack tasks' revisions defaulting to their integration's
     // workspace parameters, the SendGrid template task's version 3, and task-flow 3.3.0's 16 new
-    // tasks and 14 new Sheets, Drive and Artifactory revisions) and the two artifact tasks' version 1
-    // (_0018__SeedArtifactTasks).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(209);
+    // tasks and 14 new Sheets, Drive and Artifactory revisions, and the 12 Sheets and Drive revisions
+    // defaulting their key to the Google integration's parameter) and the two artifact tasks'
+    // version 1 (_0018__SeedArtifactTasks).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(221);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
