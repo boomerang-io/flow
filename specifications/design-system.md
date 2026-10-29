@@ -47,11 +47,11 @@ A module stylesheet `@use`s the Carbon module it needs (`@carbon/react/scss/colo
 
 ### 2. Boomerang brand palette (`@boomerang-io/styles`)
 
-The brand ramps are SCSS variables in `@boomerang-io/styles/lib/_colors.scss`, each in graded steps `1…90`: aqua,
-blue, cerulean, cool-gray, cool-white, gold, gray, green, indigo, lime, magenta, neutral-white, orange, peach, purple,
-red, teal, ultramarine, violet, warm-gray, warm-white and yellow (for example `$cerulean-90` is `#1b2834`, `$teal-1`
-is `#c0f5e8`). The theme's interactive and link colour is blue (`#0072c3`); Flow's purple accent is `--flow-switch-primary` (below).
-Carbon's palette is used the same way (`@use "@carbon/react/scss/colors";`, then `colors.$cool-gray-20`).
+The brand ramps are SCSS variables in `@boomerang-io/styles/lib/_colors.scss`, in steps `1…90`: aqua, blue,
+cerulean, cool-gray, cool-white, gold, gray, green, indigo, lime, magenta, neutral-white, orange, peach, purple, red,
+teal, ultramarine, violet, warm-gray, warm-white and yellow (for example `$cerulean-90` is `#1b2834`, `$teal-1` is
+`#c0f5e8`). The theme's interactive and link colour is blue (`#0072c3`); Flow's purple accent is `--flow-switch-primary`
+(below). Carbon's palette is used the same way (`@use "@carbon/react/scss/colors";`, then `colors.$cool-gray-20`).
 
 `pnpm run lint:style` runs stylelint's `color-no-hex` over `src/**/*.{scss,css}` and fails the `typecheck` job of the
 web CI workflow on any hex outside `src/Styles/_variables.scss` (`stylelint.config.mjs`, `package.json:14`,
@@ -176,9 +176,9 @@ line under the time zone saying what will happen and when it next runs.
 
 A catalogue task's parameters are rendered generically: the editor's config modal hands `task.spec.params` to the
 add-ons' `DynamicFormik` (`src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:74,101-119`),
-whose `DataDrivenInput` dispatches on each parameter's `type`. The form swaps in local wrappers for text inputs, text
-areas and editors (`TaskForm.tsx:111-115`). The type vocabulary is `InputType` (`src/Constants/index.ts:91-109`); the
-Task Manager's add and edit field form offers that list plus `time`
+whose `DataDrivenInput` dispatches on each parameter's `type`, with local wrappers for text inputs, text areas and
+editors (`TaskForm.tsx:111-115`). The vocabulary is `InputType` (`src/Constants/index.ts:91-109`); the Task Manager's
+field form offers it plus `time`
 (`src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:23-39`).
 
 | Input type | Renders as | Notes |
@@ -191,17 +191,14 @@ Task Manager's add and edit field form offers that list plus `time`
 | `texteditor`, `texteditor::{javascript,shell,text,yaml}` | `TextEditorModal` | Syntax mode from the suffix. |
 | `slider` | `src/Components/Slider/Slider.tsx:49` | Carbon `Slider` plus a number input; reads `min`/`max`/`step`. |
 
-`DataDrivenInput` has no branch for `slider`, so a slider parameter is routed to the local component through its
-`customComponent` escape hatch (`src/Utils/paramsHelper.ts:35-39`). Two rules hold for it:
+`DataDrivenInput` has no branch for `slider`, so a slider parameter reaches the local component through its
+`customComponent` escape hatch (`src/Utils/paramsHelper.ts:35-39`). It writes its value back as a **string**, like every
+parameter (`src/Components/Slider/SliderInput.tsx:59`), clamped to `[min, max]` and snapped to `step` with the
+floating-point residue of fractional steps trimmed (`src/Components/Slider/Slider.tsx:23-27,82-95`).
 
-- The value is written back to the form as a **string**, like every other parameter value
-  (`src/Components/Slider/SliderInput.tsx:59`).
-- The value is clamped to `[min, max]` and snapped to `step`, with the floating-point residue of fractional steps
-  trimmed (`src/Components/Slider/Slider.tsx:23-27,82-95`).
-
-`min`, `max` and `step` are nullable numbers on the parameter model (`src/Types/index.tsx:151-156`), mirroring the
-backend's; only `slider` uses all three, the field form shows them for that type alone and seeds 0 to 100 in steps of
-1 (`TemplateConfigModalContent.tsx:42,85-89,177`).
+`min`, `max` and `step` are nullable numbers on the parameter model (`src/Types/index.tsx:151-156`), as on the backend;
+only `slider` uses all three, and the field form shows them for that type alone, seeding 0 to 100 in steps of 1
+(`TemplateConfigModalContent.tsx:42,85-89,177`).
 
 ### Task palette icons and categories
 
@@ -230,15 +227,13 @@ accent (`src/Features/Reactflow/components/Ai/AiNode.module.scss:6-8`). A new no
 
 ### Task configuration modal
 
-The task edit modal is the add-ons `ComposedModal` at its default size, laid out the way Carbon's tearsheet lays out
-a header so the fields get the height: the title `Edit <task>`, the task's description on one line (clipped with an
-ellipsis, the full text as the line's `title`;
-`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:111-119`), then a header block every task
-form shares (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:38-60`): the **Task name** field, always
-editable, and the tab list flush against the block's bottom border. The body has no padding above the block (each
-form's `.container` zeroes it), and the tab panel starts one spacing step (`$spacing-05`) below the bar. By Carbon's
-tokens the first field starts about 212 px down (255 px before): modal header padding 16, title 28, description
-12 + 20, header margin 16, name 64 (label 16 + 8, input 40), tab bar 40, panel 16.
+The task edit modal is the add-ons `ComposedModal` at its default size, laid out like Carbon's tearsheet header so the
+fields get the height: the title `Edit <task>`, the description on one line (clipped, the full text as its `title`;
+`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:111-119`), then the header block every task
+form shares (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:38-60`): the always-editable **Task name** field
+and the tab list flush against the block's bottom border. The body has no padding above the block (each form's
+`.container` zeroes it) and the tab panel starts `$spacing-05` below the bar, so the first field starts about 212 px
+down (255 px before).
 
 | Tab | Shown for | Holds |
 | --- | --- | --- |
@@ -246,9 +241,8 @@ tokens the first field starts about 212 px down (255 px before): modal header pa
 | Configure | a type that can run for each item (`template`, `script`, `custom`, `ai`, `generic`, `uploadartifact`, `downloadartifact`; `src/Features/Reactflow/components/shared/foreach.ts:24-32`) | how the task runs ("Run for each item") |
 | Results | a task whose catalogue entry declares results | each result's name in monospace and its description, read-only (`TaskFormTabs.tsx`, `ResultsList`) |
 
-A type with no Configure tab and no declared results has no tab bar: the name alone above its inputs.
-
-- The tabs sit inside the one `ModalForm`/`DynamicFormik` form, so Apply saves every tab and validation is shared.
+- The tabs sit inside one `ModalForm`/`DynamicFormik` form, so Apply saves every tab and validation is shared. A type
+  with no Configure tab and no declared results has no tab bar: the name alone above its inputs.
 - A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each") while a setting on
   that tab is on, and a `WarningFilled` icon in the error colour, with an `aria-label` "<Tab> has an error", while
   one of its fields is invalid. Apply never fails for a reason on a tab the user is not looking at.
@@ -305,10 +299,10 @@ colours reads them off the status tokens at mount (`src/Features/Insights/status
 
 ## Motion
 
-Flow is a productivity tool used many times a day, so motion is decided by frequency before it is styled: an
-interaction a person triggers constantly gets no animation, a daily one gets a fast subtle one, and only first-run
-or empty-state moments may be expressive. New motion takes its values from Carbon's motion tokens; some older
-stylesheets still carry literal durations (`src/Components/CreateWorkflow/CreateWorkflowContent/createWorkflow.module.scss:35`).
+Flow is a productivity tool used many times a day, so motion is decided by frequency before it is styled: an interaction
+a person triggers constantly gets no animation, a daily one gets a fast subtle one, and only first-run or empty-state
+moments may be expressive. New motion takes its values from Carbon's motion tokens; some older stylesheets still carry
+literal durations (`src/Components/CreateWorkflow/CreateWorkflowContent/createWorkflow.module.scss:35`).
 
 | Rule | Value | Where |
 | --- | --- | --- |
@@ -346,59 +340,52 @@ slower, what fails and why, where does the time go. In `src/Features/Insights/`:
 | Duration spread | A p5 to p95 bar with a p50 mark on a log scale, the run timeout marked, in place of a scatter of every run (`DurationSpread.tsx`) |
 | Task runs | The period's task runs grouped by task, task type, workflow, model, for-each item or a run label, over the whole period or per hour, day or month: runs, failures, mean, p50, p95 and max duration, and tokens and cost where reported (`TaskBreakdown.tsx:17-39`) |
 
-The chart library takes literal colours, so the outcome colours are read off the status tokens at mount with the
-theme's values as fallbacks (`statusColors.ts`); everything else is tokens. Outcomes with no runs stay out of
-legends. Run labels are a typed `key=value` filter beside the others, applied on Enter or blur so typing does not
-reload the page (`Insights.tsx:420-436`).
+The chart library takes literal colours, so the outcome colours are read off the status tokens at mount, with the
+theme's values as fallbacks (`statusColors.ts`); everything else is tokens, and outcomes with no runs stay out of
+legends. Run labels are a typed `key=value` filter, applied on Enter or blur so typing does not reload the page
+(`Insights.tsx:420-436`).
 
 ### Admin
 
-The platform's administration is one side-nav link, "Admin" with the cog, to one tabbed page
-(`src/Features/Manage/Manage.tsx`); the server sends the single link below a divider, set apart from the
-workspace's own "Manage workspace" link (`service-core/src/main/java/io/boomerang/core/NavigationService.java:158-179`). The tabs are Settings, Workspaces,
-Users, Parameters, Tokens, Tasks and Audit, each a nested route with its own loader (`app/routes.ts:53-62`), shown
-only when the caller's grants and the feature flags allow it (`src/Features/Manage/manageTabs.ts:29-35`); the area's
-root sends the caller to the first tab they may see. The layout's header carries the breadcrumb, the title and the
-tab row, so a tab's page starts with its controls and carries no header or description of its own. A user's detail
+The platform's administration is one side-nav link, "Admin" with the cog, below a divider that sets it apart from the
+workspace's "Manage workspace" (`service-core/src/main/java/io/boomerang/core/NavigationService.java:158-179`), to one
+tabbed page (`src/Features/Manage/Manage.tsx`): Settings, Workspaces, Users, Parameters, Tokens, Tasks and Audit, each a
+nested route with its own loader (`app/routes.ts:53-62`), shown only when the caller's grants and the feature flags
+allow it (`src/Features/Manage/manageTabs.ts:29-35`); the root sends the caller to the first tab they may see. The
+layout's header carries the breadcrumb, title and tab row, so a tab's page starts with its controls. A user's detail
 page stays outside the tabs, titled with the user's name (`app/routes.ts:63`).
 
 Two tabs have their own shape:
 
-- **Settings** is one group at a time (`/admin/settings/:group`): the groups in a left section list
-  (`FeatureSideNav`, the same component the workflow Configure screen uses), the selected group's name and
-  description above a single-column form at a readable width, and a save bar at the bottom that wakes up only when
-  something changed (`src/Features/Settings/SettingsSection/SettingsSection.tsx`). A group's name is a plain noun for
-  what it controls (Quotas, Integrations, Run limits) and its description one sentence; both come from the seeded
-  settings document, not the client.
-- **Audit** follows the list-page style: count tiles (`src/Components/StatTile`), the capture configuration as one
-  line linking to Settings, the labelled filter row with the date range on the right, and the table in a rounded
-  panel with the outcome as an icon plus its name, and actions and levels in sentence case
-  (`src/Features/Audit/Audit.tsx`).
+- **Settings** is one group at a time (`/admin/settings/:group`): the groups in a left section list (`FeatureSideNav`,
+  as on the workflow Configure screen), the group's name and description above a single-column form, and a save bar at
+  the bottom that wakes only when something changed (`src/Features/Settings/SettingsSection/SettingsSection.tsx`). A
+  group's name is a plain noun (Quotas, Integrations, Run limits) and its description one sentence, both seeded.
+- **Audit** follows the list-page style: count tiles (`src/Components/StatTile`), the capture configuration as one line
+  linking to Settings, the labelled filter row, and the table in a rounded panel with the outcome as an icon plus its
+  name (`src/Features/Audit/Audit.tsx`).
 
-Workflow templates have no page in the product: they are seeded content, listed on Home, and their catalogue lives
-in the public docs.
+Workflow templates have no page: they are seeded content, listed on Home, with their catalogue in the public docs.
 
 ## Browser support
 
-The production build targets every browser above 0.2% of usage that is still maintained, excluding Opera Mini, so
-current Chrome, Firefox, Edge and Safari are supported and Internet Explorer is not; development targets the latest
-Chrome, Firefox and Safari (`package.json:131-142`, `browserslist`).
+The production build targets every maintained browser above 0.2% of usage except Opera Mini, so current Chrome, Firefox,
+Edge and Safari are supported and Internet Explorer is not; development targets the latest Chrome, Firefox and Safari
+(`package.json:131-142`, `browserslist`).
 
 ## Accessibility and how tests locate things
 
-Carbon components expose their accessible names through their label props, and both assistive technology and the
-end-to-end suite depend on them: `labelText` on inputs (`TextArea`, `Search`), `iconDescription` on icon-only
-buttons, `title` or text content on tiles and headings. A control added without one is invisible twice over: to a
-screen reader and to a `getByRole`/`getByLabel` locator. Two conventions the canvas editor follows and new UI MUST
-keep:
+Carbon components expose their accessible names through their label props, and assistive technology and the end-to-end
+suite both depend on them: `labelText` on inputs, `iconDescription` on icon-only buttons, `title` or text on tiles and
+headings. A control without one is invisible to a screen reader and to a `getByRole`/`getByLabel` locator. Two
+conventions the canvas editor follows and new UI MUST keep:
 
 - Every interactive element carries a role and a name. The palette entries are `role="option"` named by the task's
   display name (`src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:33`); icon-only buttons carry
   `iconDescription` (the version buttons, `src/Features/WorkflowEditor/Header/Header.tsx:110,130`) or an `alt`
   (`src/Components/WorkflowEditButton/WorkflowEditButton.tsx:14`: "Workflow edit button").
-- Form inputs are named by their parameter label, not their key: the task-edit form renders `textbox "Shell
-  Interpreter"`, not `#shell` (`src/Features/Reactflow/components/shared/inputs.tsx:30`,
-  `e2e/tests/foreach-ui.spec.ts:118`).
+- Form inputs are named by their parameter label, not their key: `textbox "Shell Interpreter"`, not `#shell`
+  (`src/Features/Reactflow/components/shared/inputs.tsx:30`, `e2e/tests/foreach-ui.spec.ts:118`).
 
 The end-to-end suite (`e2e/`) locates elements in this order, which doubles as an accessibility check: a journey
 that can only be written with CSS selectors is a journey a screen-reader user cannot follow.
@@ -410,5 +397,4 @@ that can only be written with CSS selectors is a journey a screen-reader user ca
    `.react-flow__node-*`/`.react-flow__handle` canvas classes, `.CodeMirror`), each with a comment saying why.
 
 When a locator fails, read the Playwright page snapshot in the failure's `error-context.md`: it is the accessibility
-tree, so it shows both what the test should target and what a screen reader actually gets (a collapsed accordion's
-content, for example, is absent from it).
+tree, so it shows what the test should target and what a screen reader gets.

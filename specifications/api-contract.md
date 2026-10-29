@@ -42,12 +42,11 @@ and is scrubbed of the run's secret values (`workflow/WorkflowRunService.java:51
 
 ## Routes with their own rules
 
-**Artifacts.** A run's list holds its artifacts, expired ones and the workflow-scoped ones it uploaded included, but
-no task log or unfinished upload (`workflow/ArtifactService.java:442-449`). A download streams through
-`service-core`; an expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:613-625`), and with no artifact store
-`503 ARTIFACTS_NOT_CONFIGURED` (`:598-603`). The workspace list is largest first and takes `statuses` (default
-`available`), `scope` (`run`, `workflow`, or `log` for task logs, listed only when asked for) and `workflow`, a
-workflow name (`:479-512`).
+**Artifacts.** A run's list holds its artifacts, expired ones and the workflow-scoped ones it uploaded included, but no
+task log or unfinished upload (`workflow/ArtifactService.java:442-449`). A download streams through `service-core`; an
+expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:613-625`), and with no artifact store `503
+ARTIFACTS_NOT_CONFIGURED` (`:598-603`). The workspace list is largest first and takes `statuses` (default `available`),
+`scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:479-512`).
 
 **Workflow templates** are read-only: `GET /api/v2/workflowtemplate/{name}` and `GET …/query` are the whole surface
 (`workflow/WorkflowTemplateControllerV2.java:43,73`). A migration seeds them and the v3 upgrade imports them
