@@ -23,10 +23,10 @@ Layers are read from their stores (`service-core/src/main/java/io/boomerang/work
 through a 10-second per-instance cache (`core/ParamLayerCache.java:41-49`); nothing is copied onto the run. Three
 rules keep untrusted text inert: a task result is inserted as written; on a run started by a webhook, event, GitHub
 delivery, parent task or retry, a run param that differs from the revision default is inserted as written
-(`engine/ParameterManager.java:82-88,575-637`); and password-typed global and workspace values join the run-read
+(`engine/ParameterManager.java:80-86,579-641`); and password-typed global and workspace values join the run-read
 redaction union (`workflow/WorkflowRunService.java:199-223`). `$(team.params.x)` still resolves as the workspace
 scope, logs a warning once per reference and is never suggested (`common/model/ParamLayers.java:122-161`,
-`engine/ParameterManager.java:1024-1032`). `ParameterUtil.isSingleFlowReference` accepts only a value that is exactly
+`engine/ParameterManager.java:936-944`). `ParameterUtil.isSingleFlowReference` accepts only a value that is exactly
 one reference the resolver substitutes, never shell text such as `$(date)` (`common/util/ParameterUtil.java:52-63`),
 and definition reads leave such a value as written (`common/util/DataAdapterUtil.java:66,173-178`).
 
