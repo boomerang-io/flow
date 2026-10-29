@@ -1,4 +1,4 @@
-import { http } from "msw";
+import { http, HttpResponse } from "msw";
 import { screen } from "@testing-library/react";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
@@ -121,5 +121,49 @@ describe("App --- root loader sign-in config", () => {
 
     expect(trace.events).toContain("authConfig:start");
     expect(data.authConfig).toEqual({ mode: "oidc" });
+  });
+});
+
+// Outside a workspace the side nav points at the last one opened (the flow_last_workspace cookie),
+// but only while the caller can still read it: the server builds the links from any name.
+describe("App --- root loader last workspace", () => {
+  function serve(workspaceStatus: number) {
+    const asked = { navigation: [] as Array<string | null>, workspaceReads: 0 };
+    server.use(
+      http.get(serviceUrl.getUserProfile(), () => HttpResponse.json({ id: "user-1" })),
+      http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json({ features: {} })),
+      http.get(serviceUrl.template.getWorkflowTemplates(), () => HttpResponse.json({ content: [] })),
+      http.get(serviceUrl.getContext(), () => HttpResponse.json({})),
+      http.get(serviceUrl.resourceWorkspace({ workspace: "payments" }), () => {
+        asked.workspaceReads += 1;
+        return HttpResponse.json({ name: "payments" }, { status: workspaceStatus });
+      }),
+      http.get(serviceUrl.getNavigation({ query: "" }), ({ request }) => {
+        asked.navigation.push(new URL(request.url).searchParams.get("workspace"));
+        return HttpResponse.json([]);
+      }),
+    );
+    return asked;
+  }
+  const request = (path: string) =>
+    new Request(`http://localhost/apps/flow${path}`, { headers: { Cookie: "flow_last_workspace=payments" } });
+
+  test("scopes Home's nav to the remembered workspace the caller can read", async () => {
+    const asked = serve(200);
+    await loader({ request: request("/home") });
+    expect(asked.navigation).toEqual(["payments"]);
+  });
+
+  test("leaves the nav unscoped when the remembered workspace can no longer be read", async () => {
+    const asked = serve(400);
+    await loader({ request: request("/home") });
+    expect(asked.navigation).toEqual([null]);
+  });
+
+  test("uses the workspace in the path, without reading the remembered one", async () => {
+    const asked = serve(200);
+    await loader({ request: request("/billing/workflows") });
+    expect(asked.navigation).toEqual(["billing"]);
+    expect(asked.workspaceReads).toBe(0);
   });
 });

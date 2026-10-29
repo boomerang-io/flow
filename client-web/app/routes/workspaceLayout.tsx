@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Error404 } from "@boomerang-io/carbon-addons-boomerang-react";
 import axios from "axios";
 import { Outlet, useLoaderData, useOutletContext } from "react-router-dom";
@@ -8,6 +9,7 @@ import { WorkspaceContextProvider } from "State/context";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowWorkspace } from "Types";
+import { rememberWorkspace } from "Utils/lastWorkspace";
 
 // Layout route wrapping the 12 workspace-scoped routes (see app/routes.ts): resolves the
 // `:workspace` path param to its workspace record ONCE, server-side, and feeds the app-wide
@@ -86,6 +88,14 @@ export default function WorkspaceLayoutRoute() {
   // AppFeatures in Features/App/App.tsx); forward it so Protected/useRoutePermissions() in the
   // child routes keep resolving exactly as they did when they sat directly under that outlet.
   const routePermissions = useOutletContext<RoutePermissions>();
+  const workspaceName = data.status === "ok" ? data.workspace.name : null;
+
+  // So Home, Admin and Profile point the side nav at this workspace next time.
+  useEffect(() => {
+    if (workspaceName) {
+      rememberWorkspace(workspaceName);
+    }
+  }, [workspaceName]);
 
   if (data.status === "notFound") {
     return <Error404 theme="boomerang" />;

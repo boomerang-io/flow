@@ -279,6 +279,8 @@ tag's release notes.
 
 ### Changed
 
+- Outside a workspace (Home, Admin, Profile) the side navigation points at the last workspace opened in this
+  browser, while you can still open it; its workspace links were disabled until a workspace was chosen.
 - A sleep and an acquire-lock retry end within about a second of their due time
   (`flow.watcher.wait-interval-ms`, 1000); they waited for the next 30-second watcher sweep, so a 2-second sleep could
   take 30.
