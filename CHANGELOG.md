@@ -293,6 +293,13 @@ tag's release notes.
 
 ### Changed
 
+- The Google Sheets (revision 4) and Drive (revision 3) tasks default their service-account key to
+  `$(workspace.params.google-service-account-key)`, the Google integration's parameter, as the Drive file tasks
+  do. A workflow moves when it is upgraded in the editor. Upgraded, a node that still signs in with Client Email
+  and Private Key in a workspace without the Google integration fails at admission with no such workspace
+  parameter, and the editor warns at save; type the key into Service Account Key, or connect Google. Where the
+  workspace has the parameter, its key is used ahead of Client Email and Private Key. Change unit
+  `_0037__SeedGoogleKeyDefaultRevisions` adds the revisions to existing installs.
 - The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
   runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
   pins `flow.dispatcher.artifact.image` keeps their own value.

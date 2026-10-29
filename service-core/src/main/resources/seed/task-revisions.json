@@ -554,6 +554,89 @@
    "parentRef": "add-sheet"
   },
   {
+   "displayName": "Add Sheet",
+   "description": "Add new sheet to a Google spreadsheet.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "",
+      "label": "Sheet Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The title of the new sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "addSheet"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "add-sheet"
+  },
+  {
    "displayName": "Add User To Box Folder",
    "description": "Adds an user to the specified Box folder.",
    "category": "Box",
@@ -976,6 +1059,105 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "The input range is used to search for existing data and find a \"table\" within that range. Values will be appended to the next row of the table, starting with the first column of the table.",
+      "label": "Data Range",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7",
+      "helpertext": "The desired data range",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "range"
+     },
+     {
+      "description": "Split each data row with an endline and each cell value with a semicolon",
+      "label": "Cell Data",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Val1;Val2;Val3",
+      "helpertext": "Input data",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "values"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "append"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "Append information",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "append-data"
+  },
+  {
+   "displayName": "Append Data",
+   "description": "Append data to an existing Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -1844,6 +2026,89 @@
    "parentRef": "clear-data"
   },
   {
+   "displayName": "Clear Data",
+   "description": "Clear the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Delete",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Ranges",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7,Sheet2",
+      "helpertext": "The data ranges to clear separated by a comma",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "ranges"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "clearData"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "clear-data"
+  },
+  {
    "displayName": "Copy File",
    "description": "Creates a copy of a file. Folders cannot be copied.\n\nThe file will be owned by the Service Account used. We recommend providing a shared parent folder or adding new permissions after the copy.",
    "category": "Google Drive",
@@ -1984,6 +2249,136 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     },
+     {
+      "description": "The IDs of the parent folders which contain the file. If not specified the file will be placed directly in the user's My Drive folder.",
+      "label": "Parent Folders",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "New line delimited list of folder IDs",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "parents"
+     },
+     {
+      "description": "If not specified the file will end up being being prefixed with 'Copy of' and then the current name.",
+      "label": "New Name",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The name to set on the copied file",
+      "readOnly": false,
+      "name": "fileName"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "copyFile"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The ID of the file.",
+      "name": "id"
+     },
+     {
+      "description": "The name of the file.",
+      "name": "name"
+     },
+     {
+      "description": "The IDs of the parent folders which contain the file.",
+      "name": "parents"
+     },
+     {
+      "description": "The time at which the file was created",
+      "name": "createdTime"
+     },
+     {
+      "description": "The last time the file was modified by anyone",
+      "name": "modifiedTime"
+     },
+     {
+      "description": "The owner of this file.",
+      "name": "owners"
+     },
+     {
+      "description": "The full list of permissions for the file. This is only available if the requesting user can share the file. Not populated for items in shared drives.",
+      "name": "permissions"
+     },
+     {
+      "description": "Whether the file is shared",
+      "name": "shared"
+     },
+     {
+      "description": "A link for opening the file in a relevant Google editor or viewer in a browser.",
+      "name": "webViewLink"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "copy-file"
+  },
+  {
+   "displayName": "Copy File",
+   "description": "Creates a copy of a file. Folders cannot be copied.\n\nThe file will be owned by the Service Account used. We recommend providing a shared parent folder or adding new permissions after the copy.",
+   "category": "Google Drive",
+   "icon": "Add",
+   "version": 3,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -2315,6 +2710,100 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Source Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the spreadsheet containing the sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fromSpreadsheetId"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Destination Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the spreadsheet where we copy the sheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "toSpreadsheetId"
+     },
+     {
+      "description": "You can find the sheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Sheet ID",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the sheet we want to copy",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "sheetId"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "copySheetTo"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "copy-sheet-to-another-spreadsheet"
+  },
+  {
+   "displayName": "Copy Sheet To Another Spreadsheet",
+   "description": "Copy a sheet from a spreadsheet to another.",
+   "category": "Google Sheets",
+   "icon": "API/HTTP call",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -2910,6 +3399,83 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "",
+      "label": "Spreadsheet Title",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The new spreadsheet's title",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "title"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "create"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "Newly created spreadsheet information",
+      "name": "spreadsheet"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "create-spreadsheet"
+  },
+  {
+   "displayName": "Create Spreadsheet",
+   "description": "Create a new Google Spreadsheet with the provided name.",
+   "category": "Google Sheets",
+   "icon": "Add",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -3881,6 +4447,78 @@
    "parentRef": "delete-file"
   },
   {
+   "displayName": "Delete File",
+   "description": "Deletes a file.",
+   "category": "Google Drive",
+   "icon": "Delete",
+   "version": 3,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "deleteFile"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "delete-file"
+  },
+  {
    "displayName": "Delete Sheet",
    "description": "Delete a sheet from a Google spreadsheet.",
    "category": "Google Sheets",
@@ -4081,6 +4719,89 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "You can find the sheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Sheet ID",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the sheet to delete",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "sheetId"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "deleteSheet"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "delete-sheet"
+  },
+  {
+   "displayName": "Delete Sheet",
+   "description": "Delete a sheet from a Google spreadsheet.",
+   "category": "Google Sheets",
+   "icon": "Delete",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -7564,6 +8285,90 @@
    "parentRef": "get-data"
   },
   {
+   "displayName": "Get Data",
+   "description": "Get the cell data in the specified range from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "API/HTTP call",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=0",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Ranges",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!6:7,Sheet2",
+      "helpertext": "The desired data ranges separated by comma",
+      "readOnly": false,
+      "name": "ranges"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "getData"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The list of row cell data from the provided ranges",
+      "name": "rows"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "get-data"
+  },
+  {
    "displayName": "Get Github Repository",
    "description": "Get the Gihub repository details based on the Github URL. For further reading on the underlying API see https://docs.github.com/en/rest/reference/repos#get-a-repository",
    "category": "GitHub",
@@ -10351,6 +11156,83 @@
    "parentRef": "list-file-permissions"
   },
   {
+   "displayName": "List File Permissions",
+   "description": "List a file's permissions.",
+   "category": "Google Drive",
+   "icon": "Filter",
+   "version": 3,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "The ID of the file.",
+      "label": "File ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "fileId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "listFilePermissions"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "The resulting array of permissions associated with the file",
+      "name": "permissions"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "list-file-permissions"
+  },
+  {
    "displayName": "List Files",
    "description": "Lists or searches files.\n\nThis method returns all files by default, including deleted files. Use the 'trashed=false' query parameter to filter trashed files from the results.",
    "category": "Google Drive",
@@ -10457,6 +11339,102 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "",
+      "label": "Query",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A query for filtering the file results",
+      "readOnly": false,
+      "name": "query"
+     },
+     {
+      "description": "Supported groupings are: 'user', 'drive', 'domain', and 'allDrives' (A combination of 'user' and 'drive' for all drives where the user is a member).",
+      "label": "Corpora",
+      "type": "text",
+      "required": false,
+      "placeholder": "user",
+      "helpertext": "Groupings of files to which the query applies.",
+      "readOnly": false,
+      "name": "corpora"
+     },
+     {
+      "description": "",
+      "label": "Drive ID",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "ID of the shared drive to search.",
+      "readOnly": false,
+      "name": "driveId"
+     }
+    ],
+    "arguments": [
+     "googledrive",
+     "listFiles"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "An array of file objects based on the listing query.",
+      "name": "results"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "list-files"
+  },
+  {
+   "displayName": "List Files",
+   "description": "Lists or searches files.\n\nThis method returns all files by default, including deleted files. Use the 'trashed=false' query parameter to filter trashed files from the results.",
+   "category": "Google Drive",
+   "icon": "Search",
+   "version": 3,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
@@ -14655,6 +15633,105 @@
       "placeholder": "",
       "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
       "defaultValue": "",
+      "readOnly": false,
+      "name": "serviceAccountKey"
+     },
+     {
+      "description": "",
+      "label": "Private Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's private key. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "privateKey"
+     },
+     {
+      "description": "",
+      "label": "Client Email",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's client email. Not needed when Service Account Key is set",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "clientEmail"
+     },
+     {
+      "description": "You can find the spreadsheet ID in a Google Sheets URL:  https://docs.google.com/spreadsheets/d/spreadsheetId/edit#gid=sheetId",
+      "label": "Spreadsheet ID",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The ID of the desired spreadsheet",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "spreadsheetId"
+     },
+     {
+      "description": "Supports A1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-1 and R1C1 notation: https://developers.google.com/sheets/api/guides/concepts#expandable-2",
+      "label": "Data Range",
+      "type": "text",
+      "required": true,
+      "placeholder": "Sheet1!1:3",
+      "helpertext": "The desired data range",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "range"
+     },
+     {
+      "description": "Split each data row with an endline and each cell value with a semicolon",
+      "label": "Cell Data",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Val1;Val2;Val3",
+      "helpertext": "Input data",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "values"
+     }
+    ],
+    "arguments": [
+     "googlesheets",
+     "update"
+    ],
+    "command": [],
+    "envs": [],
+    "image": "boomerangio/task-flow:3.3.0",
+    "results": [
+     {
+      "description": "Update information",
+      "name": "response"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "update-data"
+  },
+  {
+   "displayName": "Update Data",
+   "description": "Update cell data from a Google spreadsheet.\nThe supported range notations are A1 notation and R1C1 notation.",
+   "category": "Google Sheets",
+   "icon": "Edit",
+   "version": 4,
+   "changelog": {
+    "reason": "The service-account key defaults to the Google integration's workspace parameter",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Service Account Key",
+      "type": "password",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The service account's whole JSON key file, pasted as-is. Replaces Client Email and Private Key",
+      "defaultValue": "$(workspace.params.google-service-account-key)",
       "readOnly": false,
       "name": "serviceAccountKey"
      },
