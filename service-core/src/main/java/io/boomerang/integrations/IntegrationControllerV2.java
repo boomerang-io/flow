@@ -287,6 +287,12 @@ public class IntegrationControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
       assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session, AuthScope.global})
+  @Audited(
+      action = AuditAction.DELETE,
+      resourceType = "integration",
+      resourceId = "#request.getRef()",
+      resourceName = "'GitHub'",
+      workspaceId = "#request.getWorkspace()")
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   void githubUnlink(@RequestBody GHLinkRequest request) throws IOException {
     githubService.unlinkAppInstallation(request);

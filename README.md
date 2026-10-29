@@ -174,6 +174,12 @@ Before the first start against a v3 database:
    minute of the first start and removes up to 1000 runs an hour, before the setting can be changed, and no
    value turns it off. This is by design: Activity is bounded from day one. Workflows, workflow-scoped
    artifacts and the audit trail are kept.
+6. **Find the workflows that read CloudEvent inputs.** v3 filled a workflow property from a CloudEvent with the
+   property's `jsonPath`, or from a `properties` object in the event's data. v5 does neither: the run receives
+   the event's attributes as its `event` param and its data as `data`, and a workflow reads a value as
+   `$(params.data.<path>)`. Upgraded, such a workflow runs with its properties' defaults and no error. List them
+   with `db.flow_workflows.find({"properties.jsonPath": {$nin: [null, ""]}}, {name: 1})` (`flow` is the default
+   collection prefix) and, after the upgrade, change where each reads that property to `$(params.data.<path>)`.
 
 Remove the `flow-service-loader` Job and image from the deployment: one product tag now builds
 `flow-service-core`, `flow-service-dispatcher` and `flow-client-web`.

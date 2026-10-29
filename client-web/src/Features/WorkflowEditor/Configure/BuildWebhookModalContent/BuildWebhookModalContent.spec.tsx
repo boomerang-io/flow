@@ -9,25 +9,25 @@ import BuildWebhookModalContent from "./index";
 
 vi.mock("copy-to-clipboard", () => ({ default: vi.fn() }));
 
-const WORKFLOW_REF = "5eb2c4085a92d80001a16d87";
+const WORKFLOW_REF = "deploy-service";
+const WORKSPACE = "payments";
 
 /*
- * Regression spec for boomerang-io/flow#385: the editor rendered the copyable webhook trigger
- * URL with a `workflow=` query parameter, but POST /api/v2/webhook only reads `ref=`
- * (WebhookEventControllerV2), so pasting the displayed URL returned a 400.
- */
-describe("BuildWebhookModalContent", () => {
-  it("renders and copies the webhook trigger URL with ?ref=, not ?workflow=", async () => {
+ * Regression spec for boomerang-io/flow#385 and #744: POST /api/v2/webhook reads `ref=`, not
+ * `workflow=`, and a bare ref is a workflow id, which the editor does not hold; the editor's name
+ * resolves only with the workspace beside it (WebhookEventControllerV2).
+ */describe("BuildWebhookModalContent", () => {
+  it("renders and copies the webhook trigger URL with ?workspace= and ?ref=, not ?workflow=", async () => {
     const { container } = renderWithRouter(
-      <BuildWebhookModalContent workflowRef={WORKFLOW_REF} closeModal={() => {}} />,
+      <BuildWebhookModalContent workflowRef={WORKFLOW_REF} workspace={WORKSPACE} closeModal={() => {}} />,
     );
 
     // The displayed snippet (the template literal wraps before &access_token=, so match textContent).
-    expect(container.textContent).toContain(`${serviceUrl.resourceTrigger()}/webhook?ref=${WORKFLOW_REF}`);
+    expect(container.textContent).toContain(`${serviceUrl.resourceTrigger()}/webhook?workspace=${WORKSPACE}&ref=${WORKFLOW_REF}`);
     expect(container.textContent).not.toContain(`webhook?workflow=`);
 
-    // The copy button hands the same ?ref= URL to the clipboard.
+    // The copy button hands the same URL to the clipboard.
     await userEvent.click(screen.getByRole("button", { name: /copy url/i }));
-    expect(copy).toHaveBeenCalledWith(`${serviceUrl.resourceTrigger()}/webhook?ref=${WORKFLOW_REF}`);
+    expect(copy).toHaveBeenCalledWith(`${serviceUrl.resourceTrigger()}/webhook?workspace=${WORKSPACE}&ref=${WORKFLOW_REF}`);
   });
 });

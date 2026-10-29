@@ -441,7 +441,11 @@ function Configure(props: ConfigureProps) {
                       )}
                     >
                       {({ closeModal }) => (
-                        <BuildWebhookModalContent closeModal={closeModal} workflowRef={props.workflow.name} />
+                        <BuildWebhookModalContent
+                            closeModal={closeModal}
+                            workflowRef={props.workflow.name}
+                            workspace={routeParams.workspace ?? ""}
+                          />
                       )}
                     </ComposedModal>
                   )}
@@ -612,7 +616,11 @@ function Configure(props: ConfigureProps) {
                         )}
                       >
                         {({ closeModal }) => (
-                          <ConfigureEventTrigger closeModal={closeModal} workflowRef={props.workflow.name} />
+                          <ConfigureEventTrigger
+                            closeModal={closeModal}
+                            workflowRef={props.workflow.name}
+                            workspace={routeParams.workspace ?? ""}
+                          />
                         )}
                       </ComposedModal>
                       {/* </div> */}

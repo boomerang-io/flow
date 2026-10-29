@@ -12173,6 +12173,134 @@
    "parentRef": "send-email-with-sendgrid-template"
   },
   {
+   "displayName": "Send Email with Sendgrid Template",
+   "description": "Using your Sendgrid API Key, send a Dynamic Template email using a template ID and dynamic data.",
+   "category": "Communication",
+   "icon": "Message",
+   "version": 3,
+   "changelog": {
+    "reason": "The API key has no placeholder default, and the template ID is a plain text field",
+    "date": {
+     "$date": "2026-10-29T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "If you have a Sendgrid account, you will be able to find or create an API key via their UI",
+      "label": "API Key",
+      "type": "password",
+      "required": true,
+      "placeholder": "bmrgadmin",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "apiKey"
+     },
+     {
+      "description": "",
+      "label": "To",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "to"
+     },
+     {
+      "description": "",
+      "label": "From",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "from"
+     },
+     {
+      "description": "",
+      "label": "CC",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "cc"
+     },
+     {
+      "description": "",
+      "label": "BCC",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "bcc"
+     },
+     {
+      "description": "",
+      "label": "Reply to",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "replyTo"
+     },
+     {
+      "description": "",
+      "label": "Subject",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "subject"
+     },
+     {
+      "description": "Template information can be found in the Sendgrid UI",
+      "label": "Template Id",
+      "type": "text",
+      "required": true,
+      "placeholder": "bmrgadmin",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "templateId"
+     },
+     {
+      "description": "Specify when using a template Id",
+      "label": "Dynamic Template Data",
+      "type": "texteditor::javascript",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "",
+      "readOnly": false,
+      "name": "dynamicTemplateData"
+     },
+     {
+      "description": "",
+      "label": "Attachments",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "i.e. /path/to/attachment.pdf",
+      "helpertext": "List of files to be used for attachment ",
+      "readOnly": false,
+      "name": "attachments"
+     }
+    ],
+    "arguments": [
+     "mail",
+     "sendEmailWithSendgridTemplate"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "send-email-with-sendgrid-template"
+  },
+  {
    "displayName": "Send Platform Email",
    "description": "Send Email to Member with Subject and Message",
    "category": "IBM Services Essentials",

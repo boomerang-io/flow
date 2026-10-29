@@ -373,53 +373,6 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
-    CloudEvent:
-      properties:
-        attributeNames:
-          items:
-            type: "string"
-          type: "array"
-          uniqueItems: true
-        data:
-          $ref: "#/components/schemas/CloudEventData"
-        dataContentType:
-          type:
-          - "string"
-          - "null"
-        dataSchema:
-          format: "uri"
-          type:
-          - "string"
-          - "null"
-        extensionNames:
-          items:
-            type: "string"
-          type: "array"
-          uniqueItems: true
-        id:
-          type: "string"
-        source:
-          format: "uri"
-          type: "string"
-        specVersion:
-          enum:
-          - "0.3"
-          - "1.0"
-          type: "string"
-        subject:
-          type:
-          - "string"
-          - "null"
-        time:
-          format: "date-time"
-          type:
-          - "string"
-          - "null"
-        type:
-          type: "string"
-      type: "object"
-    CloudEventData:
-      type: "null"
     ContentDisposition:
       properties:
         attachment:
@@ -3758,7 +3711,13 @@ paths:
     post:
       operationId: "acceptEvent"
       parameters:
-      - description: "The Workflow reference the request relates to"
+      - description: "The workspace whose workflow ref names"
+        in: "query"
+        name: "workspace"
+        required: false
+        schema:
+          type: "string"
+      - description: "The workflow: its id, or with workspace its name"
         in: "query"
         name: "ref"
         required: false
@@ -3771,16 +3730,10 @@ paths:
           $ref: "#/components/schemas/HttpHeaders"
       requestBody:
         content:
-          application/cloudevents+json; charset=utf-8:
-            schema:
-              $ref: "#/components/schemas/CloudEvent"
-          application/cloudevents+json;charset=utf-8:
-            schema:
-              $ref: "#/components/schemas/CloudEvent"
           application/json:
             schema:
+              format: "byte"
               type: "string"
-        required: true
       responses:
         "200":
           content:
@@ -5052,7 +5005,13 @@ paths:
     post:
       operationId: "acceptWebhook"
       parameters:
-      - description: "Workflow reference the request relates to"
+      - description: "The workspace whose workflow ref names"
+        in: "query"
+        name: "workspace"
+        required: false
+        schema:
+          type: "string"
+      - description: "The workflow: its id, or with workspace its name"
         in: "query"
         name: "ref"
         required: false

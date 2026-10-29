@@ -1,11 +1,9 @@
 package io.boomerang.event;
 
-import static io.cloudevents.core.CloudEventUtils.mapData;
-
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunStatus;
@@ -25,8 +23,14 @@ import io.boomerang.integrations.IntegrationService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.engine.model.WorkflowRunEventRequest;
 import io.cloudevents.CloudEvent;
-import io.cloudevents.core.data.PojoCloudEventData;
-import io.cloudevents.jackson.PojoCloudEventDataMapper;
+import io.cloudevents.core.format.EventFormat;
+import io.cloudevents.core.format.EventSerializationException;
+import io.cloudevents.core.provider.EventFormatProvider;
+import io.cloudevents.jackson.JsonFormat;
+import io.cloudevents.rw.CloudEventRWException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -44,14 +48,8 @@ public class WebhookEventService {
 
   private static final Logger LOGGER = LogManager.getLogger();
   private static final JsonMapper JSON = JsonMapper.builder().build();
-
-  // io.cloudevents:cloudevents-json-jackson's PojoCloudEventDataMapper.from(...) only offers
-  // Jackson 2 overloads (com.fasterxml.jackson.databind.ObjectMapper /
-  // com.fasterxml.jackson.core.type.TypeReference) - it knows nothing of tools.jackson (the
-  // Boot-managed Jackson 3 mapper). eventToRunParams() below is deliberately still on Jackson 2
-  // for that reason.
-  private static final ObjectMapper JACKSON2_MAPPER =
-      com.fasterxml.jackson.databind.json.JsonMapper.builder().build();
+  private static final EventFormat CLOUD_EVENT_JSON =
+      EventFormatProvider.getInstance().resolveFormat(JsonFormat.CONTENT_TYPE);
 
   @Value("${flow.workflowrun.auto-start-on-submit}")
   private boolean autoStart;
@@ -76,55 +74,30 @@ public class WebhookEventService {
   }
 
   /*
-   * Receives request and checks if its a supported event. Processing done async.
-   *
-   * @return accepted or unprocessable.
+   * A CloudEvent for a workflow named by id: the ref, else the first segment of the subject.
    */
   public WorkflowRun processEvent(CloudEvent event, Optional<String> workflow) {
-    String eventType = event.getType();
-    LOGGER.debug("Event Type: " + eventType);
-    String eventSubject = event.getSubject();
-    LOGGER.debug("Event Subject: " + eventSubject);
-
-    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-    String workflowRef = null;
-    if (workflow.isPresent()) {
-      workflowRef = workflow.get();
-    } else {
-      // Assume the WorkflowRef is in the subject as the first element
-      workflowRef = eventSubject.replace("/", "").split("/")[0];
-    }
-    request.setTrigger(TriggerEnum.event);
-    request.setParams(eventToRunParams(event));
-
-    LOGGER.debug(
-        "Webhook Request: params [{}]", ParameterUtil.runParamNames(request.getParams()));
-
-    // Check principal has relationship to the Workflow
+    String workflowRef = workflow.filter(ref -> !ref.isBlank()).orElseGet(() -> subjectWorkflow(event));
     if (!relationshipService.check(
         RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
-
-    // Get the Workflows team
-    String teamRef =
+    String workspace =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+    return workflowService.submit(workspace, workflowRef, eventSubmitRequest(event), autoStart);
+  }
 
-    // Auto start is not needed when using the default handler
-    // As the default handler will pick up the queued Workflow and start the Workflow when ready.
-    // However if using the non-default Handler then this may be needed to be set to true.
-    return workflowService.submit(teamRef, workflowRef, request, autoStart);
+  /*
+   * A CloudEvent for a workflow named in a workspace: the ref, else the first segment of the
+   * subject. A workflow the caller cannot reach in that workspace is not found.
+   */
+  public WorkflowRun processEvent(String workspace, CloudEvent event, Optional<String> workflow) {
+    String name = workflow.filter(ref -> !ref.isBlank()).orElseGet(() -> subjectWorkflow(event));
+    return workflowService.submit(workspace, name, eventSubmitRequest(event), autoStart);
   }
 
   public WorkflowRun processWebhook(String workflowRef, JsonNode payload) {
-    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-    request.setTrigger(TriggerEnum.webhook);
-    request.setParams(payloadToRunParams(payload));
-
-    LOGGER.debug(
-        "Webhook Request: params [{}]", ParameterUtil.runParamNames(request.getParams()));
-
     // Get the Workflows team
     String teamRef =
         relationshipService.getParentByLabel(
@@ -136,7 +109,24 @@ public class WebhookEventService {
     // Auto start is not needed when using the default handler
     // As the default handler will pick up the queued Workflow and start the Workflow when ready.
     // However if using the non-default Handler then this may be needed to be set to true.
-    return workflowService.submit(teamRef, workflowRef, request, autoStart);
+    return workflowService.submit(teamRef, workflowRef, webhookSubmitRequest(payload), autoStart);
+  }
+
+  /*
+   * A webhook for a workflow named in a workspace. A workflow the caller cannot reach in that
+   * workspace is not found.
+   */
+  public WorkflowRun processWebhook(String workspace, String workflow, JsonNode payload) {
+    return workflowService.submit(workspace, workflow, webhookSubmitRequest(payload), autoStart);
+  }
+
+  private static WorkflowSubmitRequest webhookSubmitRequest(JsonNode payload) {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.webhook);
+    request.setParams(payloadToRunParams(payload));
+    LOGGER.debug(
+        "Webhook Request: params [{}]", ParameterUtil.runParamNames(request.getParams()));
+    return request;
   }
 
   /*
@@ -222,22 +212,61 @@ public class WebhookEventService {
   }
 
   /*
-   * Convert the CloudEvent and the event's Data and create params
+   * The workflow a CloudEvent's subject names: its first segment, so "/wf-1/topic" names wf-1.
    */
-  private List<RunParam> eventToRunParams(CloudEvent event) {
-    List<RunParam> params = new LinkedList<>();
-    params.add(new RunParam("event", (Object) event, ParamType.object));
+  private static String subjectWorkflow(CloudEvent event) {
+    String subject = event.getSubject() == null ? "" : event.getSubject();
+    return Arrays.stream(subject.split("/"))
+        .filter(segment -> !segment.isBlank())
+        .findFirst()
+        .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ));
+  }
 
-    PojoCloudEventData<Map<String, Object>> data =
-        mapData(
-            event,
-            PojoCloudEventDataMapper.from(
-                JACKSON2_MAPPER, new TypeReference<Map<String, Object>>() {}));
-    // A CloudEvent may carry no data at all - the run then gets only the event param.
-    if (data != null) {
-      params.add(new RunParam("data", (Object) data, ParamType.object));
-      params.addAll(ParameterUtil.mapToRunParamList(data.getValue()));
+  /*
+   * The run's params: "event", the event's attributes as the CloudEvents JSON format writes them,
+   * and "data", its data. Both are plain maps, lists and values, so the run can be read back.
+   */
+  private static WorkflowSubmitRequest eventSubmitRequest(CloudEvent event) {
+    Map<String, Object> attributes;
+    try {
+      attributes =
+          JSON.readValue(CLOUD_EVENT_JSON.serialize(event), new TypeReference<Map<String, Object>>() {});
+    } catch (EventSerializationException | CloudEventRWException | JacksonException e) {
+      // Data whose content type says JSON but that does not parse.
+      throw new BoomerangException(e, BoomerangError.WORKFLOW_INVALID_REQ);
     }
-    return params;
+    Object data = removeData(attributes);
+    List<RunParam> params = new LinkedList<>();
+    params.add(new RunParam("event", attributes, ParamType.object));
+    if (data != null) {
+      params.add(new RunParam("data", data, paramType(data)));
+    }
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.event);
+    request.setParams(params);
+    LOGGER.debug("Event Request: params [{}]", ParameterUtil.runParamNames(params));
+    return request;
+  }
+
+  /*
+   * JSON data as it was sent; text data as a string; anything else as the base64 text the JSON
+   * format writes for it.
+   */
+  private static Object removeData(Map<String, Object> attributes) {
+    if (attributes.containsKey("data")) {
+      return attributes.remove("data");
+    }
+    Object encoded = attributes.remove("data_base64");
+    return encoded instanceof String base64
+            && attributes.get("datacontenttype") instanceof String contentType
+            && contentType.startsWith("text/")
+        ? new String(Base64.getDecoder().decode(base64), StandardCharsets.UTF_8)
+        : encoded;
+  }
+
+  private static ParamType paramType(Object value) {
+    return value instanceof String ? ParamType.string
+        : value instanceof List ? ParamType.array
+        : ParamType.object;
   }
 }

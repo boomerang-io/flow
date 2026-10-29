@@ -187,7 +187,7 @@ the run budget (`workflow/RunTimeoutPolicy.java:145-149`), so a gate that may si
 to ask for one.
 
 A run's timeout is settled at submit, on the path every run creation passes through
-(`workflow/WorkflowService.java:1867-1875`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
+(`workflow/WorkflowService.java:1876-1884`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
 revision's, else the run-duration quota itself, the workspace's own limit or else the platform
 `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the revision's critical path, the longest chain of
 declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's
@@ -325,12 +325,12 @@ A `runworkflow` task submits another workflow as a child run (`engine/TaskExecut
 task's own params minus `workflowRef` and `wait` (`:1204-1209`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
-saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1608-1633`). A
+saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1617-1642`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
 `timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1319-1321`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
-typed pair the retry path uses (`workflow/WorkflowService.java:1906-1910`); a run has no `parentRef`. The single-run
+typed pair the retry path uses (`workflow/WorkflowService.java:1915-1919`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1278-1285`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
@@ -371,7 +371,7 @@ An item that times out is a task timeout: it times out the whole run, which canc
 (`engine/TaskExecutionService.java:602-606`); a cancel reaches every item because the cancel pass reads the stored
 task runs, not the graph (`engine/WorkflowExecutionService.java:274`). Downstream, `$(tasks.<name>.results.<result>)`
 finds the parent, since the lookup is by exact name and items carry the bracketed suffix; a task name ending in
-`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1441-1450`).
+`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1450-1459`).
 
 ## Task locks
 

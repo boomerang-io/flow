@@ -35,6 +35,13 @@ tag's release notes.
   `max.workflowrun.storage`) replaces `max.workflow.storage` and `max.workflowrun.storage` in the `quotas`
   settings group; the per-workspace quota field is `maxWorkspaceStorage`. Kept artifacts count toward
   `max.artifact.storage` until replaced or deleted. The dispatcher's `kube.workflow.storage.*` properties are gone.
+- **The CloudEvent trigger works, with a new run shape.** `POST /api/v2/event` used to fail before a run
+  was saved. A run now gets `event`, the event's attributes, and `data`, its data, and no longer one param per
+  top-level data member: read `$(params.data.<field>)`. The trigger's filters read the event as sent (`type`,
+  `data.tag`). `ref` still takes a workflow id; add `workspace` to name the workflow instead
+  (`?workspace=<workspace>&ref=<workflow name>`, on `POST /api/v2/webhook` too), which is the URL the editor now
+  shows. Without `ref`, the subject's first segment names the workflow. v3 workflows that filled properties from
+  a CloudEvent's data with a `jsonPath` need changing: see "Upgrading from v3" in the README.
 - **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so a
   shared email stops startup until it is resolved. See "Upgrading from v3" in the README.
 - **`flow.mode` is gone; two properties express the deployment shape.** `flow.security.enabled` (default `true`)
@@ -390,6 +397,15 @@ tag's release notes.
 
 ### Fixed
 
+- The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
+  template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
+  `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the
+  editor.
+- Disconnecting GitHub on the Integrations page disconnects it: the page sent the integration's record id, which
+  the unlink looked up as a GitHub installation id, so nothing happened. `POST /api/v2/integration/github/unlink`
+  now takes either id, refuses a caller who cannot reach the workspace (integration write permission in any
+  workspace could unlink another workspace's GitHub by its installation id), answers `404` for an unknown
+  installation instead of nothing, and is audited.
 - The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
   the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
 - The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on

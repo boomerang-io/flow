@@ -20,7 +20,7 @@ and make deferral the explicit act (Tekton's `PipelineRunPending`, Temporal's `s
 B. `POST .../workflow/{name}/submit` defaults `start` to true (`workflow/WorkspaceWorkflowControllerV2.java:306-312`).
 Internal callers start too: a run-workflow task's child (`engine/TaskExecutionService.java:1173`), a fired schedule
 (`schedule/ScheduleJob.java:76`), and webhook and event triggers through `flow.workflowrun.auto-start-on-submit`, true
-by default (`service-core/src/main/resources/application.properties:38`, `event/WebhookEventService.java:56-57`).
+by default (`service-core/src/main/resources/application.properties:38`, `event/WebhookEventService.java:54-55`).
 Starting means one thing everywhere: a run without a workspace starts at once, and a run with one stays pending until
 the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:792-808`, decision 0067).
 

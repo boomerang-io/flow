@@ -55,7 +55,7 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1243-1259`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1252-1268`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. `workflow_templates` keeps `version` on the one document
@@ -106,8 +106,8 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1372,1767,1913`, `workflow/TaskService.java:709,797` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1097` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1381,1776,1922`, `workflow/TaskService.java:709,797` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1106` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
 it dropped (`workflow/WorkflowService.java:642-643`, `workflow/WorkflowRunService.java:825-827`). The engine
@@ -311,6 +311,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0030__SeedSlackCredentialRevisions` | all | Inserts the revision of each of the 13 Slack tasks whose bot token or webhook URL is a `password` field, with every other seed revision of those tasks the install lacks, so a later seed revision never lands in its place; revisions the install holds are never touched, and an empty database has them from `_0017` |
 | `_0031__SeedGitHubIntegrationParameters` | all | Gives the GitHub integration template its `fields` where it has none, and inserts the revision of each of the 17 GitHub tasks whose `token` and `url` default to `$(workspace.params.github-token)` and `$(workspace.params.github-url)`, where an install holds the task but not that revision; an empty database has both from `_0020` and `_0017` |
 | `_0032__SeedSlackIntegrationParameters` | all | Makes the seeded Slack integration template, inactive and typed `slack`, the active `slack_auth` template its installations are stored as, with its install link, instructions and `fields` (`slack-token`), and inserts the revisions of each of the 10 Slack token tasks the install lacks, whose newest defaults `token` to `$(workspace.params.slack-token)`; an empty database has both from `_0020` and `_0017` |
+| `_0033__SeedSendGridTemplateRevision` | all | Inserts the SendGrid template task's revision 3, whose `apiKey` has no placeholder default and whose `templateId` is a `text` field, where an install holds the task but not that revision; an empty database has it from `_0017` |
 | `_0034__SeedFormIntegrations` | all | Sets each integration template's `kind` (`app` for GitHub and Slack) where it has none, and inserts the Google and Microsoft `form` templates where an install holds none of their type; an empty database has them from `_0020` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
