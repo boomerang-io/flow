@@ -72,7 +72,7 @@ class GitHubUnlinkTest extends AbstractSpiedEngineIntegrationTest {
   @Test
   void theRecordIdTheWebappSendsUnlinksOverHttp() throws Exception {
     String workspace = linkedWorkspace("unlink-http-ws", 5301);
-    integrationService.share("github", workspace, true);
+    integrationService.share("github", workspace, true, null);
     String recordId = recordId(5301);
     MockMvc mockMvc =
         MockMvcBuilders.webAppContextSetup(context).addFilters(springSecurityFilterChain).build();
@@ -95,7 +95,7 @@ class GitHubUnlinkTest extends AbstractSpiedEngineIntegrationTest {
   @Test
   void theInstallationIdStillUnlinks() {
     String workspace = linkedWorkspace("unlink-installation-ws", 5302);
-    integrationService.share("github", workspace, true);
+    integrationService.share("github", workspace, true, null);
 
     gitHubService.unlinkAppInstallation(request(workspace, "5302"));
 
@@ -105,7 +105,7 @@ class GitHubUnlinkTest extends AbstractSpiedEngineIntegrationTest {
   @Test
   void aCallerWhoCannotReachTheWorkspaceChangesNothing() {
     String target = linkedWorkspace("unlink-target-ws", 5303);
-    integrationService.share("github", target, true);
+    integrationService.share("github", target, true, null);
     String recordId = recordId(5303);
     String own = workspace("unlink-own-ws");
     Authentication previous = SecurityContextHolder.getContext().getAuthentication();
@@ -130,7 +130,7 @@ class GitHubUnlinkTest extends AbstractSpiedEngineIntegrationTest {
   void aWorkspaceThatDoesNotOwnTheInstallationIsRefused() {
     String owner = linkedWorkspace("unlink-owner-ws", 5304);
     String other = linkedWorkspace("unlink-other-ws", 5305);
-    integrationService.share("github", owner, true);
+    integrationService.share("github", owner, true, null);
 
     assertThatThrownBy(() -> gitHubService.unlinkAppInstallation(request(other, recordId(5304))))
         .isInstanceOfSatisfying(

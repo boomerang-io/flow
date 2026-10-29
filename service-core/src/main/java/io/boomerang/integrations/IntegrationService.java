@@ -11,6 +11,7 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.integrations.entity.IntegrationTemplateEntity;
 import io.boomerang.integrations.entity.IntegrationsEntity;
+import io.boomerang.integrations.enums.IntegrationKind;
 import io.boomerang.integrations.enums.IntegrationStatus;
 import io.boomerang.integrations.model.Integration;
 import io.boomerang.integrations.repository.IntegrationTemplateRepository;
@@ -82,6 +83,17 @@ public class IntegrationService {
           LOGGER.debug(t.toString());
           Integration i = new Integration();
           BeanUtils.copyProperties(t, i);
+          if (IntegrationKind.form.equals(t.getKind())) {
+            // A form integration is linked while the workspace holds its fields; it has no install.
+            i.setLink(null);
+            if (workspaceEntity != null && integrationParameterService.isShared(workspaceEntity, t)) {
+              i.setStatus(IntegrationStatus.linked);
+              i.setShared(true);
+              i.setFields(integrationParameterService.fieldValues(workspaceEntity, t));
+            }
+            integrations.add(i);
+            return;
+          }
           // A workspace can link several integrations; each template is linked by the one of its type.
           refs.stream()
               .filter(ref -> integrationsRepository.findByIdAndType(ref, t.getType()).isPresent())
@@ -117,12 +129,20 @@ public class IntegrationService {
 
   /*
    * Share an integration's credentials with the workspace's tasks as managed workspace parameters,
-   * or stop sharing them. Sharing lets every workflow author in the workspace act with the
-   * integration's permissions, so it is a choice made after linking, never part of it.
+   * or stop sharing them. For an app integration, sharing lets every workflow author in the
+   * workspace act with its permissions, so it is a choice made after linking, never part of it. A
+   * form integration is linked by sharing the values the workspace enters, and unlinked by
+   * stopping; the same call with new values edits them.
    */
-  public void share(String integration, String workspace, boolean shared) {
-    String type = SHARING_TYPES.get(integration);
-    if (type == null) {
+  public void share(
+      String integration, String workspace, boolean shared, Map<String, String> values) {
+    IntegrationTemplateEntity template =
+        integrationParameterService.template(SHARING_TYPES.getOrDefault(integration, integration));
+    boolean form =
+        template != null
+            && IntegrationKind.form.equals(template.getKind())
+            && "active".equals(template.getStatus());
+    if (!form && !SHARING_TYPES.containsKey(integration)) {
       throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
     }
     if (!relationshipService.check(
@@ -130,6 +150,21 @@ public class IntegrationService {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     WorkspaceEntity workspaceEntity = integrationParameterService.workspace(workspace);
+    if (workspaceEntity == null) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+    }
+    if (form) {
+      if (shared) {
+        integrationParameterService.share(workspaceEntity, template, values == null ? Map.of() : values);
+      } else {
+        integrationParameterService.unshare(workspaceEntity, template);
+      }
+      return;
+    }
+    if (values != null && !values.isEmpty()) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_VALUES_NOT_ACCEPTED, template.getName());
+    }
+    String type = SHARING_TYPES.get(integration);
     IntegrationsEntity installation =
         relationshipService
             .refsInWorkspace(RelationshipType.INTEGRATION, workspace, Optional.empty())
@@ -137,11 +172,7 @@ public class IntegrationService {
             .map(ref -> integrationsRepository.findByIdAndType(ref, type))
             .flatMap(Optional::stream)
             .findFirst()
-            .orElse(null);
-    if (workspaceEntity == null || installation == null) {
-      throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
-    }
-    IntegrationTemplateEntity template = integrationParameterService.template(type);
+            .orElseThrow(() -> new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF));
     if (shared) {
       integrationParameterService.share(
           workspaceEntity,

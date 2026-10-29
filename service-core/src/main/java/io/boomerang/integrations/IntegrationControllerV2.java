@@ -299,13 +299,15 @@ public class IntegrationControllerV2 {
   }
 
   /*
-   * Integration credentials, for the integrations that share them: github and slack.
+   * Integration credentials: github and slack share the credential their install holds; a form
+   * integration (google, microsoft) shares the values the workspace enters, which links it.
    */
   @PostMapping(value = "/{integration}/share")
   @Operation(
       summary =
-          "Shares an integration's credentials (GitHub's installation token, Slack's bot token) with"
-              + " the Workspace's tasks as managed Workspace parameters, or stops sharing them")
+          "Shares an integration's credentials with the Workspace's tasks as managed Workspace"
+              + " parameters, or stops sharing them: GitHub's installation token, Slack's bot token,"
+              + " or the values entered for a form integration such as Google or Microsoft")
   @AuthCriteria(
       action = PermissionAction.WRITE,
       resource = PermissionResource.INTEGRATION,
@@ -323,7 +325,8 @@ public class IntegrationControllerV2 {
         @ApiResponse(responseCode = "404", description = "Not Found")
       })
   void shareCredentials(@PathVariable String integration, @RequestBody GHShareRequest request) {
-    integrationService.share(integration, request.getWorkspace(), request.isShared());
+    integrationService.share(
+        integration, request.getWorkspace(), request.isShared(), request.getValues());
   }
 
   /**

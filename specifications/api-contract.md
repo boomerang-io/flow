@@ -60,19 +60,18 @@ creates a workflow from one by posting its body as read to `POST /api/v2/workspa
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task
 run references the task (`workflow/TaskService.java:980-984`).
 
-**Integrations.** `POST /api/v2/integration/{github|slack}/share` with `{workspace, shared}` shares, or stops sharing, that integration's credentials
-with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"); it needs `integration/write`, and another
-name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:301-327`). A parameter of that name the workspace holds is `409
-INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`, both checked before a token is asked for; GitHub issuing
-none is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES` (`integrations/IntegrationService.java:118-156`,
-`integrations/IntegrationParameterService.java:84-118`). `GET /api/v2/integration?workspace=` carries each template's `fields`, `shared` once linked,
-and Slack's authorize URL with a state signed for the workspace and caller (`integrations/IntegrationService.java:92-97`,
-`integrations/SlackService.java:705-722`). Slack's redirect links its team to that workspace, one team per workspace (`409
-INTEGRATION_ALREADY_LINKED`); `POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`,
-`integrations/IntegrationControllerV2.java:125-140`). `POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s
-`ref`) or installation id: an unreachable workspace is `404 WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown
-installation `404 INTEGRATION_INVALID_REF`; it is audited and removes the record, link and parameters
-(`integrations/IntegrationControllerV2.java:284-299`, `integrations/GitHubService.java:390-419`).
+**Integrations.** `POST /api/v2/integration/{github|slack|google|microsoft}/share` with `{workspace, shared}`, plus a form integration's `values` by field
+name, shares, or stops sharing, those credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration
+manages"); it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:301-330`). A user's
+parameter of a field's name is `409 INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`; unknown, missing or misplaced
+`values` are `400` (1910-1912); GitHub issuing no token is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES`
+(`integrations/IntegrationService.java:137-187`). `GET /api/v2/integration?workspace=` gives each template's `kind`, `fields` (a linked form's with its
+values, a secret as `*****`), `shared` once linked, and Slack's signed authorize URL (`integrations/IntegrationService.java:86-109`,
+`integrations/SlackService.java:705-722`). Slack's redirect links its team to that workspace, one per workspace (`409 INTEGRATION_ALREADY_LINKED`);
+`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`, `integrations/IntegrationControllerV2.java:125-140`).
+`POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s `ref`) or installation id: an unreachable workspace is `404
+WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown installation `404 INTEGRATION_INVALID_REF`; it is audited and removes
+the record, link and parameters (`integrations/IntegrationControllerV2.java:284-299`, `integrations/GitHubService.java:390-419`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status
@@ -119,7 +118,7 @@ sends `WWW-Authenticate: Bearer`.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-123`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,113`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-126`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,118`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 

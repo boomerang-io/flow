@@ -533,6 +533,10 @@ components:
       properties:
         shared:
           type: "boolean"
+        values:
+          additionalProperties:
+            type: "string"
+          type: "object"
         workspace:
           type: "string"
       type: "object"
@@ -813,6 +817,11 @@ components:
           type: "string"
         instructions:
           type: "string"
+        kind:
+          enum:
+          - "app"
+          - "form"
+          type: "string"
         link:
           type: "string"
         name:
@@ -825,6 +834,8 @@ components:
           enum:
           - "unlinked"
           - "linked"
+          type: "string"
+        type:
           type: "string"
       type: "object"
     JsonNode:
@@ -4055,9 +4066,10 @@ paths:
           description: "Bad Request"
         "404":
           description: "Not Found"
-      summary: "Shares an integration's credentials (GitHub's installation token,\
-        \ Slack's bot token) with the Workspace's tasks as managed Workspace parameters,\
-        \ or stops sharing them"
+      summary: "Shares an integration's credentials with the Workspace's tasks as\
+        \ managed Workspace parameters, or stops sharing them: GitHub's installation\
+        \ token, Slack's bot token, or the values entered for a form integration such\
+        \ as Google or Microsoft"
       tags:
       - "Integrations"
   /api/v2/navigation:

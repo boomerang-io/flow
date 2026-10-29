@@ -128,7 +128,7 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
     String workspace = workspaceWithMember("slack-share-ws", "slack-share-user");
     install(workspace, "slack-share-user", "T300", "xoxb-shared-token");
 
-    integrationService.share("slack", workspace, true);
+    integrationService.share("slack", workspace, true, null);
 
     WorkspaceEntity stored = workspace(workspace);
     assertThat(param(stored, "slack-token"))
@@ -142,7 +142,7 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
     authorizes("T301", "xoxe.xoxb-rotating", "xoxe-1-refresh", 43200);
     slackService.handleAuth("code", InstallStateUtils.sign(rotating, "slack-rotating-user", CLIENT_SECRET));
 
-    assertThatThrownBy(() -> integrationService.share("slack", rotating, true))
+    assertThatThrownBy(() -> integrationService.share("slack", rotating, true, null))
         .isInstanceOfSatisfying(
             BoomerangException.class, e -> assertThat(e.getReason()).isEqualTo("INTEGRATION_TOKEN_ROTATES"));
     assertThat(workspace(rotating).getParameters()).extracting(AbstractParam::getName).doesNotContain("slack-token");
@@ -154,8 +154,8 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
     String second = workspaceWithMember("slack-unlink-second-ws", "slack-unlink-user");
     install(first, "slack-unlink-user", "T400", "xoxb-team-token");
     install(second, "slack-unlink-user", "T400", "xoxb-team-token");
-    integrationService.share("slack", first, true);
-    integrationService.share("slack", second, true);
+    integrationService.share("slack", first, true, null);
+    integrationService.share("slack", second, true, null);
     String installationId = installation("T400").getId();
     GHLinkRequest unlink = new GHLinkRequest();
     unlink.setRef(installationId);

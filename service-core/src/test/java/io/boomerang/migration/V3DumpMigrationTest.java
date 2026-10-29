@@ -483,9 +483,9 @@ class V3DumpMigrationTest {
     // carries, so the seed's guard makes its two workflow templates a no-op - those two are the
     // migrated content, not the seed. The third is the AI example, which v3 never had, so the seed
     // inserts it. integration_templates has no v3 counterpart, so the seed gives the upgraded
-    // install the two out-of-the-box integration templates.
+    // install the four out-of-the-box integration templates.
     assertThat(collection("workflow_templates").countDocuments()).isEqualTo(3);
-    assertThat(collection("integration_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection("integration_templates").countDocuments()).isEqualTo(4);
 
     // _0003__SeedRelationshipRoot, _0004__SeedSystemWorkspace and _0015__SeedRoles are NOT
     // v3-skipped - the graph root, system workspace, and roles are seeded exactly as on an empty

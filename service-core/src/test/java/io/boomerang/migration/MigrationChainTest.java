@@ -80,7 +80,7 @@ class MigrationChainTest {
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(91);
     assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(177);
     assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
-    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(4);
     // Every task is in the global catalogue: a task node the root reaches by hasTask.
     assertThat(collection(db, "rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(91);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(91);
@@ -256,7 +256,7 @@ class MigrationChainTest {
         .isEqualTo(1);
 
     assertThat(collection(db, "workflow_templates").countDocuments()).isEqualTo(3);
-    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(2);
+    assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(4);
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "parameters").countDocuments()).isZero();
     assertIndexInventory(db);
@@ -758,6 +758,39 @@ class MigrationChainTest {
     assertThat(revisions.countDocuments()).isEqualTo(175);
     assertThat(templates.find(Filters.eq("type", "github_app")).first().getList("fields", Document.class))
         .hasSize(2);
+  }
+
+  /**
+   * A database from before integrations could be linked through a form receives, from its own unit,
+   * the kind of each installed integration's template and the Google and Microsoft form templates;
+   * a second run changes nothing.
+   */
+  @Test
+  void aDatabaseWithoutFormIntegrationsReceivesThemFromItsOwnUnit() {
+    MongoDatabase db = migrate("form-integrations");
+    MongoCollection<Document> templates = collection(db, "integration_templates");
+    templates.deleteMany(Filters.in("type", List.of("google", "microsoft")));
+    templates.updateMany(new Document(), new Document("$unset", new Document("kind", "")));
+    assertThat(templates.countDocuments()).isEqualTo(2);
+
+    Environment environment = MigrationRunner.environment(PREFIX);
+    new _0034__SeedFormIntegrations().execute(db, environment);
+    assertThat(templates.find().into(new java.util.ArrayList<>()))
+        .extracting(template -> template.getString("type"), template -> template.getString("kind"))
+        .containsExactlyInAnyOrder(
+            tuple("github_app", "app"),
+            tuple("slack_auth", "app"),
+            tuple("google", "form"),
+            tuple("microsoft", "form"));
+    assertThat(templates.find(Filters.eq("type", "microsoft")).first().getList("fields", Document.class))
+        .extracting(field -> field.getString("name"), field -> field.getString("type"))
+        .containsExactly(
+            tuple("microsoft-tenant-id", "text"),
+            tuple("microsoft-client-id", "text"),
+            tuple("microsoft-client-secret", "password"));
+
+    new _0034__SeedFormIntegrations().execute(db, environment);
+    assertThat(templates.countDocuments()).isEqualTo(4);
   }
 
   /**

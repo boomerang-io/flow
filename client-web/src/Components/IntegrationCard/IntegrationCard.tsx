@@ -7,6 +7,7 @@ import { useFetcher } from "react-router-dom";
 import type { ActionResult } from "Features/Integrations/Integrations";
 import { isActionError } from "Utils/actionResult";
 import ModalContent from "./ModalContent";
+import FormModalContent from "./ModalContent/FormModalContent";
 import styles from "./integrationCard.module.scss";
 
 interface IntegrationCardProps {
@@ -25,6 +26,14 @@ const known: Record<string, { Logo: React.ComponentType<any>; adds: Array<string
     Logo: LogoSlack,
     adds: ["A slash command to run a workflow", "Lets the Slack tasks use the app's bot token"],
   },
+  google: {
+    Logo: Connect,
+    adds: ["Lets the Google Sheets and Drive tasks use a service account key"],
+  },
+  microsoft: {
+    Logo: Connect,
+    adds: ["Lets the Teams and SharePoint tasks use a Microsoft Entra app"],
+  },
 };
 
 const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }) => {
@@ -41,6 +50,21 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
   // revalidate by hand here.
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) {
+      return;
+    }
+    if (fetcher.data.intent === "connect") {
+      // A failed connect keeps the form open with its error, so the values can be corrected.
+      if (!isActionError(fetcher.data)) {
+        notify(
+          <ToastNotification
+            kind="success"
+            title={data.status === "linked" ? "Saved" : "Connected"}
+            subtitle={`Tasks in this workspace can now use the ${fetcher.data.name} credentials`}
+          />,
+        );
+        closeModalRef.current?.();
+        closeModalRef.current = null;
+      }
       return;
     }
     if (fetcher.data.intent === "share") {
@@ -79,9 +103,31 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
     }
   }, [fetcher.state, fetcher.data]);
 
+  const isForm = data.kind === "form";
+
   const handleDisable = (closeModal: () => void) => {
     closeModalRef.current = closeModal;
-    fetcher.submit({ intent: "disconnect", name: data.name, workspace: workspaceName, ref: data.ref }, { method: "post" });
+    fetcher.submit(
+      isForm
+        ? { intent: "disconnect", name: data.name, workspace: workspaceName, kind: "form", type: data.type }
+        : { intent: "disconnect", name: data.name, workspace: workspaceName, ref: data.ref },
+      { method: "post" },
+    );
+  };
+
+  const handleConnect = (values: Record<string, string>, closeModal: () => void) => {
+    closeModalRef.current = closeModal;
+    fetcher.submit(
+      {
+        intent: "connect",
+        name: data.name,
+        workspace: workspaceName,
+        kind: "form",
+        type: data.type,
+        values: JSON.stringify(values),
+      },
+      { method: "post" },
+    );
   };
 
   const handleShare = (shared: boolean) => {
@@ -106,11 +152,14 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
   const submitting = fetcher.state !== "idle" ? fetcher.formData?.get("intent") : undefined;
   const isDisabling = submitting === "disconnect";
   const isSharing = submitting === "share";
+  const isConnecting = submitting === "connect";
+  const connectErrorMessage =
+    fetcher.data && fetcher.data.intent === "connect" && isActionError(fetcher.data) ? fetcher.data.error : null;
   const disableError = Boolean(fetcher.data && fetcher.data.intent === "disconnect" && isActionError(fetcher.data));
   const disableErrorMessage =
     fetcher.data && fetcher.data.intent === "disconnect" && isActionError(fetcher.data) ? fetcher.data.error : null;
   const { Logo, adds } = known[String(data.name).toLowerCase()] ?? { Logo: Connect, adds: [] };
-  const canConnect = isConnected || Boolean(data.link);
+  const canConnect = isConnected || isForm || Boolean(data.link);
 
   return (
     <ComposedModal
@@ -160,18 +209,29 @@ const IntegrationCard: React.FC<IntegrationCardProps> = ({ workspaceName, data }
         </section>
       )}
     >
-      {({ closeModal }) => (
-        <ModalContent
-          closeModal={closeModal}
-          error={disableError}
-          handleEnable={handleEnable}
-          handleDisable={handleDisable}
-          handleShare={handleShare}
-          isSharing={isSharing}
-          errorMessage={errorMessage ?? disableErrorMessage}
-          data={data}
-        />
-      )}
+      {({ closeModal }) =>
+        isForm ? (
+          <FormModalContent
+            closeModal={closeModal}
+            handleConnect={handleConnect}
+            handleDisable={handleDisable}
+            isSubmitting={isConnecting || isDisabling}
+            errorMessage={connectErrorMessage ?? disableErrorMessage}
+            data={data}
+          />
+        ) : (
+          <ModalContent
+            closeModal={closeModal}
+            error={disableError}
+            handleEnable={handleEnable}
+            handleDisable={handleDisable}
+            handleShare={handleShare}
+            isSharing={isSharing}
+            errorMessage={errorMessage ?? disableErrorMessage}
+            data={data}
+          />
+        )
+      }
     </ComposedModal>
   );
 };

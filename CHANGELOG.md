@@ -129,6 +129,13 @@ tag's release notes.
   `_0032__SeedSlackIntegrationParameters` makes the Slack template active and adds a revision of each of the 10
   Slack tasks that call the Slack API whose `token` defaults to `$(workspace.params.slack-token)`. The share
   route is now `POST /api/v2/integration/{github|slack}/share`; the GitHub URL is unchanged.
+- **Google and Microsoft can be connected by entering their credentials.** The Integrations page lists them with
+  no platform setting needed: Connect asks for a Google Cloud service account's JSON key, or a Microsoft Entra
+  app's tenant ID, client ID and client secret, and writes them as read-only workspace parameters
+  (`google-service-account-key`; `microsoft-tenant-id`, `microsoft-client-id`, `microsoft-client-secret`).
+  Manage edits them, a stored secret kept until it is retyped, and Disconnect removes them. The share route takes
+  them as `values`. Change unit `_0034__SeedFormIntegrations` adds the two templates and marks GitHub and Slack as
+  integrations Flow installs. No catalogue task defaults to them yet.
 - **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
   `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
   `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an

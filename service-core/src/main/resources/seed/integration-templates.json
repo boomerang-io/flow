@@ -8,6 +8,7 @@
       "instructions": "### Enable\n\nTo enable this integration, you will be asked:\n- to accept the GitHub App permissions, and\n- select a GitHub organisation to install into.\n\nOnce you have installed the app, you will be redirected back to complete the integration by choosing which team to link the app to.\n\n### Disable\n\nTo disable this integration, you can either\n- remove the GitHub App installation from your GitHub organisation, or\n- unlink the app by reopening this integration modal and selecting 'disable'",
       "link": "https://github.com/apps/{app_name}/installations/select_target",
       "status": "active",
+      "kind": "app",
       "fields": [
         {
           "name": "github-token",
@@ -32,12 +33,61 @@
       "instructions": "### Enable\n\nTo enable this integration, you will be asked to:\n- choose the Slack workspace to install the Flow app into, and\n- allow the app's permissions.\n\nOnce Slack has installed the app, you are returned here with Slack connected to this workspace. Several Flow workspaces can connect the same Slack workspace.\n\nThe app asks Slack for these bot scopes:\n- `chat:write`, `commands`, `users:read` and `users:read.email` - the slash command that runs a workflow, and the find member tasks\n- `channels:read` and `groups:read` - the get channel tasks\n- `channels:manage` and `groups:write` - the create, delete, invite and remove channel tasks\n- `files:write` - the upload file task\n\n### Disable\n\nTo disable this integration, you can either\n- disconnect it here, which removes it from this Flow workspace only, or\n- remove the Flow app from your Slack workspace, which disconnects every Flow workspace using it",
       "link": "https://slack.com/oauth/v2/authorize?client_id={client_id}&scope=channels:manage,channels:read,chat:write,commands,files:write,groups:read,groups:write,users:read,users:read.email",
       "status": "active",
+      "kind": "app",
       "fields": [
         {
           "name": "slack-token",
           "label": "Slack token",
           "type": "password",
           "description": "The Flow app's bot token for the connected Slack workspace"
+        }
+      ]
+    },
+    {
+      "name": "Google",
+      "type": "google",
+      "description": "Let the Google Sheets and Drive tasks act as a Google Cloud service account",
+      "instructions": "### Enable\n\nConnect Google with a service account key:\n- In the Google Cloud console, create a service account in a project with the Google Sheets and Google Drive APIs turned on.\n- Create a JSON key for it and paste the whole key file below.\n- Share each spreadsheet or Drive folder the tasks use with the service account's email address.\n\nSome organisations block service account key creation until an administrator lifts the policy.\n\nEvery workflow author in this workspace can then use the key, which tasks read as `$(workspace.params.google-service-account-key)`.\n\n### Disable\n\nDisconnect removes the key from this workspace. Delete the key in the Google Cloud console as well if nothing else uses it.",
+      "status": "active",
+      "kind": "form",
+      "fields": [
+        {
+          "name": "google-service-account-key",
+          "label": "Service account key (JSON)",
+          "type": "password",
+          "required": true,
+          "description": "The whole JSON key file of the Google Cloud service account the tasks act as"
+        }
+      ]
+    },
+    {
+      "name": "Microsoft",
+      "type": "microsoft",
+      "description": "Let the Teams and SharePoint tasks call Microsoft Graph as a Microsoft Entra app",
+      "instructions": "### Enable\n\nConnect Microsoft with a Microsoft Entra app registration:\n- Register an app in Microsoft Entra ID for this workspace.\n- Grant it the Microsoft Graph application permissions the Teams and SharePoint tasks need, and have an administrator grant consent.\n- Create a client secret for it.\n- Enter the directory (tenant) ID, the application (client) ID and the client secret below.\n\nThe tasks request their own Microsoft Graph tokens with these credentials. Every workflow author in this workspace can then use them, which tasks read as `$(workspace.params.microsoft-tenant-id)`, `$(workspace.params.microsoft-client-id)` and `$(workspace.params.microsoft-client-secret)`.\n\n### Disable\n\nDisconnect removes the credentials from this workspace. Delete the client secret in Microsoft Entra ID as well if nothing else uses it.",
+      "status": "active",
+      "kind": "form",
+      "fields": [
+        {
+          "name": "microsoft-tenant-id",
+          "label": "Directory (tenant) ID",
+          "type": "text",
+          "required": true,
+          "description": "The Microsoft Entra directory the app is registered in"
+        },
+        {
+          "name": "microsoft-client-id",
+          "label": "Application (client) ID",
+          "type": "text",
+          "required": true,
+          "description": "The app registration's application ID"
+        },
+        {
+          "name": "microsoft-client-secret",
+          "label": "Client secret",
+          "type": "password",
+          "required": true,
+          "description": "A client secret of the app registration"
         }
       ]
     }

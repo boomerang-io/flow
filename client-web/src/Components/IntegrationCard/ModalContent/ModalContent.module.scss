@@ -25,3 +25,10 @@
   margin-bottom: $spacing-05;
   padding-block: $spacing-05;
 }
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  margin-block: $spacing-05;
+}
