@@ -60,7 +60,7 @@ run references the task (`workflow/TaskService.java:980-984`).
 
 **Run purge.** `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes a run with everything it owns and its
 lineage, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
-for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0140). `DELETE
+for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0045). `DELETE
 …/workflowrun?labels=k%3Dv` does the same for the workspace's runs carrying every label, oldest first, a page of 50 a
 call (`workflow/WorkflowRunService.java:492-518`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged,
 scheduled, remaining}` (`common/model/WorkflowRunPurge.java`): runs removed now, runs left to the sweep, and matches

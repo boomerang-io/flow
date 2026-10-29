@@ -21,7 +21,7 @@ front of every run request; inside one deployable, the feature packages need a r
 
 B and D, because queue-claimed work makes instances interchangeable and a split protects nothing. `service-core` is the
 one Spring Boot application (`pom.xml:10`, `service-core/src/main/java/io/boomerang/Application.java:37-45`), every bean
-always loads, and the headless shape is two properties (decision 0032). "Engine" names its execution package, never the
+always loads, and the headless shape is two properties (decision 0013). "Engine" names its execution package, never the
 application, which ships as `boomerangio/flow-service-core` (`.github/workflows/ci-release.yml:33-36`); the Kubernetes
 worker stays its own deployable. Eight packages, `io.boomerang.{core, workspace, workflow, engine, dispatcher, schedule,
 event, integrations}`, each hold their entities, repositories, services and controllers, with no Modulith or ArchUnit.
