@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.boomerang.common.enums.WorkflowStatus;
+import io.boomerang.common.enums.WorkflowType;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -60,6 +61,10 @@ public class Workflow {
   private WorkflowWorkspace workspace;
   // Read-only: true on a revision the v3 upgrade flagged (see WorkflowRevisionEntity).
   private Boolean legacyWorkflowStorage;
+  // What the definition is for: workflow (absent), template or starter (system workspace only).
+  private WorkflowType type;
+  // On a link: the template whose revision this workflow runs by reference (name, version).
+  private WorkflowTemplateRef templateRef;
 
   @Override
   public String toString() {

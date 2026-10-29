@@ -49,7 +49,8 @@ const WorkflowTemplateCard: React.FC<WorkflowTemplateCardProps> = ({ template, w
     workspace: string,
     requestBody: { name: string; description: string; icon: string },
   ) => {
-    const body = { ...template, ...requestBody };
+    // A starter is copied: the copy is an ordinary workflow of the workspace.
+    const body = { ...template, ...requestBody, type: "workflow" };
     fetcher.submit({ intent: "create-workflow-from-template", workspace, body: JSON.stringify(body) }, { method: "post" });
   };
   const isLoading = fetcher.state !== "idle";

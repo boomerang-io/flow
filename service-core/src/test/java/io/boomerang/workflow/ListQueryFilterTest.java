@@ -9,7 +9,7 @@ import io.boomerang.common.entity.TaskRevisionEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
-import io.boomerang.common.entity.WorkflowTemplateEntity;
+import io.boomerang.common.enums.WorkflowType;
 import io.boomerang.common.enums.ActionStatus;
 import io.boomerang.common.enums.ActionType;
 import io.boomerang.common.enums.RunPhase;
@@ -20,7 +20,6 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
-import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -166,6 +165,8 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                     Optional.empty(),
                     valueWithAnEquals,
                     Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
                     Optional.empty())
                 .getContent())
         .extracting(Workflow::getId)
@@ -177,6 +178,8 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                 Optional.empty(),
                 Optional.empty(),
                 NO_LABEL_VALUE,
+                Optional.empty(),
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty()));
   }
@@ -213,8 +216,8 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
 
   @Test
   void templates() {
-    WorkflowTemplateEntity match = template("b=c");
-    template("b");
+    WorkflowEntity match = starter("b=c");
+    starter("b");
 
     assertThat(
             workflowTemplateService
@@ -223,14 +226,20 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                     Optional.empty(),
                     Optional.empty(),
                     valueWithAnEquals,
+                    Optional.empty(),
                     Optional.empty())
                 .getContent())
-        .extracting(WorkflowTemplate::getName)
+        .extracting(Workflow::getName)
         .containsExactly(match.getName());
     assertRefused(
         () ->
             workflowTemplateService.query(
-                Optional.empty(), Optional.empty(), Optional.empty(), NO_LABEL_VALUE, Optional.empty()));
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                NO_LABEL_VALUE,
+                Optional.empty(),
+                Optional.empty()));
   }
 
   @Test
@@ -400,11 +409,12 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
     return task;
   }
 
-  private WorkflowTemplateEntity template(String value) {
-    WorkflowTemplateEntity template = new WorkflowTemplateEntity();
-    template.setName("list-filter-tpl-" + UUID.randomUUID().toString().substring(0, 8));
-    template.setLabels(labelled(value));
-    return mongoTemplate.save(template);
+  // A starter is a system-workspace workflow of that type; the shared query reads it by type.
+  private WorkflowEntity starter(String value) {
+    WorkflowEntity starter = workflow(value);
+    starter.setName("list-filter-tpl-" + UUID.randomUUID().toString().substring(0, 8));
+    starter.setType(WorkflowType.starter);
+    return mongoTemplate.save(starter);
   }
 
   private WorkflowRunEntity run(String workflowRef, String value) {

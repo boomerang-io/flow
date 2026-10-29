@@ -124,7 +124,7 @@ export const serviceUrl = {
   // Workflow Templates are seeded, read-only content - the two reads are the whole surface.
   template: {
     getWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}`,
-    getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query`,
+    getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query?types=starter`,
   },
   workspace: {
     deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,

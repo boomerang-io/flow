@@ -2,10 +2,11 @@ package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
+import io.boomerang.common.enums.WorkflowType;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowTask;
-import io.boomerang.common.model.WorkflowTemplate;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -19,9 +20,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * A Workflow is created from a template by posting the template body, as the template routes read
- * it, to the workspace Workflow create route. Every seeded template does so, with its tasks' slug
- * forms carried through.
+ * A starter is copied: a workflow is created from it by posting its body, as the template routes
+ * read it, to the workspace Workflow create route with {@code type} set to {@code workflow}. Every
+ * seeded starter does so, with its tasks' slug forms carried through, and the copy is a plain
+ * workflow of the workspace.
  */
 class WorkflowTemplateCreateTest extends AbstractEngineIntegrationTest {
 
@@ -31,28 +33,36 @@ class WorkflowTemplateCreateTest extends AbstractEngineIntegrationTest {
   @Autowired private ObjectMapper mapper;
 
   @Test
-  void everySeededTemplateCreatesAWorkflow() {
+  void everySeededStarterCreatesAWorkflow() {
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("template-create-" + UUID.randomUUID().toString().substring(0, 8));
     request.setDisplayName(request.getName());
     String workspace = workspaceService.create(request).getName();
 
-    List<WorkflowTemplate> templates =
+    List<Workflow> starters =
         templateService
-            .query(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty())
+            .query(
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(List.of(WorkflowType.starter.name())))
             .getContent();
-    assertFalse(templates.isEmpty());
+    assertFalse(starters.isEmpty());
 
-    for (WorkflowTemplate template : templates) {
-      Workflow body =
-          mapper.readValue(mapper.writeValueAsString(template), Workflow.class);
+    for (Workflow starter : starters) {
+      assertEquals(WorkflowType.starter, starter.getType());
+      Workflow body = mapper.readValue(mapper.writeValueAsString(starter), Workflow.class);
+      body.setType(WorkflowType.workflow);
       Workflow created = workflowService.create(workspace, body);
 
-      assertEquals(template.getName(), created.getName());
-      assertEquals(taskRefs(template.getTasks()), taskRefs(created.getTasks()));
+      assertEquals(starter.getName(), created.getName());
+      assertNull(created.getTemplateRef(), "a copy is its own workflow");
+      assertEquals(taskRefs(starter.getTasks()), taskRefs(created.getTasks()));
       assertEquals(
-          taskRefs(template.getTasks()),
-          taskRefs(templateService.get(template.getName(), Optional.empty(), true).getTasks()));
+          taskRefs(starter.getTasks()),
+          taskRefs(templateService.get(starter.getName(), Optional.empty()).getTasks()));
     }
   }
 

@@ -23,6 +23,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
@@ -484,7 +485,8 @@ class V3DumpMigrationTest {
     // migrated content, not the seed. The third is the AI example, which v3 never had, so the seed
     // inserts it. integration_templates has no v3 counterpart, so the seed gives the upgraded
     // install the four out-of-the-box integration templates.
-    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(3);
+    assertThat(collection("workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
+    assertThat(collection("workflow_templates").countDocuments()).as("moved and dropped").isZero();
     assertThat(collection("integration_templates").countDocuments()).isEqualTo(4);
 
     // _0003__SeedRelationshipRoot, _0004__SeedSystemWorkspace and _0015__SeedRoles are NOT
@@ -1049,9 +1051,12 @@ class V3DumpMigrationTest {
   @SuppressWarnings("unchecked")
   private void assertWorkflowsMigrated(long workflowsBefore) {
     // 67 real v3 workflows minus the 2 scope=template ones _0011__V3ExtractWorkflowTemplates
-    // extracts and deletes.
-    assertThat(collection("workflows").countDocuments()).isEqualTo(workflowsBefore - 2);
-    assertThat(collection("workflows").countDocuments()).isEqualTo(65);
+    // extracts and deletes; the starters _0038__WorkflowTemplatesIntoSystem adds (those 2 plus the
+    // seeded AI example) are counted apart.
+    Bson notStarter = Filters.ne("type", "starter");
+    assertThat(collection("workflows").countDocuments(notStarter)).isEqualTo(workflowsBefore - 2);
+    assertThat(collection("workflows").countDocuments(notStarter)).isEqualTo(65);
+    assertThat(collection("workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
 
     for (Document workflow : collection("workflows").find()) {
       assertThat(workflow.containsKey("_class")).as("no leftover v3 _class on any workflow").isFalse();
@@ -1111,8 +1116,10 @@ class V3DumpMigrationTest {
           .isTrue();
     }
 
-    // 151 real v3 revisions minus the 2 belonging to the extracted template workflows.
-    assertThat(collection("workflow_revisions").countDocuments()).isEqualTo(149);
+    // 151 real v3 revisions minus the 2 belonging to the extracted template workflows, plus the 3
+    // revisions of the starters _0038__WorkflowTemplatesIntoSystem makes of those 2 templates and
+    // the seeded AI example.
+    assertThat(collection("workflow_revisions").countDocuments()).isEqualTo(152);
     List<String> names = new ArrayList<>();
     db.listCollectionNames().into(names);
     assertThat(names).as("workflows_revisions dropped after migration").doesNotContain(prefixed("workflows_revisions"));
@@ -1130,11 +1137,12 @@ class V3DumpMigrationTest {
         }
       }
     }
-    // 287 real dag tasks carry a templateId/taskRef in total, minus the 12 (8+4) belonging to the
-    // two scope=template workflows' revisions - those are extracted into workflow_templates by
-    // _0011__V3ExtractWorkflowTemplates (and asserted there instead - see
-    // assertTemplatesExtracted).
-    assertThat(tasksWithTaskRef).as("287 - 12 template-extracted = 275 remain on workflow_revisions").isEqualTo(275);
+    // 287 real dag tasks carry a templateId/taskRef in total, the 12 (8+4) belonging to the two
+    // scope=template workflows' revisions among them: _0011__V3ExtractWorkflowTemplates extracts
+    // those into workflow_templates and _0038__WorkflowTemplatesIntoSystem brings them back as the
+    // starters' revisions (asserted in assertTemplatesExtracted), joined by the seeded AI
+    // example's 2 tasks, whose taskVersion the move fills from the catalogue.
+    assertThat(tasksWithTaskRef).as("287 real + 2 seeded on workflow_revisions").isEqualTo(289);
 
     // Detailed spot check: revision 6153a5be7162702bd3ee75c2 (Account Management - Onboarding,
     // version 6) - exercises taskRef/taskVersion resolution, dependency taskRef resolution
@@ -1205,7 +1213,8 @@ class V3DumpMigrationTest {
   @SuppressWarnings("unchecked")
   private void assertTemplatesExtracted() {
     // The two extracted v3 templates plus the seeded AI example.
-    assertThat(collection("workflow_templates").countDocuments()).isEqualTo(3);
+    assertThat(collection("workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
+    assertThat(collection("workflow_templates").countDocuments()).as("moved and dropped").isZero();
 
     // The two source workflows/revisions - the collision-guard ids
     // _0011__V3ExtractWorkflowTemplates and _0020__SeedTemplates both name - are gone from their
@@ -1217,8 +1226,9 @@ class V3DumpMigrationTest {
         .as("source template workflow must be deleted")
         .isNull();
 
-    Document planets =
-        collection("workflow_templates").find(Filters.eq("_id", new ObjectId("62be6a3266ff43491f09d2e8"))).first();
+    // The extracted templates then move into the system workspace as starters
+    // (_0038__WorkflowTemplatesIntoSystem): a workflow per name, a revision per version.
+    Document planets = starter("looking-through-planets-with-http-call");
     assertThat(planets).isNotNull();
     assertThat(planets.getString("name")).isEqualTo("looking-through-planets-with-http-call");
     // The trailing space in the real v3 name is preserved verbatim on displayName - matches the
@@ -1231,17 +1241,17 @@ class V3DumpMigrationTest {
     // workflow_revisions (see assertWorkflowsMigrated), these account for all 287 real dag tasks
     // that carry a templateId.
     @SuppressWarnings("unchecked")
-    List<Document> planetsTasks = (List<Document>) planets.get("tasks");
+    List<Document> planetsTasks = (List<Document>) starterRevision(planets).get("tasks");
     long planetsWithTaskRef = planetsTasks.stream().filter(t -> t.containsKey("taskRef")).count();
     assertThat(planetsWithTaskRef).isEqualTo(8);
 
-    Document mongoQuery =
-        collection("workflow_templates").find(Filters.eq("_id", new ObjectId("62be6a3e66ff43491f09d2ea"))).first();
+    Document mongoQuery = starter("mongodb-email-query-results");
     assertThat(mongoQuery).isNotNull();
     assertThat(mongoQuery.getString("name")).isEqualTo("mongodb-email-query-results");
     assertThat(mongoQuery.getString("displayName")).isEqualTo("MongoDB email query results");
-    assertThat(mongoQuery.getInteger("version")).isEqualTo(1);
-    List<Document> mongoTasks = (List<Document>) mongoQuery.get("tasks");
+    Document mongoRevision = starterRevision(mongoQuery);
+    assertThat(mongoRevision.getInteger("version")).isEqualTo(1);
+    List<Document> mongoTasks = (List<Document>) mongoRevision.get("tasks");
     assertThat(mongoTasks).hasSize(6);
     // The same headline taskVersion fix survives extraction into workflow_templates - and
     // deliberately DIFFERS from the static seed/workflow-templates.json reference (whose
@@ -1260,7 +1270,7 @@ class V3DumpMigrationTest {
     // 4046's merge - single param, matches the seeded reference shape exactly (see
     // _0010__V3MigrateWorkflows's javadoc: config-as-base, defaultValue/description merged in from
     // the naive param).
-    List<Document> mongoParams = (List<Document>) mongoQuery.get("params");
+    List<Document> mongoParams = (List<Document>) mongoRevision.get("params");
     assertThat(mongoParams).hasSize(1);
     Document queryParam = mongoParams.get(0);
     assertThat(queryParam.getString("name")).isEqualTo("query");
@@ -1562,9 +1572,10 @@ class V3DumpMigrationTest {
     assertThat(hobbyMemberships).as("27 real v3 flowTeams memberships, all resolved to a workspace").isEqualTo(27);
 
     // ---- Workflow ownership edges: all 65 workflows resolve (system/team/user scope), via
-    // _0010__V3MigrateWorkflows's scope/ownerRef hand-off fields. ----
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workflow"))).isEqualTo(65);
-    assertThat(collection("rel_edges").countDocuments(Filters.eq("label", "hasWorkflow"))).isEqualTo(65);
+    // _0010__V3MigrateWorkflows's scope/ownerRef hand-off fields, plus the 3 starters
+    // _0038__WorkflowTemplatesIntoSystem gives the system workspace. ----
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "workflow"))).isEqualTo(68);
+    assertThat(collection("rel_edges").countDocuments(Filters.eq("label", "hasWorkflow"))).isEqualTo(68);
 
     Document system = collection("workspaces").find(Filters.eq("name", "system")).first();
     String systemWorkspaceId = system.get("_id").toString();
@@ -1734,6 +1745,19 @@ class V3DumpMigrationTest {
       counts.put(name, db.getCollection(name).countDocuments());
     }
     return counts;
+  }
+
+  // A starter the move into the system workspace made of an extracted or seeded template.
+  private static Document starter(String name) {
+    return collection("workflows")
+        .find(Filters.and(Filters.eq("name", name), Filters.eq("type", "starter")))
+        .first();
+  }
+
+  private static Document starterRevision(Document starter) {
+    return collection("workflow_revisions")
+        .find(Filters.eq("workflowRef", starter.getObjectId("_id").toString()))
+        .first();
   }
 
   private static MongoCollection<Document> collection(String bareName) {

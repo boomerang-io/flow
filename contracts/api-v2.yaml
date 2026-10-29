@@ -2438,11 +2438,19 @@ components:
           items:
             $ref: "#/components/schemas/WorkflowTask"
           type: "array"
+        templateRef:
+          $ref: "#/components/schemas/WorkflowTemplateRef"
         timeout:
           format: "int64"
           type: "integer"
         triggers:
           $ref: "#/components/schemas/WorkflowTrigger"
+        type:
+          enum:
+          - "workflow"
+          - "template"
+          - "starter"
+          type: "string"
         upgradesAvailable:
           type: "boolean"
         version:
@@ -3107,84 +3115,11 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
-    WorkflowTemplate:
+    WorkflowTemplateRef:
       properties:
-        annotations:
-          additionalProperties: {}
-          type: "object"
-        changelog:
-          $ref: "#/components/schemas/ChangeLog"
-        creationDate:
-          format: "date-time"
-          type: "string"
-        description:
-          type: "string"
-        displayName:
-          type: "string"
-        icon:
-          type: "string"
-        labels:
-          additionalProperties:
-            type: "string"
-          type: "object"
-        markdown:
-          type: "string"
         name:
           type: "string"
-        params:
-          items:
-            $ref: "#/components/schemas/AbstractParam"
-          type: "array"
-        retries:
-          format: "int64"
-          type: "integer"
-        tasks:
-          items:
-            $ref: "#/components/schemas/WorkflowTask"
-          type: "array"
-        timeout:
-          format: "int64"
-          type: "integer"
-        unknownFields:
-          additionalProperties: {}
-          type: "object"
-        upgradesAvailable:
-          type: "boolean"
         version:
-          format: "int32"
-          type: "integer"
-        workspace:
-          $ref: "#/components/schemas/WorkflowWorkspace"
-      type: "object"
-    WorkflowTemplateResponsePage:
-      properties:
-        content:
-          items:
-            $ref: "#/components/schemas/WorkflowTemplate"
-          type: "array"
-        empty:
-          type: "boolean"
-        first:
-          type: "boolean"
-        last:
-          type: "boolean"
-        number:
-          format: "int32"
-          type: "integer"
-        numberOfElements:
-          format: "int32"
-          type: "integer"
-        pageable:
-          $ref: "#/components/schemas/PageableObject"
-        size:
-          format: "int32"
-          type: "integer"
-        sort:
-          $ref: "#/components/schemas/SortObject"
-        totalElements:
-          format: "int64"
-          type: "integer"
-        totalPages:
           format: "int32"
           type: "integer"
       type: "object"
@@ -5095,6 +5030,15 @@ paths:
           items:
             type: "string"
           type: "array"
+      - description: "Which kinds to list: template, starter. Defaults to both."
+        example: "starter"
+        in: "query"
+        name: "types"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
       - description: "Result Size"
         example: 10
         in: "query"
@@ -5128,21 +5072,20 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowTemplateResponsePage"
+                $ref: "#/components/schemas/WorkflowResponsePage"
           description: "OK"
         "400":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowTemplateResponsePage"
+                $ref: "#/components/schemas/WorkflowResponsePage"
           description: "Bad Request"
-      summary: "Search for Workflow Templates"
+      summary: "Search for Workflow Templates and starters"
       tags:
       - "Workflow Templates"
   /api/v2/workflowtemplate/{name}:
     get:
-      description: "Retrieve a version of the Workflow Template. Defaults to latest.\
-        \ Optionally without Tasks"
+      description: "Retrieve a version of the Workflow Template. Defaults to latest."
       operationId: "get_5"
       parameters:
       - description: "Name of Workflow Template"
@@ -5158,27 +5101,20 @@ paths:
         schema:
           format: "int32"
           type: "integer"
-      - description: "Include Tasks"
-        in: "query"
-        name: "withTasks"
-        required: false
-        schema:
-          default: true
-          type: "boolean"
       responses:
         "200":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowTemplate"
+                $ref: "#/components/schemas/Workflow"
           description: "OK"
         "400":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/WorkflowTemplate"
+                $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      summary: "Retrieve a Workflow Template"
+      summary: "Retrieve a Workflow Template or starter"
       tags:
       - "Workflow Templates"
   /api/v2/workspace:
@@ -7971,8 +7907,6 @@ tags:
   name: "Workspace Management"
 - description: "Inspect and replay the outbound event outbox."
   name: "System"
-- description: "Retrieve and search the Workflow Templates available to every workspace."
-  name: "Workflow Templates"
 - description: "Register the instance, retrieve context and navigation, and manage\
     \ global admin areas."
   name: "System"
@@ -7980,6 +7914,9 @@ tags:
   name: "Profile"
 - description: "Create and Manage the global Task definitions."
   name: "Tasks"
+- description: "Retrieve and search the Workflow Templates and starters available\
+    \ to every workspace."
+  name: "Workflow Templates"
 - description: "Create and manage Manual and Approval Actions."
   name: "Actions"
 - description: "Query the security audit trail: who did what, when, and with what\

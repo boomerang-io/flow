@@ -102,7 +102,6 @@ public class _0021__Indexes {
               "workflow_ref_version",
               keys("workflowRef", "version"),
               new IndexOptions()),
-          new Index("workflow_templates", "name_version", keys("name", "version"), new IndexOptions()),
           new Index("workflow_schedules", "fire_sweep", keys("status", "nextFireAt"), new IndexOptions()),
           new Index("workflow_schedules", "workflow_lookup", keys("workflowRef"), new IndexOptions()),
           new Index("tasks", "name_lookup", keys("name"), new IndexOptions()),

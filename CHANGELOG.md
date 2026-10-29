@@ -184,6 +184,15 @@ tag's release notes.
 
 ### Added
 
+- Templates are workflows of the system workspace. A workflow carries a `type`: `workflow` (the default), `template`
+  or `starter`, and the last two can be created, versioned and edited only in the system workspace, through its
+  ordinary workflow routes. A workspace runs a template by reference: a workflow created with `templateRef: {name,
+  version}` shows the template's tasks and params read-only under its own name, labels and triggers, accepts
+  run-time values only for the params the template declares, and each submit runs the template's pinned or latest
+  revision in the workspace, so the run, its quotas and its audit are the workspace's. A template with such
+  workflows cannot be deleted. A starter is copied, as the Home page has always done. `GET /api/v2/workflowtemplate`
+  lists both by `types`. Change unit `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3
+  install's own into the system workspace as starters and drops the `workflow_templates` collection.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
   tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50

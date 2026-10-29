@@ -1,7 +1,7 @@
 package io.boomerang.workflow;
 
-import io.boomerang.common.model.WorkflowTemplate;
-import io.boomerang.common.model.WorkflowTemplateResponsePage;
+import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowResponsePage;
 import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -22,19 +22,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Workflow Templates are read-only content: they are seeded by the migrations and, on an upgrade
- * from v3, imported from workflows that carried {@code scope=template}. A caller reads a template
- * and creates a Workflow from it through the workspace Workflow create route; there is no API to
- * author, change or remove one.
+ * The templates and starters every workspace may read: the system workspace's workflows of type
+ * {@code template} (run by reference through a workflow carrying a {@code templateRef}) and
+ * {@code starter} (copied by posting the body, with {@code type} set to {@code workflow}, to the
+ * workspace Workflow create route). Authoring them is the system workspace's workflow routes.
  */
 @RestController
 @RequestMapping("/api/v2/workflowtemplate")
 @Tag(
     name = "Workflow Templates",
-    description = "Retrieve and search the Workflow Templates available to every workspace.")
+    description = "Retrieve and search the Workflow Templates and starters available to every workspace.")
 public class WorkflowTemplateControllerV2 {
 
-  WorkflowTemplateService workflowTemplateService;
+  private final WorkflowTemplateService workflowTemplateService;
 
   public WorkflowTemplateControllerV2(WorkflowTemplateService workflowTemplateService) {
     this.workflowTemplateService = workflowTemplateService;
@@ -42,46 +42,39 @@ public class WorkflowTemplateControllerV2 {
 
   @GetMapping(value = "/{name}")
   @AuthCriteria(
-      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session},
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session},
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWTEMPLATE)
   @Operation(
-      summary = "Retrieve a Workflow Template",
-      description =
-          "Retrieve a version of the Workflow Template. Defaults to latest. Optionally without Tasks")
+      summary = "Retrieve a Workflow Template or starter",
+      description = "Retrieve a version of the Workflow Template. Defaults to latest.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public WorkflowTemplate get(
+  public Workflow get(
       @Parameter(name = "name", description = "Name of Workflow Template", required = true)
           @PathVariable
           String name,
       @Parameter(name = "version", description = "Workflow Template Version", required = false)
           @RequestParam(required = false)
-          Optional<Integer> version,
-      @Parameter(name = "withTasks", description = "Include Tasks", required = false)
-          @RequestParam(defaultValue = "true")
-          boolean withTasks) {
-    // WorkflowTemplateService#get never accepted the withTasks param either - it always
-    // returned the template with false regardless of what the caller asked for. Preserved here
-    // bug-for-bug: withTasks is intentionally ignored.
-    return workflowTemplateService.get(name, version, false);
+          Optional<Integer> version) {
+    return workflowTemplateService.get(name, version);
   }
 
   @GetMapping(value = "/query")
   @AuthCriteria(
-      assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session},
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session},
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWTEMPLATE)
-  @Operation(summary = "Search for Workflow Templates")
+  @Operation(summary = "Search for Workflow Templates and starters")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public WorkflowTemplateResponsePage query(
+  public WorkflowResponsePage query(
       @Parameter(
               name = "labels",
               description =
@@ -96,6 +89,13 @@ public class WorkflowTemplateControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> names,
+      @Parameter(
+              name = "types",
+              description = "Which kinds to list: template, starter. Defaults to both.",
+              example = "starter",
+              required = false)
+          @RequestParam(required = false)
+          Optional<List<String>> types,
       @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
           @RequestParam(required = false)
           Optional<Integer> limit,
@@ -109,9 +109,9 @@ public class WorkflowTemplateControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    Page<WorkflowTemplate> resultPage =
-        workflowTemplateService.query(limit, page, sort, labels, names);
-    return new WorkflowTemplateResponsePage(
+    Page<Workflow> resultPage =
+        workflowTemplateService.query(limit, page, sort, labels, names, types);
+    return new WorkflowResponsePage(
         resultPage.getContent(), resultPage.getPageable(), resultPage.getTotalElements());
   }
 }

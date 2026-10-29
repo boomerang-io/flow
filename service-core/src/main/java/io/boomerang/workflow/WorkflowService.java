@@ -22,6 +22,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowStatus;
+import io.boomerang.common.enums.WorkflowType;
+import io.boomerang.common.model.WorkflowTemplateRef;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.*;
@@ -342,7 +344,14 @@ public class WorkflowService {
 
     Page<Workflow> page =
         query(
-            queryLimit, queryPage, querySort, queryLabels, queryStatus, Optional.of(refs));
+            queryLimit,
+            queryPage,
+            querySort,
+            queryLabels,
+            queryStatus,
+            Optional.of(refs),
+            Optional.empty(),
+            Optional.empty());
     WorkflowResponsePage response =
         new WorkflowResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
 
@@ -410,6 +419,10 @@ public class WorkflowService {
     // Fill in displayName if not set
     validateAndSetDisplayName(request);
     LOGGER.debug("Workflow DisplayName: {}", request.getDisplayName());
+
+    // A template or a starter lives only in the system workspace; a link names a template there.
+    validateTypeForWorkspace(workspace, request);
+    resolveTemplateRef(request);
 
     // Ensure Workflow name is unique within Workspace
     List<String> existingWorkflowRefs =
@@ -538,6 +551,10 @@ public class WorkflowService {
 
         // Fill in displayName if not set
         validateAndSetDisplayName(workflow);
+
+        // The same type and template rules create applies, so an update cannot slip past them
+        validateTypeForWorkspace(workspace, workflow);
+        resolveTemplateRef(workflow);
 
         // Default Workspace - the same rule create applies, so an update cannot slip past it
         applyWorkspaceDefaults(workspace, workflow);
@@ -746,6 +763,11 @@ public class WorkflowService {
         relationshipService.refsInWorkspace(
             RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
+      // A template other workspaces run by reference stays until no live link names it.
+      if (workflowRepository.existsByTemplateRefRefAndStatusNot(
+          refs.get(0), WorkflowStatus.deleted)) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_IN_USE);
+      }
       // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
       delete(refs.get(0));
       scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
@@ -1306,13 +1328,10 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
-    Workflow workflow = ConvertUtil.wfEntityToModel(optWfEntity.get(), optWfRevisionEntity.get());
+    Workflow workflow = modelOf(optWfEntity.get(), optWfRevisionEntity.get());
     if (!withTasks) {
       workflow.setTasks(new LinkedList<>());
     }
-
-    // Determine if there are template upgrades available
-    areTaskUpgradesAvailable(workflow);
 
     return ResponseEntity.ok(workflow);
   }
@@ -1323,7 +1342,9 @@ public class WorkflowService {
       Optional<Direction> querySort,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
-      Optional<List<String>> queryIds) {
+      Optional<List<String>> queryIds,
+      Optional<List<String>> queryTypes,
+      Optional<List<String>> queryNames) {
     final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
     Query query =
         new Query(
@@ -1331,6 +1352,8 @@ public class WorkflowService {
                 .labels(queryLabels)
                 .in("status", WorkflowStatus.class, queryStatus, "status")
                 .in("id", queryIds)
+                .in("type", WorkflowType.class, queryTypes, "type")
+                .in("name", queryNames)
                 .build());
     Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
@@ -1348,10 +1371,7 @@ public class WorkflowService {
                 "Revision: {} (version {})",
                 optWfRevisionEntity.get().getId(),
                 optWfRevisionEntity.get().getVersion());
-            Workflow w = ConvertUtil.wfEntityToModel(e, optWfRevisionEntity.get());
-            // Determine if there are template upgrades available
-            areTaskUpgradesAvailable(w);
-            workflows.add(w);
+            workflows.add(modelOf(e, optWfRevisionEntity.get()));
           }
         });
 
@@ -1424,6 +1444,13 @@ public class WorkflowService {
     wfEntity.setAnnotations(request.getAnnotations());
     wfEntity.setStatus(WorkflowStatus.active);
     wfEntity.setTriggers(request.getTriggers());
+    wfEntity.setType(request.getType());
+    wfEntity.setTemplateRef(request.getTemplateRef());
+    // A link's tasks and params are the template's: its own revision holds none.
+    if (request.getTemplateRef() != null) {
+      request.setTasks(null);
+      request.setParams(new LinkedList<>());
+    }
 
     WorkflowRevisionEntity wfRevisionEntity = createWorkflowRevisionEntity(request, 1);
     keepSecretValues(wfRevisionEntity, null);
@@ -1434,9 +1461,7 @@ public class WorkflowService {
     paramLayerCache.evictAll();
     // TODO: figure out a better approach to rollback
 
-    Workflow workflow = ConvertUtil.wfEntityToModel(wfEntity, wfRevisionEntity);
-    // Determine if there are template upgrades available
-    areTaskUpgradesAvailable(workflow);
+    Workflow workflow = modelOf(wfEntity, wfRevisionEntity);
     LOGGER.debug("Workflow: {} (version {})", workflow.getId(), workflow.getVersion());
     return ResponseEntity.ok(workflow);
   }
@@ -1822,7 +1847,15 @@ public class WorkflowService {
     // Add System Generated Annotations
     workflowEntity.getAnnotations().put("boomerang.io/generation", ANNOTATION_GENERATION);
     workflowEntity.getAnnotations().put("boomerang.io/kind", ANNOTATION_KIND);
+    if (workflow.getTemplateRef() != null) {
+      workflowEntity.setTemplateRef(workflow.getTemplateRef());
+    }
     workflowRepository.save(workflowEntity);
+    // A link's tasks and params stay the template's, whatever the request carries.
+    if (workflowEntity.getTemplateRef() != null) {
+      workflow.setTasks(null);
+      workflow.setParams(new LinkedList<>());
+    }
 
     // TODO, the creation of new better to include fields available on the old that aren't available
     // on the new.
@@ -1843,11 +1876,7 @@ public class WorkflowService {
     workflowRevisionRepository.save(newWorkflowRevisionEntity);
     paramLayerCache.evictAll();
 
-    Workflow appliedWorkflow =
-        ConvertUtil.wfEntityToModel(workflowEntity, newWorkflowRevisionEntity);
-    // Determine if there are template upgrades available
-    areTaskUpgradesAvailable(appliedWorkflow);
-    return ResponseEntity.ok(appliedWorkflow);
+    return ResponseEntity.ok(modelOf(workflowEntity, newWorkflowRevisionEntity));
   }
 
   /*
@@ -1883,20 +1912,11 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_NOT_ACTIVE);
     }
 
-    Optional<WorkflowRevisionEntity> optWorkflowRevisionEntity;
-    if (request.getWorkflowVersion() != null) {
-      optWorkflowRevisionEntity =
-          workflowRevisionRepository.findByWorkflowRefAndVersion(
-              workflowId, request.getWorkflowVersion());
-    } else {
-      optWorkflowRevisionEntity =
-          workflowRevisionRepository.findByWorkflowRefAndLatestVersion(workflowId);
-    }
-
-    if (!optWorkflowRevisionEntity.isPresent()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND);
-    }
-    WorkflowRevisionEntity wfRevision = optWorkflowRevisionEntity.get();
+    // A link runs its template's revision, pinned or latest, in its own workspace.
+    WorkflowRevisionEntity wfRevision =
+        (workflow.getTemplateRef() != null)
+            ? templateRevision(workflow.getTemplateRef(), request.getWorkflowVersion())
+            : revisionOf(workflowId, request.getWorkflowVersion());
     // A revision upgraded from v3 with workflow-level storage enabled cannot run: that storage no
     // longer exists. Saving the Workflow drops the marker, which is the author's acknowledgement.
     if (Boolean.TRUE.equals(wfRevision.getLegacyWorkflowStorage())) {
@@ -1906,7 +1926,8 @@ public class WorkflowService {
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());
-    wfRunEntity.setWorkflowRef(wfRevision.getWorkflowRef());
+    // The run is the submitted workflow's, which for a link is not the revision's owner.
+    wfRunEntity.setWorkflowRef(workflow.getId());
     wfRunEntity.setWorkflowVersion(wfRevision.getVersion());
     wfRunEntity.setCreationDate(new Date());
     wfRunEntity.setStatus(RunStatus.notstarted);
@@ -2041,6 +2062,166 @@ public class WorkflowService {
             Criteria.where("_id").is(workflowId).and("status").ne(WorkflowStatus.deleted)),
         new Update().set("status", WorkflowStatus.deleted),
         WorkflowEntity.class);
+  }
+
+  // ── Templates: definitions in the system workspace other workspaces run by reference ──────
+
+  private static final String SYSTEM_WORKSPACE = "system";
+  private static final List<WorkflowType> SHARED_TYPES =
+      List.of(WorkflowType.template, WorkflowType.starter);
+
+  /**
+   * A template or starter read for any workspace: the system workspace's definition, its secrets
+   * hidden and its task references in slug form, found by name among the shared types only. Read
+   * without the relationship walk, since every signed-in principal may read a template; the route
+   * carries the template read permission.
+   */
+  public Workflow getShared(String name, Optional<Integer> version) {
+    WorkflowEntity template =
+        workflowRepository
+            .findFirstByNameAndTypeIn(name, SHARED_TYPES)
+            .orElseThrow(
+                () ->
+                    new BoomerangException(
+                        BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF,
+                        name,
+                        version.map(String::valueOf).orElse("latest")));
+    Workflow workflow = get(template.getId(), version, true).getBody();
+    filterSensitiveValues(List.of(workflow));
+    convertTaskRefsToSlugs(SYSTEM_WORKSPACE, workflow);
+    workflow.setId(null);
+    return workflow;
+  }
+
+  /** The templates and starters every workspace may read, as {@link #getShared} reads one. */
+  public Page<Workflow> queryShared(
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryNames,
+      Optional<List<String>> queryTypes) {
+    List<String> types =
+        queryTypes
+            .filter(list -> !list.isEmpty())
+            .orElse(SHARED_TYPES.stream().map(WorkflowType::name).toList());
+    if (!SHARED_TYPES.stream().map(WorkflowType::name).toList().containsAll(types)) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "types");
+    }
+    Page<Workflow> page =
+        query(
+            queryLimit,
+            queryPage,
+            querySort,
+            queryLabels,
+            Optional.of(List.of(WorkflowStatus.active.name())),
+            Optional.empty(),
+            Optional.of(types),
+            queryNames);
+    filterSensitiveValues(page.getContent());
+    page.getContent()
+        .forEach(
+            w -> {
+              convertTaskRefsToSlugs(SYSTEM_WORKSPACE, w);
+              w.setId(null);
+            });
+    return page;
+  }
+
+  // A template or a starter is created, applied and imported in the system workspace only; a
+  // template cannot itself be a link.
+  private static void validateTypeForWorkspace(String workspace, Workflow request) {
+    WorkflowType type = WorkflowType.of(request.getType());
+    if (type.isSystemOnly() && !SYSTEM_WORKSPACE.equals(workspace)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_SYSTEM_ONLY, type.name());
+    }
+    if (type.isSystemOnly() && request.getTemplateRef() != null) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+    }
+  }
+
+  // A link names its template by name, optionally pinned to a version; stored, it holds the id.
+  private void resolveTemplateRef(Workflow request) {
+    WorkflowTemplateRef ref = request.getTemplateRef();
+    if (ref == null) {
+      return;
+    }
+    String version = (ref.getVersion() != null) ? String.valueOf(ref.getVersion()) : "latest";
+    if (ref.getName() == null || ref.getName().isBlank()) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF, "", version);
+    }
+    WorkflowEntity template =
+        workflowRepository
+            .findFirstByNameAndTypeIn(ref.getName(), List.of(WorkflowType.template))
+            .filter(t -> WorkflowStatus.active.equals(t.getStatus()))
+            .orElseThrow(
+                () ->
+                    new BoomerangException(
+                        BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF, ref.getName(), version));
+    if (ref.getVersion() != null
+        && workflowRevisionRepository
+            .findByWorkflowRefAndVersion(template.getId(), ref.getVersion())
+            .isEmpty()) {
+      throw new BoomerangException(
+          BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF, ref.getName(), version);
+    }
+    ref.setRef(template.getId());
+  }
+
+  // The revision a link runs or shows: the template's pinned version, or its latest. A submit
+  // may name a version of its own, which wins over the pin.
+  private WorkflowRevisionEntity templateRevision(WorkflowTemplateRef ref, Integer requested) {
+    WorkflowEntity template =
+        workflowRepository
+            .findById(ref.getRef())
+            .filter(t -> WorkflowType.template.equals(t.getType()))
+            .filter(t -> WorkflowStatus.active.equals(t.getStatus()))
+            .orElseThrow(
+                () ->
+                    new BoomerangException(
+                        BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF,
+                        ref.getName(),
+                        (ref.getVersion() != null) ? String.valueOf(ref.getVersion()) : "latest"));
+    Integer version = (requested != null) ? requested : ref.getVersion();
+    return revisionOf(template.getId(), version);
+  }
+
+  private WorkflowRevisionEntity revisionOf(String workflowId, Integer version) {
+    Optional<WorkflowRevisionEntity> revision =
+        (version != null)
+            ? workflowRevisionRepository.findByWorkflowRefAndVersion(workflowId, version)
+            : workflowRevisionRepository.findByWorkflowRefAndLatestVersion(workflowId);
+    return revision.orElseThrow(
+        () -> new BoomerangException(BoomerangError.WORKFLOW_REVISION_NOT_FOUND));
+  }
+
+  // The public model of a stored workflow: a link shows its template's tasks, params, workspace
+  // and run settings, read-only, under its own name, labels and triggers, and names the template.
+  private Workflow modelOf(WorkflowEntity entity, WorkflowRevisionEntity revision) {
+    Workflow workflow = ConvertUtil.wfEntityToModel(entity, revision);
+    workflow.setType(WorkflowType.of(entity.getType()));
+    if (entity.getTemplateRef() != null) {
+      WorkflowTemplateRef ref = entity.getTemplateRef();
+      workflowRepository
+          .findById(ref.getRef())
+          .ifPresent(template -> ref.setName(template.getName()));
+      try {
+        WorkflowRevisionEntity shown = templateRevision(ref, null);
+        workflow.setTasks(shown.getTasks());
+        workflow.setParams(shown.getParams());
+        workflow.setWorkspace(shown.getWorkspace());
+        workflow.setTimeout(shown.getTimeout());
+        workflow.setRetries(shown.getRetries());
+        workflow.setConcurrency(shown.getConcurrency());
+        workflow.setMarkdown(shown.getMarkdown());
+      } catch (BoomerangException gone) {
+        // A template deleted under its links: the link reads with no tasks and fails at submit.
+        LOGGER.warn("[{}] The template {} no longer resolves.", entity.getId(), ref.getName());
+      }
+      workflow.setTemplateRef(ref);
+    }
+    areTaskUpgradesAvailable(workflow);
+    return workflow;
   }
 
   // This will set both the Workflow and Tasks flags for upgrades available
