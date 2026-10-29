@@ -16,8 +16,7 @@ its workflow's concurrency limit is `waiting/pending`, the shape a task run park
 
 The normal path is `notstarted/pending` → admit → `ready/pending` → claim → `ready/queued` → start →
 `running/running` → end → `<terminal>/completed`. `completed` is terminal: the dispatcher releases a run's storage by
-reconciling what it holds against the engine, not through a further phase (`dispatcher-contract.md`, "Storage").
-Each arrow is one guarded write:
+reconciling what it holds against the engine, not through a further phase (`dispatcher-contract.md`, "Storage"). Each arrow is one guarded write:
 
 | Transition | Task run | Workflow run |
 | --- | --- | --- |
@@ -144,6 +143,7 @@ moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engi
 | `resumeDueWaitingTasks` (`WorkflowWatcher.java:341`), run by `DueWaitPoller` every second rather than in the sweep | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:891-897`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:941`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1111-1135`) |
 | `cancelDeletedWorkflowRuns` (`WorkflowWatcher.java:336`) | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel |
 | `pruneDeletedWorkflows` (`WorkflowWatcher.java:357`) | a page of deleted workflows with no run in flight (`WorkflowRetentionService.java:137-170`) | purges each run as retention does (`WorkflowRetentionService.java:194-201`), then deletes the workflow's artifacts, leftover task runs, revisions, schedules, actions and relationship node, then the workflow; audit records stay |
+| `purgeRequestedRuns` (`WorkflowWatcher.java:388`) | runs stamped `purgeRequestedAt` by a purge request (`api-contract.md`, "Run purge"), oldest request first, one page (`WorkflowRetentionService.java:149-172`) | purges each run as retention does once its tasks have settled (every task completed, and no cancelled or timed-out task still carrying `claim.by`), or once the request is 10 minutes old; one found in flight again is cancelled again |
 | `reapRunsWithMissingRevision` (`WorkflowWatcher.java:367`) | in-flight runs whose `workflowRevisionRef` no longer resolves: the distinct in-flight refs minus those that exist, then a page of the runs holding them (`WorkflowRunStateHelper.java:372-392`) | completes the run `invalid` and winds its stored task runs down as a cancel does: queued and running ones are ended, pending ones queued so they skip (`WorkflowExecutionService.java:265-303`) |
 | `recoverStaleProvisionClaims` (`WorkflowWatcher.java:411`) | `ready/queued` runs whose `claim.at` is older than the grace (`WorkflowRunStateHelper.java:108-121`) | releases the claim while `claim.seq` < 3, else completes the run `failed` and winds its task runs down |
 | `readmitParkedRuns` (`WorkflowWatcher.java:473`) | runs parked for a slot of their workflow's concurrency limit, `waiting/pending`, longest waiting first (`WorkflowRunStateHelper.java:233`) | re-drives each through admission (`WorkflowExecutionService.readmit` `:172`); one still over the limit stays parked |

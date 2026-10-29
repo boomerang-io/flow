@@ -29,6 +29,7 @@ import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
+import io.boomerang.engine.EngineConstants;
 import io.boomerang.engine.RunTimeouts;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.TaskRunService;
@@ -115,6 +116,7 @@ public class WorkflowRunService {
   private final ParamLayerService paramLayerService;
   private final PollWakeups pollWakeups;
   private final UserService userService;
+  private final WorkflowRetentionService workflowRetentionService;
 
   public WorkflowRunService(
       WorkflowRepository workflowRepository,
@@ -134,7 +136,8 @@ public class WorkflowRunService {
       QuotaService quotaService,
       ParamLayerService paramLayerService,
       PollWakeups pollWakeups,
-      UserService userService) {
+      UserService userService,
+      @Lazy WorkflowRetentionService workflowRetentionService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.workflowRunRepository = workflowRunRepository;
@@ -153,6 +156,7 @@ public class WorkflowRunService {
     this.paramLayerService = paramLayerService;
     this.pollWakeups = pollWakeups;
     this.userService = userService;
+    this.workflowRetentionService = workflowRetentionService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ──────────────────────
@@ -465,6 +469,51 @@ public class WorkflowRunService {
     // this repository call and had no other caller.
     actionRepository.updateStatusByWorkflowRunRef(workflowRunId, ActionStatus.cancelled);
     return ResponseEntity.ok(redactSecrets(wfRun));
+  }
+
+  /*
+   * Purge one WorkflowRun with its lineage. A run that no longer exists is nothing to do, so a
+   * repeated call answers the same; one that exists must be the workspace's.
+   */
+  public WorkflowRunPurge purge(String workspace, String workflowRunId) {
+    if (workflowRunId == null || !workflowRunRepository.existsById(workflowRunId)) {
+      return WorkflowRunPurge.NONE;
+    }
+    requireWorkspaceRelationship(workspace, workflowRunId);
+    WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(workflowRunId);
+    return new WorkflowRunPurge(outcome.purged().size(), outcome.scheduled().size(), 0);
+  }
+
+  /*
+   * Purge the workspace's runs matching every label, oldest first, each with its lineage. One
+   * call takes a sweep page of matches and reports how many it left, so a caller repeats until
+   * none remain. A lineage member that is also a match is counted once.
+   */
+  public WorkflowRunPurge purgeByLabels(String workspace, Optional<List<String>> labels) {
+    if (labels.filter(entries -> !entries.isEmpty()).isEmpty()) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels");
+    }
+    List<String> wfRefs = workflowsInWorkspace(workspace, Optional.empty());
+    if (wfRefs.isEmpty()) {
+      return WorkflowRunPurge.NONE;
+    }
+    Query query =
+        new Query(new QueryCriteria().labels(labels).in("workflowRef", wfRefs).build());
+    long matching = mongoTemplate.count(query, WorkflowRunEntity.class);
+    query.with(PageRequest.of(0, EngineConstants.SWEEP_PAGE_SIZE, Sort.by(Direction.ASC, "creationDate")));
+    List<WorkflowRunEntity> page = mongoTemplate.find(query, WorkflowRunEntity.class);
+    Set<String> purged = new HashSet<>();
+    Set<String> scheduled = new HashSet<>();
+    for (WorkflowRunEntity wfRun : page) {
+      if (purged.contains(wfRun.getId()) || scheduled.contains(wfRun.getId())) {
+        continue;
+      }
+      WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(wfRun.getId());
+      purged.addAll(outcome.purged());
+      scheduled.addAll(outcome.scheduled());
+    }
+    return new WorkflowRunPurge(
+        purged.size(), scheduled.size(), Math.max(0, matching - page.size()));
   }
 
   /*

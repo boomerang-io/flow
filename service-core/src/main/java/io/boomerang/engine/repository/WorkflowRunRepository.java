@@ -32,6 +32,14 @@ public interface WorkflowRunRepository extends MongoRepository<WorkflowRunEntity
   // Served by the same index.
   boolean existsByInitiatedByRefIn(Collection<String> initiatedByRefs);
 
+  // The runs that point at a run or at one of its TaskRuns: its retries and its children, the
+  // lineage a purge removes with it. Served by the same index.
+  List<WorkflowRunEntity> findByInitiatedByRefIn(Collection<String> initiatedByRefs);
+
+  // The runs a purge was requested for, oldest request first. Served by the sparse purge index.
+  List<WorkflowRunEntity> findByPurgeRequestedAtNotNullOrderByPurgeRequestedAtAsc(
+      Pageable pageable);
+
   // The retention page: finished runs created inside a window, oldest first. Served by the
   // {phase, creationDate} index; the lower bound is the cursor between pages.
   List<WorkflowRunEntity> findByPhaseAndCreationDateBetween(

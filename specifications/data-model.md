@@ -83,7 +83,7 @@ carry control state.
 
 | Kind | Fields | Where |
 | --- | --- | --- |
-| Control state (typed, never on a public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count, failures, max, backoff}` (task: the engine's and the node's budgets, and the node's setting copied on), `waitUntil` (task), `pauseRequestedAt` (workflow; the public model shows only `paused`), `waitingSince` (workflow: set while every in-flight task waits, so the run clock is stopped), `retryCount` (workflow). All but `pauseRequestedAt` are `@JsonIgnore` | `common/entity/WorkflowRunEntity.java:50-76`, `common/entity/TaskRunEntity.java:76-88`, `common/model/RunClaim.java:19-22`, `common/model/RunRetry.java:21-25` |
+| Control state (typed, never on a public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count, failures, max, backoff}` (task: the engine's and the node's budgets, and the node's setting copied on), `waitUntil` (task), `pauseRequestedAt` (workflow; the public model shows only `paused`), `purgeRequestedAt` (workflow: a purge was requested while its tasks had not settled; the purge sweep removes it), `waitingSince` (workflow: set while every in-flight task waits, so the run clock is stopped), `retryCount` (workflow). All but `pauseRequestedAt` are `@JsonIgnore` | `common/entity/WorkflowRunEntity.java:50-76`, `common/entity/TaskRunEntity.java:76-88`, `common/model/RunClaim.java:19-22`, `common/model/RunRetry.java:21-25` |
 | Attempt history (typed, serialised) | `attempts[]` on a task run: each attempt a requeue superseded, `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage`, `dispatcherRef`; absent until the first requeue | `common/entity/TaskRunEntity.java:90`, `common/model/RunAttempt.java:20-27` |
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:71-80`, `common/entity/TaskRunEntity.java:68` |
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:62-63` |
@@ -174,7 +174,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | Collection | Indexes |
 | --- | --- |
 | `task_runs` | `claim_page` (type, status, phase, claim.by, creationDate); `run_tasks`; sparse `lease_sweep`, `timeout_sweep`, `wait_sweep`; `claimed_sweep`; unique `node_uniqueness` (workflowRunRef, name); sparse `parent_index` (a for-each parent's items); `label_wildcard` (`labels.$**`) |
-| `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard` |
+| `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`, `purge_sweep`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard` |
 | `workflows`, `workflow_revisions`, `workflow_templates`, `workflow_schedules` | `status_lookup`, `name_lookup`, `creation_date_sort`; `workflow_ref_version`; `name_version`; `fire_sweep`, `workflow_lookup` |
 | `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
 | `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
@@ -231,7 +231,10 @@ actions, task runs, relationship node and finally the run document (`workflow/Wo
 A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'
 ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:186-192`, on the
 `initiated_by_phase` index), so a carried-over task run never outlives the one it stands for and a child's
-"started by" link never dangles. Workflow-scoped artifacts and audit
+"started by" link never dangles. A purge request (`api-contract.md`, "Run purge") removes one run the same way with
+its lineage, deepest first, cancelling one in flight and stamping `purgeRequestedAt` on one whose tasks have not
+settled (still ending, or terminated and held by a dispatcher), which the `purgeRequestedRuns` sweep removes on the sparse `purge_sweep` index
+(`workflow/WorkflowRetentionService.java:120-198`). Workflow-scoped artifacts and audit
 events are never purged. The first pass runs within a minute of startup, so an upgraded install purges its old
 runs before the setting can be changed, and no value turns the purge off; history worth keeping is exported
 before upgrading.

@@ -77,6 +77,7 @@ public class _0021__Indexes {
               "workflow_runs", "claim_page", keys("status", "phase", "creationDate"), new IndexOptions()),
           new Index("workflow_runs", "timeout_sweep", keys("timeoutAt"), sparse()),
           new Index("workflow_runs", "paused_lookup", keys("pauseRequestedAt"), sparse()),
+          new Index("workflow_runs", "purge_sweep", keys("purgeRequestedAt"), sparse()),
           new Index(
               "workflow_runs", "phase_creation_sweep", keys("phase", "creationDate"), new IndexOptions()),
           new Index("workflow_runs", "phase_start_sweep", keys("phase", "startTime"), new IndexOptions()),

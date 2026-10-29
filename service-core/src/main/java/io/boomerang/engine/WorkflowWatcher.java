@@ -178,6 +178,7 @@ public class WorkflowWatcher {
     // Due waits are not swept here: DueWaitPoller resumes them about once a second.
     SweepRunner.runIsolated("cancelDeletedWorkflowRuns", this::cancelDeletedWorkflowRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("pruneDeletedWorkflows", this::pruneDeletedWorkflows, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("purgeRequestedRuns", this::purgeRequestedRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("readmitParkedRuns", this::readmitParkedRuns, WorkflowWatcher::logSweepFailure);
@@ -378,6 +379,14 @@ public class WorkflowWatcher {
    */
   public void pruneDeletedWorkflows() {
     workflowRetentionService.pruneDeletedWorkflows();
+  }
+
+  /**
+   * Remove the runs a purge was requested for once the dispatcher has released their terminated
+   * tasks (see {@link WorkflowRetentionService#purgeRequestedRuns}).
+   */
+  public void purgeRequestedRuns() {
+    workflowRetentionService.purgeRequestedRuns();
   }
 
   /**

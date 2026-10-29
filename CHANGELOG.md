@@ -184,6 +184,14 @@ tag's release notes.
 
 ### Added
 
+- A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
+  task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
+  tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50
+  a call, reporting how many remain. A run in flight is cancelled first; one whose tasks are still ending, or held by
+  a dispatcher awaiting its terminate poll, is removed by a new watcher sweep once they have settled, or after ten minutes. Both need
+  `workflowrun/delete` (owner and admin) and are audited as destructive. Audit records stay. A new sparse index,
+  `purge_sweep`, joins the inventory; a database a 5.0 beta or release candidate created gets it on reset, as with
+  the inventory's other indexes.
 - 16 catalogue tasks from `boomerangio/task-flow:3.3.0`: GitHub (create an issue, comment on an issue or pull
   request, create a pull request, set a commit status, dispatch a workflow, create a release, get file contents),
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
