@@ -177,7 +177,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
 | `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
 | `actions` | `task_run`, unique where `taskRunRef` exists (`:130-137`); `status_sweep` |
-| `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`; `token_hash_lookup` |
+| `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
 | `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup, at least 60, `core/audit/AuditRetentionService.java:28`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:184-191`) |

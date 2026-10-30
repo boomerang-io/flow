@@ -5180,6 +5180,12 @@ paths:
           items:
             type: "string"
           type: "array"
+      - description: "The one workspace carrying this external reference."
+        in: "query"
+        name: "externalRef"
+        required: false
+        schema:
+          type: "string"
       - description: "Result Size"
         example: 10
         in: "query"

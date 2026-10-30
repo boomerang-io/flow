@@ -184,6 +184,11 @@ tag's release notes.
 
 ### Added
 
+- A workspace can be found by `externalRef`, an embedding product's own id for the record it mirrors:
+  `GET /api/v2/workspace/query?externalRef=` answers the one workspace carrying it, within the caller's access, and a
+  create naming a reference a workspace already carries is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's
+  name, so a retried create is idempotent. The reference is set once at create and never patched; every reader of the
+  workspace sees it, and the webapp shows it on Settings. A unique sparse index, `external_ref`, joins the inventory.
 - Templates are workflows of the system workspace. A workflow carries a `type`: `workflow` (the default), `template`
   or `starter`, and the last two can be created, versioned and edited only in the system workspace, through its
   ordinary workflow routes. A workspace runs a template by reference: a workflow created with `templateRef: {name,
@@ -211,6 +216,8 @@ tag's release notes.
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
   Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
   whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
+- The thin workflow-run status event (`flow.events.sink.payload=thin`) carries `statusReason`, as the task event
+  already did, so a consumer acting on a terminal event reads why the run ended without calling back.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
   ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
   and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever

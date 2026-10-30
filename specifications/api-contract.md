@@ -51,15 +51,15 @@ ordinary workflow routes; that `type` on a body to any other workspace is `400 W
 (`workflow/WorkflowService.java:424,2132-2140`). `GET /api/v2/workflowtemplate/{name}` and `GET …/query?types=` read them for
 every workspace, secrets hidden and task references in slug form (`workflow/WorkflowTemplateControllerV2.java:43,66`, `workflow/WorkflowService.java:2078-2126`).
 A starter is copied: its body, with `type` set to `workflow`, posted to the workspace's `POST …/workflow`
-(`client-web/src/Components/WorkflowTemplateHomeCard/WorkflowTemplateHomeCard.tsx:52`). A template is run by reference: a
-workflow created with `templateRef: {name, version}` shows the template's tasks and params read-only under its own name,
-labels and triggers, takes run-time values for the params the template declares, and each submit runs the template's pinned
-or latest revision as the workflow's own run (`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`,
-and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`). `POST
-/api/v2/workspace/{workspace}/workflowtemplate/{template}/submit` runs a template by name with the ordinary submit body: the run is
-the workspace's link to it, created under the template's name on first use, so no link need exist before the first run
-(`workflow/WorkspaceWorkflowTemplateControllerV2.java:41`, `workflow/WorkflowService.java:2158-2170,2200-2233`); a starter or an
-unknown name is `400 WORKFLOW_TEMPLATE_INVALID_REF`, and it needs `workflow/action`, as a submit does.
+(`client-web/src/Components/WorkflowTemplateHomeCard/WorkflowTemplateHomeCard.tsx:52`). A template is run by reference: a workflow created
+with `templateRef: {name, version}` shows the template's tasks and params read-only under its own name, labels and triggers, takes run-time
+values for the params the template declares, and each submit runs the template's pinned or latest revision as the workflow's own run
+(`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`, and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`).
+
+**Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never
+patched (a `PATCH` carrying one is ignored), and read by every reader of the workspace. `GET /api/v2/workspace/query?externalRef=`
+answers the one carrying it within the caller's access, and a create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that
+workspace's name, so a retried create reads it instead (`workspace/WorkspaceService.java:175-184,294-295,443-445`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:980-984`).
@@ -135,9 +135,8 @@ sends `WWW-Authenticate: Bearer`.
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 
-Two answers carry no such body: a missing permission is a bare `403` from Spring Security (`authorization.md`,
-"Layer 1"), and a framework error the handler does not map, such as a malformed body or an unsupported method, keeps
-Spring's problem-detail body. `PERMISSION_DENIED`, which a service raises, carries code 403 but answers HTTP 401 (`common/error/BoomerangError.java:25`).
+Two answers carry no such body: a missing permission is a bare `403` from Spring Security (`authorization.md`, "Layer 1"),
+and a framework error the handler does not map, such as a malformed body or an unsupported method, keeps Spring's problem-detail body. `PERMISSION_DENIED`, which a service raises, carries code 403 but answers HTTP 401 (`common/error/BoomerangError.java:25`).
 
 A `*_INVALID_REF*` reason answers `404`: the resource the path addresses does not exist, or the caller cannot reach
 it. Blank, missing or unusable input is `400` under the matching `*_INVALID_REQ` reason (`common/error/BoomerangError.java:14-16`).
@@ -300,7 +299,7 @@ same either way, and one projection step builds both (`event/model/RunStatusSumm
 
 | `payload` | `data` | Use |
 | --- | --- | --- |
-| `thin` (default) | Identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason` (task events), `phase`, `labels`, `creationDate`, `startTime`, `duration`; never `params`, `results` or `annotations`. Absent fields are omitted | A consumer triggers on the event and reads the run back over the API |
+| `thin` (default) | Identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime`, `duration`; never `params`, `results` or `annotations`. Absent fields are omitted | A consumer triggers on the event and reads the run back over the API |
 | `full` | The whole public `WorkflowRun` / `TaskRun`; a `secret` param's value is `*****`, and scrubbed from results, the status message and annotations | A consumer processes result values without calling back |
 
 A sink is a bare URL in `flow.events.sink.urls` (comma-separated; any secret rides in the query string) or an entry

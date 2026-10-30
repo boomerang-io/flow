@@ -4,6 +4,7 @@ import { Login } from "@carbon/react/icons";
 import { Error403 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Form, useFetcher, useLocation } from "react-router-dom";
 import type { AuthConfig } from "./authClient";
+import styles from "./signedOut.module.scss";
 
 /*
  * The signed-out page App.tsx renders when the root bootstrap comes back 401. What it offers
@@ -72,7 +73,7 @@ export default function SignedOut({ config, onReloadConfig }: SignedOutProps) {
         message={
           <>
             <p>Your session has expired or you're not signed in. Sign in again to continue.</p>
-            <Form method="post" action="/auth/signin" reloadDocument>
+            <Form className={styles.signIn} method="post" action="/auth/signin" reloadDocument>
               <input type="hidden" name="returnPath" value={returnPath} />
               <Button type="submit" renderIcon={Login} size="md">
                 Sign in
