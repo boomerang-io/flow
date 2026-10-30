@@ -1,5 +1,8 @@
 package io.boomerang.engine;
 
+import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import java.util.EnumSet;
 import java.util.Set;
@@ -58,4 +61,33 @@ public final class EngineConstants {
           TaskType.runworkflow,
           TaskType.sleep,
           TaskType.acquirelock);
+
+  /**
+   * The statuses a run ends with. A run carrying one while still in the {@code running} phase has
+   * ended its graph and is running its finally tasks: the finally stage.
+   */
+  public static final Set<RunStatus> TERMINAL_RUN_STATUSES =
+      EnumSet.of(
+          RunStatus.succeeded,
+          RunStatus.failed,
+          RunStatus.invalid,
+          RunStatus.skipped,
+          RunStatus.cancelled,
+          RunStatus.timedout);
+
+  /** The {@code workflowrun} setting capping the finally stage, in minutes, and its default. */
+  public static final String FINALLY_TIMEOUT_SETTING = "finally.timeout";
+
+  public static final int DEFAULT_FINALLY_TIMEOUT_MINUTES = 5;
+
+  /**
+   * Whether the run's graph has ended and its finally tasks are what still runs: the graph-end
+   * write stamps {@code graphEndedAt} and leaves the phase running. The status alone cannot say,
+   * since the timeout sweep marks a run timed out before its completion lands.
+   */
+  public static boolean inFinallyStage(WorkflowRunEntity run) {
+    return run != null
+        && RunPhase.running.equals(run.getPhase())
+        && run.getGraphEndedAt() != null;
+  }
 }

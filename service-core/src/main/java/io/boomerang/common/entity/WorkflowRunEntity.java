@@ -56,6 +56,11 @@ public class WorkflowRunEntity {
   // The watcher reaps on an indexed range scan - there are no in-memory timers.
   @JsonIgnore private Date timeoutAt;
 
+  // When the graph ended with the run's final status while its finally tasks ran on: with the
+  // phase still running it marks the finally stage, which a status and a phase alone cannot, since
+  // a run the timeout sweep has just marked timed out looks the same. Absent = the graph has not ended.
+  @JsonIgnore private Date graphEndedAt;
+
   // Pause flag - never a status. Absent = not paused. Claiming, admission and the recovery
   // sweeps all exclude paused runs; resume clears the flag and reconciles.
   private Date pauseRequestedAt;

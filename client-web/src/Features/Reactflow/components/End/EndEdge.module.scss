@@ -1,0 +1,37 @@
+@use "@carbon/react/scss/colors";
+
+.editorEdge {
+  stroke: var(--flow-switch-primary);
+  &.locked {
+    stroke: colors.$cool-gray-70;
+  }
+}
+
+.runEdge {
+  stroke: colors.$cool-gray-70;
+
+  &.notstarted,
+  &.skipped {
+    opacity: 0.5;
+  }
+}
+
+.edgeLabel {
+  display: flex;
+  gap: 0.5rem;
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: all;
+}
+
+/*
+  Like the task and decision markers, the mark is a reused symbol
+  that only has colour in the edit mode
+*/
+:global [data-mode="edit"] #finally-marker {
+  polyline {
+    fill: var(--flow-switch-primary);
+    stroke: var(--flow-switch-primary);
+  }
+}

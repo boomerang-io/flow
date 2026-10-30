@@ -27,6 +27,7 @@ import io.boomerang.common.model.WorkflowTemplateRef;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.*;
+import io.boomerang.engine.DAGUtility;
 import io.boomerang.engine.EngineConstants;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.common.util.DataAdapterUtil.FieldType;
@@ -1244,6 +1245,46 @@ public class WorkflowService {
   }
 
   /*
+   * A finally task is one whose single dependency is end with the finally condition: it runs
+   * once the run has ended, any way. The condition belongs to no other dependency, and nothing
+   * may depend on a finally task, so finally tasks never chain. Checked at save and again at
+   * submit, as the task references are.
+   */
+  private static void validateFinally(List<WorkflowTask> tasks) {
+    Set<String> finallyTasks = new HashSet<>();
+    for (WorkflowTask task : tasks) {
+      List<WorkflowTaskDependency> dependencies =
+          (task.getDependencies() != null) ? task.getDependencies() : List.of();
+      if (!DAGUtility.hasFinallyDependency(dependencies)) {
+        continue;
+      }
+      if (dependencies.size() != 1 || !"end".equals(dependencies.get(0).getTaskRef())) {
+        throw new BoomerangException(
+            BoomerangError.WORKFLOW_INVALID_FINALLY,
+            task.getName(),
+            "A finally task depends on end alone.");
+      }
+      finallyTasks.add(task.getName());
+    }
+    for (WorkflowTask task : tasks) {
+      if (task.getDependencies() == null) {
+        continue;
+      }
+      task.getDependencies().stream()
+          .map(WorkflowTaskDependency::getTaskRef)
+          .filter(finallyTasks::contains)
+          .findFirst()
+          .ifPresent(
+              finallyTask -> {
+                throw new BoomerangException(
+                    BoomerangError.WORKFLOW_INVALID_FINALLY,
+                    task.getName(),
+                    "Nothing may depend on the finally task " + finallyTask + ".");
+              });
+    }
+  }
+
+  /*
    * A node's taskRef is the task's id in storage and its slug form on the API; TaskService owns
    * the translation, in one batch per workflow.
    */
@@ -1330,6 +1371,7 @@ public class WorkflowService {
       return;
     }
     validateTaskRefsPresent(workflow.getTasks());
+    validateFinally(workflow.getTasks());
     List<WorkflowTask> nodes =
         workflow.getTasks().stream()
             .filter(t -> !t.getName().equals("start") && !t.getName().equals("end"))
@@ -1587,6 +1629,7 @@ public class WorkflowService {
     if (filteredNames.size() != uniqueFilteredNames.size()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_NON_UNIQUE_TASK_NAME);
     }
+    validateFinally(wfRevisionEntity.getTasks());
     // A foreach task's items are named <name>[<index>], so a task name ending in [<digits>] could
     // collide with another task's item on the (workflowRunRef, name) unique index. Any other use of
     // brackets ("Deploy [prod]") is left alone.
@@ -1991,6 +2034,7 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_STORAGE_REMOVED);
     }
     validateTaskRefsPresent(wfRevision.getTasks());
+    validateFinally(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());

@@ -325,3 +325,34 @@
     margin: 0;
   }
 }
+
+// A finally task runs after the whole run has ended: purple border and input port, a "Finally"
+// badge at its top-left, and no output port (nothing links out of it). The run statuses'
+// border colours above still take precedence.
+.node.finally {
+  border-color: var(--flow-switch-primary);
+
+  .port.left {
+    background-color: colors.$purple-20;
+    border-color: var(--flow-switch-primary);
+  }
+}
+
+.finallyBadge {
+  background-color: white;
+  border-color: var(--flow-switch-primary);
+  left: -0.75rem;
+  z-index: 1;
+
+  .badgeText {
+    color: var(--flow-switch-primary);
+    font-size: 0.625rem;
+    font-weight: 700;
+    margin: 0;
+  }
+}
+
+// With both badges the "For each" one sits above "Finally".
+.foreachBadge.stacked {
+  top: -2.25rem;
+}

@@ -748,6 +748,23 @@ exports[`Execution --- Snapshot > Capturing Snapshot of WorkflowExecutionContain
                         stroke-width="1"
                       />
                     </marker>
+                    <marker
+                      id="finally-marker"
+                      markerHeight="16"
+                      markerUnits="strokeWidth"
+                      markerWidth="16"
+                      orient="auto-start-reverse"
+                      refX="0"
+                      refY="0"
+                      viewBox="-10 -10 20 20"
+                    >
+                      <polyline
+                        points="-5,-4 0,0 -5,4 -5,-4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1"
+                      />
+                    </marker>
                   </defs>
                 </svg>
                 <svg

@@ -54,3 +54,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0045 | [A run purge takes the lineage, cancels what is in flight, and waits for the dispatcher to let go](0045-a-run-purge-cancels-what-is-in-flight-and-waits-for-the-dispatcher.md) | accepted | 2026-10-29 |
 | 0046 | [A template is a system-workspace workflow that other workspaces run by reference](0046-a-template-is-a-system-workspace-workflow-run-by-reference.md) | accepted | 2026-10-29 |
 | 0047 | [A signed-in user holds a self-service baseline grant, and a setting says whether users create workspaces](0047-a-signed-in-user-holds-a-self-service-baseline-grant.md) | accepted | 2026-10-30 |
+| 0048 | [A finally task is a task node linked from End with the `finally` condition](0048-a-finally-task-is-a-node-linked-from-end-with-the-finally-condition.md) | accepted | 2026-10-30 |

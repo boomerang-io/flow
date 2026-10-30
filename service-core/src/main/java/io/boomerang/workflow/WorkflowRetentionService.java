@@ -126,8 +126,8 @@ public class WorkflowRetentionService {
       WorkflowRunEntity wfRun = lineage.get(i);
       if (RunPhase.completed != wfRun.getPhase()) {
         workflowRunStateHelper.tryRequestPurge(wfRun.getId());
-        workflowExecutionService.cancel(wfRun.getId());
-        LOGGER.info("[{}] Purge requested on a run in flight. Cancelled.", wfRun.getId());
+        workflowExecutionService.abort(wfRun.getId());
+        LOGGER.info("[{}] Purge requested on a run in flight. Ended.", wfRun.getId());
       }
       if (unsettled(wfRun.getId())) {
         workflowRunStateHelper.tryRequestPurge(wfRun.getId());
@@ -155,7 +155,7 @@ public class WorkflowRetentionService {
             PageRequest.of(0, PAGE_SIZE))) {
       try {
         if (RunPhase.completed != wfRun.getPhase()) {
-          workflowExecutionService.cancel(wfRun.getId());
+          workflowExecutionService.abort(wfRun.getId());
           continue;
         }
         if (unsettled(wfRun.getId()) && wfRun.getPurgeRequestedAt().after(graceCutoff)) {

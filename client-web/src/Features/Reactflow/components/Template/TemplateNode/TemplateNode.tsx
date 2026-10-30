@@ -1,7 +1,7 @@
 import React from "react";
 import { Bee } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import { Handle, IsValidConnection, Position, useReactFlow } from "@xyflow/react";
+import { Handle, Position, useEdges, useReactFlow } from "@xyflow/react";
 import cx from "classnames";
 import TaskUpdateModal from "Components/TaskUpdateModal";
 import WorkflowCloseButton from "Components/WorkflowCloseButton";
@@ -14,6 +14,7 @@ import type { ForeachSummary } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
 import { RunStatus, WorkflowEngineModeType } from "Types";
+import { isFinallyNode, useIsValidConnection } from "../../shared/finally";
 import { splitForeachValues } from "../../shared/foreach";
 import { splitRetryValues } from "../../shared/retry";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
@@ -277,22 +278,29 @@ function BaseNode(props: BaseNodeProps) {
 
   const isEditor = props.mode === WorkflowEngineMode.Edit;
   const isForeach = Boolean(props.nodeProps.data?.foreach);
-  // See StartNode.tsx for why this is typed via `IsValidConnection` rather than `Connection`.
-  // Declared here (rather than after the `return`, as the pre-migration `function` declaration
-  // was) because a `const` isn't hoisted the way a `function` declaration is, and it's
-  // referenced below in the JSX this function returns.
-  const isValidHandle: IsValidConnection = (connection) => connection.source !== connection.target;
+  // A finally task is linked from End only: it looks different and has no output port.
+  // `useEdges` keeps this current as links are made and removed.
+  const isFinally = isFinallyNode(useEdges() as Array<WorkflowEdge>, props.nodeProps.id);
+  const isValidHandle = useIsValidConnection();
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className={cx(styles.node, className, styles[status ?? ""], {
         [styles.locked]: !isEditor,
         [styles.foreach]: isForeach,
+        [styles.finally]: isFinally,
       })}
       onClick={onClick}
     >
+      {isFinally ? (
+        <div className={cx(styles.badgeContainer, styles.finallyBadge)}>
+          <p className={styles.badgeText} data-testid="finally-badge">
+            Finally
+          </p>
+        </div>
+      ) : null}
       {isForeach ? (
-        <div className={cx(styles.badgeContainer, styles.foreachBadge)}>
+        <div className={cx(styles.badgeContainer, styles.foreachBadge, { [styles.stacked]: isFinally })}>
           <p className={styles.badgeText} data-testid="foreach-badge">
             {foreachBadgeText(foreachProgress, status)}
           </p>
@@ -319,13 +327,16 @@ function BaseNode(props: BaseNodeProps) {
       <p title={subtitle} className={styles.subtitle}>
         {subtitle || "Task"}
       </p>
-      <Handle
-        className={cx(styles.port, styles.right)}
-        isConnectable={isConnectable}
-        isValidConnection={isValidHandle}
-        position={Position.Right}
-        type="source"
-      />
+      {isFinally ? null : (
+        <Handle
+          className={cx(styles.port, styles.right)}
+          data-testid="output-port"
+          isConnectable={isConnectable}
+          isValidConnection={isValidHandle}
+          position={Position.Right}
+          type="source"
+        />
+      )}
       <Handle
         className={cx(styles.port, styles.left)}
         isConnectable={isConnectable}

@@ -156,45 +156,35 @@ moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engi
 
 ## Timeouts and crash recovery
 
-Timeouts are deadlines: `timeoutAt` = start + budget in minutes + 5 s grace (`engine/RunTimeouts.java:15-19`,
-`engine/EngineConstants.java:13`), written by the task claim, the task start, the run start and the submit of a run
-with a workspace (`workflow/WorkflowRunService.java:798-802`), and cleared by completion, requeue and abandon. There
-are no per-run timers: the sweeps are the only reaper, so a crashed dispatcher, a dead executor thread or a lost pod
-is recovered by one path, the lease lapsing (90 s), the dispatcher going stale (60 s) or `timeoutAt` passing, and the
-task is requeued or timed out, both writes fenced on the observed `claim.seq` (`engine/TaskRunService.java:897-901`).
+Timeouts are deadlines: `timeoutAt` = start + budget in minutes + 5 s grace (`engine/RunTimeouts.java:15-19`, `engine/EngineConstants.java:13`), written by the task claim, the task start,
+the run start and the submit of a run with a workspace (`workflow/WorkflowRunService.java:798-802`), and cleared by completion, requeue and abandon. There are no per-run timers: the sweeps
+are the only reaper, so a crashed dispatcher, a dead executor thread or a lost pod is recovered by one path, the lease lapsing (90 s), the dispatcher going stale (60 s) or `timeoutAt`
+passing, and the task is requeued or timed out, both writes fenced on the observed `claim.seq` (`engine/TaskRunService.java:897-901`).
 
 A task's budget is the smallest of the `task` settings' `default.timeout`, the task's declared timeout and the
 run's timeout, 0 meaning no ceiling (`engine/DAGUtility.java:74-85`, `:236-257`): the run is a ceiling because a
 guard must cover the work beneath it. The seed ships `default.timeout` at 0, so a task inherits its run's timeout
 (`service-core/src/main/resources/seed/settings.json:361-366`); the setting caps a single pod, it is not a budget.
 
-When a timed-out task ends, its run times out too (`engine/TaskExecutionService.java:602-606`). A workflow timeout is
-two writes: `WorkflowRunService.timeout` marks a pending or running run `timedout` on the caller's thread, publishing
-nothing and leaving the phase as it is (`workflow/WorkflowRunService.java:915-940`,
-`engine/WorkflowRunStateHelper.java:419-426`); the asynchronous `timeoutWorkflow` then completes it with one
-compare-and-set, and only that winner ends the run's task runs and starts an automatic retry
-(`engine/WorkflowExecutionService.java:213-266`). A lost completion leaves the run `timedout` in its phase for the
-timeout sweep to drive again once the run's own deadline has passed.
+When a timed-out task ends, its run times out too (`engine/TaskExecutionService.java:602-606`). A workflow timeout is two writes: `WorkflowRunService.timeout` marks a pending or running run
+`timedout` on the caller's thread, publishing nothing and leaving the phase as it is (`workflow/WorkflowRunService.java:915-940`, `engine/WorkflowRunStateHelper.java:419-426`); the
+asynchronous `timeoutWorkflow` then completes it with one compare-and-set, and only that winner ends the run's task runs and starts an automatic retry
+(`engine/WorkflowExecutionService.java:213-266`). A lost completion leaves the run `timedout` in its phase for the timeout sweep to drive again once the run's own deadline has passed.
 
-**The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting`: an
-approval, a manual task, an event wait, a run-workflow task waiting on its child, a sleep or an acquire-lock wait
-(`engine/EngineConstants.java:41-48`, `engine/TaskRunService.java:799-822`). When the last executing task enters a
-wait the run gains `waitingSince` and the timeout sweep skips it (`engine/WorkflowRunStateHelper.java:251-264`, called
-at `engine/TaskExecutionService.java:423`, `:633`, `:1097`); when any task starts executing one write clears the flag
-and moves `timeoutAt` forward by the time waited (`:268-293`, called at `:352`, `:600`, `:1082`). The reported
-`duration` is execution time (`engine/RunTimeouts.java:28-42`); a gate nobody answers leaves the run active until cancelled.
+**The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting`: an approval, a manual task, an event wait, a run-workflow task waiting on its
+child, a sleep or an acquire-lock wait (`engine/EngineConstants.java:41-48`, `engine/TaskRunService.java:799-822`). When the last executing task enters a wait the run gains `waitingSince`
+and the timeout sweep skips it (`engine/WorkflowRunStateHelper.java:251-264`, called at `engine/TaskExecutionService.java:423`, `:633`, `:1097`); when any task starts executing one write
+clears the flag and moves `timeoutAt` forward by the time waited (`:268-293`, called at `:352`, `:600`, `:1082`). The reported `duration` is execution time (`engine/RunTimeouts.java:28-42`);
+a gate nobody answers leaves the run active until cancelled.
 
-**A wait is indefinite unless its task declares a timeout.** A waiting-type task's budget is its own declared timeout
-alone (`engine/TaskExecutionService.java:342-345`, `:431-446`): without one it has no `timeoutAt`; with one it is reaped
-like any task and times out its run. That timeout is left out of the critical path that floors the run budget
+**A wait is indefinite unless its task declares a timeout.** A waiting-type task's budget is its own declared timeout alone (`engine/TaskExecutionService.java:342-345`, `:431-446`): without
+one it has no `timeoutAt`; with one it is reaped like any task and times out its run. That timeout is left out of the critical path that floors the run budget
 (`workflow/RunTimeoutPolicy.java:145-149`), so an hour-long gate does not make the run ask for an hour.
 
-A run's timeout is settled at submit, on the path every run creation passes through
-(`workflow/WorkflowService.java:1876-1884`, `workflow/RunTimeoutPolicy.java:68-95`): the request's timeout, else the
-revision's, else the run-duration quota itself, the workspace's own limit or else the platform
-`quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the revision's critical path, the longest chain of
-declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's
-maximum run duration then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
+A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:1876-1884`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
+timeout, else the revision's, else the run-duration quota itself, the workspace's own limit or else the platform `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the
+revision's critical path, the longest chain of declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's maximum run duration
+then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
 
 ## Retry
 
@@ -257,15 +247,12 @@ held back (`workflow/WorkflowRunService.java:885-900`). The stalled-run sweep an
 
 ## The graph advance
 
-The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity`
-(`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`), and advanced level-triggered from
-stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored
-`dependencies.taskRef`, and the tasks they depend on, never the run's whole graph (`DAGUtility.retrieveDependants`,
-`engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the
-run when the end node's dependencies are all done, reading the whole graph once there for the path check
-(`engine/TaskExecutionService.java:616-637`, `:1488-1608`); a dependency with no task run never counts as satisfied
-(`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to
-call at any time; the watcher, resume and a scoped retry's start use it (`:643-663`). Four rules hold:
+The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity` (`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`),
+and advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they
+depend on, never the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the
+run when the end node's dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:616-637`, `:1488-1608`); a dependency with no task
+run never counts as satisfied (`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and
+a scoped retry's start use it (`:643-663`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-148`).
 2. The handler MUST check the transition has not already happened (phase guards at `:153-156`, `:286-290`,
@@ -275,14 +262,23 @@ call at any time; the watcher, resume and a scoped retry's start use it (`:643-6
    (`engine/TaskRunService.java:984-993`, `:1065-1082`), and every wait is armed fenced on the `running` phase (`:838-869`).
 4. Only the compare-and-set winner performs side effects: queueing dependants, finishing the run, starting a retry.
 
-Results are keyed by name on every path: a `setwfproperty` result, an event delivery and a run-workflow task's
-`workflowRunRef` upsert the element with that name, a positional `$set` or else a `$push` guarded on the name being
-absent (`engine/ResultUtil.java:25-43`), so a key written twice stays one element. An event wait, and a run-workflow
-task with `wait=true`, arm with `tryArmWait`, a `status=waiting` write fenced on the `running` phase
-(`engine/TaskRunService.java:853-858`); the event wait then re-reads, so an event delivered between the entry read and
-the arm (`applyEventDelivery`, `:391-399`) is honoured (`engine/TaskExecutionService.java:1348-1370`). An approval or
-manual task arms with the same write carrying its `actionRef` result (`engine/TaskRunService.java:864-869`), and when
-the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1420-1432`).
+Results are keyed by name on every path: a `setwfproperty` result, an event delivery and a run-workflow task's `workflowRunRef` upsert the element with that name, a positional `$set` or else
+a `$push` guarded on the name being absent (`engine/ResultUtil.java:25-43`), so a key written twice stays one element. An event wait, and a run-workflow task with `wait=true`, arm with
+`tryArmWait`, a `status=waiting` write fenced on the `running` phase (`engine/TaskRunService.java:853-858`); the event wait then re-reads, so an event delivered between the entry read and
+the arm (`applyEventDelivery`, `:391-399`) is honoured (`engine/TaskExecutionService.java:1348-1370`). An approval or manual task arms with the same write carrying its `actionRef` result
+(`engine/TaskRunService.java:864-869`), and when the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1420-1432`).
+
+## Finally tasks
+
+A finally task is a task whose single dependency is `end` with the execution condition `finally` (`common/enums/ExecutionCondition.java:9-15`): it runs once the run has ended, any way.
+Saving and submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1248-1283`). When the graph ends, by its own
+completion, a cancel or a timeout, the run takes its final status, reason and message in one compare-and-set that stamps `graphEndedAt` and leaves the phase `running`, its `timeoutAt` becomes the finally stage's
+deadline, the `workflowrun` setting `finally.timeout` (5 minutes), and the pending finally tasks are queued in parallel (`engine/TaskExecutionService.java:685-729`,
+`engine/WorkflowRunStateHelper.java:322-353`); a run with no finally task completes as before. A finally task is admitted without the path check, since the graph has ended whichever paths it
+took, and any other task still pending then is skipped (`:189-216`); its own timeout is capped by the stage's (`engine/DAGUtility.java:347-355`) and times out the task alone. The run
+completes when the last finally task ends: a finally task that failed, timed out or was invalid turns a succeeded run into `failed` with the reason `FinallyFailed`, any other final status
+stands (`:737-766`). In the stage a cancel does nothing more, while a purge completes the run at once with the status it ended with and ends the finally tasks, as the stage's deadline does
+(`engine/WorkflowExecutionService.java:238-241,355-372`). A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`.
 
 ## Outbound events: the transactional outbox
 

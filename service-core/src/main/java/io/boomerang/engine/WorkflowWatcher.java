@@ -427,7 +427,7 @@ public class WorkflowWatcher {
                 "[{}] WorkflowRun revision {} no longer resolves. Failed outright.",
                 wfRun.getId(),
                 wfRun.getWorkflowRevisionRef());
-            workflowExecutionService.cancelPendingAndRunningTasks(wfRun);
+            workflowExecutionService.cancelPendingAndRunningTasks(wfRun, true);
           }
         },
         (wfRun, ex) ->
@@ -465,7 +465,7 @@ public class WorkflowWatcher {
                 "[{}] Workspace provisioning did not complete after {} attempts. Run failed.",
                 wfRun.getId(),
                 attempts);
-            workflowExecutionService.cancelPendingAndRunningTasks(wfRun);
+            workflowExecutionService.cancelPendingAndRunningTasks(wfRun, true);
           }
         },
         (wfRun, ex) ->

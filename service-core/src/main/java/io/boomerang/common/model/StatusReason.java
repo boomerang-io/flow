@@ -30,6 +30,7 @@ public abstract class StatusReason {
   // Written by the engine, on a workflow run.
   public static final String CONCURRENCY_LIMIT = "ConcurrencyLimit";
   public static final String WORKFLOW_INVALID = "WorkflowInvalid";
+  public static final String FINALLY_FAILED = "FinallyFailed";
 
   // Written by the engine.
   public static final String DISPATCH_PREPARE_FAILED = "DispatchPrepareFailed";

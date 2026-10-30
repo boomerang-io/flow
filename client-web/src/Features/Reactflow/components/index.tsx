@@ -2,7 +2,7 @@ export { AiNode } from "./Ai";
 export { ApprovalNode } from "./Approval";
 export { CustomTaskNode } from "./CustomTask";
 export { DecisionEdge, DecisionNode } from "./Decision";
-export { EndNode } from "./End";
+export { EndEdge, EndNode } from "./End";
 export { RunScheduledWorkflowNode } from "./RunScheduledWorkflow";
 export { RunWorkflowNode } from "./RunWorkflow";
 export { ScriptNode } from "./Script";
