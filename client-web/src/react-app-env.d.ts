@@ -1,6 +1,12 @@
 declare module "@carbon/pictograms-react";
 declare module "@boomerang-io/utils";
 
+// Reached through the add-ons Modal; imported directly only by modalStrictMode.spec.tsx.
+declare module "react-modal" {
+  const ReactModal: { setAppElement(element: string | HTMLElement): void };
+  export default ReactModal;
+}
+
 // A bare `declare module "react-lazylog";` (no body) types the whole module as `any`, which is
 // normally harmless for plain JSX usage but breaks `React.lazy(() => import("react-lazylog")...)`
 // (see TaskRunLog.tsx, deferred to a client-only import because this package touches `self` at
