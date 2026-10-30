@@ -89,6 +89,22 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
         "the refused update must not touch the target");
   }
 
+  // The self-service baseline is anchored to the user, so the global-grant guard never counts it.
+  @Test
+  void aUserInNoWorkspaceCannotModifyAnotherUsersAccount() {
+    String loneId = plainUser("user-authz-lone@test.local", UserType.user);
+    String nameBefore = userRepository.findById(targetId).orElseThrow().getName();
+    installSessionIdentity(loneId);
+    UserRequest request = new UserRequest();
+    request.setId(targetId);
+    request.setName("hijacked");
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> userService.apply(request));
+    assertEquals("PERMISSION_DENIED", ex.getReason());
+    assertEquals(nameBefore, userRepository.findById(targetId).orElseThrow().getName());
+  }
+
   @Test
   void aWorkspaceOwnerCannotDeleteAnotherUsersAccount() {
     installSessionIdentity(ownerId);

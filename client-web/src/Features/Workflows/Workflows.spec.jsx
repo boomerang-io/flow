@@ -37,7 +37,7 @@ describe("WorkflowsHome --- Snapshot", () => {
     // Wait for the workflow list to finish loading (the loader resolves before this component
     // renders, but rtlContextRouterRender's own router still needs a tick to settle it) - the
     // count only appears in the title once the workflows have loaded.
-    await screen.findByText("Workflows (3)");
+    await screen.findByText("Workflows (4)");
     expect(baseElement).toMatchSnapshot();
   });
 });
@@ -67,7 +67,7 @@ describe("WorkflowsHome --- quotas off", () => {
       }
     );
 
-    expect(await screen.findByText("Workflows (3)")).toBeInTheDocument();
+    expect(await screen.findByText("Workflows (4)")).toBeInTheDocument();
     expect(screen.queryByText(/Workflow quota/)).not.toBeInTheDocument();
   });
 });
@@ -79,6 +79,7 @@ describe("WorkflowsHome --- loader", () => {
     const result = await loader({ request, params: { workspace: workspaceFixture.name } });
 
     expect(result.errorLoading).toBe(false);
-    expect(result.workflows.length).toBe(3);
+    // Five rows: three workflows, one made from a template, and one template the workspace has not used.
+    expect(result.workflows.length).toBe(5);
   });
 });

@@ -1,6 +1,6 @@
 import React from "react";
-import { Breadcrumb, BreadcrumbItem, Button } from "@carbon/react";
-import { Add, DocumentExport } from "@carbon/react/icons";
+import { Breadcrumb, BreadcrumbItem, Button, Tag } from "@carbon/react";
+import { Add, DocumentExport, Locked, Save } from "@carbon/react/icons";
 import {
   ConfirmModal,
   ComposedModal,
@@ -28,6 +28,10 @@ interface DesignerHeaderProps {
   // equivalent object to pass down - only `state` and `data`, which the parent narrows for us.
   createRevisionFailed: boolean;
   isCreatingRevision: boolean;
+  // A template, or a workflow that follows one: only its settings are saved, no versions are created.
+  isReadOnlyTasks?: boolean;
+  isSavingSettings?: boolean;
+  saveSettings?: () => void;
   revisionCount: number;
   revisionState: WorkflowCanvas;
 
@@ -40,6 +44,9 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
   canCreateNewVersion,
   createRevisionFailed,
   isCreatingRevision,
+  isReadOnlyTasks = false,
+  isSavingSettings = false,
+  saveSettings,
   revisionCount,
   revisionState,
   viewType,
@@ -78,7 +85,22 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
         </Breadcrumb>
       }
       // A page inside one workflow is titled with its name; the breadcrumb carries the route.
-      header={<HeaderTitle title={displayName}>{displayName}</HeaderTitle>}
+      header={
+        <div className={styles.titleRow}>
+          <HeaderTitle title={displayName}>{displayName}</HeaderTitle>
+          {isReadOnlyTasks ? (
+            <>
+              <Tag type="purple" size="md">
+                Template
+              </Tag>
+              <span className={styles.readOnly}>
+                <Locked size={16} aria-hidden="true" />
+                Read-only
+              </span>
+            </>
+          ) : null}
+        </div>
+      }
       footer={
         // Tabs, the version switcher and the version actions share one row.
         <div className={styles.footer}>
@@ -99,6 +121,18 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
               revisionCount={revisionCount}
             />
             <div className={styles.workflowActionContainer}>
+              {isReadOnlyTasks ? (
+                <Button
+                  disabled={!canCreateNewVersion || isSavingSettings}
+                  iconDescription="Save settings"
+                  kind="ghost"
+                  onClick={saveSettings}
+                  renderIcon={Save}
+                  size="md"
+                >
+                  Save settings
+                </Button>
+              ) : (
               <>
                 <ConfirmModal
                   affirmativeAction={resetVersionToLatestWithMessage}
@@ -148,6 +182,7 @@ const DesignerHeader: React.FC<DesignerHeaderProps> = ({
                   )}
                 </ComposedModal>
               </>
+              )}
             </div>
           </section>
         </div>

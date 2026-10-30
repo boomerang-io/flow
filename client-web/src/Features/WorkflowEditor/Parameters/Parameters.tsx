@@ -9,9 +9,11 @@ import WorkflowPropertiesModal from "./PropertiesModal";
 interface ParametersProps {
   handleUpdateParams: (parameters: Array<DataDrivenInput>, removedParameters: Array<DataDrivenInput>) => void;
   workflow: WorkflowCanvas;
+  // The parameters are a template's: shown, never changed.
+  readOnly?: boolean;
 }
 
-function Parameters({ workflow, handleUpdateParams }: ParametersProps) {
+function Parameters({ workflow, handleUpdateParams, readOnly = false }: ParametersProps) {
   const [editor, setEditor] = React.useState<{ isOpen: boolean; parameter?: DataDrivenInput }>({ isOpen: false });
 
   const handleUpdateProperties = ({ param, type }: { param: DataDrivenInput; type: WorkflowPropertyActionType }) => {
@@ -46,6 +48,7 @@ function Parameters({ workflow, handleUpdateParams }: ParametersProps) {
       </Helmet>
       <ParametersTable
         scope="workflow"
+        readOnly={readOnly}
         parameters={config}
         onAdd={() => setEditor({ isOpen: true })}
         onEdit={(parameter) => setEditor({ isOpen: true, parameter })}

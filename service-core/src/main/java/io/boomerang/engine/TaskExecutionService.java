@@ -1178,7 +1178,10 @@ public class TaskExecutionService {
       LOGGER.debug("[{}] RunWorkflow no longer running; not armed.", taskExecution.getId());
     }
     try {
-      String workflowRef = workflowRefValue.toString();
+      // A template runs as the parent's workspace's link to it, adopted on first use.
+      String workflowRef =
+          workflowService.resolveChildWorkflowRef(
+              workflowRefValue.toString(), wfRunEntity.getWorkflowRef());
       WorkflowSubmitRequest request = new WorkflowSubmitRequest();
       request.setTrigger(TriggerEnum.task);
       request.setParams(childParams(taskExecution, "workflowRef", "wait"));

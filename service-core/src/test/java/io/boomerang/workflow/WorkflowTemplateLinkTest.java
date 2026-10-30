@@ -45,7 +45,6 @@ class WorkflowTemplateLinkTest extends AbstractEngineIntegrationTest {
   private static final String SYSTEM = "system";
 
   @Autowired private WorkflowService workflowService;
-  @Autowired private WorkflowTemplateService templateService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkspaceService workspaceService;
 
@@ -124,11 +123,26 @@ class WorkflowTemplateLinkTest extends AbstractEngineIntegrationTest {
         .map(r -> r.getWorkflowRef())
         .as("the revision it runs is the template's")
         .contains(templateId);
-    assertThat(templateService.query(
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
-            Optional.of(List.of(template.getName())), Optional.of(List.of("template"))).getContent())
+    // The system workspace lists the template as its own; the linking workspace lists its link
+    // in the template's place.
+    assertThat(
+            workflowService
+                .query(
+                    SYSTEM, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.of(List.of(template.getName())),
+                    Optional.of(List.of("template")))
+                .getContent())
         .extracting(Workflow::getName)
         .containsExactly(template.getName());
+    assertThat(
+            workflowService
+                .query(
+                    workspace, Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.of(List.of("template")))
+                .getContent())
+        .extracting(Workflow::getName)
+        .doesNotContain(template.getName());
   }
 
   @Test

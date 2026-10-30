@@ -1,6 +1,7 @@
 package io.boomerang.flow.sdk;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -12,6 +13,7 @@ import io.boomerang.flow.sdk.model.RunPhase;
 import io.boomerang.flow.sdk.model.RunStatus;
 import io.boomerang.flow.sdk.model.WorkflowRun;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -229,6 +231,42 @@ class RunsTest {
         .andRespond(withSuccess(StubServer.page(0, 0, 0, true), MediaType.APPLICATION_JSON));
 
     assertThat(runs.query(RunQuery.all()).isEmpty()).isTrue();
+  }
+
+  @Test
+  void purgeByIdDeletesTheRunAndReadsTheOutcome() {
+    stub.server
+        .expect(requestTo(RUNS + "/r1"))
+        .andExpect(method(HttpMethod.DELETE))
+        .andRespond(
+            withSuccess(
+                "{\"purged\":0,\"scheduled\":1,\"remaining\":0}", MediaType.APPLICATION_JSON));
+
+    var outcome = runs.purge("r1");
+
+    assertThat(outcome.purged()).isZero();
+    assertThat(outcome.scheduled()).isEqualTo(1);
+    assertThat(outcome.hasMore()).isFalse();
+  }
+
+  @Test
+  void purgeByLabelsSendsEachLabelAndReadsWhatRemains() {
+    stub.server
+        .expect(requestTo(RUNS + "?labels=team.io%2Fbatch%3Db-7&labels=env%3Dprod"))
+        .andExpect(method(HttpMethod.DELETE))
+        .andRespond(
+            withSuccess(
+                "{\"purged\":50,\"scheduled\":0,\"remaining\":12}", MediaType.APPLICATION_JSON));
+
+    Map<String, String> labels = new LinkedHashMap<>();
+    labels.put("team.io/batch", "b-7");
+    labels.put("env", "prod");
+    var outcome = runs.purge(labels);
+
+    assertThat(outcome.purged()).isEqualTo(50);
+    assertThat(outcome.remaining()).isEqualTo(12);
+    assertThat(outcome.hasMore()).isTrue();
+    assertThatThrownBy(() -> runs.purge(Map.of())).isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test

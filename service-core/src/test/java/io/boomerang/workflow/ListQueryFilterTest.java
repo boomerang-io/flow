@@ -53,7 +53,6 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
   @Autowired private UserService userService;
   @Autowired private WorkspaceService workspaceService;
   @Autowired private WorkflowService workflowService;
-  @Autowired private WorkflowTemplateService workflowTemplateService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private ActionService actionService;
 
@@ -149,6 +148,7 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                 Optional.empty(),
                 NO_LABEL_VALUE,
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty()));
   }
 
@@ -218,28 +218,34 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
   void templates() {
     WorkflowEntity match = starter("b=c");
     starter("b");
+    // A starter is listed by any workspace it is not yet copied into, through its workflow query.
+    String workspace = workspace("x").getName();
 
     assertThat(
-            workflowTemplateService
+            workflowService
                 .query(
+                    workspace,
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
                     valueWithAnEquals,
                     Optional.empty(),
-                    Optional.empty())
+                    Optional.empty(),
+                    Optional.of(List.of(WorkflowType.starter.name())))
                 .getContent())
         .extracting(Workflow::getName)
         .containsExactly(match.getName());
     assertRefused(
         () ->
-            workflowTemplateService.query(
+            workflowService.query(
+                workspace,
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 NO_LABEL_VALUE,
                 Optional.empty(),
-                Optional.empty()));
+                Optional.empty(),
+                Optional.of(List.of(WorkflowType.starter.name()))));
   }
 
   @Test

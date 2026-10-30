@@ -184,6 +184,14 @@
           "value": "true",
           "readOnly": false
         },
+    {
+          "description": "Let any signed-in user create a workspace and become its owner. Admins and operators always can; a change applies to sessions signed in afterwards.",
+          "key": "workspaceCreate",
+          "label": "Workspace creation by users",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
         {
           "description": "Allow management and editing of Users. The Users screen will always be visible but if disabled will be in view only mode",
           "key": "userManagement",

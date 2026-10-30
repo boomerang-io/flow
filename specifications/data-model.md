@@ -177,7 +177,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
 | `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
 | `actions` | `task_run`, unique where `taskRunRef` exists (`:130-137`); `status_sweep` |
-| `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`; `token_hash_lookup` |
+| `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
 | `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup, at least 60, `core/audit/AuditRetentionService.java:28`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:184-191`) |
@@ -318,6 +318,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left, and an empty database or a v3 upgrade has `3.3.0` from the seed |
 | `_0037__SeedGoogleKeyDefaultRevisions` | all | Inserts the revision of each of the 8 Google Sheets and 4 Drive tasks whose `serviceAccountKey` defaults to `$(workspace.params.google-service-account-key)`, where an install holds the task but not that revision; an empty database has them from `_0017` |
 | `_0038__WorkflowTemplatesIntoSystem` | all | Moves every `workflow_templates` document (the seeds of `_0020` and `_0026`, and a v3 install's own from `_0011`) into the system workspace as a `starter` workflow with a revision per version and its `hasWorkflow` edge, a name the workspace already holds left as it is, then drops the collection |
+| `_0039__SeedWorkspaceCreateSetting` | all | Adds the `features` setting `workspaceCreate` (whether a user who is not an admin may create a workspace) from the seed to an install built before it existed; an install that has the key is left as it is |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

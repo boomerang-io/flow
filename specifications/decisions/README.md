@@ -53,3 +53,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0044 | [A run records the person or token that started it](0044-a-run-records-the-person-or-token-that-started-it.md) | accepted | 2026-10-29 |
 | 0045 | [A run purge takes the lineage, cancels what is in flight, and waits for the dispatcher to let go](0045-a-run-purge-cancels-what-is-in-flight-and-waits-for-the-dispatcher.md) | accepted | 2026-10-29 |
 | 0046 | [A template is a system-workspace workflow that other workspaces run by reference](0046-a-template-is-a-system-workspace-workflow-run-by-reference.md) | accepted | 2026-10-29 |
+| 0047 | [A signed-in user holds a self-service baseline grant, and a setting says whether users create workspaces](0047-a-signed-in-user-holds-a-self-service-baseline-grant.md) | accepted | 2026-10-30 |

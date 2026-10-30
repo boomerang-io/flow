@@ -194,8 +194,7 @@ A run's timeout is settled at submit, on the path every run creation passes thro
 revision's, else the run-duration quota itself, the workspace's own limit or else the platform
 `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the revision's critical path, the longest chain of
 declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's
-maximum run duration then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no
-maximum (`:83-93`).
+maximum run duration then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
 
 ## Retry
 
@@ -329,7 +328,10 @@ task's own params minus `workflowRef` and `wait` (`:1204-1209`): the values its 
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
 saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1617-1642`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
-`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1319-1321`).
+`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1319-1321`). A `workflowRef` naming a template
+runs as the parent's workspace's link to that template, created under the template's name on first use, so a template's
+children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace,
+and for any other reference, the reference is used as given (`:1181-1185`, `workflow/WorkflowService.java:2177-2187`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
 typed pair the retry path uses (`workflow/WorkflowService.java:1915-1919`); a run has no `parentRef`. The single-run
@@ -350,8 +352,7 @@ it the child's results, so a downstream `$(tasks.x.results.y)` reads them; any o
 `<id>` ended `<status>`" and `ChildRunFailed` (`engine/ChildWorkflowRunListener.java:61-127`). A for-each item is ended
 the same way. When a run ends `cancelled` or `timedout`, the same listener cancels every child run whose
 `initiatedByRef` is one of its task-run ids and whose phase is still `pending`, `queued` or `running`, read through the
-`initiated_by_phase` index (`:134-155`); a cancelled child publishes its own transition, so a nested chain unwinds from
-the top. Pause does not cascade.
+`initiated_by_phase` index (`:134-155`); a cancelled child publishes its own transition, so a nested chain unwinds from the top. Pause does not cascade.
 
 ## For-each tasks
 
@@ -359,8 +360,7 @@ A task with `foreach` set runs once per item of an array, in parallel, in the sa
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow`, which
 submits one child run per item, may carry it; saving refuses it anywhere else, `start` and `end` included
 (`workflow/WorkflowService.java:130-139`, `:1414-1421`, `:1611-1619`). The graph still sees one task run per node:
-`DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef`
-(`engine/DAGUtility.java:131-181`), so items are never vertices.
+`DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef` (`engine/DAGUtility.java:131-181`), so items are never vertices.
 
 | Step | What happens | Where |
 | --- | --- | --- |

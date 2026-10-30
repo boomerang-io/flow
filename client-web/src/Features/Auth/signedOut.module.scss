@@ -1,0 +1,6 @@
+@use "@carbon/react/scss/spacing" as *;
+
+// The sign-in form sits a step below the message, not flush against it.
+.signIn {
+  margin-top: $spacing-06;
+}

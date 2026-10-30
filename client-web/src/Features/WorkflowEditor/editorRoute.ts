@@ -250,6 +250,8 @@ export async function editorLoader({
 export type EditorActionResult =
   | { intent: "createRevision"; workflow: WorkflowCanvas }
   | ({ intent: "createRevision" } & ActionError)
+  | { intent: "saveSettings" }
+  | ({ intent: "saveSettings" } & ActionError)
   | { intent: "deleteKeptArtifact"; name: string }
   | ({ intent: "deleteKeptArtifact" } & ActionError)
   | TokenActionResult
@@ -329,6 +331,30 @@ export async function editorAction({
    * `JSON.parse(String(null))` into `null` and PUT an empty body over the workflow's compose,
    * destroying it. Consumers narrow on `intent`, so an "unknown" result is inert for them.
    */
+  /*
+   * A workflow that follows a template has no versions of its own to create: its tasks and params
+   * are the template's, so only the editable settings (and the template reference) are applied,
+   * through the workspace's apply route. Applying a template's name for the first time is what
+   * makes the workspace's own row.
+   */
+  if (intent === "saveSettings") {
+    try {
+      await serverFetch(request).put(
+        serviceUrl.workspace.workflow.putApplyWorkflow({ workspace: String(params.workspace ?? "") }),
+        JSON.parse(String(formData.get("settings"))),
+      );
+      return { intent: "saveSettings" as const };
+    } catch (error) {
+      return actionError({
+        intent: "saveSettings" as const,
+        error: {
+          title: "Something's Wrong",
+          message: formatErrorMessage({ error, defaultMessage: "Failed to save the workflow settings" }).message,
+        },
+      });
+    }
+  }
+
   if (intent !== "createRevision") {
     return actionError({
       intent: "unknown" as const,
