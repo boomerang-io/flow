@@ -107,7 +107,9 @@ written are not scanned; a run's own params are not checked.
 A task's params never read each other: a task param's `$(params.y)` names the outer `y`, and with no outer `y` it is
 reported like any undeclared reference. Only the spec reads the task's own params, as in v3, where a task's inputs
 "are only able to be referenced within the Task template or by the Task code itself"; the secret taint follows the
-same layers (`engine/ParameterManager.java:459-490`). Decision 0016 records why.
+same layers (`engine/ParameterManager.java:459-490`). Decision 0016 records why. A for-each item's `item` and
+`index` are context the engine set when it fanned out, so an item's own params do read `$(params.item)` and
+`$(params.index)` (`engine/ParameterManager.java:566-574`).
 
 The editor warns when a saved version reads a workspace parameter the workspace does not provide, so such a run
 fails here. It reads `$(workspace.params.x)` and `$(team.params.x)` anywhere in a node's values, and in its task's
