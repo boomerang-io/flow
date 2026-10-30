@@ -93,8 +93,11 @@ test.describe("dispatcher via the UI", () => {
     // The script field is a read-only textarea that opens the code-editor modal on click.
     await taskModal.locator("textarea[readonly]").last().click();
     const editorModal = page.getByRole("dialog").filter({ hasText: "Update Shell Script" });
-    await expect(editorModal.locator(".CodeMirror")).toBeVisible();
-    await editorModal.locator(".CodeMirror").click();
+    // The dev server renders under StrictMode, whose mount-unmount-mount leaves an orphaned
+    // CodeMirror 5 editor behind the live one; the built server mounts once. The last is live.
+    const editor = editorModal.locator(".CodeMirror").last();
+    await expect(editor).toBeVisible();
+    await editor.click();
     await page.keyboard.type("echo ui-canvas-ok");
     await editorModal.getByRole("button", { name: "Update" }).click();
     await taskModal.getByRole("button", { name: "Apply" }).click();

@@ -118,8 +118,11 @@ test.describe("for each in the editor", () => {
     await taskModal.getByRole("textbox", { name: "Shell Interpreter" }).fill("sh");
     await taskModal.locator("textarea[readonly]").last().click();
     const editorModal = page.getByRole("dialog").filter({ hasText: "Update Shell Script" });
-    await expect(editorModal.locator(".CodeMirror")).toBeVisible();
-    await editorModal.locator(".CodeMirror").click();
+    // The dev server renders under StrictMode, whose mount-unmount-mount leaves an orphaned
+    // CodeMirror 5 editor behind the live one; the built server mounts once. The last is live.
+    const editor = editorModal.locator(".CodeMirror").last();
+    await expect(editor).toBeVisible();
+    await editor.click();
     await page.keyboard.type("echo item-$(params.item)-at-$(params.index)");
     await editorModal.getByRole("button", { name: "Update" }).click();
 
