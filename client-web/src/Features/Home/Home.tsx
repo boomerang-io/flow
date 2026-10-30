@@ -373,11 +373,15 @@ export default function Home() {
               hasWorkflow={workflowCount > 0}
               hasRun={data.totalRuns > 0}
               primaryWorkspace={primaryWorkspace || undefined}
-              createWorkspaceTrigger={createWorkspaceModal(({ openModal }) => (
-                <Button renderIcon={Add} size="md" onClick={openModal}>
-                  Create workspace
-                </Button>
-              ))}
+              createWorkspaceTrigger={
+                canCreateWorkspace
+                  ? createWorkspaceModal(({ openModal }) => (
+                      <Button renderIcon={Add} size="md" onClick={openModal}>
+                        Create workspace
+                      </Button>
+                    ))
+                  : undefined
+              }
             />
           </div>
         </section>
