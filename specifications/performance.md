@@ -251,8 +251,10 @@ embedded engine serves is seeded with its workflow count, monthly runs, workspac
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:207-244`).
 Concurrent = the live count of non-terminal runs (`notstarted`/`ready`/`running`/`waiting`, `:61-63`) over the
-workspace's Workflows (`countRuns` `:371-384`, the `workflow_ref_status` index) — what is running now, which
-deletion legitimately reduces. Monthly = `max(audit count, live count)`: the month's
+workspace's Workflows (`countRuns` `:371-384`, the `workflow_ref_status` index) plus the runs in their finally stage, which
+carry a final status while their finally tasks still run (`countFinallyStage`) — what is running now, which deletion
+legitimately reduces. The finally stage's budget is the `workflowrun` setting `finally.timeout`, an operator's ceiling
+outside `max.workflowrun.duration` ("Finally tasks" in `execution-model.md`). Monthly = `max(audit count, live count)`: the month's
 `{workspaceId, action=CREATE, resourceType=workflowrun}` audit events
 (`core/audit/AuditQueryService.countRunsCreated`, the `workspace_time` index) versus the month's
 live run documents (the `workflow_ref_creation` index). The max is deliberate — the audit write is

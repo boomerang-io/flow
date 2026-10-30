@@ -26,17 +26,14 @@ reconciling what it holds against the engine, not through a further phase (`disp
 | start: bakes `timeoutAt` from the start time | `TaskRunService.java:404` | `WorkflowRunStateHelper.java:171`; a run with a workspace already carries one from its submit (`workflow/WorkflowRunService.java:798-802`) |
 | complete | `TaskRunService.java:543-595` | `WorkflowRunStateHelper.java:205` |
 
-An end the engine decides itself (a skip, an admission refusal, an engine-run task's result, a sleep or lock resume,
-a for-each parent's outcome) is a `TaskOutcome` written by the completion itself, guarded on the statuses it may end
-from, `notstarted` for a skip or refusal and `running` or `waiting` otherwise (`engine/model/TaskOutcome.java:15-54`,
-`engine/TaskRunService.java:573-595`), so a task another caller moved meanwhile is left alone; a timeout already
-recorded when `end` reads the task wins over the outcome (`engine/TaskExecutionService.java:564-586`).
+An end the engine decides itself (a skip, an admission refusal, an engine-run task's result, a sleep or lock resume, a for-each parent's outcome) is a `TaskOutcome` written by the completion itself,
+guarded on the statuses it may end from, `notstarted` for a skip or refusal and `running` or `waiting` otherwise (`engine/model/TaskOutcome.java:15-54`, `engine/TaskRunService.java:573-595`), so a
+task another caller moved meanwhile is left alone; a timeout already recorded when `end` reads the task wins over the outcome (`engine/TaskExecutionService.java:564-586`).
 
 ## The claim-based queue
 
-Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates
-with `findClaimable` and claims each one individually (`dispatcher/DispatcherService.java:377-389`); the poll window,
-filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polling".
+Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually
+(`dispatcher/DispatcherService.java:377-389`); the poll window, filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polling".
 
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` among the dispatcher's types, no `claim.by` and
   `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any task or workflow filter the poll
@@ -161,10 +158,9 @@ the run start and the submit of a run with a workspace (`workflow/WorkflowRunSer
 are the only reaper, so a crashed dispatcher, a dead executor thread or a lost pod is recovered by one path, the lease lapsing (90 s), the dispatcher going stale (60 s) or `timeoutAt`
 passing, and the task is requeued or timed out, both writes fenced on the observed `claim.seq` (`engine/TaskRunService.java:897-901`).
 
-A task's budget is the smallest of the `task` settings' `default.timeout`, the task's declared timeout and the
-run's timeout, 0 meaning no ceiling (`engine/DAGUtility.java:74-85`, `:236-257`): the run is a ceiling because a
-guard must cover the work beneath it. The seed ships `default.timeout` at 0, so a task inherits its run's timeout
-(`service-core/src/main/resources/seed/settings.json:361-366`); the setting caps a single pod, it is not a budget.
+A task's budget is the smallest of the `task` settings' `default.timeout`, the task's declared timeout and the run's timeout, 0 meaning no ceiling (`engine/DAGUtility.java:74-85`, `:236-257`): the run
+is a ceiling because a guard must cover the work beneath it. The seed ships `default.timeout` at 0, so a task inherits its run's timeout (`service-core/src/main/resources/seed/settings.json:361-366`);
+the setting caps a single pod, it is not a budget.
 
 When a timed-out task ends, its run times out too (`engine/TaskExecutionService.java:602-606`). A workflow timeout is two writes: `WorkflowRunService.timeout` marks a pending or running run
 `timedout` on the caller's thread, publishing nothing and leaving the phase as it is (`workflow/WorkflowRunService.java:915-940`, `engine/WorkflowRunStateHelper.java:419-426`); the
@@ -247,12 +243,12 @@ held back (`workflow/WorkflowRunService.java:885-900`). The stalled-run sweep an
 
 ## The graph advance
 
-The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity` (`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`),
-and advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they
-depend on, never the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the
-run when the end node's dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:616-637`, `:1488-1608`); a dependency with no task
-run never counts as satisfied (`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and
-a scoped retry's start use it (`:643-663`). Four rules hold:
+The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity` (`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`), and
+advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they depend on, never
+the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the run when the end node's
+dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:616-637`, `:1488-1608`); a dependency with no task run never counts as satisfied
+(`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
+(`:643-663`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-148`).
 2. The handler MUST check the transition has not already happened (phase guards at `:153-156`, `:286-290`,
@@ -270,15 +266,22 @@ the arm (`applyEventDelivery`, `:391-399`) is honoured (`engine/TaskExecutionSer
 
 ## Finally tasks
 
-A finally task is a task whose single dependency is `end` with the execution condition `finally` (`common/enums/ExecutionCondition.java:9-15`): it runs once the run has ended, any way.
-Saving and submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1248-1283`). When the graph ends, by its own
-completion, a cancel or a timeout, the run takes its final status, reason and message in one compare-and-set that stamps `graphEndedAt` and leaves the phase `running`, its `timeoutAt` becomes the finally stage's
-deadline, the `workflowrun` setting `finally.timeout` (5 minutes), and the pending finally tasks are queued in parallel (`engine/TaskExecutionService.java:685-729`,
-`engine/WorkflowRunStateHelper.java:322-353`); a run with no finally task completes as before. A finally task is admitted without the path check, since the graph has ended whichever paths it
-took, and any other task still pending then is skipped (`:189-216`); its own timeout is capped by the stage's (`engine/DAGUtility.java:347-355`) and times out the task alone. The run
-completes when the last finally task ends: a finally task that failed, timed out or was invalid turns a succeeded run into `failed` with the reason `FinallyFailed`, any other final status
-stands (`:737-766`). In the stage a cancel does nothing more, while a purge completes the run at once with the status it ended with and ends the finally tasks, as the stage's deadline does
+A finally task is a task whose single dependency is `end` with the execution condition `finally` (`common/enums/ExecutionCondition.java:9-15`): it runs once the run has ended, any way. Saving and
+submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1248-1283`). When the graph ends, by its own completion, a cancel
+or a timeout, the run takes its final status, reason and message in one compare-and-set that stamps `graphEndedAt` and leaves the phase `running`, its `timeoutAt` becomes the finally stage's deadline,
+the `workflowrun` setting `finally.timeout` (5 minutes), and the pending finally tasks are queued in parallel (`engine/TaskExecutionService.java:685-729`,
+`engine/WorkflowRunStateHelper.java:322-353`); a run with no finally task completes as before. A finally task is admitted without the path check, since the graph has ended whichever paths it took, and
+any other task still pending then is skipped (`:189-216`); its own timeout is capped by the stage's (`engine/DAGUtility.java:347-355`) and times out the task alone. The run completes when the last
+finally task ends: a finally task that failed, timed out or was invalid turns a succeeded run into `failed` with the reason `FinallyFailed`, any other final status stands (`:737-766`). In the stage a
+cancel does nothing more, while a purge completes the run at once with the status it ended with and ends the finally tasks, as the stage's deadline does
 (`engine/WorkflowExecutionService.java:238-241,355-372`). A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`.
+
+**The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
+clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it
+(`engine/DAGUtility.java:347-355`), no workflow or run field raises it, and when it passes the run completes with any finally task still running ended. The time is counted: `duration` is written again
+at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:228-236`), and a run in the stage holds its concurrent-run slot and its workflow's concurrency
+slot until it completes (`workflow/QuotaService.java:260-268`, `engine/WorkflowRunStateHelper.java:225-236`). A workspace's `max.workflowrun.duration` bounds the graph, not the stage; a workflow
+author can gain at most `finally.timeout` of extra execution per run, set by the operator.
 
 ## Outbound events: the transactional outbox
 
@@ -287,15 +290,12 @@ records a CREATE audit event on a run's first status change and an UPDATE with t
 `completed`, the events the monthly run quota counts (`core/audit/WorkflowRunAuditBridge.java:58-103`); task-run
 transitions are not audited, and auditing never fails the transition.
 
-When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:51`),
-`CloudEventsBridge` inserts one `events_outbox` row per externally visible status change, or per run reaching
-`completed` with a status its caller wrote directly; the start and end nodes write none
-(`event/CloudEventsBridge.java:34-77`). `OutboxDispatcher` then drains every `flow.events.outbox.interval-ms` (5 s)
-on every instance, at least once, marking rows `sent` by compare-and-set and `dead` after 3 failed attempts
-(`event/OutboxDispatcher.java:43`, `:64-91`); each row is delivered as its own transition with the row's status, phase,
-id and time, so a late row reports what it recorded and a retried delivery keeps its id (`:97-115`,
-`event/EventFactory.java:44-47`, `:69-72`). An event carries identity and lifecycle, not params and results, unless
-`flow.events.sink.payload=full` (`api-contract.md`, "Events out"). There is no broker, partitioning or leader.
+When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:51`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
+change, or per run reaching `completed` with a status its caller wrote directly; the start and end nodes write none (`event/CloudEventsBridge.java:34-77`). `OutboxDispatcher` then drains every
+`flow.events.outbox.interval-ms` (5 s) on every instance, at least once, marking rows `sent` by compare-and-set and `dead` after 3 failed attempts (`event/OutboxDispatcher.java:43`, `:64-91`); each
+row is delivered as its own transition with the row's status, phase, id and time, so a late row reports what it recorded and a retried delivery keeps its id (`:97-115`,
+`event/EventFactory.java:44-47`, `:69-72`). An event carries identity and lifecycle, not params and results, unless `flow.events.sink.payload=full` (`api-contract.md`, "Events out"). There is no
+broker, partitioning or leader.
 
 No transaction spans the compare-and-set and the outbox insert (`event/entity/EventOutboxEntity.java:13-19`), so a
 crash between them loses that one event; the engine never reads the outbox, so a lost row cannot stall a run. Sent

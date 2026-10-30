@@ -29,12 +29,12 @@ the last of them ends, a finally task that failed, timed out or was invalid turn
 with the reason `FinallyFailed` (`:737-766`). In the stage a cancel does nothing more, while a purge and the
 stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:238-241,355-372`).
 A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`. The editor draws it
-with a purple border, a `Finally` badge and no output port, on a purple link from End's new output port, so the
-same pattern as the switch and for-each nodes says what it is.
+as the switch and for-each pattern does: a purple border, a `Finally` badge, no output port, a purple link from End.
 
 ## Consequences
 
-- Export, templates, the run view and the API carry finally tasks as tasks; nothing new is stored.
+- Finally tasks are tasks to export, templates, the run view and the API. The stage's budget is the operator's
+  `finally.timeout`, outside the run's timeout and never a workflow's to raise; it counts in duration and concurrency.
 - A consumer of run events sees the terminal status with phase `running` first and `completed` later; one that
   acts on the end of a run filters on the phase.
 - Not built: a dotted placeholder on the canvas for an empty finally, and a placeholder's removal on first use.

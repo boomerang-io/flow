@@ -9,6 +9,7 @@ import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangError;
@@ -257,13 +258,16 @@ public class QuotaService {
     // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
     // work counts against the limit - it measures what is running now, which deletion
     // legitimately reduces.
+    // A run in its finally stage carries its final status but still runs its finally tasks, so it
+    // holds its slot until it completes.
     quotas.setCurrentConcurrentRuns(
         (int)
-            countRuns(
-                workflowRefs,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.of(CONCURRENT_STATUSES)));
+            (countRuns(
+                    workflowRefs,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(CONCURRENT_STATUSES))
+                + countFinallyStage(workflowRefs)));
     quotas.setCurrentArtifactStorage(storedBytes(workflowRefs));
     quotas.setCurrentWorkflowCount((int) countWorkflows(workflowRefs));
     return quotas;
@@ -407,6 +411,21 @@ public class QuotaService {
                 .in("status", statuses)
                 .build());
     return mongoTemplate.count(query, WorkflowRunEntity.class);
+  }
+
+  private long countFinallyStage(List<String> workflowRefs) {
+    if (workflowRefs.isEmpty()) {
+      return 0;
+    }
+    return mongoTemplate.count(
+        Query.query(
+            where("workflowRef")
+                .in(workflowRefs)
+                .and("phase")
+                .is(RunPhase.running)
+                .and("graphEndedAt")
+                .exists(true)),
+        WorkflowRunEntity.class);
   }
 
   /** The active and inactive Workflows among the given refs; deleted ones no longer count. */

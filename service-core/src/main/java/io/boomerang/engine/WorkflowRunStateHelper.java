@@ -222,11 +222,16 @@ public class WorkflowRunStateHelper {
         .anyMatch(run -> id.equals(run.getId()));
   }
 
+  // Admitted or executing, or in the finally stage, which carries the final status while its
+  // finally tasks still run; a run parked for a slot or waiting at a gate holds none.
   private static Criteria inFlight(String workflowRef) {
-    return Criteria.where("workflowRef")
-        .is(workflowRef)
-        .and("status")
-        .in(RunStatus.ready, RunStatus.running);
+    return new Criteria()
+        .andOperator(
+            Criteria.where("workflowRef").is(workflowRef),
+            new Criteria()
+                .orOperator(
+                    Criteria.where("status").in(RunStatus.ready, RunStatus.running),
+                    Criteria.where("phase").is(RunPhase.running).and("graphEndedAt").exists(true)));
   }
 
   // The parked run of a workflow that has waited longest for a slot, if any.

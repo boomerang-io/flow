@@ -164,7 +164,8 @@ tag's release notes.
 - Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
   succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
   `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
-  `finally.timeout` (5 minutes); it completes when the last of them ends, and a finally task that fails turns a
+  `finally.timeout` (5 minutes), an operator's ceiling outside the run's own timeout that no workflow can raise; the stage
+  counts in the run's duration and holds its concurrency slots; the run completes when the last of them ends, and a finally task that fails turns a
   succeeded run into `failed` with the reason `FinallyFailed`. A finally task reads the run's outcome as
   `$(context.params.workflowrun-status)` and `$(context.params.workflowrun-status-reason)`; a cancel during the finally
   tasks does nothing more, a purge still stops them. Finally tasks never chain: saving refuses a `finally` dependency
