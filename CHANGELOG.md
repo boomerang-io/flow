@@ -35,8 +35,7 @@ tag's release notes.
 - **Migrations run inside `service-core` as it starts.** The `flow-service-loader` image and its pre-deploy
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
-- **Only an empty database or a v3 database can be upgraded.** A v4 database, or one a 5.0 beta migrated,
-  is refused at startup. Reset beta databases before upgrading.
+- **You can upgrade from v3, although runs are dropped.**
 - **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
   once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
   key v5 encrypts with and is required on every install. Set both before the first start against a v3
