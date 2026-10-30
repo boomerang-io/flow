@@ -298,6 +298,7 @@ export const EdgeExecutionCondition = {
   Success: "success",
   Failure: "failure",
   Always: "always",
+  Finally: "finally",
 } as const;
 
 // Creatable token classes (AuthScope). "session" is system-only and can never be created via

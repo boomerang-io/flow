@@ -553,6 +553,12 @@ public class ParameterManager {
             ? ""
             : wfRun.getInitiatedByRef());
     contextParams.put("workflowrun-ref", wfRun.getId());
+    // The run's status as it is now: final by the time a finally task resolves, since the graph
+    // has ended; running for any other task.
+    contextParams.put(
+        "workflowrun-status", (wfRun.getStatus() != null) ? wfRun.getStatus().getStatus() : "");
+    contextParams.put(
+        "workflowrun-status-reason", Objects.toString(wfRun.getStatusReason(), ""));
     if (optTaskRun.isPresent()) {
       contextParams.put("taskrun-ref", optTaskRun.get().getId());
       contextParams.put("taskrun-name", optTaskRun.get().getName());

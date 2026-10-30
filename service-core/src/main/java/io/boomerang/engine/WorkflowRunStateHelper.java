@@ -222,11 +222,16 @@ public class WorkflowRunStateHelper {
         .anyMatch(run -> id.equals(run.getId()));
   }
 
+  // Admitted or executing, or in the finally stage, which carries the final status while its
+  // finally tasks still run; a run parked for a slot or waiting at a gate holds none.
   private static Criteria inFlight(String workflowRef) {
-    return Criteria.where("workflowRef")
-        .is(workflowRef)
-        .and("status")
-        .in(RunStatus.ready, RunStatus.running);
+    return new Criteria()
+        .andOperator(
+            Criteria.where("workflowRef").is(workflowRef),
+            new Criteria()
+                .orOperator(
+                    Criteria.where("status").in(RunStatus.ready, RunStatus.running),
+                    Criteria.where("phase").is(RunPhase.running).and("graphEndedAt").exists(true)));
   }
 
   // The parked run of a workflow that has waited longest for a slot, if any.
@@ -311,6 +316,44 @@ public class WorkflowRunStateHelper {
       update.set("statusMessage", statusMessage);
     }
     return cas(query, update, status, RunPhase.completed);
+  }
+
+  /**
+   * Graph-end Compare-And-Set: a running run whose status is one of {@code fromStatuses} takes its
+   * final status, reason and message and stays in the running phase for its finally tasks; the
+   * deadline becomes the finally stage's. Returns the pre-image, or null when another caller ended
+   * the graph first.
+   */
+  public WorkflowRunEntity tryEndGraph(
+      String id,
+      Collection<RunStatus> fromStatuses,
+      RunStatus status,
+      String statusReason,
+      String statusMessage,
+      long duration,
+      Date finallyDeadline) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .is(RunPhase.running)
+                .and("status")
+                .in(fromStatuses));
+    Update update =
+        new Update()
+            .set("status", status)
+            .set("duration", duration)
+            .set("timeoutAt", finallyDeadline)
+            .set("graphEndedAt", new Date())
+            .unset("waitingSince");
+    if (statusReason != null) {
+      update.set("statusReason", statusReason);
+    }
+    if (statusMessage != null) {
+      update.set("statusMessage", statusMessage);
+    }
+    return cas(query, update, status, RunPhase.running);
   }
 
   // Pause Compare-And-Set: a running, not-yet-paused run gains the flag. Returns whether this
@@ -521,15 +564,27 @@ public class WorkflowRunStateHelper {
   // Timeout Compare-And-Set: a running run reads timed out at once and stays in the running phase
   // until timeoutWorkflow completes it, so a completion that is lost - a crash, an executor shut
   // down - is driven again by the timeout sweep. It publishes nothing: the completion's transition
-  // is the one event a timeout sends. Returns the pre-image, or null when the run is not running.
+  // is the one event a timeout sends. Returns the pre-image, or null when the run is not running
+  // or its graph has ended some other way: a finally stage past its deadline keeps the status it
+  // ended with. A run already marked timed out is marked again, so a lost completion is re-driven.
   public WorkflowRunEntity tryMarkTimedOut(String id) {
     return mongoTemplate.findAndModify(
         Query.query(
-            Criteria.where("_id").is(id).and("phase").in(RunPhase.pending, RunPhase.running)),
+            Criteria.where("_id")
+                .is(id)
+                .and("phase")
+                .in(RunPhase.pending, RunPhase.running)
+                .and("status")
+                .nin(ENDED_OTHER_THAN_TIMED_OUT)),
         new Update().set("status", RunStatus.timedout),
         FindAndModifyOptions.options().returnNew(false),
         WorkflowRunEntity.class);
   }
+
+  private static final Set<RunStatus> ENDED_OTHER_THAN_TIMED_OUT =
+      EngineConstants.TERMINAL_RUN_STATUSES.stream()
+          .filter(status -> !RunStatus.timedout.equals(status))
+          .collect(Collectors.toSet());
 
   // The Compare-And-Set primitive: apply the update only when the query's expected prior state
   // matches and publish the transition. Returns the pre-image, or null when another caller won, so

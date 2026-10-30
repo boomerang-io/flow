@@ -460,6 +460,14 @@
           "readOnly": false
         },
         {
+          "description": "Minutes the finally tasks of a run may take once its graph has ended. Each finally task's own timeout is capped by it; when it passes, the run completes and any finally task still running is ended.",
+          "key": "finally.timeout",
+          "label": "Finally Timeout (minutes)",
+          "type": "number",
+          "value": "5",
+          "readOnly": false
+        },
+        {
           "description": "Days a finished run and its task runs, actions, artifacts and logs are kept. Floored at 60 so monthly quota counts stay complete.",
           "key": "retention.days",
           "label": "Activity Retention (days)",

@@ -160,6 +160,17 @@ tag's release notes.
 
 ### Added
 
+- Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
+  succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
+  `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
+  `finally.timeout` (5 minutes), an operator's ceiling outside the run's own timeout that no workflow can raise; the stage
+  counts in the run's duration and holds its concurrency slots; the run completes when the last of them ends, and a finally task that fails turns a
+  succeeded run into `failed` with the reason `FinallyFailed`. A finally task reads the run's outcome as
+  `$(context.params.workflowrun-status)` and `$(context.params.workflowrun-status-reason)`; a cancel during the finally
+  tasks does nothing more, a purge still stops them. Finally tasks never chain: saving refuses a `finally` dependency
+  on anything but End and any dependency on a finally task (`400 WORKFLOW_INVALID_FINALLY`). In the editor End gains
+  an output port; a task linked from it shows a Finally badge and no output port, and its link a fixed finally
+  condition.
 - A workspace can be found by `externalRef`, an embedding product's own id for the record it mirrors:
   `GET /api/v2/workspace/query?externalRef=` answers the one workspace carrying it, within the caller's access, and a
   create naming a reference a workspace already carries is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's

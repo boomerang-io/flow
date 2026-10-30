@@ -18,9 +18,11 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.engine.GraphProcessor;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -229,14 +231,35 @@ public class WorkflowExecutionService {
             .findById(wfRunId)
             .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
     long duration = RunTimeouts.executionMillis(workflowExecution, new Date());
+    String statusMessage = "The WorkflowRun was requested to be cancelled.";
+    if (RunPhase.running.equals(workflowExecution.getPhase())) {
+      // A run whose graph has ended is past cancelling: its finally tasks run on, and a purge is
+      // what stops them.
+      if (EngineConstants.inFinallyStage(workflowExecution)) {
+        LOGGER.info("[{}] WorkflowRun has ended; its finally tasks run on. Nothing to cancel.", wfRunId);
+        return;
+      }
+      // The graph ends cancelled, once, through the graph-end Compare-And-Set; the graph's tasks
+      // wind down and the finally tasks run under the cancelled status.
+      Optional<List<TaskRunEntity>> finallyTasks =
+          taskExecutionService.endGraph(
+              workflowExecution, NOT_ENDED, RunStatus.cancelled, null, statusMessage);
+      if (finallyTasks.isEmpty()) {
+        LOGGER.info("[{}] WorkflowRun already ended. Nothing to cancel.", wfRunId);
+        return;
+      }
+      cancelPendingAndRunningTasks(workflowExecution, false);
+      taskExecutionService.queueFinally(finallyTasks.get());
+      return;
+    }
     // Completion Compare-And-Set: only a run that has not yet completed can be cancelled - a
-    // terminal status is never overwritten.
+    // terminal status is never overwritten. A run that never started has nothing to run finally.
     if (workflowRunStateHelper.tryComplete(
             wfRunId,
-            List.of(RunPhase.pending, RunPhase.queued, RunPhase.running),
+            List.of(RunPhase.pending, RunPhase.queued),
             RunStatus.cancelled,
             null,
-            "The WorkflowRun was requested to be cancelled.",
+            statusMessage,
             duration)
         == null) {
       LOGGER.info("[{}] WorkflowRun already completed. Nothing to cancel.", wfRunId);
@@ -244,8 +267,40 @@ public class WorkflowExecutionService {
     }
 
     // Cancel Running & Pending Tasks
-    cancelPendingAndRunningTasks(workflowExecution);
+    cancelPendingAndRunningTasks(workflowExecution, true);
   }
+
+  /*
+   * End a run for a purge. A run in its finally stage completes now, with the status its graph
+   * ended with, and its finally tasks are ended; any other run is cancelled, which runs its
+   * finally tasks as a cancel does.
+   */
+  public void abort(String wfRunId) {
+    WorkflowRunEntity workflowExecution =
+        workflowRunRepository
+            .findById(wfRunId)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
+    if (!EngineConstants.inFinallyStage(workflowExecution)) {
+      cancel(wfRunId);
+      return;
+    }
+    if (workflowRunStateHelper.tryComplete(
+            wfRunId,
+            List.of(RunPhase.running),
+            workflowExecution.getStatus(),
+            null,
+            "The WorkflowRun was purged while its finally tasks ran.",
+            RunTimeouts.executionMillis(workflowExecution, new Date()))
+        == null) {
+      LOGGER.info("[{}] WorkflowRun already completed. Nothing to abort.", wfRunId);
+      return;
+    }
+    cancelPendingAndRunningTasks(workflowExecution, true);
+  }
+
+  // The statuses a running run's graph may be ended from by a cancel or a timeout.
+  private static final Set<RunStatus> NOT_ENDED =
+      EnumSet.complementOf(EnumSet.copyOf(EngineConstants.TERMINAL_RUN_STATUSES));
 
   private Supplier<Boolean> executeWorkflowAsync(
       String wfRunId,
@@ -322,23 +377,61 @@ public class WorkflowExecutionService {
     LOGGER.info("[{}] Timing out WorkflowRun.", wfRunId);
     long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
 
-    // Completion Compare-And-Set: exactly one of the racing timers/sweeps wins the move to
-    // completed; only the winner cancels tasks and evaluates the auto-retry, so a duplicate
-    // timeout can never spawn a duplicate retry.
-    if (workflowRunStateHelper.tryComplete(
-            wfRunId,
-            List.of(RunPhase.pending, RunPhase.running),
-            RunStatus.timedout,
-            StatusReason.DEADLINE_EXCEEDED,
-            statusMessage,
-            duration)
-        == null) {
+    // The finally stage past its deadline: the run completes as its graph ended, failed if it had
+    // succeeded, and the finally tasks still running are ended. No retry: the run itself did not
+    // time out.
+    if (EngineConstants.inFinallyStage(wfRunEntity)) {
+      boolean succeeded = RunStatus.succeeded.equals(wfRunEntity.getStatus());
+      if (workflowRunStateHelper.tryComplete(
+              wfRunId,
+              List.of(RunPhase.running),
+              succeeded ? RunStatus.failed : wfRunEntity.getStatus(),
+              succeeded ? StatusReason.FINALLY_FAILED : null,
+              "The finally tasks exceeded their timeout.",
+              duration)
+          == null) {
+        LOGGER.info("[{}] WorkflowRun already completed. Only the timeout winner acts.", wfRunId);
+        return;
+      }
+      cancelPendingAndRunningTasks(wfRunEntity, true);
+      return;
+    }
+
+    // Exactly one of the racing timers/sweeps wins the move: a running run ends its graph timed
+    // out, its finally tasks running under that status, and a pending one completes; only the
+    // winner cancels tasks and evaluates the auto-retry, so a duplicate timeout can never spawn
+    // a duplicate retry.
+    Optional<List<TaskRunEntity>> finallyTasks;
+    if (RunPhase.running.equals(wfRunEntity.getPhase())) {
+      // The sweep marked the status timed out before this; the graph ends from that mark.
+      finallyTasks =
+          taskExecutionService.endGraph(
+              wfRunEntity,
+              EnumSet.of(RunStatus.timedout),
+              RunStatus.timedout,
+              StatusReason.DEADLINE_EXCEEDED,
+              statusMessage);
+    } else {
+      finallyTasks =
+          (workflowRunStateHelper.tryComplete(
+                      wfRunId,
+                      List.of(RunPhase.pending),
+                      RunStatus.timedout,
+                      StatusReason.DEADLINE_EXCEEDED,
+                      statusMessage,
+                      duration)
+                  != null)
+              ? Optional.of(List.of())
+              : Optional.empty();
+    }
+    if (finallyTasks.isEmpty()) {
       LOGGER.info("[{}] WorkflowRun already completed. Only the timeout winner acts.", wfRunId);
       return;
     }
 
     // Cancel Running & Pending Tasks
-    cancelPendingAndRunningTasks(wfRunEntity);
+    cancelPendingAndRunningTasks(wfRunEntity, false);
+    taskExecutionService.queueFinally(finallyTasks.get());
 
     // Winner-only auto-retry
     if (!Objects.isNull(wfRunEntity.getRetries())
@@ -384,7 +477,7 @@ public class WorkflowExecutionService {
         return false;
       }
       LOGGER.error("[{}] {} Run failed.", workflowRunId, failed);
-      cancelPendingAndRunningTasks(wfRun);
+      cancelPendingAndRunningTasks(wfRun, true);
       return true;
     }
     long retrySeconds = provisionRetryMillis / 1000;
@@ -404,9 +497,11 @@ public class WorkflowExecutionService {
     return applied;
   }
 
-  // End the TaskRuns of a run just completed - cancelled, timed out, or failed by a watcher reap:
-  // running and queued ones are ended, pending ones queued so the admission gate skips them.
-  void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity) {
+  // End the TaskRuns of a run just ended - cancelled, timed out, or failed by a watcher reap:
+  // running and queued ones are ended, pending ones queued so the admission gate skips them. With
+  // includingFinally false the finally tasks are left to run, the graph having ended; true ends
+  // them too, for a run completed outright.
+  void cancelPendingAndRunningTasks(WorkflowRunEntity wfRunEntity, boolean includingFinally) {
     // Cancel Running & Queued Tasks. The run's TaskRuns are all materialised at start, so the
     // stored set is the graph; the revision is only needed to materialise a task that does not
     // exist yet. When the revision is gone (deleted workflow), wind down what is stored rather
@@ -416,6 +511,9 @@ public class WorkflowExecutionService {
         .findById(wfRunEntity.getWorkflowRevisionRef())
         .ifPresent(revision -> dagUtility.createTaskList(revision, wfRunEntity));
     List<TaskRunEntity> tasks = taskRunRepository.findByWorkflowRunRef(wfRunEntity.getId());
+    // The finally tasks and the items of a finally for-each task, which carry no dependencies.
+    Set<String> finallyIds =
+        tasks.stream().filter(DAGUtility::isFinally).map(TaskRunEntity::getId).collect(Collectors.toSet());
 
     // Running and queued (claimed but not yet started) tasks get the same treatment: end() ends
     // up completing them as cancelled through the completion Compare-And-Set, which is
@@ -424,6 +522,7 @@ public class WorkflowExecutionService {
     // TaskRun and is rejected by the ordinary phase checks - no claim.seq bookkeeping needed.
     List<TaskRunEntity> inFlightTasks =
         tasks.stream()
+            .filter(t -> includingFinally || !(finallyIds.contains(t.getId()) || finallyIds.contains(t.getParentRef())))
             .filter(t -> RunPhase.running.equals(t.getPhase()) || RunPhase.queued.equals(t.getPhase()))
             .toList();
     LOGGER.info("[{}] Ending {} running or queued TaskRuns.", wfRunEntity.getId(), inFlightTasks.size());
@@ -436,7 +535,10 @@ public class WorkflowExecutionService {
     // Check pending tasks and queue to force them to skip - will be
     // trapped by queue task before task order is checked
     List<TaskRunEntity> pendingTasks =
-        tasks.stream().filter(t -> RunPhase.pending.equals(t.getPhase())).toList();
+        tasks.stream()
+            .filter(t -> includingFinally || !(finallyIds.contains(t.getId()) || finallyIds.contains(t.getParentRef())))
+            .filter(t -> RunPhase.pending.equals(t.getPhase()))
+            .toList();
     LOGGER.info("[{}] Skipping {} pending TaskRuns.", wfRunEntity.getId(), pendingTasks.size());
     if (pendingTasks.size() > 0) {
       pendingTasks.forEach(

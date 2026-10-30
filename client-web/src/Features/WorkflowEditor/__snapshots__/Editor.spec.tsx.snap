@@ -12006,9 +12006,24 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             data-id="1-64cafb1706ca9f65f338ae3c-null-target"
                             data-nodeid="64cafb1706ca9f65f338ae3c"
                           />
-                          <h2>
-                            End
-                          </h2>
+                          <div>
+                            <h2>
+                              End
+                            </h2>
+                            <p
+                              class="_finallyCount_bb0f95"
+                              data-testid="finally-count"
+                            >
+                              0 finally tasks
+                            </p>
+                          </div>
+                          <div
+                            class="react-flow__handle react-flow__handle-right nodrag nopan _port_bb0f95 _right_bb0f95 source connectable connectablestart connectableend connectionindicator"
+                            data-handlepos="right"
+                            data-id="1-64cafb1706ca9f65f338ae3c-null-source"
+                            data-nodeid="64cafb1706ca9f65f338ae3c"
+                            data-testid="finally-port"
+                          />
                         </div>
                       </div>
                       <div
@@ -12113,6 +12128,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             data-handlepos="right"
                             data-id="1-64cafb1706ca9f65f338ae3e-null-source"
                             data-nodeid="64cafb1706ca9f65f338ae3e"
+                            data-testid="output-port"
                           />
                           <div
                             class="react-flow__handle react-flow__handle-left nodrag nopan _port_5d4317 _left_5d4317 target connectable connectablestart connectableend connectionindicator"
@@ -12229,6 +12245,23 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                   </marker>
                   <marker
                     id="task-marker"
+                    markerHeight="16"
+                    markerUnits="strokeWidth"
+                    markerWidth="16"
+                    orient="auto-start-reverse"
+                    refX="0"
+                    refY="0"
+                    viewBox="-10 -10 20 20"
+                  >
+                    <polyline
+                      points="-5,-4 0,0 -5,4 -5,-4"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1"
+                    />
+                  </marker>
+                  <marker
+                    id="finally-marker"
                     markerHeight="16"
                     markerUnits="strokeWidth"
                     markerWidth="16"

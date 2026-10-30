@@ -280,6 +280,7 @@ components:
           - "always"
           - "success"
           - "failure"
+          - "finally"
           type: "string"
       type: "object"
     CanvasNode:
@@ -3101,6 +3102,7 @@ components:
           - "always"
           - "success"
           - "failure"
+          - "finally"
           type: "string"
         taskRef:
           type: "string"

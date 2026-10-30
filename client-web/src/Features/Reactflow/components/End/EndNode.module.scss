@@ -57,3 +57,32 @@
     filter: brightness(100%);
   }
 }
+
+.finallyCount {
+  color: colors.$gray-30;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  margin: 0;
+  text-align: center;
+}
+
+// The output port: where the finally tasks link from.
+.port.right {
+  background-color: var(--flow-switch-primary);
+  border: 0.0625rem solid var(--flow-switch-primary);
+  border-left: none;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  border-bottom-right-radius: 50%;
+  border-top-right-radius: 50%;
+  left: auto;
+  right: -2.125rem;
+  background-image: url("../../../../Assets/icons/chevron_white.svg");
+}
+
+.node.locked .port.right {
+  background-color: colors.$cool-gray-70;
+  border: 0.0625rem solid colors.$cool-gray-70;
+  border-left: none;
+  right: -2.1875rem;
+}

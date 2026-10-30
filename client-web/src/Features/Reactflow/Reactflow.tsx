@@ -30,6 +30,7 @@ import {
 } from "Types";
 import * as GraphComps from "./components";
 import { ForeachModal } from "./components/Foreach";
+import { isFinallyEdge } from "./components/shared/finally";
 import { FOREACH_PALETTE_TYPE, parseForeachItems } from "./components/shared/foreach";
 import "./styles.scss";
 
@@ -40,7 +41,7 @@ export const markerTypes: { [K in NodeTypeType]: string } = {
   custom: "task-marker",
   decision: "decision-marker",
   downloadartifact: "task-marker",
-  end: "task-marker",
+  end: "finally-marker",
   eventwait: "task-marker",
   generic: "task-marker",
   manual: "task-marker",
@@ -70,7 +71,7 @@ const edgeTypes: { [K in NodeTypeType]: EdgeTypes[string] } = {
   custom: GraphComps.TemplateEdge,
   decision: GraphComps.DecisionEdge,
   downloadartifact: GraphComps.TemplateEdge,
-  end: GraphComps.TemplateEdge,
+  end: GraphComps.EndEdge,
   eventwait: GraphComps.TemplateEdge,
   generic: GraphComps.TemplateEdge,
   manual: GraphComps.TemplateEdge,
@@ -149,7 +150,16 @@ function FlowDiagram(props: FlowDiagramProps) {
    */
   const onConnect = React.useCallback(
     (connection: Connection) =>
-      setEdges((edges) => addEdge({ ...connection, ...getEdgeType(connection, nodes) }, edges)),
+      setEdges((edges) => {
+        // A finally task has exactly one link, from End, and nothing links into it otherwise. The
+        // handles already refuse these; this is the same rule for any other way in.
+        const targetEdges = edges.filter((edge) => edge.target === connection.target);
+        const sourceIsEnd = nodes.find((node) => node.id === connection.source)?.type === NodeType.End;
+        if (targetEdges.some(isFinallyEdge) || (sourceIsEnd && targetEdges.length > 0)) {
+          return edges;
+        }
+        return addEdge({ ...connection, ...getEdgeType(connection, nodes) }, edges);
+      }),
     [setEdges, nodes],
   );
 
@@ -253,6 +263,7 @@ function FlowDiagram(props: FlowDiagramProps) {
               <MarkerDefinition>
                 <CustomEdgeArrow id={markerTypes.decision} />
                 <CustomEdgeArrow id={markerTypes.template} />
+                <CustomEdgeArrow id={markerTypes.end} />
               </MarkerDefinition>
               <Background />
               <Controls showInteractive={false}>
@@ -426,10 +437,18 @@ function autoLayoutElements(nodes: Array<WorkflowNode> = [], edges: Array<Workfl
 function getEdgeType(connection: Connection, nodes: WorkflowNode[]): Pick<WorkflowEdge, "type" | "data"> {
   const { source } = connection;
   const node = nodes.find((node) => node.id === source) as WorkflowNode;
+  // End's output links are always finally links
+  if (node.type === NodeType.End) {
+    return {
+      type: node.type,
+      data: { executionCondition: EdgeExecutionCondition.Finally, decisionCondition: "" },
+    };
+  }
   return {
     type: node.type,
     data: { executionCondition: EdgeExecutionCondition.Always, decisionCondition: "" },
   };
 }
 
+export { getEdgeType };
 export default FlowDiagram;

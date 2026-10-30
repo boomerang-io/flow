@@ -34,7 +34,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -181,10 +183,31 @@ public class TaskExecutionService {
       return;
     }
 
+    // The finally stage: the graph has ended with the run's final status and only its finally
+    // tasks run. A finally task queued before the stage waits for it; any other graph task still
+    // pending in the stage is one the graph will never reach.
+    boolean finallyTask = DAGUtility.isFinally(taskExecution);
+    boolean finallyStage = EngineConstants.inFinallyStage(wfRunEntity.get());
+    if (finallyTask && !finallyStage) {
+      LOGGER.info("[{}] A finally task runs once the graph has ended. Nothing to do yet.", taskExecutionId);
+      return;
+    }
+    if (!finallyTask && finallyStage && taskExecution.getParentRef() == null) {
+      taskRunService.tryComplete(
+          taskExecution,
+          RunStatus.skipped,
+          "[{}] WorkflowRun has ended as {}. TaskRun was never queued, setting TaskRun as Skipped.",
+          wfRunEntity.get().getId(),
+          wfRunEntity.get().getStatus());
+      return;
+    }
+
     // Ensure Task is valid as part of Graph. A foreach item is not a vertex - its parent passed
-    // this check when it fanned out.
+    // this check when it fanned out. A finally task is reachable by definition: the graph has
+    // ended, whichever paths it took.
     boolean canRunTask =
         taskExecution.getParentRef() != null
+            || finallyTask
             || dagUtility.canRunTask(
                 dagUtility.retrieveGraph(wfRunEntity.get().getId()), taskExecution);
     LOGGER.debug("[{}] Can run task? {}", taskExecutionId, canRunTask);
@@ -552,7 +575,12 @@ public class TaskExecutionService {
       return;
     }
     WorkflowRunEntity wfRunEntity = optWfRunEntity.get();
-    if (RunPhase.completed.equals(wfRunEntity.getPhase())) {
+    // A graph task ending after the run has ended - completed, or its graph ended with the finally
+    // tasks running - is cancelled; the finally tasks and their items are the stage's own work.
+    boolean runEnded =
+        RunPhase.completed.equals(wfRunEntity.getPhase())
+            || (EngineConstants.inFinallyStage(wfRunEntity) && !isFinallyWork(taskExecution));
+    if (runEnded) {
       String statusMessage =
           MessageFormatter.arrayFormat(
                   "[{}] WorkflowRun has been marked as {}. Setting TaskRun as Cancelled. TaskRun may still run to completion.",
@@ -606,9 +634,15 @@ public class TaskExecutionService {
     // The task that ended may have been the wait the run was idle at: the clock runs again.
     workflowRunStateHelper.tryResumeWaiting(wfRunEntity.getId());
 
-    // Winner-only follow-on: a final task timeout times out the run rather than advancing it.
+    // Winner-only follow-on: a final task timeout times out the run rather than advancing it. A
+    // finally task's timeout is its own: the run has ended already, and it counts as that task
+    // having failed.
     if (taskTimedOut) {
-      workflowRunService.timeout(wfRunEntity.getId(), true);
+      if (DAGUtility.isFinally(taskExecution)) {
+        completeIfFinallyDone(wfRunEntity.getId());
+      } else {
+        workflowRunService.timeout(wfRunEntity.getId(), true);
+      }
       return;
     }
 
@@ -640,7 +674,113 @@ public class TaskExecutionService {
     // With this task gone, the run may be left with only waits in flight (a branch still at a
     // gate while the other finished): its clock stops until something executes again.
     markWaitingIfIdle(wfRunEntity.getId());
+    // A finally task has no dependants to queue; the run completes once the last of them ends.
+    if (DAGUtility.isFinally(taskExecution)) {
+      completeIfFinallyDone(wfRunEntity.getId());
+    }
   }
+
+  /*
+   * End the graph of a running run with its final status: the run keeps the running phase while
+   * its finally tasks run and completes when the last of them ends; a run with no finally task
+   * completes here. The status, reason and message are written once, by the caller that wins the
+   * Compare-And-Set from one of the statuses the graph may end from. Returns the finally tasks
+   * still to queue when this caller ended the graph, or empty when another caller did.
+   */
+  public Optional<List<TaskRunEntity>> endGraph(
+      WorkflowRunEntity wfRunEntity,
+      Collection<RunStatus> fromStatuses,
+      RunStatus status,
+      String statusReason,
+      String statusMessage) {
+    String wfRunId = wfRunEntity.getId();
+    List<TaskRunEntity> finallyTasks =
+        DAGUtility.finallyTasks(dagUtility.retrieveGraph(wfRunId));
+    // Execution time, read from the run as it is now so a stop still open is excluded.
+    long duration =
+        RunTimeouts.executionMillis(
+            workflowRunRepository.findById(wfRunId).orElse(wfRunEntity), new Date());
+    if (finallyTasks.isEmpty()) {
+      // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
+      // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
+      if (workflowRunStateHelper.tryComplete(
+              wfRunId, List.of(RunPhase.running), status, statusReason, statusMessage, duration)
+          == null) {
+        LOGGER.info("[{}] WorkflowRun already completed. Only the completion winner finishes.", wfRunId);
+        return Optional.empty();
+      }
+      LOGGER.info("[{}] Completed Workflow with status: {}.", wfRunId, status);
+      return Optional.of(List.of());
+    }
+    Date finallyDeadline = RunTimeouts.deadline(new Date(), dagUtility.finallyTimeoutMinutes());
+    if (workflowRunStateHelper.tryEndGraph(
+            wfRunId, fromStatuses, status, statusReason, statusMessage, duration, finallyDeadline)
+        == null) {
+      LOGGER.info("[{}] WorkflowRun graph already ended. Only the first to end it goes on.", wfRunId);
+      return Optional.empty();
+    }
+    LOGGER.info(
+        "[{}] Workflow graph ended with status: {}. Running {} finally tasks.",
+        wfRunId,
+        status,
+        finallyTasks.size());
+    return Optional.of(
+        finallyTasks.stream().filter(t -> RunPhase.pending.equals(t.getPhase())).toList());
+  }
+
+  /* A finally task, or an item of a finally for-each task: items carry no dependencies of their own. */
+  private boolean isFinallyWork(TaskRunEntity task) {
+    if (DAGUtility.isFinally(task)) {
+      return true;
+    }
+    return task.getParentRef() != null
+        && taskRunRepository.findById(task.getParentRef()).map(DAGUtility::isFinally).orElse(false);
+  }
+
+  /* Queue the finally tasks the graph's end handed back. Admission makes a duplicate a no-op. */
+  public void queueFinally(List<TaskRunEntity> finallyTasks) {
+    finallyTasks.forEach(t -> self.queue(t.getId()));
+  }
+
+  /*
+   * Complete a run in its finally stage once every finally task has ended. A finally task that
+   * failed, timed out or was invalid turns a succeeded run into failed with the reason
+   * FinallyFailed; any other final status stands. The completion Compare-And-Set makes the last
+   * finally task's end the one completion whichever of several ended last.
+   */
+  public void completeIfFinallyDone(String wfRunId) {
+    WorkflowRunEntity wfRunEntity = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (!EngineConstants.inFinallyStage(wfRunEntity)) {
+      return;
+    }
+    List<TaskRunEntity> finallyTasks =
+        DAGUtility.finallyTasks(dagUtility.retrieveGraph(wfRunId));
+    if (finallyTasks.stream().anyMatch(t -> !RunPhase.completed.equals(t.getPhase()))) {
+      return;
+    }
+    RunStatus status = wfRunEntity.getStatus();
+    String statusReason = null;
+    String statusMessage = null;
+    Optional<TaskRunEntity> failed =
+        finallyTasks.stream().filter(t -> FAILED_FINALLY.contains(t.getStatus())).findFirst();
+    if (RunStatus.succeeded.equals(status) && failed.isPresent()) {
+      status = RunStatus.failed;
+      statusReason = StatusReason.FINALLY_FAILED;
+      statusMessage =
+          MessageFormatter.format(
+                  "The finally task {} ended {}.", failed.get().getName(), failed.get().getStatus())
+              .getMessage();
+    }
+    long duration = RunTimeouts.executionMillis(wfRunEntity, new Date());
+    if (workflowRunStateHelper.tryComplete(
+            wfRunId, List.of(RunPhase.running), status, statusReason, statusMessage, duration)
+        != null) {
+      LOGGER.info("[{}] Completed Workflow after its finally tasks with status: {}.", wfRunId, status);
+    }
+  }
+
+  private static final Set<RunStatus> FAILED_FINALLY =
+      Set.of(RunStatus.failed, RunStatus.timedout, RunStatus.invalid);
 
   /*
    * Recover the graph advance for a run whose advancing winner was lost (for example a crash
@@ -653,6 +793,16 @@ public class TaskExecutionService {
       return;
     }
     List<TaskRunEntity> tasks = dagUtility.retrieveGraph(wfRunId);
+    // The finally stage: queue the finally tasks still pending and complete the run once every
+    // one of them has ended; the graph itself is over.
+    if (EngineConstants.inFinallyStage(wfRunEntity)) {
+      queueFinally(
+          DAGUtility.finallyTasks(tasks).stream()
+              .filter(t -> RunPhase.pending.equals(t.getPhase()))
+              .toList());
+      completeIfFinallyDone(wfRunId);
+      return;
+    }
     for (TaskRunEntity completed :
         tasks.stream()
             .filter(
@@ -1517,23 +1667,15 @@ public class TaskExecutionService {
         wfRunEntity.getStatusOverride() != null
             ? wfRunEntity.getStatusOverride()
             : (workflowCompleted ? RunStatus.succeeded : RunStatus.failed);
-    // Execution time, read from the run as it is now so a stop still open is excluded.
-    long duration =
-        RunTimeouts.executionMillis(
-            workflowRunRepository.findById(wfRunEntity.getId()).orElse(wfRunEntity), new Date());
 
-    // Completion Compare-And-Set: running becomes completed exactly once, so racing advances
-    // (or a concurrent cancel/timeout) can never complete the run twice or stomp its status.
-    if (workflowRunStateHelper.tryComplete(
-            wfRunEntity.getId(), List.of(RunPhase.running), status, null, null, duration)
-        == null) {
-      LOGGER.info(
-          "[{}] WorkflowRun already completed. Only the completion winner finishes.",
-          wfRunEntity.getId());
-      return;
-    }
-    LOGGER.info("[{}] Completed Workflow with status: {}.", wfRunEntity.getId(), status);
+    // The graph ends from a status that is not final: a cancel or a timeout that ended it first
+    // keeps its own status, and the finally tasks run under that one.
+    endGraph(wfRunEntity, NOT_ENDED, status, null, null).ifPresent(this::queueFinally);
   }
+
+  // The statuses a running run's graph may end from on its own.
+  private static final Set<RunStatus> NOT_ENDED =
+      EnumSet.complementOf(EnumSet.copyOf(EngineConstants.TERMINAL_RUN_STATUSES));
 
   private void executeNextStep(
       WorkflowRunEntity wfRunEntity,

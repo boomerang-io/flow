@@ -33,7 +33,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <ul>
  *   <li><b>Execution state must never leak</b> (E7-2, holds today) — {@code claim}, {@code
- *       timeoutAt}, {@code retry}, {@code waitUntil}, {@code pauseRequestedAt}, {@code agentRef}
+ *       timeoutAt}, {@code retry}, {@code waitUntil}, {@code pauseRequestedAt}, {@code graphEndedAt}, {@code agentRef}
  *       and {@code dispatcherRef} live on the ENTITIES only. The models are standalone POJOs
  *       precisely so these cannot escape.
  *   <li><b>{@code phase} is currently serialised</b> — this DOCUMENTS a known deviation from the
@@ -65,6 +65,7 @@ class PublicRunModelSerialisationTest {
           "retryAfter",
           "waitUntil",
           "pauseRequestedAt",
+          "graphEndedAt",
           "purgeRequestedAt",
           "waitingSince",
           "agentRef",

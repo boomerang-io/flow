@@ -34,7 +34,7 @@ Parameter references, by where the value comes from (`engine/ParameterManager.ja
 | `$(workflow.params.x)` | The workflow run's parameters |
 | `$(workspace.params.x)` | The workspace's parameters. `$(team.params.x)` resolves too, is deprecated, logs a warning once per reference (`engine/ParameterManager.java:936-944`) and is removed in the next major version; the editor suggests only `workspace` |
 | `$(global.params.x)` | Global parameters |
-| `$(context.params.x)` | Run context: `workflowrun-trigger`, `workflowrun-initiator`, `workflowrun-ref`, `workflow-name`, `workflow-displayname`, `workflow-ref`, `workflow-version`, `taskrun-ref`, `taskrun-name`, `taskrun-type`, `webhook-url`, `wfe-url`, `event-url` (`workflow/ParamLayerService.java:275-294`, `engine/ParameterManager.java:548-560`). No parameter carries a token: a task that needs a credential takes it from a `secret` parameter |
+| `$(context.params.x)` | Run context: `workflowrun-trigger`, `workflowrun-initiator`, `workflowrun-ref`, `workflowrun-status` and `workflowrun-status-reason` (the run's status as the task resolves: final for a finally task, `running` for any other), `workflow-name`, `workflow-displayname`, `workflow-ref`, `workflow-version`, `taskrun-ref`, `taskrun-name`, `taskrun-type`, `webhook-url`, `wfe-url`, `event-url` (`workflow/ParamLayerService.java:275-294`, `engine/ParameterManager.java:548-566`). No parameter carries a token: a task that needs a credential takes it from a `secret` parameter |
 | `$(tasks.t.results.r)` | A result of task `t` |
 | `$(<reference>.<path>)` | A JSON path into an `object` value, such as `$(params.cfg.path)` |
 

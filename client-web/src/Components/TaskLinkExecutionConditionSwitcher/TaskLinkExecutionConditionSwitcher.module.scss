@@ -50,3 +50,13 @@
     }
   }
 }
+
+// A finally link is always disabled, so it keeps its own colour past the disabled rules above.
+.container.finally {
+  circle {
+    stroke: var(--flow-switch-primary);
+  }
+  path {
+    fill: var(--flow-switch-primary);
+  }
+}

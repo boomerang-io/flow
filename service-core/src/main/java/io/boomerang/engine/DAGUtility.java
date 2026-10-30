@@ -86,6 +86,42 @@ public class DAGUtility {
         (deletion != null) ? TaskDeletion.getDeletion(deletion) : TaskDeletion.Never);
   }
 
+  /**
+   * Whether a dependency list makes its task a finally task: one that runs once the run has ended,
+   * any way. Saving holds such a list to the single dependency on {@code end}.
+   */
+  public static boolean hasFinallyDependency(List<WorkflowTaskDependency> dependencies) {
+    return dependencies != null
+        && dependencies.stream()
+            .anyMatch(d -> ExecutionCondition.Finally.equals(d.getExecutionCondition()));
+  }
+
+  public static boolean isFinally(TaskRunEntity task) {
+    return hasFinallyDependency(task.getDependencies());
+  }
+
+  /** The run's finally tasks among its graph. */
+  public static List<TaskRunEntity> finallyTasks(List<TaskRunEntity> tasks) {
+    return tasks.stream().filter(DAGUtility::isFinally).toList();
+  }
+
+  /** Minutes the finally stage may take: the {@code workflowrun} setting, or its default. */
+  public long finallyTimeoutMinutes() {
+    try {
+      String value =
+          settingsService
+              .getSettingConfig(
+                  TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY,
+                  EngineConstants.FINALLY_TIMEOUT_SETTING)
+              .getValue();
+      return (value != null && value.matches("\\d+") && Long.parseLong(value) > 0)
+          ? Long.parseLong(value)
+          : EngineConstants.DEFAULT_FINALLY_TIMEOUT_MINUTES;
+    } catch (RuntimeException notConfigured) {
+      return EngineConstants.DEFAULT_FINALLY_TIMEOUT_MINUTES;
+    }
+  }
+
   public boolean validateWorkflow(WorkflowRunEntity wfRunEntity, List<TaskRunEntity> tasks) {
     if (tasks.size() == 2) {
       // Workflow only has Start and End and therefore cant run.
@@ -189,6 +225,7 @@ public class DAGUtility {
         .include("type")
         .include("dependencies")
         .include("phase")
+        .include("status")
         .include("foreach")
         .include("workflowRunRef");
     return query;
@@ -306,6 +343,14 @@ public class DAGUtility {
               && wfRunEntity.getTimeout() > 0
               && (timeout <= 0 || wfRunEntity.getTimeout() < timeout)) {
             timeout = wfRunEntity.getTimeout();
+          }
+          // A finally task runs after the run's own deadline has done its work, so the finally
+          // stage's cap is its ceiling instead.
+          if (hasFinallyDependency(wfRevisionTask.getDependencies())) {
+            long cap = finallyTimeoutMinutes();
+            if (timeout <= 0 || cap < timeout) {
+              timeout = cap;
+            }
           }
           taskRunEntity.setTimeout(timeout);
 

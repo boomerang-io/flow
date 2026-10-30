@@ -1005,6 +1005,10 @@ public class WorkflowRunService {
                       preImage.getTimeout())
                   .getMessage();
       workflowExecutionService.timeout(workflowRunId, statusMessage);
+    } else if (EngineConstants.inFinallyStage(
+        workflowRunRepository.findById(workflowRunId).orElse(null))) {
+      // The run ended its graph already; the deadline that passed is the finally stage's.
+      workflowExecutionService.timeout(workflowRunId, "The finally tasks exceeded their timeout.");
     } else {
       LOGGER.info("[{}] WorkflowRun not running. Nothing to timeout.", workflowRunId);
     }
