@@ -1,5 +1,6 @@
 import React from "react";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
@@ -82,12 +83,12 @@ const props = {
 // FlagsProvider renderWithContext already supplies), and wrapping it with the raw
 // (differently-shaped) fixtures the way the previous .jsx spec did is what kept this file off
 // typechecking in the first place.
-function renderWorkflowCard(overrides: Partial<Workflow> = {}) {
+function renderWorkflowCard(overrides: Partial<Workflow> = {}, workspaceName: string = props.workspaceName) {
   return renderWithContext(
     <Route
       path="/:workspace/workflows"
       action={action}
-      element={<WorkflowCard {...props} workflow={{ ...workflow, ...overrides }} />}
+      element={<WorkflowCard {...props} workspaceName={workspaceName} workflow={{ ...workflow, ...overrides }} />}
     />,
     { route: appLink.workflows({ workspace: workspace.name }) },
   );
@@ -129,7 +130,130 @@ describe("WorkflowCard --- templates", () => {
   });
 });
 
+async function openMenu() {
+  await userEvent.click(screen.getByRole("button", { name: /overflow/i }));
+}
+
+describe("WorkflowCard --- system workspace", () => {
+  it("tags a template with no read-only marker", () => {
+    renderWorkflowCard({ type: "template" }, "system");
+
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-card")).not.toHaveAttribute("data-available");
+  });
+
+  it("tags a starter", () => {
+    renderWorkflowCard({ type: "starter" }, "system");
+
+    expect(screen.getByText("Starter")).toBeInTheDocument();
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
+  });
+
+  it("leaves a plain workflow untagged", () => {
+    renderWorkflowCard({ type: "workflow" }, "system");
+
+    expect(screen.queryByText("Template")).not.toBeInTheDocument();
+    expect(screen.queryByText("Starter")).not.toBeInTheDocument();
+  });
+
+  it("offers a template and a starter on a plain workflow", async () => {
+    renderWorkflowCard({ type: "workflow" }, "system");
+    await openMenu();
+
+    expect(screen.getByText("Make a template")).toBeInTheDocument();
+    expect(screen.getByText("Make a starter")).toBeInTheDocument();
+    expect(screen.queryByText("Make a workflow")).not.toBeInTheDocument();
+  });
+
+  it("offers a workflow on a template", async () => {
+    renderWorkflowCard({ type: "template" }, "system");
+    await openMenu();
+
+    expect(screen.getByText("Make a workflow")).toBeInTheDocument();
+    expect(screen.queryByText("Make a template")).not.toBeInTheDocument();
+    expect(screen.queryByText("Make a starter")).not.toBeInTheDocument();
+  });
+
+  it("offers a workflow on a starter and asks to confirm", async () => {
+    renderWorkflowCard({ type: "starter" }, "system");
+    await openMenu();
+    await userEvent.click(screen.getByText("Make a workflow"));
+
+    expect(await screen.findByText("Make this a workflow?")).toBeInTheDocument();
+  });
+
+  it("asks to confirm before making a workflow a template", async () => {
+    renderWorkflowCard({ type: "workflow" }, "system");
+    await openMenu();
+    await userEvent.click(screen.getByText("Make a template"));
+
+    expect(await screen.findByText("Make this workflow a template?")).toBeInTheDocument();
+  });
+
+  it("offers no kind items outside the system workspace", async () => {
+    renderWorkflowCard({ type: "workflow" });
+    await openMenu();
+
+    expect(screen.getByText("Duplicate")).toBeInTheDocument();
+    expect(screen.queryByText("Make a template")).not.toBeInTheDocument();
+    expect(screen.queryByText("Make a starter")).not.toBeInTheDocument();
+    expect(screen.queryByText("Make a workflow")).not.toBeInTheDocument();
+  });
+});
+
 describe("WorkflowCard --- action", () => {
+  test("changes the kind of a workflow through the mocked API", async () => {
+    let patched: unknown = null;
+    server.use(
+      http.patch(
+        serviceUrl.workspace.workflow.patchWorkflow({ workspace: "system", workflow: workflow.name }),
+        async ({ request }) => {
+          patched = await request.json();
+          return HttpResponse.json({ ...workflow, type: "template" });
+        },
+      ),
+    );
+
+    const request = new Request(`http://localhost${appLink.workflows({ workspace: "system" })}`, {
+      method: "post",
+      body: new URLSearchParams({
+        intent: "changeKind",
+        body: JSON.stringify({ workflow: workflow.name, type: "template" }),
+      }),
+    });
+
+    const result = await action({ request, params: { workspace: "system" } });
+
+    expect(result).toEqual({ intent: "changeKind" });
+    expect(patched).toEqual({ type: "template" });
+  });
+
+  test("surfaces a template that is still linked without throwing", async () => {
+    server.use(
+      http.patch(
+        serviceUrl.workspace.workflow.patchWorkflow({ workspace: "system", workflow: workflow.name }),
+        () => HttpResponse.json({ code: 1, message: "Template is still linked" }, { status: 409 }),
+      ),
+    );
+
+    const request = new Request(`http://localhost${appLink.workflows({ workspace: "system" })}`, {
+      method: "post",
+      body: new URLSearchParams({
+        intent: "changeKind",
+        body: JSON.stringify({ workflow: workflow.name, type: "workflow" }),
+      }),
+    });
+
+    const result = (await action({ request, params: { workspace: "system" } })) as unknown as {
+      data: { intent: string };
+    };
+
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.intent).toBe("changeKind");
+  });
+
   test("deletes a workflow through the mocked API", async () => {
     const request = new Request(`http://localhost${appLink.workflows({ workspace: workspace.name })}`, {
       method: "post",

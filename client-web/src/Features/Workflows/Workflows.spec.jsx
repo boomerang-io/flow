@@ -1,4 +1,7 @@
 import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "ApiServer/msw/node";
+import { serviceUrl } from "Config/servicesConfig";
 import { Route } from "react-router-dom";
 import { action, loader } from "./Workflows";
 import WorkflowsHome from "./index";
@@ -81,5 +84,52 @@ describe("WorkflowsHome --- loader", () => {
     expect(result.errorLoading).toBe(false);
     // Five rows: three workflows, one made from a template, and one template the workspace has not used.
     expect(result.workflows.length).toBe(5);
+  });
+
+  test("drops starters outside the system workspace and keeps them in it", async () => {
+    server.use(
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), () =>
+        HttpResponse.json({
+          content: [
+            { name: "own", type: "workflow" },
+            { name: "shared", type: "template" },
+            { name: "copyable", type: "starter" },
+          ],
+        }),
+      ),
+    );
+
+    const other = await loader({ request: new Request("http://localhost/x"), params: { workspace: "acme" } });
+    expect(other.workflows.map((workflow) => workflow.name)).toEqual(["own", "shared"]);
+
+    const system = await loader({ request: new Request("http://localhost/x"), params: { workspace: "system" } });
+    expect(system.workflows.map((workflow) => workflow.name)).toEqual(["own", "shared", "copyable"]);
+  });
+});
+
+describe("WorkflowsHome --- changeKind action", () => {
+  test("patches the workflow's type", async () => {
+    let body;
+    server.use(
+      http.patch(
+        serviceUrl.workspace.workflow.patchWorkflow({ workspace: "system", workflow: "nightly" }),
+        async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ name: "nightly", type: "starter" });
+        },
+      ),
+    );
+    const request = new Request("http://localhost/system/workflows", {
+      method: "post",
+      body: new URLSearchParams({
+        intent: "changeKind",
+        body: JSON.stringify({ workflow: "nightly", type: "starter" }),
+      }),
+    });
+
+    const result = await action({ request, params: { workspace: "system" } });
+
+    expect(result).toEqual({ intent: "changeKind" });
+    expect(body).toEqual({ type: "starter" });
   });
 });

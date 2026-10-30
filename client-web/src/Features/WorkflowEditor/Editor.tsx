@@ -148,6 +148,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   workflowRef,
 }) => {
   const location = useLocation();
+  const { workspace } = useWorkspaceContext();
   // No explicit action path: a bare useFetcher() resolves to the nearest matched route, which is
   // the editor route itself (app/routes/editor.tsx) - the same way the Configure > Tokens tab's
   // fetcher reaches the token half of that route's one action.
@@ -170,7 +171,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   // the save succeeds, never a reason to refuse it.
   const missingWorkspaceParamsRef = useRef<Array<MissingWorkspaceParam>>([]);
 
-  const readOnlyTasks = isReadOnlyTasks(revisionState);
+  const readOnlyTasks = isReadOnlyTasks(revisionState, workspace.name);
   // Settings saved on a template-backed workflow, kept to fold into the editor state once the save lands.
   const savedSettingsRef = useRef<Partial<WorkflowCanvas> | null>(null);
 

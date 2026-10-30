@@ -3,6 +3,7 @@ package io.boomerang.workflow;
 import io.boomerang.common.model.WorkflowResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowPatch;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.security.AuthCriteria;
@@ -25,6 +26,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -241,6 +243,46 @@ public class WorkspaceWorkflowControllerV2 {
           @PathVariable
           String name) {
     return workflowService.changelog(workspace, name);
+  }
+
+  @PatchMapping(value = "/{name}")
+  @AuthCriteria(
+      action = PermissionAction.WRITE,
+      resource = PermissionResource.WORKFLOW,
+      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
+  @Audited(
+      action = AuditAction.UPDATE,
+      resourceType = "workflow",
+      resourceId = "#result?.getName()",
+      resourceName = "#result?.getDisplayName()",
+      workspaceId = "#workspace")
+  @Operation(
+      summary = "Change what a workflow is",
+      description =
+          "Sets the workflow's type: workflow, template or starter. A template or starter is the system workspace's alone, and a template that other workspaces link stays one. The revision is untouched.")
+  @ApiResponses(
+      value = {
+        @ApiResponse(responseCode = "200", description = "OK"),
+        @ApiResponse(responseCode = "400", description = "Bad Request"),
+        @ApiResponse(responseCode = "409", description = "Conflict")
+      })
+  public Workflow patchWorkflow(
+      @Parameter(
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
+              required = true)
+          @PathVariable
+          String workspace,
+      @Parameter(
+              name = "name",
+              description = "Workflow name",
+              example = "my-amazing-workflow",
+              required = true)
+          @PathVariable
+          String name,
+      @RequestBody WorkflowPatch patch) {
+    return workflowService.patch(workspace, name, patch);
   }
 
   @DeleteMapping(value = "/{name}")

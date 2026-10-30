@@ -19,7 +19,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowWorkspace, ModalTriggerProps, Workflow, WorkflowRun } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
-import { isTemplate } from "Utils/workflowTemplate";
+import { isSystemWorkspace, isTemplate } from "Utils/workflowTemplate";
 import { formatQuotaUsage, isQuotaLimited } from "Utils/quotaHelper";
 import WorkflowQuotaModalContent from "./WorkflowQuotaModalContent";
 import styles from "./workflows.module.scss";
@@ -50,8 +50,9 @@ export async function loader({
       serviceUrl.workspace.workflow.getWorkflows({ workspace, query: "statuses=active,inactive" }),
     );
     // The query also lists the workspace's uncopied starters; those are Home's, not this page's.
+    // The system workspace owns its starters, so it lists them.
     const workflows: Array<Workflow> = (response.data.content ?? []).filter(
-      (workflow: Workflow) => workflow.type !== "starter",
+      (workflow: Workflow) => workflow.type !== "starter" || isSystemWorkspace(workspace),
     );
     return { workflows, errorLoading: false };
   } catch (error) {
@@ -60,7 +61,7 @@ export async function loader({
 }
 
 // Single action, keyed by intent, for every write this route's card/create/update components make
-// (WorkflowCard.tsx: delete/duplicate/execute; Components/CreateWorkflow/CreateWorkflow.tsx:
+// (WorkflowCard.tsx: delete/duplicate/changeKind/execute; Components/CreateWorkflow/CreateWorkflow.tsx:
 // create/import; WorkflowCard/UpdateWorkflow/UpdateWorkflow.tsx: update). All of those components
 // render as descendants of this route's element (no nested <Route>), so their `useFetcher()`
 // calls resolve to this action without an explicit path.
@@ -70,8 +71,8 @@ export async function loader({
 type ActionResult =
   | { intent: "create" | "import"; workflow: Workflow }
   | ({ intent: "create" | "import" } & ActionError)
-  | { intent: "delete" | "duplicate" | "update" }
-  | ({ intent: "delete" | "duplicate" | "update" } & ActionError)
+  | { intent: "delete" | "duplicate" | "update" | "changeKind" }
+  | ({ intent: "delete" | "duplicate" | "update" | "changeKind" } & ActionError)
   | { intent: "execute"; execution: WorkflowRun; redirect: boolean }
   | ({ intent: "execute" } & ActionError);
 
@@ -104,6 +105,22 @@ export async function action({ params, request }: { params: { workspace?: string
       return actionError({
         intent: "duplicate" as const,
         error: { title: "Something's Wrong", message: "Request to duplicate workflow failed" },
+      });
+    }
+  }
+
+  if (intent === "changeKind") {
+    const { workflow: workflowName, type } = JSON.parse(String(formData.get("body")));
+    try {
+      await serverFetch(request).patch(
+        serviceUrl.workspace.workflow.patchWorkflow({ workspace, workflow: workflowName }),
+        { type },
+      );
+      return { intent: "changeKind" as const };
+    } catch (error) {
+      return actionError({
+        intent: "changeKind" as const,
+        error: formatErrorMessage({ error, defaultMessage: "Request to change the workflow kind failed" }),
       });
     }
   }
@@ -239,7 +256,9 @@ function Layout(props: LayoutProps) {
         searchQuery={props.searchQuery}
         workspace={props.workspace}
         // The count in the title is the workspace's own workflows, not the templates available to it.
-        workflowList={props.workflowList.filter((workflow) => !isTemplate(workflow))}
+        workflowList={props.workflowList.filter(
+          (workflow) => isSystemWorkspace(props.workspace.name) || !isTemplate(workflow),
+        )}
         viewType={WorkflowView.Workflow}
       />
       <div aria-label="My Workflows" className={styles.content} role="region" id="my-workflows">

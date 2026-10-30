@@ -797,6 +797,43 @@ public class WorkflowService {
   }
 
   /*
+   * Change what a workflow is to other workspaces: a workflow, a template or a starter. The
+   * revision is untouched. A shared kind is the system workspace's alone, a link can never be
+   * one, and a template that other workspaces still link stays a template.
+   */
+  public Workflow patch(String workspace, String name, WorkflowPatch patch) {
+    if (name == null || name.isBlank() || patch == null || patch.getType() == null) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+    }
+    List<String> refs =
+        relationshipService.refsInWorkspace(
+            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
+    if (refs.isEmpty()) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    }
+    WorkflowEntity entity =
+        workflowRepository
+            .findById(refs.get(0))
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF));
+    WorkflowType type = patch.getType();
+    if (type.isSystemOnly() && !SYSTEM_WORKSPACE.equals(workspace)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_SYSTEM_ONLY, type.name());
+    }
+    if (type.isSystemOnly() && entity.getTemplateRef() != null) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+    }
+    if (WorkflowType.template.equals(WorkflowType.of(entity.getType()))
+        && !WorkflowType.template.equals(type)
+        && workflowRepository.existsByTemplateRefRefAndStatusNot(
+            entity.getId(), WorkflowStatus.deleted)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_IN_USE);
+    }
+    entity.setType(type);
+    workflowRepository.save(entity);
+    return get(workspace, name, Optional.empty(), false);
+  }
+
+  /*
    * Scoped delete: tombstones the Workflow, then cleans up what only this layer knows about -
    * Schedules, the principal's Tokens, open Actions, and the relationship node. The documents
    * themselves (Workflow, WorkflowRuns, TaskRuns, revisions) are hard-deleted by the retention
