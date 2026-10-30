@@ -34,7 +34,9 @@ class StatusEventPayloadTest {
   private static final EventOutboxEntity ROW = outboxRow();
 
   private static final List<String> THIN_WORKFLOWRUN_KEYS =
-      List.of("id", "workflowRef", "status", "phase", "labels", "creationDate", "startTime", "duration");
+      List.of(
+          "id", "workflowRef", "status", "statusReason", "phase", "labels", "creationDate",
+          "startTime", "duration");
 
   private static final List<String> THIN_TASKRUN_KEYS =
       List.of(
@@ -49,6 +51,7 @@ class StatusEventPayloadTest {
     assertThat(data.get("id").asString()).isEqualTo("wfr-1");
     assertThat(data.get("workflowRef").asString()).isEqualTo("wf-1");
     assertThat(data.get("status").asString()).isEqualTo("succeeded");
+    assertThat(data.get("statusReason").asString()).isEqualTo("RunTimeout");
     assertThat(data.get("phase").asString()).isEqualTo("completed");
     assertThat(data.get("labels").get("initiatorId").asString()).isEqualTo("user-1");
   }
@@ -149,6 +152,8 @@ class StatusEventPayloadTest {
     entity.setId("wfr-1");
     entity.setWorkflowRef("wf-1");
     entity.setStatus(RunStatus.succeeded);
+    // A reason beside a succeeded status never happens; the fixture shows the field is carried.
+    entity.setStatusReason("RunTimeout");
     entity.setPhase(RunPhase.completed);
     entity.setCreationDate(new Date(0));
     entity.setStartTime(new Date(1000));

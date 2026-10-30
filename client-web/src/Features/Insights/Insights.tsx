@@ -85,7 +85,7 @@ type LoaderData = {
   errorLoadingDetail: boolean;
   workflowOptions: Array<Workflow>;
   errorLoadingWorkflows: boolean;
-  /** The task runs grouped as `?taskGroupBy=`/`?taskSpanBy=` ask; read only once one is set. */
+  /** The task runs grouped as `?taskGroupBy=`/`?taskSpanBy=` ask, by task when neither is set. */
   tasks: InsightsTasks | null;
   errorLoadingTasks: boolean;
 };
@@ -93,11 +93,13 @@ type LoaderData = {
 // How many of the slowest task runs the task view lists.
 const SLOWEST_TASK_RUNS = 10;
 
+// With nothing asked for, the task runs are grouped by task, so the panel opens with its rows.
 function taskView(search: Record<string, unknown>): TaskView {
+  const spanBy = asString(search.taskSpanBy as string | Array<string> | null);
   return {
-    groupBy: asString(search.taskGroupBy as string | Array<string> | null),
+    groupBy: asString(search.taskGroupBy as string | Array<string> | null) ?? (spanBy ? null : "task"),
     bucket: asString(search.taskBucket as string | Array<string> | null),
-    spanBy: asString(search.taskSpanBy as string | Array<string> | null),
+    spanBy,
   };
 }
 
@@ -151,7 +153,8 @@ export async function loader({
       spanBy: view.spanBy,
       slowest: SLOWEST_TASK_RUNS,
     },
-    queryStringOptions,
+    // A bare `bucket` or `spanBy` key is an invalid filter to the server, so a null is left out.
+    { ...queryStringOptions, skipNull: true },
   );
   const [summaryResult, workflowsResult, detailResult, tasksResult] = await Promise.allSettled([
     api.get(serviceUrl.workspace.getInsights({ workspace, query: summaryQuery })),
@@ -227,11 +230,19 @@ export default function Insights() {
         {summary.usage && summary.usage.aiTaskRuns > 0 ? (
           <UsagePanel id="insights-usage" title="Model usage" usage={summary.usage} />
         ) : null}
-        <WorkflowTable workspace={workspace.name} rows={summary.workflows} selected={selected} selectHref={selectHref} />
-        {selected && detail ? <WorkflowDetail workspace={workspace.name} detail={detail} /> : null}
-        {selected && errorLoadingDetail ? (
-          <p className={styles.noRuns}>The detail for {selected} could not be loaded.</p>
-        ) : null}
+        <WorkflowTable
+          workspace={workspace.name}
+          rows={summary.workflows}
+          selected={selected}
+          selectHref={selectHref}
+          detail={
+            selected && detail ? (
+              <WorkflowDetail workspace={workspace.name} detail={detail} />
+            ) : selected && errorLoadingDetail ? (
+              <p className={styles.empty}>The detail for {selected} could not be loaded.</p>
+            ) : null
+          }
+        />
         <DurationSpread rows={summary.workflows} />
         <TaskBreakdown
           workspace={workspace.name}
@@ -438,6 +449,7 @@ function Selects(props: SelectsProps) {
           <Toggle
             id="insights-compare-toggle"
             label="Compare with previous period"
+            orientation="vertical"
             onToggle={(checked: boolean) => props.updateHistorySearch({ ...search, compare: checked ? undefined : "off" })}
             toggled={props.compare}
           />

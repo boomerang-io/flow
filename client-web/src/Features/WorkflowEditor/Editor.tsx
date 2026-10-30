@@ -20,6 +20,7 @@ import {
 } from "Types";
 import { groupTasksByName } from "Utils";
 import { isActionError } from "Utils/actionResult";
+import { isReadOnlyTasks } from "Utils/workflowTemplate";
 import {
   missingWorkspaceParams,
   missingWorkspaceParamsMessage,
@@ -168,6 +169,53 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   // The workspace parameters the version being saved reads but the workspace does not provide; a warning once
   // the save succeeds, never a reason to refuse it.
   const missingWorkspaceParamsRef = useRef<Array<MissingWorkspaceParam>>([]);
+
+  const readOnlyTasks = isReadOnlyTasks(revisionState);
+  // Settings saved on a template-backed workflow, kept to fold into the editor state once the save lands.
+  const savedSettingsRef = useRef<Partial<WorkflowCanvas> | null>(null);
+
+  // A template (or a workflow that follows one) keeps only its settings: the apply body carries
+  // no tasks or params, and always names the template so the server makes or keeps the link.
+  const handleSaveSettings = () => {
+    const configureValues = settingsRef?.current?.values;
+    if (!configureValues) {
+      return;
+    }
+    const { templateVersion, ...values } = configureValues;
+    const formatted = formatConfigureValues(values);
+    const templateName = revisionState.templateRef?.name ?? revisionState.name;
+    const settings: Partial<WorkflowCanvas> = {
+      name: revisionState.name,
+      displayName: formatted.displayName,
+      description: formatted.description,
+      icon: formatted.icon,
+      labels: formatted.labels,
+      triggers: formatted.triggers,
+      type: "workflow",
+      templateRef: { name: templateName, ...(templateVersion ? { version: Number(templateVersion) } : {}) },
+    };
+    savedSettingsRef.current = settings;
+    fetcher.submit({ intent: "saveSettings", settings: JSON.stringify(settings) }, { method: "post" });
+  };
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.intent !== "saveSettings") {
+      return;
+    }
+    if (isActionError(fetcher.data)) {
+      notify(<ToastNotification kind="error" title={fetcher.data.error.title} subtitle={fetcher.data.error.message} />);
+      return;
+    }
+    notify(<ToastNotification kind="success" title="Save Settings" subtitle="Successfully saved workflow settings" />);
+    if (savedSettingsRef.current) {
+      revisionDispatch({
+        type: RevisionActionTypes.Set,
+        data: { ...revisionState, ...savedSettingsRef.current, hasUnsavedUpdates: false },
+      });
+      savedSettingsRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
 
   const handleCreateRevision = async ({ reason = "Update workflow", callback }: any) => {
     const configureValues = settingsRef?.current?.values ?? {};
@@ -329,6 +377,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
   }, [blocker]);
 
   const isCreatingRevision = fetcher.state !== "idle";
+  const isSavingSettings = fetcher.state !== "idle" && fetcher.formData?.get("intent") === "saveSettings";
   const createRevisionFailed = Boolean(
     fetcher.data && fetcher.data.intent === "createRevision" && isActionError(fetcher.data),
   );
@@ -344,6 +393,9 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
           canCreateNewVersion={CREATEABLE_PATHS.includes(location.pathname.split("/").pop() || "")}
           createRevisionFailed={createRevisionFailed}
           isCreatingRevision={isCreatingRevision}
+          isReadOnlyTasks={readOnlyTasks}
+          isSavingSettings={isSavingSettings}
+          saveSettings={handleSaveSettings}
           revisionState={revisionState}
           viewType={WorkflowView.Workflow}
           revisionCount={revisionCount}
@@ -352,7 +404,9 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
           <Route path="canvas" element={null} />
           <Route
             path="parameters"
-            element={<Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} />}
+            element={
+              <Parameters workflow={revisionState} handleUpdateParams={handleUpdateParams} readOnly={readOnlyTasks} />
+            }
           />
           <Route path="schedule" element={<Schedule workflow={revisionState} />} />
           <Route path="changelog" element={<ChangeLog changeLogData={changeLogData} />} />
@@ -363,6 +417,7 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
           <>
             <Designer
               notes={markdown}
+              readOnly={readOnlyTasks}
               reactFlowInstance={reactFlowInstance}
               setReactFlowInstance={setReactFlowInstance}
               tasks={taskList}
@@ -382,7 +437,14 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
  * Update the `workspace` and `labels` to be in the right format
  */
 export function formatConfigureValues(configureValues: ConfigureWorkflowFormValues): Partial<WorkflowCanvas> {
-  const { workspace: workspaceForm, concurrencyLimit, concurrencyOverflow, ...optionalConfigureValues } = configureValues;
+  // `templateVersion` is the form's pin for a template-backed workflow, sent only as `templateRef` (handleSaveSettings).
+  const {
+    workspace: workspaceForm,
+    concurrencyLimit,
+    concurrencyOverflow,
+    templateVersion: _templateVersion,
+    ...optionalConfigureValues
+  } = configureValues;
 
   // Format labels
   const labelsKVObject = configureValues.labels.reduce(

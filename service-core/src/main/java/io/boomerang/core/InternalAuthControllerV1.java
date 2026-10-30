@@ -3,13 +3,9 @@ package io.boomerang.core;
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.model.AuthConfig;
 import io.boomerang.core.model.AuthExchangeRequest;
-import io.boomerang.core.security.AuthCriteria;
 import io.boomerang.core.security.AuthExempt;
 import io.boomerang.core.security.AuthExchangeService;
 import io.boomerang.core.security.SessionCookie;
-import io.boomerang.core.security.enums.AuthScope;
-import io.boomerang.core.security.enums.PermissionAction;
-import io.boomerang.core.security.enums.PermissionResource;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Duration;
@@ -94,10 +90,11 @@ public class InternalAuthControllerV1 {
    * its natural expiry.
    */
   @PostMapping("/logout")
-  @AuthCriteria(
-      assignableScopes = {AuthScope.session},
-      resource = PermissionResource.TOKEN,
-      action = PermissionAction.DELETE)
+  @AuthExempt(
+      reason =
+          "Ends the caller's own session: authenticated by the session cookie it revokes, takes no"
+              + " input and touches no other token, so no grant is needed - a user outside every"
+              + " workspace role must be able to sign out.")
   @Operation(summary = "Revoke the current session and clear the session cookie")
   public ResponseEntity<Void> logout() {
     authExchangeService.logout();

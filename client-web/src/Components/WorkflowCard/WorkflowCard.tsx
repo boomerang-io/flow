@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 //@ts-ignore
-import { Button, InlineLoading, OverflowMenu, OverflowMenuItem } from "@carbon/react";
-import { Run, Bee, CircleFill, InformationFilled } from "@carbon/react/icons";
+import { Button, InlineLoading, OverflowMenu, OverflowMenuItem, Tag } from "@carbon/react";
+import { Run, Bee, CircleFill, InformationFilled, Locked } from "@carbon/react/icons";
 import {
   ConfirmModal,
   ComposedModal,
@@ -12,6 +12,7 @@ import {
 import workflowIcons from "Assets/workflowIcons";
 import { useFeature } from "flagged";
 import fileDownload from "js-file-download";
+import cx from "classnames";
 import capitalize from "lodash/capitalize";
 import cloneDeep from "lodash/cloneDeep";
 import { useFetcher, Link, useNavigate } from "react-router-dom";
@@ -23,6 +24,7 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
 import { isActionError, type ActionError } from "Utils/actionResult";
+import { isFromTemplate, isReadOnlyTasks, isTemplate } from "Utils/workflowTemplate";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
@@ -195,6 +197,12 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     );
   };
 
+  // A template the workspace has not made its own is shared: it can be viewed and run, nothing more.
+  // A workflow that follows a template is the workspace's own, but its tasks are the template's.
+  const isAvailableTemplate = isTemplate(workflow);
+  const isLinked = isFromTemplate(workflow);
+  const readOnlyTasks = isReadOnlyTasks(workflow);
+
   let menuOptions = [
     {
       itemText: "Edit",
@@ -223,6 +231,13 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
       onClick: () => setIsDeleteModalOpen(true),
     },
   ];
+
+  if (isAvailableTemplate) {
+    menuOptions = menuOptions.filter((el) => el.itemText === "View" || el.itemText === "Edit" || el.itemText === "Export");
+    menuOptions = menuOptions.map((el) => (el.itemText === "Edit" ? { ...el, itemText: "View" } : el));
+  } else if (isLinked) {
+    menuOptions = menuOptions.filter((el) => el.itemText !== "Duplicate");
+  }
 
   //Remove View Activity if not enabled
   if (!activityEnabled) {
@@ -256,16 +271,27 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   }
 
   return (
-    <div className={styles.container}>
+    <div
+      className={cx(styles.container, { [styles.available]: isAvailableTemplate })}
+      data-testid="workflow-card"
+      data-available={isAvailableTemplate ? "true" : undefined}
+    >
       <Link to={!isDeleting ? appLink.editorCanvas({ workspace: workspaceName, workflow: workflow.name }) : ""}>
         <section className={styles.details}>
           <div className={styles.iconContainer}>
             <Icon className={styles.icon} aria-label={`${workflow.icon}`} />
           </div>
           <div className={styles.descriptionContainer}>
-            <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">
-              {workflow.displayName}
-            </h1>
+            <div className={styles.nameRow}>
+              <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">
+                {workflow.displayName}
+              </h1>
+              {readOnlyTasks ? (
+                <Tag type="purple" size="sm">
+                  Template
+                </Tag>
+              ) : null}
+            </div>
             <p title={workflow.description} className={styles.description}>
               {workflow.description}
             </p>
@@ -275,6 +301,12 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
       {viewType === WorkflowView.Workflow && (
         <section className={styles.launch}>
+          {readOnlyTasks ? (
+            <span className={styles.readOnly}>
+              <Locked size={16} aria-hidden="true" />
+              Read-only
+            </span>
+          ) : null}
           {Array.isArray(formattedProperties) && formattedProperties.length !== 0 ? (
             <ComposedModal
               modalHeaderProps={{
@@ -356,7 +388,9 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         />
       ) : (
         <div className={styles.status}>
-          {isDisabledViaRunQuota ? (
+          {isAvailableTemplate ? (
+            <p className={styles.statusText}>Available</p>
+          ) : isDisabledViaRunQuota ? (
             <TooltipHover
               direction="top"
               tooltipText="This workspace has reached the maximum number of runs (executions) allowed this month. Contact your administrator or workspace owner to increase the quota, or wait until the quota resets next month."

@@ -274,6 +274,7 @@ export enum FeatureFlag {
   GlobalParametersEnabled = "GlobalParametersEnabled",
   InsightsEnabled = "InsightsEnabled",
   WorkspaceManagementEnabled = "WorkspaceManagementEnabled",
+  WorkspaceCreateEnabled = "WorkspaceCreateEnabled",
   WorkspaceParametersEnabled = "WorkspaceParametersEnabled",
   WorkspaceTasksEnabled = "WorkspaceTasksEnabled",
   UserManagementEnabled = "UserManagementEnabled",

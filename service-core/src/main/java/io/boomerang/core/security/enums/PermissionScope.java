@@ -11,15 +11,17 @@ import java.util.Map;
  * AuthScope}, which conflated this with the token's own class (see
  * specifications/authorization.md).
  *
- * <p>Only two values exist because only two ever have: every {@code ResolvedPermissions} the
- * codebase builds is either anchored to a single workspace ({@code principal}=workspaceId) or
- * unscoped/platform-wide ({@code principal}="**"). A {@code key} token's grants must always be
+ * <p>Three values: a grant is anchored to a single workspace ({@code principal}=workspaceId),
+ * unscoped/platform-wide ({@code principal}="**"), or to the signed-in user themselves
+ * ({@code principal}=userId): the self-service baseline every human session carries, which no
+ * check that keys on {@code global} ever counts. A {@code key} token's grants must always be
  * {@code workspace} - never {@code global} (enforced in {@code TokenService}, see the {@code
  * AuthScope.key} javadoc).
  */
 public enum PermissionScope {
   global("global"),
-  workspace("workspace");
+  workspace("workspace"),
+  user("user");
 
   private String label;
 

@@ -184,15 +184,30 @@ tag's release notes.
 
 ### Added
 
+- A workspace can be found by `externalRef`, an embedding product's own id for the record it mirrors:
+  `GET /api/v2/workspace/query?externalRef=` answers the one workspace carrying it, within the caller's access, and a
+  create naming a reference a workspace already carries is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's
+  name, so a retried create is idempotent. The reference is set once at create and never patched; every reader of the
+  workspace sees it, and the webapp shows it on Settings. A unique sparse index, `external_ref`, joins the inventory.
 - Templates are workflows of the system workspace. A workflow carries a `type`: `workflow` (the default), `template`
   or `starter`, and the last two can be created, versioned and edited only in the system workspace, through its
   ordinary workflow routes. A workspace runs a template by reference: a workflow created with `templateRef: {name,
   version}` shows the template's tasks and params read-only under its own name, labels and triggers, accepts
   run-time values only for the params the template declares, and each submit runs the template's pinned or latest
   revision in the workspace, so the run, its quotas and its audit are the workspace's. A template with such
-  workflows cannot be deleted. A starter is copied, as the Home page has always done. `GET /api/v2/workflowtemplate`
-  lists both by `types`. Change unit `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3
-  install's own into the system workspace as starters and drops the `workflow_templates` collection.
+  workflows cannot be deleted. A starter is copied, as the Home page has always done. Change unit
+  `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3 install's own into the system workspace as
+  starters and drops the `workflow_templates` collection.
+- Templates and starters appear in every workspace through its own workflow routes; there are no `/workflowtemplate`
+  routes. `GET /api/v2/workspace/{workspace}/workflow/query` lists, beside the workspace's workflows, the templates and
+  starters it has not made its own, each with its `type`, and `types=` narrows; the get, compose, changelog, export and
+  available-parameters routes answer a template by name when the workspace has no workflow of that name. The first
+  use makes it the workspace's own: `POST …/workflow/{template}/submit` creates the link under the template's name
+  and runs it, and `PUT …/workflow` naming a template creates the link and saves the display name, description, icon,
+  labels and triggers. A template's `runworkflow` task that names another template runs it the same way, as the run's
+  workspace's link, so a template's children never run in the system workspace on a workspace's behalf. The webapp's
+  Workflows page shows templates beside the workspace's workflows, tagged and read-only, dashed until first use; the
+  editor puts the task palette away for one; Home's starters come from the workspace query with `types=starter`.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
   tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50
@@ -208,6 +223,8 @@ tag's release notes.
   whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
 - The SDK's `Runs.purge(id)` and `Runs.purge(labels)` call the two run purge routes and read `{purged, scheduled,
   remaining}`.
+- The thin workflow-run status event (`flow.events.sink.payload=thin`) carries `statusReason`, as the task event
+  already did, so a consumer acting on a terminal event reads why the run ended without calling back.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
   ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
   and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever
@@ -467,6 +484,12 @@ tag's release notes.
 
 ### Fixed
 
+- Sign out works for every user: the route required `token/delete`, which only owners and admins hold, so a reader,
+  an editor or a user in no workspace was signed straight back in.
+- A user who belongs to no workspace can sign in: every signed-in user holds a baseline grant for their own profile, the
+  flags, navigation, the templates and the workspace list, so the webapp opens on Home instead of an error page. A
+  new `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is
+  not an admin may create a workspace; Home and Workspaces show the button only to those who may.
 - A workflow's changelog, and the editor that reads it, no longer fail with a 500 when a version's author is a
   user with no display name, as a user signed in through a provider that sends none; the author reads by name.
 - A task param named after a workflow param passes it through again: `url: $(params.url)` reads the workflow's `url`,
@@ -499,6 +522,10 @@ tag's release notes.
   completed schedule said Disable and then asked to enable it.
 - The Parameters toolbar matches the Schedules toolbar: a 40px search and Add parameter.
 - A task row's retry is "Retry", on one line; the retry modal says which task it starts from.
+- Insights opens its Task runs panel grouped by task, so it shows rows rather than a prompt; grouping without a time
+  bucket sent an invalid filter and the panel reported that the task runs could not be loaded. The selected
+  workflow's detail sits inside the By workflow panel, with a line saying to select a row when none is, and the
+  "Compare with previous period" switch lines up with the date pickers.
 - A quota card grows to fit its usage note instead of running past its edge. "Add members" and "Add existing
   members" are sentence case.
 - A parameter's Edit, Copy reference and Delete are icon buttons with tooltips; the row menu opened under the next

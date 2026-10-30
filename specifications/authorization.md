@@ -82,11 +82,12 @@ id_token never reaches the browser.
 ## Token kinds
 
 `AuthScope` is the token **class**; `TokenActorKind` is an orthogonal badge for machine tokens; `PermissionScope`
-(`global` | `workspace`) is the scope of each grant and is always derived server-side (`core/TokenService.java:174-203`).
+(`global` | `workspace` | `user`) is the scope of each grant and is always derived server-side
+(`core/TokenService.java:174-203`).
 
 | `AuthScope` | Prefix | Holder | Grants | How it is minted |
 | --- | --- | --- | --- | --- |
-| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships (`resolvePermissionsForUser`, `TokenService.java:681-701`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:109-110`) |
+| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:681-720`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:178-188`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:190-193,374-381`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:734-751`) |
 | `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
@@ -111,10 +112,14 @@ database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` 
 (`core/security/AuthenticationFilter.java:292`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`)
 — so a retired `bft_`/`bfw_` bearer never reaches MongoDB.
 
-Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator`
-(`**/read`, `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`,
-`**/action`) and `reader` (`**/read`). A permission string is `<resource>/<action>` with `**` as a wildcard on
-either side; resources and actions are the `PermissionResource` and `PermissionAction` enums.
+Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator` (`**/read`,
+`**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`, `**/action`) and `reader`
+(`**/read`). A permission string is `<resource>/<action>` with `**` as a wildcard on either side; resources and actions
+are the `PermissionResource` and `PermissionAction` enums. A user the roles do not cover, one in no workspace, holds
+only the self-service baseline (`TokenService.SELF_SERVICE_PERMISSIONS`), anchored to their own id, so the checks that
+key on a `global` grant (another user's account, the audit trail, the token ceiling) never count it;
+`WorkspaceService.create` refuses a user who is not an admin when the setting is off, since the route check is
+scope-blind and a workspace editor's `**/write` would pass it.
 
 ## Authorization: two layers
 
@@ -150,13 +155,12 @@ unannotated handler and both placements of `@AuthExempt`.
 
 | Admits | Handlers | Routes |
 | --- | --- | --- |
-| `global`, `key`, `user`, `session` | 79 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
-| `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, workflow templates, creating a workspace and checking its name |
+| `global`, `key`, `user`, `session` | 76 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
+| `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
 | `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |
-| `session` | 1 | `POST /internal/v1/auth/logout` |
 
-A `key` token therefore reaches no system, audit, catalogue or template route, and only a `global` token reaches
+A `key` token therefore reaches no system, audit or catalogue route, and only a `global` token reaches
 the outbox: a signed-in admin's `session` token is refused there.
 
 Whether a request must sign in and whether a permission rule applies are separate decisions. The URL rules in
@@ -167,6 +171,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
+| `POST /internal/v1/auth/logout` | Yes | Ends the caller's own session, the one its cookie authenticated; takes no input and touches no other token, so a user outside every workspace role can sign out (`core/InternalAuthControllerV1.java:95`) |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:340-346`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:84,1001-1013`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret, and links the installation to a workspace only under a valid signed state naming a member of it (`:521-576`) |
 | `GET /api/v2/integration/slack/install` | Yes | A redirect to Slack's authorize URL for the configured app, linked to no workspace, that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:66-71`, `integrations/SlackService.java:983-994`) |

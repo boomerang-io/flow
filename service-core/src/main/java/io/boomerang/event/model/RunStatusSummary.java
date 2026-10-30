@@ -70,14 +70,15 @@ public record RunStatusSummary(
     return run;
   }
 
-  // A workflow run is its own run: it carries no workflowRunRef, and no typed statusReason.
+  // A workflow run is its own run: it carries no workflowRunRef. Its statusReason says why it
+  // ended as it did, so a consumer acting on a terminal event needs no read back.
   static RunStatusSummary of(WorkflowRun run) {
     return new RunStatusSummary(
         run.getId(),
         run.getWorkflowRef(),
         null,
         run.getStatus(),
-        null,
+        run.getStatusReason(),
         run.getPhase(),
         run.getLabels(),
         run.getCreationDate(),

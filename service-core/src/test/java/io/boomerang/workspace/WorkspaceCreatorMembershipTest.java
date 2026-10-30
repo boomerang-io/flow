@@ -17,6 +17,11 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.repository.SettingsRepository;
+import io.boomerang.common.error.BoomerangException;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,6 +40,7 @@ class WorkspaceCreatorMembershipTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkspaceService workspaceService;
   @Autowired private UserRepository userRepository;
   @Autowired private TokenService tokenService;
+  @Autowired private SettingsRepository settingsRepository;
 
   private String creatorId;
 
@@ -55,6 +61,31 @@ class WorkspaceCreatorMembershipTest extends AbstractEngineIntegrationTest {
           RelationshipType.USER, creatorId, CREATOR_EMAIL, Optional.empty());
     }
     installSessionIdentity();
+  }
+
+  // The features setting decides for every user who is not an admin; the route check alone would
+  // let a workspace editor's grant through.
+  @Test
+  void aUserCannotCreateAWorkspaceWhenTheSettingSaysSo() {
+    setWorkspaceCreate("false");
+    try {
+      WorkspaceRequest request = new WorkspaceRequest();
+      request.setName("creator-membership-refused");
+      request.setDisplayName("Creator Membership Refused");
+      BoomerangException ex =
+          assertThrows(BoomerangException.class, () -> workspaceService.create(request));
+      assertEquals("PERMISSION_DENIED", ex.getReason());
+    } finally {
+      setWorkspaceCreate("true");
+    }
+  }
+
+  private void setWorkspaceCreate(String value) {
+    SettingEntity features = settingsRepository.findOneByKey("features");
+    features.getConfig().stream()
+        .filter(config -> "workspaceCreate".equals(config.getKey()))
+        .forEach(config -> config.setValue(value));
+    settingsRepository.save(features);
   }
 
   @Test

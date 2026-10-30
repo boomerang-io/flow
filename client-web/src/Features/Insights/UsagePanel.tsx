@@ -5,6 +5,8 @@ import { formatCost, formatTokens } from "./format";
 import styles from "./Insights.module.scss";
 
 interface UsagePanelProps {
+  /** The panel's own box by default; a detail passes its section style. */
+  className?: string;
   /** Distinguishes the summary's panel from the detail's when both render. */
   id: string;
   title: string;
@@ -22,7 +24,7 @@ function Figure({ label, value, detail }: { label: string; value: string; detail
 }
 
 /** Model usage summed from the results the ai task runs reported: totals, then one row per model. */
-export default function UsagePanel({ id, title, usage }: UsagePanelProps) {
+export default function UsagePanel({ id, title, usage, className }: UsagePanelProps) {
   const hasCost = usage.cost !== null;
   const titleId = `${id}-title`;
   const extra = [
@@ -31,7 +33,7 @@ export default function UsagePanel({ id, title, usage }: UsagePanelProps) {
   ].filter(Boolean);
 
   return (
-    <section className={styles.panel} aria-labelledby={titleId} data-testid={id}>
+    <section className={className ?? styles.panel} aria-labelledby={titleId} data-testid={id}>
       <div className={styles.panelHeader}>
         <h2 id={titleId} className={styles.panelTitle}>
           {title}

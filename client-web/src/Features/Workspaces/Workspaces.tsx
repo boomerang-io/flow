@@ -119,6 +119,9 @@ const WorkspaceList: React.FC = () => {
   const { user } = useAppContext();
   // TODO - make this read only
   const workspaceManagementEnabled = useFeature(FeatureFlag.WorkspaceManagementEnabled);
+  // Admins always may; everyone else as the features setting allows.
+  const workspaceCreateEnabled = Boolean(useFeature(FeatureFlag.WorkspaceCreateEnabled));
+  const canCreateWorkspace = user?.type === "admin" || workspaceCreateEnabled;
   const { workspaces: workspacesData, errorLoading } = useLoaderData() as LoaderData;
   const fetcher = useFetcher<ActionResult>();
   // handleSubmit/Formik hand this component a `closeModal` at submit time (see
@@ -229,7 +232,7 @@ const WorkspaceList: React.FC = () => {
   }
   return (
     <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
-      {workspaceManagementEnabled && (
+      {workspaceManagementEnabled && canCreateWorkspace && (
         <ComposedModal
           composedModalProps={{ shouldCloseOnOverlayClick: true }}
           modalHeaderProps={{

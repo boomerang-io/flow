@@ -142,6 +142,12 @@ public class _0021__Indexes {
           new Index("users", "email_unique", keys("email"), new IndexOptions().unique(true)),
           new Index("workspaces", "name_lookup", keys("name"), new IndexOptions()),
           new Index("workspaces", "display_name_lookup", keys("displayName"), new IndexOptions()),
+          // An embedding product's own id, carried by at most one workspace.
+          new Index(
+              "workspaces",
+              "external_ref",
+              keys("externalRef"),
+              new IndexOptions().unique(true).sparse(true)),
           new Index("tokens", "token_hash_lookup", keys("token"), new IndexOptions()),
           new Index(
               "rel_nodes",

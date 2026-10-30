@@ -55,24 +55,29 @@ describe("App --- ProtectedRoute", () => {
 
 // The root bootstrap loader blocks the first paint of every route in the app, so its reads have
 // to go out together. `context` and `navigation` are the exception - they are user-scoped and
-// genuinely wait on the profile - but feature flags and workflow templates were always
-// unconditional, and awaiting the profile before firing them adds a round trip to every cold load.
+// genuinely wait on the profile, and so do the starters (they are read through the user's first workspace) -
+// but the feature flags were always unconditional, and awaiting the profile before firing them adds a round
+// trip to every cold load.
 describe("App --- root loader concurrency", () => {
-  test("fires the feature flags and workflow templates alongside the profile fetch", async () => {
+  test("fires the feature flags alongside the profile fetch and the starters with context and navigation", async () => {
     const trace = createRequestTrace();
     server.use(
-      http.get(serviceUrl.getUserProfile(), trace.resolver("profile", { id: "user-1" })),
+      http.get(serviceUrl.getUserProfile(), trace.resolver("profile", { id: "user-1", workspaces: [{ name: "payments" }] })),
       http.get(serviceUrl.getFeatureFlags(), trace.resolver("features", { features: {} })),
-      http.get(serviceUrl.template.getWorkflowTemplates(), trace.resolver("templates", { content: [] })),
+      http.get(
+        serviceUrl.workspace.workflow.getWorkflows({ workspace: "payments" }),
+        trace.resolver("templates", { content: [] }),
+      ),
       http.get(serviceUrl.getContext(), trace.resolver("context", {})),
       http.get(serviceUrl.getNavigation({ query: "" }), trace.resolver("navigation", [])),
     );
 
     await loader({ request: new Request("http://localhost/home") });
 
-    expect(trace.startedTogether(3)).toBe(true);
-    // The user-scoped pair still waits on the profile - that dependency is real.
+    expect(trace.startedTogether(2)).toBe(true);
+    // The user-scoped reads still wait on the profile - that dependency is real.
     expect(trace.events.indexOf("profile:end")).toBeLessThan(trace.events.indexOf("context:start"));
+    expect(trace.events.indexOf("profile:end")).toBeLessThan(trace.events.indexOf("templates:start"));
   });
 });
 
@@ -88,7 +93,6 @@ describe("App --- root loader sign-in config", () => {
       http.get(serviceUrl.getFeatureFlags(), () =>
         profileStatus === 200 ? Response.json({ features }) : new Response(null, { status: profileStatus }),
       ),
-      http.get(serviceUrl.template.getWorkflowTemplates(), () => Response.json({ content: [] })),
       http.get(serviceUrl.getContext(), () => Response.json({})),
       http.get(serviceUrl.getNavigation({ query: "" }), () => Response.json([])),
       http.get(serviceUrl.getAuthConfig(), trace.resolver("authConfig", { mode: "oidc" })),
@@ -132,7 +136,6 @@ describe("App --- root loader last workspace", () => {
     server.use(
       http.get(serviceUrl.getUserProfile(), () => HttpResponse.json({ id: "user-1" })),
       http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json({ features: {} })),
-      http.get(serviceUrl.template.getWorkflowTemplates(), () => HttpResponse.json({ content: [] })),
       http.get(serviceUrl.getContext(), () => HttpResponse.json({})),
       http.get(serviceUrl.resourceWorkspace({ workspace: "payments" }), () => {
         asked.workspaceReads += 1;

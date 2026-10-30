@@ -15,6 +15,54 @@
     }
   }
 
+  // The graph belongs to the template: nodes are shown, never opened or changed.
+  &.readOnly {
+    .workflowContainer {
+      display: flex;
+      flex-direction: column;
+
+      :global .reactflow-container {
+        flex: 1;
+        min-height: 0;
+      }
+    }
+
+    :global .react-flow__node {
+      pointer-events: none;
+
+      button {
+        display: none;
+      }
+    }
+  }
+
+  .rail {
+    align-items: center;
+    background-color: var(--cds-ui-01);
+    border-right: 1px solid var(--cds-border-subtle);
+    color: var(--cds-text-secondary);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 1rem;
+    padding-top: 1rem;
+    width: 2.5rem;
+  }
+
+  .railLabel {
+    font-size: var(--cds-label-01-font-size, 0.75rem);
+    letter-spacing: var(--cds-label-01-letter-spacing, 0.32px);
+    text-orientation: mixed;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
+  }
+
+  .templateNotice {
+    max-width: none;
+    flex-shrink: 0;
+    margin-bottom: 0.5rem;
+  }
+
   &.hidden {
     display: none !important;
   }

@@ -19,6 +19,14 @@ public interface WorkflowRepository extends MongoRepository<WorkflowEntity, Stri
   // name is unique, so the first match is the one.
   Optional<WorkflowEntity> findFirstByNameAndTypeIn(String name, Collection<WorkflowType> types);
 
+  // The templates and starters of a status, for the list every workspace sees them in.
+  List<WorkflowEntity> findByTypeInAndStatus(Collection<WorkflowType> types, WorkflowStatus status);
+
   // Whether any workflow not yet deleted runs this template by reference.
   boolean existsByTemplateRefRefAndStatusNot(String ref, WorkflowStatus status);
+
+  // A workspace's link to a template: among the workspace's workflows (ids from the relationship
+  // walk), the one naming the template and still active.
+  Optional<WorkflowEntity> findFirstByIdInAndTemplateRefRefAndStatus(
+      Collection<String> ids, String ref, WorkflowStatus status);
 }

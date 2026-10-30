@@ -79,6 +79,15 @@ public class TokenService {
   private final MongoTemplate mongoTemplate;
   private final IdentityService identityService;
   private final TokenLookupCache lookupCache;
+  private final SettingsService settingsService;
+
+  /*
+   * What every signed-in human may do before any workspace admits them: read and edit their own
+   * profile, read the flags, context, navigation and templates, and list workspaces. Anchored to
+   * the user, so the checks that key on a global grant never count it.
+   */
+  static final List<String> SELF_SERVICE_PERMISSIONS =
+      List.of("user/read", "user/write", "system/read", "workflowtemplate/read", "workspace/read");
 
   public TokenService(
       TokenRepository tokenRepository,
@@ -87,7 +96,9 @@ public class TokenService {
       RelationshipService relationshipService,
       MongoTemplate mongoTemplate,
       IdentityService identityService,
-      TokenLookupCache lookupCache) {
+      TokenLookupCache lookupCache,
+      SettingsService settingsService) {
+    this.settingsService = settingsService;
     this.tokenRepository = tokenRepository;
     this.userService = userService;
     this.roleRepository = roleRepository;
@@ -673,10 +684,10 @@ public class TokenService {
 
   /**
    * Resolves the full permission grant set for a user: a global platform grant for admin/operator
-   * users, or one workspace-scoped grant per workspace they are a member of. The single source of
-   * truth for a user's permissions - both {@link #createSessionToken} and the user profile
-   * composition (api layer) call this, so a platform-role grant can never be applied on one path
-   * and missed on the other.
+   * users, or the self-service baseline plus one workspace-scoped grant per workspace they are a
+   * member of. The single source of truth for a user's permissions - both {@link
+   * #createSessionToken} and the user profile composition (api layer) call this, so a
+   * platform-role grant can never be applied on one path and missed on the other.
    */
   public List<ResolvedPermissions> resolvePermissionsForUser(UserEntity user) {
     List<ResolvedPermissions> permissions = new LinkedList<>();
@@ -687,6 +698,8 @@ public class TokenService {
               "**",
               roleRepository.findByTypeAndName("global", user.getType().toString()).getPermissions()));
     } else {
+      permissions.add(
+          new ResolvedPermissions(PermissionScope.user, user.getId(), selfServicePermissions()));
       // Collect all workspace permissions the user has
       Map<String, String> teamsAndRoles = relationshipService.roles(user.getId());
       for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
@@ -697,6 +710,16 @@ public class TokenService {
                 roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
       }
     }
+    return permissions;
+  }
+
+  // The baseline, plus creating a workspace when the features setting allows users to.
+  private List<String> selfServicePermissions() {
+    if (!settingsService.workspaceCreationAllowed()) {
+      return SELF_SERVICE_PERMISSIONS;
+    }
+    List<String> permissions = new LinkedList<>(SELF_SERVICE_PERMISSIONS);
+    permissions.add("workspace/write");
     return permissions;
   }
 

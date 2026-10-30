@@ -85,7 +85,6 @@ export const handlers: HttpHandler[] = [
   http.get(serviceUrl.getContext(), () => HttpResponse.json(fixtures.platformConfig)),
   http.get(`${BASE_URL}/navigation`, () => HttpResponse.json(fixtures.flowNavigation)),
   http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json(fixtures.featureFlags)),
-  http.get(serviceUrl.template.getWorkflowTemplates(), () => HttpResponse.json(fixtures.workflowTemplates)),
   http.get(serviceUrl.getWorkspaceQuotaDefaults(), () =>
     HttpResponse.json({
       maxWorkflowCount: 20,
@@ -227,7 +226,13 @@ export const handlers: HttpHandler[] = [
     db.workflows.push(workflow);
     return HttpResponse.json(workflow, { status: 201 });
   }),
-  http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), () => HttpResponse.json({ content: db.workflows })),
+  // `types=starter` lists the starters a workspace has not copied (Home); anything else lists the workspace's
+  // own workflows together with the templates available to it.
+  http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), ({ request }) =>
+    new URL(request.url).searchParams.get("types") === "starter"
+      ? HttpResponse.json(fixtures.workflowTemplates)
+      : HttpResponse.json({ content: db.workflows }),
+  ),
   http.get(serviceUrl.workspace.workflow.getWorkflow({ workspace: ":workspace", workflow: ":workflow" }), ({ params }) => {
     const workflow = findWorkflow(pathParam(params.workflow));
     return workflow ? HttpResponse.json(workflow) : HttpResponse.json({ errors: ["Workflow not found"] }, { status: 404 });
