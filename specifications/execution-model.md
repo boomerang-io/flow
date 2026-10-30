@@ -373,13 +373,13 @@ finds the parent, since the lookup is by exact name and items carry the brackete
 
 ## Task locks
 
-The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` =
-`<workspace id>:<key>` with the id of the workspace that owns the run's workflow, holding `holder`, `workflowRunRef`,
-`acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`,
-`migration/_0021__Indexes.java:124-128`, `engine/TaskExecutionService.java:1061-1069`). Acquire is an upsert that
-matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`:1019-1049`); a task that cannot
-acquire parks as `waiting` for 5 s and the watcher tries again (`:78`, `:995-999`), its declared timeout bounding the
-wait. Release deletes only when this task is the holder (`:1053-1057`).
+The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow, holding
+`holder`, `workflowRunRef`, `acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`, `migration/_0021__Indexes.java:124-128`,
+`engine/TaskExecutionService.java:1061-1069`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`:1019-1049`); a task that cannot acquire parks
+as `waiting` for 5 s and the watcher tries again (`:78`, `:995-999`), its declared timeout bounding the wait. Release deletes only when this task is the holder (`:1053-1057`). A run's locks go with
+the run: when it completes, by any status, and when it is purged, every lock it still holds is deleted by its run reference, so the next acquire on the key succeeds at once instead of waiting out the
+lease, and a lock another run holds is never touched (`engine/TaskExecutionService.java:1249-1260`, `engine/ChildWorkflowRunListener.java:87-93`, `workflow/WorkflowRetentionService.java:315`). With
+finally tasks a run completes after they end, so a finally `releaselock` still finds its lock.
 
 ## Not built
 

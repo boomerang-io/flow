@@ -82,6 +82,7 @@ public class WorkflowRetentionService {
   private final WorkflowService workflowService;
   private final WorkflowExecutionService workflowExecutionService;
   private final WorkflowRunStateHelper workflowRunStateHelper;
+  private final TaskExecutionService taskExecutionService;
 
   public WorkflowRetentionService(
       WorkflowRunRepository workflowRunRepository,
@@ -95,7 +96,8 @@ public class WorkflowRetentionService {
       SettingsService settingsService,
       WorkflowService workflowService,
       @Lazy WorkflowExecutionService workflowExecutionService,
-      WorkflowRunStateHelper workflowRunStateHelper) {
+      WorkflowRunStateHelper workflowRunStateHelper,
+      @Lazy TaskExecutionService taskExecutionService) {
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
@@ -108,6 +110,7 @@ public class WorkflowRetentionService {
     this.workflowService = workflowService;
     this.workflowExecutionService = workflowExecutionService;
     this.workflowRunStateHelper = workflowRunStateHelper;
+    this.taskExecutionService = taskExecutionService;
   }
 
   /**
@@ -309,6 +312,7 @@ public class WorkflowRetentionService {
   }
 
   private void purgeRun(String wfRunId) {
+    taskExecutionService.releaseLocksHeldBy(wfRunId);
     artifactService.deleteForRun(wfRunId);
     actionRepository.deleteByWorkflowRunRef(wfRunId);
     taskRunRepository.deleteByWorkflowRunRef(wfRunId);
