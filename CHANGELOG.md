@@ -108,14 +108,11 @@ tag's release notes.
 - **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
   encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
   migration.
-- **A dispatcher must heartbeat every task it holds; `flow.dispatcher.lease.enabled` is gone.** A claim now carries
-  a lease from the moment it is made, 90 s ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a
-  claim its dispatcher stops reporting is requeued even when the dispatcher restarts under the same id. Flow's
-  Kubernetes dispatcher and the dispatcher SDK heartbeat every 30 s from the claim; a dispatcher written against
-  the protocol directly that sends no heartbeat has every claim requeued 90 s after it was made.
-- **The first start clears the lease from completed task runs.** Change unit `_0025__ClearCompletedTaskLeases`
-  runs one update over `task_runs`; completion now clears the lease itself, so the lease sweep reads only live
-  claims. Nothing else changes and no setting is involved.
+- **A dispatcher must heartbeat every task it holds.** A claim now carries a lease from the moment it is made, 90 s
+  ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a claim its dispatcher stops reporting is
+  requeued even when the dispatcher restarts under the same id. Flow's Kubernetes dispatcher and the dispatcher SDK
+  heartbeat every 30 s from the claim; a dispatcher written against the protocol directly that sends no heartbeat has
+  every claim requeued 90 s after it was made.
 - **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
   integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
   refuse every request.
@@ -129,15 +126,15 @@ tag's release notes.
   `_0030__SeedSlackCredentialRevisions` adds a new revision of each of the 13 Slack tasks, so a token typed into a
   node is stored encrypted and read back as `*****`. Workflows keep the revision they pin until upgraded in the
   editor; upgrading keeps the value, which is encrypted on the next save.
-- **The GitHub integration can share its installation token with tasks.** Once GitHub is connected, the
-  workspace's integration page offers "Share the installation token with tasks", which writes two read-only
-  workspace parameters, `github-token` (refreshed every 45 minutes) and `github-url`; workspace parameters must
-  be on. Change unit `_0031__SeedGitHubIntegrationParameters` gives the GitHub integration template those fields
-  and adds a revision of each of the 17 GitHub tasks whose `token` and `url` default to them; a token typed into a
-  node still wins. A task upgraded to the new revision and left on its default fails at admission in a workspace
-  that does not share the token; the editor warns at save. A read-only workspace parameter an integration manages can no longer be changed
-  or deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace
-  update is ignored.
+- **The GitHub integration can share its installation token with tasks.** Once GitHub is connected, the workspace's
+  integration page offers "Share the installation token with tasks", which writes two read-only workspace parameters,
+  `github-token` (refreshed every 45 minutes) and `github-url`; workspace parameters must be on. Change unit
+  `_0031__SeedGitHubIntegrationParameters` gives the GitHub integration template those fields and adds a revision of
+  each of the 17 GitHub tasks whose `token` and `url` default to them; a token typed into a node still wins. A task
+  upgraded to the new revision and left on its default fails at admission in a workspace that does not share the
+  token; the editor warns at save. A read-only workspace parameter an integration manages can no longer be changed or
+  deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace update is
+  ignored.
 - **Slack is a workspace integration and can share its bot token with tasks.** The Integrations page now lists
   Slack once `slack.clientId` and `slack.clientSecret` are set: Connect installs the Flow Slack app and links that
   Slack team to the workspace, and "Share the installation token with tasks" writes a read-only `slack-token`
@@ -156,31 +153,11 @@ tag's release notes.
   Manage edits them, a stored secret kept until it is retyped, and Disconnect removes them. The share route takes
   them as `values`. Change unit `_0034__SeedFormIntegrations` adds the two templates and marks GitHub and Slack as
   integrations Flow installs. No catalogue task defaults to them yet.
-- **The dispatcher protocol hands out its own run models.** The task poll and the task start and end answers return
-  `DispatchTaskRun`, and the workflow poll and its start answer `DispatchWorkflowRun`, in place of the public
-  `TaskRun` and `WorkflowRun`; only the fields a dispatcher reads remain (`contracts/dispatcher-v1.yaml`). Move an
-  application built on `io.boomerang:dispatcher-sdk` to 5.0.0-beta.23 or later: its `TaskRun` and `WorkflowRun`
-  have no getters for the dropped fields, so code that read one fails to compile instead of reading null. An older
-  SDK still works against this engine, as its runtime reads only the remaining fields. A dispatcher written against
-  the protocol directly must stop reading a task run's `annotations`, `creationDate`, `startTime`, `duration`,
-  `statusMessage`, `statusReason`, `taskVersion`, `workflowRevisionRef`, `workflowName`, `parentRef` and
-  `reusedFromRef`, and every workflow-run field but `id`, `status`, `phase`, `workflowRef`, `labels` and
-  `workspace`; it reads them from the run through `/api/v2` instead.
-- **The first start rebuilds the task-run claim index.** Change unit `_0029__ClaimIndexKeysTheClaimant` adds
-  `claim.by` to `task_runs.claim_page`, so a dispatcher poll's termination check reads only the task runs a
-  dispatcher still holds instead of every cancelled or timed-out task run of the last seven days. The rebuild runs
-  before `service-core` serves and takes time in proportion to `task_runs`.
-- **Stop every `service-core` replica before starting this version.** Change unit
-  `_0028__RunSettingsOutOfAnnotations` removes the `boomerang.io/*` annotations the engine used to read from runs and
-  task runs, moves an early event's status to a typed field, and re-keys held task locks by workspace id. A replica
-  of an earlier version still running would read runs whose annotations have gone.
 - **The last "team" names on the API say "workspace".** `GET /api/v2/profile` returns the user's workspaces as
   `workspaces` (was `teams`), and the error reasons `TEAM_INVALID_REF`, `TEAM_INVALID_REQ`, `TEAM_NON_UNIQUE_NAME`,
   `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
-  `WORKSPACE_NON_UNIQUE_NAME`, `WORKSPACE_INVALID_USER_ROLE` and `WORKFLOW_WORKSPACE_INACTIVE`, with the same codes.
-  A client that matched a reason or read `teams` moves with them. On the first start, change unit
-  `_0027__RenameWorkspaceTaskNodes` moves a workspace's own task nodes in the relationship graph from type
-  `teamtask` to `workspacetask`; only a database a 5.0 beta created holds any.
+  `WORKSPACE_NON_UNIQUE_NAME`, `WORKSPACE_INVALID_USER_ROLE` and `WORKFLOW_WORKSPACE_INACTIVE`, with the same codes. A
+  client that matched a reason or read `teams` moves with them.
 
 ### Added
 
@@ -210,19 +187,16 @@ tag's release notes.
   editor puts the task palette away for one; Home's starters come from the workspace query with `types=starter`.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
-  tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50
-  a call, reporting how many remain. A run in flight is cancelled first; one whose tasks are still ending, or held by
-  a dispatcher awaiting its terminate poll, is removed by a new watcher sweep once they have settled, or after ten minutes. Both need
-  `workflowrun/delete` (owner and admin) and are audited as destructive. Audit records stay. A new sparse index,
-  `purge_sweep`, joins the inventory; a database a 5.0 beta or release candidate created gets it on reset, as with
-  the inventory's other indexes.
+  tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50 a
+  call, reporting how many remain. A run in flight is cancelled first; one whose tasks are still ending, or held by a
+  dispatcher awaiting its terminate poll, is removed by a new watcher sweep once they have settled, or after ten
+  minutes. Both need `workflowrun/delete` (owner and admin) and are audited as destructive. Audit records stay. A new
+  sparse index, `purge_sweep`, joins the inventory.
 - 16 catalogue tasks from `boomerangio/task-flow:3.3.0`: GitHub (create an issue, comment on an issue or pull
   request, create a pull request, set a commit status, dispatch a workflow, create a release, get file contents),
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
   Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
   whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
-- A purge by labels leaves out the runs an earlier call already handed to the sweep, from its page and from
-  `remaining`, so a caller repeating until `remaining` is 0 always makes progress.
 - The SDK's `Runs.purge(id)` and `Runs.purge(labels)` call the two run purge routes and read `{purged, scheduled,
   remaining}`.
 - The thin workflow-run status event (`flow.events.sink.payload=thin`) carries `statusReason`, as the task event
@@ -244,21 +218,11 @@ tag's release notes.
   Configure → Execution. A run over the limit is parked as `waiting` until a run of the workflow ends (`queue`, the
   default) or ends at once as `cancelled` with reason `ConcurrencyLimit` (`skip`). The workspace quota keeps
   precedence. A workflow run now carries `statusReason` beside `statusMessage`, as a task run does.
-- Admitting a task, or submitting a run with a workspace, wakes the dispatcher polls held on that engine instance,
-  so the work is claimed as soon as it is ready instead of at the poll's next re-check: a hop in a sequential chain
-  is now the end, the admission and the claim round trips, about 100–200 ms, whatever
-  `flow.dispatcher.poll.recheck-ms` is set to. The timed re-check still covers a task admitted on another replica
-  or a retry whose backoff elapses.
-- A dispatcher poll re-opened after a claim no longer re-runs the termination pages: their once-per-interval
-  cadence belongs to the dispatcher and its filter, shared by its successive polls, so under load each claim costs
-  one claim-page query instead of three. A cancel or timeout still reaches a held dispatcher within one interval.
-- Admitting a task wakes only the held dispatcher polls whose filter can claim it (its type, and the task and
-  workflow when the poll filtered on them), not every poll on the instance: a dispatcher holding eight typed pools
-  costs one claim-page query per admission instead of eight. A run submitted with a workspace wakes the workflow
-  polls alone. The timed re-check is unchanged and still covers a task admitted on another replica.
-- A cancel or timeout of a task a dispatcher is running, or a retry that parks it, reaches that dispatcher within
-  the end round trip rather than at its next timed re-check: the engine wakes the holding dispatcher's polls on
-  the instance that wrote the change. A holder polling another replica still hears within one interval.
+- Work reaches a dispatcher as soon as it is ready: admitting a task, or submitting a run with a workspace, wakes the
+  dispatcher polls on that engine instance that can claim it, and a cancel, timeout or retry reaches the holding
+  dispatcher within the end round trip, so a hop in a sequential chain is about 100–200 ms. A dispatcher whose slots
+  are all taken claims new work the moment one frees. The timed re-check still covers work admitted on another
+  replica.
 - `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
   (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
   queries per dispatcher: its idle queries per second are its pools × 1000 / the value.
@@ -267,10 +231,10 @@ tag's release notes.
   the first and last 64 KB kept) are uploaded as the task log when it ends and every 30 s while it runs; with
   `observationRegistry(registry)`, each handler runs under a `flow.task` observation carrying the task's
   `traceparent`. Both are off by default; a logback appender is included, SLF4J and logback stay optional.
-- Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per
-  task, type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the
-  tokens and cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The
-  Insights page shows it under Task runs once a grouping is chosen, with Model and For-each item groupings.
+- Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per task,
+  type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the tokens and
+  cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The Insights page
+  shows it under Task runs, grouped by task unless another grouping, Model and For-each item included, is chosen.
 - Task runs can be queried across runs: `GET /api/v2/workspace/{workspace}/taskrun/query` pages them by label or
   run (one of the two is required), workflow, task name, status and date, as the run query pages runs. A row
   leaves out params, results, spec, annotations and status message; read the run for those.
@@ -331,6 +295,8 @@ tag's release notes.
   `foreach=true|false` to list parents only or leave them out; absent lists both as before. A parent stands for its
   items in the graph and never runs, so a running or waiting count over a run's task runs can now exclude it without
   reading the workflow. `flow-sdk` adds `TaskRunQuery.foreach(boolean)` and `TaskRun.foreach()`.
+- A `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is not
+  an admin may create a workspace; Home and Workspaces offer the button only to those who may.
 
 ### Changed
 
@@ -344,22 +310,18 @@ tag's release notes.
 - The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
   runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
   pins `flow.dispatcher.artifact.image` keeps their own value.
-- Outside a workspace (Home, Admin, Profile) the side navigation points at the last workspace opened in this
-  browser, while you can still open it; its workspace links were disabled until a workspace was chosen.
-- A sleep and an acquire-lock retry end within about a second of their due time
-  (`flow.watcher.wait-interval-ms`, 1000); they waited for the next 30-second watcher sweep, so a 2-second sleep could
-  take 30.
-- A dispatcher reports a failed workspace provisioning: the run shows the cause at once and retries after a minute
-  (`flow.watcher.provision-retry-ms`, 60000), failing on the third attempt, instead of sitting in Ready with no reason
-  for about 15 minutes. A dispatcher built on an older SDK keeps the old behaviour.
+- Outside a workspace (Home, Admin, Profile) the side navigation points at the last workspace opened in this browser,
+  while you can still open it.
+- A dispatcher that cannot provision a run's workspace reports the cause: the run shows it and retries after a minute
+  (`flow.watcher.provision-retry-ms`, 60000), failing on the third attempt. A dispatcher built on an older SDK keeps
+  the sweep's release.
 - A run a person or a token starts records who started it in `initiatedByRef`, and reads name them in the new
   `initiatedByName`; the run page and Activity's Initiated By column show the name.
-- A run's duration is labelled as active time on the run page and in Activity: it never counted waits for approvals,
-  manual tasks and sleeps, or pauses.
-- Home counts each member of your workspaces once (the profile's new `workspaceMemberCount`), not once per workspace.
-- The task edit modal keeps its description to one line and moves the task name and the tabs into its header, and
-  lists a task's declared results on a Results tab instead of as tags under the parameters, so the fields get the
-  height.
+- A run's duration is shown as active time on the run page and in Activity: it excludes waits for approvals, manual
+  tasks and sleeps, and pauses.
+- Home counts each member of your workspaces once (the profile's `workspaceMemberCount`).
+- The task edit modal keeps its description to one line, carries the task name and the tabs in its header, and lists a
+  task's declared results on a Results tab, so the fields get the height.
 - A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
   secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
   ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
@@ -383,27 +345,12 @@ tag's release notes.
   and the shipped dependencies with an open advisory are moved past it: `nimbus-jose-jwt` 10.3, the Slack client
   1.45.3 (for its `okio` 3.4), `body-parser` 1.20.9, `axios` 1.20.0 and `dompurify` 3.4.17.
 - `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
-- `flow.schedule.watcher.enabled=false` now stops the schedule sweep. Before, the engine's scheduling kept it
-  running whenever the engine watcher was on.
-- A global token, the bootstrap token included, reads a workspace's Insights, as it reads its runs and task runs.
-  The three Insights routes refused it with `401 AUTH_REQUIRED`.
-- A run that is invalid when queued, and a task ended because its run is gone or already completed, end through
-  the same compare-and-set as every other end, so the end is published: a child run invalid at queue releases the
-  parent waiting on it, and such a run is audited and counted against quota.
 - A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
   `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
 - The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
-- The engine ends a task it decided the end of - a skip, an admission refusal, an engine-run task's result, a for-each
-  parent's outcome - in one write that carries the outcome, so a timeout that lands meanwhile is never rolled back
-  and each such end publishes one transition.
 - A workspace's monthly run-duration figures (`currentRunTotalDuration`, `currentRunAverageDuration`) cover the
   whole UTC calendar month. They used to stop at midnight before the month's last day, so that day's runs were
   never counted.
-- A workspace's quotas report `currentRunAverageDuration`, the mean run time this month in milliseconds like every
-  other duration, where `currentRunMedianDuration` held that mean under the wrong name and in the wrong unit: the
-  Quotas page showed milliseconds as minutes. `currentRunTotalDuration` is a long, so a busy month no longer
-  overflows. The insights response drops `medianDuration`, which was also the mean; `totalDuration` and
-  `totalRuns` give it.
 - A workflow's Insights `retriedRuns` counts the runs that are a retry of an earlier run, by hand or automatic. It
   counted the runs whose workflow allowed retries, whether or not any happened.
 - A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
@@ -415,17 +362,16 @@ tag's release notes.
   string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
   so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
   Each approval is kept as it is given, so one that needs several approvers completes when the last of them acts.
-- Each status event describes the transition it was recorded for. An event sent after the run moved on used to
-  carry the run's later status, so one change could arrive as two or three copies of a later state. Its
-  CloudEvent `id` is now the outbox row's id, the same on every delivery of that transition, and `time` is when
-  the transition occurred rather than when it was sent. The graph's end node no longer sends a task event; the
-  run's own event reports the end. A skipped task, or one admission refuses, sends one event where it sent two. A workflow timeout sends one where it sent two.
+- Each status event describes the transition it was recorded for: its CloudEvent `id` is the outbox row's id, the same
+  on every delivery of that transition, and `time` is when the transition occurred. The graph's end node sends no task
+  event; the run's own event reports the end, and a skipped or refused task and a workflow timeout send one event
+  each.
 - A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
   code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
   actor, where it named `system`.
 - While a task runs, its log is read live from its dispatcher even when a copy is stored; a copy stored during this
-  attempt answers only when the dispatcher has no live route or its route is unavailable, and once the task ends
-  the stored copy is served first. A requeued task no longer shows its previous attempt's log while it runs again.
+  attempt answers only when the dispatcher has no live route or its route is unavailable, and once the task ends the
+  stored copy is served first.
 - A followed task log that has written nothing for 10 minutes ends with a line saying the view stopped following,
   instead of the connection dropping mid-log; open the log again to keep following. No new property: the two-hour
   async request timeout applies only to the streamed routes, both task logs and artifact downloads.
@@ -436,178 +382,55 @@ tag's release notes.
   upgraded and a new install have the same settings documents.
 - The same indexes are built on every install; the token lookup index is now built on a new install.
 - Migrated v3 approver groups are reachable from their workspace again.
-- The sign-in routes the webapp's server calls are `/internal/v1/auth/{config,exchange,logout}`, outside the
-  public `/api/v2`; the 5.0 betas served them under `/api/v2/auth`. Route `/api/v2/**` from outside and leave
-  `/internal/v1/**` unrouted.
-- The dispatcher wire is `/dispatcher/v1`; the 5.0 betas served it under `/api/v1/dispatcher`. `service-core` and
-  `service-dispatcher` move together under one tag. Route `/dispatcher/v1/**` to `service-core` only for a
-  dispatcher that runs outside its network.
-- **Task logs are stored by `service-core` when it has an artifact store.** The dispatcher uploads a finished
-  task's log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core
-  serves that copy once the task has ended, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
+- The sign-in routes the webapp's server calls are `/internal/v1/auth/{config,exchange,logout}`, outside the public
+  `/api/v2`. Route `/api/v2/**` from outside and leave `/internal/v1/**` unrouted.
+- The dispatcher wire is `/dispatcher/v1`. `service-core` and `service-dispatcher` move together under one tag. Route
+  `/dispatcher/v1/**` to `service-core` only for a dispatcher that runs outside its network.
+- **Task logs are stored by `service-core` when it has an artifact store.** The dispatcher uploads a finished task's
+  log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core serves that
+  copy once the task has ended, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
   log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
   `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`). Core's
   `flow.agent.service.host` and `flow.agent.logstream.url` are gone: nothing on core names a dispatcher, and a
-  dispatcher that registers no URL has no live log to follow. The dispatcher's live log route,
-  `/api/v1/logs/stream`, accepts only the bearer it generates at start and registers; nothing but core can read
-  it. Its v3 `GET /api/v1/logs` read is gone, and it serves no OpenAPI page. Two new keys
-  in the Artifacts settings group govern storage: "Store Task Logs" (on) and "Task Log Retention (days)" (7),
-  apart from artifact retention; stored logs never count toward artifact storage. Set
-  `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.
-- List filters behave the same on every route. A `labels` entry without a value, such as `labels=team`, is a
-  `400 QUERY_INVALID_FILTERS` everywhere instead of a server error on most lists. A label is split once on its
-  first `=`, so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter
-  now matches. The action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are
-  read ignoring case on the run, task, workflow, user, workspace and schedule lists.
+  dispatcher that registers no URL has no live log to follow. The dispatcher's live log route, `/api/v1/logs/stream`,
+  accepts only the bearer it generates at start and registers; nothing but core can read it. Its v3 `GET /api/v1/logs`
+  read is gone, and it serves no OpenAPI page. Two new keys in the Artifacts settings group govern storage: "Store
+  Task Logs" (on) and "Task Log Retention (days)" (7), apart from artifact retention; stored logs never count toward
+  artifact storage. Set `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.
+- List filters behave the same on every route. A `labels` entry without a value, such as `labels=team`, is a `400
+  QUERY_INVALID_FILTERS` everywhere instead of a server error on most lists. A label is split once on its first `=`,
+  so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter now matches. The
+  action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are read
+  ignoring case on the run, task, workflow, user, workspace and schedule lists.
 - A running task's log streams as it is written, through `service-core` and the Kubernetes dispatcher, instead of
   arriving whole when the task ends. Read before its container starts, it shows one waiting line and then the live
   log.
-- A dispatcher whose task slots are all taken claims new work the moment one frees, instead of up to 30 s later
-  when the engine let go of its held poll. The dispatcher SDK keeps a poll that claims nothing open for
-  termination orders while full, and starts its work poll beside it as soon as a task ends; it never asks for
-  more than its free slots. This applies to `service-dispatcher` and to any dispatcher built on
-  `io.boomerang:dispatcher-sdk`; the wire is unchanged.
 - A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
   and is kept when the YAML is applied back unchanged.
-- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas
-  enforced, whatever the security setting; in 5.0.0-beta.19 it stayed claimed and never ran. A task the dispatcher
-  poll cannot prepare now ends `failed` with reason `DispatchPrepareFailed` instead of staying claimed, and the
-  rest of the poll is still handed out.
+- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas enforced,
+  whatever the security setting. A task the dispatcher poll cannot prepare ends `failed` with reason
+  `DispatchPrepareFailed`, and the rest of the poll is still handed out.
 - The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
-- A task's end reads only the tasks that depend on it and what those depend on, not the run's whole graph, so the
-  database cost of a run's ends no longer grows with the run's size (4 task run documents per end in a 200-task
-  chain, where it was 204). A for-each task completes on its last item's end and the task after it is admitted at
-  once, without a second asynchronous hop.
-- A held task poll woken by an admission runs its claimable page alone; the two termination pages run on the
-  poll's first look and then once per re-check interval, as they did on every look before. An admission costs one
-  indexed query per held task poll instead of three, and a termination order still reaches the dispatcher within
-  one interval.
 
 ### Fixed
 
-- Sign out works for every user: the route required `token/delete`, which only owners and admins hold, so a reader,
-  an editor or a user in no workspace was signed straight back in.
-- A user who belongs to no workspace can sign in: every signed-in user holds a baseline grant for their own profile, the
-  flags, navigation, the templates and the workspace list, so the webapp opens on Home instead of an error page. A
-  new `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is
-  not an admin may create a workspace; Home and Workspaces show the button only to those who may.
-- A workflow's changelog, and the editor that reads it, no longer fail with a 500 when a version's author is a
-  user with no display name, as a user signed in through a provider that sends none; the author reads by name.
-- A task param named after a workflow param passes it through again: `url: $(params.url)` reads the workflow's `url`,
-  as in v3. Task param values resolve from the global, workspace, workflow and context layers only, and the task's
-  own params are read by its spec; upgraded v3 workflows and the seeded Summarise and MongoDB templates failed
-  their tasks with `ParamUnresolved`. A task param naming only a sibling is reported as undeclared.
-- The two Artifactory tasks failed with "Could not find method": their command module was commented out in the
-  task image. Their new revisions (download 2, upload 3) run on `boomerangio/task-flow:3.3.0` and add access-token
-  login; a workflow moves to them when it is upgraded in the editor.
 - The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
   template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
   `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the
   editor.
-- Disconnecting GitHub on the Integrations page disconnects it: the page sent the integration's record id, which
-  the unlink looked up as a GitHub installation id, so nothing happened. `POST /api/v2/integration/github/unlink`
-  now takes either id, refuses a caller who cannot reach the workspace (integration write permission in any
-  workspace could unlink another workspace's GitHub by its installation id), answers `404` for an unknown
-  installation instead of nothing, and is audited.
+- Disconnecting GitHub on the Integrations page disconnects it. `POST /api/v2/integration/github/unlink` takes the
+  integration's record id or the installation id, refuses a caller who cannot reach the workspace (integration write
+  permission in any workspace could unlink another workspace's GitHub by its installation id), answers `404` for an
+  unknown installation, and is audited.
 - The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
   the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
-- The side navigation can be clicked on a wide screen: the whole nav stayed inert after it opened.
-- The side navigation's dividers show; they were drawn in the nav's own background colour. "Manage" is now "Admin",
-  set apart by a divider from the workspace's "Manage workspace".
-- Insights scrolls once, with every panel at full height: its results scrolled inside the page and squeezed each
-  panel to its title. The runs-per-day chart loads its styles, and the Task runs fields stand out on their panel.
-- A scrolling modal's last field clears the fade at its bottom once scrolled to the end.
-- A schedule's "Runs every…" summary and the retry modal's warnings scroll with their form; they were pinned over the
-  fade at the bottom of the modal.
-- A schedule row's Edit, Disable or Enable, and Delete are icon buttons, and the toggle names what it will do; a
-  completed schedule said Disable and then asked to enable it.
-- The Parameters toolbar matches the Schedules toolbar: a 40px search and Add parameter.
-- A task row's retry is "Retry", on one line; the retry modal says which task it starts from.
-- Insights opens its Task runs panel grouped by task, so it shows rows rather than a prompt; grouping without a time
-  bucket sent an invalid filter and the panel reported that the task runs could not be loaded. The selected
-  workflow's detail sits inside the By workflow panel, with a line saying to select a row when none is, and the
-  "Compare with previous period" switch lines up with the date pickers.
-- A quota card grows to fit its usage note instead of running past its edge. "Add members" and "Add existing
-  members" are sentence case.
-- A parameter's Edit, Copy reference and Delete are icon buttons with tooltips; the row menu opened under the next
-  row's.
-- The Schedules toolbar's controls share one height, "Upcoming" fits its switch, and an empty list shows the empty
-  state.
-- Help › About opens its modal, titled "About Boomerang Flow"; it opened nothing. The help menu's Tutorial, an
-  unfinished placeholder, is removed.
-- The run page no longer fails to hydrate on a reload while a run is running, which re-rendered it in the browser.
-- A confirmation shows after approving or completing a task from a run, the Actions page or Home, after deleting a
-  workflow and after leaving a workspace; the page that raised it was removed before it could. Completing a manual
-  task no longer reloads the page.
-- The run page no longer offers Start run for a run waiting for a dispatcher to provision its workspace, which
-  started it with nothing provisioned; it says the run is waiting.
-- A workflow version records who made it; the Change Log showed no author for any version.
-- The designer opens the edit modal of a task that declares no results, such as the manual task; it crashed on
-  the edit pencil of 33 of the 89 seeded tasks.
-- A suggested workflow on Home can be created: a workflow template's tasks now read in their slug forms, as a
-  workflow's do, so the create route accepts its body. Every seeded template was refused with
-  `WORKFLOW_INVALID_TASK_REF`.
-- A task node's `timeout` set through the API or YAML survives a save from the editor: the canvas now carries it
-  on the node, as it carries the workspace opt-out.
-
-- A run with a workspace that no dispatcher claims within its timeout now ends `timedout` instead of waiting for
-  ever and holding one of the workspace's concurrent-run slots; its timeout counts from submit until a dispatcher
-  starts it.
-- A workspace artifact storage quota of `0` is unlimited, as the other quotas are; it refused every upload before.
-- A workflow saves with a workspace size up to its own workspace's storage quota (`0` for any size), not only
-  up to the platform default, matching what the workspace may run.
-- A workflow saved with a workspace but no size takes the smaller of the platform default and its own
-  workspace's storage quota when quotas are enforced; it used to take the platform default even when that was
-  over the workspace's quota.
 - An approval or manual task that a run cancel or a task timeout completed while its action was being created
   stays completed; it used to flip back to waiting with its action left open for nobody to answer.
 - A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
   delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
   workspace and left its own scheduler token in place.
-- A task attempt retried after an earlier attempt was cancelled or failed with its TaskRun or Job left in place
-  (deletion policy `Never`, or `OnSuccess` after a failure) no longer ends at once with the earlier attempt's
-  result, and no longer reports the earlier attempt's pod as its own start failure, failure detail or log: each
-  executor watches the object its attempt created or adopted, reads only that object's pod (the stored and live
-  logs included), adopts only an object still running, and on Tekton a cancel reaches every attempt still running.
-- A dispatcher's start or end for an attempt the engine has already requeued is refused with
-  `TASKRUN_CLAIM_SUPERSEDED`, so the retry the engine granted stands. When the engine's start-timeout requeue and
-  the dispatcher's own `StartTimeout` end landed together, the end used to fail the task and waste the retry.
 - Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
   `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
   Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
   the unused `/api/v2/extensions/slack/install` permit entry is gone.
-- The retention purge keeps a parent run while a run its run-workflow task started still exists, as it already
-  did for a retried run; a parent purged first left every child's "started by" link pointing at a deleted task run.
-- A dispatcher whose registration the engine no longer holds (a database reset under a running dispatcher) is
-  answered `404 DISPATCHER_NOT_REGISTERED` on its polls and heartbeats instead of a 500, and the dispatcher SDK
-  registers again and carries on under the new id instead of failing every poll until restarted. A registration
-  without a host is `400 DISPATCHER_INVALID_REQ`.
-- A for-each item that ends with a declared result of no value leaves an empty slot in the parent's combined array;
-  the parent used to throw on that item's end and on every recovery sweep, stranding the run as running.
-- The stalled-run recovery re-advances a run only after two consecutive sweeps find no task in flight; a run caught
-  in the instant between a task's end and the next admission was re-advanced on one sighting, with a "Task Status
-  invalid" error for every completed task.
-- Workspace owners and editors can issue workflow tokens from a workflow's Configure › Tokens tab; it answered
-  `TOKEN_ADMIN_REQUIRED` to every non-admin because the permission catalog was asked with the workflow, not the
-  workspace, as principal.
-- A dispatcher SDK stop that lands as a claim is being taken drains that claim to its end, or refuses it before it
-  enters flight; it used to drop a claim already in flight as "not taken", holding a claim it never reported on
-  until its lease lapsed.
-- A task run admitted since 5.0.0-beta.26 stored its label keys with their dots unescaped, so it matched no label
-  query (the task-run query, a dispatcher's workflow-label filter, Insights by label) from admission until its end;
-  a for-each's items were missing from the task-run query while they ran. Admission now stores the keys as an
-  entity write does. Task runs admitted on beta.26 to beta.28 and still in flight match once they end.
-- A dispatcher SDK poller no longer ends when its pool's free-slot supplier throws: the throw is logged, read as not
-  due, and the poller asks again after its spacing. Before, every pool whose supplier failed during a store outage
-  stopped claiming until the process restarted, while the dispatcher went on reporting itself running.
-- A dispatcher SDK task terminated while the engine was answering its start no longer runs: the runner registers the
-  task's context before the start call, so a terminate order arriving in that window is seen and the handler is
-  never called. Before, the task ran to completion and its end was refused.
-- A task's log is no longer lost when its periodic upload and its final upload overlap. The dispatcher SDK no longer
-  interrupts a periodic upload in flight when the handler returns; it finishes first and the final log is the last
-  one stored. The engine's log store replaces the record an overlapping upload stored instead of answering 500 on
-  the run-and-name unique index.
-- The header's help menu lists Docs, Release Notes, Tutorial and About once each, each with an icon; it showed a
-  stray line, a second Docs, and Tutorial and Docs without icons. The profile menu names the user once.
-- About shows Flow's version, licence and source link; it opened empty.
