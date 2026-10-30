@@ -49,6 +49,15 @@ public final class Flow {
     return new Insights(api, workspace);
   }
 
+  /**
+   * The Insights across workspaces, for a global grant: the same summary and task breakdown over
+   * the workspaces an {@link InsightsQuery} names, or every one, and a page of task runs with
+   * their workspace.
+   */
+  public Insights insights() {
+    return new Insights(api, null);
+  }
+
   /** Workspaces: create, ensure by external reference, read, query, delete. */
   public Workspaces workspaces() {
     return new Workspaces(api);

@@ -22,7 +22,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:38`, `workflow/WorkspaceWorkflowRunControllerV2.java:32`, `workflow/WorkspaceTaskRunControllerV2.java:25`, `workflow/WorkspaceTaskControllerV2.java:33`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
-| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,insights,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:36`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:52` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:39` |
@@ -185,7 +185,7 @@ entities are separate classes and MUST NOT be returned from a controller. The di
 | No execution state is serialised. Entity-only on a workflow run: `claim`, `timeoutAt`, `pauseRequestedAt`, `waitingSince`, `retryCount`, `statusOverride`; on a task run: `claim`, `timeoutAt`, `retry`, `waitUntil`, `foreach`, `dependencies`, `preApprovedStatus`, `decisionValue` | `common/entity/WorkflowRunEntity.java:40,50,54,58,69,76`; `common/entity/TaskRunEntity.java:51-53,71,76,80,84,88`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:56-91` |
 | Lineage is public: `trigger`, `initiatedByRef` (what started the run: the schedule, the origin run, the submitting task run, or the user or token that submitted it, stamped by the server), the derived `initiatedByWorkflowRunRef` and `initiatedByName` (a user's display name or a token's name, one lookup per page), and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run | `common/model/WorkflowRun.java:67-77`; `workflow/WorkflowService.java:582`; `workflow/WorkflowRunService.java:1325`; `common/model/TaskRun.java:57-59` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `common/model/WorkflowRunRetryRequest.java:11-24`; `workflow/WorkspaceWorkflowRunControllerV2.java:344-369` |
-| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:611,656`; `workflow/WorkflowRunService.java:172-180`; `workflow/WorkflowService.java:1136-1149,1200-1215`; `workflow/WorkflowRunInsightService.java:263-270`; `event/EventSinkService.java:72-78` |
+| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:611,656`; `workflow/WorkflowRunService.java:172-180`; `workflow/WorkflowService.java:1136-1149,1200-1215`; `workflow/WorkflowRunInsightService.java:340-347`; `event/EventSinkService.java:72-78` |
 | A task a dispatcher has claimed shows `attempt`: 1, plus one per requeue for any cause, so a requeued task waiting out its backoff already shows the next one. An approval, a wait or a reused task has none. `attempts` lists the superseded attempts, oldest first, each with `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage` and `dispatcherRef`; the task run's own fields are the current attempt | `common/model/TaskRun.java:60-67`, `:75-80`; `common/model/RunAttempt.java:20-27` |
 | A workflow run carries `statusReason` beside `statusMessage`, as a task run does: `ConcurrencyLimit` on a run skipped over its workflow's limit, `WorkflowInvalid`, `DeadlineExceeded`, `FinallyFailed` on a succeeded run whose finally task failed; absent when the run ended for no cause of its own | `common/model/WorkflowRun.java:59`; `common/model/StatusReason.java:31-33` |
 | Pause is the derived boolean `paused`, never the timestamp | `common/model/WorkflowRun.java:52-54` |
@@ -217,11 +217,14 @@ a for-each parent's row carries `foreach: true` and never the setting's items (`
 
 ## Insights
 
-Three reads under `/api/v2/workspace/{workspace}/insights` (`workflow/WorkspaceInsightsControllerV2.java:45,83,114`)
-are computed from the runs and task runs the workspace still holds, so a deleted workflow's runs are not counted; the
-monthly quotas read the audit trail instead (`workflow/WorkflowRunInsightService.java:60-64`). The period is
-`[fromDate, toDate)` in epoch milliseconds, default the last 90 days (`workflow/WorkspaceInsightsControllerV2.java:34`);
-`labels` is the list filter above. Durations and waits are milliseconds; a percentile over no values is `0` (`workflow/WorkflowRunInsightService.java:635-644`).
+Three reads under `/api/v2/workspace/{workspace}/insights` (`workflow/WorkspaceInsightsControllerV2.java:45,83,114`) are computed from the runs and task runs the workspace still holds, so a deleted
+workflow's runs are not counted; the monthly quotas read the audit trail instead (`workflow/WorkflowRunInsightService.java:70-73`). The period is `[fromDate, toDate)` in epoch milliseconds, default
+the last 90 days (`workflow/WorkspaceInsightsControllerV2.java:34`); `labels` is the list filter above. Durations and waits are milliseconds; a percentile over no values is `0`
+(`workflow/WorkflowRunInsightService.java:830-839`). The same summary and task breakdown read across workspaces at `GET /api/v2/insights` and `GET /api/v2/insights/tasks` with `workspaces` (names;
+absent means every workspace, one that does not exist contributes nothing), and `GET /api/v2/insights/taskruns?workspaces&fromDate&toDate&labels&statuses&phases&tasks&foreach&limit&page` lists task
+runs newest first, each row with its `workspace`, identity and lifecycle, never params, results or spec; `labels` is required, as the workspace's task-run query requires a label or a run
+(`workflow/InsightsControllerV2.java:54,87,140`, `workflow/WorkflowRunInsightService.java:137,250,357-467`). The three admit `global`, `user` and `session` tokens and then insist the matching grant be `global`, as the audit
+routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/InsightsControllerV2.java:80`, `core/security/IdentityService.java:60-71`).
 
 | Read | Returns |
 | --- | --- |
@@ -231,7 +234,7 @@ monthly quotas read the audit trail instead (`workflow/WorkflowRunInsightService
 
 `usage` (`common/model/WorkflowRunInsightUsage.java`) sums what the counted runs' `ai` task runs reported:
 `aiTaskRuns`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens` and `cost`,
-and the same per `model` result in `byModel`, most tokens first (`workflow/WorkflowRunInsightService.java:443-511`). An
+and the same per `model` result in `byModel`, most tokens first (`workflow/WorkflowRunInsightService.java:645-706`). An
 empty or non-numeric result adds nothing, so `cost` is `null` when no task reported one (`:513-526`). A for-each parent,
 which holds its items' results as arrays, is left out and its items counted under its name. Every read projects only the fields it needs, and the task view streams one small document per task run (`:369-410`).
 
@@ -294,9 +297,8 @@ sends one event, as does a run timeout (`engine/TaskExecutionService.java:197-19
 | `time` | when the transition occurred, not when it was sent (`:47,72`) |
 | `initiatorcontext` (extension) | the run's `initiatorContext` label, when set; task events only (`event/model/TaskRunStatusEvent.java:37-40`) |
 
-`flow.events.sink.payload` chooses `data`'s shape (`event/config/EventSinkProperties.java:22`); the envelope is the
-same either way, and one projection step builds both (`event/model/RunStatusSummary.java:23-71`), pinned by
-`service-core/src/test/java/io/boomerang/event/StatusEventPayloadTest.java`.
+`flow.events.sink.payload` chooses `data`'s shape (`event/config/EventSinkProperties.java:22`); the envelope is the same either way, and one projection step builds both
+(`event/model/RunStatusSummary.java:23-71`), pinned by `service-core/src/test/java/io/boomerang/event/StatusEventPayloadTest.java`.
 
 | `payload` | `data` | Use |
 | --- | --- | --- |
@@ -322,14 +324,12 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1742-1744`) and replaces labels and annotations. Runs already made from that version then show the new definition |
 | `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`:691-708,1935-1947`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:137-160`). The monthly run quota still counts the old runs; Insights does not |
 
-Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the
-call when nothing changed, for example by storing a hash of the definition in its own annotation. A top-level field
-the workflow model does not carry is ignored, so the response shows exactly what was stored (`common/model/Workflow.java:22`).
+Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the call when nothing changed, for example by storing a hash of the definition in its
+own annotation. A top-level field the workflow model does not carry is ignored, so the response shows exactly what was stored (`common/model/Workflow.java:22`).
 
-Triggers follow the labels' rule: a trigger the update leaves out, or a missing `triggers` block, keeps its stored
-value (`workflow/WorkflowService.java:513-518,849-861`). Turning `schedule` off moves the workflow's active schedules
-to `trigger_disabled`, and turning it on moves them back (`:854-869`). Every read fills a missing trigger with its
-default, manual on and the rest off, so responses carry all five (`workflow/ConvertUtil.java:31,39-48`).
+Triggers follow the labels' rule: a trigger the update leaves out, or a missing `triggers` block, keeps its stored value (`workflow/WorkflowService.java:513-518,849-861`). Turning `schedule` off moves
+the workflow's active schedules to `trigger_disabled`, and turning it on moves them back (`:854-869`). Every read fills a missing trigger with its default, manual on and the rest off, so responses
+carry all five (`workflow/ConvertUtil.java:31,39-48`).
 
 ## Partial updates
 

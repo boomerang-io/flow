@@ -22,6 +22,7 @@ import io.boomerang.flow.sdk.model.WorkflowRun;
 import io.boomerang.flow.sdk.model.WorkflowRunCount;
 import io.boomerang.flow.sdk.model.WorkflowRunPurge;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightSummary;
+import io.boomerang.flow.sdk.model.WorkflowRunInsightTaskRunPage;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightTasks;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightUsage;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightWorkflowDetail;
@@ -95,6 +96,8 @@ class ApiContractTest {
     MODELLED.put("Workspace", type(Workspace.class));
     MODELLED.put("WorkspaceRequest", type(WorkspaceRequest.class));
     MODELLED.put("WorkflowRunInsightSummary", type(WorkflowRunInsightSummary.class));
+    MODELLED.put("WorkflowRunInsightTaskRunPage", type(WorkflowRunInsightTaskRunPage.class));
+    MODELLED.put("TaskRunRow", type(WorkflowRunInsightTaskRunPage.TaskRunRow.class));
     MODELLED.put("Totals", type(WorkflowRunInsightSummary.Totals.class));
     MODELLED.put("Day", type(WorkflowRunInsightSummary.Day.class));
     MODELLED.put("WorkflowRow", type(WorkflowRunInsightSummary.WorkflowRow.class));
@@ -184,7 +187,11 @@ class ApiContractTest {
             .groupBy("task")
             .bucket(Bucket.day)
             .spanByLabel("k")
-            .slowest(1);
+            .slowest(1)
+            .workspaces("ws")
+            .phases(RunPhase.completed)
+            .foreach(false)
+            .page(1, 0);
     QUERY_ROUTES.put(
         "/api/v2/workspace/query",
         WorkspaceQuery.all()
@@ -199,6 +206,14 @@ class ApiContractTest {
     QUERY_ROUTES.put(WORKSPACE + "/insights", insights.summaryParams());
     QUERY_ROUTES.put(WORKSPACE + "/insights/tasks", insights.tasksParams());
     QUERY_ROUTES.put(WORKSPACE + "/insights/workflow/{workflow}", insights.workflowParams());
+    QUERY_ROUTES.put(
+        "/api/v2/insights", insights.summaryParams().addAll("workspaces", insights.workspaceNames()));
+    QUERY_ROUTES.put(
+        "/api/v2/insights/tasks",
+        insights.tasksParams().addAll("workspaces", insights.workspaceNames()));
+    QUERY_ROUTES.put(
+        "/api/v2/insights/taskruns",
+        insights.taskRunsParams().addAll("workspaces", insights.workspaceNames()));
   }
 
   private static JsonNode contract;
@@ -406,8 +421,11 @@ class ApiContractTest {
     flow.insights("ws").summary(InsightsQuery.all());
     flow.insights("ws").tasks(InsightsQuery.all());
     flow.insights("ws").workflow("wf", InsightsQuery.all());
+    flow.insights().summary(InsightsQuery.all());
+    flow.insights().tasks(InsightsQuery.all());
+    flow.insights().taskRuns(InsightsQuery.all().labels("a=b"));
 
-    assertThat(calls).hasSize(19);
+    assertThat(calls).hasSize(22);
     List<String> routes = routes();
     calls.forEach(
         call ->

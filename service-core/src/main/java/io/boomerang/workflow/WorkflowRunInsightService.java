@@ -13,6 +13,16 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.WorkflowRunInsightTaskRunPage;
+import io.boomerang.common.util.PagingUtil;
+import io.boomerang.core.entity.RelationshipNodeEntity;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.workspace.entity.WorkspaceEntity;
+import io.boomerang.workspace.repository.WorkspaceRepository;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import io.boomerang.common.model.WorkflowRunInsightSummary;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Day;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Totals;
@@ -88,16 +98,19 @@ public class WorkflowRunInsightService {
   private final WorkflowRepository workflowRepository;
   private final MongoTemplate mongoTemplate;
   private final TaskService taskService;
+  private final WorkspaceRepository workspaceRepository;
 
   public WorkflowRunInsightService(
       RelationshipService relationshipService,
       WorkflowRepository workflowRepository,
       MongoTemplate mongoTemplate,
-      TaskService taskService) {
+      TaskService taskService,
+      WorkspaceRepository workspaceRepository) {
     this.relationshipService = relationshipService;
     this.workflowRepository = workflowRepository;
     this.mongoTemplate = mongoTemplate;
     this.taskService = taskService;
+    this.workspaceRepository = workspaceRepository;
   }
 
   /**
@@ -113,7 +126,38 @@ public class WorkflowRunInsightService {
       Optional<List<String>> labels,
       Optional<List<String>> statuses,
       Optional<List<String>> triggers) {
-    List<String> workflowRefs = workflowRefs(workspace, workflows);
+    return summaryFor(workflowRefs(workspace, workflows), from, to, labels, statuses, triggers);
+  }
+
+  /**
+   * The summary over the union of the named workspaces' runs, or every workspace's when none is
+   * named, for a platform-wide grant: the route checks the grant, this reads by the workspaces'
+   * own edges. A workspace that does not exist contributes nothing.
+   */
+  public WorkflowRunInsightSummary summaryAcross(
+      Optional<List<String>> workspaces,
+      Date from,
+      Date to,
+      Optional<List<String>> workflows,
+      Optional<List<String>> labels,
+      Optional<List<String>> statuses,
+      Optional<List<String>> triggers) {
+    return summaryFor(
+        new ArrayList<>(workflowRefsAcross(workspaces, workflows).keySet()),
+        from,
+        to,
+        labels,
+        statuses,
+        triggers);
+  }
+
+  private WorkflowRunInsightSummary summaryFor(
+      List<String> workflowRefs,
+      Date from,
+      Date to,
+      Optional<List<String>> labels,
+      Optional<List<String>> statuses,
+      Optional<List<String>> triggers) {
     Date previousFrom = new Date(from.getTime() - Math.max(to.getTime() - from.getTime(), 0));
     List<WorkflowRunEntity> current = new ArrayList<>();
     List<WorkflowRunEntity> previous = new ArrayList<>();
@@ -197,6 +241,40 @@ public class WorkflowRunInsightService {
       Optional<String> bucket,
       Optional<String> spanBy,
       int slowest) {
+    return tasksFor(
+        workflowRefs(workspace, workflows),
+        from, to, labels, tasks, types, groupBy, bucket, spanBy, slowest);
+  }
+
+  /** The task breakdown over the union of the named workspaces' runs, as {@link #summaryAcross}. */
+  public WorkflowRunInsightTasks tasksAcross(
+      Optional<List<String>> workspaces,
+      Date from,
+      Date to,
+      Optional<List<String>> workflows,
+      Optional<List<String>> labels,
+      Optional<List<String>> tasks,
+      Optional<List<String>> types,
+      Optional<String> groupBy,
+      Optional<String> bucket,
+      Optional<String> spanBy,
+      int slowest) {
+    return tasksFor(
+        new ArrayList<>(workflowRefsAcross(workspaces, workflows).keySet()),
+        from, to, labels, tasks, types, groupBy, bucket, spanBy, slowest);
+  }
+
+  private WorkflowRunInsightTasks tasksFor(
+      List<String> workflowRefs,
+      Date from,
+      Date to,
+      Optional<List<String>> labels,
+      Optional<List<String>> tasks,
+      Optional<List<String>> types,
+      Optional<String> groupBy,
+      Optional<String> bucket,
+      Optional<String> spanBy,
+      int slowest) {
     Grouping grouping = groupBy.map(Grouping::of).orElse(Grouping.NONE);
     ChronoUnit unit = bucket.map(WorkflowRunInsightService::bucketUnit).orElse(null);
     String spanLabel = spanBy.map(value -> labelKey("spanBy", value)).orElse(null);
@@ -209,8 +287,7 @@ public class WorkflowRunInsightService {
     insight.setGroupBy(groupBy.orElse(null));
     insight.setBucket(bucket.orElse(null));
     insight.setSpanBy(spanBy.orElse(null));
-    Map<String, WorkflowRunEntity> runs =
-        runsById(workflowRefs(workspace, workflows), from, to, labels);
+    Map<String, WorkflowRunEntity> runs = runsById(workflowRefs, from, to, labels);
     Map<String, String> workflowNames =
         "workflow".equals(grouping.kind())
             ? workflowNames(
@@ -270,6 +347,124 @@ public class WorkflowRunInsightService {
   }
 
   // ── Reads ────────────────────────────────────────────────────────────────
+
+  /**
+   * The workflows of the named workspaces, or of every workspace when none is named, as a map of
+   * workflow id to workspace name, read by each workspace's own edges rather than the caller's
+   * walk: the platform-wide route has checked the grant. {@code workflows} narrows by name or id;
+   * a workspace that does not exist has no edges and contributes nothing.
+   */
+  private Map<String, String> workflowRefsAcross(
+      Optional<List<String>> workspaces, Optional<List<String>> workflows) {
+    List<String> names =
+        workspaces
+            .filter(list -> !list.isEmpty())
+            .orElseGet(
+                () -> workspaceRepository.findAll().stream().map(WorkspaceEntity::getName).toList());
+    Map<String, String> refs = new LinkedHashMap<>();
+    for (String workspace : names) {
+      for (RelationshipNodeEntity node :
+          relationshipService.childrenByLabel(
+              RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW)) {
+        if (workflows.isEmpty()
+            || workflows.get().isEmpty()
+            || workflows.get().contains(node.getSlug())
+            || workflows.get().contains(node.getRef())) {
+          refs.put(node.getRef(), workspace);
+        }
+      }
+    }
+    return refs;
+  }
+
+  /**
+   * One page of task runs across the named workspaces, newest first, each row with its workspace:
+   * the identity and lifecycle of a task run, never its params, results or spec. Task runs are
+   * indexed by label, so {@code labels} is required, as the workspace's task-run query requires a
+   * label or a run.
+   */
+  public WorkflowRunInsightTaskRunPage taskRuns(
+      Optional<List<String>> workspaces,
+      Optional<Long> fromDate,
+      Optional<Long> toDate,
+      Optional<List<String>> labels,
+      Optional<List<String>> statuses,
+      Optional<List<String>> phases,
+      Optional<List<String>> tasks,
+      Optional<Boolean> foreach,
+      Optional<Integer> limit,
+      Optional<Integer> page) {
+    if (labels.filter(list -> !list.isEmpty()).isEmpty()) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels");
+    }
+    Map<String, String> workspaceByRef = workflowRefsAcross(workspaces, Optional.empty());
+    WorkflowRunInsightTaskRunPage result = new WorkflowRunInsightTaskRunPage();
+    result.setNumber(page.orElse(0));
+    result.setSize(limit.orElse(0));
+    if (workspaceByRef.isEmpty()) {
+      return result;
+    }
+    QueryCriteria criteria =
+        new QueryCriteria()
+            .between("creationDate", fromDate.map(Date::new), toDate.map(Date::new))
+            .labels(labels)
+            .in("status", RunStatus.class, statuses, "status")
+            .in("phase", RunPhase.class, phases, "phase")
+            .in("workflowRef", new ArrayList<>(workspaceByRef.keySet()));
+    tasks.ifPresent(
+        names ->
+            criteria.add(
+                Criteria.where("name")
+                    .regex(
+                        "^(?:"
+                            + names.stream().map(Pattern::quote).collect(Collectors.joining("|"))
+                            + ")(?:\\[[0-9]+\\])?$")));
+    foreach.ifPresent(parents -> criteria.add(Criteria.where("foreach").exists(parents)));
+    Query query = new Query(criteria.build());
+    query
+        .fields()
+        .include("type", "name", "labels", "creationDate", "startTime", "duration", "status")
+        .include("phase", "statusReason", "taskRef", "workflowRef", "workflowRunRef", "index")
+        .include("claim", "retry", "foreach");
+    // Task runs of one run share a creation time, so the id breaks the tie and pages stay stable.
+    Sort sort = Sort.by(Sort.Order.desc("creationDate"), Sort.Order.desc("_id"));
+    Pageable pageable = PagingUtil.apply(query, limit, page, sort);
+    List<TaskRunEntity> found = mongoTemplate.find(query, TaskRunEntity.class);
+    Page<TaskRunEntity> paged =
+        PagingUtil.page(found, pageable, mongoTemplate, query, TaskRunEntity.class);
+    Map<String, String> workflowNames =
+        workflowNames(found.stream().map(TaskRunEntity::getWorkflowRef).distinct().toList());
+    Map<String, String> slugs =
+        taskService.slugsByRef(
+            found.stream().map(TaskRunEntity::getTaskRef).filter(Objects::nonNull).distinct().toList());
+    for (TaskRunEntity entity : found) {
+      WorkflowRunInsightTaskRunPage.TaskRunRow row = new WorkflowRunInsightTaskRunPage.TaskRunRow();
+      row.setId(entity.getId());
+      row.setWorkspace(workspaceByRef.get(entity.getWorkflowRef()));
+      row.setName(entity.getName());
+      row.setType(entity.getType());
+      row.setTaskRef(slugs.getOrDefault(entity.getTaskRef(), entity.getTaskRef()));
+      row.setStatus(entity.getStatus());
+      row.setPhase(entity.getPhase());
+      row.setStatusReason(entity.getStatusReason());
+      row.setCreationDate(entity.getCreationDate());
+      row.setStartTime(entity.getStartTime());
+      row.setDuration(entity.getDuration());
+      row.setAttempt(new io.boomerang.common.model.TaskRun(entity).getAttempt());
+      row.setForeach(entity.getForeach() != null ? Boolean.TRUE : null);
+      row.setIndex(entity.getIndex());
+      row.setWorkflowRef(entity.getWorkflowRef());
+      row.setWorkflowName(workflowNames.get(entity.getWorkflowRef()));
+      row.setWorkflowRunRef(entity.getWorkflowRunRef());
+      row.setLabels(entity.getLabels());
+      result.getContent().add(row);
+    }
+    result.setTotalElements(paged.getTotalElements());
+    result.setTotalPages(paged.getTotalPages());
+    result.setSize(paged.getSize());
+    result.setNumber(paged.getNumber());
+    return result;
+  }
 
   private List<String> workflowRefs(String workspace, Optional<List<String>> workflows) {
     List<String> refs =

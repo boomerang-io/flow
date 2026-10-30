@@ -1,6 +1,11 @@
 package io.boomerang.core.security;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.model.Token;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +48,26 @@ public class IdentityService {
 
   public AuthScope getCurrentScope() {
     return this.getCurrentIdentity().getType();
+  }
+
+  /**
+   * Insist the identity holds a platform-wide grant for the resource and action: a permission of
+   * {@code global} scope whose action matches, the resource or action wildcarded or not. A route
+   * that reads across workspaces, such as the audit and the platform-wide Insights routes, calls
+   * this after {@code @AuthCriteria} admitted the token class, since that check matches the
+   * permission string without regard to its scope.
+   */
+  public void requireGlobalGrant(PermissionResource resource, PermissionAction action) {
+    Token identity = getCurrentIdentity();
+    String required =
+        "(\\*{2}|" + resource.getLabel() + ")\\/(\\*{2}|" + action.getLabel() + ")";
+    if (identity == null
+        || identity.getPermissions().stream()
+            .filter(permission -> PermissionScope.global.equals(permission.getScope()))
+            .flatMap(permission -> permission.getActions().stream())
+            .noneMatch(candidate -> candidate.matches(required))) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
   }
 
   public Token getCurrentIdentity() {

@@ -1,5 +1,6 @@
 package io.boomerang.flow.sdk;
 
+import io.boomerang.flow.sdk.model.RunPhase;
 import io.boomerang.flow.sdk.model.RunStatus;
 import io.boomerang.flow.sdk.model.TaskType;
 import java.time.Instant;
@@ -24,6 +25,11 @@ public final class InsightsQuery {
   private final List<String> triggers = new ArrayList<>();
   private final List<String> tasks = new ArrayList<>();
   private final List<TaskType> types = new ArrayList<>();
+  private final List<String> workspaces = new ArrayList<>();
+  private final List<RunPhase> phases = new ArrayList<>();
+  private Boolean foreach;
+  private Integer limit;
+  private Integer page;
   private Instant from;
   private Instant to;
   private String groupBy;
@@ -49,6 +55,31 @@ public final class InsightsQuery {
 
   public InsightsQuery to(Instant to) {
     this.to = to;
+    return this;
+  }
+
+  /** The platform-wide reads only: the workspaces to aggregate over, by name; none means every one. */
+  public InsightsQuery workspaces(String... names) {
+    this.workspaces.addAll(Arrays.asList(names));
+    return this;
+  }
+
+  /** The task-run listing only: phases to keep, such as {@code completed} for the true end of a run. */
+  public InsightsQuery phases(RunPhase... phases) {
+    this.phases.addAll(Arrays.asList(phases));
+    return this;
+  }
+
+  /** The task-run listing only: true keeps for-each parents only, false leaves them out. */
+  public InsightsQuery foreach(boolean parents) {
+    this.foreach = parents;
+    return this;
+  }
+
+  /** The task-run listing only: the page size and the page, from 0. */
+  public InsightsQuery page(int limit, int page) {
+    this.limit = limit;
+    this.page = page;
     return this;
   }
 
@@ -135,6 +166,20 @@ public final class InsightsQuery {
         .add("bucket", bucket)
         .add("spanBy", spanBy)
         .add("slowest", slowest);
+  }
+
+  List<String> workspaceNames() {
+    return workspaces;
+  }
+
+  Params taskRunsParams() {
+    return workflowParams()
+        .addAll("statuses", statuses)
+        .addAll("phases", phases)
+        .addAll("tasks", tasks)
+        .add("foreach", foreach)
+        .add("limit", limit)
+        .add("page", page);
   }
 
   Params workflowParams() {
