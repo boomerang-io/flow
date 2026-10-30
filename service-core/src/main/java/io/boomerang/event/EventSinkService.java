@@ -51,7 +51,7 @@ public class EventSinkService {
   public void deliverStatusCloudEvent(TaskRunEntity taskRunEntity, EventOutboxEntity row)
       throws Exception {
     if (properties.enabled()) {
-      httpSinkStrict(statusEvent(taskRunEntity, row).toCloudEvent());
+      httpSinkStrict(statusEvent(taskRunEntity, row).toCloudEvent(), row, taskRunEntity.getLabels());
     }
   }
 
@@ -62,7 +62,8 @@ public class EventSinkService {
   public void deliverStatusCloudEvent(WorkflowRunEntity workflowRunEntity, EventOutboxEntity row)
       throws Exception {
     if (properties.enabled()) {
-      httpSinkStrict(statusEvent(workflowRunEntity, row).toCloudEvent());
+      httpSinkStrict(
+          statusEvent(workflowRunEntity, row).toCloudEvent(), row, workflowRunEntity.getLabels());
     }
   }
 
@@ -97,11 +98,16 @@ public class EventSinkService {
     return labels != null && labels.get(key) != null ? labels.get(key) : "";
   }
 
-  // Delivery to every configured sink - transport failures propagate so the outbox dispatcher can
-  // retry the row.
-  private void httpSinkStrict(CloudEvent cloudEvent) {
+  // Delivery to every configured sink whose filter admits the row - transport failures propagate so
+  // the outbox dispatcher can retry the row; a row no sink admits posts nothing and counts as sent.
+  private void httpSinkStrict(
+      CloudEvent cloudEvent, EventOutboxEntity row, Map<String, String> labels) {
     final byte[] body = CEFormat.serialize(cloudEvent);
     for (Destination sink : properties.sinks()) {
+      if (!sink.admits(
+          row.getRefType(), row.getTo().status(), row.getTo().phase(), labels)) {
+        continue;
+      }
       restTemplate.exchange(
           sink.url(), HttpMethod.POST, new HttpEntity<>(body, headers(sink)), String.class);
     }

@@ -1,5 +1,7 @@
 package io.boomerang.engine;
 
+import io.boomerang.event.enums.EventPayload;
+import io.boomerang.event.config.EventSinkProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,7 +55,10 @@ class TaskOutcomeCompletionTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.skipped, transitions.get(0).toStatus());
     assertEquals(RunPhase.completed, transitions.get(0).toPhase());
 
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     transitions.forEach(bridge::onTaskRunTransition);
     List<EventOutboxEntity> rows =
         eventOutboxRepository.findAll().stream().filter(r -> task.getId().equals(r.getRef())).toList();

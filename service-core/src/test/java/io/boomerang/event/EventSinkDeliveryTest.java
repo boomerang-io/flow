@@ -102,7 +102,7 @@ class EventSinkDeliveryTest {
 
     server.reset();
     new EventSinkService(
-            new EventSinkProperties(false, EventPayload.thin, List.of(BARE_URL), List.of()),
+            new EventSinkProperties(false, EventPayload.thin, List.of(BARE_URL), List.of(), List.of(), List.of(), List.of()),
             restTemplate,
             mock(TaskService.class))
         .deliverStatusCloudEvent(workflowRun(), outboxRow());
@@ -122,7 +122,7 @@ class EventSinkDeliveryTest {
   private static EventSinkService sinkService(
       RestTemplate restTemplate, List<String> urls, List<Destination> destinations) {
     return new EventSinkService(
-        new EventSinkProperties(true, EventPayload.thin, urls, destinations),
+        new EventSinkProperties(true, EventPayload.thin, urls, destinations, List.of(), List.of(), List.of()),
         restTemplate,
         mock(TaskService.class));
   }
@@ -140,6 +140,8 @@ class EventSinkDeliveryTest {
   private static EventOutboxEntity outboxRow() {
     EventOutboxEntity row = new EventOutboxEntity();
     row.setId("row-1");
+    row.setRefType(EventOutboxEntity.REF_TYPE_WORKFLOWRUN);
+    row.setTo(new EventOutboxEntity.RunState(RunStatus.succeeded, RunPhase.completed));
     row.setOccurredAt(new Date(5000));
     return row;
   }

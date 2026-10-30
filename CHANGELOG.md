@@ -160,6 +160,10 @@ tag's release notes.
 
 ### Added
 
+- CloudEvents sink filters. `flow.events.sink.types`, `statuses` (any run status, or `terminal`) and `phases` narrow
+  what is sent, and each destination takes the same keys plus `labels` (`key=value`). A transition no sink wants is
+  never stored, so a filtered event is not counted as dead; labels filter at delivery. `phases=completed` is the true
+  end of a run with finally tasks. With no filter keys nothing changes.
 - Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
   succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
   `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
