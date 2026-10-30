@@ -159,7 +159,6 @@ unannotated handler and both placements of `@AuthExempt`.
 | `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, workflow templates, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
 | `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |
-| `session` | 1 | `POST /internal/v1/auth/logout` |
 
 A `key` token therefore reaches no system, audit, catalogue or template route, and only a `global` token reaches
 the outbox: a signed-in admin's `session` token is refused there.
@@ -172,6 +171,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
+| `POST /internal/v1/auth/logout` | Yes | Ends the caller's own session, the one its cookie authenticated; takes no input and touches no other token, so a user outside every workspace role can sign out (`core/InternalAuthControllerV1.java:95`) |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:340-346`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:84,1001-1013`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret, and links the installation to a workspace only under a valid signed state naming a member of it (`:521-576`) |
 | `GET /api/v2/integration/slack/install` | Yes | A redirect to Slack's authorize URL for the configured app, linked to no workspace, that takes no input and checks nothing of its own (`integrations/IntegrationControllerV2.java:66-71`, `integrations/SlackService.java:983-994`) |

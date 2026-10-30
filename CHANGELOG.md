@@ -472,6 +472,8 @@ tag's release notes.
 
 ### Fixed
 
+- Sign out works for every user: the route required `token/delete`, which only owners and admins hold, so a reader,
+  an editor or a user in no workspace was signed straight back in.
 - A user who belongs to no workspace can sign in: every signed-in user holds a baseline grant for their own profile, the
   flags, navigation, the templates and the workspace list, so the webapp opens on Home instead of an error page. A
   new `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is

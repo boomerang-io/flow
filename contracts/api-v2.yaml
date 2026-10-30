@@ -1383,6 +1383,7 @@ components:
           enum:
           - "global"
           - "workspace"
+          - "user"
           type: "string"
       type: "object"
     ResultSpec:
@@ -1435,6 +1436,7 @@ components:
           enum:
           - "global"
           - "workspace"
+          - "user"
           type: "string"
       type: "object"
     Routing:
@@ -4652,6 +4654,7 @@ paths:
           enum:
           - "global"
           - "workspace"
+          - "user"
           type: "string"
       - description: "Workspace ref. Required when scope=workspace."
         in: "query"
