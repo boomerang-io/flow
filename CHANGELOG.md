@@ -160,6 +160,10 @@ tag's release notes.
 
 ### Added
 
+- Insights across workspaces for a global grant: `GET /api/v2/insights` and `GET /api/v2/insights/tasks` compute the
+  workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
+  `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
+  grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
 - Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
   succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
   `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting

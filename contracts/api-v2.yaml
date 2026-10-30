@@ -1963,6 +1963,89 @@ components:
         workspace:
           $ref: "#/components/schemas/WorkflowWorkspace"
       type: "object"
+    TaskRunRow:
+      properties:
+        attempt:
+          format: "int32"
+          type: "integer"
+        creationDate:
+          format: "date-time"
+          type: "string"
+        duration:
+          format: "int64"
+          type: "integer"
+        foreach:
+          type: "boolean"
+        id:
+          type: "string"
+        index:
+          format: "int32"
+          type: "integer"
+        labels:
+          additionalProperties:
+            type: "string"
+          type: "object"
+        name:
+          type: "string"
+        phase:
+          enum:
+          - "queued"
+          - "pending"
+          - "running"
+          - "completed"
+          type: "string"
+        startTime:
+          format: "date-time"
+          type: "string"
+        status:
+          enum:
+          - "notstarted"
+          - "ready"
+          - "running"
+          - "waiting"
+          - "succeeded"
+          - "failed"
+          - "invalid"
+          - "skipped"
+          - "cancelled"
+          - "timedout"
+          type: "string"
+        statusReason:
+          type: "string"
+        taskRef:
+          type: "string"
+        type:
+          enum:
+          - "start"
+          - "end"
+          - "template"
+          - "custom"
+          - "generic"
+          - "decision"
+          - "approval"
+          - "setwfproperty"
+          - "manual"
+          - "eventwait"
+          - "acquirelock"
+          - "releaselock"
+          - "runworkflow"
+          - "runscheduledworkflow"
+          - "script"
+          - "ai"
+          - "setwfstatus"
+          - "sleep"
+          - "uploadartifact"
+          - "downloadartifact"
+          type: "string"
+        workflowName:
+          type: "string"
+        workflowRef:
+          type: "string"
+        workflowRunRef:
+          type: "string"
+        workspace:
+          type: "string"
+      type: "object"
     TaskRunSpec:
       properties:
         arguments:
@@ -2759,6 +2842,25 @@ components:
           items:
             $ref: "#/components/schemas/WorkflowRow"
           type: "array"
+      type: "object"
+    WorkflowRunInsightTaskRunPage:
+      properties:
+        content:
+          items:
+            $ref: "#/components/schemas/TaskRunRow"
+          type: "array"
+        number:
+          format: "int32"
+          type: "integer"
+        size:
+          format: "int32"
+          type: "integer"
+        totalElements:
+          format: "int64"
+          type: "integer"
+        totalPages:
+          format: "int32"
+          type: "integer"
       type: "object"
     WorkflowRunInsightTasks:
       properties:
@@ -3728,6 +3830,295 @@ paths:
       summary: "Retrieve feature flags."
       tags:
       - "System"
+  /api/v2/insights:
+    get:
+      description: "The workspace summary computed over the union of the named workspaces'\
+        \ runs, or every workspace's when none is named, with the same-length previous\
+        \ period for comparison. Needs a global insights grant; the period defaults\
+        \ to the last 90 days."
+      operationId: "summary_2"
+      parameters:
+      - description: "Workspace names to aggregate over; absent means every workspace.\
+          \ One that does not exist contributes nothing."
+        in: "query"
+        name: "workspaces"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "fromDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - in: "query"
+        name: "toDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - in: "query"
+        name: "workflows"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "Run labels to narrow by, as the run query takes them: URL-encoded\
+          \ key=value, comma-separated, all of which must match."
+        in: "query"
+        name: "labels"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "statuses"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "triggers"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightSummary"
+          description: "OK"
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightSummary"
+          description: "Forbidden"
+      summary: "Summarise runs across workspaces over a period"
+      tags:
+      - "Insights"
+  /api/v2/insights/taskruns:
+    get:
+      description: "One page of task runs over the named workspaces, or every workspace,\
+        \ newest first, each with its workspace, its identity and its lifecycle: never\
+        \ params, results or spec. Task runs are indexed by label, so labels is required.\
+        \ Needs a global insights grant."
+      operationId: "taskRuns"
+      parameters:
+      - description: "Workspace names to aggregate over; absent means every workspace.\
+          \ One that does not exist contributes nothing."
+        in: "query"
+        name: "workspaces"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "fromDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - in: "query"
+        name: "toDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - description: "Run labels to narrow by, as the run query takes them: URL-encoded\
+          \ key=value, comma-separated, all of which must match. Required."
+        in: "query"
+        name: "labels"
+        required: true
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "statuses"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "phases"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "Task node names; a name also matches its for-each items."
+        in: "query"
+        name: "tasks"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "true keeps for-each parents only, false leaves them out."
+        in: "query"
+        name: "foreach"
+        required: false
+        schema:
+          type: "boolean"
+      - description: "Result Size"
+        example: 50
+        in: "query"
+        name: "limit"
+        required: false
+        schema:
+          format: "int32"
+          type: "integer"
+      - description: "Page Number"
+        example: 0
+        in: "query"
+        name: "page"
+        required: false
+        schema:
+          format: "int32"
+          type: "integer"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTaskRunPage"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTaskRunPage"
+          description: "Bad Request"
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTaskRunPage"
+          description: "Forbidden"
+      summary: "List task runs across workspaces"
+      tags:
+      - "Insights"
+  /api/v2/insights/tasks:
+    get:
+      description: "The workspace task breakdown computed over the union of the named\
+        \ workspaces' runs, or every workspace's when none is named. Needs a global\
+        \ insights grant; the period defaults to the last 90 days."
+      operationId: "tasks_1"
+      parameters:
+      - description: "Workspace names to aggregate over; absent means every workspace.\
+          \ One that does not exist contributes nothing."
+        in: "query"
+        name: "workspaces"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - in: "query"
+        name: "fromDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - in: "query"
+        name: "toDate"
+        required: false
+        schema:
+          format: "int64"
+          type: "integer"
+      - in: "query"
+        name: "workflows"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "Run labels to narrow by, as the run query takes them: URL-encoded\
+          \ key=value, comma-separated, all of which must match."
+        in: "query"
+        name: "labels"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "Task node names to count."
+        in: "query"
+        name: "tasks"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "Task types to count, such as ai."
+        in: "query"
+        name: "types"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
+      - description: "task, type, workflow or label:<key>; one row when absent."
+        example: "label:boomerang.io/model"
+        in: "query"
+        name: "groupBy"
+        required: false
+        schema:
+          type: "string"
+      - description: "hour, day or month (UTC), by task run start."
+        in: "query"
+        name: "bucket"
+        required: false
+        schema:
+          type: "string"
+      - description: "label:<key>: the wall clock of the runs sharing each value of\
+          \ a run label."
+        in: "query"
+        name: "spanBy"
+        required: false
+        schema:
+          type: "string"
+      - description: "How many of the slowest task runs to list, up to 100."
+        in: "query"
+        name: "slowest"
+        required: false
+        schema:
+          default: 0
+          format: "int32"
+          type: "integer"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTasks"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTasks"
+          description: "Bad Request"
+        "403":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/WorkflowRunInsightTasks"
+          description: "Forbidden"
+      summary: "Group task runs across workspaces over a period"
+      tags:
+      - "Insights"
   /api/v2/integration:
     get:
       operationId: "get_5"
