@@ -15,6 +15,9 @@ patchedDependencies:
   '@boomerang-io/utils@1.1.0':
     hash: f5b69c02eb6c4c7bb14af024239851a1c263adfcfc54359b65f864b10dc177f1
     path: patches/@boomerang-io__utils@1.1.0.patch
+  react-modal@3.16.1:
+    hash: 62a0ed836e72413ef63946a6ca9652c6cca60c8177acccc2ad784c7a82c202fe
+    path: patches/react-modal@3.16.1.patch
   react-virtualized@9.22.5:
     hash: 88eb472efd3baa30f128546f84286bd4950af919742d395cd9f558617fbd94eb
     path: patches/react-virtualized@9.22.5.patch
@@ -8768,7 +8771,7 @@ snapshots:
       match-sorter: 6.3.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      react-modal: 3.16.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-modal: 3.16.1(patch_hash=62a0ed836e72413ef63946a6ca9652c6cca60c8177acccc2ad784c7a82c202fe)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-router-dom: 7.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-toastify: 9.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       sanitize-html: 2.17.7
@@ -14403,7 +14406,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  react-modal@3.16.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-modal@3.16.1(patch_hash=62a0ed836e72413ef63946a6ca9652c6cca60c8177acccc2ad784c7a82c202fe)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       exenv: 1.2.2
       prop-types: 15.8.1

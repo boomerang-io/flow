@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { execSync } from "node:child_process";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import { createWorkspace, uniqueName } from "../support/api";
 import {
   createWorkflowFromSpec,
@@ -26,6 +27,7 @@ import {
 const ENABLED = process.env.E2E_DISPATCHER === "true";
 const KUBE_CONTEXT = process.env.E2E_KUBECTL_CONTEXT;
 const API_ORIGIN = process.env.E2E_API_URL ?? "http://localhost:7700";
+const execAsync = promisify(exec);
 
 
 test.describe("for-each tasks on kubernetes", () => {
@@ -108,17 +110,43 @@ test.describe("for-each tasks on kubernetes", () => {
       .filter((t) => t.name.startsWith(`${parentName}[`))
       .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
-  function jobsForRun(runId: string): { name: string; taskRunRef: string; start?: string; end?: string }[] {
-    const out = execSync(
+  type JobView = { name: string; taskRunRef: string };
+
+  // The run's Jobs as the cluster holds them now. The stack deletes a finished task's Job (the
+  // task setting deletion.policy is Always, so the run's storage claim can be released), so a
+  // Job is only seen while its task runs.
+  async function jobsForRun(runId: string): Promise<JobView[]> {
+    const { stdout } = await execAsync(
       `kubectl --context ${KUBE_CONTEXT} get jobs -A -l boomerang.io/workflowrun-ref=${runId} -o json`,
-      { encoding: "utf8" },
     );
-    return (JSON.parse(out).items ?? []).map((j: any) => ({
+    return (JSON.parse(stdout).items ?? []).map((j: any) => ({
       name: j.metadata.name,
       taskRunRef: j.metadata.labels?.["boomerang.io/taskrun-ref"],
-      start: j.status?.startTime,
-      end: j.status?.completionTime,
     }));
+  }
+
+  // Every Job the run had while it ran, by name: polled until the run is terminal.
+  async function runWatchingJobs(request: APIRequestContext, spec: Omit<WorkflowSpec, "name">) {
+    const wf = await createWorkflowFromSpec(request, workspace, { ...spec, name: uniqueName("fe") });
+    const submitted = await submitAndStart(request, workspace, wf.name);
+    const seen = new Map<string, JobView>();
+    let done = false;
+    const watching = (async () => {
+      while (!done) {
+        try {
+          for (const job of await jobsForRun(submitted.id)) seen.set(job.name, job);
+        } catch {
+          // A failed listing is retried on the next pass.
+        }
+        await new Promise((r) => setTimeout(r, 1_000));
+      }
+    })();
+    try {
+      return { run: await waitForRun(request, workspace, submitted.id, 5 * 60_000), jobs: [...seen.values()] };
+    } finally {
+      done = true;
+      await watching;
+    }
   }
 
   // Two items overlapped in time when each one started before the other ended.
@@ -137,10 +165,11 @@ test.describe("for-each tasks on kubernetes", () => {
   test("stage -> for each -> report runs one item per element and collects the results in order", async ({
     request,
   }) => {
-    const r = await run(request, {
+    const spec = {
       workspace: runStore,
       tasks: [start, stage, fan(), report(), { name: "end", type: "end", dependencies: [{ taskRef: "report" }] }],
-    });
+    };
+    const { run: r, jobs } = KUBE_CONTEXT ? await runWatchingJobs(request, spec) : { run: await run(request, spec), jobs: [] };
     expect(r.status, describe(r)).toBe("succeeded");
 
     const parent = task(r, "fan");
@@ -174,7 +203,6 @@ test.describe("for-each tasks on kubernetes", () => {
     expect(log).toContain("done-c");
 
     if (KUBE_CONTEXT) {
-      const jobs = jobsForRun(r.id);
       const itemIds = new Set(fanItems.map((i) => i.id));
       const itemJobs = jobs.filter((j) => itemIds.has(j.taskRunRef));
       expect(itemJobs.length, JSON.stringify(jobs)).toBe(3);
