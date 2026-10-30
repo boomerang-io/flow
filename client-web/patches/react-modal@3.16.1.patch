@@ -1,0 +1,102 @@
+diff --git a/lib/components/ModalPortal.js b/lib/components/ModalPortal.js
+index 07e27aa..7cff6fd 100644
+--- a/lib/components/ModalPortal.js
++++ b/lib/components/ModalPortal.js
+@@ -91,6 +91,26 @@ var ModalPortal = function (_Component) {
+     };
+ 
+     _this.afterClose = function () {
++      _this.undoBeforeOpen();
++
++      if (_this.props.shouldFocusAfterRender) {
++        if (_this.props.shouldReturnFocusAfterClose) {
++          focusManager.returnFocus(_this.props.preventScroll);
++          focusManager.teardownScopedFocus();
++        } else {
++          focusManager.popWithoutFocus();
++        }
++      }
++
++      if (_this.props.onAfterClose) {
++        _this.props.onAfterClose();
++      }
++
++      _portalOpenInstances2.default.deregister(_this);
++    };
++
++    // Undo what beforeOpen did, exactly once per open.
++    _this.undoBeforeOpen = function () {
+       var _this$props = _this.props,
+           appElement = _this$props.appElement,
+           ariaHideApp = _this$props.ariaHideApp,
+@@ -101,34 +121,23 @@ var ModalPortal = function (_Component) {
+ 
+       var parentDocument = parentSelector && parentSelector().ownerDocument || document;
+ 
+-      // Remove classes.
+-      bodyOpenClassName && classList.remove(parentDocument.body, bodyOpenClassName);
++      if (_this.hidesApp) {
++        _this.hidesApp = false;
+ 
+-      htmlOpenClassName && classList.remove(parentDocument.getElementsByTagName("html")[0], htmlOpenClassName);
++        // Remove classes.
++        bodyOpenClassName && classList.remove(parentDocument.body, bodyOpenClassName);
+ 
+-      // Reset aria-hidden attribute if all modals have been removed
+-      if (ariaHideApp && ariaHiddenInstances > 0) {
+-        ariaHiddenInstances -= 1;
++        htmlOpenClassName && classList.remove(parentDocument.getElementsByTagName("html")[0], htmlOpenClassName);
+ 
+-        if (ariaHiddenInstances === 0) {
+-          ariaAppHider.show(appElement);
+-        }
+-      }
++        // Reset aria-hidden attribute if all modals have been removed
++        if (ariaHideApp && ariaHiddenInstances > 0) {
++          ariaHiddenInstances -= 1;
+ 
+-      if (_this.props.shouldFocusAfterRender) {
+-        if (_this.props.shouldReturnFocusAfterClose) {
+-          focusManager.returnFocus(_this.props.preventScroll);
+-          focusManager.teardownScopedFocus();
+-        } else {
+-          focusManager.popWithoutFocus();
++          if (ariaHiddenInstances === 0) {
++            ariaAppHider.show(appElement);
++          }
+         }
+       }
+-
+-      if (_this.props.onAfterClose) {
+-        _this.props.onAfterClose();
+-      }
+-
+-      _portalOpenInstances2.default.deregister(_this);
+     };
+ 
+     _this.open = function () {
+@@ -315,6 +324,11 @@ var ModalPortal = function (_Component) {
+     value: function componentWillUnmount() {
+       if (this.state.isOpen) {
+         this.afterClose();
++      } else if (this.hidesApp) {
++        // beforeOpen ran in componentDidMount but state.isOpen is not set yet: StrictMode's
++        // simulated unmount comes in between. Undo the open only; nothing was shown or focused.
++        this.undoBeforeOpen();
++        _portalOpenInstances2.default.deregister(this);
+       }
+       clearTimeout(this.closeTimer);
+       cancelAnimationFrame(this.openAnimationFrame);
+@@ -332,6 +346,12 @@ var ModalPortal = function (_Component) {
+ 
+       var parentDocument = parentSelector && parentSelector().ownerDocument || document;
+ 
++      // Count this modal once while it is open, however often open() runs.
++      if (this.hidesApp) {
++        return;
++      }
++      this.hidesApp = true;
++
+       // Add classes.
+       bodyOpenClassName && classList.add(parentDocument.body, bodyOpenClassName);
+ 
