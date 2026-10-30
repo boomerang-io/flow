@@ -238,6 +238,7 @@ export function buildFeatureFlags(feature: FlowFeatures["features"]) {
     GlobalParametersEnabled: feature["global.parameters"],
     InsightsEnabled: feature["insights"],
     WorkspaceManagementEnabled: feature["workspace.management"],
+    WorkspaceCreateEnabled: feature["workspace.create"],
     WorkspaceParametersEnabled: feature["workspace.parameters"],
     WorkspaceTasksEnabled: feature["workspace.tasks"],
     UserManagementEnabled: feature["user.management"],

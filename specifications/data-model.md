@@ -318,6 +318,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left, and an empty database or a v3 upgrade has `3.3.0` from the seed |
 | `_0037__SeedGoogleKeyDefaultRevisions` | all | Inserts the revision of each of the 8 Google Sheets and 4 Drive tasks whose `serviceAccountKey` defaults to `$(workspace.params.google-service-account-key)`, where an install holds the task but not that revision; an empty database has them from `_0017` |
 | `_0038__WorkflowTemplatesIntoSystem` | all | Moves every `workflow_templates` document (the seeds of `_0020` and `_0026`, and a v3 install's own from `_0011`) into the system workspace as a `starter` workflow with a revision per version and its `hasWorkflow` edge, a name the workspace already holds left as it is, then drops the collection |
+| `_0039__SeedWorkspaceCreateSetting` | all | Adds the `features` setting `workspaceCreate` (whether a user who is not an admin may create a workspace) from the seed to an install built before it existed; an install that has the key is left as it is |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

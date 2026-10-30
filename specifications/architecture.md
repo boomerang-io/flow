@@ -57,7 +57,7 @@ only when its setting is on and the shape leaves a surface behind it (`core/Feat
 | Flag | Value |
 | --- | --- |
 | `workspace.single` | `flow.workspace.single`: when `true`, no workspace switcher, no create or leave |
-| `workspace.management`, `user.management` | the setting, and `false` under `flow.workspace.single` |
+| `workspace.management`, `user.management`, `workspace.create` | the setting, and `false` under `flow.workspace.single`; `workspace.create` is whether a user who is not an admin may create a workspace |
 | `workspace.quotas`, `workflow.triggers`, `workspace.parameters`, `global.parameters`, `activity`, `insights`, `workspace.tasks` | the setting of the same name in the `features` document |
 | `enable.verified.tasks.edit` | the `task` document's `edit.verified` setting |
 | `schedules`, `integrations` | `true` |

@@ -735,6 +735,7 @@ export type FlowFeatureKey =
   | "global.parameters"
   | "insights"
   | "workspace.management"
+  | "workspace.create"
   | "workspace.parameters"
   | "workspace.tasks"
   | "user.management"

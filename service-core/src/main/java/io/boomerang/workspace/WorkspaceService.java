@@ -168,6 +168,11 @@ public class WorkspaceService {
     if (single) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
+    // The route check is scope-blind, so a workspace editor's grant would pass it: the features
+    // setting decides for everyone who is not an admin.
+    if (!userService.isCurrentUserAdmin() && !settingsService.workspaceCreationAllowed()) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // Validate name - will throw exception if not valid
       WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());

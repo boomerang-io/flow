@@ -68,6 +68,7 @@ public class FeatureService {
         "user.management",
         !single
             && settingsService.getSettingConfig("features", "userManagement").getBooleanValue());
+    features.put("workspace.create", !single && settingsService.workspaceCreationAllowed());
     features.put(
         "activity", settingsService.getSettingConfig("features", "activity").getBooleanValue());
     features.put(

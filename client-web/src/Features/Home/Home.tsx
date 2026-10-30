@@ -195,6 +195,9 @@ export default function Home() {
   const data = useLoaderData() as HomeLoaderData;
   const singleWorkspaceEnabled = Boolean(useFeature(FeatureFlag.SingleWorkspaceEnabled));
   const activityEnabled = Boolean(useFeature(FeatureFlag.ActivityEnabled));
+  // Admins always may; everyone else as the features setting allows.
+  const workspaceCreateEnabled = Boolean(useFeature(FeatureFlag.WorkspaceCreateEnabled));
+  const canCreateWorkspace = user?.type === "admin" || workspaceCreateEnabled;
   const schedulesEnabled = Boolean(useFeature(FeatureFlag.SchedulesEnabled));
   const location = useLocation();
   const navigate = useNavigate();
@@ -306,27 +309,30 @@ export default function Home() {
                 attentionApprovals: data.attentionApprovals,
                 attentionManual: data.attentionManual,
               })
-            : "Workflows are graphs of tasks that run as containers. You need a workspace to hold them, then a workflow to run. Three steps, about ten minutes."
+            : canCreateWorkspace
+            ? "Workflows are graphs of tasks that run as containers. You need a workspace to hold them, then a workflow to run. Three steps, about ten minutes."
+            : "Workflows live in workspaces, and you are not in one yet. Ask an administrator to add you to a workspace."
         }
         actions={
           hasWorkspaces ? (
             <>
-              {createWorkspaceModal(({ openModal }) => (
-                <Button kind="tertiary" renderIcon={Add} onClick={openModal} data-testid="home-create-workspace">
-                  New workspace
-                </Button>
-              ))}
+              {canCreateWorkspace &&
+                createWorkspaceModal(({ openModal }) => (
+                  <Button kind="tertiary" renderIcon={Add} onClick={openModal} data-testid="home-create-workspace">
+                    New workspace
+                  </Button>
+                ))}
               <Button as={Link} to={appLink.workflows({ workspace: primaryWorkspace })} renderIcon={ArrowRight}>
                 Create workflow
               </Button>
             </>
-          ) : (
+          ) : canCreateWorkspace ? (
             createWorkspaceModal(({ openModal }) => (
               <Button renderIcon={ArrowRight} onClick={openModal} data-testid="home-create-workspace">
                 Create your first workspace
               </Button>
             ))
-          )
+          ) : null
         }
       />
 

@@ -43,6 +43,7 @@ class TokenServiceLookupCacheTest {
   @Mock private UserService userService;
   @Mock private RoleRepository roleRepository;
   @Mock private RelationshipService relationshipService;
+  @Mock private SettingsService settingsService;
   @Mock private MongoTemplate mongoTemplate;
   @Mock private IdentityService identityService;
 
@@ -70,7 +71,8 @@ class TokenServiceLookupCacheTest {
         relationshipService,
         mongoTemplate,
         identityService,
-        cache);
+        cache,
+        settingsService);
   }
 
   @Test

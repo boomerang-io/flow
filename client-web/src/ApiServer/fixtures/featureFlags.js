@@ -5,6 +5,7 @@ const featureFlag = {
     "global.parameters": true,
     insights: true,
     "workspace.management": true,
+    "workspace.create": true,
     "workspace.parameters": true,
     "workspace.tasks": true,
     "user.management": true,

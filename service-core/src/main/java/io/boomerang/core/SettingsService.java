@@ -135,6 +135,19 @@ public class SettingsService {
     return new BoomerangException(BoomerangError.SETTINGS_INVALID_KEY, detail);
   }
 
+  /*
+   * Whether a user who is not an admin may create a workspace: the {@code features} document's
+   * {@code workspaceCreate}. An install upgraded before the key existed, or one whose unit has not
+   * run yet, answers as the seed does: allowed.
+   */
+  public boolean workspaceCreationAllowed() {
+    try {
+      return getSettingConfig("features", "workspaceCreate").getBooleanValue();
+    } catch (RuntimeException missing) {
+      return true;
+    }
+  }
+
   public SettingConfig getSettingConfig(String key, String name) {
     final SettingEntity settings = this.settingsRepository.findOneByKey(key);
     final List<SettingConfig> configList = settings.getConfig();

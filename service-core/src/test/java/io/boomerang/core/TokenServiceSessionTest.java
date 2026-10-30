@@ -3,6 +3,7 @@ package io.boomerang.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.core.TokenService.SessionToken;
 import io.boomerang.core.entity.TokenEntity;
+import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.Token;
@@ -19,7 +21,10 @@ import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.model.ResolvedPermissions;
+import io.boomerang.core.security.enums.PermissionScope;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +51,7 @@ class TokenServiceSessionTest {
   @Mock private RelationshipService relationshipService;
   @Mock private MongoTemplate mongoTemplate;
   @Mock private IdentityService identityService;
+  @Mock private SettingsService settingsService;
 
   private TokenService tokenService;
 
@@ -59,10 +65,56 @@ class TokenServiceSessionTest {
             relationshipService,
             mongoTemplate,
             identityService,
-            new TokenLookupCache(true, Duration.ofSeconds(60), 10_000));
+            new TokenLookupCache(true, Duration.ofSeconds(60), 10_000),
+            settingsService);
     ReflectionTestUtils.setField(tokenService, "MAX_SESSION_TOKEN_DURATION", 8);
-    when(tokenRepository.save(any(TokenEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-    when(relationshipService.roles(any())).thenReturn(Map.of());
+    // Lenient: the permission-resolution tests below mint nothing.
+    lenient().when(tokenRepository.save(any(TokenEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    lenient().when(relationshipService.roles(any())).thenReturn(Map.of());
+  }
+
+  // A user in no workspace still reaches their own profile, the flags, navigation and templates:
+  // one grant anchored to themselves, never a global one.
+  @Test
+  void aUserInNoWorkspaceHoldsTheSelfServiceBaselineAndNoGlobalGrant() {
+    UserEntity user = new UserEntity();
+    user.setId("user-1");
+    user.setType(UserType.user);
+
+    List<ResolvedPermissions> grants = tokenService.resolvePermissionsForUser(user);
+
+    assertThat(grants).hasSize(1);
+    assertThat(grants.get(0).getScope()).isEqualTo(PermissionScope.user);
+    assertThat(grants.get(0).getPrincipal()).isEqualTo("user-1");
+    assertThat(grants.get(0).getActions()).isEqualTo(TokenService.SELF_SERVICE_PERMISSIONS);
+  }
+
+  @Test
+  void theBaselineCarriesWorkspaceWriteOnlyWhenTheSettingAllowsIt() {
+    when(settingsService.workspaceCreationAllowed()).thenReturn(true);
+    UserEntity user = new UserEntity();
+    user.setId("user-1");
+    user.setType(UserType.user);
+
+    List<String> actions = tokenService.resolvePermissionsForUser(user).get(0).getActions();
+
+    assertThat(actions).contains("workspace/write").containsAll(TokenService.SELF_SERVICE_PERMISSIONS);
+  }
+
+  // An admin's grant is the global role alone: the baseline is for users the roles do not cover.
+  @Test
+  void anAdminHoldsTheGlobalRoleNotTheBaseline() {
+    RoleEntity role = new RoleEntity();
+    role.setPermissions(List.of("**/**"));
+    when(roleRepository.findByTypeAndName("global", "admin")).thenReturn(role);
+    UserEntity user = new UserEntity();
+    user.setId("admin-1");
+    user.setType(UserType.admin);
+
+    List<ResolvedPermissions> grants = tokenService.resolvePermissionsForUser(user);
+
+    assertThat(grants).hasSize(1);
+    assertThat(grants.get(0).getScope()).isEqualTo(PermissionScope.global);
   }
 
   @Test
