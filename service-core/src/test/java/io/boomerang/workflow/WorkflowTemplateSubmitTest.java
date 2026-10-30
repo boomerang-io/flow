@@ -54,7 +54,6 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
   private static final String SYSTEM = "system";
 
   @Autowired private WorkflowService workflowService;
-  @Autowired private WorkflowTemplateService templateService;
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkspaceService workspaceService;
@@ -111,9 +110,9 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     int before = workspaceWorkflows().size();
 
     WorkflowRun first =
-        templateService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), false);
+        workflowService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), false);
     WorkflowRun second =
-        templateService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), false);
+        workflowService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), false);
 
     assertThat(workspaceWorkflows()).hasSize(before + 1);
     WorkflowEntity link = linkTo(template.getName());
@@ -129,15 +128,25 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aStarterOrAnUnknownNameIsRefused() {
+  void aStarterIsNotRunAndAnUnknownNameIsNoWorkflow() {
     Workflow starter = workflowService.create(SYSTEM, definition("starter", WorkflowType.starter));
-    for (String name : List.of(starter.getName(), "no-such-template-" + System.nanoTime())) {
-      assertThatThrownBy(
-              () -> templateService.submit(workspace, name, new WorkflowSubmitRequest(), false))
-          .isInstanceOf(BoomerangException.class)
-          .extracting(e -> ((BoomerangException) e).getCode())
-          .isEqualTo(BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF.getCode());
-    }
+    assertThatThrownBy(
+            () ->
+                workflowService.submit(
+                    workspace, starter.getName(), new WorkflowSubmitRequest(), false))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(e -> ((BoomerangException) e).getCode())
+        .isEqualTo(BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF.getCode());
+    assertThatThrownBy(
+            () ->
+                workflowService.submit(
+                    workspace,
+                    "no-such-template-" + System.nanoTime(),
+                    new WorkflowSubmitRequest(),
+                    false))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(e -> ((BoomerangException) e).getCode())
+        .isEqualTo(BoomerangError.WORKFLOW_INVALID_REF.getCode());
   }
 
   @Test
@@ -151,7 +160,7 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     parent = workflowService.create(SYSTEM, parent);
 
     String parentRunId =
-        templateService.submit(workspace, parent.getName(), new WorkflowSubmitRequest(), true).getId();
+        workflowService.submit(workspace, parent.getName(), new WorkflowSubmitRequest(), true).getId();
 
     awaitEngine("the runworkflow task of the template's run succeeded")
         .untilAsserted(

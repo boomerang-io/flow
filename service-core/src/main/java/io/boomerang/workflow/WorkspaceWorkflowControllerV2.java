@@ -127,6 +127,14 @@ public class WorkspaceWorkflowControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> workflows,
+      @Parameter(
+              name = "types",
+              description =
+                  "Which kinds to list: workflow, template, starter. Defaults to all: the workspace's own workflows and the templates and starters it has not made its own.",
+              example = "template",
+              required = false)
+          @RequestParam(required = false)
+          Optional<List<String>> types,
       @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
           @RequestParam(required = false)
           Optional<Integer> limit,
@@ -140,7 +148,7 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> sort) {
-    return workflowService.query(workspace, limit, page, sort, labels, statuses, workflows);
+    return workflowService.query(workspace, limit, page, sort, labels, statuses, workflows, types);
   }
 
   @PostMapping(value = "")

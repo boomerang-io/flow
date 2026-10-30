@@ -20,14 +20,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * A starter is copied: a workflow is created from it by posting its body, as the template routes
- * read it, to the workspace Workflow create route with {@code type} set to {@code workflow}. Every
- * seeded starter does so, with its tasks' slug forms carried through, and the copy is a plain
- * workflow of the workspace.
+ * A starter is copied: a workflow is created from it by posting its body, as the workspace's
+ * workflow routes read it, to the workspace Workflow create route with {@code type} set to {@code
+ * workflow}. Every seeded starter does so, with its tasks' slug forms carried through, and the copy
+ * is a plain workflow of the workspace.
  */
 class WorkflowTemplateCreateTest extends AbstractEngineIntegrationTest {
 
-  @Autowired private WorkflowTemplateService templateService;
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
   @Autowired private ObjectMapper mapper;
@@ -40,8 +39,10 @@ class WorkflowTemplateCreateTest extends AbstractEngineIntegrationTest {
     String workspace = workspaceService.create(request).getName();
 
     List<Workflow> starters =
-        templateService
+        workflowService
             .query(
+                workspace,
+                Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
@@ -53,16 +54,19 @@ class WorkflowTemplateCreateTest extends AbstractEngineIntegrationTest {
 
     for (Workflow starter : starters) {
       assertEquals(WorkflowType.starter, starter.getType());
+      assertEquals(
+          taskRefs(starter.getTasks()),
+          taskRefs(
+              workflowService.get(workspace, starter.getName(), Optional.empty(), true).getTasks()),
+          "the workspace reads the starter by name before it has a copy");
       Workflow body = mapper.readValue(mapper.writeValueAsString(starter), Workflow.class);
       body.setType(WorkflowType.workflow);
       Workflow created = workflowService.create(workspace, body);
 
       assertEquals(starter.getName(), created.getName());
       assertNull(created.getTemplateRef(), "a copy is its own workflow");
+      assertEquals(WorkflowType.workflow, created.getType());
       assertEquals(taskRefs(starter.getTasks()), taskRefs(created.getTasks()));
-      assertEquals(
-          taskRefs(starter.getTasks()),
-          taskRefs(templateService.get(starter.getName(), Optional.empty()).getTasks()));
     }
   }
 

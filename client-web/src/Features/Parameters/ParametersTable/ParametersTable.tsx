@@ -63,6 +63,8 @@ interface ParametersTableProps {
   onDelete: (parameter: DataDrivenInput) => void;
   // The integration managing each read-only parameter that one manages, by parameter name.
   managedBy?: Record<string, string>;
+  // The whole table is read-only (a template's parameters): no add, edit or delete.
+  readOnly?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
   onEdit,
   onDelete,
   managedBy = {},
+  readOnly = false,
 }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -147,7 +150,7 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
         // open to the left: the table's scroll container clips anything above the row.
         return (
           <div className={styles.rowActions} data-testid="parameter-actions">
-            {!parameter.readOnly && (
+            {!parameter.readOnly && !readOnly && (
               <IconButton kind="ghost" label="Edit" size="sm" align="left" onClick={() => onEdit(parameter)}>
                 <Edit />
               </IconButton>
@@ -155,7 +158,7 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
             <IconButton kind="ghost" label="Copy reference" size="sm" align="left" onClick={() => copyReference(parameter)}>
               <Copy />
             </IconButton>
-            {!parameter.readOnly && (
+            {!parameter.readOnly && !readOnly && (
               <IconButton
                 className={styles.deleteAction}
                 kind="ghost"
@@ -203,9 +206,11 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
                       }}
                     />
                   </Layer>
-                  <Button data-testid="create-parameter-button" renderIcon={Add} size="md" onClick={onAdd}>
-                    Add parameter
-                  </Button>
+                  {readOnly ? null : (
+                    <Button data-testid="create-parameter-button" renderIcon={Add} size="md" onClick={onAdd}>
+                      Add parameter
+                    </Button>
+                  )}
                 </div>
                 {filtered.length > 0 ? (
                   <Table isSortable className={styles.table}>

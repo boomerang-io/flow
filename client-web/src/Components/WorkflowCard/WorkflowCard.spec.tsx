@@ -1,4 +1,5 @@
 import React from "react";
+import { screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
@@ -81,9 +82,13 @@ const props = {
 // FlagsProvider renderWithContext already supplies), and wrapping it with the raw
 // (differently-shaped) fixtures the way the previous .jsx spec did is what kept this file off
 // typechecking in the first place.
-function renderWorkflowCard() {
+function renderWorkflowCard(overrides: Partial<Workflow> = {}) {
   return renderWithContext(
-    <Route path="/:workspace/workflows" action={action} element={<WorkflowCard {...props} />} />,
+    <Route
+      path="/:workspace/workflows"
+      action={action}
+      element={<WorkflowCard {...props} workflow={{ ...workflow, ...overrides }} />}
+    />,
     { route: appLink.workflows({ workspace: workspace.name }) },
   );
 }
@@ -92,6 +97,35 @@ describe("WorkflowCard --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowCard", () => {
     const { baseElement } = renderWorkflowCard();
     expect(baseElement).toMatchSnapshot();
+  });
+});
+
+describe("WorkflowCard --- templates", () => {
+  it("shows a template the workspace does not own as an available, read-only outline", () => {
+    renderWorkflowCard({ type: "template" });
+
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.getByText("Read-only")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByTestId("workflow-card")).toHaveAttribute("data-available", "true");
+    expect(screen.getByText("Run it")).toBeInTheDocument();
+  });
+
+  it("shows a workflow that follows a template as the workspace's own, with the tag and the status dot", () => {
+    renderWorkflowCard({ type: "workflow", templateRef: { name: "shared-nightly-report" } });
+
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    expect(screen.getByText("Read-only")).toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(screen.getByTestId("workflow-card")).not.toHaveAttribute("data-available");
+  });
+
+  it("shows a plain workflow with no template tag", () => {
+    renderWorkflowCard({ type: "workflow" });
+
+    expect(screen.queryByText("Template")).not.toBeInTheDocument();
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
   });
 });
 

@@ -386,7 +386,6 @@ class ApiContractTest {
     Flow flow = Flow.builder().baseUrl("http://flow").token("t").restClient(recording).build();
 
     flow.runs("ws").submit("wf", SubmitRequest.empty());
-    flow.runs("ws").submitTemplate("tpl", SubmitRequest.empty());
     flow.runs("ws").get("r");
     flow.runs("ws").start("r");
     flow.runs("ws").pause("r");
@@ -404,7 +403,7 @@ class ApiContractTest {
     flow.insights("ws").tasks(InsightsQuery.all());
     flow.insights("ws").workflow("wf", InsightsQuery.all());
 
-    assertThat(calls).hasSize(18);
+    assertThat(calls).hasSize(17);
     List<String> routes = routes();
     calls.forEach(
         call ->

@@ -241,9 +241,20 @@ export interface WorkflowConcurrency {
   overflow?: "queue" | "skip";
 }
 
+export type WorkflowDefinitionType = "workflow" | "template" | "starter";
+
+/** The system template a workspace's own workflow was made from; absent version follows the latest. */
+export interface WorkflowTemplateRef {
+  name: string;
+  version?: number;
+}
+
 export interface Workflow {
   id?: string;
   name: string;
+  /** "template" and "starter" are shared rows the workspace does not own; "workflow" is its own. */
+  type?: WorkflowDefinitionType;
+  templateRef?: WorkflowTemplateRef;
   displayName: string;
   creationDate: string;
   status: WorkflowStatus;
@@ -483,6 +494,8 @@ export type FlowWorkspaceStatusType = ObjectValues<typeof FlowWorkspaceStatus>;
 export interface WorkflowSummary {
   id: string;
   name: string;
+  type?: WorkflowDefinitionType;
+  templateRef?: WorkflowTemplateRef;
   displayName: string;
   status: WorkflowStatus;
   version: number;
@@ -1022,6 +1035,8 @@ export type NodeTypeType = ObjectValues<typeof NodeType>;
 
 export interface ConfigureWorkflowFormValues {
   config: WorkflowCanvas["config"];
+  /** Version of the template a template-backed workflow pins to; empty follows the latest. */
+  templateVersion?: string;
   description: string;
   icon: string;
   labels: Array<{ key: string; value: string }>;

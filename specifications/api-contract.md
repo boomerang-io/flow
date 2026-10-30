@@ -22,7 +22,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:38`, `workflow/WorkspaceWorkflowRunControllerV2.java:32`, `workflow/WorkspaceTaskRunControllerV2.java:25`, `workflow/WorkspaceTaskControllerV2.java:33`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
-| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,workflowtemplate,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `workflow/WorkflowTemplateControllerV2.java:31`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:41`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
 | System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:36`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:52` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:39` |
@@ -46,20 +46,20 @@ expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:613-625`), and with no
 ARTIFACTS_NOT_CONFIGURED` (`:598-603`). The workspace list is largest first and takes `statuses` (default `available`),
 `scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:479-512`).
 
-**Workflow templates** are the system workspace's workflows of `type` `template` or `starter`, authored through its
-ordinary workflow routes; that `type` on a body to any other workspace is `400 WORKFLOW_TEMPLATE_SYSTEM_ONLY`
-(`workflow/WorkflowService.java:424,2132-2140`). `GET /api/v2/workflowtemplate/{name}` and `GET …/query?types=` read them for
-every workspace, secrets hidden and task references in slug form (`workflow/WorkflowTemplateControllerV2.java:43,66`, `workflow/WorkflowService.java:2078-2126`).
-A starter is copied: its body, with `type` set to `workflow`, posted to the workspace's `POST …/workflow`
-(`client-web/src/Components/WorkflowTemplateHomeCard/WorkflowTemplateHomeCard.tsx:52`). A template is run by reference: a workflow created
-with `templateRef: {name, version}` shows the template's tasks and params read-only under its own name, labels and triggers, takes run-time
-values for the params the template declares, and each submit runs the template's pinned or latest revision as the workflow's own run
-(`:1915-1929`); a missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`, and deleting a template a workflow still names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:767-770`).
+**Workflow templates** are the system workspace's workflows of `type` `template` or `starter`, authored through its ordinary workflow routes; that `type` on a body to any other workspace is `400
+WORKFLOW_TEMPLATE_SYSTEM_ONLY` (`workflow/WorkflowService.java:2270-2278`). There are no template routes: a workspace sees them through its own workflow routes. `GET …/workflow/query` lists, beside
+its workflows, the active templates and starters whose name none of its workflows carries and that none links, each with its `type`; `types=workflow|template|starter` narrows (`:365-372,2175-2200`).
+The reads by name (get, compose, changelog, export, available parameters) answer the template or starter of a name the workspace has no workflow of (`:282-293,2146-2157`); a workflow of the same name
+hides it. A starter is copied, its body with `type` `workflow` posted to `POST …/workflow`; its submit is `400 WORKFLOW_TEMPLATE_INVALID_REF` (`:2159-2169`). A template runs through a link, a workflow
+of the workspace with `templateRef: {name, version}` that shows the template's tasks and params read-only under its own name, labels and triggers and runs the template's pinned or latest revision as
+its own run (`:1965-1979`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:672-677,2221-2246`); `PUT …/workflow` naming a
+template creates it and applies display name, description, icon, labels and triggers, tasks and params ignored (`:622-634`). A missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`;
+deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:794-797`).
 
-**Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never
-patched (a `PATCH` carrying one is ignored), and read by every reader of the workspace. `GET /api/v2/workspace/query?externalRef=`
-answers the one carrying it within the caller's access, and a create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that
-workspace's name, so a retried create reads it instead (`workspace/WorkspaceService.java:175-184,294-295,443-445`; unique sparse index `external_ref`).
+**Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
+carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
+create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, so a retried create reads it instead
+(`workspace/WorkspaceService.java:175-184,294-295,443-445`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:980-984`).

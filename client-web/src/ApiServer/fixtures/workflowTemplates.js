@@ -2,6 +2,7 @@ const workflowTemplates = {
   content: [
     {
       name: "mongodb-email-query-results",
+      type: "starter",
       displayName: "MongoDB email query results",
       version: 1,
       creationDate: "2022-05-06T16:43:09.659Z",
@@ -419,6 +420,7 @@ const workflowTemplates = {
     },
     {
       name: "looking-through-planets-with-http-call-",
+      type: "starter",
       displayName: "Looking through planets with HTTP Call ",
       creationDate: "2022-05-06T21:09:13.633Z",
       icon: "bot",

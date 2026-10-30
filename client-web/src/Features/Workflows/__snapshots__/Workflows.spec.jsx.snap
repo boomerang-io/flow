@@ -52,7 +52,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             <h1
               class="cds--bmrg-feature-header-title"
             >
-              Workflows (3)
+              Workflows (4)
             </h1>
             <p
               class="cds--bmrg-feature-header-title _headerMessage_4d119f"
@@ -171,6 +171,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
           >
             <div
               class="_container_483afa"
+              data-testid="workflow-card"
             >
               <a
                 data-discover="true"
@@ -208,13 +209,17 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                   <div
                     class="_descriptionContainer_483afa"
                   >
-                    <h1
-                      class="_name_483afa"
-                      data-testid="workflow-card-title"
-                      title="Personal - ML Train – Bot Efficiency"
+                    <div
+                      class="_nameRow_483afa"
                     >
-                      Personal - ML Train – Bot Efficiency
-                    </h1>
+                      <h1
+                        class="_name_483afa"
+                        data-testid="workflow-card-title"
+                        title="Personal - ML Train – Bot Efficiency"
+                      >
+                        Personal - ML Train – Bot Efficiency
+                      </h1>
+                    </div>
                     <p
                       class="_description_483afa"
                       title="Train and store ML model for Bot Efficiency."
@@ -349,6 +354,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             </div>
             <div
               class="_container_483afa"
+              data-testid="workflow-card"
             >
               <a
                 data-discover="true"
@@ -383,13 +389,17 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                   <div
                     class="_descriptionContainer_483afa"
                   >
-                    <h1
-                      class="_name_483afa"
-                      data-testid="workflow-card-title"
-                      title="Personal - Java - Deploy"
+                    <div
+                      class="_nameRow_483afa"
                     >
-                      Personal - Java - Deploy
-                    </h1>
+                      <h1
+                        class="_name_483afa"
+                        data-testid="workflow-card-title"
+                        title="Personal - Java - Deploy"
+                      >
+                        Personal - Java - Deploy
+                      </h1>
+                    </div>
                     <p
                       class="_description_483afa"
                       title=""
@@ -522,6 +532,7 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
             </div>
             <div
               class="_container_483afa"
+              data-testid="workflow-card"
             >
               <a
                 data-discover="true"
@@ -553,13 +564,17 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                   <div
                     class="_descriptionContainer_483afa"
                   >
-                    <h1
-                      class="_name_483afa"
-                      data-testid="workflow-card-title"
-                      title="Personal - Java - Build"
+                    <div
+                      class="_nameRow_483afa"
                     >
-                      Personal - Java - Build
-                    </h1>
+                      <h1
+                        class="_name_483afa"
+                        data-testid="workflow-card-title"
+                        title="Personal - Java - Build"
+                      >
+                        Personal - Java - Build
+                      </h1>
+                    </div>
                     <p
                       class="_description_483afa"
                       title="Java - Build"
@@ -729,6 +744,422 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                 </span>
               </div>
             </div>
+            <div
+              class="_container_483afa _available_483afa"
+              data-available="true"
+              data-testid="workflow-card"
+            >
+              <a
+                data-discover="true"
+                href="/ibm-services-engineering/editor/shared-nightly-report/canvas"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      aria-label="bot"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M18 10H20V12H18z"
+                      />
+                      <path
+                        d="M12 10H14V12H12z"
+                      />
+                      <path
+                        d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <div
+                      class="_nameRow_483afa"
+                    >
+                      <h1
+                        class="_name_483afa"
+                        data-testid="workflow-card-title"
+                        title="shared-nightly-report"
+                      >
+                        Shared nightly report
+                      </h1>
+                      <div
+                        class="cds--tag cds--tag--sm cds--layout--size-sm cds--tag--purple"
+                        id="tag-id-[generated-id]"
+                      >
+                        <span
+                          class="cds--tag__label"
+                          dir="auto"
+                          title="Template"
+                        >
+                          Template
+                        </span>
+                      </div>
+                    </div>
+                    <p
+                      class="_description_483afa"
+                      title="A template every workspace can run as it is."
+                    >
+                      A template every workspace can run as it is.
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <span
+                  class="_readOnly_483afa"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                    />
+                  </svg>
+                  Read-only
+                </span>
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19 19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_status_483afa"
+              >
+                <p
+                  class="_statusText_483afa"
+                >
+                  Available
+                </p>
+              </div>
+              <div
+                style="position: absolute; right: 0px;"
+              >
+                <span
+                  class="cds--overflow-menu__wrapper"
+                >
+                  <span
+                    class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+                  >
+                    <div
+                      class="cds--tooltip-trigger__wrapper"
+                    >
+                      <button
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-labelledby="tooltip-[generated-id]"
+                        class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                        type="button"
+                      >
+                        <svg
+                          aria-label="Overflow menu icon"
+                          class="cds--overflow-menu__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          role="img"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle
+                            cx="16"
+                            cy="8"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="24"
+                            r="2"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      class="cds--popover"
+                      id="tooltip-[generated-id]"
+                      role="tooltip"
+                    >
+                      <span
+                        class="cds--popover-content cds--tooltip-content"
+                      >
+                        Overflow menu icon
+                      </span>
+                      <span
+                        class="cds--popover-caret"
+                      />
+                    </span>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div
+              class="_container_483afa"
+              data-testid="workflow-card"
+            >
+              <a
+                data-discover="true"
+                href="/ibm-services-engineering/editor/team-nightly-report/canvas"
+              >
+                <section
+                  class="_details_483afa"
+                >
+                  <div
+                    class="_iconContainer_483afa"
+                  >
+                    <svg
+                      aria-label="bot"
+                      class="_icon_483afa"
+                      fill="currentColor"
+                      focusable="false"
+                      height="16"
+                      preserveAspectRatio="xMidYMid meet"
+                      role="img"
+                      viewBox="0 0 32 32"
+                      width="16"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M18 10H20V12H18z"
+                      />
+                      <path
+                        d="M12 10H14V12H12z"
+                      />
+                      <path
+                        d="M26,20H21V18h1a2.0023,2.0023,0,0,0,2-2V12h2V10H24V8a2.0023,2.0023,0,0,0-2-2H20V2H18V6H14V2H12V6H10A2.0023,2.0023,0,0,0,8,8v2H6v2H8v4a2.0023,2.0023,0,0,0,2,2h1v2H6a2.0023,2.0023,0,0,0-2,2v8H6V22H26v8h2V22A2.0023,2.0023,0,0,0,26,20ZM10,8H22v8H10Zm3,10h6v2H13Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="_descriptionContainer_483afa"
+                  >
+                    <div
+                      class="_nameRow_483afa"
+                    >
+                      <h1
+                        class="_name_483afa"
+                        data-testid="workflow-card-title"
+                        title="team-nightly-report"
+                      >
+                        Team nightly report
+                      </h1>
+                      <div
+                        class="cds--tag cds--tag--sm cds--layout--size-sm cds--tag--purple"
+                        id="tag-id-[generated-id]"
+                      >
+                        <span
+                          class="cds--tag__label"
+                          dir="auto"
+                          title="Template"
+                        >
+                          Template
+                        </span>
+                      </div>
+                    </div>
+                    <p
+                      class="_description_483afa"
+                      title="This workspace's copy of the nightly report template."
+                    >
+                      This workspace's copy of the nightly report template.
+                    </p>
+                  </div>
+                </section>
+              </a>
+              <section
+                class="_launch_483afa"
+              >
+                <span
+                  class="_readOnly_483afa"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                    />
+                  </svg>
+                  Read-only
+                </span>
+                <button
+                  class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
+                  type="button"
+                >
+                  Run it
+                  <svg
+                    aria-hidden="true"
+                    aria-label="Run workflow"
+                    class="cds--btn__icon"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    role="img"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M21,16a6,6,0,1,1-6,6,6,6,0,0,1,6-6m0-2a8,8,0,1,0,8,8,8,8,0,0,0-8-8Z"
+                    />
+                    <path
+                      d="M26,4H6A2,2,0,0,0,4,6V26a2,2,0,0,0,2,2h4V26H6V12H28V6A2,2,0,0,0,26,4ZM6,10V6H26v4Z"
+                    />
+                    <path
+                      d="M19 19 19 25 24 22 19 19z"
+                    />
+                  </svg>
+                </button>
+              </section>
+              <div
+                class="_status_483afa"
+              >
+                <svg
+                  aria-hidden="true"
+                  class="_warningIcon_483afa"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  style="fill: #009d9a;"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                  />
+                </svg>
+              </div>
+              <div
+                style="position: absolute; right: 0px;"
+              >
+                <span
+                  class="cds--overflow-menu__wrapper"
+                >
+                  <span
+                    class="cds--popover-container cds--popover--caret cds--popover--high-contrast cds--popover--top cds--tooltip cds--icon-tooltip"
+                  >
+                    <div
+                      class="cds--tooltip-trigger__wrapper"
+                    >
+                      <button
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                        aria-labelledby="tooltip-[generated-id]"
+                        class="cds--btn--icon-only cds--overflow-menu cds--overflow-menu--sm cds--btn cds--btn--sm cds--layout--size-sm cds--btn--ghost"
+                        type="button"
+                      >
+                        <svg
+                          aria-label="Overflow menu icon"
+                          class="cds--overflow-menu__icon"
+                          fill="currentColor"
+                          focusable="false"
+                          height="16"
+                          preserveAspectRatio="xMidYMid meet"
+                          role="img"
+                          viewBox="0 0 32 32"
+                          width="16"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle
+                            cx="16"
+                            cy="8"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="2"
+                          />
+                          <circle
+                            cx="16"
+                            cy="24"
+                            r="2"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      class="cds--popover"
+                      id="tooltip-[generated-id]"
+                      role="tooltip"
+                    >
+                      <span
+                        class="cds--popover-content cds--tooltip-content"
+                      >
+                        Overflow menu icon
+                      </span>
+                      <span
+                        class="cds--popover-caret"
+                      />
+                    </span>
+                  </span>
+                </span>
+              </div>
+            </div>
             <button
               class="_container_7b50b0"
               data-testid="workflows-create-workflow-button"
@@ -759,6 +1190,12 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
       </div>
     </div>
   </div>
+  <div
+    class="cds--bmrg-modal-portal"
+  />
+  <div
+    class="cds--bmrg-modal-portal"
+  />
   <div
     class="cds--bmrg-modal-portal"
   />

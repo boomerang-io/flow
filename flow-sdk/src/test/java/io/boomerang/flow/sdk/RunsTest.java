@@ -87,23 +87,6 @@ class RunsTest {
   }
 
   @Test
-  void submitTemplatePostsToTheTemplateRouteOfTheWorkspace() {
-    stub.server
-        .expect(requestTo(StubServer.API + "/workspace/ws/workflowtemplate/analysis/submit?start=true"))
-        .andExpect(method(HttpMethod.POST))
-        .andExpect(StubServer.jsonBody("{\"params\":[],\"labels\":{},\"annotations\":{}}"))
-        .andRespond(
-            withSuccess(
-                "{\"id\":\"r2\",\"status\":\"ready\",\"workflowRef\":\"analysis\"}",
-                MediaType.APPLICATION_JSON));
-
-    WorkflowRun run = runs.submitTemplate("analysis", SubmitRequest.empty());
-
-    assertThat(run.id()).isEqualTo("r2");
-    assertThat(run.workflowRef()).isEqualTo("analysis");
-  }
-
-  @Test
   void getReadsTheRunWithItsTasks() {
     stub.server
         .expect(requestTo(RUNS + "/r1?withTasks=true"))

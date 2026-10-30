@@ -31,9 +31,11 @@ const HEADERS = [
 
 type Props = {
   workspace: string;
+  // The artifacts are set by a template: they are listed, never deleted from here.
+  disabled?: boolean;
 };
 
-function ConfigureArtifacts({ workspace }: Props) {
+function ConfigureArtifacts({ workspace, disabled = false }: Props) {
   const keptArtifacts = useEditorRouteData()?.keptArtifacts;
   const fetcher = useFetcher<EditorActionResult>();
   const isDeleting = fetcher.state !== "idle";
@@ -129,7 +131,7 @@ function ConfigureArtifacts({ workspace }: Props) {
                             kind="danger--ghost"
                             size="sm"
                             onClick={openModal}
-                            disabled={isDeleting}
+                            disabled={isDeleting || disabled}
                             data-testid={`delete-kept-artifact-${artifact.id}`}
                           >
                             Delete

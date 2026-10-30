@@ -195,14 +195,19 @@ tag's release notes.
   version}` shows the template's tasks and params read-only under its own name, labels and triggers, accepts
   run-time values only for the params the template declares, and each submit runs the template's pinned or latest
   revision in the workspace, so the run, its quotas and its audit are the workspace's. A template with such
-  workflows cannot be deleted. A starter is copied, as the Home page has always done. `GET /api/v2/workflowtemplate`
-  lists both by `types`. Change unit `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3
-  install's own into the system workspace as starters and drops the `workflow_templates` collection.
-- A template runs in a workspace by name: `POST /api/v2/workspace/{workspace}/workflowtemplate/{template}/submit`
-  takes the ordinary submit body, and the run is the workspace's link to the template, created under the template's
-  name the first time, so a workspace needs no link of its own before its first run. A template's `runworkflow` task
-  that names another template runs it the same way, as the run's workspace's link, so a template's children never run
-  in the system workspace on a workspace's behalf. The SDK's `Runs.submitTemplate` calls the route.
+  workflows cannot be deleted. A starter is copied, as the Home page has always done. Change unit
+  `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3 install's own into the system workspace as
+  starters and drops the `workflow_templates` collection.
+- Templates and starters appear in every workspace through its own workflow routes; there are no `/workflowtemplate`
+  routes. `GET /api/v2/workspace/{workspace}/workflow/query` lists, beside the workspace's workflows, the templates and
+  starters it has not made its own, each with its `type`, and `types=` narrows; the get, compose, changelog, export and
+  available-parameters routes answer a template by name when the workspace has no workflow of that name. The first
+  use makes it the workspace's own: `POST …/workflow/{template}/submit` creates the link under the template's name
+  and runs it, and `PUT …/workflow` naming a template creates the link and saves the display name, description, icon,
+  labels and triggers. A template's `runworkflow` task that names another template runs it the same way, as the run's
+  workspace's link, so a template's children never run in the system workspace on a workspace's behalf. The webapp's
+  Workflows page shows templates beside the workspace's workflows, tagged and read-only, dashed until first use; the
+  editor puts the task palette away for one; Home's starters come from the workspace query with `types=starter`.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
   tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50

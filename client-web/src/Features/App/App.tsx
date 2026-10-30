@@ -35,7 +35,6 @@ const getUserUrl = serviceUrl.getUserProfile();
 const getContextUrl = serviceUrl.getContext();
 const getAuthConfigUrl = serviceUrl.getAuthConfig();
 const featureFlagsUrl = serviceUrl.getFeatureFlags();
-const workflowTemplatesUrl = serviceUrl.template.getWorkflowTemplates();
 const browser = detect();
 const supportedBrowsers = ["chrome", "firefox", "safari", "edge"];
 
@@ -130,7 +129,6 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
    * first paint of all of them.
    */
   const featuresPromise = settle(api.get<FlowFeatures>(featureFlagsUrl));
-  const templatesPromise = settle(api.get<PaginatedResponse<WorkflowTemplate>>(workflowTemplatesUrl));
   // Unconditional like the two above, and needed on BOTH outcomes of the profile fetch: a 401
   // hands it to SignedOut (which sign-in surface to server-render), an authenticated bootstrap
   // hands it to the Navbar (the Sign Out affordance). This replaced the browser-side
@@ -185,21 +183,32 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   // Genuinely dependent, so these two stay behind the profile fetch: they mirror the old queries'
   // `enabled: Boolean(userQuery.data?.id)` gate - user-scoped, and never fetched without a
   // resolved user. `null` means "not attempted", which is not an error.
-  const [contextResult, navigationResult] = await Promise.all([
+  //
+  // The starters a workspace has not copied are listed by that workspace's own workflow query, so
+  // the first workspace on the profile asks; a user with no workspace has none to show.
+  const starterWorkspace = user?.workspaces?.[0]?.name;
+  const [contextResult, navigationResult, templatesResult] = await Promise.all([
     user?.id ? settle(api.get<ContextConfig>(getContextUrl)) : Promise.resolve(null),
     user?.id ? loadNavigation() : Promise.resolve(null),
+    starterWorkspace
+      ? settle(
+          api.get<PaginatedResponse<WorkflowTemplate>>(
+            serviceUrl.workspace.workflow.getWorkflows({ workspace: starterWorkspace, query: "types=starter&limit=100" }),
+          ),
+        )
+      : Promise.resolve(null),
   ]);
-  const [featuresResult, templatesResult] = await Promise.all([featuresPromise, templatesPromise]);
+  const featuresResult = await featuresPromise;
 
   const features = featuresResult.ok ? featuresResult.data : null;
-  const workflowTemplates = templatesResult.ok ? templatesResult.data.content : [];
+  const workflowTemplates = templatesResult?.ok ? templatesResult.data.content : [];
   const context = contextResult?.ok ? contextResult.data : null;
   const navigation = navigationResult?.ok ? navigationResult.data : [];
 
   const errorLoading =
     !user ||
     !featuresResult.ok ||
-    !templatesResult.ok ||
+    Boolean(templatesResult && !templatesResult.ok) ||
     Boolean(contextResult && !contextResult.ok) ||
     Boolean(navigationResult && !navigationResult.ok);
 
