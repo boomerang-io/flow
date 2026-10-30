@@ -619,6 +619,9 @@ class TaskRunnerTest {
     runner.accept(runOrder());
     assertThat(starting.await(10, TimeUnit.SECONDS)).isTrue();
     runner.accept(taskRun(TaskType.template, RunPhase.completed, RunStatus.cancelled));
+    // The terminate runs on its own thread: the engine answers only once it has reached the
+    // context, which is what "during the start call" means.
+    awaitCancelled("task-1");
     terminated.countDown();
 
     awaitEmpty();
@@ -843,5 +846,15 @@ class TaskRunnerTest {
       Thread.sleep(10);
     }
     assertThat(inFlight.size()).isZero();
+  }
+
+  // A terminate order is applied on the executor, so the context is cancelled a moment later.
+  private void awaitCancelled(String taskRunId) throws InterruptedException {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while ((running.get(taskRunId) == null || !running.get(taskRunId).isCancelled())
+        && System.nanoTime() < deadline) {
+      Thread.sleep(10);
+    }
+    assertThat(running.get(taskRunId).isCancelled()).isTrue();
   }
 }

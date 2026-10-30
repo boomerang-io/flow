@@ -18,6 +18,8 @@ import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.servlet.Filter;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,12 +86,16 @@ class StreamingResponseAsyncDispatchTest extends AbstractEngineIntegrationTest {
   void asyncDispatchOfAStreamingResponseCompletesWithoutBeingDenied() throws Exception {
     String bearer = mintGlobalToken();
 
+    TestStreamingController.release = new CountDownLatch(1);
     MvcResult mvcResult =
         mockMvc
             .perform(get(STREAM_PATH).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer))
             .andExpect(request().asyncStarted())
             .andReturn();
 
+    // The body writes only once the initial dispatch has unwound: the mock response's header
+    // map is not thread-safe, and the security header writer touches it as that dispatch ends.
+    TestStreamingController.release.countDown();
     mockMvc
         .perform(asyncDispatch(mvcResult))
         .andExpect(status().isOk())
@@ -132,13 +138,22 @@ class StreamingResponseAsyncDispatchTest extends AbstractEngineIntegrationTest {
   @RestController
   static class TestStreamingController {
 
+    static volatile CountDownLatch release = new CountDownLatch(0);
+
     @GetMapping(STREAM_PATH)
     @AuthCriteria(
         action = PermissionAction.READ,
         resource = PermissionResource.SYSTEM,
         assignableScopes = {AuthScope.global})
     StreamingResponseBody streamLog() {
-      return outputStream -> outputStream.write(STREAM_BODY.getBytes());
+      return outputStream -> {
+        try {
+          release.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+        }
+        outputStream.write(STREAM_BODY.getBytes());
+      };
     }
   }
 }
