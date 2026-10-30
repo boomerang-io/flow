@@ -1241,6 +1241,23 @@ public class TaskExecutionService {
         TaskLockEntity.class);
   }
 
+  /*
+   * Release every lock a run still holds, once the run has completed or is purged: by the run's
+   * reference alone, so a lock another run holds on the same key is never touched. Idempotent, as
+   * a release is, so a completion delivered twice is safe.
+   */
+  public void releaseLocksHeldBy(String workflowRunRef) {
+    long released =
+        mongoTemplate
+            .remove(
+                Query.query(Criteria.where("workflowRunRef").is(workflowRunRef)),
+                TaskLockEntity.class)
+            .getDeletedCount();
+    if (released > 0) {
+      LOGGER.info("[{}] Released {} lock(s) the run still held.", workflowRunRef, released);
+    }
+  }
+
   // The lock key scoped by workspace so the same user key never collides across workspaces. The
   // scope is the id of the workspace that owns the run's workflow, so a rename keeps it.
   String scopedLockKey(TaskRunEntity taskExecution) {

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
@@ -46,16 +47,19 @@ public class ChildWorkflowRunListener {
   private final TaskRunRepository taskRunRepository;
   private final WorkflowRunRepository workflowRunRepository;
   private final WorkflowRunService workflowRunService;
+  private final TaskExecutionService taskExecutionService;
 
   public ChildWorkflowRunListener(
       TaskRunService taskRunService,
       TaskRunRepository taskRunRepository,
       WorkflowRunRepository workflowRunRepository,
-      WorkflowRunService workflowRunService) {
+      WorkflowRunService workflowRunService,
+      @Lazy TaskExecutionService taskExecutionService) {
     this.taskRunService = taskRunService;
     this.taskRunRepository = taskRunRepository;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRunService = workflowRunService;
+    this.taskExecutionService = taskExecutionService;
   }
 
   @EventListener
@@ -79,6 +83,13 @@ public class ChildWorkflowRunListener {
       cancelInFlightChildren(run);
     } catch (Exception ex) {
       LOGGER.error("[{}] Unable to cancel the children of a completed run.", run.getId(), ex);
+    }
+    // A completed run holds no lock: whatever it acquired and never released goes with it, so
+    // the next acquire on the key succeeds at once instead of waiting out the lease.
+    try {
+      taskExecutionService.releaseLocksHeldBy(run.getId());
+    } catch (Exception ex) {
+      LOGGER.error("[{}] Unable to release the locks of a completed run.", run.getId(), ex);
     }
   }
 
