@@ -160,6 +160,10 @@ tag's release notes.
 
 ### Added
 
+- CloudEvents sink filters. `flow.events.sink.types`, `statuses` (any run status, or `terminal`) and `phases` narrow
+  what is sent, and each destination takes the same keys plus `labels` (`key=value`). A transition no sink wants is
+  never stored, so a filtered event is not counted as dead; labels filter at delivery. `phases=completed` is the true
+  end of a run with finally tasks. With no filter keys nothing changes.
 - A run's locks go with the run. A run that completes with any status, or is purged, holding an `acquirelock` lock it
   never released frees it at once, so the next `acquirelock` on the key succeeds on its first attempt instead of waiting
   out the lease; a lock another run holds is never touched.

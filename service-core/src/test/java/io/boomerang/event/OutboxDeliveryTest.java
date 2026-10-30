@@ -63,7 +63,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
 
   @Test
   void statusChangeWritesOneRowAndPhaseOnlyWritesNone() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-emit-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity taskRun =
@@ -107,7 +110,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
 
   @Test
   void dispatcherDeliversPendingRowAndMarksItSent() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     OutboxDispatcher dispatcher = dispatcher();
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-send-wf", RunStatus.running, RunPhase.running);
@@ -147,7 +153,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void aDeadRowIsReplayedAndThenDelivered() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     OutboxDispatcher dispatcher = dispatcher();
     OutboxService outboxService = new OutboxService(mongoTemplate);
     WorkflowRunEntity wfRun =
@@ -276,7 +285,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void aRowDrainedLaterDescribesItsOwnTransition() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-own-state-wf", RunStatus.succeeded, RunPhase.completed);
     bridge.onWorkflowRunTransition(
@@ -304,7 +316,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void aRetriedRowKeepsItsIdAndItsTransitionTime() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-retry-id-wf", RunStatus.running, RunPhase.running);
     bridge.onWorkflowRunTransition(
@@ -339,7 +354,10 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
    */
   @Test
   void theEndNodeEmitsNoTaskEventAndTheRunsCompletionStillDoes() {
-    CloudEventsBridge bridge = new CloudEventsBridge(eventOutboxRepository);
+    CloudEventsBridge bridge = new CloudEventsBridge(
+            eventOutboxRepository,
+            new EventSinkProperties(
+                true, EventPayload.thin, List.of(), List.of(), List.of(), List.of(), List.of()));
     WorkflowRunEntity wfRun =
         savedWorkflowRun("outbox-end-node-wf", RunStatus.running, RunPhase.running);
     TaskRunEntity end =
@@ -392,7 +410,7 @@ class OutboxDeliveryTest extends AbstractEngineIntegrationTest {
             });
     EventSinkService sink =
         new EventSinkService(
-            new EventSinkProperties(true, EventPayload.thin, List.of(SINK_URL), List.of()),
+            new EventSinkProperties(true, EventPayload.thin, List.of(SINK_URL), List.of(), List.of(), List.of(), List.of()),
             restTemplate,
             mock(TaskService.class));
     return new OutboxDispatcher(mongoTemplate, taskRunRepository, workflowRunRepository, sink);
