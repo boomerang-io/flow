@@ -119,9 +119,12 @@ final class ApiClient {
   }
 
   <T> T delete(String path, Map<String, Object> pathVariables, JavaType type) {
+    return delete(path, pathVariables, Params.none(), type);
+  }
+
+  <T> T delete(String path, Map<String, Object> pathVariables, Params query, JavaType type) {
     return read(
-        http.method(HttpMethod.DELETE)
-            .uri(builder -> uri(builder, path, pathVariables, Params.none())),
+        http.method(HttpMethod.DELETE).uri(builder -> uri(builder, path, pathVariables, query)),
         type);
   }
 

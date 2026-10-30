@@ -2,12 +2,14 @@ package io.boomerang.flow.sdk;
 
 import io.boomerang.flow.sdk.model.WorkflowRun;
 import io.boomerang.flow.sdk.model.WorkflowRunCount;
+import io.boomerang.flow.sdk.model.WorkflowRunPurge;
 import java.util.Map;
 import tools.jackson.databind.JavaType;
 
 /**
  * The workflow runs of one workspace, one method per route ({@code contracts/api-v2.yaml},
- * {@code /api/v2/workspace/{workspace}/workflowrun} and {@code .../workflow/{name}/submit}).
+ * {@code /api/v2/workspace/{workspace}/workflowrun} and {@code .../workflow/{name}/submit}),
+ * the two purge routes included.
  */
 public final class Runs {
 
@@ -15,6 +17,7 @@ public final class Runs {
   static final JavaType RUN_PAGE =
       WireFormat.JSON.getTypeFactory().constructParametricType(Page.class, WorkflowRun.class);
   private static final JavaType COUNT = WireFormat.JSON.constructType(WorkflowRunCount.class);
+  private static final JavaType PURGE = WireFormat.JSON.constructType(WorkflowRunPurge.class);
 
   private final ApiClient api;
   private final String workspace;
@@ -116,6 +119,33 @@ public final class Runs {
             query.params(),
             RUN_PAGE);
     return page.following(number -> query(query.withPage(number)));
+  }
+
+  /**
+   * {@code DELETE /workflowrun/{id}}: purge the run with everything it owns and its lineage,
+   * cancelling it first when in flight. A run the dispatcher still holds is {@code scheduled} for
+   * the sweep; a run that does not exist counts in neither, so a repeated call answers the same.
+   */
+  public WorkflowRunPurge purge(String id) {
+    return api.delete(
+        "/workspace/{workspace}/workflowrun/{id}", Map.of("workspace", workspace, "id", id), PURGE);
+  }
+
+  /**
+   * {@code DELETE /workflowrun?labels=}: purge every run of the workspace carrying all of the
+   * labels, oldest first, a page of 50 a call; {@code remaining} says how many are left for the
+   * next call. At least one label is required.
+   */
+  public WorkflowRunPurge purge(Map<String, String> labels) {
+    if (labels == null || labels.isEmpty()) {
+      throw new IllegalArgumentException("a purge by labels needs at least one label");
+    }
+    return api.delete(
+        "/workspace/{workspace}/workflowrun",
+        Map.of("workspace", workspace),
+        Params.none()
+            .addAll("labels", labels.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).toList()),
+        PURGE);
   }
 
   /**

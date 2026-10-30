@@ -20,6 +20,7 @@ import io.boomerang.flow.sdk.model.TaskRunSpec;
 import io.boomerang.flow.sdk.model.TaskType;
 import io.boomerang.flow.sdk.model.WorkflowRun;
 import io.boomerang.flow.sdk.model.WorkflowRunCount;
+import io.boomerang.flow.sdk.model.WorkflowRunPurge;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightSummary;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightTasks;
 import io.boomerang.flow.sdk.model.WorkflowRunInsightUsage;
@@ -84,6 +85,7 @@ class ApiContractTest {
     MODELLED.put("WorkflowSubmitRequest", type(SubmitRequest.class));
     MODELLED.put("WorkflowRunRetryRequest", type(Retry.class));
     MODELLED.put("WorkflowRunCount", type(WorkflowRunCount.class));
+    MODELLED.put("WorkflowRunPurge", type(WorkflowRunPurge.class));
     MODELLED.put("PageWorkflowRun", Runs.RUN_PAGE);
     MODELLED.put("PageTaskRun", TaskRuns.TASK_RUN_PAGE);
     MODELLED.put("Action", type(Action.class));
@@ -394,6 +396,8 @@ class ApiContractTest {
     flow.runs("ws").retry("r", Retry.all());
     flow.runs("ws").query(RunQuery.all());
     flow.runs("ws").count(RunQuery.all());
+    flow.runs("ws").purge("r");
+    flow.runs("ws").purge(Map.of("k", "v"));
     flow.taskRuns("ws").query(TaskRunQuery.all());
     flow.taskRuns("ws").log("t");
     flow.actions("ws").get("a");
@@ -403,7 +407,7 @@ class ApiContractTest {
     flow.insights("ws").tasks(InsightsQuery.all());
     flow.insights("ws").workflow("wf", InsightsQuery.all());
 
-    assertThat(calls).hasSize(17);
+    assertThat(calls).hasSize(19);
     List<String> routes = routes();
     calls.forEach(
         call ->

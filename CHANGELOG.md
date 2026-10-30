@@ -221,6 +221,8 @@ tag's release notes.
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
   Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
   whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
+- The SDK's `Runs.purge(id)` and `Runs.purge(labels)` call the two run purge routes and read `{purged, scheduled,
+  remaining}`.
 - The thin workflow-run status event (`flow.events.sink.payload=thin`) carries `statusReason`, as the task event
   already did, so a consumer acting on a terminal event reads why the run ended without calling back.
 - The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
