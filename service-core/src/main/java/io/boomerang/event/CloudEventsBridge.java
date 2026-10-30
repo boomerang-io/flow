@@ -3,6 +3,7 @@ package io.boomerang.event;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.event.config.EventSinkProperties;
 import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.common.model.TaskRunTransition;
 import io.boomerang.common.model.WorkflowRunTransition;
@@ -16,7 +17,8 @@ import org.springframework.stereotype.Component;
  * Bridge from the winner-published domain transition events to the CloudEvents egress: each
  * externally-visible transition becomes one outbox row that the dispatcher delivers. The end node
  * emits nothing, as the start node never does: the run's own completion event reports it. The bean
- * only exists when the sink is enabled, so a disabled sink never accumulates pending rows.
+ * only exists when the sink is enabled, so a disabled sink never accumulates pending rows, and a
+ * transition no configured sink's filter wants writes no row.
  */
 @Component
 @ConditionalOnProperty(
@@ -26,9 +28,12 @@ import org.springframework.stereotype.Component;
 public class CloudEventsBridge {
 
   private final EventOutboxRepository eventOutboxRepository;
+  private final EventSinkProperties properties;
 
-  public CloudEventsBridge(EventOutboxRepository eventOutboxRepository) {
+  public CloudEventsBridge(
+      EventOutboxRepository eventOutboxRepository, EventSinkProperties properties) {
     this.eventOutboxRepository = eventOutboxRepository;
+    this.properties = properties;
   }
 
   @EventListener
@@ -38,7 +43,9 @@ public class CloudEventsBridge {
         transition.fromStatus(),
         transition.fromPhase(),
         transition.toStatus(),
-        transition.toPhase())) {
+        transition.toPhase())
+        && properties.admits(
+            EventOutboxEntity.REF_TYPE_TASKRUN, transition.toStatus(), transition.toPhase())) {
       EventOutboxEntity row = new EventOutboxEntity();
       row.setRefType(EventOutboxEntity.REF_TYPE_TASKRUN);
       row.setRef(transition.id());
@@ -56,7 +63,9 @@ public class CloudEventsBridge {
         transition.fromStatus(),
         transition.fromPhase(),
         transition.toStatus(),
-        transition.toPhase())) {
+        transition.toPhase())
+        && properties.admits(
+            EventOutboxEntity.REF_TYPE_WORKFLOWRUN, transition.toStatus(), transition.toPhase())) {
       EventOutboxEntity row = new EventOutboxEntity();
       row.setRefType(EventOutboxEntity.REF_TYPE_WORKFLOWRUN);
       row.setRef(transition.id());

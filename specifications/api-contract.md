@@ -305,10 +305,13 @@ sends one event, as does a run timeout (`engine/TaskExecutionService.java:197-19
 | `thin` (default) | Identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime`, `duration`; never `params`, `results` or `annotations`. Absent fields are omitted | A consumer triggers on the event and reads the run back over the API |
 | `full` | The whole public `WorkflowRun` / `TaskRun`; a `secret` param's value is `*****`, and scrubbed from results, the status message and annotations | A consumer processes result values without calling back |
 
-A sink is a bare URL in `flow.events.sink.urls` (comma-separated; any secret rides in the query string) or an entry in `flow.events.sink.destinations[n]` with `url`, `header-name` (default
-`Authorization`) and `header-value`, the secret, supplied from the environment, sent only to its own sink and never logged (`event/config/EventSinkProperties.java:42-46`,
-`event/EventSinkService.java:110-119`). Prefer the header: a URL secret is recorded by every proxy and access log on the way. Both lists are delivered to, through the internal `RestTemplate`, so its
-proxy routing and timeouts apply (`event/EventSinkService.java:40`). Flow sends the header verbatim and treats any non-2xx answer as a delivery failure to retry.
+A sink is a bare URL in `flow.events.sink.urls` (comma-separated; any secret rides in the query string) or an entry
+in `flow.events.sink.destinations[n]` with `url`, `header-name` (default `Authorization`) and `header-value`, the
+secret, supplied from the environment, sent only to its own sink and never logged
+(`event/config/EventSinkProperties.java:112-130`, `event/EventSinkService.java:117-126`). Prefer the header: a URL
+secret is recorded by every proxy and access log on the way. Both lists are delivered to, through the internal
+`RestTemplate`, so its proxy routing and timeouts apply (`event/EventSinkService.java:40`). Flow sends the header
+verbatim and treats any non-2xx answer as a delivery failure to retry. Every key below is optional and empty means no filter: `types` (`workflowrun`, `taskrun`), `statuses` (a `RunStatus` name, or `terminal` for `succeeded`, `failed`, `cancelled`, `timedout`, `invalid`) and `phases` (a `RunPhase` name), at the top level for every sink and again per destination (a destination with none of its own inherits the top level), plus `labels` (`key=value`, all must match) per destination. An unknown value fails startup naming the key (`event/config/EventSinkProperties.java:49-54,83-100`). `statuses` matches the status as emitted, so a run with finally tasks takes its terminal status while still `running`; `phases=completed` is its true end. A transition no sink's filter wants writes no outbox row, so a filtered event is neither stored nor counted as dead (`event/CloudEventsBridge.java:47,67`). Labels are not on the transition, so they filter at delivery only: a row is posted to the destinations that admit it and one nobody admits is marked sent with nothing posted (`event/EventSinkService.java:102-112`).
 
 ## Updating a workflow
 
