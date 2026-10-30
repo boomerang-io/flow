@@ -211,11 +211,13 @@ public class WorkflowRunStateHelper {
   }
 
   // Whether the run is among the oldest `limit` runs of its workflow in flight: the ones that keep
-  // their slot when more were admitted at once than the limit allows.
+  // their slot when more were admitted at once than the limit allows. Runs admitted in the same
+  // millisecond tie on creationDate, so the id breaks the tie the same way for every caller;
+  // otherwise two concurrent recounts could each see a different oldest run and both keep a slot.
   public boolean holdsSlot(String id, String workflowRef, int limit) {
     Query query =
         Query.query(inFlight(workflowRef))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate").and(Sort.by(Sort.Direction.ASC, "_id")))
             .limit(limit);
     query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class).stream()
