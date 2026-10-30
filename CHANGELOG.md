@@ -472,6 +472,10 @@ tag's release notes.
 
 ### Fixed
 
+- A user who belongs to no workspace can sign in: every signed-in user holds a baseline grant for their own profile, the
+  flags, navigation, the templates and the workspace list, so the webapp opens on Home instead of an error page. A
+  new `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is
+  not an admin may create a workspace; Home and Workspaces show the button only to those who may.
 - A workflow's changelog, and the editor that reads it, no longer fail with a 500 when a version's author is a
   user with no display name, as a user signed in through a provider that sends none; the author reads by name.
 - A task param named after a workflow param passes it through again: `url: $(params.url)` reads the workflow's `url`,
@@ -504,6 +508,10 @@ tag's release notes.
   completed schedule said Disable and then asked to enable it.
 - The Parameters toolbar matches the Schedules toolbar: a 40px search and Add parameter.
 - A task row's retry is "Retry", on one line; the retry modal says which task it starts from.
+- Insights opens its Task runs panel grouped by task, so it shows rows rather than a prompt; grouping without a time
+  bucket sent an invalid filter and the panel reported that the task runs could not be loaded. The selected
+  workflow's detail sits inside the By workflow panel, with a line saying to select a row when none is, and the
+  "Compare with previous period" switch lines up with the date pickers.
 - A quota card grows to fit its usage note instead of running past its edge. "Add members" and "Add existing
   members" are sentence case.
 - A parameter's Edit, Copy reference and Delete are icon buttons with tooltips; the row menu opened under the next

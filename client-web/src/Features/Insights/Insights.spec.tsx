@@ -311,19 +311,20 @@ describe("Insights --- loader", () => {
 });
 
 describe("Insights --- task runs", () => {
-  test("reads no task runs until a grouping is chosen", async () => {
-    let read = false;
+  test("reads the task runs grouped by task when the URL asks for nothing", async () => {
+    const requested: Array<URL> = [];
     server.use(
-      http.get(serviceUrl.workspace.getInsightsTasks({ workspace: ":workspace" }), () => {
-        read = true;
+      http.get(serviceUrl.workspace.getInsightsTasks({ workspace: ":workspace" }), ({ request }) => {
+        requested.push(new URL(request.url));
         return HttpResponse.json(fixtures.insightsTasks);
       }),
     );
     renderInsights();
     await screen.findByTestId("completed-insights");
 
-    expect(screen.getByText("Choose how to group the period's task runs.")).toBeInTheDocument();
-    expect(read).toBe(false);
+    expect(requested).toHaveLength(1);
+    expect(requested[0].searchParams.get("groupBy")).toBe("task");
+    expect(screen.queryByText("Choose how to group the period's task runs.")).not.toBeInTheDocument();
   });
 
   test("groups as the URL asks and lists the slowest task runs with a link to their run", async () => {
@@ -365,10 +366,10 @@ describe("Insights --- task runs", () => {
     await screen.findByTestId("completed-insights");
 
     userEvent.click(screen.getByRole("combobox", { name: /Group by/i }));
-    userEvent.click(await screen.findByRole("option", { name: "Task" }));
+    userEvent.click(await screen.findByRole("option", { name: "Task type" }));
 
     await waitFor(() =>
-      expect(history.location.search).toBe("?" + queryString.stringify({ taskGroupBy: "task" }, queryStringOptions)),
+      expect(history.location.search).toBe("?" + queryString.stringify({ taskGroupBy: "type" }, queryStringOptions)),
     );
   });
 

@@ -43,7 +43,7 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
 
   return (
     <div className={styles.detail} data-testid="insights-workflow-detail">
-      <section className={styles.panel} aria-labelledby="insights-time-title">
+      <section className={styles.subPanel} aria-labelledby="insights-time-title">
         <div className={styles.panelHeader}>
           <h2 id="insights-time-title" className={styles.panelTitle}>
             Where the time goes · {detail.workflowName}
@@ -89,7 +89,7 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
         </p>
       </section>
 
-      <section className={styles.panel} aria-labelledby="insights-failures-title">
+      <section className={styles.subPanel} aria-labelledby="insights-failures-title">
         <div className={styles.panelHeader}>
           <h2 id="insights-failures-title" className={styles.panelTitle}>
             Why it fails · {detail.workflowName}
@@ -128,7 +128,9 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
         <p className={styles.panelNote}>Each row links to the newest run that ended that way.</p>
       </section>
 
-      {usage ? <UsagePanel id="insights-detail-usage" title={`Model usage · ${detail.workflowName}`} usage={usage} /> : null}
+      {usage ? (
+        <UsagePanel className={styles.subPanel} id="insights-detail-usage" title={`Model usage · ${detail.workflowName}`} usage={usage} />
+      ) : null}
     </div>
   );
 }

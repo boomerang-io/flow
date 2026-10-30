@@ -16,6 +16,8 @@ interface WorkflowTableProps {
   selected: string | null;
   /** Builds the search string that selects a workflow, keeping every other filter. */
   selectHref: (workflowName: string) => string;
+  /** The selected workflow's detail, shown under the table; a prompt to select one when absent. */
+  detail?: React.ReactNode;
 }
 
 function successTone(rate: number | null): string {
@@ -45,12 +47,12 @@ function RecentDays({ days }: { days: Array<InsightsDay> }) {
 }
 
 /** One row per workflow, worst success rate first: the object the reader acts on. */
-export default function WorkflowTable({ workspace, rows, selected, selectHref }: WorkflowTableProps) {
+export default function WorkflowTable({ workspace, rows, selected, selectHref, detail }: WorkflowTableProps) {
   return (
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
         <h2 className={styles.panelTitle}>By workflow</h2>
-        <span className={styles.panelHint}>Worst success rate first · select a row for detail</span>
+        <span className={styles.panelHint}>Worst success rate first · select a row for its detail below</span>
       </div>
       <Table size="md" aria-label="Workflow statistics" useZebraStyles={false}>
         <TableHead>
@@ -101,6 +103,13 @@ export default function WorkflowTable({ workspace, rows, selected, selectHref }:
           ))}
         </TableBody>
       </Table>
+      <div className={styles.detailInside}>
+        {detail ?? (
+          <p className={styles.empty} data-testid="insights-workflow-detail-prompt">
+            Select a workflow above to see where its time goes, why it fails and its model usage.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

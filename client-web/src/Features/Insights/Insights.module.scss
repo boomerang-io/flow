@@ -55,9 +55,10 @@
   margin-left: auto;
 }
 
+// The label sits above the switch like the date pickers' labels; the switch is centred on their inputs' height.
 .compare {
   align-self: flex-end;
-  padding-bottom: 0.125rem;
+  padding-bottom: 0.1875rem;
 }
 
 // ── Headline tiles ─────────────────────────────────────────────────────────
@@ -176,10 +177,27 @@
   @extend .panel;
 }
 
+// The selected workflow's detail sits inside the By workflow panel, under its table.
+.detailInside {
+  border-top: 1px solid var(--cds-border-subtle-01, var(--cds-ui-03));
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
 .detail {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+}
+
+// A section of that detail: a tinted card inside the panel, not a panel of its own.
+.subPanel {
+  @include border-radius();
+  background-color: var(--cds-layer-02, var(--cds-ui-02));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
 }
 
 // ── Workflow table ─────────────────────────────────────────────────────────

@@ -336,9 +336,9 @@ slower, what fails and why, where does the time go. In `src/Features/Insights/`:
 | Headline tiles | Four, each with a previous-period delta coloured by whether the change is welcome (`HeadlineTiles.tsx`) |
 | Runs per day | Stacked bars by outcome, never a smoothed line, because counts are discrete (`RunsPerDayChart.tsx`) |
 | Model usage | When the period ran an `ai` task: total tokens, cost when any task reported one, one row per model (`UsagePanel.tsx`) |
-| Workflow table | One row per workflow, worst success rate first; the selected row opens a detail panel with its own model usage (`WorkflowTable.tsx`, `WorkflowDetail.tsx:131`) |
+| Workflow table | One row per workflow, worst success rate first; the selected row's detail (where the time goes, why it fails, model usage) renders inside the panel under the table as tinted cards, and a line asks to select a row when none is (`WorkflowTable.tsx`, `WorkflowDetail.tsx`) |
 | Duration spread | A p5 to p95 bar with a p50 mark on a log scale, the run timeout marked, in place of a scatter of every run (`DurationSpread.tsx`) |
-| Task runs | The period's task runs grouped by task, task type, workflow, model, for-each item or a run label, over the whole period or per hour, day or month: runs, failures, mean, p50, p95 and max duration, and tokens and cost where reported (`TaskBreakdown.tsx:17-39`) |
+| Task runs | The period's task runs grouped by task (the default), task type, workflow, model, for-each item or a run label, over the whole period or per hour, day or month: runs, failures, mean, p50, p95 and max duration, and tokens and cost where reported (`TaskBreakdown.tsx:17-39`) |
 
 The chart library takes literal colours, so the outcome colours are read off the status tokens at mount, with the
 theme's values as fallbacks (`statusColors.ts`); everything else is tokens, and outcomes with no runs stay out of
