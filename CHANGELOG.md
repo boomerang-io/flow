@@ -160,6 +160,9 @@ tag's release notes.
 
 ### Added
 
+- A run's locks go with the run. A run that completes with any status, or is purged, holding an `acquirelock` lock it
+  never released frees it at once, so the next `acquirelock` on the key succeeds on its first attempt instead of waiting
+  out the lease; a lock another run holds is never touched.
 - Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
   succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
   `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
