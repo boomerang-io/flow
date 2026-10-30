@@ -2538,6 +2538,15 @@ components:
           - "skip"
           type: "string"
       type: "object"
+    WorkflowPatch:
+      properties:
+        type:
+          enum:
+          - "workflow"
+          - "template"
+          - "starter"
+          type: "string"
+      type: "object"
     WorkflowResponsePage:
       properties:
         content:
@@ -6900,6 +6909,57 @@ paths:
       - BearerAuth: []
       - x-access-token: []
       summary: "Retrieve a Workflow"
+      tags:
+      - "Workflows"
+    patch:
+      description: "Sets the workflow's type: workflow, template or starter. A template\
+        \ or starter is the system workspace's alone, and a template that other workspaces\
+        \ link stays one. The revision is untouched."
+      operationId: "patchWorkflow"
+      parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "Workflow name"
+        example: "my-amazing-workflow"
+        in: "path"
+        name: "name"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowPatch"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Workflow"
+          description: "OK"
+        "400":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Workflow"
+          description: "Bad Request"
+        "409":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Workflow"
+          description: "Conflict"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      summary: "Change what a workflow is"
       tags:
       - "Workflows"
   /api/v2/workspace/{workspace}/workflow/{name}/available-parameters:

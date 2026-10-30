@@ -171,6 +171,8 @@ export const serviceUrl = {
       getWorkflowChangelog: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/changelog`,
       postCreateWorkflow: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/workflow`,
+      patchWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}`,
       postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/duplicate`,
       postSubmitWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>

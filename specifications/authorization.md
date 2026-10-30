@@ -155,7 +155,7 @@ unannotated handler and both placements of `@AuthExempt`.
 
 | Admits | Handlers | Routes |
 | --- | --- | --- |
-| `global`, `key`, `user`, `session` | 76 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
+| `global`, `key`, `user`, `session` | 77 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
 | `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
 | `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |

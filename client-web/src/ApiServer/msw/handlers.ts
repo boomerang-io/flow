@@ -237,6 +237,18 @@ export const handlers: HttpHandler[] = [
     const workflow = findWorkflow(pathParam(params.workflow));
     return workflow ? HttpResponse.json(workflow) : HttpResponse.json({ errors: ["Workflow not found"] }, { status: 404 });
   }),
+  http.patch(
+    serviceUrl.workspace.workflow.patchWorkflow({ workspace: ":workspace", workflow: ":workflow" }),
+    async ({ params, request }) => {
+      const workflow = findWorkflow(pathParam(params.workflow));
+      if (!workflow) {
+        return HttpResponse.json({ errors: ["Workflow not found"] }, { status: 404 });
+      }
+      const body = await jsonBody(request);
+      workflow.type = body.type;
+      return HttpResponse.json(workflow);
+    },
+  ),
   http.delete(serviceUrl.workspace.workflow.getWorkflow({ workspace: ":workspace", workflow: ":workflow" }), ({ params }) => {
     db.workflows = db.workflows.filter((workflow) => workflow.name !== params.workflow && workflow.id !== params.workflow);
     return HttpResponse.json({});

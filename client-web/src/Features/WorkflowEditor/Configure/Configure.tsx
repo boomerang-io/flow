@@ -228,7 +228,7 @@ function Configure(props: ConfigureProps) {
     props.formikProps.setFieldValue(id, value);
   };
   // A template, or a workflow that follows one: run options, storage and artifacts are the template's.
-  const readOnly = isReadOnlyTasks(props.workflow);
+  const readOnly = isReadOnlyTasks(props.workflow, props.workspace?.name);
   const templateName = props.workflow.templateRef?.name ?? props.workflow.name;
   const currentTemplateVersion = props.workflow.templateRef?.version ?? props.workflow.version ?? 1;
   const pinnedVersion = Number(props.formikProps.values.templateVersion || 0);

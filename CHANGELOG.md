@@ -195,6 +195,9 @@ tag's release notes.
   workspace's link, so a template's children never run in the system workspace on a workspace's behalf. The webapp's
   Workflows page shows templates beside the workspace's workflows, tagged and read-only, dashed until first use; the
   editor puts the task palette away for one; Home's starters come from the workspace query with `types=starter`.
+  The system workspace changes what a workflow is with `PATCH /api/v2/workspace/system/workflow/{name}` and `{type}`:
+  the card's overflow menu offers Make a template, Make a starter or Make a workflow, the system list shows its
+  starters and tags both kinds, and its templates stay fully editable there; a template other workspaces link stays one.
 - A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
   task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
   tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50 a

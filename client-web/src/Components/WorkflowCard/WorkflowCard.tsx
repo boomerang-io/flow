@@ -24,7 +24,7 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
 import { isActionError, type ActionError } from "Utils/actionResult";
-import { isFromTemplate, isReadOnlyTasks, isTemplate } from "Utils/workflowTemplate";
+import { isFromTemplate, isReadOnlyTasks, isSystemWorkspace, isTemplate } from "Utils/workflowTemplate";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
 import WorkflowRunModalContent from "./WorkflowRunModalContent";
@@ -38,18 +38,39 @@ interface WorkflowCardProps {
 }
 
 // Matches only the fields this component reads off the Workflows route's action result for the
-// "delete"/"duplicate"/"execute" intents it submits - see Features/Workflows/Workflows.tsx for the
+// "delete"/"duplicate"/"changeKind"/"execute" intents it submits - see Features/Workflows/Workflows.tsx for the
 // actual action. Renders as a descendant of that route's element with no nested <Route> of its
 // own, so `useFetcher()` resolves against it.
+type WorkflowKind = "workflow" | "template" | "starter";
+
+const kindChange: Record<WorkflowKind, { menu: string; title: string; text: string }> = {
+  workflow: {
+    menu: "Make a workflow",
+    title: "Make this a workflow?",
+    text: "It becomes the system workspace's own workflow, no longer offered to other workspaces.",
+  },
+  template: {
+    menu: "Make a template",
+    title: "Make this workflow a template?",
+    text: "Other workspaces run a template by reference and follow its versions.",
+  },
+  starter: {
+    menu: "Make a starter",
+    title: "Make this workflow a starter?",
+    text: "Other workspaces copy a starter from Home and own the copy.",
+  },
+};
+
 type ActionResult =
-  | { intent: "delete" | "duplicate" }
-  | ({ intent: "delete" | "duplicate" } & ActionError)
+  | { intent: "delete" | "duplicate" | "changeKind" }
+  | ({ intent: "delete" | "duplicate" | "changeKind" } & ActionError)
   | { intent: "execute"; execution: WorkflowRun; redirect: boolean }
   | ({ intent: "execute" } & ActionError);
 
 const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, workflow, viewType }) => {
   const fetcher = useFetcher<ActionResult>();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [kindToChangeTo, setKindToChangeTo] = useState<WorkflowKind | null>(null);
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
@@ -113,6 +134,15 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
       return;
     }
 
+    if (data.intent === "changeKind") {
+      if (!isActionError(data)) {
+        notify(<ToastNotification kind="success" title="Kind changed" subtitle="The workflow's kind was changed" />);
+      } else {
+        notify(<ToastNotification kind="error" title={data.error.title} subtitle={data.error.message} />);
+      }
+      return;
+    }
+
     if (data.intent === "execute") {
       if (!isActionError(data)) {
         notify(
@@ -150,6 +180,14 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
   const handleDeleteWorkflow = () => {
     fetcher.submit({ intent: "delete", workflowName: workflow.name }, { method: "post" });
+  };
+
+  const handleChangeKind = (type: WorkflowKind) => {
+    setKindToChangeTo(null);
+    fetcher.submit(
+      { intent: "changeKind", body: JSON.stringify({ workflow: workflow.name, type }) },
+      { method: "post" },
+    );
   };
 
   const handleDuplicateWorkflow = (workflow: Workflow) => {
@@ -199,9 +237,13 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
   // A template the workspace has not made its own is shared: it can be viewed and run, nothing more.
   // A workflow that follows a template is the workspace's own, but its tasks are the template's.
-  const isAvailableTemplate = isTemplate(workflow);
+  // The system workspace owns its templates and starters, so there they are ordinary editable cards.
+  const isSystem = isSystemWorkspace(workspaceName);
+  const isAvailableTemplate = !isSystem && isTemplate(workflow);
   const isLinked = isFromTemplate(workflow);
-  const readOnlyTasks = isReadOnlyTasks(workflow);
+  const readOnlyTasks = isReadOnlyTasks(workflow, workspaceName);
+  const currentKind: WorkflowKind = workflow.type ?? "workflow";
+  const kindTargets: Array<WorkflowKind> = currentKind === "workflow" ? ["template", "starter"] : ["workflow"];
 
   let menuOptions = [
     {
@@ -231,6 +273,15 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
       onClick: () => setIsDeleteModalOpen(true),
     },
   ];
+
+  if (isSystem) {
+    const kindOptions = kindTargets.map((type) => ({
+      itemText: kindChange[type].menu,
+      onClick: () => setKindToChangeTo(type),
+    }));
+    const deleteIndex = menuOptions.findIndex((el) => el.itemText === "Delete");
+    menuOptions = [...menuOptions.slice(0, deleteIndex), ...kindOptions, ...menuOptions.slice(deleteIndex)] as typeof menuOptions;
+  }
 
   if (isAvailableTemplate) {
     menuOptions = menuOptions.filter((el) => el.itemText === "View" || el.itemText === "Edit" || el.itemText === "Export");
@@ -286,7 +337,17 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
               <h1 title={workflow.name} className={styles.name} data-testid="workflow-card-title">
                 {workflow.displayName}
               </h1>
-              {readOnlyTasks ? (
+              {isSystem ? (
+                currentKind === "template" ? (
+                  <Tag type="purple" size="sm">
+                    Template
+                  </Tag>
+                ) : currentKind === "starter" ? (
+                  <Tag type="teal" size="sm">
+                    Starter
+                  </Tag>
+                ) : null
+              ) : readOnlyTasks ? (
                 <Tag type="purple" size="sm">
                   Template
                 </Tag>
@@ -440,6 +501,19 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
           workspaceName={workspaceName}
           type={viewType}
         />
+      )}
+      {kindToChangeTo && (
+        <ConfirmModal
+          affirmativeAction={() => handleChangeKind(kindToChangeTo)}
+          affirmativeText={kindChange[kindToChangeTo].menu}
+          isOpen
+          negativeAction={() => setKindToChangeTo(null)}
+          negativeText="Cancel"
+          onCloseModal={() => setKindToChangeTo(null)}
+          title={kindChange[kindToChangeTo].title}
+        >
+          {kindChange[kindToChangeTo].text}
+        </ConfirmModal>
       )}
       {isDeleteModalOpen && (
         <ConfirmModal

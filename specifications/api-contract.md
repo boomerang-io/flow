@@ -54,7 +54,8 @@ hides it. A starter is copied, its body with `type` `workflow` posted to `POST �
 of the workspace with `templateRef: {name, version}` that shows the template's tasks and params read-only under its own name, labels and triggers and runs the template's pinned or latest revision as
 its own run (`:1965-1979`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:672-677,2221-2246`); `PUT …/workflow` naming a
 template creates it and applies display name, description, icon, labels and triggers, tasks and params ignored (`:622-634`). A missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`;
-deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:794-797`).
+deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:794-797`). `PATCH …/workflow/{name}` with `{type}` changes what a workflow is, its revision untouched: a shared kind is the system
+workspace's alone, a link is refused one, and a template that workspaces still link stays one, `409 WORKFLOW_TEMPLATE_IN_USE` (`:804-836`).
 
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
