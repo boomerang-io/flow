@@ -51,9 +51,29 @@ describe("IntegrationCard", () => {
     expect(
       screen.getByText(/Every workflow author in this workspace can then act with the GitHub App's permissions/),
     ).toBeInTheDocument();
+    // Shared: the parameters it manages, one per field, by the reference a task reads.
+    expect(screen.getByRole("heading", { name: "Parameters this integration manages", hidden: true })).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.github-token)")).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.github-url)")).toBeInTheDocument();
+  });
+
+  it("lists the parameters an app integration can share before it is connected", async () => {
+    const fields = [
+      { name: "github-token", label: "GitHub token", type: "password", description: "Installation token" },
+      { name: "github-url", label: "GitHub API URL", type: "text" },
+    ];
+    renderWithRouter(<IntegrationCard workspaceName="cheer" data={{ ...github, fields }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
     expect(
-      screen.getByText(/\$\(workspace\.params\.github-token\) and \$\(workspace\.params\.github-url\)/),
+      await screen.findByRole("heading", { name: "Parameters it can share with tasks", hidden: true }),
     ).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.github-token)")).toBeInTheDocument();
+    expect(screen.getByText("GitHub token")).toBeInTheDocument();
+    expect(screen.getByText("Installation token")).toBeInTheDocument();
+    // A password field is marked as a secret; a text field is not.
+    expect(screen.getAllByText("secret")).toHaveLength(1);
   });
 
   it("has no share switch for an integration with nothing to share", async () => {
@@ -85,7 +105,8 @@ describe("IntegrationCard", () => {
 
     const share = await screen.findByRole("switch", { name: /Share the installation token with tasks/, hidden: true });
     expect(share).not.toBeChecked();
-    expect(screen.getByText(/Tasks read it as \$\(workspace\.params\.slack-token\)\./)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Parameters sharing creates", hidden: true })).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.slack-token)")).toBeInTheDocument();
   });
 
   it("can't connect an integration the platform has no install link for", () => {
@@ -123,7 +144,9 @@ describe("IntegrationCard", () => {
     fireEvent.change(screen.getByLabelText("Application (client) ID (required)"), { target: { value: "client-1" } });
     fireEvent.change(screen.getByLabelText("Client secret (required)"), { target: { value: "secret-1" } });
     expect(connect).toBeEnabled();
-    expect(screen.getByText(/Tasks read them as \$\(workspace\.params\.microsoft-tenant-id\), /)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Parameters connecting creates", hidden: true })).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.microsoft-tenant-id)")).toBeInTheDocument();
+    expect(screen.getByText("$(workspace.params.microsoft-client-secret)")).toBeInTheDocument();
   });
 
   it("edits a connected form integration with its stored secret kept, and offers Disconnect", async () => {

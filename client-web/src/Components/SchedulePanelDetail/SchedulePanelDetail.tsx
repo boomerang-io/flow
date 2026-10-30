@@ -1,15 +1,21 @@
 import React from "react";
-import { Button, CodeSnippet, Tag } from "@carbon/react";
+import { Button, CodeSnippet, IconButton, Tag } from "@carbon/react";
 import { TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
-import SlidingPane from "react-sliding-pane";
 import cronstrue from "cronstrue";
 import cx from "classnames";
 import moment from "moment-timezone";
 import { DATETIME_LOCAL_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { scheduleStatusLabelMap, scheduleTypeLabelMap } from "Constants";
-import { CircleFilled, Information, SettingsAdjust, RadioButton, Repeat, RepeatOne } from "@carbon/react/icons";
+import {
+  CircleFilled,
+  Close,
+  Information,
+  SettingsAdjust,
+  RadioButton,
+  Repeat,
+  RepeatOne,
+} from "@carbon/react/icons";
 import { ScheduleUnion } from "Types";
-import "react-sliding-pane/dist/react-sliding-pane.css";
 import styles from "./SchedulePanelDetail.module.scss";
 
 interface SchedulePanelDetailProps {
@@ -20,8 +26,28 @@ interface SchedulePanelDetailProps {
   setIsEditorOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+/**
+ * The schedule's detail in a panel that slides in from the right over the page. It is the page's own
+ * element, not a modal library's: Escape, the overlay and the close button all close it.
+ */
 export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
   const schedule = props.event;
+  const { isOpen, setIsOpen } = props;
+  const panelRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    panelRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, setIsOpen]);
 
   function renderSchedule() {
     if (!schedule || !props.isOpen) {
@@ -59,6 +85,9 @@ export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
               >
                 Edit Schedule
               </Button>
+              <IconButton align="left" kind="ghost" label="Close" size="sm" onClick={() => setIsOpen(false)}>
+                <Close />
+              </IconButton>
             </div>
             <p title={scheduleDescription} className={styles.detailsDescription}>
               {scheduleDescription}
@@ -121,25 +150,38 @@ export default function SchedulePanelDetail(props: SchedulePanelDetailProps) {
             <h2>Workflow Parameters</h2>
             <p style={{ marginBottom: "1rem" }}>Values for your workflow</p>
             <CodeSnippet light hideCopyButton type="multi">
-              {schedule?.params
-                ? JSON.stringify(schedule?.params, null, 2)
+              {schedule.params && schedule.params.length > 0
+                ? JSON.stringify(schedule.params, null, 2)
                 : "No parameters have been set on this Schedule."}
             </CodeSnippet>
           </section>
-          <hr />
         </div>
       </>
     );
   }
   return (
-    <SlidingPane
-      hideHeader
-      className={cx(styles.panelContainer, props.className)}
-      isOpen={props.isOpen}
-      onRequestClose={() => props.setIsOpen(false)}
-      width="32rem"
-    >
-      {renderSchedule()}
-    </SlidingPane>
+    <>
+      {isOpen && (
+        <button
+          aria-label="Close the panel"
+          className={styles.overlay}
+          data-testid="schedule-panel-overlay"
+          onClick={() => setIsOpen(false)}
+          tabIndex={-1}
+          type="button"
+        />
+      )}
+      <aside
+        ref={panelRef}
+        aria-hidden={!isOpen}
+        aria-label={schedule ? `Schedule ${schedule.name}` : "Schedule"}
+        aria-modal="true"
+        className={cx(styles.panelContainer, props.className, { [styles.open]: isOpen })}
+        role="dialog"
+        tabIndex={-1}
+      >
+        {renderSchedule()}
+      </aside>
+    </>
   );
 }

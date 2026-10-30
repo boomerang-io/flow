@@ -108,7 +108,6 @@
     "react-markdown": "^8.0.3",
     "react-mde": "11.5.0",
     "react-router-dom": "^7.18.2",
-    "react-sliding-pane": "^7.1.0",
     "react-transition-group": "^4.4.2",
     "reflexbox": "^4.0.6",
     "remix-auth": "^4.2.0",

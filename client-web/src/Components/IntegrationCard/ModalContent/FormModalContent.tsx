@@ -5,14 +5,10 @@ import "Styles/markdown.css";
 import ReactMarkdown from "react-markdown";
 import SecretInput from "Components/SecretInput";
 import { REDACTED } from "Constants";
+import IntegrationParameters, { IntegrationField } from "./IntegrationParameters";
 import styles from "./ModalContent.module.scss";
 
-type Field = {
-  name: string;
-  label?: string;
-  description?: string;
-  type?: string;
-  required?: boolean;
+type Field = IntegrationField & {
   value?: unknown;
   defaultValue?: unknown;
 };
@@ -88,12 +84,13 @@ const FormModalContent: React.FC<FormModalContentProps> = ({
             ),
           )}
         </div>
-        <p className={styles.note}>
-          {`Every workflow author in this workspace can then use these credentials. Tasks read them as ${fields
-            .map((field) => `$(workspace.params.${field.name})`)
-            .join(", ")}.`}
-        </p>
-        {isConnected && <p className={styles.note}>{`Disconnecting removes these parameters from this workspace.`}</p>}
+        <IntegrationParameters
+          title={isConnected ? "Parameters this integration manages" : "Parameters connecting creates"}
+          note={`Workspace parameters every workflow author in this workspace can use. They are read-only in Parameters, and ${
+            isConnected ? "disconnecting removes them" : "Disconnect removes them again"
+          }.`}
+          fields={fields}
+        />
       </ModalBody>
       <ModalFooter>
         <Button kind="secondary" type="button" onClick={closeModal}>

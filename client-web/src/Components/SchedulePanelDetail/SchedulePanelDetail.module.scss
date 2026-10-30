@@ -1,19 +1,50 @@
 @import "Styles/animation";
 @import "Styles/mixins";
 
+// The panel sits off the right edge until it opens; the page's own class may offset its top below
+// the page header. Hiding is delayed by the slide so closing animates too.
 .panelContainer {
   background-color: var(--cds-ui-01);
+  border-left: 1px solid var(--cds-border-subtle);
+  bottom: 0;
   margin-top: 12.125rem;
-  border: none;
-  height: 100%;
-  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
-  :global .slide-pane__content {
-    padding: 0;
+  max-width: 100%;
+  overflow-y: auto;
+  position: fixed;
+  right: 0;
+  top: 0;
+  transform: translateX(100%);
+  transition:
+    transform $carbon-motion--timing--productive $carbon-motion--easing--productive,
+    visibility 0s linear $carbon-motion--timing--productive;
+  visibility: hidden;
+  width: 32rem;
+  z-index: 1001;
+
+  &.open {
+    transform: none;
+    transition-delay: 0s;
+    visibility: visible;
   }
+
+  &:focus {
+    outline: none;
+  }
+
   h2 {
     font-size: 1.25rem;
     margin-bottom: 1rem;
   }
+}
+
+.overlay {
+  background-color: var(--cds-overlay);
+  border: 0;
+  cursor: default;
+  inset: 0;
+  padding: 0;
+  position: fixed;
+  z-index: 1000;
 }
 
 div.listItem {

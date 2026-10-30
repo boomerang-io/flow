@@ -25,6 +25,14 @@ a {
   text-decoration: none;
 }
 
+/* The add-ons' global stylesheet lifts `.cds--tooltip` to 9999, a Carbon v10 rule from when that
+   class was the floating bubble. In v11 it is the trigger's container, so every icon button with a
+   tooltip floated above overlays and side panels. The bubble (`.cds--popover`) carries its own
+   z-index, so the container needs none. */
+:root[data-carbon-theme="boomerang"] .cds--tooltip {
+  z-index: auto;
+}
+
 /* Motion is opt-out for people who ask for it: one rule, every screen. Carbon components carry
    their own transitions and do not check the preference themselves, so this has to be global.
    The near-zero duration (not zero) keeps transitionend/animationend firing for code that waits

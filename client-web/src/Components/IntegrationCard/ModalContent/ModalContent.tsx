@@ -4,6 +4,7 @@ import { Launch } from "@carbon/react/icons";
 import { ModalForm } from "@boomerang-io/carbon-addons-boomerang-react";
 import ReactMarkdown from "react-markdown";
 import "Styles/markdown.css";
+import IntegrationParameters, { IntegrationField } from "./IntegrationParameters";
 import styles from "./ModalContent.module.scss";
 
 interface ModalContentProps {
@@ -33,7 +34,7 @@ const ModalContent: React.FC<ModalContentProps> = ({
   data,
 }) => {
   const isConnected = data.status === "linked";
-  const fields: Array<{ name: string }> = data.fields ?? [];
+  const fields: Array<IntegrationField> = data.fields ?? [];
   return (
     <ModalForm>
       {error && (
@@ -69,11 +70,11 @@ const ModalContent: React.FC<ModalContentProps> = ({
                   disabled={isSharing}
                   onToggle={(checked: boolean) => handleShare(checked)}
                 />
-                <p className={styles.note}>
-                  {`Every workflow author in this workspace can then act with the ${data.name} App's permissions. Tasks read it as ${fields
-                    .map((field) => `$(workspace.params.${field.name})`)
-                    .join(" and ")}.`}
-                </p>
+                <IntegrationParameters
+                  title={data.shared ? "Parameters this integration manages" : "Parameters sharing creates"}
+                  note={`Every workflow author in this workspace can then act with the ${data.name} App's permissions. They are read-only in Parameters, and switching sharing off removes them.`}
+                  fields={fields}
+                />
               </div>
             )}
             <p className={styles.note}>
@@ -81,7 +82,14 @@ const ModalContent: React.FC<ModalContentProps> = ({
             </p>
           </>
         ) : (
-          <ReactMarkdown className="markdown-body" children={data.instructions} />
+          <>
+            <ReactMarkdown className="markdown-body" children={data.instructions} />
+            <IntegrationParameters
+              title="Parameters it can share with tasks"
+              note={`Once connected, switching on "Share the installation token with tasks" creates these workspace parameters, read-only in Parameters, for every workflow author in this workspace.`}
+              fields={fields}
+            />
+          </>
         )}
       </ModalBody>
       <ModalFooter>

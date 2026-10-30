@@ -32,3 +32,48 @@
   gap: $spacing-05;
   margin-block: $spacing-05;
 }
+
+// The parameters an integration manages: the reference a task reads, then the field's label and
+// what it holds.
+.parameters {
+  border-top: 1px solid var(--cds-border-subtle);
+  margin-top: $spacing-05;
+  padding-top: $spacing-05;
+
+  h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.125rem;
+    margin-bottom: $spacing-02;
+  }
+}
+
+.parameterList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  margin-top: $spacing-04;
+
+  dt {
+    align-items: center;
+    display: flex;
+    gap: $spacing-03;
+
+    code {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.75rem;
+    }
+  }
+
+  dd {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    margin-top: 0.125rem;
+  }
+}
+
+.parameterDescription {
+  color: var(--cds-text-secondary);
+}
