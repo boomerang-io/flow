@@ -563,6 +563,15 @@ public class ParameterManager {
       contextParams.put("taskrun-ref", optTaskRun.get().getId());
       contextParams.put("taskrun-name", optTaskRun.get().getName());
       contextParams.put("taskrun-type", optTaskRun.get().getType());
+      // A for-each item's item and index are context the engine set when it fanned out, so
+      // $(params.item) and $(params.index) resolve in the item's own params like any context param.
+      if (optTaskRun.get().getParentRef() != null && optTaskRun.get().getParams() != null) {
+        for (RunParam param : optTaskRun.get().getParams()) {
+          if ("item".equalsIgnoreCase(param.getName()) || "index".equalsIgnoreCase(param.getName())) {
+            contextParams.put(param.getName(), param.getValue());
+          }
+        }
+      }
     }
     if (wfRun.getParams() != null && !wfRun.getParams().isEmpty()) {
       paramLayers.setWorkflowParams(ParameterUtil.runParamListToMap(wfRun.getParams()));

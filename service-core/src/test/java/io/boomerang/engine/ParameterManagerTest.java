@@ -1092,6 +1092,29 @@ class ParameterManagerTest {
     assertEquals("wx", taskValue(task, "y"));
   }
 
+  // A for-each item's item and index are context the engine set at fan-out, so the item's own
+  // params read them, as the item reads every other context param.
+  @Test
+  void aForeachItemsParamsReadItsItemAndIndex() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = new TaskRunEntity();
+    task.setParentRef("parent");
+    task.setIndex(1);
+    task.setParams(
+        List.of(
+            str("item", "beta"),
+            str("index", "1"),
+            str("script", "echo item=$(params.item) index=$(params.index)")));
+    task.getSpec().setScript("echo $(params.script) $(params.item)");
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(Map.of(), unresolved);
+    assertEquals("echo item=beta index=1", taskValue(task, "script"));
+    assertEquals("beta", taskValue(task, "item"));
+    assertEquals("echo echo item=beta index=1 beta", parameterManager.fillSpec(run, task).getScript());
+  }
+
   // The spec reads the task's own params first (as Tekton does), and a scope still reaches past.
   @Test
   void theSpecReadsTheTasksOwnParamsAndAScopeReachesPast() {

@@ -428,6 +428,9 @@ tag's release notes.
 
 ### Fixed
 
+- A for-each item's params read `$(params.item)` and `$(params.index)` again: the item and index the engine
+  sets at fan-out are context params, so the rule that a task param never reads the task's own params
+  (2026-10-29) no longer fails every item with `ParamUnresolved`.
 - The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
   template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
   `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the
