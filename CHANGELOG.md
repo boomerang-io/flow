@@ -160,10 +160,9 @@ tag's release notes.
 
 ### Added
 
-- Insights across workspaces for a global grant: `GET /api/v2/insights` and `GET /api/v2/insights/tasks` compute the
-  workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
-  `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
-  grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
+- A run's locks go with the run. A run that completes with any status, or is purged, holding an `acquirelock` lock it
+  never released frees it at once, so the next `acquirelock` on the key succeeds on its first attempt instead of waiting
+  out the lease; a lock another run holds is never touched.
 - Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
   succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
   `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
@@ -314,6 +313,10 @@ tag's release notes.
   reading the workflow. `flow-sdk` adds `TaskRunQuery.foreach(boolean)` and `TaskRun.foreach()`.
 - A `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is not
   an admin may create a workspace; Home and Workspaces offer the button only to those who may.
+- Insights across workspaces for a global grant: `GET /api/v2/insights` and `GET /api/v2/insights/tasks` compute the
+  workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
+  `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
+  grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
 
 ### Changed
 
