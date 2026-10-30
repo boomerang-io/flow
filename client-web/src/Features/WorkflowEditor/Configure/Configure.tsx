@@ -25,6 +25,7 @@ import { TokenActorKind, TokenType } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { WorkflowCanvas, ConfigureWorkflowFormValues, FlowWorkspace, WorkflowTriggerCondition } from "Types";
 import { isQuotaLimited } from "Utils/quotaHelper";
+import { isReadOnlyTasks } from "Utils/workflowTemplate";
 import { useEditorRouteData } from "../editorRouteData";
 import BuildWebhookModalContent from "./BuildWebhookModalContent";
 import ConfigureArtifacts from "./ConfigureArtifacts";
@@ -92,7 +93,8 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
   );
 
   const workflows = workflowsQueryData.content;
-  const existingWorkflowNames = workflows?.map((workflow) => workflow.name) ?? [];
+  const existingWorkflowNames = workflows?.map((existing) => existing.name).filter((existingName) => existingName !== workflow.name) ?? [];
+  const templateVersion = String(workflow.templateRef?.version ?? "");
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
 
   return (
@@ -122,6 +124,7 @@ function ConfigureContainer({ workflow, settingsRef }: ConfigureContainerProps) 
           labels: workflow.labels ? Object.entries(workflow.labels).map(([key, value]) => ({ key, value })) : [],
           triggers: workflow.triggers ?? {},
           config: workflow.config ?? [],
+          templateVersion,
         }}
         validationSchema={Yup.object().shape({
           description: Yup.string().max(250, "Description must not be greater than 250 characters"),
@@ -224,6 +227,25 @@ function Configure(props: ConfigureProps) {
   const handleOnToggleChange = (value: any, id: string) => {
     props.formikProps.setFieldValue(id, value);
   };
+  // A template, or a workflow that follows one: run options, storage and artifacts are the template's.
+  const readOnly = isReadOnlyTasks(props.workflow);
+  const templateName = props.workflow.templateRef?.name ?? props.workflow.name;
+  const currentTemplateVersion = props.workflow.templateRef?.version ?? props.workflow.version ?? 1;
+  const pinnedVersion = Number(props.formikProps.values.templateVersion || 0);
+  const templateVersions = Array.from(
+    { length: Math.max(Number(props.workflow.version) || 1, currentTemplateVersion, pinnedVersion) },
+    (_, index) => index + 1,
+  ).reverse();
+  const templateLockedNotice = (
+    <InlineNotification
+      lowContrast
+      hideCloseButton
+      kind="info"
+      title="Set by the template."
+      subtitle={`Run options, workspace storage and artifacts come from template ${templateName} and cannot be changed here. To run with different values, copy the template as a starter from Home.`}
+      style={{ marginBottom: "1rem", maxWidth: "none" }}
+    />
+  );
 
   const {
     formikProps: { errors, handleBlur, touched, values, setFieldValue },
@@ -248,9 +270,44 @@ function Configure(props: ConfigureProps) {
           path="configure/general"
           element={
             <>
+          {readOnly ? (
+            <>
+              <InlineNotification
+                lowContrast
+                hideCloseButton
+                kind="info"
+                title="This workflow is a template."
+                subtitle="Its tasks, parameters and run options are the template's and follow its versions. The name, display name, description, icon, labels, triggers and schedules are this workspace's own: saving any of them keeps this template as a workflow of the workspace."
+                style={{ marginTop: "1rem", maxWidth: "none" }}
+              />
+              <Section title="Template" description="The system template this workflow follows.">
+                <TextInput
+                  id="templateName"
+                  label="Template"
+                  value={`${templateName} · system workspace`}
+                  disabled
+                  readOnly
+                />
+                <Select
+                  id="templateVersion"
+                  name="templateVersion"
+                  labelText="Version"
+                  helperText="Follow the latest version of the template, or stay on one."
+                  value={values.templateVersion ?? ""}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => props.formikProps.handleChange(e)}
+                >
+                  <SelectItem value="" text="Follow the latest" />
+                  {templateVersions.map((version) => (
+                    <SelectItem key={version} value={String(version)} text={`Pin to v${version}`} />
+                  ))}
+                </Select>
+              </Section>
+            </>
+          ) : null}
           <Section title="Basic Information" description="The bare necessities - you gotta fill out all these fields">
             <TextInput
               id="name"
+              disabled={readOnly}
               label="Name"
               helperText="This is your unique identifier name within the Workspace. Can only contain letters, numbers, and dashes."
               placeholder="Name"
@@ -732,10 +789,12 @@ function Configure(props: ConfigureProps) {
           element={
             <>
           <Section title="Execution" description="Customize how your Workflow behaves.">
-            <div>
+            {readOnly ? templateLockedNotice : null}
+            <fieldset className={styles.lockedFields} disabled={readOnly}>
               <div className={styles.runOptionsSection}>
                 <TextInput
                   id="timeout"
+                  disabled={readOnly}
                   label="Timeout"
                   helperText={
                     workspaceQuotasEnabled && isQuotaLimited(props.workspace.quotas.maxWorkflowRunDuration)
@@ -751,6 +810,7 @@ function Configure(props: ConfigureProps) {
                 />
                 <TextInput
                   id="retries"
+                  disabled={readOnly}
                   label="Retries"
                   helperText="The number of times to retry a failed workflow. Defaults to 0."
                   value={values.retries ?? undefined}
@@ -761,6 +821,7 @@ function Configure(props: ConfigureProps) {
                 />
                 <TextInput
                   id="concurrencyLimit"
+                  disabled={readOnly}
                   label="Concurrency limit"
                   helperText="Runs of this workflow in flight at once. Leave blank for no limit."
                   value={values.concurrencyLimit ?? ""}
@@ -773,6 +834,7 @@ function Configure(props: ConfigureProps) {
                 />
                 <Select
                   id="concurrencyOverflow"
+                  disabled={readOnly}
                   name="concurrencyOverflow"
                   labelText="Over the limit"
                   value={values.concurrencyOverflow}
@@ -782,7 +844,7 @@ function Configure(props: ConfigureProps) {
                   <SelectItem value="skip" text="Skip the run" />
                 </Select>
               </div>
-            </div>
+            </fieldset>
           </Section>
             </>
           }
@@ -795,6 +857,7 @@ function Configure(props: ConfigureProps) {
             title="Workspace"
             description="A shared filesystem every task in a run can read and write. It is created when the run starts and removed when the run completes. To keep files between runs, use Upload Artifact and Download Artifact with scope Workflow."
           >
+            {readOnly ? templateLockedNotice : null}
             {props.workflow.legacyWorkflowStorage ? (
               <InlineNotification
                 lowContrast
@@ -805,10 +868,12 @@ function Configure(props: ConfigureProps) {
                 hideCloseButton
               />
             ) : null}
+            <fieldset className={styles.lockedFields} disabled={readOnly}>
             <div className={styles.storageToggle}>
               <div className={styles.toggleContainer}>
                 <Toggle
                   id="workspace.enabled"
+                  disabled={readOnly}
                   data-testid="workspace.enabled"
                   label="Shared workspace for each run"
                   toggled={values.workspace.enabled}
@@ -820,6 +885,7 @@ function Configure(props: ConfigureProps) {
                 <div className={styles.workspaceFields}>
                   <BasicSlider
                     id="workspace.size"
+                    disabled={readOnly}
                     data-testid="workspace.size"
                     min={1}
                     // With quotas off, or a quota of 0 (unlimited), there is no ceiling; the
@@ -842,6 +908,7 @@ function Configure(props: ConfigureProps) {
                   {errors.workspace?.size ? <p className={styles.fieldError}>{errors.workspace.size}</p> : null}
                   <TextInput
                     id="workspace.mountPath"
+                  disabled={readOnly}
                     data-testid="workspace.mountPath"
                     label="Mount path"
                     helperText="Where every task sees the workspace"
@@ -855,6 +922,7 @@ function Configure(props: ConfigureProps) {
                 </div>
               )}
             </div>
+            </fieldset>
           </Section>
             </>
           }
@@ -867,7 +935,8 @@ function Configure(props: ConfigureProps) {
             title="Artifacts"
             description="Files this workflow keeps between runs. An Upload Artifact task with scope Workflow writes one; a Download Artifact task with scope Workflow reads it in a later run. Each name keeps its newest verified upload until it is replaced or deleted."
           >
-            <ConfigureArtifacts workspace={routeParams.workspace ?? ""} />
+            {readOnly ? templateLockedNotice : null}
+            <ConfigureArtifacts workspace={routeParams.workspace ?? ""} disabled={readOnly} />
           </Section>
             </>
           }

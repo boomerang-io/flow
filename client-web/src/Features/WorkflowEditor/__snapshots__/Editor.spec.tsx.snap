@@ -57,9 +57,13 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
         <div
           class="cds--bmrg-feature-header__header"
         >
-          <h1
-            class="cds--bmrg-feature-header-title"
-          />
+          <div
+            class="_titleRow_94d268"
+          >
+            <h1
+              class="cds--bmrg-feature-header-title"
+            />
+          </div>
         </div>
         <div
           class="cds--bmrg-feature-header__footer"

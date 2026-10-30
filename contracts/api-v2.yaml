@@ -3331,7 +3331,7 @@ paths:
     get:
       description: "One event per audited attempt, newest first, including failed\
         \ and denied ones. Without a from date the last 30 days are returned."
-      operationId: "query_9"
+      operationId: "query_8"
       parameters:
       - description: "Actor id or name, any part of either, ignoring case"
         in: "query"
@@ -3719,7 +3719,7 @@ paths:
       - "System"
   /api/v2/integration:
     get:
-      operationId: "get_6"
+      operationId: "get_5"
       parameters:
       - in: "query"
         name: "workspace"
@@ -4256,7 +4256,7 @@ paths:
       description: "A row that failed delivery carries lastError, the most recent\
         \ failure; a dead row also carries deadAt, when it gave up. Rows that died\
         \ before these were recorded carry neither."
-      operationId: "query_8"
+      operationId: "query_7"
       parameters:
       - description: "Delivery status to list"
         example: "dead"
@@ -4373,7 +4373,7 @@ paths:
       - "Tasks"
   /api/v2/task/query:
     get:
-      operationId: "query_7"
+      operationId: "query_6"
       parameters:
       - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
           \ would be encoded as Organization%3DBoomerang,customKey%3Dtest)"
@@ -4674,7 +4674,7 @@ paths:
       - "Token Management"
   /api/v2/token/query:
     get:
-      operationId: "query_6"
+      operationId: "query_5"
       parameters:
       - description: "List of types to filter for. Defaults to all."
         in: "query"
@@ -5011,115 +5011,6 @@ paths:
       summary: "Accept Webhook payloads from various sources."
       tags:
       - "Webhooks and Events"
-  /api/v2/workflowtemplate/query:
-    get:
-      operationId: "query_5"
-      parameters:
-      - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
-          \ would be encoded as Organization%3DBoomerang,customKey%3Dtest)"
-        in: "query"
-        name: "labels"
-        required: false
-        schema:
-          items:
-            type: "string"
-          type: "array"
-      - description: "List of WorkflowTemplate names to filter for. Defaults to all."
-        example: "mongodb-email-query-results"
-        in: "query"
-        name: "names"
-        required: false
-        schema:
-          items:
-            type: "string"
-          type: "array"
-      - description: "Which kinds to list: template, starter. Defaults to both."
-        example: "starter"
-        in: "query"
-        name: "types"
-        required: false
-        schema:
-          items:
-            type: "string"
-          type: "array"
-      - description: "Result Size"
-        example: 10
-        in: "query"
-        name: "limit"
-        required: true
-        schema:
-          format: "int32"
-          type: "integer"
-      - description: "Page Number"
-        example: 0
-        in: "query"
-        name: "page"
-        required: true
-        schema:
-          default: 0
-          format: "int32"
-          type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort on creationDate"
-        example: "ASC"
-        in: "query"
-        name: "sort"
-        required: true
-        schema:
-          default: "ASC"
-          enum:
-          - "ASC"
-          - "DESC"
-          type: "string"
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WorkflowResponsePage"
-          description: "OK"
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WorkflowResponsePage"
-          description: "Bad Request"
-      summary: "Search for Workflow Templates and starters"
-      tags:
-      - "Workflow Templates"
-  /api/v2/workflowtemplate/{name}:
-    get:
-      description: "Retrieve a version of the Workflow Template. Defaults to latest."
-      operationId: "get_5"
-      parameters:
-      - description: "Name of Workflow Template"
-        in: "path"
-        name: "name"
-        required: true
-        schema:
-          type: "string"
-      - description: "Workflow Template Version"
-        in: "query"
-        name: "version"
-        required: false
-        schema:
-          format: "int32"
-          type: "integer"
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Workflow"
-          description: "OK"
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Workflow"
-          description: "Bad Request"
-      summary: "Retrieve a Workflow Template or starter"
-      tags:
-      - "Workflow Templates"
   /api/v2/workspace:
     post:
       operationId: "createWorkspace"
@@ -6870,6 +6761,17 @@ paths:
           items:
             type: "string"
           type: "array"
+      - description: "Which kinds to list: workflow, template, starter. Defaults to\
+          \ all: the workspace's own workflows and the templates and starters it has\
+          \ not made its own."
+        example: "template"
+        in: "query"
+        name: "types"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
       - description: "Result Size"
         example: 10
         in: "query"
@@ -7923,9 +7825,6 @@ tags:
   name: "Profile"
 - description: "Create and Manage the global Task definitions."
   name: "Tasks"
-- description: "Retrieve and search the Workflow Templates and starters available\
-    \ to every workspace."
-  name: "Workflow Templates"
 - description: "Create and manage Manual and Approval Actions."
   name: "Actions"
 - description: "Query the security audit trail: who did what, when, and with what\

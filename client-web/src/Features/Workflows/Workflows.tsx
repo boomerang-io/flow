@@ -19,6 +19,7 @@ import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { FlowWorkspace, ModalTriggerProps, Workflow, WorkflowRun } from "Types";
 import { actionError, type ActionError } from "Utils/actionResult";
+import { isTemplate } from "Utils/workflowTemplate";
 import { formatQuotaUsage, isQuotaLimited } from "Utils/quotaHelper";
 import WorkflowQuotaModalContent from "./WorkflowQuotaModalContent";
 import styles from "./workflows.module.scss";
@@ -48,7 +49,11 @@ export async function loader({
     const response = await serverFetch(request).get(
       serviceUrl.workspace.workflow.getWorkflows({ workspace, query: "statuses=active,inactive" }),
     );
-    return { workflows: response.data.content, errorLoading: false };
+    // The query also lists the workspace's uncopied starters; those are Home's, not this page's.
+    const workflows: Array<Workflow> = (response.data.content ?? []).filter(
+      (workflow: Workflow) => workflow.type !== "starter",
+    );
+    return { workflows, errorLoading: false };
   } catch (error) {
     return { workflows: [], errorLoading: true };
   }
@@ -233,7 +238,8 @@ function Layout(props: LayoutProps) {
         handleUpdateFilter={props.handleUpdateFilter}
         searchQuery={props.searchQuery}
         workspace={props.workspace}
-        workflowList={props.workflowList}
+        // The count in the title is the workspace's own workflows, not the templates available to it.
+        workflowList={props.workflowList.filter((workflow) => !isTemplate(workflow))}
         viewType={WorkflowView.Workflow}
       />
       <div aria-label="My Workflows" className={styles.content} role="region" id="my-workflows">

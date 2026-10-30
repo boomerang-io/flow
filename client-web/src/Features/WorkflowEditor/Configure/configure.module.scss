@@ -289,3 +289,10 @@
   margin-bottom: 2rem !important;
   width: 75rem;
 }
+// Groups fields a template owns so one `disabled` locks them all.
+.lockedFields {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}

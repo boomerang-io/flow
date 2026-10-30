@@ -19,6 +19,8 @@ import io.boomerang.common.util.StorageQuantityUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.core.entity.RelationshipNodeEntity;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
@@ -234,8 +236,15 @@ public class QuotaService {
     quotas.setCurrentRunAverageDuration(
         (runTotals.runs() > 0) ? runTotals.duration() / runTotals.runs() : 0L);
 
+    // The workspace's workflows by its own edges: a quota is the workspace's whoever asks, and
+    // the engine asks with no identity when it adopts a template link for a child run.
     List<String> workflowRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
+        relationshipService
+            .childrenByLabel(
+                RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW)
+            .stream()
+            .map(RelationshipNodeEntity::getRef)
+            .toList();
     // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
     // so a just-admitted run may not be audited yet (the live count covers that race), while a
     // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE

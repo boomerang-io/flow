@@ -121,11 +121,7 @@ export const serviceUrl = {
       `${BASE_URL}/task/${name}?replace=${replace ? replace : false}`,
     postValidateYaml: () => `${BASE_URL}/task/validate`,
   },
-  // Workflow Templates are seeded, read-only content - the two reads are the whole surface.
-  template: {
-    getWorkflowTemplate: ({ name }: NameArg) => `${BASE_URL}/workflowtemplate/${name}`,
-    getWorkflowTemplates: () => `${BASE_URL}/workflowtemplate/query?types=starter`,
-  },
+
   workspace: {
     deleteWorkspaceMembers: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/members`,
     leaveWorkspace: ({ workspace }: WorkspaceArg) => `${BASE_URL}/workspace/${workspace}/leave`,

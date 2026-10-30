@@ -155,12 +155,12 @@ unannotated handler and both placements of `@AuthExempt`.
 
 | Admits | Handlers | Routes |
 | --- | --- | --- |
-| `global`, `key`, `user`, `session` | 79 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
-| `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, workflow templates, creating a workspace and checking its name |
+| `global`, `key`, `user`, `session` | 76 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
+| `global`, `user`, `session` | 25 | settings, context, features, navigation, audit, global parameters, the task catalogue, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
 | `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |
 
-A `key` token therefore reaches no system, audit, catalogue or template route, and only a `global` token reaches
+A `key` token therefore reaches no system, audit or catalogue route, and only a `global` token reaches
 the outbox: a signed-in admin's `session` token is refused there.
 
 Whether a request must sign in and whether a permission rule applies are separate decisions. The URL rules in

@@ -37,6 +37,7 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.audit.SecretChangeHolder;
+import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.TaskExecutionService;
@@ -59,6 +60,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -275,14 +277,18 @@ public class WorkflowService {
     return workflow;
   }
 
+  // The workspace's workflow of the name, by the caller's walk; failing that, the template or
+  // starter of the name every workspace may read. Neither is WORKFLOW_INVALID_REF.
   private String workflowRef(String workspace, String name) {
     List<String> refs =
         relationshipService.refsInWorkspace(
             RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
-    if (refs.isEmpty()) {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    if (!refs.isEmpty()) {
+      return refs.get(0);
     }
-    return refs.get(0);
+    return sharedForWorkspace(workspace, name)
+        .map(WorkflowEntity::getId)
+        .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF));
   }
 
   /*
@@ -333,10 +339,37 @@ public class WorkflowService {
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryWorkflows) {
+    return query(
+        queryTeam,
+        queryLimit,
+        queryPage,
+        querySort,
+        queryLabels,
+        queryStatus,
+        queryWorkflows,
+        Optional.empty());
+  }
+
+  /*
+   * The workspace's workflows and, beside them, the templates and starters it has not made its
+   * own; `types` narrows to the stored type (workflow, template, starter).
+   */
+  public WorkflowResponsePage query(
+      String queryTeam,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Optional<Direction> querySort,
+      Optional<List<String>> queryLabels,
+      Optional<List<String>> queryStatus,
+      Optional<List<String>> queryWorkflows,
+      Optional<List<String>> queryTypes) {
 
     // Get Refs that request has access to
     List<String> refs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
+        new ArrayList<>(
+            relationshipService.refsInWorkspace(
+                RelationshipType.WORKFLOW, queryTeam, queryWorkflows));
+    refs.addAll(availableSharedRefs(queryTeam, queryWorkflows));
     LOGGER.debug("Workflow Refs: {}", refs.toString());
     if (refs.isEmpty()) {
       return new WorkflowResponsePage();
@@ -350,7 +383,7 @@ public class WorkflowService {
             queryLabels,
             queryStatus,
             Optional.of(refs),
-            Optional.empty(),
+            queryTypes,
             Optional.empty());
     WorkflowResponsePage response =
         new WorkflowResponsePage(page.getContent(), page.getPageable(), page.getTotalElements());
@@ -408,7 +441,14 @@ public class WorkflowService {
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
+    return createOwned(workspace, request);
+  }
 
+  /*
+   * Create a Workflow the workspace owns, with no check that the caller reaches the workspace:
+   * the caller has checked (create), or is the engine adopting a link for a run (adopt).
+   */
+  private Workflow createOwned(String workspace, Workflow request) {
     // Ensure name is in slug format
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
@@ -425,10 +465,7 @@ public class WorkflowService {
     resolveTemplateRef(request);
 
     // Ensure Workflow name is unique within Workspace
-    List<String> existingWorkflowRefs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(request.getName())));
-    if (!existingWorkflowRefs.isEmpty()) {
+    if (!ownedWorkflowRefs(workspace, Optional.of(request.getName())).isEmpty()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
@@ -582,6 +619,21 @@ public class WorkflowService {
         workflow.setId(null);
         return appliedWorkflow;
       }
+      // The first saved setting of a template makes it the workspace's own: its link is created
+      // under the template's name, and the request then applies to the link as to any other.
+      Optional<WorkflowEntity> template =
+          sharedForWorkspace(workspace, workflow.getName())
+              .filter(t -> WorkflowType.template.equals(t.getType()));
+      if (template.isPresent()) {
+        linkOrAdopt(workspace, template.get());
+        workflow.setType(WorkflowType.workflow);
+        if (workflow.getTemplateRef() == null) {
+          WorkflowTemplateRef ref = new WorkflowTemplateRef();
+          ref.setName(template.get().getName());
+          workflow.setTemplateRef(ref);
+        }
+        return apply(workspace, workflow, replace);
+      }
     }
     if (workflow != null) {
       workflow.setId(null);
@@ -617,15 +669,17 @@ public class WorkflowService {
     List<String> refs =
         relationshipService.refsInWorkspace(
             RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
-    if (!refs.isEmpty()) {
-      WorkflowRun wfRun = this.internalSubmit(workspace, refs.get(0), request, start, initiatedByRef);
-      // The submit response is a consumer read like any other: secret-typed params go out
-      // redacted. The filter copies the params, so the run the engine holds is untouched.
-      DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
-      return wfRun;
-    } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
-    }
+    // A template the workspace has not run before runs as the workspace's link to it, created
+    // under the template's name now; a starter is copied, never run.
+    String workflowRef =
+        refs.isEmpty()
+            ? linkOrAdopt(workspace, runnableTemplate(workspace, name)).getId()
+            : refs.get(0);
+    WorkflowRun wfRun = this.internalSubmit(workspace, workflowRef, request, start, initiatedByRef);
+    // The submit response is a consumer read like any other: secret-typed params go out
+    // redacted. The filter copies the params, so the run the engine holds is untouched.
+    DataAdapterUtil.filterWorkflowRunValueByFieldType(wfRun, ParamType.secret);
+    return wfRun;
   }
 
   /*
@@ -738,14 +792,7 @@ public class WorkflowService {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
 
-    List<String> refs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
-    if (!refs.isEmpty()) {
-      return ResponseEntity.ok(changelog(refs.get(0)).getBody());
-    } else {
-      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
-    }
+    return ResponseEntity.ok(changelog(workflowRef(workspace, name)).getBody());
   }
 
   /*
@@ -826,6 +873,10 @@ public class WorkflowService {
     Workflow workflow = this.internalGet(workspace, name, Optional.empty(), true);
     workflow.setName(workflow.getName() + "-duplicate");
     workflow.setDisplayName(workflow.getDisplayName() + " (duplicate)");
+    // A template or starter duplicated into a workspace is copied, as a starter is from Home.
+    if (SHARED_TYPES.contains(workflow.getType())) {
+      workflow.setType(WorkflowType.workflow);
+    }
     return this.create(workspace, workflow);
   }
 
@@ -1221,12 +1272,24 @@ public class WorkflowService {
                     .forEach(
                         param -> {
                           if (param.getName().equals("workflowRef") && param.getValue() != null) {
+                            // A template's children are the system workspace's, which every
+                            // principal may read, so a template's or a link's resolve without
+                            // the caller's walk.
+                            boolean shared =
+                                workflow.getTemplateRef() != null
+                                    || SYSTEM_WORKSPACE.equals(workspace)
+                                    || SHARED_TYPES.contains(workflow.getType());
                             List<String> slugs =
-                                relationshipService.filter(
-                                    RelationshipType.WORKFLOW,
-                                    Optional.of(List.of(param.getValue().toString())),
-                                    Optional.of(RelationshipType.WORKSPACE),
-                                    Optional.of(List.of(workspace)));
+                                shared
+                                    ? ownedWorkflows(SYSTEM_WORKSPACE).stream()
+                                        .filter(n -> n.getRef().equals(param.getValue().toString()))
+                                        .map(RelationshipNodeEntity::getSlug)
+                                        .toList()
+                                    : relationshipService.filter(
+                                        RelationshipType.WORKFLOW,
+                                        Optional.of(List.of(param.getValue().toString())),
+                                        Optional.of(RelationshipType.WORKSPACE),
+                                        Optional.of(List.of(workspace)));
                             if (slugs == null || slugs.isEmpty()) {
                               throw new BoomerangException(
                                   BoomerangError.WORKFLOW_INVALID_TASK_REF,
@@ -1259,8 +1322,13 @@ public class WorkflowService {
     }
   }
 
-  // A slug form naming another workspace's task, or no task, refuses the save.
+  // A slug form naming another workspace's task, or no task, refuses the save. A link's tasks are
+  // the template's, read back in the system workspace's slug forms and dropped at save, so they
+  // are not resolved against the link's workspace.
   private void convertTaskSlugsToRefs(String workspace, Workflow workflow) {
+    if (workflow.getTemplateRef() != null) {
+      return;
+    }
     validateTaskRefsPresent(workflow.getTasks());
     List<WorkflowTask> nodes =
         workflow.getTasks().stream()
@@ -2071,61 +2139,130 @@ public class WorkflowService {
       List.of(WorkflowType.template, WorkflowType.starter);
 
   /**
-   * A template or starter read for any workspace: the system workspace's definition, its secrets
-   * hidden and its task references in slug form, found by name among the shared types only. Read
-   * without the relationship walk, since every signed-in principal may read a template; the route
-   * carries the template read permission.
+   * The template or starter of the name the workspace may use: every workspace but system, which
+   * owns them, sees the active ones, once the caller reaches the workspace. Empty for a name the
+   * shared types do not carry.
    */
-  public Workflow getShared(String name, Optional<Integer> version) {
-    WorkflowEntity template =
-        workflowRepository
-            .findFirstByNameAndTypeIn(name, SHARED_TYPES)
-            .orElseThrow(
-                () ->
-                    new BoomerangException(
-                        BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF,
-                        name,
-                        version.map(String::valueOf).orElse("latest")));
-    Workflow workflow = get(template.getId(), version, true).getBody();
-    filterSensitiveValues(List.of(workflow));
-    convertTaskRefsToSlugs(SYSTEM_WORKSPACE, workflow);
-    workflow.setId(null);
-    return workflow;
+  private Optional<WorkflowEntity> sharedForWorkspace(String workspace, String name) {
+    if (SYSTEM_WORKSPACE.equals(workspace)
+        || !relationshipService.check(
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+      return Optional.empty();
+    }
+    return workflowRepository
+        .findFirstByNameAndTypeIn(name, SHARED_TYPES)
+        .filter(t -> WorkflowStatus.active.equals(t.getStatus()));
   }
 
-  /** The templates and starters every workspace may read, as {@link #getShared} reads one. */
-  public Page<Workflow> queryShared(
-      Optional<Integer> queryLimit,
-      Optional<Integer> queryPage,
-      Optional<Direction> querySort,
-      Optional<List<String>> queryLabels,
-      Optional<List<String>> queryNames,
-      Optional<List<String>> queryTypes) {
-    List<String> types =
-        queryTypes
-            .filter(list -> !list.isEmpty())
-            .orElse(SHARED_TYPES.stream().map(WorkflowType::name).toList());
-    if (!SHARED_TYPES.stream().map(WorkflowType::name).toList().containsAll(types)) {
-      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "types");
+  // The template of the name a workspace may run: no workflow of the name is
+  // WORKFLOW_INVALID_REF; a starter, copied and never run, is WORKFLOW_TEMPLATE_INVALID_REF.
+  private WorkflowEntity runnableTemplate(String workspace, String name) {
+    WorkflowEntity shared =
+        sharedForWorkspace(workspace, name)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF));
+    if (!WorkflowType.template.equals(shared.getType())) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_INVALID_REF, name, "latest");
     }
-    Page<Workflow> page =
-        query(
-            queryLimit,
-            queryPage,
-            querySort,
-            queryLabels,
-            Optional.of(List.of(WorkflowStatus.active.name())),
-            Optional.empty(),
-            Optional.of(types),
-            queryNames);
-    filterSensitiveValues(page.getContent());
-    page.getContent()
+    return shared;
+  }
+
+  /**
+   * The templates and starters a workspace lists beside its own workflows: the active ones whose
+   * name no workflow of the workspace carries and (for a template) that none of them links. The
+   * system workspace owns them and lists them as its own; a caller who cannot reach the workspace
+   * sees none.
+   */
+  private List<String> availableSharedRefs(String workspace, Optional<List<String>> names) {
+    if (SYSTEM_WORKSPACE.equals(workspace)
+        || !relationshipService.check(
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+      return List.of();
+    }
+    List<RelationshipNodeEntity> owned = ownedWorkflows(workspace);
+    Set<String> ownedNames =
+        owned.stream().map(RelationshipNodeEntity::getSlug).collect(Collectors.toSet());
+    Set<String> linked = new HashSet<>();
+    workflowRepository
+        .findAllById(owned.stream().map(RelationshipNodeEntity::getRef).toList())
         .forEach(
             w -> {
-              convertTaskRefsToSlugs(SYSTEM_WORKSPACE, w);
-              w.setId(null);
+              if (w.getTemplateRef() != null && !WorkflowStatus.deleted.equals(w.getStatus())) {
+                linked.add(w.getTemplateRef().getRef());
+              }
             });
-    return page;
+    return workflowRepository.findByTypeInAndStatus(SHARED_TYPES, WorkflowStatus.active).stream()
+        .filter(t -> names.isEmpty() || names.get().contains(t.getName()))
+        .filter(t -> !ownedNames.contains(t.getName()) && !linked.contains(t.getId()))
+        .map(WorkflowEntity::getId)
+        .toList();
+  }
+
+  /**
+   * The workflow a runworkflow task's {@code workflowRef} runs as the child of a run of {@code
+   * parentWorkflowRef}: a template resolves to the parent's workspace's link to it, adopted on
+   * first use, so the child runs where the parent does; in the system workspace, and for any
+   * reference that is not a template, the reference is returned unchanged.
+   */
+  public String resolveChildWorkflowRef(String workflowRef, String parentWorkflowRef) {
+    WorkflowEntity named = workflowRepository.findById(workflowRef).orElse(null);
+    if (named == null || !WorkflowType.template.equals(named.getType())) {
+      return workflowRef;
+    }
+    String workspace = owningWorkspaceOrNull(parentWorkflowRef);
+    if (workspace == null || SYSTEM_WORKSPACE.equals(workspace)) {
+      return workflowRef;
+    }
+    return linkOrAdopt(workspace, named).getId();
+  }
+
+  // The workspace's link to the template, or a new one under the template's name. Two first
+  // uses at once both pass the name check; the create that loses is refused as a duplicate name
+  // and reads the link the other made.
+  private WorkflowEntity linkOrAdopt(String workspace, WorkflowEntity template) {
+    return existingLink(workspace, template.getId())
+        .orElseGet(
+            () -> {
+              Workflow link = new Workflow();
+              link.setName(template.getName());
+              link.setDisplayName(template.getDisplayName());
+              link.setDescription(template.getDescription());
+              link.setIcon(template.getIcon());
+              WorkflowTemplateRef ref = new WorkflowTemplateRef();
+              ref.setName(template.getName());
+              link.setTemplateRef(ref);
+              try {
+                createOwned(workspace, link);
+              } catch (BoomerangException refused) {
+                if (!BoomerangError.WORKFLOW_INVALID_REQ.getReason().equals(refused.getReason())) {
+                  throw refused;
+                }
+              }
+              // The name is taken by a workflow of the workspace's own: nothing links the template.
+              return existingLink(workspace, template.getId())
+                  .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ));
+            });
+  }
+
+  private Optional<WorkflowEntity> existingLink(String workspace, String templateId) {
+    List<String> refs = ownedWorkflowRefs(workspace, Optional.empty());
+    return refs.isEmpty()
+        ? Optional.empty()
+        : workflowRepository.findFirstByIdInAndTemplateRefRefAndStatus(
+            refs, templateId, WorkflowStatus.active);
+  }
+
+  // The workspace's workflows by the workspace's own edges, not the caller's walk, so the engine
+  // reads them with no identity; optionally the one of a name.
+  private List<String> ownedWorkflowRefs(String workspace, Optional<String> name) {
+    return ownedWorkflows(workspace).stream()
+        .filter(node -> name.isEmpty() || name.get().equals(node.getSlug()))
+        .map(RelationshipNodeEntity::getRef)
+        .toList();
+  }
+
+  private List<RelationshipNodeEntity> ownedWorkflows(String workspace) {
+    return relationshipService.childrenByLabel(
+        RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW);
   }
 
   // A template or a starter is created, applied and imported in the system workspace only; a
