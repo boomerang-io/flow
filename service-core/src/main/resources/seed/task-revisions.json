@@ -49,6 +49,54 @@
    "parentRef": "acquire-lock"
   },
   {
+   "displayName": "Acquire Lock",
+   "description": "This task attempts to obtain a lock with the specified name. If no other workflow in the team is using a lock with that name, a lock with that name and is created. If another workflow in the team is using a lock with the specified name, the current workflow waits until the lock is available.",
+   "category": "Workflow",
+   "icon": "Edit",
+   "version": 2,
+   "changelog": {
+    "reason": "The timeout is in milliseconds, as the engine has always read it, and defaults to 5 minutes",
+    "date": {
+     "$date": "2026-11-02T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Lock Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "A value to identify the lock.",
+      "readOnly": false,
+      "name": "key"
+     },
+     {
+      "description": "",
+      "label": "Timeout",
+      "type": "number",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "Duration before the lock expires, in milliseconds",
+      "readOnly": false,
+      "defaultValue": "300000",
+      "name": "timeout"
+     }
+    ],
+    "arguments": [
+     "lock"
+    ],
+    "command": [],
+    "envs": null,
+    "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "acquire-lock"
+  },
+  {
    "displayName": "Add Box Folder",
    "description": "Adds a Box folder with the specified name. If no parent folder is provided, then the Box root folder is used.",
    "category": "Box",
