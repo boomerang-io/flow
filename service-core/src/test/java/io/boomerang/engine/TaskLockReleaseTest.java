@@ -29,7 +29,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 /**
- * A run's locks go with the run: a run that completes, by a cancel here, holding a lock it never
+ * A releaselock frees the key an acquirelock in the same run took, while the run goes on. A run's
+ * locks also go with the run: a run that completes, by a cancel here, holding a lock it never
  * released frees it at once, so the next acquire on the key succeeds on its first attempt; a purge
  * of a run in flight frees them too; and a lock another run holds is never touched.
  */
@@ -41,12 +42,45 @@ class TaskLockReleaseTest extends AbstractEngineIntegrationTest {
   @Autowired private MongoTemplate mongoTemplate;
 
   private String acquireTask;
+  private String releaseTask;
   private String sleepTask;
 
   @BeforeEach
   void engineRunTasks() {
     acquireTask = task("lock-acquire", TaskType.acquirelock, "key", "timeout");
+    releaseTask = task("lock-release", TaskType.releaselock, "key");
     sleepTask = task("lock-sleep", TaskType.sleep, "duration");
+  }
+
+  @Test
+  void aReleaseLockFreesTheKeyAnAcquireLockInTheSameRunTookWhileTheRunGoesOn() {
+    String key = "release-node-" + System.nanoTime();
+    String releasing = run(releasingWorkflow("lock-releasing", key));
+    awaitEngine("the release node ran and the run still holds no lock")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity release =
+                  taskRunRepository.findFirstByNameAndWorkflowRunRef("release", releasing).orElseThrow();
+              assertThat(release.getStatus()).isEqualTo(RunStatus.succeeded);
+              assertThat(locksOf(releasing)).isEmpty();
+            });
+    assertThat(workflowRunRepository.findById(releasing).orElseThrow().getPhase())
+        .as("the run is still sleeping after its release")
+        .isNotEqualTo(RunPhase.completed);
+
+    String next = run(holdingWorkflow("lock-after-release", key));
+    awaitEngine("another run acquires the key on its first attempt, before the first run ends")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity acquire =
+                  taskRunRepository.findFirstByNameAndWorkflowRunRef("acquire", next).orElseThrow();
+              assertThat(acquire.getStatus()).isEqualTo(RunStatus.succeeded);
+              assertThat(acquire.getStatusMessage()).isNull();
+            });
+    assertThat(workflowRunRepository.findById(releasing).orElseThrow().getPhase())
+        .isNotEqualTo(RunPhase.completed);
+    workflowRunService.cancel(releasing);
+    workflowRunService.cancel(next);
   }
 
   @Test
@@ -121,6 +155,25 @@ class TaskLockReleaseTest extends AbstractEngineIntegrationTest {
     hold.setParams(new LinkedList<>(List.of(new RunParam("duration", "600000"))));
     WorkflowTask end = node("end", TaskType.end, null, "hold");
     workflow.setTasks(new ArrayList<>(List.of(start, acquire, hold, end)));
+    return workflow;
+  }
+
+  // start -> acquire(key) -> release(key) -> hold (a long sleep) -> end.
+  private Workflow releasingWorkflow(String name, String key) {
+    Workflow workflow = new Workflow();
+    workflow.setName(name + "-" + System.nanoTime());
+    WorkflowTask start = new WorkflowTask();
+    start.setName("start");
+    start.setType(TaskType.start);
+    WorkflowTask acquire = node("acquire", TaskType.acquirelock, acquireTask, "start");
+    acquire.setParams(
+        new LinkedList<>(List.of(new RunParam("key", key), new RunParam("timeout", "600000"))));
+    WorkflowTask release = node("release", TaskType.releaselock, releaseTask, "acquire");
+    release.setParams(new LinkedList<>(List.of(new RunParam("key", key))));
+    WorkflowTask hold = node("hold", TaskType.sleep, sleepTask, "release");
+    hold.setParams(new LinkedList<>(List.of(new RunParam("duration", "600000"))));
+    WorkflowTask end = node("end", TaskType.end, null, "hold");
+    workflow.setTasks(new ArrayList<>(List.of(start, acquire, release, hold, end)));
     return workflow;
   }
 

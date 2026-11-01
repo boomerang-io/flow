@@ -439,6 +439,9 @@ tag's release notes.
 
 ### Fixed
 
+- A `releaselock` task frees the key an `acquirelock` in the same run took. It used to match only the acquiring task
+  itself, so it succeeded without releasing anything, and the key stayed held until the run ended or the lease expired.
+  A lock another run holds is still never touched.
 - A for-each item's params read `$(params.item)` and `$(params.index)` again: the item and index the engine
   sets at fan-out are context params, so the rule that a task param never reads the task's own params
   (2026-10-29) no longer fails every item with `ParamUnresolved`.
