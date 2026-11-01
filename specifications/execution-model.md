@@ -375,11 +375,12 @@ finds the parent, since the lookup is by exact name and items carry the brackete
 
 The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow, holding
 `holder`, `workflowRunRef`, `acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`, `migration/_0021__Indexes.java:124-128`,
-`engine/TaskExecutionService.java:1061-1069`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`:1019-1049`); a task that cannot acquire parks
-as `waiting` for 5 s and the watcher tries again (`:78`, `:995-999`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire (`:1172`), as v3 read
-it; the Acquire Lock catalogue task says so from revision 2, which defaults it to `300000`, 5 minutes (`seed/task-revisions.json:81-83`). Release deletes only when this task is the holder
-(`:1053-1057`). A run's locks go with the run: when it completes, by any status, and when it is purged, every lock it still holds is deleted by its run reference, so the next acquire on the key
-succeeds at once instead of waiting out the lease, and a lock another run holds is never touched (`engine/TaskExecutionService.java:1249-1260`, `engine/ChildWorkflowRunListener.java:87-93`,
+`engine/TaskExecutionService.java:1266-1274`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1205-1235`); a task that
+cannot acquire parks as `waiting` for 5 s and the watcher tries again (`:81`, `:1182-1183`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire
+(`:1172`), as v3 read it; the Acquire Lock catalogue task says so from revision 2, which defaults it to `300000`, 5 minutes (`seed/task-revisions.json:81-83`). A `releaselock` deletes the key's lock
+when its run holds it, whichever of the run's tasks acquired it, and never a lock another run holds (`releaseLock`, `:1241-1245`); `holder` records which task acquired it. A run's locks go with the
+run: when it completes, by any status, and when it is purged, every lock it still holds is deleted by its run reference, so the next acquire on the key succeeds at once instead of waiting out the
+lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `engine/TaskExecutionService.java:1252-1262`, `engine/ChildWorkflowRunListener.java:87-93`,
 `workflow/WorkflowRetentionService.java:315`). With finally tasks a run completes after they end, so a finally `releaselock` still finds its lock.
 
 ## Not built

@@ -1171,7 +1171,7 @@ public class TaskExecutionService {
 
     Date expiresAt = new Date(System.currentTimeMillis() + timeout);
     TaskLockEntity lock =
-        tryAcquire(scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
+        tryAcquireLock(scopedKey, taskExecution.getId(), wfRunEntity.getId(), expiresAt);
     if (lock != null) {
       LOGGER.debug("[{}] Acquired lock for key: {}", taskExecution.getId(), scopedKey);
       taskExecution.setStatus(RunStatus.succeeded);
@@ -1191,9 +1191,10 @@ public class TaskExecutionService {
       taskExecution.setStatusMessage("releaselock requires a key.");
       return;
     }
-    // Holder-checked delete; a missing or expired lock is already released - idempotent.
+    // The run releases the key whichever of its tasks acquired it; a missing or expired lock is
+    // already released - idempotent.
     LOGGER.debug("[{}] Releasing lock for key: {}", taskExecution.getId(), scopedKey);
-    release(scopedKey, taskExecution.getId());
+    releaseLock(scopedKey, taskExecution.getWorkflowRunRef());
     taskExecution.setStatus(RunStatus.succeeded);
   }
 
@@ -1201,7 +1202,7 @@ public class TaskExecutionService {
   // lease has expired, never stealing a live lock held by another task. Returns the acquired
   // document when this task now holds it, or null when another task holds a live lease.
   // Package-private so the lock-semantics test can exercise it directly.
-  TaskLockEntity tryAcquire(
+  TaskLockEntity tryAcquireLock(
       String scopedKey, String taskRunRef, String workflowRunRef, Date expiresAt) {
     Date now = new Date();
     // Upsert only matches an unheld or expired key, so a live lock held by another task is never
@@ -1233,11 +1234,13 @@ public class TaskExecutionService {
     }
   }
 
-  // Release only when held by this task; idempotent - a missing or expired lock is a no-op.
-  // Package-private so the lock-semantics test can exercise it directly.
-  void release(String scopedKey, String taskRunRef) {
+  // Release the key when this run holds it, whichever of its tasks acquired it, so a releaselock
+  // frees what an acquirelock in the same run took; a lock another run holds is never touched.
+  // Idempotent - a missing or expired lock is a no-op. Package-private so the lock-semantics test
+  // can exercise it directly.
+  void releaseLock(String scopedKey, String workflowRunRef) {
     mongoTemplate.remove(
-        Query.query(Criteria.where("_id").is(scopedKey).and("holder").is(taskRunRef)),
+        Query.query(Criteria.where("_id").is(scopedKey).and("workflowRunRef").is(workflowRunRef)),
         TaskLockEntity.class);
   }
 

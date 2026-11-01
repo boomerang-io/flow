@@ -17,7 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The user-facing cross-workflow mutex on {@code task_locks}: exactly one holder at a time, an
- * expired lease is taken over, only the holder releases, and workspace-scoped keys never collide.
+ * expired lease is taken over, only the holding run releases, and workspace-scoped keys never
+ * collide.
  */
 class TaskLockTest extends AbstractEngineIntegrationTest {
 
@@ -29,34 +30,35 @@ class TaskLockTest extends AbstractEngineIntegrationTest {
 
   @Test
   void oneTaskHoldsAContendedLock() {
-    assertNotNull(taskExecutionService.tryAcquire("ws:deploy", "task-a", "wf1", future()));
+    assertNotNull(taskExecutionService.tryAcquireLock("ws:deploy", "task-a", "wf1", future()));
     assertNull(
-        taskExecutionService.tryAcquire("ws:deploy", "task-b", "wf2", future()),
+        taskExecutionService.tryAcquireLock("ws:deploy", "task-b", "wf2", future()),
         "a live lock held by another task is never stolen");
 
-    // A non-holder cannot release it.
-    taskExecutionService.release("ws:deploy", "task-b");
-    assertNull(taskExecutionService.tryAcquire("ws:deploy", "task-b", "wf2", future()));
+    // Another run cannot release it.
+    taskExecutionService.releaseLock("ws:deploy", "wf2");
+    assertNull(taskExecutionService.tryAcquireLock("ws:deploy", "task-b", "wf2", future()));
 
-    // The holder releases; the key is now free.
-    taskExecutionService.release("ws:deploy", "task-a");
-    assertNotNull(taskExecutionService.tryAcquire("ws:deploy", "task-b", "wf2", future()));
+    // The holding run releases it from another of its tasks, as a releaselock node does; the key
+    // is now free.
+    taskExecutionService.releaseLock("ws:deploy", "wf1");
+    assertNotNull(taskExecutionService.tryAcquireLock("ws:deploy", "task-b", "wf2", future()));
   }
 
   @Test
   void expiredLeaseIsTakenOver() {
     Date past = new Date(System.currentTimeMillis() - 1000);
-    assertNotNull(taskExecutionService.tryAcquire("ws:expired", "task-a", "wf1", past));
+    assertNotNull(taskExecutionService.tryAcquireLock("ws:expired", "task-a", "wf1", past));
     assertNotNull(
-        taskExecutionService.tryAcquire("ws:expired", "task-b", "wf2", future()),
+        taskExecutionService.tryAcquireLock("ws:expired", "task-b", "wf2", future()),
         "an expired lease is reclaimed by the next acquirer");
   }
 
   @Test
   void sameKeyInDifferentWorkspacesDoesNotCollide() {
-    assertNotNull(taskExecutionService.tryAcquire("ws1:deploy", "task-a", "wf1", future()));
+    assertNotNull(taskExecutionService.tryAcquireLock("ws1:deploy", "task-a", "wf1", future()));
     assertNotNull(
-        taskExecutionService.tryAcquire("ws2:deploy", "task-b", "wf2", future()),
+        taskExecutionService.tryAcquireLock("ws2:deploy", "task-b", "wf2", future()),
         "the workspace scope keeps identical user keys independent");
   }
 
