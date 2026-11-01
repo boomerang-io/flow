@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- The Acquire Lock task states its `timeout` in milliseconds, the unit the engine has always read it in, and defaults
+  it to `300000` (5 minutes): revision 1 said seconds and defaulted to `300`, a 300 ms lease. Change unit
+  `_0040__SeedAcquireLockMillisecondsRevision` adds revision 2 to an install holding the task; a workflow pinned to
+  revision 1, or one that stored the old default, keeps its value until it is edited.
 - A for-each item's params read `$(params.item)` and `$(params.index)` again: the item and index the engine
   sets at fan-out are context params, so the rule that a task param never reads the task's own params
   (2026-10-29) no longer fails every item with `ParamUnresolved`.
