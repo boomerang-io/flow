@@ -534,12 +534,13 @@ class V3DumpMigrationTest {
         .containsExactlyInAnyOrder("debug", "default.image", "deletion.policy", "edit.verified", "default.timeout");
 
     // workflowrun (v3 "activity"): rebuilt under the seed's key and name; its four v3 storage
-    // entries are retired, leaving the two engine ceilings and the finished-run retention.
+    // entries are retired, leaving the two engine ceilings, the finally stage's deadline and the
+    // finished-run retention.
     Document workflowrun =
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
     assertThat(workflowrun.getString("name")).isEqualTo("Run limits");
-    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "retention.days");
+    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "finally.timeout", "retention.days");
     assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first())
         .as("the v3 execution-storage settings document must be removed")
         .isNull();
@@ -677,9 +678,10 @@ class V3DumpMigrationTest {
     // revisions, the 17 GitHub and 10 Slack tasks' revisions defaulting to their integration's
     // workspace parameters, the SendGrid template task's version 3, and task-flow 3.3.0's 16 new
     // tasks and 14 new Sheets, Drive and Artifactory revisions, and the 12 Sheets and Drive revisions
-    // defaulting their key to the Google integration's parameter) and the two artifact tasks'
-    // version 1 (_0018__SeedArtifactTasks).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(221);
+    // defaulting their key to the Google integration's parameter, and the Acquire Lock task's
+    // version 2 stating its timeout in milliseconds) and the two artifact tasks' version 1
+    // (_0018__SeedArtifactTasks).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(222);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
