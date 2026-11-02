@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- Concurrent first runs of a template in a workspace make one link, not one each: the children of a for-each
+  `runworkflow` task all run as the same link. A `linksTemplate` relationship edge claims the workspace's link to the
+  template. Workspaces that already hold duplicate links keep them; reads take the first, and each delete by name
+  removes one.
 - The Acquire Lock task states its `timeout` in milliseconds, the unit the engine has always read it in, and defaults
   it to `300000` (5 minutes): revision 1 said seconds and defaulted to `300`, a 300 ms lease. Change unit
   `_0040__SeedAcquireLockMillisecondsRevision` adds revision 2 to an install holding the task; a workflow pinned to

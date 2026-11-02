@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1252-1268`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1263-1279`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1448-1452`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1459-1463`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1381,1776,1922`, `workflow/TaskService.java:709,797` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1106` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1392,1787,1933`, `workflow/TaskService.java:709,797` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1117` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:642-643`, `workflow/WorkflowRunService.java:825-827`). The engine
+it dropped (`workflow/WorkflowService.java:653-654`, `workflow/WorkflowRunService.java:825-827`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -156,7 +156,7 @@ decrypt is kept as stored, on load and on the next save of its group, never writ
 | Collection | Document | Notes |
 | --- | --- | --- |
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`core/entity/RelationshipNodeEntity.java:32`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue) (`core/enums/RelationshipType.java:12-23`). |
-| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup` (`core/enums/RelationshipLabel.java:14-22`). |
+| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:289-342`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
 `_0004__SeedSystemWorkspace`.

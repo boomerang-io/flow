@@ -28,6 +28,9 @@ public interface RelationshipEdgeRepository
   @Query(value = "{'from': ?0,to: ?1}", delete = true)
   void deleteByFromAndTo(String from, String to);
 
+  /** Delete the edge of the id only while it still runs to {@code to}; the count deleted. */
+  long deleteByIdAndTo(String id, String to);
+
   @Query("{'from': ?0, to: ?1}")
   @Update("{ '$set' : { 'data' : ?2 } }")
   long updateDataByFromAndTo(String from, String to, Map<String, String> data);

@@ -22,6 +22,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
+import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.model.Token;
@@ -32,14 +33,27 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -58,7 +72,10 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkspaceService workspaceService;
 
+  @Autowired private MongoTemplate mongoTemplate;
+
   private String workspace;
+  private String workspaceId;
   private String runWorkflowTaskSlug;
 
   @BeforeEach
@@ -66,7 +83,9 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("tpl-submit-" + System.nanoTime());
     request.setDisplayName(request.getName());
-    workspace = workspaceService.create(request).getName();
+    Workspace created = workspaceService.create(request);
+    workspace = created.getName();
+    workspaceId = created.getId();
     String member = "tpl-submitter-" + System.nanoTime();
     if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, SYSTEM)) {
       relationshipService.createNode(RelationshipType.WORKSPACE, SYSTEM, SYSTEM, Optional.empty());
@@ -198,6 +217,116 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     assertThat(workflowService.resolveChildWorkflowRef(plainId, plainId))
         .as("a plain workflow is never re-pointed")
         .isEqualTo(plainId);
+  }
+
+  // Six children of a for-each runworkflow adopt the same template at once: one link, which all
+  // of them run as.
+  @Test
+  void concurrentFirstUsesOfATemplateMakeOneLink() throws Exception {
+    Workflow leaf = workflowService.create(SYSTEM, definition("raced-leaf", WorkflowType.template));
+    String leafId = systemWorkflowId(leaf.getName());
+    Workflow parent = workflowService.create(workspace, definition("racing-parent", WorkflowType.workflow));
+    String parentId = workspaceWorkflowId(parent.getName());
+
+    int callers = 6;
+    ExecutorService pool = Executors.newFixedThreadPool(callers);
+    CountDownLatch go = new CountDownLatch(1);
+    List<Future<String>> resolved = new ArrayList<>();
+    for (int i = 0; i < callers; i++) {
+      resolved.add(
+          pool.submit(
+              () -> {
+                go.await();
+                return workflowService.resolveChildWorkflowRef(leafId, parentId);
+              }));
+    }
+    go.countDown();
+    Set<String> links = new HashSet<>();
+    for (Future<String> future : resolved) {
+      links.add(future.get(60, TimeUnit.SECONDS));
+    }
+    pool.shutdown();
+
+    assertThat(links).as("every caller runs as the same link").hasSize(1);
+    assertThat(linksTo(leafId)).as("the workspace holds one link to the template").hasSize(1);
+    assertThat(links).containsExactly(linkTo(leaf.getName()).getId());
+    assertThat(claim(leafId))
+        .as("the claim runs to the link")
+        .hasValueSatisfying(c -> assertThat(c.getTo()).isEqualTo("workflow:" + links.iterator().next()));
+  }
+
+  // Deleting the link removes its node and so its claim: the next first use adopts a new link.
+  @Test
+  void aDeletedLinkIsAdoptedAfresh() {
+    Workflow leaf = workflowService.create(SYSTEM, definition("readopted", WorkflowType.template));
+    String leafId = systemWorkflowId(leaf.getName());
+    Workflow parent = workflowService.create(workspace, definition("readopting", WorkflowType.workflow));
+    String parentId = workspaceWorkflowId(parent.getName());
+    String first = workflowService.resolveChildWorkflowRef(leafId, parentId);
+
+    workflowService.delete(workspace, leaf.getName());
+    assertThat(claim(leafId)).as("the claim went with the link's node").isEmpty();
+
+    String second = workflowService.resolveChildWorkflowRef(leafId, parentId);
+    assertThat(second).isNotEqualTo(first);
+    assertThat(linksTo(leafId)).containsExactly(second);
+  }
+
+  // A claim whose link never appeared, its creator having died, is taken over once stale.
+  @Test
+  void aStaleClaimWhoseLinkNeverAppearedIsTakenOver() {
+    Workflow leaf = workflowService.create(SYSTEM, definition("orphaned-claim", WorkflowType.template));
+    String leafId = systemWorkflowId(leaf.getName());
+    Workflow parent = workflowService.create(workspace, definition("orphan-parent", WorkflowType.workflow));
+    String parentId = workspaceWorkflowId(parent.getName());
+    String deadLink = new ObjectId().toHexString();
+    mongoTemplate
+        .getCollection(mongoTemplate.getCollectionName(RelationshipEdgeEntity.class))
+        .insertOne(
+            new Document("_id", "linksTemplate:workspace:" + workspaceId + ":" + leafId)
+                .append("creationDate", new Date(System.currentTimeMillis() - 120_000))
+                .append("from", "workspace:" + workspaceId)
+                .append("label", "linksTemplate")
+                .append("to", "workflow:" + deadLink)
+                .append("data", new Document("templateRef", leafId)));
+
+    String link = workflowService.resolveChildWorkflowRef(leafId, parentId);
+
+    assertThat(link).isNotEqualTo(deadLink);
+    assertThat(linksTo(leafId)).containsExactly(link);
+    assertThat(claim(leafId)).hasValueSatisfying(c -> assertThat(c.getTo()).isEqualTo("workflow:" + link));
+  }
+
+  // A workflow of the workspace's own holds the template's name: the first use is refused and
+  // gives its claim up, so it never blocks a later one.
+  @Test
+  void aNameTheWorkspaceAlreadyUsesRefusesTheLinkAndLeavesNoClaim() {
+    Workflow leaf = workflowService.create(SYSTEM, definition("name-taken", WorkflowType.template));
+    String leafId = systemWorkflowId(leaf.getName());
+    Workflow own = definition("ignored", WorkflowType.workflow);
+    own.setName(leaf.getName());
+    workflowService.create(workspace, own);
+    Workflow parent = workflowService.create(workspace, definition("name-parent", WorkflowType.workflow));
+    String parentId = workspaceWorkflowId(parent.getName());
+
+    assertThatThrownBy(() -> workflowService.resolveChildWorkflowRef(leafId, parentId))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(e -> ((BoomerangException) e).getReason())
+        .isEqualTo(BoomerangError.WORKFLOW_INVALID_REQ.getReason());
+    assertThat(claim(leafId)).isEmpty();
+  }
+
+  private List<String> linksTo(String templateId) {
+    return workflowRepository.findAllById(workspaceWorkflows()).stream()
+        .filter(w -> w.getTemplateRef() != null && templateId.equals(w.getTemplateRef().getRef()))
+        .filter(w -> WorkflowStatus.active.equals(w.getStatus()))
+        .map(WorkflowEntity::getId)
+        .toList();
+  }
+
+  private Optional<RelationshipEdgeEntity> claim(String templateId) {
+    return relationshipService.findClaim(
+        RelationshipType.WORKSPACE, workspace, RelationshipLabel.LINKS_TEMPLATE, templateId);
   }
 
   private WorkflowTask runWorkflowNode(String childWorkflowName) {
