@@ -21,13 +21,13 @@ import org.springframework.core.env.Environment;
  * before the text was rewritten shows the same Connect and Disconnect guidance as an empty database.
  * Only that field changes, and only on the templates the seed carries.
  */
-@Change(id = "0040-refresh-integration-instructions", author = "boomerang", transactional = false)
+@Change(id = "0041-refresh-integration-instructions", author = "boomerang", transactional = false)
 @TargetSystem(id = "flow-mongodb")
 @Recovery(strategy = RecoveryStrategy.ALWAYS_RETRY)
-public class _0040__RefreshIntegrationInstructions {
+public class _0041__RefreshIntegrationInstructions {
 
   private static final Logger LOG =
-      LoggerFactory.getLogger(_0040__RefreshIntegrationInstructions.class);
+      LoggerFactory.getLogger(_0041__RefreshIntegrationInstructions.class);
 
   @Apply
   public void execute(MongoDatabase db, Environment env) {

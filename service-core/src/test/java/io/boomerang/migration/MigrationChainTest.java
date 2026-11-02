@@ -839,7 +839,7 @@ class MigrationChainTest {
     templates.updateMany(Filters.empty(), new Document("$set", new Document("instructions", "### Enable")));
     Document slackBefore = templates.find(Filters.eq("type", "slack_auth")).first();
 
-    new _0040__RefreshIntegrationInstructions().execute(db, MigrationRunner.environment(PREFIX));
+    new _0041__RefreshIntegrationInstructions().execute(db, MigrationRunner.environment(PREFIX));
 
     for (Document seed : SeedResources.load("seed/integration-templates.json")) {
       assertThat(templates.find(Filters.eq("type", seed.getString("type"))).first().getString("instructions"))
