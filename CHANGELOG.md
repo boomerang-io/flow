@@ -439,6 +439,9 @@ tag's release notes.
 
 ### Fixed
 
+- A for-each item takes its node's `retry`, with its own budget: a failed item is requeued with the node's backoff
+  while its siblings' budgets are untouched, and the dispatcher's order states the budget, so an item's first attempt
+  is no longer reported as its last. Items used to carry no retry and ended on their first failure.
 - Scheduled runs are admitted under workspace quota enforcement. A schedule names its workspace by id, and the quota
   lookups matched names only, so every fire failed before the run was created; scheduled runs also fell back to the
   platform's run-duration and workspace-size limits instead of the workspace's own. Quotas now find the workspace by

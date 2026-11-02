@@ -89,7 +89,7 @@ declares a workspace stays `ready/pending` until a dispatcher claims it, provisi
 `dispatcher/DispatcherControllerV1.java:160`). `start=false` parks a run without a workspace for a later
 `PUT /{id}/start`; it does not park a run with a workspace, since the provisioning claim does not tell the two apart
 and the first dispatcher to poll provisions and starts it (`engine/WorkflowRunStateHelper.java:57-73`). A `runworkflow`
-task submits its child with `start=true` (`engine/TaskExecutionService.java:1172-1173`). The wait for a dispatcher is
+task submits its child with `start=true` (`engine/TaskExecutionService.java:1180-1181`). The wait for a dispatcher is
 bounded by the run's own budget: such a run takes `timeoutAt` = creation + timeout at submit
 (`workflow/WorkflowRunService.java:798-802`), the timeout sweep takes `pending` runs as well as `running` ones
 (`engine/WorkflowRunStateHelper.java:299-315`), and the start re-stamps the deadline from the start time. A run no
@@ -169,8 +169,8 @@ asynchronous `timeoutWorkflow` then completes it with one compare-and-set, and o
 
 **The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting`: an approval, a manual task, an event wait, a run-workflow task waiting on its
 child, a sleep or an acquire-lock wait (`engine/EngineConstants.java:41-48`, `engine/TaskRunService.java:799-822`). When the last executing task enters a wait the run gains `waitingSince`
-and the timeout sweep skips it (`engine/WorkflowRunStateHelper.java:251-264`, called at `engine/TaskExecutionService.java:423`, `:633`, `:1097`); when any task starts executing one write
-clears the flag and moves `timeoutAt` forward by the time waited (`:268-293`, called at `:352`, `:600`, `:1082`). The reported `duration` is execution time (`engine/RunTimeouts.java:28-42`);
+and the timeout sweep skips it (`engine/WorkflowRunStateHelper.java:251-264`, called at `engine/TaskExecutionService.java:423`, `:633`, `:1105`); when any task starts executing one write
+clears the flag and moves `timeoutAt` forward by the time waited (`:268-293`, called at `:352`, `:600`, `:1090`). The reported `duration` is execution time (`engine/RunTimeouts.java:28-42`);
 a gate nobody answers leaves the run active until cancelled.
 
 **A wait is indefinite unless its task declares a timeout.** A waiting-type task's budget is its own declared timeout alone (`engine/TaskExecutionService.java:342-345`, `:431-446`): without
@@ -184,17 +184,14 @@ then clamps it, a maximum below the floor refused with the same error and a quot
 
 ## Retry
 
-One backoff exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 minutes, plus up to 5 s of
-jitter; a node's `retry.backoff` replaces the base and the cap, or holds the wait fixed (`common/util/Backoff.java:25-36`).
-The result is `retry.after`, which gates claim eligibility. A task run's `retry` carries two budgets, `count` for the
-engine's requeues of an attempt that never ran and `failures` for the retries of a reported failure its node asked
-for, beside the node's `max` and `backoff` copied onto the run when the task list is built, as `timeout` is
-(`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:312-323`). A requeueable task (`template`, `custom`,
-`script`, `generic`, `ai`, `uploadartifact`, `downloadartifact`) gets three engine requeues; `retry.max` is at most
-10 (`engine/EngineConstants.java:23-37`). Every requeue pushes the attempt it supersedes (claim and end times,
-duration, status, reason, message, dispatcher) onto `attempts` (`engine/TaskRunService.java:830`,
-`common/model/RunAttempt.java:20-27`); the run's own fields are the current attempt. The public task run shows a
-claimed task's `attempt`, the superseded ones plus one, and `attempts`, never `retry` (`common/model/TaskRun.java:67`, `:75-80`).
+One backoff exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 minutes, plus up to 5 s of jitter; a node's `retry.backoff` replaces the base and the cap, or holds the wait
+fixed (`common/util/Backoff.java:25-36`). The result is `retry.after`, which gates claim eligibility. A task run's `retry` carries two budgets, `count` for the engine's requeues of an attempt that
+never ran and `failures` for the retries of a reported failure its node asked for, beside the node's `max` and `backoff` copied onto the run when the task list is built, as `timeout` is
+(`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:357-367`), and from a for-each parent onto each of its items with the item's own budget (`engine/TaskExecutionService.java:936-944`). A
+requeueable task (`template`, `custom`, `script`, `generic`, `ai`, `uploadartifact`, `downloadartifact`) gets three engine requeues; `retry.max` is at most 10 (`engine/EngineConstants.java:32-49`).
+Any other type, `runworkflow` among them, is never requeued, whatever its node's `retry`. Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message,
+dispatcher) onto `attempts` (`engine/TaskRunService.java:830`, `common/model/RunAttempt.java:20-27`); the run's own fields are the current attempt. The public task run shows a claimed task's
+`attempt`, the superseded ones plus one, and `attempts`, never `retry` (`common/model/TaskRun.java:67`, `:75-80`).
 
 | Situation | Retried? | Where |
 | --- | --- | --- |
@@ -246,8 +243,8 @@ held back (`workflow/WorkflowRunService.java:885-900`). The stalled-run sweep an
 The run's directed acyclic graph is materialised in full when the run is queued, every node a `TaskRunEntity` (`engine/WorkflowExecutionService.java:76`, `engine/DAGUtility.java:198-379`), and
 advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they depend on, never
 the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:145-181`), queues every dependant whose dependencies are all `completed`, and finishes the run when the end node's
-dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:616-637`, `:1488-1608`); a dependency with no task run never counts as satisfied
-(`:1612-1628`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
+dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:616-637`, `:1496-1616`); a dependency with no task run never counts as satisfied
+(`:1620-1636`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
 (`:643-663`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-148`).
@@ -261,8 +258,8 @@ dependencies are all done, reading the whole graph once there for the path check
 Results are keyed by name on every path: a `setwfproperty` result, an event delivery and a run-workflow task's `workflowRunRef` upsert the element with that name, a positional `$set` or else
 a `$push` guarded on the name being absent (`engine/ResultUtil.java:25-43`), so a key written twice stays one element. An event wait, and a run-workflow task with `wait=true`, arm with
 `tryArmWait`, a `status=waiting` write fenced on the `running` phase (`engine/TaskRunService.java:853-858`); the event wait then re-reads, so an event delivered between the entry read and
-the arm (`applyEventDelivery`, `:391-399`) is honoured (`engine/TaskExecutionService.java:1348-1370`). An approval or manual task arms with the same write carrying its `actionRef` result
-(`engine/TaskRunService.java:864-869`), and when the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1420-1432`).
+the arm (`applyEventDelivery`, `:391-399`) is honoured (`engine/TaskExecutionService.java:1356-1378`). An approval or manual task arms with the same write carrying its `actionRef` result
+(`engine/TaskRunService.java:864-869`), and when the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1428-1440`).
 
 ## Finally tasks
 
@@ -318,28 +315,28 @@ five-field UNIX definition: `CronService.toUnix` reads any stored form, six- or 
 
 ## Child workflows
 
-A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1110-1197`) with the
-task's own params minus `workflowRef` and `wait` (`:1204-1209`): the values its node passes and, under for-each,
+A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1118-1205`) with the
+task's own params minus `workflowRef` and `wait` (`:1212-1217`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
 saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1629-1654`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
-`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1319-1321`). A `workflowRef` naming a template
+`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1327-1329`). A `workflowRef` naming a template
 runs as the parent's workspace's link to that template, created under the template's name on first use, so a template's
 children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace,
-and for any other reference, the reference is used as given (`:1181-1185`, `workflow/WorkflowService.java:2189-2199`).
+and for any other reference, the reference is used as given (`:1189-1193`, `workflow/WorkflowService.java:2189-2199`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
 typed pair the retry path uses (`workflow/WorkflowService.java:1927-1931`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1278-1285`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
-stops at the cap (`engine/TaskExecutionService.java:1125-1134`, `:1215-1257`).
+stops at the cap (`engine/TaskExecutionService.java:1133-1142`, `:1223-1265`).
 
 **Wait.** `wait` defaults to `false`: the task records the child's id as its `workflowRunRef` result and ends
 `succeeded` at once. With `wait=true` it parks as `waiting` with no `waitUntil`, so only the child's completion or a
 timeout the task declared ends it, and the parent run's clock stops while nothing else of it executes. The arm happens
-before the submit, so a child that finishes at once finds its parent waiting (`engine/TaskExecutionService.java:1136-1144`).
+before the submit, so a child that finishes at once finds its parent waiting (`engine/TaskExecutionService.java:1144-1152`).
 
 **Ending the parent.** `ChildWorkflowRunListener` handles each `WorkflowRunTransition` into `completed`: when the run
 has `trigger=task` and the named task run is still `waiting`, it calls `TaskRunService.end`, so the completion
@@ -375,12 +372,12 @@ finds the parent, since the lookup is by exact name and items carry the brackete
 
 The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow, holding
 `holder`, `workflowRunRef`, `acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`, `migration/_0021__Indexes.java:124-128`,
-`engine/TaskExecutionService.java:1266-1274`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1205-1235`); a task that
-cannot acquire parks as `waiting` for 5 s and the watcher tries again (`:81`, `:1182-1183`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire
-(`:1172`), as v3 read it; the Acquire Lock catalogue task says so from revision 2, which defaults it to `300000`, 5 minutes (`seed/task-revisions.json:81-83`). A `releaselock` deletes the key's lock
-when its run holds it, whichever of the run's tasks acquired it, and never a lock another run holds (`releaseLock`, `:1241-1245`); `holder` records which task acquired it. A run's locks go with the
+`engine/TaskExecutionService.java:1274-1282`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1213-1243`); a task that
+cannot acquire parks as `waiting` for 5 s and the watcher tries again (`:81`, `:1190-1191`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire
+(`:1180`), as v3 read it; the Acquire Lock catalogue task says so from revision 2, which defaults it to `300000`, 5 minutes (`seed/task-revisions.json:81-83`). A `releaselock` deletes the key's lock
+when its run holds it, whichever of the run's tasks acquired it, and never a lock another run holds (`releaseLock`, `:1249-1253`); `holder` records which task acquired it. A run's locks go with the
 run: when it completes, by any status, and when it is purged, every lock it still holds is deleted by its run reference, so the next acquire on the key succeeds at once instead of waiting out the
-lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `engine/TaskExecutionService.java:1252-1262`, `engine/ChildWorkflowRunListener.java:87-93`,
+lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `engine/TaskExecutionService.java:1260-1270`, `engine/ChildWorkflowRunListener.java:87-93`,
 `workflow/WorkflowRetentionService.java:315`). With finally tasks a run completes after they end, so a finally `releaselock` still finds its lock.
 
 ## Not built

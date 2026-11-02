@@ -8,21 +8,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.boomerang.common.entity.ActionEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.BackoffType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.ResultSpec;
+import io.boomerang.common.model.RetryBackoff;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.ServerLabel;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
 import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowTaskForeach;
+import io.boomerang.common.model.WorkflowTaskRetry;
+import io.boomerang.dispatcher.DispatcherService;
+import io.boomerang.dispatcher.model.DispatchTaskRun;
+import io.boomerang.dispatcher.model.TaskRunRetry;
 import io.boomerang.engine.DatabaseCommands.Recorded;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
@@ -60,6 +68,7 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkflowWatcher workflowWatcher;
   @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private DispatcherService dispatcherService;
 
   private String stageRef;
   private String locateRef;
@@ -192,6 +201,100 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.failed, parent.getStatus());
     assertEquals("ItemFailed", parent.getStatusReason());
     assertEquals("1 of 2 items did not succeed.", parent.getStatusMessage());
+  }
+
+  // Each item takes the node's retry policy with its own budget: a failed item a dispatcher
+  // claimed is requeued while its sibling's budget is untouched, the next order states the budget,
+  // and the parent waits for the retried attempt.
+  @Test
+  void aFailedItemIsRetriedOnItsOwnBudgetAndTheParentWaitsForIt() {
+    String runId = submit(workflow("foreach-retry", List.of("x", "y"), 1));
+    endTask(runId, "stage", RunStatus.succeeded, null, null);
+    TaskRunEntity parent = awaitParentRunning(runId);
+    List<TaskRunEntity> items = awaitItemsReady(parent, 2);
+    String dispatcher = registerDispatcher("foreach-retry-" + System.nanoTime());
+    Map<String, TaskRun> firstOrders = claim(dispatcher, items);
+    for (TaskRunEntity item : items) {
+      assertEquals(
+          new TaskRunRetry(1, 0),
+          DispatchTaskRun.of(firstOrders.get(item.getId())).retry(),
+          "the first order states the node's budget, so its first attempt is not its last");
+    }
+
+    endTaskRun(items.get(0).getId(), RunStatus.failed, "JobFailed", dispatcher, null, null);
+
+    TaskRunEntity retried = taskRunRepository.findById(items.get(0).getId()).orElseThrow();
+    assertEquals(RunPhase.pending, retried.getPhase(), "requeued, not ended");
+    assertEquals(1, retried.getRetry().getFailures());
+    assertNotNull(retried.getRetry().getAfter());
+    assertEquals(1, retried.getAttempts().size());
+    assertEquals(
+        0,
+        taskRunRepository.findById(items.get(1).getId()).orElseThrow().getRetry().getFailures(),
+        "the sibling's budget is its own");
+    assertEquals(
+        RunPhase.running,
+        taskRunRepository.findById(parent.getId()).orElseThrow().getPhase(),
+        "the parent waits for the retried item");
+
+    TaskRun secondOrder = releaseAndReclaim(items.get(0).getId(), dispatcher);
+    assertEquals(
+        new TaskRunRetry(1, 1),
+        DispatchTaskRun.of(secondOrder).retry(),
+        "the second order is the item's last");
+    endTaskRun(items.get(0).getId(), RunStatus.succeeded, null, dispatcher, "found", "found-x");
+    endTaskRun(items.get(1).getId(), RunStatus.succeeded, null, dispatcher, "found", "found-y");
+
+    TaskRunEntity report = awaitAdmitted(runId, "report");
+    assertEquals("[\"found-x\",\"found-y\"]", paramValue(report, "input"));
+    assertEquals(
+        RunStatus.succeeded,
+        taskRunRepository.findById(parent.getId()).orElseThrow().getStatus());
+  }
+
+  // An item whose budget is spent ends failed, and the parent fails with it.
+  @Test
+  void anItemThatFailsPastItsBudgetFailsTheTask() {
+    String runId = submit(workflow("foreach-retry-spent", List.of("x"), 1));
+    endTask(runId, "stage", RunStatus.succeeded, null, null);
+    TaskRunEntity item = awaitItemsReady(awaitParentRunning(runId), 1).get(0);
+    String dispatcher = registerDispatcher("foreach-spent-" + System.nanoTime());
+    claim(dispatcher, List.of(item));
+
+    endTaskRun(item.getId(), RunStatus.failed, "JobFailed", dispatcher, null, null);
+    releaseAndReclaim(item.getId(), dispatcher);
+    endTaskRun(item.getId(), RunStatus.failed, "JobFailed", dispatcher, null, null);
+
+    TaskRunEntity ended = taskRunRepository.findById(item.getId()).orElseThrow();
+    assertEquals(RunPhase.completed, ended.getPhase());
+    assertEquals(RunStatus.failed, ended.getStatus());
+    assertEquals(1, ended.getRetry().getFailures());
+    assertEquals(1, ended.getAttempts().size(), "the first attempt, superseded by the second");
+    awaitEngine("the parent fails with its item")
+        .untilAsserted(
+            () ->
+                assertEquals(
+                    "ItemFailed",
+                    taskRunRepository
+                        .findFirstByNameAndWorkflowRunRef("locate", runId)
+                        .orElseThrow()
+                        .getStatusReason()));
+  }
+
+  // A node without retry gives its items none, as before: the first failure ends the item, and
+  // the order says its first attempt is its last.
+  @Test
+  void anItemOfANodeWithoutRetryIsNotRetried() {
+    String runId = submit(workflow("foreach-no-retry", List.of("x")));
+    endTask(runId, "stage", RunStatus.succeeded, null, null);
+    TaskRunEntity item = awaitItemsReady(awaitParentRunning(runId), 1).get(0);
+    String dispatcher = registerDispatcher("foreach-no-retry-" + System.nanoTime());
+    assertNull(DispatchTaskRun.of(claim(dispatcher, List.of(item)).get(item.getId())).retry());
+
+    endTaskRun(item.getId(), RunStatus.failed, "JobFailed", dispatcher, null, null);
+
+    assertEquals(
+        RunPhase.completed, taskRunRepository.findById(item.getId()).orElseThrow().getPhase());
   }
 
   @Test
@@ -483,11 +586,25 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
 
   /** start -> stage -> locate (foreach over items) -> report (always) -> end. */
   private String workflow(String name, Object items) {
+    return workflow(name, items, null);
+  }
+
+  // As above, the for-each node asking for retryMax retries with a fixed 1 ms backoff.
+  private String workflow(String name, Object items, Integer retryMax) {
     WorkflowTask stage = node("stage", stageRef, "start");
     WorkflowTask locate = node("locate", locateRef, "stage");
     WorkflowTaskForeach foreach = new WorkflowTaskForeach();
     foreach.setItems(items);
     locate.setForeach(foreach);
+    if (retryMax != null) {
+      RetryBackoff backoff = new RetryBackoff();
+      backoff.setType(BackoffType.fixed);
+      backoff.setInitial(1L);
+      WorkflowTaskRetry retry = new WorkflowTaskRetry();
+      retry.setMax(retryMax);
+      retry.setBackoff(backoff);
+      locate.setRetry(retry);
+    }
     WorkflowTask report = node("report", reportRef, "locate");
     report.setParams(new LinkedList<>(List.of(new RunParam("input", "$(tasks.locate.results.found)"))));
     WorkflowTask start = new WorkflowTask();
@@ -559,12 +676,60 @@ class ForeachTaskTest extends AbstractEngineIntegrationTest {
   }
 
   private void endTaskRun(String taskRunId, RunStatus status, String result, String value) {
+    endTaskRun(taskRunId, status, null, null, result, value);
+  }
+
+  private void endTaskRun(
+      String taskRunId,
+      RunStatus status,
+      String reason,
+      String dispatcher,
+      String result,
+      String value) {
     TaskRunEndRequest request = new TaskRunEndRequest();
     request.setStatus(status);
+    request.setStatusReason(reason);
+    request.setDispatcherRef(dispatcher);
     if (result != null) {
       request.setResults(new LinkedList<>(List.of(new RunResult(result, value))));
     }
     taskRunService.end(taskRunId, Optional.of(request));
+  }
+
+  private String registerDispatcher(String name) {
+    return dispatcherService.register(
+        new DispatcherRegistrationRequest(name, name + ".local", List.of("template")));
+  }
+
+  // Claim the items as a dispatcher's poll does, returning each one's order by id.
+  private Map<String, TaskRun> claim(String dispatcher, List<TaskRunEntity> items) {
+    Map<String, TaskRun> orders = new HashMap<>();
+    awaitEngine("the dispatcher claims the items")
+        .untilAsserted(
+            () -> {
+              List<TaskRun> polled =
+                  dispatcherService.getTaskQueue(dispatcher, null, null, null, null).getBody();
+              if (polled != null) {
+                polled.forEach(order -> orders.put(order.getId(), order));
+              }
+              for (TaskRunEntity item : items) {
+                assertTrue(orders.containsKey(item.getId()), "claimed " + item.getName());
+              }
+            });
+    return orders;
+  }
+
+  // After a requeue of a claimed attempt, as TaskFailureRetryTest does: the holder's next poll
+  // takes the termination order and releases the claim, then with the backoff served the next
+  // poll claims the next attempt.
+  private TaskRun releaseAndReclaim(String taskRunId, String dispatcher) {
+    dispatcherService.getTaskQueue(dispatcher, null, null, null, null);
+    TaskRunEntity released = taskRunRepository.findById(taskRunId).orElseThrow();
+    assertEquals(RunStatus.ready, released.getStatus());
+    assertNull(released.getClaim().getBy());
+    released.getRetry().setAfter(new Date(System.currentTimeMillis() - 1000));
+    taskRunRepository.save(released);
+    return claim(dispatcher, List.of(released)).get(taskRunId);
   }
 
   private TaskRunEntity awaitParentRunning(String runId) {
