@@ -831,6 +831,28 @@ class MigrationChainTest {
         .isEqualTo(edgesBefore + 16);
   }
 
+  /** Every template seeded with earlier instructions reads the seed's text after the refresh; nothing else moves. */
+  @Test
+  void integrationInstructionsAreRefreshedFromTheSeed() {
+    MongoDatabase db = migrate("integration-instructions");
+    MongoCollection<Document> templates = collection(db, "integration_templates");
+    templates.updateMany(Filters.empty(), new Document("$set", new Document("instructions", "### Enable")));
+    Document slackBefore = templates.find(Filters.eq("type", "slack_auth")).first();
+
+    new _0040__RefreshIntegrationInstructions().execute(db, MigrationRunner.environment(PREFIX));
+
+    for (Document seed : SeedResources.load("seed/integration-templates.json")) {
+      assertThat(templates.find(Filters.eq("type", seed.getString("type"))).first().getString("instructions"))
+          .as(seed.getString("name"))
+          .isEqualTo(seed.getString("instructions"))
+          .startsWith("### Connect");
+    }
+    Document slackAfter = templates.find(Filters.eq("type", "slack_auth")).first();
+    slackBefore.remove("instructions");
+    slackAfter.remove("instructions");
+    assertThat(slackAfter).isEqualTo(slackBefore);
+  }
+
   /**
    * A database from before the GitHub integration shared its credentials receives, from its own
    * unit, the template's parameter fields and each GitHub task's revision whose token and URL default
