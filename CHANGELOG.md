@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- Concurrent first runs of a template in a workspace make one link, not one each: the children of a for-each
+  `runworkflow` task all run as the same link. A `linksTemplate` relationship edge claims the workspace's link to the
+  template. Workspaces that already hold duplicate links keep them; reads take the first, and each delete by name
+  removes one.
 - A `releaselock` task frees the key an `acquirelock` in the same run took. It used to match only the acquiring task
   itself, so it succeeded without releasing anything, and the key stayed held until the run ended or the lease expired.
   A lock another run holds is still never touched.

@@ -75,6 +75,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
+import org.bson.types.ObjectId;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.ObjectProvider;
@@ -131,6 +132,11 @@ public class WorkflowService {
   private static final String CHANGELOG_UPDATE = "Updated Workflow";
   private static final String ANNOTATION_GENERATION = "4";
   private static final String ANNOTATION_KIND = "Workflow";
+  // A first use of a template waits this long for another caller's link to it; longer than a
+  // claim takes to go stale, so a claim left by a creator that died is taken over within it.
+  private static final long LINK_ADOPT_WAIT_MILLIS = 90_000;
+  private static final long LINK_CLAIM_STALE_MILLIS = 60_000;
+  private static final long LINK_ADOPT_POLL_MILLIS = 50;
 
   // The task types that can run for each item: those a dispatcher runs as claimable TaskRuns, and
   // runworkflow, whose items each submit a child run.
@@ -450,6 +456,11 @@ public class WorkflowService {
    * the caller has checked (create), or is the engine adopting a link for a run (adopt).
    */
   private Workflow createOwned(String workspace, Workflow request) {
+    return createOwned(workspace, request, null);
+  }
+
+  // As above, under the given id when there is one: an adopted link takes the id its claim names.
+  private Workflow createOwned(String workspace, Workflow request, String id) {
     // Ensure name is in slug format
     if (request.getName() != null && !request.getName().isBlank()) {
       request.setName(StringUtil.kebabCase(request.getName()));
@@ -482,9 +493,9 @@ public class WorkflowService {
     // Convert TaskRefs to IDs
     convertTaskSlugsToRefs(workspace, request);
 
-    request.setId(null);
+    request.setId(id);
 
-    Workflow workflow = create(request, false).getBody();
+    Workflow workflow = create(request, id != null).getBody();
     LOGGER.debug("Workflow DisplayName: {}", workflow.getDisplayName());
 
     // Create Relationship
@@ -2296,32 +2307,80 @@ public class WorkflowService {
     return linkOrAdopt(workspace, named).getId();
   }
 
-  // The workspace's link to the template, or a new one under the template's name. Two first
-  // uses at once both pass the name check; the create that loses is refused as a duplicate name
-  // and reads the link the other made.
+  /**
+   * The workspace's link to the template, or a new one under the template's name. Concurrent first
+   * uses each claim the pair (workspace, template) with a {@code linksTemplate} edge whose id names
+   * it, so exactly one insert wins: the winner creates the link under the id its claim names, and
+   * every other caller waits for that link. A claim whose link never appeared, its creator having
+   * died, is given up after {@link #LINK_CLAIM_STALE_MILLIS} and claimed again. Deleting the link
+   * removes its node and with it the claim, so the next first use adopts afresh.
+   */
   private WorkflowEntity linkOrAdopt(String workspace, WorkflowEntity template) {
-    return existingLink(workspace, template.getId())
-        .orElseGet(
-            () -> {
-              Workflow link = new Workflow();
-              link.setName(template.getName());
-              link.setDisplayName(template.getDisplayName());
-              link.setDescription(template.getDescription());
-              link.setIcon(template.getIcon());
-              WorkflowTemplateRef ref = new WorkflowTemplateRef();
-              ref.setName(template.getName());
-              link.setTemplateRef(ref);
-              try {
-                createOwned(workspace, link);
-              } catch (BoomerangException refused) {
-                if (!BoomerangError.WORKFLOW_INVALID_REQ.getReason().equals(refused.getReason())) {
-                  throw refused;
-                }
-              }
-              // The name is taken by a workflow of the workspace's own: nothing links the template.
-              return existingLink(workspace, template.getId())
-                  .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ));
-            });
+    long deadline = System.currentTimeMillis() + LINK_ADOPT_WAIT_MILLIS;
+    while (true) {
+      Optional<WorkflowEntity> existing = existingLink(workspace, template.getId());
+      if (existing.isPresent()) {
+        return existing.get();
+      }
+      String linkId = new ObjectId().toHexString();
+      if (relationshipService.claimEdge(
+          RelationshipType.WORKSPACE,
+          workspace,
+          RelationshipLabel.LINKS_TEMPLATE,
+          template.getId(),
+          RelationshipType.WORKFLOW,
+          linkId,
+          Map.of("templateRef", template.getId()))) {
+        return createLink(workspace, template, linkId);
+      }
+      relationshipService
+          .findClaim(RelationshipType.WORKSPACE, workspace, RelationshipLabel.LINKS_TEMPLATE, template.getId())
+          .filter(claim -> claim.getCreationDate().getTime() < System.currentTimeMillis() - LINK_CLAIM_STALE_MILLIS)
+          .ifPresent(
+              stale ->
+                  relationshipService.releaseClaim(
+                      RelationshipType.WORKSPACE,
+                      workspace,
+                      RelationshipLabel.LINKS_TEMPLATE,
+                      template.getId(),
+                      RelationshipType.WORKFLOW,
+                      stale.getTo().substring(stale.getTo().indexOf(':') + 1)));
+      if (System.currentTimeMillis() > deadline) {
+        throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+      }
+      try {
+        Thread.sleep(LINK_ADOPT_POLL_MILLIS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+      }
+    }
+  }
+
+  // Create the link the claim names. A refusal (the name taken by a workflow of the workspace's
+  // own, or the quota) gives the claim up so it never blocks a later first use.
+  private WorkflowEntity createLink(String workspace, WorkflowEntity template, String linkId) {
+    Workflow link = new Workflow();
+    link.setName(template.getName());
+    link.setDisplayName(template.getDisplayName());
+    link.setDescription(template.getDescription());
+    link.setIcon(template.getIcon());
+    WorkflowTemplateRef ref = new WorkflowTemplateRef();
+    ref.setName(template.getName());
+    link.setTemplateRef(ref);
+    try {
+      createOwned(workspace, link, linkId);
+    } catch (RuntimeException refused) {
+      relationshipService.releaseClaim(
+          RelationshipType.WORKSPACE,
+          workspace,
+          RelationshipLabel.LINKS_TEMPLATE,
+          template.getId(),
+          RelationshipType.WORKFLOW,
+          linkId);
+      throw refused;
+    }
+    return workflowRepository.findById(linkId).orElseThrow();
   }
 
   private Optional<WorkflowEntity> existingLink(String workspace, String templateId) {

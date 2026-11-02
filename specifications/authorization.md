@@ -104,7 +104,7 @@ or not security is on. Being a `global` token, it is refused by `/api/v2/profile
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or
 `createWorkflowSchedulerToken` minted it (`core/TokenService.java:734-739`); a workflow name is only unique within
-its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:715`),
+its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:726`),
 and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
 (`workspace/WorkspaceService.java:358`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
 token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
@@ -189,7 +189,10 @@ re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
 Services then ask whether the caller's node can reach the target through `rel_nodes`/`rel_edges` (node id =
 `type:ref`, labelled edges such as `memberOf`, `hasWorkflow`, `hasWorkflowRun`). Every check is a live
 level-by-level walk anchored at the caller's own node — one edge query plus one node batch-load per level —
-with no in-memory graph and no cache beyond a per-HTTP-request memo (`core/RelationshipService.java:33-53`).
+with no in-memory graph and no cache beyond a per-HTTP-request memo (`core/RelationshipService.java:34-54`).
+The walk follows every outgoing edge whatever its label, so an edge widens access unless it joins nodes the graph
+already joins: the `linksTemplate` claim on a workspace's link to a template runs from the workspace to that link,
+beside its `hasWorkflow` edge (`core/RelationshipService.java:289-342`).
 
 | Token class | `check()` anchor (`:385-413`) | `filter()` anchor (`:478-513`) |
 | --- | --- | --- |
@@ -207,11 +210,11 @@ which serialises as HTTP 401 (`common/error/BoomerangError.java:25,44`). Workspa
 `workflow/WorkflowRunService.java:673-684`). Because `global` returns before the walk, a global token's requests
 ignore that path segment; the same caller could reach the object through its real workspace URL, so nothing extra
 is granted. `filter()` for `TASK` always anchors at `root` — the task catalogue is global
-(`core/RelationshipService.java:478-482`).
+(`core/RelationshipService.java:535-539`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:567-571,662-670`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:578-582,673-681`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
 parent (`workflow/WorkflowRunService.java:642-666,956,1023-1033`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).

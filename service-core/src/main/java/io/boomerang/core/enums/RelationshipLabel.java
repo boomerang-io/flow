@@ -19,7 +19,10 @@ public enum RelationshipLabel {
   HAS_WORKFLOWRUN("hasWorkflowRun"),
   HAS_TASK("hasTask"),
   HAS_TASKRUN("hasTaskRun"),
-  HAS_APPROVER_GROUP("hasApproverGroup");
+  HAS_APPROVER_GROUP("hasApproverGroup"),
+  // A workspace's claim on its one link to a template: the edge runs to the link, as hasWorkflow
+  // does, and its id names the template (RelationshipService.claimEdge).
+  LINKS_TEMPLATE("linksTemplate");
 
   private String label;
 

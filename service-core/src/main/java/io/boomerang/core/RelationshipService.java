@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.dao.DuplicateKeyException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -282,6 +283,62 @@ public class RelationshipService {
       throw new BoomerangException(BoomerangError.AUTH_REQUIRED);
     }
     return identity;
+  }
+
+  /**
+   * Claim {@code key} under a {@code from} node with an edge to the node {@code toType:toRef},
+   * which need not exist yet. The edge's id names the from node, the label and the key, so MongoDB
+   * admits exactly one: true when this caller's insert made the claim, false when it is held. The
+   * edge runs between nodes the graph already joins (a workspace and its workflow), so it widens no
+   * walk, and removing either node removes the claim.
+   */
+  public boolean claimEdge(
+      RelationshipType fromType,
+      String from,
+      RelationshipLabel label,
+      String key,
+      RelationshipType toType,
+      String toRef,
+      Map<String, String> data) {
+    RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
+    RelationshipEdgeEntity edge =
+        new RelationshipEdgeEntity(
+            fromNode.getId(), label, toType.getLabel() + ":" + toRef, Optional.of(data));
+    edge.setId(claimId(fromNode.getId(), label, key));
+    try {
+      edgeRepository.insert(edge);
+      return true;
+    } catch (DuplicateKeyException held) {
+      return false;
+    }
+  }
+
+  /** The claim {@link #claimEdge} made for {@code key} under the from node, if one is held. */
+  public Optional<RelationshipEdgeEntity> findClaim(
+      RelationshipType fromType, String from, RelationshipLabel label, String key) {
+    return resolveNode(fromType, from)
+        .flatMap(node -> edgeRepository.findById(claimId(node.getId(), label, key)));
+  }
+
+  /** Give up a claim, only while it still runs to {@code toType:toRef}; true when removed. */
+  public boolean releaseClaim(
+      RelationshipType fromType,
+      String from,
+      RelationshipLabel label,
+      String key,
+      RelationshipType toType,
+      String toRef) {
+    return resolveNode(fromType, from)
+        .map(
+            node ->
+                edgeRepository.deleteByIdAndTo(
+                        claimId(node.getId(), label, key), toType.getLabel() + ":" + toRef)
+                    > 0)
+        .orElse(false);
+  }
+
+  private static String claimId(String fromNodeId, RelationshipLabel label, String key) {
+    return label.getLabel() + ":" + fromNodeId + ":" + key;
   }
 
   /*
