@@ -18,7 +18,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Optional;
@@ -39,8 +38,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}/workflow")
 @Tag(name = "Workflows", description = "Create, list, and manage your Workflows.")
-@SecurityRequirement(name = "BearerAuth")
-@SecurityRequirement(name = "x-access-token")
 public class WorkspaceWorkflowControllerV2 {
 
   private final WorkflowService workflowService;
@@ -220,7 +217,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
-      summary = "Retrieve the changlog",
+      summary = "Retrieve a workflow's changelog",
       description = "Retrieves each versions changelog and returns them all as a list.")
   @ApiResponses(
       value = {
@@ -446,6 +443,9 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String workspace,
+      @Parameter(name = "name", description = "Name of the workflow", required = true)
+          @PathVariable
+          String name,
       @RequestBody WorkflowCanvas canvas,
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")

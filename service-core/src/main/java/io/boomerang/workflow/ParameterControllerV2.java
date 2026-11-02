@@ -30,7 +30,7 @@ import tools.jackson.databind.JsonNode;
 @Tag(
     name = "Parameters",
     description =
-        "Create, Update, and Delete global parameters available to all Teams and Workflows.")
+        "Create, update and delete global parameters, available to every workspace and workflow.")
 public class ParameterControllerV2 {
 
   /** The media type of a JSON Merge Patch (RFC 7396); plain JSON is accepted as the same thing. */

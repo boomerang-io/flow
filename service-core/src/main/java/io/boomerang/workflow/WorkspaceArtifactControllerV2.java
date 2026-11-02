@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.InputStream;
 import java.util.List;
@@ -42,8 +41,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}")
 @Tag(name = "Artifacts", description = "List, download and delete the files tasks upload to runs.")
-@SecurityRequirement(name = "BearerAuth")
-@SecurityRequirement(name = "x-access-token")
 public class WorkspaceArtifactControllerV2 {
 
   private final ArtifactService artifactService;
@@ -126,7 +123,7 @@ public class WorkspaceArtifactControllerV2 {
       resourceName = "#name",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete an artifact and its file")
+  @Operation(summary = "Delete a run's artifact, by name, and its file")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -193,7 +190,7 @@ public class WorkspaceArtifactControllerV2 {
       resourceId = "#artifactId",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete an artifact and its file")
+  @Operation(summary = "Delete a workspace artifact, by id, and its file")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

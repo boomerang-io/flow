@@ -29,7 +29,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v2/system/outbox")
-@Tag(name = "System", description = "Inspect and replay the outbound event outbox.")
+@Tag(
+    name = "System",
+    description =
+        "Register the instance, retrieve context and navigation, and manage global admin areas.")
 public class OutboxControllerV2 {
 
   private final OutboxService outboxService;

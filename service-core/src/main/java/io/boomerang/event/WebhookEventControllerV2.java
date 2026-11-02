@@ -260,7 +260,7 @@ public class WebhookEventControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<String> ref,
-      @RequestHeader HttpHeaders headers,
+      @Parameter(hidden = true) @RequestHeader HttpHeaders headers,
       @RequestBody(required = false) byte[] body) {
     CloudEvent event = readEvent(headers, body == null ? new byte[0] : body);
     return ResponseEntity.ok(

@@ -1,16 +1,14 @@
 # API contract
 
-`service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the sign-in
-routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under `/dispatcher/v1`. This document
-states the rules every public route follows; route-level detail is the OpenAPI document springdoc serves at
-`/api/docs/spec` (`service-core/src/main/resources/application.properties:155`), which `OpenApiDocumentTest` pins to
-cover the public API and the dispatcher wire and leave out `/internal/`
-(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is the
-`api-v2` group at `/api/docs/spec/api-v2` (`core/config/OpenApiConfiguration.java:29-44`), checked in as
-`contracts/api-v2.yaml` with every object's keys sorted; `ApiContractTest` fails when the served document and the file
-differ and rewrites the file under `-Dcontract.update=true`
-(`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`). `contracts/dispatcher-v1.yaml`
-and `DispatcherContractTest` do the same for the dispatcher wire.
+`service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
+`/dispatcher/v1`. This document states the rules every public route follows; route-level detail is the OpenAPI document springdoc serves at `/api/docs/spec`
+(`service-core/src/main/resources/application.properties:155`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
+(`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is the `api-v2` group at `/api/docs/spec/api-v2`
+(`core/config/OpenApiConfiguration.java:50-66`), checked in as `contracts/api-v2.yaml` with every object's keys sorted; `ApiContractTest` fails when the served document and the file differ and
+rewrites the file under `-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`). `contracts/dispatcher-v1.yaml` and `DispatcherContractTest`
+do the same for the dispatcher wire. The document requires a bearer token or the `x-access-token` header on every route; the GitHub callback and the four Slack routes, which verify the request
+themselves, declare none, and `/webhook`, `/event` and `/callback` also take the `access_token` query parameter (`core/config/OpenApiConfiguration.java:71-103`, "Authentication: how a caller becomes a
+`Token`" in `authorization.md`).
 
 ## URL shape
 

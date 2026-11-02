@@ -78,7 +78,7 @@ public class WorkspaceTaskControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
       summary =
-          "Retrieve a specific task as Tekton Task YAML. If no version specified, the latest version is returned.")
+          "Retrieve a workspace task as Tekton Task YAML. If no version specified, the latest version is returned.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -267,7 +267,7 @@ public class WorkspaceTaskControllerV2 {
       resourceId = "#name",
       workspaceId = "#workspace")
   @Operation(
-      summary = "Update, replace, or create new using Tekton Task YAML",
+      summary = "Update, replace, or create a workspace task using Tekton Task YAML",
       description =
           "The name must only contain alphanumeric and - characeters. If the name exists, apply will create a new version.")
   @ApiResponses(
@@ -298,7 +298,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
-      summary = "Retrieve the changlog",
+      summary = "Retrieve a workspace task's changelog",
       description = "Retrieves each versions changelog and returns them all as a list.")
   @ApiResponses(
       value = {
@@ -328,14 +328,22 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
-      summary = "Validate Tekton Task YAML",
+      summary = "Validate a workspace task's Tekton Task YAML",
       description = "Validates the Task YAML as a Tekton Task")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public void validateYaml(@RequestBody TektonTask tektonTask) {
+  public void validateYaml(
+      @Parameter(
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
+              required = true)
+          @PathVariable
+          String workspace,
+      @RequestBody TektonTask tektonTask) {
     taskService.validateAsTekton(tektonTask);
   }
 

@@ -374,23 +374,6 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
-    ContentDisposition:
-      properties:
-        attachment:
-          type: "boolean"
-        charset:
-          type: "string"
-        filename:
-          type: "string"
-        formData:
-          type: "boolean"
-        inline:
-          type: "boolean"
-        name:
-          type: "string"
-        type:
-          type: "string"
-      type: "object"
     CronValidationResponse:
       properties:
         message:
@@ -629,181 +612,6 @@ components:
         title:
           type: "string"
       type: "object"
-    HttpHeaders:
-      properties:
-        accept:
-          items:
-            $ref: "#/components/schemas/MediaType"
-          type: "array"
-        acceptCharset:
-          items:
-            type: "string"
-          type: "array"
-        acceptLanguage:
-          items:
-            properties:
-              range:
-                type: "string"
-              weight:
-                format: "double"
-                type: "number"
-            type: "object"
-          type: "array"
-        acceptLanguageAsLocales:
-          items:
-            type: "string"
-          type: "array"
-        acceptPatch:
-          items:
-            $ref: "#/components/schemas/MediaType"
-          type: "array"
-        accessControlAllowCredentials:
-          type: "boolean"
-        accessControlAllowHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlAllowMethods:
-          items:
-            $ref: "#/components/schemas/HttpMethod"
-          type: "array"
-        accessControlAllowOrigin:
-          type: "string"
-        accessControlExposeHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlMaxAge:
-          format: "int64"
-          type: "integer"
-        accessControlRequestHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlRequestMethod:
-          $ref: "#/components/schemas/HttpMethod"
-        all:
-          additionalProperties:
-            type: "string"
-          type: "object"
-          writeOnly: true
-        allow:
-          items:
-            $ref: "#/components/schemas/HttpMethod"
-          type: "array"
-          uniqueItems: true
-        basicAuth:
-          type: "string"
-          writeOnly: true
-        bearerAuth:
-          type: "string"
-          writeOnly: true
-        cacheControl:
-          type: "string"
-        connection:
-          items:
-            type: "string"
-          type: "array"
-        contentDisposition:
-          $ref: "#/components/schemas/ContentDisposition"
-        contentLanguage:
-          type: "string"
-        contentLength:
-          format: "int64"
-          type: "integer"
-        contentType:
-          $ref: "#/components/schemas/MediaType"
-        date:
-          format: "int64"
-          type: "integer"
-        empty:
-          type: "boolean"
-        etag:
-          type: "string"
-        expires:
-          format: "int64"
-          type: "integer"
-        host:
-          properties:
-            address:
-              properties:
-                address:
-                  format: "byte"
-                  type: "string"
-                anyLocalAddress:
-                  type: "boolean"
-                canonicalHostName:
-                  type: "string"
-                hostAddress:
-                  type: "string"
-                hostName:
-                  type: "string"
-                linkLocalAddress:
-                  type: "boolean"
-                loopbackAddress:
-                  type: "boolean"
-                mcglobal:
-                  type: "boolean"
-                mclinkLocal:
-                  type: "boolean"
-                mcnodeLocal:
-                  type: "boolean"
-                mcorgLocal:
-                  type: "boolean"
-                mcsiteLocal:
-                  type: "boolean"
-                multicastAddress:
-                  type: "boolean"
-                siteLocalAddress:
-                  type: "boolean"
-              type: "object"
-            hostName:
-              type: "string"
-            hostString:
-              type: "string"
-            port:
-              format: "int32"
-              type: "integer"
-            unresolved:
-              type: "boolean"
-          type: "object"
-        ifMatch:
-          items:
-            type: "string"
-          type: "array"
-        ifModifiedSince:
-          format: "int64"
-          type: "integer"
-        ifNoneMatch:
-          items:
-            type: "string"
-          type: "array"
-        ifUnmodifiedSince:
-          format: "int64"
-          type: "integer"
-        lastModified:
-          format: "int64"
-          type: "integer"
-        location:
-          format: "uri"
-          type: "string"
-        origin:
-          type: "string"
-        pragma:
-          type: "string"
-        range:
-          items:
-            $ref: "#/components/schemas/HttpRange"
-          type: "array"
-        upgrade:
-          type: "string"
-        vary:
-          items:
-            type: "string"
-          type: "array"
-      type: "object"
-    HttpMethod: {}
-    HttpRange: {}
     Integration:
       properties:
         description:
@@ -907,30 +715,6 @@ components:
           type: "string"
         value:
           type: "string"
-      type: "object"
-    MediaType:
-      properties:
-        charset:
-          type: "string"
-        concrete:
-          type: "boolean"
-        parameters:
-          additionalProperties:
-            type: "string"
-          type: "object"
-        qualityValue:
-          format: "double"
-          type: "number"
-        subtype:
-          type: "string"
-        subtypeSuffix:
-          type: "string"
-        type:
-          type: "string"
-        wildcardSubtype:
-          type: "boolean"
-        wildcardType:
-          type: "boolean"
       type: "object"
     ModelUsage:
       properties:
@@ -3406,6 +3190,11 @@ components:
       bearerFormat: "JWT"
       scheme: "bearer"
       type: "http"
+    access_token:
+      description: "A token in the URL, for webhook senders that cannot set a header."
+      in: "query"
+      name: "access_token"
+      type: "apiKey"
     x-access-token:
       in: "header"
       name: "x-access-token"
@@ -3713,6 +3502,10 @@ paths:
       responses:
         "200":
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Wait for Event Callbcak"
       tags:
       - "Webhooks and Events"
@@ -3758,6 +3551,10 @@ paths:
       responses:
         "200":
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Wait for Event Callback with JSON Payload"
       tags:
       - "Webhooks and Events"
@@ -3790,11 +3587,6 @@ paths:
         required: false
         schema:
           type: "string"
-      - in: "header"
-        name: "headers"
-        required: true
-        schema:
-          $ref: "#/components/schemas/HttpHeaders"
       requestBody:
         content:
           application/json:
@@ -3808,6 +3600,10 @@ paths:
               schema:
                 type: "object"
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept CloudEvent"
       tags:
       - "Webhooks and Events"
@@ -4186,6 +3982,7 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive the GitHub App installation setup callback"
       tags:
       - "Integrations"
@@ -4268,6 +4065,7 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Oauth2 request"
       tags:
       - "Integrations"
@@ -4298,6 +4096,7 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Slash Commands"
       tags:
       - "Integrations"
@@ -4334,6 +4133,7 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Events"
       tags:
       - "Integrations"
@@ -4377,6 +4177,7 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Interactivity"
       tags:
       - "Integrations"
@@ -4866,7 +4667,7 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      summary: "Validate Tekton Task YAML"
+      summary: "Validate a global task's Tekton Task YAML"
       tags:
       - "Tasks"
   /api/v2/task/{name}:
@@ -4918,7 +4719,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Retrieve a specific task as Tekton Task YAML. If no version specified,\
+      summary: "Retrieve a global task as Tekton Task YAML. If no version specified,\
         \ the latest version is returned."
       tags:
       - "Tasks"
@@ -4962,7 +4763,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Update, replace, or create new using Tekton Task YAML"
+      summary: "Update, replace, or create a global task using Tekton Task YAML"
       tags:
       - "Tasks"
   /api/v2/task/{name}/changelog:
@@ -4993,7 +4794,7 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Bad Request"
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a global task's changelog"
       tags:
       - "Tasks"
   /api/v2/taskrun/{taskRunId}/log:
@@ -5410,6 +5211,10 @@ paths:
               schema:
                 type: "object"
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Webhook payloads from various sources."
       tags:
       - "Webhooks and Events"
@@ -6016,9 +5821,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageArtifact"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "List the workspace's artifacts, largest first"
       tags:
       - "Artifacts"
@@ -6043,10 +5845,7 @@ paths:
           description: "OK"
         "404":
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Delete an artifact and its file"
+      summary: "Delete a workspace artifact, by id, and its file"
       tags:
       - "Artifacts"
   /api/v2/workspace/{workspace}/insights:
@@ -6541,6 +6340,13 @@ paths:
     get:
       operationId: "validateCron"
       parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
       - description: "A CRON expression to validate"
         in: "query"
         name: "cron"
@@ -6731,6 +6537,14 @@ paths:
     post:
       description: "Validates the Task YAML as a Tekton Task"
       operationId: "validateYaml"
+      parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
       requestBody:
         content:
           application/x-yaml:
@@ -6742,7 +6556,7 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      summary: "Validate Tekton Task YAML"
+      summary: "Validate a workspace task's Tekton Task YAML"
       tags:
       - "Workspace Tasks"
   /api/v2/workspace/{workspace}/task/{name}:
@@ -6806,7 +6620,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Retrieve a specific task as Tekton Task YAML. If no version specified,\
+      summary: "Retrieve a workspace task as Tekton Task YAML. If no version specified,\
         \ the latest version is returned."
       tags:
       - "Workspace Tasks"
@@ -6857,7 +6671,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Update, replace, or create new using Tekton Task YAML"
+      summary: "Update, replace, or create a workspace task using Tekton Task YAML"
       tags:
       - "Workspace Tasks"
   /api/v2/workspace/{workspace}/task/{name}/changelog:
@@ -6903,7 +6717,7 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Unauthorized"
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a workspace task's changelog"
       tags:
       - "Workspace Tasks"
   /api/v2/workspace/{workspace}/taskrun/query:
@@ -7042,9 +6856,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageTaskRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for TaskRuns across WorkflowRuns"
       tags:
       - "TaskRuns"
@@ -7078,9 +6889,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Create a new workflow"
       tags:
       - "Workflows"
@@ -7120,9 +6928,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Update, replace, or create new, Workflow"
       tags:
       - "Workflows"
@@ -7215,9 +7020,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowResponsePage"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for Workflows"
       tags:
       - "Workflows"
@@ -7244,9 +7046,6 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Delete a workflow"
       tags:
       - "Workflows"
@@ -7296,9 +7095,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a Workflow"
       tags:
       - "Workflows"
@@ -7347,9 +7143,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Conflict"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Change what a workflow is"
       tags:
       - "Workflows"
@@ -7380,9 +7173,6 @@ paths:
                   type: "string"
                 type: "array"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve the parameters."
       tags:
       - "Workflows"
@@ -7422,10 +7212,7 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a workflow's changelog"
       tags:
       - "Workflows"
   /api/v2/workspace/{workspace}/workflow/{name}/compose:
@@ -7466,9 +7253,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowCanvas"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Convert workflow to compose model for UI Designer and detailed Activity\
         \ screens."
       tags:
@@ -7480,6 +7264,12 @@ paths:
         example: "my-amazing-workspace"
         in: "path"
         name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "Name of the workflow"
+        in: "path"
+        name: "name"
         required: true
         schema:
           type: "string"
@@ -7509,9 +7299,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowCanvas"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Update, replace, or create new, Workflow for Canvas"
       tags:
       - "Workflows"
@@ -7540,9 +7327,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Duplicates the workflow."
       tags:
       - "Workflows"
@@ -7572,9 +7356,6 @@ paths:
                 format: "binary"
                 type: "string"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Export the Workflow as JSON."
       tags:
       - "Workflows"
@@ -7623,9 +7404,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Submit a Workflow to be run. Will queue the WorkflowRun ready for\
         \ execution."
       tags:
@@ -7663,9 +7441,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunPurge"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Purge the WorkflowRuns matching every label, oldest first, each with\
         \ its lineage. One call takes a page of matches and reports how many remain;\
         \ repeat until none."
@@ -7732,9 +7507,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunCount"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a summary of WorkflowRuns by Status."
       tags:
       - "WorkflowRuns"
@@ -7859,9 +7631,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageWorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for WorkflowRuns"
       tags:
       - "WorkflowRuns"
@@ -7895,9 +7664,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunPurge"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Purge a WorkflowRun with everything it owns and its lineage: its retries,\
         \ its child runs, their task runs, actions, artifacts and logs. A run in flight\
         \ is cancelled first. Audit records stay."
@@ -7939,9 +7705,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a specific WorkflowRun."
       tags:
       - "WorkflowRuns"
@@ -7978,9 +7741,6 @@ paths:
                   $ref: "#/components/schemas/Artifact"
                 type: "array"
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "List a WorkflowRun's artifacts, expired ones included"
       tags:
       - "Artifacts"
@@ -8011,10 +7771,7 @@ paths:
           description: "OK"
         "404":
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Delete an artifact and its file"
+      summary: "Delete a run's artifact, by name, and its file"
       tags:
       - "Artifacts"
     get:
@@ -8057,9 +7814,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/StreamingResponseBody"
           description: "Expired"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Download an artifact's file"
       tags:
       - "Artifacts"
@@ -8093,9 +7847,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Cancel a WorkflowRun"
       tags:
       - "WorkflowRuns"
@@ -8129,9 +7880,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Pause a running WorkflowRun"
       tags:
       - "WorkflowRuns"
@@ -8165,9 +7913,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Resume a paused WorkflowRun"
       tags:
       - "WorkflowRuns"
@@ -8206,9 +7951,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retry WorkflowRun execution."
       tags:
       - "WorkflowRuns"
@@ -8247,14 +7989,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Start WorkflowRun execution. The WorkflowRun has to already have been\
         \ queued."
       tags:
       - "WorkflowRuns"
+security:
+- BearerAuth: []
+- x-access-token: []
 tags:
+- description: "Create, update and delete global parameters, available to every workspace\
+    \ and workflow."
+  name: "Parameters"
 - description: "Listen for Events or Webhook requests to trigger Workflows and provide\
     \ the ability to resolve Wait For Event TaskRuns."
   name: "Webhooks and Events"
@@ -8264,13 +8009,8 @@ tags:
   name: "Schedules"
 - description: "Provide the ability to search and retrieve Insights."
   name: "Insights"
-- description: "Create, Update, and Delete global parameters available to all Teams\
-    \ and Workflows."
-  name: "Parameters"
 - description: "Manage Workspaces, Workspace Members, Quotas, ApprovalGroups and Parameters."
   name: "Workspace Management"
-- description: "Inspect and replay the outbound event outbox."
-  name: "System"
 - description: "Register the instance, retrieve context and navigation, and manage\
     \ global admin areas."
   name: "System"
