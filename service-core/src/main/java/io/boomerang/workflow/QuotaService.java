@@ -126,7 +126,7 @@ public class QuotaService {
   public Integer maxWorkspaceStorage(String workspace) {
     Integer stored =
         workspaceRepository
-            .findByNameIgnoreCase(workspace)
+            .findByIdOrName(workspace)
             .map(WorkspaceEntity::getQuotas)
             .map(Quotas::getMaxWorkspaceStorage)
             .orElse(null);
@@ -198,7 +198,7 @@ public class QuotaService {
     }
     Integer stored =
         workspaceRepository
-            .findByNameIgnoreCase(workspace)
+            .findByIdOrName(workspace)
             .map(WorkspaceEntity::getQuotas)
             .map(Quotas::getMaxWorkflowRunDuration)
             .orElse(null);
@@ -207,12 +207,12 @@ public class QuotaService {
 
   // ── Usage ─────────────────────────────────────────────────────────────────
 
-  /** A workspace's limits with its current usage filled in; null when no workspace has the name. */
+  /**
+   * A workspace's limits with its current usage filled in, the workspace given by id or name;
+   * null when none matches.
+   */
   public CurrentQuotas current(String workspace) {
-    return workspaceRepository
-        .findByNameIgnoreCase(workspace)
-        .map(entity -> current(entity, workspace))
-        .orElse(null);
+    return workspaceRepository.findByIdOrName(workspace).map(this::current).orElse(null);
   }
 
   /**
@@ -220,11 +220,9 @@ public class QuotaService {
    * calendar month, and the workflows counted are the ones the caller may see in the workspace.
    */
   public CurrentQuotas current(WorkspaceEntity entity) {
-    return current(entity, entity.getName());
-  }
-
-  // The usage is counted under the name the caller gave, which the lookup matched ignoring case.
-  private CurrentQuotas current(WorkspaceEntity entity, String workspace) {
+    // Counted under the workspace's own name, the key its audit events and graph node carry,
+    // whatever form the caller named it in.
+    String workspace = entity.getName();
     CurrentQuotas quotas = new CurrentQuotas(limits(entity));
     MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
     quotas.setMonthlyResetDate(month.to());
@@ -299,7 +297,11 @@ public class QuotaService {
   public void assertCanCreateWorkflow(String workspace) {
     if (enforced()) {
       CurrentQuotas quotas = current(workspace);
-      LOGGER.debug("Quotas: {}", quotas.toString());
+      // A workflow no workspace owns has no workspace quota to hold it to.
+      if (quotas == null) {
+        return;
+      }
+      LOGGER.debug("Quotas: {}", quotas);
       if (Quotas.limited(quotas.getMaxWorkflowCount())
           && quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
         throw new BoomerangException(
@@ -319,7 +321,11 @@ public class QuotaService {
   public void assertRunQuotas(String workspace, Optional<WorkflowWorkspace> runWorkspace) {
     if (enforced()) {
       CurrentQuotas quotas = current(workspace);
-      LOGGER.debug("Quotas: {}", quotas.toString());
+      // A workflow no workspace owns has no workspace quota to hold it to.
+      if (quotas == null) {
+        return;
+      }
+      LOGGER.debug("Quotas: {}", quotas);
       // The run being submitted is not counted yet, so at-the-limit already means it would
       // exceed the limit.
       if (Quotas.limited(quotas.getMaxConcurrentRuns())
@@ -349,6 +355,10 @@ public class QuotaService {
    */
   public void assertAdmittedRunWithinQuotas(String workspace) {
     CurrentQuotas quotas = current(workspace);
+    // A workflow no workspace owns has no workspace quota to hold it to.
+    if (quotas == null) {
+      return;
+    }
     if (Quotas.limited(quotas.getMaxConcurrentRuns())
         && quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
       throw new BoomerangException(

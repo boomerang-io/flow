@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.boomerang.common.enums.TriggerEnum;
@@ -9,10 +10,13 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.audit.AuditEventRepository;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.util.List;
+import java.util.Optional;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -91,6 +95,40 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
         workflowService.submit(workspace, "quota-duration-workflow", request, false);
 
     assertEquals(7L, run.getTimeout());
+  }
+
+  // A fired schedule names its workspace by the id the workflow's hasWorkflow edge yields, not by
+  // name: under enforcement its run is admitted and held to the workspace's own quotas.
+  @Test
+  void aRunSubmittedUnderTheWorkspacesIdIsHeldToItsQuotas() {
+    Quotas quotas = quotasWithRunDuration(7);
+    quotas.setMaxWorkflowRunMonthly(1);
+    String workspace = createWorkspace("quota-by-id", quotas);
+    workflowService.create(workspace, runnableWorkflow("quota-by-id-workflow", TASK_SLUG));
+    String workflowId =
+        relationshipService
+            .refsInWorkspace(
+                RelationshipType.WORKFLOW, workspace, Optional.of(List.of("quota-by-id-workflow")))
+            .get(0);
+    String workspaceId =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowId);
+    assertNotEquals(workspace, workspaceId, "the edge yields the workspace's id, not its name");
+
+    setFeatureSetting(QUOTA_FEATURE, true);
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.manual);
+    WorkflowRun run =
+        workflowService.submit(workspaceId, "quota-by-id-workflow", request, false, "schedule-797");
+    assertEquals(7L, run.getTimeout(), "the run-duration ceiling is the workspace's own");
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () ->
+                workflowService.submit(
+                    workspaceId, "quota-by-id-workflow", request, false, "schedule-797"));
+    assertEquals("QUOTA_EXCEEDED", ex.getReason(), "the monthly quota is the workspace's own");
   }
 
   @Test

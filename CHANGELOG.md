@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- Scheduled runs are admitted under workspace quota enforcement. A schedule names its workspace by id, and the quota
+  lookups matched names only, so every fire failed before the run was created; scheduled runs also fell back to the
+  platform's run-duration and workspace-size limits instead of the workspace's own. Quotas now find the workspace by
+  id or name.
 - Concurrent first runs of a template in a workspace make one link, not one each: the children of a for-each
   `runworkflow` task all run as the same link. A `linksTemplate` relationship edge claims the workspace's link to the
   template. Workspaces that already hold duplicate links keep them; reads take the first, and each delete by name

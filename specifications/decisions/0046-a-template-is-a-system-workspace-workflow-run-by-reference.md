@@ -20,10 +20,10 @@ tenant runs without copying, so a change reaches all of them; a starter a user c
 
 C. `WorkflowEntity.type` is `workflow`, `template` or `starter`, typed because create, submit and the editor decide
 from it; a `template` or `starter` body is refused outside the system workspace
-(`workflow/WorkflowService.java:2281-2289`). A workflow with `templateRef` is a link: its own revision holds no tasks,
-reads fill them from the template's pinned or latest revision (`:2326-2399`), and a submit runs that revision with
+(`workflow/WorkflowService.java:2282-2290`). A workflow with `templateRef` is a link: its own revision holds no tasks,
+reads fill them from the template's pinned or latest revision (`:2327-2400`), and a submit runs that revision with
 the link as the run's workflow, so the run, its parameter layers, quotas and audit are the link's workspace's
-(`:1976-1990`). The template cannot be deleted while a link names it (`:805-808`). Starters stay a copy, as every
+(`:1977-1991`). The template cannot be deleted while a link names it (`:806-809`). Starters stay a copy, as every
 compared product keeps the two apart, and `_0038__WorkflowTemplatesIntoSystem` moves the old collection into the
 system workspace as starters. There are no template routes: a workspace's own workflow routes answer the system
 workspace's template when the workspace has no workflow of the name (`:288-299,371-378`), and the first use, a
@@ -36,5 +36,5 @@ must create the run in the caller's unit from inputs alone (Argo's `workflowTemp
   every link follows it at its next submit, or stays on its pinned version.
 - A link is read-only in its tasks and params; its name, labels and triggers are the workspace's. A workflow of the
   workspace with a template's name hides the template there. A template's `runworkflow` task naming another template
-  adopts the run's workspace's link the same way (`workflow/WorkflowService.java:2217-2257`).
+  adopts the run's workspace's link the same way (`workflow/WorkflowService.java:2218-2258`).
 - Not built: a link that re-points to another template, a template outside the system workspace, a starter that remembers its source. Revisit when a workspace asks to publish its own templates.
