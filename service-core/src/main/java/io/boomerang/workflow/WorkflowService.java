@@ -524,7 +524,8 @@ public class WorkflowService {
 
   /*
    * A concurrency limit is at least one run; a task's retry setting asks for between zero and the
-   * engine's ceiling of attempts, with any backoff wait positive. Anything else is a bad request.
+   * engine's ceiling of attempts, with any backoff wait positive, and asks for retries only of a
+   * type the engine requeues. Anything else is a bad request.
    */
   private static void validateRunSettings(WorkflowRevisionEntity wfRevisionEntity) {
     WorkflowConcurrency concurrency = wfRevisionEntity.getConcurrency();
@@ -539,6 +540,19 @@ public class WorkflowService {
       if (retry.getMax() != null
           && (retry.getMax() < 0 || retry.getMax() > EngineConstants.MAX_FAILURE_RETRIES)) {
         throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
+      }
+      // Only the types a dispatcher runs are requeued; a retry asked of any other would be
+      // stored and never applied. A run-workflow task's retries belong to the workflow it runs.
+      if (retry.getMax() != null
+          && retry.getMax() > 0
+          && !EngineConstants.REQUEUEABLE_TYPES.contains(task.getType())) {
+        throw new BoomerangException(
+            BoomerangError.WORKFLOW_INVALID_TASK_RETRY,
+            task.getName(),
+            (TaskType.runworkflow.equals(task.getType())
+                ? "A runworkflow task is not retried: declare retries on the tasks of the workflow"
+                    + " it runs."
+                : "A " + task.getType() + " task is not retried."));
       }
       RetryBackoff backoff = retry.getBackoff();
       if (backoff != null

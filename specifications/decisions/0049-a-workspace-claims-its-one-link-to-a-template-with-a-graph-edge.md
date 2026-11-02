@@ -17,7 +17,7 @@ A workspace runs a template through its own link, made on first use. The check f
 
 ## Decision
 
-D. MongoDB's `_id` admits one claim per (workspace, template), so exactly one caller creates the link, under the id its claim names; the others wait for it (`workflow/WorkflowService.java:2319-2385`, `core/RelationshipService.java:289-342`). Deleting the link deletes its node and so the claim, which A could not do. The edge joins a workspace and its own workflow, nodes `hasWorkflow` already joins, so the walk, which follows every edge, reaches nothing new.
+D. MongoDB's `_id` admits one claim per (workspace, template), so exactly one caller creates the link, under the id its claim names; the others wait for it (`workflow/WorkflowService.java:2333-2399`, `core/RelationshipService.java:289-342`). Deleting the link deletes its node and so the claim, which A could not do. The edge joins a workspace and its own workflow, nodes `hasWorkflow` already joins, so the walk, which follows every edge, reaches nothing new.
 
 ## Consequences
 

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.BackoffType;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.ConcurrencyOverflow;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangException;
@@ -127,6 +128,29 @@ class WorkflowRunSettingsTest extends AbstractEngineIntegrationTest {
         assertThrows(
             BoomerangException.class, () -> workflowService.create(workspace, tooManyRetries));
     assertEquals("WORKFLOW_INVALID_REQ", refused.getReason());
+  }
+
+  // Only the types a dispatcher runs are requeued: retries asked of a run-workflow or a sleep
+  // node are refused at save rather than stored and never applied; asking for none is fine.
+  @Test
+  void retriesAskedOfATypeTheEngineNeverRequeuesAreRefusedAtSave() {
+    String workspace = workspace("settings-retry-type");
+    for (String[] node : new String[][] {{"runworkflow", "run-workflow"}, {"sleep", "sleep"}}) {
+      Workflow workflow = runnableWorkflow("settings-retry-" + node[0], TASK_SLUG);
+      work(workflow).setType(TaskType.valueOf(node[0]));
+      work(workflow).setTaskRef(node[1]);
+      work(workflow).setRetry(retry(1, BackoffType.fixed, 10L, null));
+      BoomerangException refused =
+          assertThrows(BoomerangException.class, () -> workflowService.create(workspace, workflow));
+      assertEquals("WORKFLOW_INVALID_TASK_RETRY", refused.getReason(), node[0]);
+      assertEquals("work", refused.getArgs()[0], "the message names the task");
+    }
+
+    Workflow noRetries = runnableWorkflow("settings-retry-zero", TASK_SLUG);
+    work(noRetries).setType(TaskType.sleep);
+    work(noRetries).setTaskRef("sleep");
+    work(noRetries).setRetry(retry(0, BackoffType.fixed, 10L, null));
+    workflowService.create(workspace, noRetries);
   }
 
   @Test
