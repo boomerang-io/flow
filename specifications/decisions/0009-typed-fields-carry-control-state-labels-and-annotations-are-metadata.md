@@ -27,7 +27,7 @@ deadlines and pause are `claim`, `timeoutAt`, `retry`, `waitUntil` and `pauseReq
 and task defaults are derived, not stamped (decision 0025). `ServerLabel` reserves the prefix
 (`common/model/ServerLabel.java:10-32`): admission sets `boomerang.io/model` from the resolved `model` param unless it
 is secret (`engine/TaskExecutionService.java:228-238`); the fan-out sets `boomerang.io/item` on each item task run, and the run-workflow task
-on a for-each child, when the item is text holding no secret value of the run's parameter layers (`:747-755`, `:1179-1188`,
+on a for-each child, when the item is text holding no secret value of the run's parameter layers (`:747-755`, `:1187-1196`,
 `engine/ParameterManager.java:341-345`); every client-set label under the prefix is dropped
 (`workflow/WorkflowRunService.java:825`, `workflow/WorkflowService.java:654`). The engine reads neither label to decide
 anything. Kubernetes (spec and status versus annotations), Tekton, Argo and Temporal draw the same line.

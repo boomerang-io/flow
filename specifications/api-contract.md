@@ -210,7 +210,7 @@ items too, and `foreach`: `true` keeps for-each parents only, `false` leaves the
 (`workflow/WorkflowRunService.java:325-426`, the parent being the task run carrying the foreach setting, `:368`). It
 needs `labels` or `workflowruns`, the two ways task runs are indexed (`migration/_0021__Indexes.java:63,75`), or it is
 `400 QUERY_INVALID_FILTERS` (`workflow/WorkflowRunService.java:347-350`). A task run carries its run's labels, and a
-run-workflow child its parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1154-1166`), so one
+run-workflow child its parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1162-1174`), so one
 label finds a run's task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`,
 `annotations` or `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:372-374,419-426`);
 a for-each parent's row carries `foreach: true` and never the setting's items (`common/model/TaskRun.java:59`). Rows sort by creation, then id, so pages stay stable (`:353`).
@@ -355,7 +355,7 @@ by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/W
 | Aspect | Rule | Where |
 | --- | --- | --- |
 | Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:650-653,1118,1393-1394,1788-1789,1933-1936`; `workflow/TaskService.java:709-710,797-798`; `workflow/WorkflowRunService.java:821-827` |
-| Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:228-238,747-755,1179-1188`; `engine/ParameterManager.java:345` |
+| Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:228-238,747-755,1187-1196`; `engine/ParameterManager.java:345` |
 | Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:654,1878`; `workflow/WorkflowRunService.java:825,1006`; `engine/DAGUtility.java:248-251` |
 
 ## Parameter model

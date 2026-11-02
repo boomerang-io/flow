@@ -22,7 +22,7 @@ closed `RunStatus` enum.
 ## Decision
 
 `start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:306-312`); a child run, a fired schedule and
-webhook and event triggers start too (`engine/TaskExecutionService.java:1173`, `schedule/ScheduleJob.java:76`,
+webhook and event triggers start too (`engine/TaskExecutionService.java:1181`, `schedule/ScheduleJob.java:76`,
 `flow.workflowrun.auto-start-on-submit`). A run without a workspace starts at once; one with a workspace stays pending
 until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:792-808`, decision 0025). A workflow
 carries `concurrency: {limit, overflow}` (`common/model/WorkflowConcurrency.java:18-19`): at admission the engine counts

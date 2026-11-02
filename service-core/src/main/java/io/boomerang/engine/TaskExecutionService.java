@@ -914,8 +914,8 @@ public class TaskExecutionService {
 
   /*
    * An item of a foreach parent: the parent's type, task, spec, workspaces, declared results,
-   * timeout, labels and annotations, no dependencies, and the parent's params plus item and index.
-   * Its params and spec resolve when it is queued, like any task's.
+   * timeout, retry policy, labels and annotations, no dependencies, and the parent's params plus
+   * item and index. Its params and spec resolve when it is queued, like any task's.
    */
   private static TaskRunEntity newItem(TaskRunEntity parent, int index, Object element) {
     TaskRunEntity item = new TaskRunEntity();
@@ -934,6 +934,14 @@ public class TaskExecutionService {
     item.setLabels(new HashMap<>(parent.getLabels()));
     item.setAnnotations(new HashMap<>(parent.getAnnotations()));
     item.setTimeout(parent.getTimeout());
+    // The node's retry policy, with the item's own budget: one item's failures never spend
+    // another's. The parent keeps its copy and, never dispatched, is never requeued.
+    if (parent.getRetry() != null && parent.getRetry().getMax() != null) {
+      RunRetry retry = new RunRetry();
+      retry.setMax(parent.getRetry().getMax());
+      retry.setBackoff(parent.getRetry().getBackoff());
+      item.setRetry(retry);
+    }
     item.setWorkspace(parent.getWorkspace());
     item.setSpec(parent.getSpec());
     item.setResults(
