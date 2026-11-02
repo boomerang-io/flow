@@ -29,15 +29,71 @@ const contextData = {
   platformMessage: { kind: "", message: "", title: "" },
 } as unknown as ContextConfig;
 
-function renderNavbar() {
+function renderNavbar(options: { path?: string; route?: string; userData?: FlowUser } = {}) {
+  const { userData = profile as unknown as FlowUser, ...routeOptions } = options;
   return renderWithRouter(
-    <Navbar
-      flowNavigationData={[]}
-      contextData={contextData}
-      userData={profile as unknown as FlowUser}
-    />,
+    <Navbar flowNavigationData={[]} contextData={contextData} userData={userData} />,
+    routeOptions,
   );
 }
+
+describe("Workspace switcher", () => {
+  it("names the current workspace in the header and ticks it in a flat, sorted list", () => {
+    renderNavbar({ path: "/:workspace/*", route: "/system/workflows" });
+    const button = screen.getByTestId("workspace-switcher");
+    expect(button).toHaveAccessibleName("Workspace: System and Administration. Switch workspace");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(button);
+    const panel = screen.getByTestId("workspace-switcher-panel");
+    const links = within(panel).getAllByRole("link");
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      "admin-flowabl-io Personal Workspace",
+      "System and Administration",
+      "Tyson Workspace",
+      "All workspaces",
+    ]);
+    expect(links[1]).toHaveAttribute("aria-current", "true");
+    expect(links[0]).not.toHaveAttribute("aria-current");
+    expect(links[2].getAttribute("href")).toContain("/tyson-workspace/");
+    // Three workspaces need no filter.
+    expect(within(panel).queryByRole("searchbox")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(panel, { key: "Escape" });
+    expect(screen.queryByTestId("workspace-switcher-panel")).not.toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("reads Workspaces outside a workspace, with nothing ticked", () => {
+    renderNavbar({ path: "/home", route: "/home" });
+    const button = screen.getByTestId("workspace-switcher");
+    expect(button).toHaveAccessibleName("Switch workspace");
+    expect(button).toHaveTextContent("Workspaces");
+
+    fireEvent.click(button);
+    const panel = screen.getByTestId("workspace-switcher-panel");
+    expect(within(panel).queryByRole("link", { current: "true" })).not.toBeInTheDocument();
+  });
+
+  it("filters a long list by name", () => {
+    const workspaces = Array.from({ length: 9 }, (_, i) => ({ name: `ws-${i}`, displayName: `Workspace ${i}` }));
+    renderNavbar({
+      path: "/:workspace/*",
+      route: "/ws-2/workflows",
+      userData: { ...profile, workspaces } as unknown as FlowUser,
+    });
+    fireEvent.click(screen.getByTestId("workspace-switcher"));
+    const panel = screen.getByTestId("workspace-switcher-panel");
+    expect(within(panel).getAllByRole("link")).toHaveLength(10);
+
+    fireEvent.change(within(panel).getByRole("searchbox"), { target: { value: "space 7" } });
+    const links = within(panel).getAllByRole("link");
+    expect(links.map((link) => link.textContent?.trim())).toEqual(["Workspace 7", "All workspaces"]);
+
+    fireEvent.change(within(panel).getByRole("searchbox"), { target: { value: "zzz" } });
+    expect(within(panel).getByText("No workspace matches.")).toBeInTheDocument();
+  });
+});
 
 describe("Navbar menus", () => {
   it("lists Docs, Release Notes and About once each in the help menu, every one with an icon", () => {

@@ -118,8 +118,11 @@ collapse control), one search row with the filter and the task count in the plac
    `ErrorMessage`, `ErrorPage` and `ErrorDragon`. The library has no `AutoSuggest`, so the editor's parameter inputs
    are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:16-33`). `UIShell` provides the header
    and side-nav chrome; navigation is never hand-rolled. Flow feeds the shell's Docs and Release Notes, turns off its
-   launchpad About and profile row for its own (`src/Features/App/Navbar/Navbar.tsx:66-115`), and patches out its
-   fixed-colour help-menu rule (`client-web/patches/`).
+   launchpad About and profile row for its own (`src/Features/App/Navbar/Navbar.tsx:53-107`), and patches out its
+   fixed-colour help-menu rule (`client-web/patches/`). The workspace switcher is the current workspace's name as a
+   button beside the product name (Carbon keeps product scope left; its right-panel switcher is for products and has
+   no selected state): one sorted list, the current one ticked, a filter past eight; the shell has no slot there, so it
+   mounts itself after the product name (`src/Features/App/Navbar/WorkspaceSwitcher.tsx:28-49`). None on a single-workspace install.
 2. **Carbon** (`@carbon/react`) for anything the add-ons do not cover (`Button`, `DataTable`, `Tabs`, `Tag`,
    `ContentSwitcher`, `InlineNotification`, form inputs).
 3. **Custom** only when neither library has it, built from Carbon tokens and the spacing scale so it themes
@@ -163,14 +166,11 @@ optional, falling back to the name. The workflow modal previews the field a run 
 ### Schedules
 
 A workflow's Schedules tab and the workspace Schedules page share `src/Components/ScheduleViews`: a content switcher
-over List (a table with When in words, Next run, Time zone and a status tag), Upcoming (the next 30 days), Week and
-Month (`ScheduleViews.tsx:13-23`). The list's toolbar holds the search, the status filter, the switcher and Create
-schedule at one height (`ScheduleViews.tsx:88-103`); a row's Edit, Disable or Enable, and Delete are icon buttons, as on
-the parameters table (`src/Components/SchedulePanelList/SchedulePanelList.tsx:327`), and an empty list shows
-`EmptyState` (`:97,119`). The calendar views share a toolbar: Today as a ghost button with the calendar icon, then
-previous, next and the dates shown (`ScheduleViews.tsx:142-150`). The schedule form's When offers Once, Hourly, Daily,
-Weekdays, Weekly and Custom (cron), stored as the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`), with a
-line under the time zone saying what will happen and when it next runs.
+over List, Upcoming (30 days), Week and Month (`ScheduleViews.tsx:13-23`), one toolbar height for search, status
+filter, switcher and Create (`:88-103`). A row's name opens the detail pane, the page's own slide-in panel
+(`src/Components/SchedulePanelDetail/SchedulePanelDetail.tsx`); Edit, Disable or Enable and Delete are icon buttons
+(`SchedulePanelList.tsx:327`). The form's When offers Once, Hourly, Daily, Weekdays, Weekly and Custom (cron), stored as
+the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`), with a line saying what will happen and when.
 
 ### Task parameter inputs
 

@@ -1,0 +1,163 @@
+@use "@carbon/react/scss/spacing" as *;
+@import "Styles/animation";
+
+// The switcher lives in the shell's header, so its colours are the shell's own tokens.
+.host {
+  align-items: center;
+  display: flex;
+  height: 100%;
+}
+
+.container {
+  align-items: center;
+  border-left: 1px solid var(--cds-bmrg-theme-border);
+  display: flex;
+  height: 100%;
+  margin-left: $spacing-03;
+  padding-left: $spacing-03;
+  position: relative;
+}
+
+.trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--cds-bmrg-theme-primary);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.875rem;
+  gap: $spacing-03;
+  height: 100%;
+  max-width: 18rem;
+  padding: 0 $spacing-04;
+
+  &:hover {
+    background: var(--cds-bmrg-theme-hover);
+  }
+
+  &[aria-expanded="true"] {
+    background: var(--cds-bmrg-theme-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--cds-focus-inverse, #ffffff);
+    outline-offset: -2px;
+  }
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  fill: currentColor;
+  flex-shrink: 0;
+  transition: transform $carbon-motion--timing--productive $carbon-motion--easing--productive;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.panel {
+  background: var(--cds-bmrg-theme-menu-background);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  max-height: min(32rem, 80vh);
+  position: absolute;
+  top: 100%;
+  width: 20rem;
+}
+
+.filter {
+  background: transparent;
+  padding: $spacing-03 $spacing-05 $spacing-02;
+}
+
+.list {
+  flex: 1 1 auto;
+  list-style: none;
+  margin: 0;
+  overflow-y: auto;
+  padding: $spacing-02 0;
+}
+
+.item {
+  align-items: center;
+  color: var(--cds-bmrg-theme-primary);
+  display: flex;
+  font-size: 0.875rem;
+  gap: $spacing-03;
+  height: 2.5rem;
+  padding: 0 $spacing-05;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--cds-bmrg-theme-menu-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--cds-focus-inverse, #ffffff);
+    outline-offset: -2px;
+  }
+}
+
+.current {
+  background: var(--cds-bmrg-header-menu-options-active-background);
+  box-shadow: inset 3px 0 0 var(--cds-bmrg-accent);
+  font-weight: 600;
+}
+
+.name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tick {
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+.empty {
+  color: var(--cds-bmrg-theme-secondary);
+  font-size: 0.875rem;
+  padding: $spacing-04 $spacing-05;
+}
+
+.footer {
+  align-items: center;
+  border-top: 1px solid var(--cds-bmrg-theme-border);
+  color: var(--cds-bmrg-theme-link);
+  display: flex;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  height: 2.5rem;
+  padding: 0 $spacing-05;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--cds-bmrg-theme-menu-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--cds-focus-inverse, #ffffff);
+    outline-offset: -2px;
+  }
+}
+
+// On a phone the name gives way; the button keeps its accessible name.
+@media (max-width: 41.98rem) {
+  .label {
+    display: none;
+  }
+
+  .trigger {
+    padding: 0 $spacing-03;
+  }
+}

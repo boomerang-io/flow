@@ -1,17 +1,6 @@
 import React, { useState } from "react";
-import {
-  SideNav,
-  SideNavDivider,
-  SideNavLink,
-  SideNavItems,
-  SideNavMenu,
-  SideNavMenuItem,
-  Switcher,
-  SwitcherItem,
-  SwitcherDivider,
-  Tag,
-} from "@carbon/react";
-import { FlowData, ArrowsHorizontal, Information, Settings } from "@carbon/react/icons";
+import { SideNav, SideNavDivider, SideNavLink, SideNavItems, SideNavMenu, SideNavMenuItem, Tag } from "@carbon/react";
+import { FlowData, Information, Settings } from "@carbon/react/icons";
 import { UIShell, HeaderMenuItem } from "@boomerang-io/carbon-addons-boomerang-react";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
@@ -23,6 +12,7 @@ import { APP_ROOT, FeatureFlag } from "Config/appConfig";
 import { appLink } from "Config/appConfig";
 import { FlowNavigationItem, FlowNavigationItemChild, FlowUser, ContextConfig } from "Types";
 import AboutFlowModal, { PRODUCT_NAME } from "./AboutFlow";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import styles from "./navbar.module.scss";
 
 const skipToContentProps = {
@@ -114,34 +104,9 @@ export default function Navbar({ flowNavigationData, contextData, userData }: Na
             text="Account Settings"
           />,
         ]}
-        // A single workspace needs no switcher.
-        rightPanel={
-          singleWorkspaceEnabled
-            ? undefined
-            : {
-                icon: <ArrowsHorizontal size="20" />,
-                component: (
-                  <Switcher aria-label="Your Workspaces">
-                    <li className={styles.switcherInfo}>
-                      <span>Your Workspaces</span>
-                    </li>
-                    <SwitcherDivider />
-                    {(userData.workspaces ?? []).map((workspace) => {
-                      return (
-                        <SwitcherItem
-                          aria-label={workspace.displayName}
-                          key={workspace.name}
-                          href={APP_ROOT + appLink.workflows({ workspace: workspace.name })}
-                        >
-                          {workspace.displayName}
-                        </SwitcherItem>
-                      );
-                    })}
-                  </Switcher>
-                ),
-              }
-        }
       />
+      {/* The workspace switcher sits beside the product name; a single workspace needs none. */}
+      {singleWorkspaceEnabled ? null : <WorkspaceSwitcher workspaces={userData.workspaces ?? []} />}
       <AboutFlowModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} version={platform.version} />
     </>
   );

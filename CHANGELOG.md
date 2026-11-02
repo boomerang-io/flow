@@ -443,6 +443,9 @@ tag's release notes.
   `runworkflow` task all run as the same link. A `linksTemplate` relationship edge claims the workspace's link to the
   template. Workspaces that already hold duplicate links keep them; reads take the first, and each delete by name
   removes one.
+- A `releaselock` task frees the key an `acquirelock` in the same run took. It used to match only the acquiring task
+  itself, so it succeeded without releasing anything, and the key stayed held until the run ended or the lease expired.
+  A lock another run holds is still never touched.
 - The Acquire Lock task states its `timeout` in milliseconds, the unit the engine has always read it in, and defaults
   it to `300000` (5 minutes): revision 1 said seconds and defaulted to `300`, a 300 ms lease. Change unit
   `_0040__SeedAcquireLockMillisecondsRevision` adds revision 2 to an install holding the task; a workflow pinned to
