@@ -64,22 +64,41 @@ public class AuthCriteriaAuthorizationManager implements AuthorizationManager<Me
     this.meterRegistry = meterRegistry;
   }
 
+  /**
+   * The {@code @AuthCriteria} a handler is checked against, or null when it is exempt or carries
+   * none. Method-level annotations win over class-level ones, whichever kind each is: a method's
+   * {@code @AuthExempt} overrides its class's {@code @AuthCriteria}. The API contract reads the same
+   * rule, so it documents exactly what is enforced.
+   */
+  public static AuthCriteria criteriaFor(Method method) {
+    AuthCriteria onMethod = AnnotatedElementUtils.findMergedAnnotation(method, AuthCriteria.class);
+    if (onMethod != null) {
+      return onMethod;
+    }
+    if (AnnotatedElementUtils.findMergedAnnotation(method, AuthExempt.class) != null) {
+      return null;
+    }
+    return AnnotatedElementUtils.findMergedAnnotation(method.getDeclaringClass(), AuthCriteria.class);
+  }
+
+  /** The {@code @AuthExempt} that admits a handler with no permission check, by the same order. */
+  public static AuthExempt exemptionFor(Method method) {
+    if (criteriaFor(method) != null) {
+      return null;
+    }
+    AuthExempt onMethod = AnnotatedElementUtils.findMergedAnnotation(method, AuthExempt.class);
+    return (onMethod != null)
+        ? onMethod
+        : AnnotatedElementUtils.findMergedAnnotation(method.getDeclaringClass(), AuthExempt.class);
+  }
+
   @Override
   public AuthorizationDecision authorize(
       Supplier<? extends Authentication> authentication, MethodInvocation invocation) {
     Method method = invocation.getMethod();
-    // Method-level annotations win over class-level ones, whichever kind each is.
-    AuthCriteria authCriteria = AnnotatedElementUtils.findMergedAnnotation(method, AuthCriteria.class);
+    AuthCriteria authCriteria = criteriaFor(method);
     if (authCriteria == null) {
-      if (AnnotatedElementUtils.findMergedAnnotation(method, AuthExempt.class) != null) {
-        return new AuthorizationDecision(true);
-      }
-      Class<?> declaringClass = method.getDeclaringClass();
-      authCriteria = AnnotatedElementUtils.findMergedAnnotation(declaringClass, AuthCriteria.class);
-    }
-    if (authCriteria == null) {
-      if (AnnotatedElementUtils.findMergedAnnotation(method.getDeclaringClass(), AuthExempt.class)
-          != null) {
+      if (exemptionFor(method) != null) {
         return new AuthorizationDecision(true);
       }
       // Deny by default. A REST handler with neither annotation has had no authorization

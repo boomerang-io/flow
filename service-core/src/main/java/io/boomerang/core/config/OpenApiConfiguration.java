@@ -1,11 +1,19 @@
 package io.boomerang.core.config;
 
+import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.AuthCriteriaAuthorizationManager;
+import io.boomerang.core.security.AuthExempt;
 import io.boomerang.core.security.SecurityConfiguration;
+import io.boomerang.core.security.enums.AuthScope;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -14,6 +22,7 @@ import org.springdoc.core.customizers.ParameterCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.method.HandlerMethod;
 
 /**
  * The OpenAPI documents. {@code /api/docs/spec/api-v2} serves the public API alone - the
@@ -27,6 +36,10 @@ import org.springframework.context.annotation.Configuration;
  * unauthenticated, because each verifies the request itself, declare none. The webhook routes
  * also take the token as the {@code access_token} query parameter, for senders that can set only
  * a URL ({@code AuthenticationFilter}).
+ *
+ * <p>Each operation also states the permission its handler is checked against, read from its
+ * {@code @AuthCriteria} or {@code @AuthExempt} by the rule {@code AuthCriteriaAuthorizationManager}
+ * enforces: an {@code x-flow-permission} extension and a sentence in its description.
  *
  * <p>A request parameter declared as {@code Optional<T>} with a {@code defaultValue} gets that
  * default converted to an {@code Optional}, which the document's serialiser cannot write - and one
@@ -43,6 +56,7 @@ public class OpenApiConfiguration {
   static final String BEARER = "BearerAuth";
   static final String ACCESS_TOKEN_HEADER = "x-access-token";
   static final String ACCESS_TOKEN_QUERY = "access_token";
+  static final String PERMISSION_EXTENSION = "x-flow-permission";
 
   // The routes a sender that can set only a URL calls with the token in its query.
   static final Set<String> WEBHOOK_ROUTES = Set.of("/api/v2/webhook", "/api/v2/event", "/api/v2/callback");
@@ -62,7 +76,36 @@ public class OpenApiConfiguration {
                             "The public API. The rules every route follows:"
                                 + " specifications/api-contract.md.")))
         .addOpenApiCustomizer(OpenApiConfiguration::declareSecurity)
+        .addOperationCustomizer(OpenApiConfiguration::describePermission)
         .build();
+  }
+
+  // The permission an operation's handler is checked against, or the reason it is exempt, as the
+  // x-flow-permission extension and a closing sentence in its description.
+  static Operation describePermission(Operation operation, HandlerMethod handler) {
+    Method method = handler.getMethod();
+    AuthCriteria criteria = AuthCriteriaAuthorizationManager.criteriaFor(method);
+    AuthExempt exempt = AuthCriteriaAuthorizationManager.exemptionFor(method);
+    String sentence;
+    if (criteria != null) {
+      String permission = criteria.resource().getLabel() + "/" + criteria.action().getLabel();
+      List<String> tokens =
+          Arrays.stream(criteria.assignableScopes()).map(AuthScope::getLabel).toList();
+      operation.addExtension(PERMISSION_EXTENSION, Map.of("permission", permission, "tokens", tokens));
+      sentence =
+          "Requires the `" + permission + "` permission, from a " + String.join(", ", tokens)
+              + " token.";
+    } else if (exempt != null) {
+      operation.addExtension(PERMISSION_EXTENSION, Map.of("exempt", exempt.reason()));
+      sentence = "No permission check: " + exempt.reason();
+    } else {
+      return operation;
+    }
+    operation.setDescription(
+        (operation.getDescription() == null || operation.getDescription().isBlank())
+            ? sentence
+            : operation.getDescription() + "\n\n" + sentence);
+    return operation;
   }
 
   // The document's security, as SecurityConfiguration and AuthenticationFilter enforce it: a token
