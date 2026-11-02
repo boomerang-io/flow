@@ -25,7 +25,7 @@ The lineage pair, the snapshot and the node's params. `TaskExecutionService.runW
 run and `start=true` (`engine/TaskExecutionService.java:1118-1205,1241-1265`). The child gets copies of the task's
 params minus `workflowRef` and `wait` (`:1207-1217`) and the parent run's timeout, retries, labels and annotations, not
 its workspace; saving checks that the child's latest revision declares each forwarded param
-(`workflow/WorkflowService.java:1624-1654`). `wait=true` arms the task `waiting` with no `waitUntil` before the submit,
+(`workflow/WorkflowService.java:1638-1668`). `wait=true` arms the task `waiting` with no `waitUntil` before the submit,
 so a fast child cannot outrun it (`engine/TaskRunService.java:853-858`). `ChildWorkflowRunListener` ends the task
 through the dispatcher's own end, whose compare-and-set absorbs a redelivered event: a succeeded child hands it the
 run's results beside `workflowRunRef`, any other status fails it with `CHILD_RUN_FAILED`, and a cancelled or timed-out

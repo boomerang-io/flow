@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- Save refuses a node that asks for retries (`retry.max` above 0) of a type the engine never requeues, with
+  `WORKFLOW_INVALID_TASK_RETRY` (1223) naming the task. Such a retry, on a `runworkflow` or `sleep` node for example,
+  was stored and never applied; a run-workflow task's retries belong on the tasks of the workflow it runs. The editor
+  already offered retry only on the requeueable types; a definition saved through the API with such a retry must drop it.
 - A for-each item takes its node's `retry`, with its own budget: a failed item is requeued with the node's backoff
   while its siblings' budgets are untouched, and the dispatcher's order states the budget, so an item's first attempt
   is no longer reported as its last. Items used to carry no retry and ended on their first failure.
