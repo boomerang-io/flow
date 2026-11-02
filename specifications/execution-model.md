@@ -101,7 +101,7 @@ bounds its runs in flight at admission, the way the workspace quota is checked: 
 the workflow's `ready` and `running` runs on `workflow_ref_status`, and after a successful admission it recounts and
 steps back a run that is not among the oldest `limit` by creation date, so simultaneous submits cannot each pass the
 first count (`engine/WorkflowExecutionService.java:91-116`, `engine/WorkflowRunStateHelper.java:199-217`; the quota's
-recount is `workflow/QuotaService.java:343`). A run over the limit with `overflow: queue` (the default) is parked by
+recount is `workflow/QuotaService.java:356-377`). A run over the limit with `overflow: queue` (the default) is parked by
 one compare-and-set to `waiting/pending` with "Waiting for a slot…" in `statusMessage` (`tryPark` `:181`); submit
 returns it as it stands (`workflow/WorkflowRunService.java:818`) and a caller's start is `WORKFLOWRUN_INVALID_PHASE`
 (`engine/WorkflowExecutionService.java:202`). With `overflow: skip` it is completed `cancelled` with `statusReason`
@@ -187,7 +187,7 @@ then clamps it, a maximum below the floor refused with the same error and a quot
 One backoff exists: `Backoff.nextRetryAt` gives 10 s doubling per attempt, capped at 5 minutes, plus up to 5 s of jitter; a node's `retry.backoff` replaces the base and the cap, or holds the wait
 fixed (`common/util/Backoff.java:25-36`). The result is `retry.after`, which gates claim eligibility. A task run's `retry` carries two budgets, `count` for the engine's requeues of an attempt that
 never ran and `failures` for the retries of a reported failure its node asked for, beside the node's `max` and `backoff` copied onto the run when the task list is built, as `timeout` is
-(`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:357-367`), and from a for-each parent onto each of its items with the item's own budget (`engine/TaskExecutionService.java:936-944`). A
+(`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:357-367`), and from a for-each parent onto each of its items with the item's own budget (`engine/TaskExecutionService.java:937-944`). A
 requeueable task (`template`, `custom`, `script`, `generic`, `ai`, `uploadartifact`, `downloadartifact`) gets three engine requeues; `retry.max` is at most 10 (`engine/EngineConstants.java:32-49`).
 Any other type, `runworkflow` among them, is never requeued, and save refuses such a node that asks for retries (`retry.max` above 0) with `WORKFLOW_INVALID_TASK_RETRY` (1223)
 (`workflow/WorkflowService.java:544-556`). Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message, dispatcher) onto `attempts`
@@ -277,8 +277,8 @@ cancel does nothing more, while a purge completes the run at once with the statu
 **The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
 clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it
 (`engine/DAGUtility.java:347-355`), no workflow or run field raises it, and when it passes the run completes with any finally task still running ended. The time is counted: `duration` is written again
-at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:226-234`), and a run in the stage holds its concurrent-run slot and its workflow's concurrency
-slot until it completes (`workflow/QuotaService.java:258-266`, `engine/WorkflowRunStateHelper.java:225-236`). A workspace's `max.workflowrun.duration` bounds the graph, not the stage; a workflow
+at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:232-236`), and a run in the stage holds its concurrent-run slot and its workflow's concurrency
+slot until it completes (`workflow/QuotaService.java:261-268`, `engine/WorkflowRunStateHelper.java:225-236`). A workspace's `max.workflowrun.duration` bounds the graph, not the stage; a workflow
 author can gain at most `finally.timeout` of extra execution per run, set by the operator.
 
 ## Outbound events: the transactional outbox

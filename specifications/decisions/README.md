@@ -56,3 +56,4 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0047 | [A signed-in user holds a self-service baseline grant, and a setting says whether users create workspaces](0047-a-signed-in-user-holds-a-self-service-baseline-grant.md) | accepted | 2026-10-30 |
 | 0048 | [A finally task is a task node linked from End with the `finally` condition](0048-a-finally-task-is-a-node-linked-from-end-with-the-finally-condition.md) | accepted | 2026-10-30 |
 | 0049 | [A workspace claims its one link to a template with a graph edge](0049-a-workspace-claims-its-one-link-to-a-template-with-a-graph-edge.md) | accepted | 2026-11-02 |
+| 0050 | [A retry is asked only of a task type the engine requeues](0050-a-retry-is-asked-only-of-a-task-type-the-engine-requeues.md) | accepted | 2026-11-02 |
