@@ -244,13 +244,7 @@ public class IntegrationParameterService {
 
   /** Return the workspace by id, else by name; null when there is neither. */
   public WorkspaceEntity workspace(String workspace) {
-    if (workspace == null || workspace.isBlank()) {
-      return null;
-    }
-    return workspaceRepository
-        .findById(workspace)
-        .or(() -> workspaceRepository.findByNameIgnoreCase(workspace))
-        .orElse(null);
+    return workspaceRepository.findByIdOrName(workspace).orElse(null);
   }
 
   public static List<AbstractParam> fields(IntegrationTemplateEntity template) {

@@ -101,7 +101,7 @@ bounds its runs in flight at admission, the way the workspace quota is checked: 
 the workflow's `ready` and `running` runs on `workflow_ref_status`, and after a successful admission it recounts and
 steps back a run that is not among the oldest `limit` by creation date, so simultaneous submits cannot each pass the
 first count (`engine/WorkflowExecutionService.java:91-116`, `engine/WorkflowRunStateHelper.java:199-217`; the quota's
-recount is `workflow/QuotaService.java:337`). A run over the limit with `overflow: queue` (the default) is parked by
+recount is `workflow/QuotaService.java:343`). A run over the limit with `overflow: queue` (the default) is parked by
 one compare-and-set to `waiting/pending` with "Waiting for a slot…" in `statusMessage` (`tryPark` `:181`); submit
 returns it as it stands (`workflow/WorkflowRunService.java:818`) and a caller's start is `WORKFLOWRUN_INVALID_PHASE`
 (`engine/WorkflowExecutionService.java:202`). With `overflow: skip` it is completed `cancelled` with `statusReason`
@@ -279,8 +279,8 @@ cancel does nothing more, while a purge completes the run at once with the statu
 **The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
 clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it
 (`engine/DAGUtility.java:347-355`), no workflow or run field raises it, and when it passes the run completes with any finally task still running ended. The time is counted: `duration` is written again
-at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:228-236`), and a run in the stage holds its concurrent-run slot and its workflow's concurrency
-slot until it completes (`workflow/QuotaService.java:260-268`, `engine/WorkflowRunStateHelper.java:225-236`). A workspace's `max.workflowrun.duration` bounds the graph, not the stage; a workflow
+at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:226-234`), and a run in the stage holds its concurrent-run slot and its workflow's concurrency
+slot until it completes (`workflow/QuotaService.java:258-266`, `engine/WorkflowRunStateHelper.java:225-236`). A workspace's `max.workflowrun.duration` bounds the graph, not the stage; a workflow
 author can gain at most `finally.timeout` of extra execution per run, set by the operator.
 
 ## Outbound events: the transactional outbox

@@ -766,10 +766,11 @@ public class WorkflowService {
     if (enforceQuotas) {
       try {
         quotaService.assertAdmittedRunWithinQuotas(workspace);
-      } catch (BoomerangException overQuota) {
-        // The run pushed a count over its limit: it removes itself, so it uses no quota.
+      } catch (RuntimeException refused) {
+        // The run pushed a count over its limit, or the recheck itself failed: it removes itself,
+        // so it uses no quota and no un-started run is left without an owner.
         discardRun(wfRun.getId());
-        throw overQuota;
+        throw refused;
       }
     }
 

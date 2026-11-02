@@ -112,7 +112,7 @@ public class ParamLayerService {
     // Set Workspace Params
     if (enabled(features, "workspaceParameters")) {
       buildWorkspaceParams(
-          workspaceParams, new HashSet<>(), workspaceRepository.findByNameIgnoreCase(workspace));
+          workspaceParams, new HashSet<>(), workspaceRepository.findByIdOrName(workspace));
     }
     // Set the Keys from the Workflow - ignore values
     for (AbstractParam wfParam : workflow.getParams()) {

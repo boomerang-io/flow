@@ -243,11 +243,11 @@ embedded engine serves is seeded with its workflow count, monthly runs, workspac
 
 | Quota (settings key, `QuotaService.java:53-59`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:427`, `QuotaService.java:269-282` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created | `workflow/WorkflowService.java:637`, `workflow/WorkflowRunService.java:974`, `QuotaService.java:289-313` |
-| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:479-507`, `QuotaService.java:118-133,357-372` |
+| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:427`, `QuotaService.java:267-280` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created | `workflow/WorkflowService.java:637`, `workflow/WorkflowRunService.java:974`, `QuotaService.java:287-315` |
+| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:479-507`, `QuotaService.java:118-133,363-378` |
 | `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-166`) | `workflow/WorkflowService.java:1890-1895`, `workflow/WorkflowRunService.java:975`, `QuotaService.java:175-186` |
-| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:256-264,324-333,660-671`, `QuotaService.java:264-281` |
+| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:256-264,324-333,660-671`, `QuotaService.java:262-279` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:207-244`).
 Concurrent = the live count of non-terminal runs (`notstarted`/`ready`/`running`/`waiting`, `:61-63`) over the
