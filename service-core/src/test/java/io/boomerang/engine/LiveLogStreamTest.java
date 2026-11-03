@@ -98,6 +98,17 @@ class LiveLogStreamTest {
           exchange.sendResponseHeaders(503, -1);
           exchange.close();
         });
+    // A route that promises more than it sends and drops the connection, as a dispatcher that dies
+    // mid-stream does.
+    dispatcherRoute.createContext(
+        "/cutoff/stream",
+        exchange -> {
+          exchange.getResponseHeaders().add("Content-Type", "text/plain");
+          exchange.sendResponseHeaders(200, 1000);
+          exchange.getResponseBody().write("partial\n".getBytes(StandardCharsets.UTF_8));
+          exchange.getResponseBody().flush();
+          exchange.close();
+        });
     dispatcherRoute.start();
   }
 
@@ -207,6 +218,46 @@ class LiveLogStreamTest {
         .writeTo(received);
 
     assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo("stored\n");
+  }
+
+  @Test
+  void aRouteThatFailsBeforeAnsweringWithNoFallbackIsAnsweredByAMessage() throws Exception {
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+
+    logClient("/refusing/stream", new HttpComponentsClientHttpRequestFactory())
+        .streamLog(runningTask(), null)
+        .writeTo(received);
+
+    assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo(LogClient.UNREACHABLE_MESSAGE);
+  }
+
+  @Test
+  void aDispatcherThatCannotBeReachedWithNoFallbackIsAnsweredByAMessage() throws Exception {
+    DispatcherRepository dispatchers = mock(DispatcherRepository.class);
+    DispatcherEntity dispatcher = new DispatcherEntity();
+    dispatcher.setId("d-1");
+    dispatcher.setLogsUrl("http://127.0.0.1:1/api/v1/logs/stream"); // nothing listens on port 1
+    when(dispatchers.findById("d-1")).thenReturn(Optional.of(dispatcher));
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+
+    new LogClient(new RestTemplate(new HttpComponentsClientHttpRequestFactory()), dispatchers)
+        .streamLog(runningTask())
+        .writeTo(received);
+
+    assertThat(received.toString(StandardCharsets.UTF_8)).isEqualTo(LogClient.UNREACHABLE_MESSAGE);
+  }
+
+  @Test
+  void aStreamThatFailsPartWayEndsWithALineSayingItWasCutOff() throws Exception {
+    ByteArrayOutputStream received = new ByteArrayOutputStream();
+
+    logClient("/cutoff/stream", new HttpComponentsClientHttpRequestFactory())
+        .streamLog(runningTask(), out -> out.write("stored\n".getBytes(StandardCharsets.UTF_8)))
+        .writeTo(received);
+
+    // Not restarted from the fallback: the reader keeps what arrived, then the line.
+    assertThat(received.toString(StandardCharsets.UTF_8))
+        .isEqualTo("partial\n" + LogClient.CUT_OFF_MESSAGE);
   }
 
   @Test

@@ -446,6 +446,8 @@ tag's release notes.
 
 ### Fixed
 
+- A task's live log answers with a line saying what happened, instead of a bare `500`, when the dispatcher holding
+  the task cannot be reached (and no stored log counts) or its stream breaks part way.
 - `service-core` and `service-dispatcher` no longer crash at start with `SIGILL` on some machines. The JVM cached
   call adapters in the image's AOT cache, and an adapter recorded on the build machine could fail to link on another
   CPU; both images now record and start with adapter caching off. Class loading and linking stay cached.
