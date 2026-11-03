@@ -2,6 +2,7 @@ package io.boomerang.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.error.BoomerangException;
@@ -16,8 +17,12 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +56,7 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
   @Autowired private UserRepository userRepository;
   @Autowired private RoleRepository roleRepository;
   @Autowired private TokenService tokenService;
+  @Autowired private WorkspaceService workspaceService;
 
   private String ownerId;
   private String targetId;
@@ -188,6 +194,34 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
 
   // Idempotent per shared database; name defaults to the email so unchanged-assertions can key
   // on it.
+  // An admin's session carries global grants, so the relationship walk anchors it at the root: it
+  // lists and reaches every workspace, a member only the ones they are in. The workspace is made
+  // through the service, as a real one is, by the owner, so the admin is no member of it.
+  @Test
+  void anAdminSeesEveryWorkspaceWhereAMemberSeesOnlyTheirOwn() {
+    installSessionIdentity(ownerId);
+    WorkspaceRequest request = new WorkspaceRequest();
+    request.setName(WORKSPACE + "-other-" + UUID.randomUUID().toString().substring(0, 8));
+    request.setDisplayName("User authz other");
+    String other = workspaceService.create(request).getName();
+
+    installSessionIdentity(adminId);
+    assertTrue(
+        relationshipService
+            .filter(RelationshipType.WORKSPACE, Optional.empty(), Optional.empty(), Optional.empty())
+            .contains(other),
+        "an admin lists a workspace they are no member of");
+    assertTrue(relationshipService.check(RelationshipType.WORKSPACE, other, Optional.empty(), Optional.empty()));
+
+    installSessionIdentity(targetId);
+    List<String> own =
+        relationshipService.filter(
+            RelationshipType.WORKSPACE, Optional.empty(), Optional.empty(), Optional.empty());
+    assertTrue(own.contains(WORKSPACE));
+    assertFalse(own.contains(other), "a member sees only the workspaces they are in");
+    assertFalse(relationshipService.check(RelationshipType.WORKSPACE, other, Optional.empty(), Optional.empty()));
+  }
+
   private String plainUser(String email, UserType type) {
     UserEntity user = userRepository.findByEmailAndStatus(email, UserStatus.active);
     if (user == null) {

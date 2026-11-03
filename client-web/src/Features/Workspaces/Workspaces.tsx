@@ -27,12 +27,15 @@ import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 // rationale comments on serverFetch/errorLoading/ssr:true).
 
 interface FeatureLayoutProps {
+  /** The page's one primary action, at the right of the toolbar row. */
+  action?: React.ReactNode;
   children?: React.ReactNode;
   defaultQuery?: string;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 
-const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, handleSearchChange }) => {
+// The list page's anatomy: the search and the primary action share one row above the table.
+const FeatureLayout: React.FC<FeatureLayoutProps> = ({ action, children, defaultQuery, handleSearchChange }) => {
   return (
     <>
       <Helmet>
@@ -40,15 +43,18 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, h
       </Helmet>
       <Box p="2rem" className={styles.content}>
         <>
-          <Box mb="1rem" maxWidth="20rem">
-            <Search
-              id="flow-workspaces"
-              labelText="Search workspaces"
-              placeholder="Search workspaces"
-              defaultValue={defaultQuery}
-              onChange={handleSearchChange}
-            />
-          </Box>
+          <div className={styles.toolbar}>
+            <Box maxWidth="20rem" width="100%">
+              <Search
+                id="flow-workspaces"
+                labelText="Search workspaces"
+                placeholder="Search workspaces"
+                defaultValue={defaultQuery}
+                onChange={handleSearchChange}
+              />
+            </Box>
+            {action}
+          </div>
           {children}
         </>
       </Box>
@@ -230,38 +236,35 @@ const WorkspaceList: React.FC = () => {
       </FeatureLayout>
     );
   }
+  const createAction =
+    workspaceManagementEnabled && canCreateWorkspace ? (
+      <ComposedModal
+        composedModalProps={{ shouldCloseOnOverlayClick: true }}
+        modalHeaderProps={{
+          title: "Create Workspace",
+          subtitle: `Scope your workflows and parameters to a workspace`,
+        }}
+        modalTrigger={({ openModal }: ModalTriggerProps) => (
+          <Button onClick={openModal} size="md">
+            Create Workspace
+          </Button>
+        )}
+      >
+        {({ closeModal }) => {
+          return (
+            <WorkspaceCreateContent
+              closeModal={closeModal}
+              createWorkspace={createWorkspace}
+              isError={isCreateWorkspaceError}
+              isLoading={isCreatingWorkspace}
+            />
+          );
+        }}
+      </ComposedModal>
+    ) : null;
+
   return (
-    <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
-      {workspaceManagementEnabled && canCreateWorkspace && (
-        <ComposedModal
-          composedModalProps={{ shouldCloseOnOverlayClick: true }}
-          modalHeaderProps={{
-            title: "Create Workspace",
-            subtitle: `Scope your workflows and parameters to a workspace`,
-          }}
-          modalTrigger={({ openModal }: ModalTriggerProps) => (
-            <Button
-              iconDescription="Create new version"
-              onClick={openModal}
-              size="md"
-              className={styles.createWorkspaceTrigger}
-            >
-              Create Workspace
-            </Button>
-          )}
-        >
-          {({ closeModal }) => {
-            return (
-              <WorkspaceCreateContent
-                closeModal={closeModal}
-                createWorkspace={createWorkspace}
-                isError={isCreateWorkspaceError}
-                isLoading={isCreatingWorkspace}
-              />
-            );
-          }}
-        </ComposedModal>
-      )}
+    <FeatureLayout action={createAction} defaultQuery={query} handleSearchChange={handleSearchChange}>
       <WorkspaceListTable
         handleNavigateToWorkspace={handleNavigateToWorkspace}
         location={location}

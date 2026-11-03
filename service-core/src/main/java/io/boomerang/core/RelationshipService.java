@@ -442,6 +442,11 @@ public class RelationshipService {
     switch (identity.getType()) {
       case session:
       case user:
+        // An admin's or operator's session carries global grants: platform-wide authority, so it
+        // reaches every node like a global token; any other user walks from their own node.
+        if (IdentityService.hasGlobalGrant(identity)) {
+          return true;
+        }
         return hasNodes(
             RelationshipType.USER,
             principal,
@@ -541,7 +546,14 @@ public class RelationshipService {
       switch (identity.getType()) {
         case session:
         case user:
-          fromType = RelationshipType.USER;
+          // An admin's or operator's session carries global grants and sees every node of the
+          // type, as a global token does; any other user sees what their own node reaches.
+          if (IdentityService.hasGlobalGrant(identity)) {
+            fromType = RelationshipType.ROOT;
+            from = "root";
+          } else {
+            fromType = RelationshipType.USER;
+          }
           break;
         case key:
           // `key` folds the retired `workflow`/`workspace` classes together - actorKind

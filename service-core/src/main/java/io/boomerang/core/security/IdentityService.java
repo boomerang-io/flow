@@ -70,6 +70,18 @@ public class IdentityService {
     }
   }
 
+  /**
+   * Return whether the identity holds any {@code global}-scoped grant: what a session of an admin
+   * or operator carries, and what a {@code global} token always carries. It is the platform-wide
+   * authority: the relationship walk anchors such an identity at the root.
+   */
+  public static boolean hasGlobalGrant(Token identity) {
+    return identity != null
+        && identity.getPermissions() != null
+        && identity.getPermissions().stream()
+            .anyMatch(permission -> PermissionScope.global.equals(permission.getScope()));
+  }
+
   public Token getCurrentIdentity() {
     if (SecurityContextHolder.getContext() != null
         && SecurityContextHolder.getContext().getAuthentication() != null

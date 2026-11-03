@@ -368,10 +368,7 @@ public class TokenService {
    * global} token's own permissions always carry).
    */
   private boolean hasGlobalGrant(Token identity) {
-    return identity != null
-        && identity.getPermissions() != null
-        && identity.getPermissions().stream()
-            .anyMatch(p -> PermissionScope.global.equals(p.getScope()));
+    return IdentityService.hasGlobalGrant(identity);
   }
 
   /**

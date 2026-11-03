@@ -3,10 +3,13 @@
   position: relative;
 }
 
-.createWorkspaceTrigger {
-  position: absolute;
-  right: 2rem;
-  top: 2rem;
+// The search and the one primary action share the row above the table.
+.toolbar {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
 }
 
 .tableRow:hover {

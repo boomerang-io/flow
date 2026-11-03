@@ -196,7 +196,7 @@ beside its `hasWorkflow` edge (`core/RelationshipService.java:289-342`).
 
 | Token class | `check()` anchor (`:385-413`) | `filter()` anchor (`:478-513`) |
 | --- | --- | --- |
-| `session`, `user` | the `user:<principal>` node | same |
+| `session`, `user` | the `user:<principal>` node; one holding a `global` grant (an admin's or operator's session) **returns `true`** like a global token | same; a `global` grant anchors at `root`, so an admin lists every workspace |
 | `key` with `actorKind=WORKFLOW` | the `workflow:<principal>` node | same; anchors at `root` when reading its own workflow |
 | `key` (any other) | the `workspace:<principal>` node | same |
 | `global` | **returns `true` without walking** (`:408-410`) | anchors at `root`, so it sees every node of the type |
