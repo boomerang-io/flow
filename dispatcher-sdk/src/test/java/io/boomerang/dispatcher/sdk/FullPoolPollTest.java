@@ -42,6 +42,8 @@ class FullPoolPollTest {
     // A slot freed here must find nothing left to claim, or stop waits out its drain.
     engine.taskPolls.clear();
     releases.values().forEach(CountDownLatch::countDown);
+    // A stop waits for the poll in progress, so the engine answers the held polls first.
+    engine.holdsReleased.countDown();
     if (dispatcher != null) {
       dispatcher.stop();
     }
@@ -173,6 +175,7 @@ class FullPoolPollTest {
    */
   static final class HoldingEngine extends FakeEngine {
 
+    final CountDownLatch holdsReleased = new CountDownLatch(1);
     final Queue<List<TaskRun>> zeroTaskPolls = new ConcurrentLinkedQueue<>();
     final AtomicInteger zeroPollsHeld = new AtomicInteger();
     final AtomicInteger workPollsInFlight = new AtomicInteger();
@@ -211,8 +214,12 @@ class FullPoolPollTest {
       }
     }
 
-    private static List<TaskRun> hold() {
-      Backoff.sleep(HOLD);
+    private List<TaskRun> hold() {
+      try {
+        holdsReleased.await(HOLD.toMillis(), TimeUnit.MILLISECONDS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
       return List.of();
     }
   }

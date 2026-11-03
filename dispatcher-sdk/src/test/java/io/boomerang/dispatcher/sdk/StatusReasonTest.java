@@ -47,6 +47,7 @@ class StatusReasonTest {
     assertThat(TaskFailure.EXCEEDED_QUOTA).isEqualTo(StatusReason.EXCEEDED_QUOTA);
     assertThat(TaskFailure.START_TIMEOUT).isEqualTo(StatusReason.START_TIMEOUT);
     assertThat(TaskFailure.RATE_LIMITED).isEqualTo(StatusReason.RATE_LIMITED);
+    assertThat(TaskFailure.CLUSTER_UNAVAILABLE).isEqualTo(StatusReason.CLUSTER_UNAVAILABLE);
   }
 
   private static Set<String> sdkReasons() {

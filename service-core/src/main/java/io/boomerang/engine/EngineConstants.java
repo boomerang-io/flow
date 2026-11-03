@@ -26,7 +26,7 @@ public final class EngineConstants {
 
   /**
    * The dispatched types the engine requeues for another attempt: on timeout (the crash recovery
-   * for a killed claimant), and when a dispatcher reports it could not start the task. Gates,
+   * for a killed claimant), and when a dispatcher reports it could not run the task to an end. Gates,
    * waits and inline system tasks time out terminally, as they always have.
    */
   public static final Set<TaskType> REQUEUEABLE_TYPES =

@@ -16,6 +16,7 @@ import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.kube.KubeLogService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -149,6 +150,11 @@ public class TaskService implements TaskHandler {
       if (e.getMessage() != null && e.getMessage().contains("admission webhook")) {
         LOGGER.info(e.toString());
         throw new TaskExecutionException(StatusReason.ADMISSION_DENIED, "ADMISSION_WEBHOOK_DENIED - " + e.getMessage());
+      } else if (clusterUnreachable(e)) {
+        // The API server did not answer (timeout, refused connection) or failed with a 5xx: the
+        // task is fine and the engine requeues it, after removing whatever a timed-out create made.
+        LOGGER.info(e.toString());
+        throw new TaskExecutionException(StatusReason.CLUSTER_UNAVAILABLE, "CLUSTER_UNAVAILABLE - " + e);
       } else {
         throw new TaskExecutionException(StatusReason.DISPATCH_ERROR, e.toString());
       }
@@ -171,6 +177,24 @@ public class TaskService implements TaskHandler {
       LOGGER.info("Task (" + task.getId() + ") has completed.");
     }
     return results;
+  }
+
+  // A 5xx from the API server, or a client exception with no HTTP status caused by an I/O failure
+  // (connect or read timeout, connection refused). A 4xx is the API server answering.
+  static boolean clusterUnreachable(KubernetesClientException e) {
+    if (e.getCode() >= 500 && e.getCode() < 600) {
+      return true;
+    }
+    if (e.getCode() > 0) {
+      return false;
+    }
+    Throwable cause = e.getCause();
+    for (int depth = 0; cause != null && depth < 10; depth++, cause = cause.getCause()) {
+      if (cause instanceof IOException) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Best effort: a pod that never existed, or one whose log cannot be read, leaves the engine to

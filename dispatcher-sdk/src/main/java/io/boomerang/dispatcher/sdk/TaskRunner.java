@@ -13,8 +13,12 @@ import io.micrometer.observation.transport.ReceiverContext;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
@@ -44,10 +48,13 @@ import org.springframework.web.client.RestClientException;
  *       the running task's context and calls the handler's cancel. No end is reported for it, nor
  *       for a task whose context was signalled. The context is registered before the start call,
  *       so an order arriving while the engine answers the start stops the task before it runs.
- *   <li>A task interrupted because the dispatcher stopped past its drain timeout reports nothing
- *       either: its lease lapses and the engine hands it out again.
+ *   <li>A task interrupted because the dispatcher stopped past its drain timeout, after it had
+ *       started, reports nothing either: its lease lapses and the engine hands it out again.
  *   <li>A claim is taken into flight and handed off as one step against {@link #stop}: once the
  *       dispatcher is stopping a claim is refused before it is taken, never dropped after.
+ *   <li>A claim refused because the dispatcher is stopping, and one still unstarted when the drain
+ *       gives up, is ended failed with {@value StatusReason#DISPATCHER_STOPPING}, so the engine
+ *       requeues it at once instead of when its lease lapses.
  *   <li>The handler runs inside an observation named {@value #OBSERVATION} carrying the task's
  *       trace context, so its spans join the run's trace; a no-op without a registry. With a
  *       {@link TaskLogCapture} the lines it logs are its task log, uploaded as it ends and every
@@ -83,6 +90,15 @@ final class TaskRunner {
   // or is refused before it is taken into flight.
   private final ReentrantReadWriteLock stopping = new ReentrantReadWriteLock();
   private boolean stopped;
+
+  // The claims taken or refused and not yet started with the engine. Whoever removes an id owns
+  // it: the run about to start it, or the hand-back that ends it DispatcherStopping.
+  private final Set<String> unstarted = ConcurrentHashMap.newKeySet();
+
+  // Ends the claims handed back, off the thread that refused or gave up on them.
+  private final ExecutorService handBacks =
+      Executors.newThreadPerTaskExecutor(
+          Thread.ofVirtual().name("dispatcher-handback-", 0).factory());
 
   /**
    * @param running the contexts of the tasks running in this dispatcher, shared by every runner so
@@ -134,14 +150,21 @@ final class TaskRunner {
     stopping.readLock().lock();
     try {
       if (stopped) {
-        LOGGER.warn("TaskRun (" + task.getId() + ") not taken: the dispatcher is stopping.");
+        refuse(task);
       } else if (task.isRunOrder() && registered.test(task)) {
         if (!inFlight.add(task.getId())) {
           LOGGER.warn(
               "TaskRun (" + task.getId() + ") is already in flight here. Ignoring the claim.");
           return;
         }
-        execute(task, () -> run(task), () -> inFlight.remove(task.getId()));
+        unstarted.add(task.getId());
+        execute(
+            task,
+            () -> run(task),
+            () -> {
+              unstarted.remove(task.getId());
+              inFlight.remove(task.getId());
+            });
       } else if (task.isTerminateOrder()) {
         execute(task, () -> terminate(task), () -> {});
       } else {
@@ -152,6 +175,55 @@ final class TaskRunner {
       }
     } finally {
       stopping.readLock().unlock();
+    }
+  }
+
+  // A run order refused at the stop is ended at once rather than left to its lease; a task
+  // already in flight here is left alone, and any other order is only logged.
+  private void refuse(TaskRun task) {
+    String id = task.getId();
+    if (task.isRunOrder() && registered.test(task) && !inFlight.contains(id)) {
+      LOGGER.warn("TaskRun (" + id + ") not taken: the dispatcher is stopping. Handing it back.");
+      unstarted.add(id);
+      handBack(id);
+    } else {
+      LOGGER.warn("TaskRun (" + id + ") not taken: the dispatcher is stopping.");
+    }
+  }
+
+  private void handBack(String id) {
+    try {
+      handBacks.execute(() -> endUnstarted(id));
+    } catch (RuntimeException e) {
+      // Past finishHandBacks: the claim stays with its lease.
+      LOGGER.warn("TaskRun (" + id + ") could not be handed back: " + e.getMessage());
+    }
+  }
+
+  private void endUnstarted(String id) {
+    if (unstarted.remove(id)) {
+      end(
+          id,
+          failed(StatusReason.DISPATCHER_STOPPING, "The dispatcher is stopping.", List.of(), null));
+    }
+  }
+
+  /**
+   * Hand back every claim still unstarted, then wait up to {@code wait} for the hand-backs to
+   * reach the engine. Called once the dispatcher has stopped taking claims; what is not delivered
+   * in time is left to its lease.
+   */
+  void finishHandBacks(Duration wait) {
+    List.copyOf(unstarted).forEach(this::handBack);
+    handBacks.shutdown();
+    try {
+      if (!handBacks.awaitTermination(wait.toMillis(), TimeUnit.MILLISECONDS)) {
+        LOGGER.warn("Claims handed back by the stopping dispatcher were not all delivered.");
+        handBacks.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      handBacks.shutdownNow();
+      Thread.currentThread().interrupt();
     }
   }
 
@@ -190,7 +262,12 @@ final class TaskRunner {
       running.put(id, context);
       TaskRunEndRequest end;
       try {
-        if (!start(task)) {
+        // Past the drain the task is left in unstarted, for the hand-back, and never started.
+        if (abandoned.getAsBoolean() || !start(task)) {
+          return;
+        }
+        if (abandoned.getAsBoolean() || !unstarted.remove(id)) {
+          LOGGER.warn("TaskRun (" + id + ") not run: the dispatcher stopped before it started.");
           return;
         }
         if (context.isCancelled()) {
@@ -214,6 +291,9 @@ final class TaskRunner {
       }
       end(id, end);
     } finally {
+      if (!abandoned.getAsBoolean()) {
+        unstarted.remove(id);
+      }
       inFlight.remove(id);
     }
   }

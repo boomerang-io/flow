@@ -29,7 +29,7 @@ definition label, and the engine claims at most a page of 20 (`QueuePoller.java:
 filter under each type on its own `Condition`, and an admission signals the matching waiters
 (`dispatcher/PollWakeups.java:41-160`). The Kubernetes dispatcher reports `ImagePull`, `DispatchError`, `StartTimeout`
 and `ExceededQuota` (`executor/PodStartWatch.java:43-70`), which the engine requeues on the shared budget
-(`TaskRunService.java:1088-1111`); a failed provisioning is reported with its cause, held with "Retrying in 1 minute
+(`TaskRunService.java:1189-1207`); a failed provisioning is reported with its cause, held with "Retrying in 1 minute
 (attempt n of 3)" and failed on the third (`engine/WorkflowExecutionService.java`).
 
 ## Consequences

@@ -186,8 +186,10 @@ OpenTelemetry dependency.
 
 One heartbeat every 30 s renews the lease of every task in flight (`heartbeatInterval` to change it; zero
 sends none, and a claim then has no lease). A poll reconnects at once after work or a full window, and waits
-5 s after a failure or an immediate empty answer. `stop()` ends polling and waits 10 s (`drainTimeout`) for
-the tasks in flight; one still running then reports nothing, its lease lapses, and the engine hands it out
+5 s after a failure or an immediate empty answer. `stop()` ends polling, letting a poll in progress
+return, and waits 10 s (`drainTimeout`) for both it and the tasks in flight. A claim that arrives after the
+stop, or is still unstarted when the wait ends, is ended `failed` with `DispatcherStopping`, so the engine
+requeues it at once. A task still running then reports nothing, its lease lapses, and the engine hands it out
 again, so make `cancel` and a re-run of the same task run id safe.
 
 ## Testing your handler

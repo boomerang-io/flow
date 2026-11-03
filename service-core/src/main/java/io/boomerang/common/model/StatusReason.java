@@ -21,11 +21,14 @@ public abstract class StatusReason {
   public static final String ADMISSION_DENIED = "AdmissionDenied";
   public static final String RESULTS_TOO_LARGE = "ResultsTooLarge";
 
-  // Sent by a dispatcher when the task never started: the engine requeues it while its retry
-  // budget lasts instead of failing it.
+  // Sent by a dispatcher when the task did not run to its end (it never started, or its runtime
+  // could not be reached): the engine requeues it while its retry budget lasts instead of
+  // failing it.
   public static final String EXCEEDED_QUOTA = "ExceededQuota";
   public static final String START_TIMEOUT = "StartTimeout";
   public static final String RATE_LIMITED = "RateLimited";
+  public static final String CLUSTER_UNAVAILABLE = "ClusterUnavailable";
+  public static final String DISPATCHER_STOPPING = "DispatcherStopping";
 
   // Written by the engine, on a workflow run.
   public static final String CONCURRENCY_LIMIT = "ConcurrencyLimit";
@@ -46,8 +49,14 @@ public abstract class StatusReason {
   public static final String ARTIFACT_NOT_FOUND = "ArtifactNotFound";
   public static final String ARTIFACT_REFUSED = "ArtifactRefused";
 
-  /** The reasons that mean the task never started, so it is requeued rather than failed. */
-  public static final Set<String> REQUEUEABLE = Set.of(EXCEEDED_QUOTA, START_TIMEOUT, RATE_LIMITED);
+  /** The reasons that mean the task did not run, so it is requeued rather than failed. */
+  public static final Set<String> REQUEUEABLE =
+      Set.of(
+          EXCEEDED_QUOTA,
+          START_TIMEOUT,
+          RATE_LIMITED,
+          CLUSTER_UNAVAILABLE,
+          DISPATCHER_STOPPING);
 
   /**
    * The reasons a retry cannot change: the same input fails the same way, or the task never
