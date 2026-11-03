@@ -64,7 +64,9 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
   `config/DispatcherConfig.java:57`). `flow.dispatcher.logs.url` is the address the engine reads it at, registered as
   `logsUrl`; blank registers none, and a running task then has no log to follow. With `dispatcher.logging.type=default`
   the route reads the task's pod; `loki` queries Loki at `dispatcher.logging.host` and `port` instead
-  (`dispatcher/LogService.java:46-67`). The pod is the one the executor's runtime object owns, selected by the label
+  (`dispatcher/LogService.java:46-67`), selecting the task's pod labels as a log shipper's labelmap names them
+  (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`) and its container, `task` or `step-task`, as `container`
+  (`dispatcher/LogService.java:157-168`). The pod is the one the executor's runtime object owns, selected by the label
   that object stamps on it, which the executor keeps from `create` until the stored log has been read
   (`executor/TaskExecutor.java:29-40`, `dispatcher/TaskService.java:164-165`, `:185-190`); a task this instance is not running,
   or one that started before it last restarted, falls back to the first pod under the task labels

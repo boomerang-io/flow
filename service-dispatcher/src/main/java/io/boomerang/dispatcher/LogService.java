@@ -73,7 +73,7 @@ public class LogService {
     return outputStream -> {
       PrintWriter printWriter = new PrintWriter(outputStream);
 
-      final String filter = createLokiFilter(workflowRef, taskRunRef);
+      final String filter = lokiSelector(workflowRef, taskRunRef);
       LOGGER.info("Loki filter: " + filter);
 
       final String encodedQuery = URLEncoder.encode(filter, StandardCharsets.UTF_8);
@@ -154,12 +154,17 @@ public class LogService {
     };
   }
 
-  private String createLokiFilter(String workflowRef, String taskRunRef) {
-    return "{bmrg_task_activity=\""
+  /*
+   * The Loki stream selector for a task's container: the pod labels the dispatcher sets, named as a
+   * log shipper's labelmap writes them ("boomerang.io/taskrun-ref" as "boomerang_io_taskrun_ref"),
+   * and the task container of either executor, Tekton's "step-task" or the Jobs executor's "task".
+   */
+  static String lokiSelector(String workflowRef, String taskRunRef) {
+    return "{boomerang_io_taskrun_ref=\""
         + taskRunRef
-        + "\",bmrg_workflow=\""
+        + "\",boomerang_io_workflow_ref=\""
         + workflowRef
-        + "\",bmrg_container=\"step-task\"}";
+        + "\",container=~\"task|step-task\"}";
   }
 
   protected StreamingResponseBody getDefaultErrorMessage(String message) {

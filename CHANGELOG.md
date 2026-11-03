@@ -439,6 +439,12 @@ tag's release notes.
 
 ### Fixed
 
+- Loki live task logs (`dispatcher.logging.type=loki`) select the labels the dispatcher sets on the task's pod, as a
+  log shipper's labelmap names them (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`), and the task container
+  of either executor (`container=~"task|step-task"`). The query asked for v3's `bmrg_*` labels and Tekton's container
+  only, so it matched no v5 task. The log shipper must map pod labels and the container name under those names.
+- Slack's own install link (`GET /api/v2/integration/slack/install`) answers `409 INTEGRATION_NOT_CONFIGURED` while the
+  Slack app's client ID or secret is unset, instead of `404 INTEGRATION_INVALID_REF`.
 - The API contract (`contracts/api-v2.yaml`) declares authentication: a bearer token or `x-access-token` on every
   route, none on the GitHub callback and Slack routes, and the `access_token` query parameter beside them on `/webhook`,
   `/event` and `/callback`. It no longer declares the `System` tag twice, reuses an operation summary, omits a path

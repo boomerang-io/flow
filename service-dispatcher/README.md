@@ -127,13 +127,22 @@ the kubeconfig is pointing to. If that kubeconfig context has no namespace set, 
 
 ## RBAC
 
-The controller needs to run with special Kubernetes RBAC. Please see the helm
-charts [rbac-role-controller.yaml](https://github.com/boomerang-io/charts/blob/main/bmrg-flow/templates/rbac-role-controller.yaml)
-to see more about whats needed.
+The dispatcher's ServiceAccount needs a namespace Role over what its executor creates, as the Helm chart's
+[rbac-role-dispatcher.yaml](https://github.com/boomerang-io/charts/blob/main/bmrg-flow/templates/rbac-role-dispatcher.yaml)
+grants it:
+
+| Resource | Verbs |
+| --- | --- |
+| `batch/jobs` (`kube-jobs` executor) | create, get, list, watch, delete |
+| `pods` | get, list |
+| `pods/log` | get |
+| `persistentvolumeclaims`, `configmaps` | create, get, list, delete |
+| `tekton.dev/taskruns` (`tekton` executor) | create, get, list, watch, delete |
+| `tekton.dev/taskruns/status` (`tekton` executor, to cancel) | get, update, patch |
 
 ### Verification
 
-`kubectl auth can-i create taskruns --as=system:serviceaccount:bmrg-dev:bmrg-flow-controller`
+`kubectl auth can-i create jobs --as=system:serviceaccount:<namespace>:bmrg-flow-dispatcher`
 
 ## References
 
