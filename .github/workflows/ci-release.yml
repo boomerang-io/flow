@@ -100,12 +100,14 @@ jobs:
     runs-on: ubuntu-latest
     # The two libraries, the dispatcher SDK and the Flow SDK, are published to this repository's
     # GitHub Packages Maven registry, each versioned by the product tag: a library's version is the
-    # server version it was built against. A manual run publishes nothing.
+    # server version it was built against. A manual run publishes nothing. Each library publishes on
+    # its own: one failing does not cancel the other, and a re-run skips a version already published.
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     permissions:
       contents: read
       packages: write
     strategy:
+      fail-fast: false
       matrix:
         module: [dispatcher-sdk, flow-sdk]
     steps:
@@ -126,7 +128,17 @@ jobs:
       - name: Publish to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        # The registry refuses to overwrite a version (409 Conflict), so a version whose pom and jar
+        # are both there is already published and the step succeeds without deploying.
         run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          BASE="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/io/boomerang/${{ matrix.module }}/${VERSION}/${{ matrix.module }}-${VERSION}"
+          # The registry answers a stored file with a redirect to its storage (302), a missing one with 404.
+          published() { case "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${GITHUB_TOKEN}" "$1")" in 200|302) true ;; *) false ;; esac; }
+          if published "${BASE}.pom" && published "${BASE}.jar"; then
+            echo "${{ matrix.module }} ${VERSION} is already published."
+            exit 0
+          fi
           mvn --batch-mode -f ${{ matrix.module }}/pom.xml -P release deploy -s settings.xml
       - name: Slack
         if: ${{ always() }}
