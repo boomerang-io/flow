@@ -178,9 +178,11 @@ runtime JRE starts the application to context refresh with no database (`spring.
 migrations off, a placeholder encryption key, a Mongo URI that resolves nowhere with a 1 s selection timeout,
 the OTLP exporters excluded because BuildKit hands every build step `OTEL_TRACES_EXPORTER=otlp` and an endpoint
 on its own Unix socket) and writes `service.aot`: every class loaded in that start, linked, with its initialised
-state (`service-core/Dockerfile:61-66`). The dispatcher's train stage starts it against no cluster with a
-placeholder namespace (`service-dispatcher/Dockerfile:42-44`). The runtime command maps the cache and turns
-compact object headers on (`service-core/Dockerfile:89-90`), 4 bytes off every object. The train and runtime
+state (`service-core/Dockerfile:62-68`). The dispatcher's train stage starts it against no cluster with a
+placeholder namespace (`service-dispatcher/Dockerfile:43-46`). The runtime command maps the cache and turns
+compact object headers on (`service-core/Dockerfile:91-93`), 4 bytes off every object. Both the train run and the
+runtime command turn adapter caching off (`-XX:-AOTAdapterCaching`), which the JVM otherwise enables with a cache: an
+adapter recorded on one build machine crashed `service-core` with `SIGILL` at start on another. The train and runtime
 stages are the only per-platform stages, since a cache is tied to the JVM build that records it.
 
 **Measured**: `service-core` start to Boot's `Started Application` against a local Mongo 7, security off, on the

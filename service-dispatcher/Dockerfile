@@ -38,8 +38,10 @@ COPY --from=build /build/application ./
 
 # The training run, as in service-core/Dockerfile: a start to context refresh with no cluster and
 # no engine. The Kubernetes client is built from a placeholder namespace and connects to nothing
-# during a refresh. The cache-shaping flags MUST match the ENTRYPOINT's.
+# during a refresh. The cache-shaping flags MUST match the ENTRYPOINT's; adapter caching is off,
+# as in service-core.
 RUN ["java", "-XX:AOTCacheOutput=service.aot", "-XX:+UseCompactObjectHeaders", \
+     "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
      "-Dspring.context.exit=onRefresh", "-Dkube.namespace=aot-training", \
      "-jar", "service.jar"]
 
@@ -59,4 +61,5 @@ EXPOSE 7702
 # instead. An internal CA is a mounted truststore named there (-Djavax.net.ssl.trustStore), not a
 # keytool run at start. Compact object headers and the recorded AOT cache, as in service-core.
 ENTRYPOINT ["java", "-XX:+UseCompactObjectHeaders", "-XX:AOTCache=service.aot", \
+            "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "service.jar"]
