@@ -28,7 +28,7 @@ error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.j
 `bft` and `bfw` are rejected (`core/enums/TokenTypePrefix.java:22-35`). The worker is `service-dispatcher`, since it
 claims work and hands it to a runtime rather than hosting it: wire `/dispatcher/v1`
 (`dispatcher/DispatcherControllerV1.java:52`), registry `dispatchers`, claim field `claim.by`, runtime
-`dispatcher.executor`, `tekton` or `kube-jobs` (`service-dispatcher/src/main/resources/application.properties:60`).
+`dispatcher.executor`, `tekton` or `kube-jobs` (`service-dispatcher/src/main/resources/application.properties:63`).
 
 ## Consequences
 

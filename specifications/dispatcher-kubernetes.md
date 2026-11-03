@@ -7,7 +7,7 @@ What a task is to any dispatcher (which types reach one, the spec and params it 
 in `dispatcher-contract.md`; how a parameter value gets there is in `parameters.md`. This document is the part that is
 this dispatcher's own: image, command, volumes, resources, placement. The shipped dispatcher registers `template`,
 `custom`, `script`, `ai`, `uploadartifact` and `downloadartifact` (`flow.dispatcher.task-types`,
-`service-dispatcher/src/main/resources/application.properties:92`), so a `generic` task waits in the queue until a
+`service-dispatcher/src/main/resources/application.properties:94`), so a `generic` task waits in the queue until a
 dispatcher registers that type. To give AI tasks their own network zone, remove `ai` from the general dispatcher's
 list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`. Paths below are under
 `service-dispatcher/src/main/java/io/boomerang/` unless they start with a module name; `sdk/` is short for
@@ -54,10 +54,10 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 - **Storage.** It provisions a claimed run's volume before `workflowrun/{id}/start` (`sdk/WorkflowRunner.java:38-49`),
   and every `flow.dispatcher.workspace.reconcile-ms` (60 s) lists the volumes it holds from the cluster and asks which
   may go (`dispatcher/WorkspaceReconciler.java:57-72`).
-- **Engine and token.** It calls `flow.engine.url` (`http://${flow.engine.service.host}`) through `RestConfig`'s
+- **Engine and token.** It calls `flow.engine.url` (`http://localhost:7700` by default) through `RestConfig`'s
   pooled client, whose 60 s read outlasts the 30 s long poll, and sends `flow.engine.dispatcher.token` as
   `Authorization: Bearer` on engine calls only (`config/DispatcherConfig.java:22-32`;
-  `service-dispatcher/src/main/resources/application.properties:86-87`, `:143`); what the engine accepts is in the
+  `service-dispatcher/src/main/resources/application.properties:89`, `:145`); what the engine accepts is in the
   contract.
 - **Logs.** It serves `/api/v1/logs/stream` (`dispatcher/LogV1Controller.java:13-31`) to the engine alone: the route
   accepts only the bearer generated at every start and registered as `logsToken` (`dispatcher/LogAuthFilter.java:52-64`,
