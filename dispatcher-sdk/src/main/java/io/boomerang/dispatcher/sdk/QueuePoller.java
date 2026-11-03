@@ -33,6 +33,8 @@ final class QueuePoller<T> {
 
   private volatile boolean running;
   private volatile Thread thread;
+  private boolean polling;
+  private volatile boolean stopRequested;
 
   /**
    * Poll with {@code poll}, which blocks for the long poll, and give each run it returns to {@code
@@ -67,9 +69,38 @@ final class QueuePoller<T> {
     }
   }
 
-  /** Stop polling; a poll in progress is abandoned and whatever it would have claimed lapses. */
+  /**
+   * Stop polling once the poll in progress, if any, has returned and its runs are handed off: the
+   * engine may already have claimed for it, and a request abandoned mid-flight would leave those
+   * claims to lapse. A loop that is waiting rather than polling is woken at once. Call {@link
+   * #awaitStopped} to wait for the end, and {@link #abandon} to give up on a poll that outlasts it.
+   */
   synchronized void stop() {
     running = false;
+    stopRequested = true;
+    if (thread != null && !polling) {
+      thread.interrupt();
+    }
+  }
+
+  /** Wait up to {@code timeout} for the loop to end; false when it is still running. */
+  boolean awaitStopped(Duration timeout) {
+    Thread loop = thread;
+    if (loop == null) {
+      return true;
+    }
+    try {
+      return loop.join(timeout);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return !loop.isAlive();
+    }
+  }
+
+  /** Interrupt a poll in progress; whatever the engine claims for it from here on lapses. */
+  synchronized void abandon() {
+    running = false;
+    stopRequested = true;
     if (thread != null) {
       thread.interrupt();
     }
@@ -115,7 +146,7 @@ final class QueuePoller<T> {
   void pollOnce() {
     long startedNanos = System.nanoTime();
     try {
-      List<T> runs = poll.get();
+      List<T> runs = request();
       if (runs != null && !runs.isEmpty()) {
         LOGGER.debug("Poll (" + name + ") claimed " + runs.size() + " run(s).");
         runs.forEach(this::handOffQuietly);
@@ -128,8 +159,25 @@ final class QueuePoller<T> {
       }
     }
     long waitNanos = startedNanos + idleSpacing.toNanos() - System.nanoTime();
-    if (waitNanos > 0) {
+    if (!stopRequested && waitNanos > 0) {
       Backoff.sleep(Duration.ofNanos(waitNanos));
+    }
+  }
+
+  // The request runs uninterrupted by stop(), which waits for it instead.
+  private List<T> request() {
+    synchronized (this) {
+      if (stopRequested) {
+        return null;
+      }
+      polling = true;
+    }
+    try {
+      return poll.get();
+    } finally {
+      synchronized (this) {
+        polling = false;
+      }
     }
   }
 

@@ -43,5 +43,14 @@ public final class StatusReason {
   /** The runtime or a gateway behind it refused the task for rate; the engine requeues it. */
   public static final String RATE_LIMITED = "RateLimited";
 
+  /** The runtime's control plane could not be reached; the engine requeues the task. */
+  public static final String CLUSTER_UNAVAILABLE = "ClusterUnavailable";
+
+  /**
+   * The dispatcher is stopping and never started the claimed task; the engine requeues it at once
+   * rather than after the claim's lease.
+   */
+  public static final String DISPATCHER_STOPPING = "DispatcherStopping";
+
   private StatusReason() {}
 }

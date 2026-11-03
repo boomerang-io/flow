@@ -467,6 +467,19 @@ class TaskRunnerTest {
   }
 
   @Test
+  void aClusterUnavailableFailureIsReportedForTheEngineToRequeue() {
+    runner((task, context) -> {
+          throw TaskFailure.clusterUnavailable("CLUSTER_UNAVAILABLE - connection refused");
+        })
+        .accept(runOrder());
+
+    TaskRunEndRequest end = soleEnd();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(end.getStatusReason()).isEqualTo("ClusterUnavailable");
+    assertThat(end.getRetryable()).isNull();
+  }
+
+  @Test
   void anyOtherExceptionEndsTheTaskAsADispatchError() {
     runner((task, context) -> {
           throw new IllegalStateException("boom");
@@ -744,6 +757,100 @@ class TaskRunnerTest {
     assertThat(handedOff).isFalse();
     assertThat(inFlight.size()).isZero();
     assertThat(engine.starts).isEmpty();
+  }
+
+  @Test
+  void aRunOrderRefusedBecauseTheDispatcherIsStoppingIsEndedDispatcherStopping() {
+    TaskRunner runner = runner((task, context) -> TaskResult.empty(), work -> {});
+    runner.stop();
+
+    runner.accept(runOrder());
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    assertThat(engine.starts).isEmpty();
+    TaskRunEndRequest end = soleEnd();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(end.getStatusReason()).isEqualTo("DispatcherStopping");
+    assertThat(end.getDispatcherRef()).isEqualTo("d-1");
+    assertThat(inFlight.size()).isZero();
+  }
+
+  @Test
+  void aTerminateOrderOrAnUnregisteredTypeRefusedAtTheStopIsNotEnded() {
+    TaskRunner runner = runner((task, context) -> TaskResult.empty(), work -> {});
+    runner.stop();
+
+    runner.accept(taskRun(TaskType.template, RunPhase.completed, RunStatus.cancelled));
+    runner.accept(taskRun(TaskType.decision, RunPhase.queued, RunStatus.ready));
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    assertThat(engine.ends).isEmpty();
+  }
+
+  @Test
+  void aClaimSentAgainWhileInFlightAtTheStopIsHandedBackOnce() {
+    TaskRunner runner = runner((task, context) -> TaskResult.empty(), work -> {});
+    runner.accept(runOrder());
+    runner.stop();
+
+    runner.accept(runOrder());
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    // Only the sweep of the claim taken before the stop, which never started: once.
+    assertThat(engine.endsOf("task-1")).hasSize(1);
+  }
+
+  @Test
+  void aClaimNeverStartedWhenTheDrainGivesUpIsEndedDispatcherStopping() {
+    // The executor never runs the work: the claim is taken and unstarted at the drain.
+    TaskRunner runner = runner((task, context) -> TaskResult.empty(), work -> {});
+    runner.accept(runOrder());
+    runner.stop();
+    abandoned.set(true);
+
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    assertThat(engine.starts).isEmpty();
+    TaskRunEndRequest end = soleEnd();
+    assertThat(end.getStatus()).isEqualTo(RunStatus.failed);
+    assertThat(end.getStatusReason()).isEqualTo("DispatcherStopping");
+  }
+
+  @Test
+  void aClaimHandedBackAtTheDrainIsNeverStartedWhenItsWorkRunsLate() {
+    List<Runnable> queued = new CopyOnWriteArrayList<>();
+    AtomicBoolean ran = new AtomicBoolean();
+    TaskRunner runner =
+        runner(
+            (task, context) -> {
+              ran.set(true);
+              return TaskResult.empty();
+            },
+            queued::add);
+    runner.accept(runOrder());
+    abandoned.set(true);
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    queued.forEach(Runnable::run);
+
+    assertThat(ran).isFalse();
+    assertThat(engine.starts).isEmpty();
+    assertThat(soleEnd().getStatusReason()).isEqualTo("DispatcherStopping");
+  }
+
+  @Test
+  void aTaskThatStartedBeforeTheDrainGaveUpIsNotHandedBack() {
+    TaskRunner runner =
+        runner(
+            (task, context) -> {
+              abandoned.set(true);
+              throw new InterruptedException("interrupted past the drain");
+            });
+    runner.accept(runOrder());
+    runner.finishHandBacks(Duration.ofSeconds(5));
+
+    assertThat(engine.starts).containsExactly("task-1:d-1");
+    assertThat(engine.ends).isEmpty();
   }
 
   // The stop lands in the gap between the claim entering flight and its hand-off: the claim is

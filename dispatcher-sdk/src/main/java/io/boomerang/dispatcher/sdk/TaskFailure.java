@@ -8,11 +8,13 @@ import java.util.List;
  * {@link TaskHandler}; any other exception a handler throws ends the task as {@value
  * #DISPATCH_ERROR}.
  *
- * <p>The engine treats three reasons as "never started" and requeues the task instead of failing
- * it, on a budget of three more attempts with backoff: use {@link #exceededQuota} when the runtime
+ * <p>The engine treats four reasons as "did not run" and requeues the task instead of failing it,
+ * on a budget of three more attempts with backoff: use {@link #exceededQuota} when the runtime
  * refused the work for lack of capacity, {@link #startTimeout} when the work was created but never
- * began within the dispatcher's start deadline, and {@link #rateLimited} when the runtime or a
- * gateway behind it refused the task for rate. The other reasons a dispatcher sends are in {@link
+ * began within the dispatcher's start deadline, {@link #rateLimited} when the runtime or a gateway
+ * behind it refused the task for rate, and {@link #clusterUnavailable} when the runtime's control
+ * plane could not be reached. The engine requeues {@link StatusReason#DISPATCHER_STOPPING} too, which
+ * the SDK sends itself for a claim it never started. The other reasons a dispatcher sends are in {@link
  * StatusReason}; one the engine does not know is an ordinary failure. A task node may ask the
  * engine to retry a reported failure ({@code retry.max}); {@link #terminal} marks a failure the
  * engine must not retry however the node is set.
@@ -32,6 +34,9 @@ public class TaskFailure extends RuntimeException {
 
   /** The same as {@link StatusReason#RATE_LIMITED}. */
   public static final String RATE_LIMITED = StatusReason.RATE_LIMITED;
+
+  /** The same as {@link StatusReason#CLUSTER_UNAVAILABLE}. */
+  public static final String CLUSTER_UNAVAILABLE = StatusReason.CLUSTER_UNAVAILABLE;
 
   private final String statusReason;
 
@@ -88,6 +93,11 @@ public class TaskFailure extends RuntimeException {
   /** Return a failure that tells the engine the task was refused for rate and should be retried. */
   public static TaskFailure rateLimited(String message) {
     return new TaskFailure(RATE_LIMITED, message);
+  }
+
+  /** Return a failure that tells the engine the runtime's control plane could not be reached. */
+  public static TaskFailure clusterUnavailable(String message) {
+    return new TaskFailure(CLUSTER_UNAVAILABLE, message);
   }
 
   public String getStatusReason() {

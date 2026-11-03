@@ -21,7 +21,7 @@ B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason` (`ser
 `common/model/TaskRun.java:47`, `common/entity/TaskRunEntity.java:49`). The closed set lives in one class
 (`common/model/StatusReason.java:11-45`): a dispatcher sends `DispatchError`, `DeadlineExceeded`, `JobFailed`,
 `JobDeleted`, `OOMKilled`, `ImagePull`, `ImageNotAllowed`, `AdmissionDenied` or `ResultsTooLarge`, or, for a task that
-never started, `ExceededQuota`, `StartTimeout` or `RateLimited`; the engine writes `DispatcherGone`, `LeaseExpired` and
+did not run to an end, `ExceededQuota`, `StartTimeout`, `RateLimited`, `ClusterUnavailable` or `DispatcherStopping`; the engine writes `DispatcherGone`, `LeaseExpired` and
 `DeadlineExceeded` on its reaps (`engine/WorkflowWatcher.java:228`, `:467`, `:492`) and its own causes for refused
 specs, parameters, artifacts, for-each items and child runs. The `StatusReason` in `dispatcher-sdk` is a subset, checked by its tests
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/StatusReason.java:8-47`), and Flow's Kubernetes dispatcher maps
@@ -32,9 +32,9 @@ rather than starting a second vocabulary, and policy derives from it.
 
 ## Consequences
 
-- The one policy built on it is the requeue of a task that never started: `StartTimeout`, `ExceededQuota` and
-  `RateLimited` (`common/model/StatusReason.java:44-45`, `engine/TaskRunService.java:1088-1111`); any further retry policy derives
-  from it without a wire change.
+- The one policy built on it is the requeue of a task that did not run to an end: `StartTimeout`, `ExceededQuota`,
+  `RateLimited`, `ClusterUnavailable` and `DispatcherStopping` (`common/model/StatusReason.java:53-59`,
+  `engine/TaskRunService.java:1189-1207`); any further retry policy derives from it without a wire change.
 - Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:347`,
   `event/model/RunStatusSummary.java:88-99`).
 - Cancel and delete carry no reason; add values only when something consumes them.

@@ -48,7 +48,7 @@ import org.springframework.web.client.RestClient;
  * longer holds the registration, so the dispatcher registers again and carries on under the new
  * id. {@link #stop} stops polling, waits up to the drain
  * timeout for the tasks in flight to finish and report, and keeps their leases renewed while it
- * waits.
+ * waits; claims it never started are handed back to the engine.
  */
 public final class Dispatcher implements AutoCloseable {
 
@@ -62,6 +62,9 @@ public final class Dispatcher implements AutoCloseable {
   public static final Duration DEFAULT_LOG_UPLOAD_INTERVAL = Duration.ofSeconds(30);
 
   private static final Log LOGGER = LogFactory.getLog(Dispatcher.class);
+
+  // How long the stop waits for the claims it hands back to reach the engine, after the drain.
+  private static final Duration HAND_BACK_WAIT = Duration.ofSeconds(5);
 
   private final DispatcherClient client;
   private final RestClient artifactHttp;
@@ -135,12 +138,18 @@ public final class Dispatcher implements AutoCloseable {
   }
 
   /**
-   * Stop polling, refuse the claims still arriving, and wait up to the drain timeout for the
-   * tasks in flight to finish and report, renewing their leases meanwhile. A task still running
-   * after that is interrupted and reports nothing; its lease lapses and the engine hands it out
-   * again.
+   * Stop polling, and wait up to the drain timeout for the tasks in flight to finish and report,
+   * renewing their leases meanwhile. A poll in progress is not cut off: the engine may already have
+   * claimed for it, so it is waited for within the same timeout. A claim that arrives after the
+   * stop, and one still unstarted when the timeout passes, is ended failed with {@code
+   * DispatcherStopping}, which the engine requeues at once rather than when its lease lapses. A
+   * task that had started and is still running after the timeout is interrupted and reports
+   * nothing, and neither does a claim the engine makes for a poll that was still held at the
+   * timeout; their leases lapse and the engine hands them out again.
    */
   public void stop() {
+    List<QueuePoller<?>> polls;
+    List<TaskRunner> handingBack;
     synchronized (this) {
       if (stopped) {
         return;
@@ -149,14 +158,18 @@ public final class Dispatcher implements AutoCloseable {
       if (starter != null) {
         starter.interrupt();
       }
-      pollers.forEach(QueuePoller::stop);
-      // Every claim a poll already took is with the executor once the runners have stopped, so
-      // the shutdown below leaves none registered and not taken.
+      // Every claim a poll hands off from here on is refused and handed back by its runner.
       runners.forEach(TaskRunner::stop);
+      pollers.forEach(QueuePoller::stop);
+      polls = List.copyOf(pollers);
+      handingBack = List.copyOf(runners);
     }
-    work.shutdown();
+    long deadline = System.nanoTime() + drainTimeout.toNanos();
     try {
-      if (!work.awaitTermination(drainTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
+      awaitPolls(polls, deadline);
+      work.shutdown();
+      long remaining = Math.max(0, deadline - System.nanoTime());
+      if (!work.awaitTermination(remaining, TimeUnit.NANOSECONDS)) {
         LOGGER.warn("Dispatcher stopping with tasks still in flight: " + inFlight());
         abandoned = true;
         work.shutdownNow();
@@ -166,10 +179,22 @@ public final class Dispatcher implements AutoCloseable {
       work.shutdownNow();
       Thread.currentThread().interrupt();
     } finally {
+      handingBack.forEach(runner -> runner.finishHandBacks(HAND_BACK_WAIT));
       synchronized (this) {
         if (heartbeats != null) {
           heartbeats.shutdownNow();
         }
+      }
+    }
+  }
+
+  // A poll still held at the deadline is interrupted: the engine may yet claim for it, and that
+  // claim, unheard of here, waits out its lease.
+  private void awaitPolls(List<QueuePoller<?>> polls, long deadline) {
+    for (QueuePoller<?> poll : polls) {
+      if (!poll.awaitStopped(Duration.ofNanos(Math.max(0, deadline - System.nanoTime())))) {
+        LOGGER.warn("A poll was still held when the dispatcher stopped; abandoning it.");
+        poll.abandon();
       }
     }
   }

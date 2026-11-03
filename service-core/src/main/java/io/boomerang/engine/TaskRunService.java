@@ -1166,9 +1166,10 @@ public class TaskRunService {
 
   /**
    * Requeue a failed end for another attempt, through the same fenced transition a timed-out
-   * claimant takes, on one of two budgets. A task its dispatcher could not start (the cluster
-   * refused it on quota, its pod never left Pending, a gateway refused it for rate) never ran, so
-   * it is handed back on the engine's budget. A task that ran and failed is requeued only when its
+   * claimant takes, on one of two budgets. A task its dispatcher could not run to an end (the cluster
+   * refused it on quota, its pod never left Pending, a gateway refused it for rate, the cluster
+   * could not be reached, the dispatcher stopped before starting it) is handed back on the
+   * engine's budget. A task that ran and failed is requeued only when its
    * node asked for it ({@code retry.max}), while that budget lasts and the cause is one a retry can
    * change. Return false when the end must go ahead instead: a type the engine does not requeue, a
    * spent budget, a cause a retry cannot change, a failure the dispatcher marked final, or a lost
@@ -1198,7 +1199,7 @@ public class TaskRunService {
         return false;
       }
       LOGGER.info(
-          "[{}] Dispatcher could not start the task ({}: {}). Requeued as attempt {}.",
+          "[{}] Dispatcher did not run the task to an end ({}: {}). Requeued as attempt {}.",
           taskRun.getId(),
           reason,
           request.getStatusMessage(),

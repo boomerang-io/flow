@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -109,6 +111,64 @@ class QueuePollerTest {
 
     assertThat(stoppedAt).isGreaterThan(1);
     assertThat(polls.get()).isLessThanOrEqualTo(stoppedAt + 1);
+  }
+
+  @Test
+  void aStopWaitsForThePollInProgressAndHandsOffWhatItClaimed() throws Exception {
+    CountDownLatch polling = new CountDownLatch(1);
+    CountDownLatch answer = new CountDownLatch(1);
+    AtomicBoolean interrupted = new AtomicBoolean();
+    QueuePoller<String> poller =
+        poller(
+            () -> {
+              polling.countDown();
+              try {
+                answer.await();
+              } catch (InterruptedException e) {
+                interrupted.set(true);
+              }
+              return List.of("task-1");
+            });
+    poller.start();
+    assertThat(polling.await(5, TimeUnit.SECONDS)).isTrue();
+
+    poller.stop();
+    assertThat(poller.awaitStopped(Duration.ofMillis(100))).isFalse();
+    answer.countDown();
+
+    assertThat(poller.awaitStopped(Duration.ofSeconds(5))).isTrue();
+    assertThat(interrupted).isFalse();
+    assertThat(handedOff).containsExactly("task-1");
+  }
+
+  @Test
+  void aStopEndsALoopThatIsWaitingBetweenPollsAtOnce() throws Exception {
+    QueuePoller<String> poller = new QueuePoller<>("test", List::of, handedOff::add, Duration.ofSeconds(30));
+    poller.start();
+    Thread.sleep(100);
+
+    poller.stop();
+
+    assertThat(poller.awaitStopped(Duration.ofSeconds(2))).isTrue();
+  }
+
+  @Test
+  void anAbandonedPollIsInterruptedAndTheLoopEnds() throws Exception {
+    CountDownLatch polling = new CountDownLatch(1);
+    QueuePoller<String> poller =
+        poller(
+            () -> {
+              polling.countDown();
+              Backoff.sleep(Duration.ofSeconds(30));
+              return List.of();
+            });
+    poller.start();
+    assertThat(polling.await(5, TimeUnit.SECONDS)).isTrue();
+
+    poller.stop();
+    poller.abandon();
+
+    assertThat(poller.awaitStopped(Duration.ofSeconds(5))).isTrue();
   }
 
   @Test

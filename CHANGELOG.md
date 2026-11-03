@@ -304,6 +304,14 @@ tag's release notes.
 - Insights filter by run `labels` and roll up AI usage: tokens, cost and a breakdown by model for the period, and
   tokens and cost per task.
 - A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
+- A task whose Kubernetes API could not be reached, on a create or a watch (a timeout, a refused connection or a 5xx),
+  ends `ClusterUnavailable` instead of `DispatchError`, and the engine requeues it with backoff like `ExceededQuota`;
+  other 4xx answers keep their reasons. Before the next attempt runs the task's Job or TaskRun is removed, so it never
+  runs twice at once.
+- A stopping dispatcher hands back the claims it never started, ending each `DispatcherStopping`, which the engine
+  requeues at once instead of after the 90 s lease. `Dispatcher.stop()` in `dispatcher-sdk` now waits for the poll in
+  progress within its 10 s drain timeout rather than abandoning it; a host that embeds the SDK can set `drainTimeout`
+  to 30 s or more to cover a poll the engine holds for its full window.
 - A failed task's status message carries the container's exit code and the tail of its log.
 - `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
   next major version.

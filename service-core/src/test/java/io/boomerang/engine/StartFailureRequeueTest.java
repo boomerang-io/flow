@@ -22,9 +22,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 
 /**
- * A dispatcher that could not START a task - quota refused it, or its pod never left Pending - hands
- * it back: the engine requeues it for another attempt on the timed-out claimant's budget, and fails
- * it with that reason only once the budget is spent. Any other failure still ends the task.
+ * A dispatcher that could not RUN a task to an end - quota refused it, its pod never left Pending,
+ * the cluster could not be reached, or the dispatcher stopped before starting it - hands it back:
+ * the engine requeues it for another attempt on the timed-out claimant's budget, and fails it with
+ * that reason only once the budget is spent. Any other failure still ends the task.
  */
 class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
 
@@ -115,6 +116,64 @@ class StartFailureRequeueTest extends AbstractEngineIntegrationTest {
     after = taskRunRepository.findById(claimed[0]).orElseThrow();
     assertEquals(RunStatus.ready, after.getStatus());
     assertEquals(null, after.getClaim().getBy());
+  }
+
+  // The attempt may have left a pod behind, so the claim survives the requeue: the task is parked
+  // (waiting, claim kept, backoff set) and cannot be claimed again until the holder's termination
+  // order releases it.
+  private void assertRequeuedAndParkedUntilTerminated(String reason) {
+    String[] claimed = claimedTask(reason.toLowerCase(), 0);
+
+    taskRunService.end(claimed[0], Optional.of(failed(reason, claimed[1])));
+
+    TaskRunEntity parked = taskRunRepository.findById(claimed[0]).orElseThrow();
+    assertEquals(RunStatus.waiting, parked.getStatus());
+    assertEquals(RunPhase.pending, parked.getPhase());
+    assertEquals(claimed[1], parked.getClaim().getBy(), "the claim marks the pod still to remove");
+    assertEquals(1, parked.getRetry().getCount());
+    assertTrue(parked.getRetry().getAfter().after(new Date()), "the backoff gates the next claim");
+    assertEquals(1, parked.getAttempts().size());
+    assertEquals(reason, parked.getAttempts().get(0).getStatusReason());
+
+    assertTrue(containsId(dispatcherService.getTaskQueue(claimed[1], null, null, null, null), claimed[0]));
+    TaskRunEntity released = taskRunRepository.findById(claimed[0]).orElseThrow();
+    assertEquals(RunStatus.ready, released.getStatus());
+    assertEquals(null, released.getClaim().getBy());
+  }
+
+  @Test
+  void aClusterUnavailableEndIsRequeuedAndParkedUntilItsPodIsTerminated() {
+    assertRequeuedAndParkedUntilTerminated("ClusterUnavailable");
+  }
+
+  @Test
+  void aDispatcherStoppingEndIsRequeuedAndParkedUntilTerminated() {
+    assertRequeuedAndParkedUntilTerminated("DispatcherStopping");
+  }
+
+  @Test
+  void aSpentBudgetFailsAClusterUnavailableTaskWithTheReason() {
+    assertFailedWithReasonOnceBudgetIsSpent("ClusterUnavailable");
+  }
+
+  @Test
+  void aSpentBudgetFailsADispatcherStoppingTaskWithTheReason() {
+    assertFailedWithReasonOnceBudgetIsSpent("DispatcherStopping");
+  }
+
+  private void assertFailedWithReasonOnceBudgetIsSpent(String reason) {
+    String[] claimed = claimedTask("spent-" + reason.toLowerCase(), EngineConstants.MAX_RETRIES);
+
+    taskRunService.end(claimed[0], Optional.of(failed(reason, claimed[1])));
+
+    awaitEngine("the task to fail once its retry budget is spent")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity after = taskRunRepository.findById(claimed[0]).orElseThrow();
+              assertEquals(RunPhase.completed, after.getPhase());
+              assertEquals(RunStatus.failed, after.getStatus());
+              assertEquals(reason, after.getStatusReason());
+            });
   }
 
   @Test
