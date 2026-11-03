@@ -820,25 +820,6 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               <section
                 class="_launch_483afa"
               >
-                <span
-                  class="_readOnly_483afa"
-                >
-                  <svg
-                    aria-hidden="true"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    viewBox="0 0 32 32"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
-                    />
-                  </svg>
-                  Read-only
-                </span>
                 <button
                   class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
                   type="button"
@@ -877,6 +858,25 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                 >
                   Available
                 </p>
+                <span
+                  class="_readOnly_483afa"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                    />
+                  </svg>
+                  Read-only
+                </span>
               </div>
               <div
                 style="position: absolute; right: 0px;"
@@ -1021,25 +1021,6 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
               <section
                 class="_launch_483afa"
               >
-                <span
-                  class="_readOnly_483afa"
-                >
-                  <svg
-                    aria-hidden="true"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    preserveAspectRatio="xMidYMid meet"
-                    viewBox="0 0 32 32"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
-                    />
-                  </svg>
-                  Read-only
-                </span>
                 <button
                   class="cds--btn cds--btn--md cds--layout--size-md cds--btn--primary"
                   type="button"
@@ -1091,6 +1072,25 @@ exports[`WorkflowsHome --- Snapshot > Capturing Snapshot of WorkflowsHome 1`] = 
                     r="6"
                   />
                 </svg>
+                <span
+                  class="_readOnly_483afa"
+                >
+                  <svg
+                    aria-hidden="true"
+                    fill="currentColor"
+                    focusable="false"
+                    height="16"
+                    preserveAspectRatio="xMidYMid meet"
+                    viewBox="0 0 32 32"
+                    width="16"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M24,14H22V8A6,6,0,0,0,10,8v6H8a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H24a2,2,0,0,0,2-2V16A2,2,0,0,0,24,14ZM12,8a4,4,0,0,1,8,0v6H12ZM24,28H8V16H24Z"
+                    />
+                  </svg>
+                  Read-only
+                </span>
               </div>
               <div
                 style="position: absolute; right: 0px;"

@@ -24,6 +24,7 @@ import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
 import { isActionError, type ActionError } from "Utils/actionResult";
+import { isQuotaLimited } from "Utils/quotaHelper";
 import { isFromTemplate, isReadOnlyTasks, isSystemWorkspace, isTemplate } from "Utils/workflowTemplate";
 import UpdateWorkflow from "./UpdateWorkflow";
 import WorkflowInputModalContent from "./WorkflowInputModalContent";
@@ -300,9 +301,12 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   let hasReachedMonthlyRunLimit = false;
   let hasReachedConcurrentLimit = false;
 
+  // A quota of 0 is unlimited, so it is never reached.
   if (quotas) {
-    hasReachedMonthlyRunLimit = quotas?.maxWorkflowRunMonthly <= quotas?.currentRuns;
-    hasReachedConcurrentLimit = quotas?.maxConcurrentRuns <= quotas?.currentConcurrentRuns;
+    hasReachedMonthlyRunLimit =
+      isQuotaLimited(quotas.maxWorkflowRunMonthly) && quotas.maxWorkflowRunMonthly <= quotas.currentRuns;
+    hasReachedConcurrentLimit =
+      isQuotaLimited(quotas.maxConcurrentRuns) && quotas.maxConcurrentRuns <= quotas.currentConcurrentRuns;
   }
 
   const canRunManually = workflow?.triggers?.manual?.enabled ?? false;
@@ -362,12 +366,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
       {viewType === WorkflowView.Workflow && (
         <section className={styles.launch}>
-          {readOnlyTasks ? (
-            <span className={styles.readOnly}>
-              <Locked size={16} aria-hidden="true" />
-              Read-only
-            </span>
-          ) : null}
           {Array.isArray(formattedProperties) && formattedProperties.length !== 0 ? (
             <ComposedModal
               modalHeaderProps={{
@@ -478,7 +476,13 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
               <CircleFill className={styles.warningIcon} style={{ fill: "#da1e28" }} />
             </TooltipHover>
           )}
-          {/* <p className={styles.statusText}>{workflow.status === "active" ? "Active" : "Inactive"}</p> */}
+          {/* The template's tasks are read-only here; it sits with the status, clear of the description. */}
+          {readOnlyTasks ? (
+            <span className={styles.readOnly}>
+              <Locked size={16} aria-hidden="true" />
+              Read-only
+            </span>
+          ) : null}
         </div>
       )}
       <div style={{ position: "absolute", right: "0" }}>

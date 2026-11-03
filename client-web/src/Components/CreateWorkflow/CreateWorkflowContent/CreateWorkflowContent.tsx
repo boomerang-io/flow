@@ -9,6 +9,7 @@ import kebabCase from "lodash/kebabCase";
 import capitalize from "lodash/capitalize";
 import * as Yup from "yup";
 import { FlowWorkspace, CreateWorkflowSummary, WorkflowViewType } from "Types";
+import { isQuotaLimited } from "Utils/quotaHelper";
 import styles from "./createWorkflow.module.scss";
 
 let classnames = classNames.bind(styles);
@@ -35,8 +36,12 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
   viewType,
 }) => {
   const formikRef = useRef<any>();
+  // A quota of 0 is unlimited, so it is never reached.
   const createWorkflowsDisabled =
-    workspaceQuotasEnabled && workspace ? workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount : false;
+    workspaceQuotasEnabled && workspace
+      ? isQuotaLimited(workspace.quotas.maxWorkflowCount) &&
+        workspace.quotas.maxWorkflowCount <= workspace.quotas.currentWorkflowCount
+      : false;
 
   const handleSubmit = (values: any) => {
     const requestBody = {

@@ -94,6 +94,25 @@ function renderWorkflowCard(overrides: Partial<Workflow> = {}, workspaceName: st
   );
 }
 
+describe("WorkflowCard --- quotas", () => {
+  // A quota of 0 is unlimited: a workspace with runs behind it can still run, while a reached limit cannot.
+  function renderWithQuotas(quotaOverrides: Partial<FlowWorkspaceQuotas>) {
+    return renderWithContext(
+      <Route
+        path="/:workspace/workflows"
+        action={action}
+        element={<WorkflowCard {...props} quotas={{ ...quotas, ...quotaOverrides }} />}
+      />,
+      { route: appLink.workflows({ workspace: workspace.name }) },
+    );
+  }
+
+  it("runs when the run quotas are unlimited, whatever the counts", () => {
+    renderWithQuotas({ maxWorkflowRunMonthly: 0, currentRuns: 50, maxConcurrentRuns: 0, currentConcurrentRuns: 3 });
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+  });
+});
+
 describe("WorkflowCard --- Snapshot", () => {
   it("Capturing Snapshot of WorkflowCard", () => {
     const { baseElement } = renderWorkflowCard();
