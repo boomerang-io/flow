@@ -143,6 +143,12 @@ One product tag builds the whole compatible image set — there is no per-servic
 5.1.0-beta.3
 ```
 
+Pre-releases are betas, numbered in sequence. From time to time a beta is also tagged as a release
+candidate: the `-rc.N` tag goes on the commit that already carries the beta tag, and its own number keeps
+climbing. Semantic versioning compares pre-release labels alphabetically, so every beta sorts below every
+release candidate of the same version (`5.0.0-beta.34` < `5.0.0-rc.8`), even when the beta is newer.
+Deployments and dependants MUST pin an exact tag rather than resolve the highest version.
+
 Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 Operator-facing changes for the next release are collected in [`CHANGELOG.md`](./CHANGELOG.md) as they merge.
 

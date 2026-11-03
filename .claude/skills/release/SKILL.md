@@ -24,6 +24,15 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
   stable tags alone.
 - Every tag, stable or `-beta.N`/`-rc.N`, is cut from `main`, the integration and release branch.
   The tree is clean and pushed; any other branch needs an explicit user decision.
+- **Betas are the default pre-release.** Tag the next `-beta.N` unless the user asks for a
+  release candidate. A release candidate is an existing beta promoted: tag the commit that
+  already carries a beta with the next `-rc.N` (the rc number keeps climbing; never reuse or
+  restart it). The rc tag fires the release again, so the same commit is rebuilt and pushed
+  under the rc tag.
+- Semver compares pre-release labels alphabetically: every `-beta.N` sorts below every `-rc.N`
+  of the same version, even a newer beta (`5.0.0-beta.34` < `5.0.0-rc.8`). Never pick "the
+  latest" tag by version sort; sort by date (`git for-each-ref --sort=-creatordate
+  --count=1 'refs/tags/5.*'`). Tell consumers, and the chart's `appVersion`, to pin the exact tag.
 - One tag releases EVERYTHING — there is no partial release. If only one module changed, the
   whole set still rebuilds and ships at the new version.
 - The annotated tag MESSAGE is the human-facing release note — write it before tagging.
@@ -49,7 +58,8 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 ### 3. Release notes
 - Start from the unreleased section of `CHANGELOG.md`: every operator-facing change and upgrade step
   listed there MUST appear in the notes. Then derive the rest of the story from
-  `git log <previous-5.x-tag>..HEAD` (newest existing `5.*` tag). After tagging, move that section
+  `git log <previous-5.x-tag>..HEAD` (the most recently created `5.*` tag, by date, not by
+  version). For a release candidate on a beta's commit, reuse that beta's notes. After tagging, move that section
   under the released version in `CHANGELOG.md`.
 - Write 2–4 plain, confident sentences: lead with what changed for the user/operator; keep the
   framework/dependency detail as background. No marketing, no exclamation marks.

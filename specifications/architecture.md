@@ -123,6 +123,8 @@ stored during this attempt answers only when the dispatcher cannot (`engine/Task
 
 One git tag builds and pushes the whole compatible set (`.github/workflows/ci-release.yml:9-12`); the tag
 patterns are `5.x.y`, `5.x.y-beta.z` and `5.x.y-rc.z`, and `:latest` moves only on a stable tag (`:69-72`).
+Betas are the regular pre-release; a release candidate is a beta's commit tagged again with the next `-rc.z`.
+Because a beta sorts below any release candidate of the same version, consumers pin an exact tag.
 `.github/workflows/sbom.yml:10-14` fires on the same patterns and weekly, and scans the three images it builds
 from the checkout. Path-filtered `ci-core.yml`, `ci-dispatcher.yml` and `ci-web.yml` test each module on a
 push to `main` and on pull requests (`.github/workflows/ci-core.yml:6-19`); `ci-dispatcher.yml` also builds the
