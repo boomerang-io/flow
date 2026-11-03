@@ -76,6 +76,16 @@ whole on every registration (`dispatcher/DispatcherService.java:138-170`). A tas
 dropped (`common/enums/TaskType.java:55-60`). A dispatcher registered for no task types is answered 204 on every
 task poll (`dispatcher/DispatcherService.java:350-353`).
 
+A registration lives while its dispatcher connects: register, heartbeat and every task or workflow poll refresh
+`lastConnectedDate` (`dispatcher/DispatcherService.java:170,207,217`). A dispatcher is treated as gone, and its claims
+reaped, after 60 s without one (`execution-model.md`, "The watcher sweeps"); its registration is deleted after 24 h
+(`engine/WorkflowWatcher.java:92,533-545`), so the replicas a platform replaces on every deploy do not accumulate.
+Nothing else references a registration: the dispatcher token is shared, not per registration, claims and attempt
+history only carry the id, and a task whose dispatcher is gone has no live log route and is answered from its stored
+log or the no-source message (`engine/LogClient.java:63-79`). While `flow.queue.enabled=false` a poll is answered
+without touching the registration, so a switch held for a day lets an idle dispatcher's registration expire; it
+registers again on its next call.
+
 ## Polling
 
 Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work whenever a
@@ -364,8 +374,8 @@ environment variable on a Kubernetes pod, readable by anyone who can read the po
 Every error is the engine's standard body (`CLAUDE.md`, "API errors") except one: the authentication filter's bare
 401. A registration without a host is `400 DISPATCHER_INVALID_REQ` (`dispatcher/DispatcherService.java:139-141`). A
 poll or heartbeat under an id the engine does not hold is `404 DISPATCHER_NOT_REGISTERED` (`:214-216`, `:244-246`,
-`:346-348`): nothing deletes a registration, so the id goes unknown when the database is reset under a running
-dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
+`:346-348`): the id goes unknown when the registration expired after 24 h without a connection, or when the database
+is reset under a running dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
 backoff; no other error re-registers (`sdk/Dispatcher.java:211-240`).
 
 ## SDK

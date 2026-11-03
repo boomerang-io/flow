@@ -37,6 +37,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -84,6 +85,11 @@ public class WorkflowWatcher {
   // it, and nothing kills that executor, so this cannot be tightened further until the dispatch
   // protocol can cancel in-flight work.
   private static final long DISPATCHER_STALE_MILLIS = 60000;
+
+  // A registration that has not connected for this long is removed. Far past the stale threshold,
+  // so its claims were reaped long before, yet short enough that the registrations of replicas
+  // that came and went with a deploy do not accumulate. A dispatcher that returns registers again.
+  private static final long DISPATCHER_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L;
 
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
@@ -183,6 +189,7 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("readmitParkedRuns", this::readmitParkedRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("expireDispatcherRegistrations", this::expireDispatcherRegistrations, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("closeStrayActions", this::closeStrayActions, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("expireArtifacts", this::expireArtifacts, WorkflowWatcher::logSweepFailure);
@@ -516,6 +523,24 @@ public class WorkflowWatcher {
         (taskRun, ex) ->
             LOGGER.error(
                 "[{}] Stale-dispatcher reap failed: {}", taskRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * Remove the registrations of dispatchers that have not connected for a day. One delete
+   * conditioned on {@code lastConnectedDate} still being older than the cutoff, so a dispatcher
+   * that connects as the sweep runs keeps its registration and every instance may run it.
+   */
+  public void expireDispatcherRegistrations() {
+    Date cutoff = new Date(System.currentTimeMillis() - DISPATCHER_EXPIRY_MILLIS);
+    long removed =
+        mongoTemplate
+            .remove(
+                Query.query(Criteria.where("lastConnectedDate").lt(cutoff)),
+                DispatcherEntity.class)
+            .getDeletedCount();
+    if (removed > 0) {
+      LOGGER.info("Removed {} dispatcher registration(s) not connected since {}.", removed, cutoff);
+    }
   }
 
   /**
