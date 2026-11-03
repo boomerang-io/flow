@@ -95,6 +95,21 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
   }
 
   @Test
+  void slacksOwnInstallLinkRedirectsToTheAuthorizeUrlOnceTheAppIsSetUp() throws Exception {
+    ResponseEntity<?> response = slackService.installRedirect();
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FOUND);
+    assertThat(response.getHeaders().getLocation().toString())
+        .startsWith("https://slack.com/oauth/v2/authorize?client_id=slack-client-id&scope=")
+        .doesNotContain("&state=");
+
+    setSettingValue("integration", "slack.clientId", "");
+    assertThatThrownBy(() -> slackService.installRedirect())
+        .isInstanceOfSatisfying(
+            BoomerangException.class, e -> assertThat(e.getReason()).isEqualTo("INTEGRATION_NOT_CONFIGURED"));
+  }
+
+  @Test
   void aForgedStateANonMemberOrASecondSlackTeamLinksNothing() {
     String workspace = workspaceWithMember("slack-refused-ws", "slack-refused-user");
 

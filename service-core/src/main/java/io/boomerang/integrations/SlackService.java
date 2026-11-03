@@ -982,13 +982,17 @@ public class SlackService {
 
   /*
    * The install link Slack's own "Add to Slack" points at: the authorize URL with no Flow workspace,
-   * so the installation is saved for the Slack team and linked to no workspace.
+   * so the installation is saved for the Slack team and linked to no workspace. Refused while the
+   * Slack app's client id and secret are unset.
    */
   public ResponseEntity<?> installRedirect() throws URISyntaxException {
     IntegrationTemplateEntity template = integrationParameterService.template(EXTENSION_TYPE);
-    String link = installLink(template == null ? null : template.getLink(), null, null);
-    if (link.isBlank()) {
+    if (template == null) {
       throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
+    }
+    String link = installLink(template.getLink(), null, null);
+    if (link.isBlank()) {
+      throw new BoomerangException(BoomerangError.INTEGRATION_NOT_CONFIGURED, template.getName());
     }
     return ResponseEntity.status(HttpStatus.FOUND).location(new URI(link)).build();
   }
