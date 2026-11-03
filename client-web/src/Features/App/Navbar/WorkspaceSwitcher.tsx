@@ -1,8 +1,8 @@
 import React from "react";
-import { createPortal } from "react-dom";
 import { Search, Theme } from "@carbon/react";
-import { Checkmark, ChevronDown } from "@carbon/react/icons";
+import { ArrowRight, Checkmark, ChevronDown } from "@carbon/react/icons";
 import cx from "classnames";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { appLink } from "Config/appConfig";
 import type { FlowWorkspaceSummary } from "Types";
@@ -111,10 +111,10 @@ function WorkspaceMenu({ workspaces }: WorkspaceSwitcherProps) {
         event.key === "Home"
           ? 0
           : event.key === "End"
-            ? links.length - 1
-            : event.key === "ArrowDown"
-              ? Math.min(index + 1, links.length - 1)
-              : Math.max(index - 1, 0);
+          ? links.length - 1
+          : event.key === "ArrowDown"
+          ? Math.min(index + 1, links.length - 1)
+          : Math.max(index - 1, 0);
       links[next].focus();
     };
     const onFocusOut = (event: FocusEvent) => {
@@ -134,69 +134,72 @@ function WorkspaceMenu({ workspaces }: WorkspaceSwitcherProps) {
   }, [isOpen, close]);
 
   return (
-    <div className={styles.container} ref={containerRef}>
-      <button
-        ref={buttonRef}
-        type="button"
-        id={BUTTON_ID}
-        className={styles.trigger}
-        aria-controls={PANEL_ID}
-        aria-expanded={isOpen}
-        aria-label={current ? `Workspace: ${current.displayName}. Switch workspace` : "Switch workspace"}
-        data-testid="workspace-switcher"
-        onClick={() => (isOpen ? close() : setIsOpen(true))}
-      >
-        <span className={styles.label} aria-hidden="true">
-          {current ? current.displayName : "Workspaces"}
-        </span>
-        <ChevronDown aria-hidden="true" className={cx(styles.chevron, { [styles.chevronOpen]: isOpen })} />
-      </button>
-      {isOpen && (
-        <div
-          ref={panelRef}
-          id={PANEL_ID}
-          className={styles.panel}
-          role="region"
-          aria-label="Workspaces"
-          data-testid="workspace-switcher-panel"
+    <Theme as="div" theme="g100" className={styles.themeRoot}>
+      <div className={styles.container} ref={containerRef}>
+        <button
+          ref={buttonRef}
+          type="button"
+          id={BUTTON_ID}
+          className={styles.trigger}
+          aria-controls={PANEL_ID}
+          aria-expanded={isOpen}
+          aria-label={current ? `Workspace: ${current.displayName}. Switch workspace` : "Switch workspace"}
+          data-testid="workspace-switcher"
+          onClick={() => (isOpen ? close() : setIsOpen(true))}
         >
-          {hasFilter && (
-            <Theme theme="g100" className={styles.filter}>
-              <Search
-                id="workspace-switcher-filter"
-                size="sm"
-                labelText="Find a workspace"
-                placeholder="Find a workspace"
-                value={filter}
-                onChange={(event: { target: HTMLInputElement }) => setFilter(event.target.value)}
-              />
-            </Theme>
-          )}
-          <ul className={styles.list}>
-            {shown.map((workspace) => {
-              const isCurrent = workspace.name === currentName;
-              return (
-                <li key={workspace.name}>
-                  <Link
-                    to={appLink.workflows({ workspace: workspace.name })}
-                    className={cx(styles.item, { [styles.current]: isCurrent })}
-                    aria-current={isCurrent ? "true" : undefined}
-                    title={workspace.displayName}
-                    onClick={close}
-                  >
-                    <span className={styles.name}>{workspace.displayName}</span>
-                    {isCurrent && <Checkmark aria-hidden="true" className={styles.tick} />}
-                  </Link>
-                </li>
-              );
-            })}
-            {shown.length === 0 && <li className={styles.empty}>No workspace matches.</li>}
-          </ul>
-          <Link to={appLink.home()} className={styles.footer} onClick={close}>
-            All workspaces
-          </Link>
-        </div>
-      )}
-    </div>
+          <span className={styles.label} aria-hidden="true">
+            {current ? current.displayName : "Workspaces"}
+          </span>
+          <ChevronDown aria-hidden="true" className={cx(styles.chevron, { [styles.chevronOpen]: isOpen })} />
+        </button>
+        {isOpen && (
+          <div
+            ref={panelRef}
+            id={PANEL_ID}
+            className={styles.panel}
+            role="region"
+            aria-label="Workspaces"
+            data-testid="workspace-switcher-panel"
+          >
+            {hasFilter && (
+              <div className={styles.filter}>
+                <Search
+                  id="workspace-switcher-filter"
+                  size="sm"
+                  labelText="Find a workspace"
+                  placeholder="Find a workspace"
+                  value={filter}
+                  onChange={(event: { target: HTMLInputElement }) => setFilter(event.target.value)}
+                />
+              </div>
+            )}
+            <ul className={styles.list}>
+              {shown.map((workspace) => {
+                const isCurrent = workspace.name === currentName;
+                return (
+                  <li key={workspace.name}>
+                    <Link
+                      to={appLink.workflows({ workspace: workspace.name })}
+                      className={cx(styles.item, { [styles.current]: isCurrent })}
+                      aria-current={isCurrent ? "true" : undefined}
+                      title={workspace.displayName}
+                      onClick={close}
+                    >
+                      <span className={styles.name}>{workspace.displayName}</span>
+                      {isCurrent && <Checkmark aria-hidden="true" className={styles.tick} />}
+                    </Link>
+                  </li>
+                );
+              })}
+              {shown.length === 0 && <li className={styles.empty}>No workspace matches.</li>}
+            </ul>
+            <Link to={appLink.home()} className={styles.footer} onClick={close}>
+              All workspaces
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </div>
+        )}
+      </div>
+    </Theme>
   );
 }
