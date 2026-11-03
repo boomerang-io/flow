@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -154,8 +155,14 @@ public class ClaimFilterService {
       throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "workflowLabel");
     }
     String field = "labels." + workflowLabel.substring(0, split).trim().replace(".", "#");
-    return ids(
-        WorkflowEntity.class, field, values("workflowLabel", workflowLabel.substring(split + 1)));
+    List<String> labelled =
+        ids(WorkflowEntity.class, field, values("workflowLabel", workflowLabel.substring(split + 1)));
+    // A template's task runs carry the link they were submitted through, so a template's labels
+    // select its links too.
+    return labelled.isEmpty()
+        ? labelled
+        : Stream.concat(labelled.stream(), ids(WorkflowEntity.class, "templateRef.ref", labelled).stream())
+            .toList();
   }
 
   private List<String> ids(Class<?> entity, String field, List<String> values) {
