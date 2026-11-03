@@ -39,7 +39,10 @@ public class DueWaitPoller implements SmartLifecycle {
   @Override
   public void start() {
     if (enabled && thread == null) {
-      thread = Thread.ofVirtual().name("due-wait-poller").start(this::poll);
+      // Assigned before it starts: the loop runs only while it is the current poller.
+      Thread poller = Thread.ofVirtual().name("due-wait-poller").unstarted(this::poll);
+      thread = poller;
+      poller.start();
     }
   }
 
@@ -58,16 +61,23 @@ public class DueWaitPoller implements SmartLifecycle {
   }
 
   private void poll() {
-    while (thread == Thread.currentThread()) {
-      try {
-        Thread.sleep(intervalMillis);
-      } catch (InterruptedException e) {
-        return;
+    try {
+      while (thread == Thread.currentThread()) {
+        try {
+          Thread.sleep(intervalMillis);
+        } catch (InterruptedException e) {
+          return;
+        }
+        SweepRunner.runIsolated(
+            "resumeDueWaitingTasks",
+            watcher::resumeDueWaitingTasks,
+            (sweep, ex) -> LOGGER.error("Sweep {} failed; the next pass tries again.", sweep, ex));
       }
-      SweepRunner.runIsolated(
-          "resumeDueWaitingTasks",
-          watcher::resumeDueWaitingTasks,
-          (sweep, ex) -> LOGGER.error("Sweep {} failed; the next pass tries again.", sweep, ex));
+    } finally {
+      // Only stop() ends the poller; anything else leaves this instance's due waits unresumed.
+      if (thread == Thread.currentThread()) {
+        LOGGER.error("The due-wait poller ended without being stopped; due waits on this instance no longer resume.");
+      }
     }
   }
 }

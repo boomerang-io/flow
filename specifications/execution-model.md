@@ -128,7 +128,7 @@ the rest (`:159-175`). The stalled-run, for-each and stray-action sweeps resume 
 to the oldest, each instance keeping its own cursors (`engine/SweepCursor.java:12-20`), so candidates a sweep leaves alone cannot hide the ones behind them.
 
 Due waits (a finished sleep, an `acquirelock` retry) skip the 30 s sweep: `DueWaitPoller` resumes them every
-`flow.watcher.wait-interval-ms` (1 s) on its own thread (`engine/DueWaitPoller.java:21,60`). A resume claims a wait by
+`flow.watcher.wait-interval-ms` (1 s) on its own thread, assigned before it starts so the first pass runs, and logs an error if that thread ever ends without being stopped (`engine/DueWaitPoller.java:21,42-47,63-81`). A resume claims a wait by
 moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engine/TaskRunService.java:941`).
 
 | Sweep | Selects | Does |
