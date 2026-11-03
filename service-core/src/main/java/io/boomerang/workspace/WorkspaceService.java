@@ -174,11 +174,9 @@ public class WorkspaceService {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
-      // Validate name - will throw exception if not valid
-      WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
-      this.validateName(checkRequest);
       // An embedding product's own id is carried once: a create retried after a crash, or for a
-      // record that already has its mirror, is answered with the workspace that holds it.
+      // record that already has its mirror, is answered with the workspace that holds it. Checked
+      // before the name, which a retry almost always repeats.
       if (request.getExternalRef() != null && !request.getExternalRef().isBlank()) {
         workspaceRepository
             .findByExternalRef(request.getExternalRef())
@@ -188,6 +186,9 @@ public class WorkspaceService {
                       BoomerangError.WORKSPACE_EXTERNAL_REF_TAKEN, existing.getName());
                 });
       }
+      // Validate name - will throw exception if not valid
+      WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
+      this.validateName(checkRequest);
 
       /*
        * Create WorkspaceEntity & Copy majority of fields.

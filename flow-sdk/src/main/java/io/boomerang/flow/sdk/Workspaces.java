@@ -27,9 +27,10 @@ public final class Workspaces {
   }
 
   /**
-   * {@code POST /workspace}: create the workspace, the caller as its owner. A name already taken is
-   * {@code WORKSPACE_NON_UNIQUE_NAME}; an {@code externalRef} another workspace carries is a
-   * {@link FlowApiException} with reason {@link #EXTERNAL_REF_TAKEN}, whose message names it.
+   * {@code POST /workspace}: create the workspace, the caller as its owner. An {@code externalRef}
+   * another workspace carries is a {@link FlowApiException} with reason {@link #EXTERNAL_REF_TAKEN},
+   * whose message names it, whatever the name; otherwise a name already taken is {@code
+   * WORKSPACE_NON_UNIQUE_NAME}.
    */
   public Workspace create(WorkspaceRequest request) {
     return api.post("/workspace", Map.of(), Params.none(), request, WORKSPACE);

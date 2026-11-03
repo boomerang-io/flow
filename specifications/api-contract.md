@@ -59,8 +59,9 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
-create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, so a retried create reads it instead
-(`workspace/WorkspaceService.java:175-184,294-295,443-445`; unique sparse index `external_ref`).
+create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:176-191,303-304,467-470`; unique sparse
+index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:980-984`).

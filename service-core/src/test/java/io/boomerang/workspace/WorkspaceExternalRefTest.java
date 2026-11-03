@@ -57,6 +57,30 @@ class WorkspaceExternalRefTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aRetriedCreateWithTheSameNameAnswersTheReferenceNotTheName() {
+    String ref = "tenant-" + System.nanoTime();
+    String name = "mirror-r-" + System.nanoTime();
+    signInAsGlobalReader();
+    workspaceService.create(request(name, ref));
+
+    assertThatThrownBy(() -> workspaceService.create(request(name, ref)))
+        .isInstanceOf(BoomerangException.class)
+        .satisfies(
+            e -> {
+              assertThat(((BoomerangException) e).getCode())
+                  .isEqualTo(BoomerangError.WORKSPACE_EXTERNAL_REF_TAKEN.getCode());
+              assertThat(((BoomerangException) e).getArgs()).containsExactly(name);
+            });
+    assertThatThrownBy(() -> workspaceService.create(request(name, "other-" + System.nanoTime())))
+        .as("a name taken under another reference is still a name clash")
+        .isInstanceOf(BoomerangException.class)
+        .satisfies(
+            e ->
+                assertThat(((BoomerangException) e).getCode())
+                    .isEqualTo(BoomerangError.WORKSPACE_NON_UNIQUE_NAME.getCode()));
+  }
+
+  @Test
   void aWorkspaceIsFoundByItsExternalRefWithinTheCallersAccess() {
     String ref = "tenant-" + System.nanoTime();
     Workspace mine = workspaceService.create(request("mirror-c-" + System.nanoTime(), ref));
