@@ -133,8 +133,10 @@ collapse control), one search row with the filter and the task count in the plac
 List pages follow the Activity page, not Carbon's table toolbar and batch-action bar: labelled filters ("Filter by
 Workflow", "Filter by status", "Filter by trigger") in a row above the table, a date range on the right
 (`src/Features/Activity/Activity.tsx:276-330`), sortable headers, a row that opens the item, and status as an icon
-with coloured text rather than a tag (Activity, Actions, Users). Search on a list of people or workspaces sits in the
-page header. Actions opens on what is waiting (`src/Features/Actions/Actions.tsx:48,51-59`).
+with coloured text rather than a tag (Activity, Actions, Users). A list under a tab row (the admin tabs, a workspace's
+Parameters) is a 2rem block holding one row with the search on the left and the single primary action on the right,
+then the table (`src/Features/Workspaces/Workspaces.tsx`, `src/Features/Parameters/ParametersTable/ParametersTable.tsx`).
+Actions opens on what is waiting (`src/Features/Actions/Actions.tsx:48,51-59`).
 
 ### Switching views and choosing values
 
@@ -155,13 +157,11 @@ Workflow, workspace and global parameters share one table
 Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured tag,
 Description, and icon buttons rather than a menu: a pencil for Edit, a copy icon for Copy reference and a trash can in
 the error colour for Delete, each with a tooltip that opens left because the table clips above the row; a read-only
-parameter keeps only Copy reference (`:145-171`). Above the table, the Schedules list's toolbar: a layered search and
-Add parameter at one height (`:193`). The workflow has its own modal and the workspace and global scopes share one; both
-are titled "Edit parameter" or "Add parameter"
-(`src/Features/WorkflowEditor/Parameters/PropertiesModal/PropertiesModal.tsx:24`,
-`src/Features/Parameters/CreateEditParametersModal/CreateEditParametersModal.tsx:73`), show the name as text with its
-reference once it exists (`$(params.x)`, `$(workspace.params.x)`, `$(global.params.x)`), and treat the label as
-optional, falling back to the name. The workflow modal previews the field a run shows.
+parameter keeps only Copy reference (`:145-171`). Above the table sits the list row: the search and Add parameter
+(`:193`). The workflow has its own modal and the workspace and global scopes share one, both titled "Edit parameter" or
+"Add parameter" (`src/Features/WorkflowEditor/Parameters/PropertiesModal/PropertiesModal.tsx:24`,
+`src/Features/Parameters/CreateEditParametersModal/CreateEditParametersModal.tsx:73`); both show the name as text with
+its reference once it exists and treat the label as optional, and the workflow modal previews the field a run shows.
 
 ### Schedules
 
