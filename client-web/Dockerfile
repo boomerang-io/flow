@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
-# Three stages on node:24-alpine (.nvmrc pins CI to the same major; @react-router/* declare
-# `engines.node >= 20`). `docker build client-web` produces a working image from a clean checkout:
+# Two build stages on node:24-alpine and a runtime stage on distroless Node 24 (.nvmrc pins CI to
+# the same major; @react-router/* declare `engines.node >= 20`). `docker build client-web` produces
+# a working image from a clean checkout:
 # the build stage runs the frontend build itself, so nothing runs `pnpm run build` on the host
 # first (neither docker-compose.yml nor .github/workflows/ci-release.yml does).
 #
@@ -13,6 +14,8 @@
 # ---------------------------------------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /src
+# OpenShift runs an arbitrary UID in group 0; the runtime image has no shell, so what ships is made
+# group-writable here, where it is built, and copied with its modes.
 
 # Corepack activates the exact pnpm version pinned by package.json's `packageManager` field, so
 # the image, CI (pnpm/action-setup reads the same field) and a developer's shell all resolve the
@@ -31,7 +34,9 @@ RUN pnpm install --frozen-lockfile
 # server-rendering request handler - react-router.config.ts: ssr:true). The server bundle is
 # self-contained (vite.config.mts: ssr.noExternal), so the runtime needs none of these packages.
 COPY . .
-RUN pnpm run build
+RUN pnpm run build \
+    && chgrp -R 0 /src/build \
+    && chmod -R g=u /src/build
 
 # ---------------------------------------------------------------------------------------------
 # Serving packages: package.json's `dependencies` are exactly what the running server loads -
@@ -45,32 +50,28 @@ RUN corepack enable
 # when none of the patched packages is part of this install.
 COPY package.json pnpm-lock.yaml .npmrc ./
 COPY patches ./patches
-RUN pnpm install --prod --frozen-lockfile --ignore-scripts
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts \
+    && chgrp -R 0 /src/package.json /src/node_modules \
+    && chmod -R g=u /src/package.json /src/node_modules
 
 # ---------------------------------------------------------------------------------------------
-# Runtime stage: react-router-serve over build/, nothing else.
+# Runtime stage: react-router-serve over build/ on Google's distroless Node 24 (Debian 13), pinned
+# by digest: node and its libraries alone, no shell, no package manager, no npm. The nonroot
+# variant runs as uid 65532 in group 0; OpenShift's arbitrary UID is in group 0 too, and the
+# files were made group-writable in the stages that built them.
 # ---------------------------------------------------------------------------------------------
-FROM node:24-alpine
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:b8cec4b2f2126ff7bd034ec9ac207ffb3272667dfdc48376e3b035d3270549ba
 ENV NODE_ENV=production
 ENV BMRG_HOME=/opt/boomerang
 WORKDIR $BMRG_HOME
 
-COPY --from=serve-deps /src/package.json ./package.json
-COPY --from=serve-deps /src/node_modules ./node_modules
-COPY --from=build /src/build ./build
-
-# The server runs on node alone, so the image's bundled npm and corepack, which carry their own
-# vulnerable packages, are removed, and Alpine's packages take their latest fixes.
-# OpenShift requires a numeric, arbitrarily-assigned UID in group 0 rather than a named user -
-# chgrp/chmod g=u makes that arbitrary UID as capable as the intended one.
-RUN apk upgrade --no-cache \
-    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
-       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
-    && chgrp -R 0 $BMRG_HOME \
-    && chmod -R g=u $BMRG_HOME
-USER 2000
+COPY --from=serve-deps --chown=65532:0 /src/package.json ./package.json
+COPY --from=serve-deps --chown=65532:0 /src/node_modules ./node_modules
+COPY --from=build --chown=65532:0 /src/build ./build
 
 # react-router-serve reads PORT (and HOST) from the environment; docker-compose.yml and a
-# Kubernetes Deployment set PORT=3000. The probe is GET /apps/flow/health (app/routes/health.tsx).
+# Kubernetes Deployment set PORT=3000. The probe is GET /apps/flow/health (app/routes/health.tsx);
+# with no shell or wget in the image, a probe that runs inside the container uses node itself.
+# The image's entrypoint is node, so the command is its arguments.
 EXPOSE 3000
-ENTRYPOINT ["node", "node_modules/@react-router/serve/dist/cli.js", "build/server/index.js"]
+CMD ["node_modules/@react-router/serve/dist/cli.js", "build/server/index.js"]

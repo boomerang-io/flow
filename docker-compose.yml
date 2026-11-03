@@ -260,7 +260,14 @@ services:
       CORE_SERVICE_INTERNAL_ORIGIN: http://service-core:7700
     healthcheck:
       # The probe is a resource route under the webapp's base path (client-web/app/routes/health.tsx).
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/apps/flow/health"]
+      # The image is distroless: no shell, no wget; node itself makes the request.
+      test:
+        [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://localhost:3000/apps/flow/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20

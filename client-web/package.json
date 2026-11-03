@@ -21,8 +21,8 @@
     "precommit": "lint-staged"
   },
   "dependencies": {
-    "@react-router/serve": "7.18.2",
-    "react-router": "7.18.2"
+    "@react-router/serve": "7.18.5",
+    "react-router": "7.18.5"
   },
   "devDependencies": {
     "@boomerang-io/carbon-addons-boomerang-react": "4.9.0-beta.15",
@@ -36,8 +36,8 @@
     "@commitlint/config-conventional": "18.1.0",
     "@dagrejs/dagre": "^1.0.4",
     "@mjackson/headers": "^0.11.1",
-    "@react-router/dev": "7.18.2",
-    "@react-router/node": "7.18.2",
+    "@react-router/dev": "7.18.5",
+    "@react-router/node": "7.18.5",
     "@tanstack/react-query": "^5",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^5.16.4",
