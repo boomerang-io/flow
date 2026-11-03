@@ -1,15 +1,21 @@
+// The list-tab anatomy every admin list shares: a 2rem block, the search and the one primary
+// action on a row, the table beneath.
 .content {
   overflow: auto;
-  position: relative;
+  padding: 2rem;
 }
 
-// The search and the one primary action share the row above the table.
 .toolbar {
   align-items: center;
   display: flex;
   gap: 1rem;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.search {
+  width: 100%;
+  max-width: 20rem;
 }
 
 .tableRow:hover {

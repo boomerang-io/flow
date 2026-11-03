@@ -1,5 +1,7 @@
+// The list anatomy every table page shares: a 2rem block, the search and the one primary action on
+// a row, the table beneath.
 .tableContainer {
-  margin: 1.5rem;
+  padding: 2rem;
 
   :global .cds--pagination__control-buttons {
     z-index: 1;
@@ -54,15 +56,13 @@
 
 .toolbar {
   align-items: center;
-  background: var(--cds-layer);
-  border-bottom: 1px solid var(--cds-border-subtle);
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
   justify-content: space-between;
-  min-height: 3rem;
-  padding: 0.25rem;
+  margin-bottom: 1rem;
 }
 
 .search {
-  width: 20rem;
+  max-width: 20rem;
+  width: 100%;
 }

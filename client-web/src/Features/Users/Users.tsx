@@ -8,7 +8,6 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
-import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
 import { CREATED_DATE_FORMAT, UserRoleCopy } from "Constants";
 import { appLink, queryStringOptions } from "Config/appConfig";
@@ -72,15 +71,17 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       <Helmet>
         <title>Users</title>
       </Helmet>
-      <Box p="1.5rem" className={styles.content}>
-        <div className={styles.search}>
-          <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
+      <div className={styles.content}>
+        <div className={styles.toolbar}>
+          <div className={styles.search}>
+            <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
+            <p className={styles.hint}>
+              Everyone who has signed in. People join by signing in; the first to sign in became an admin.
+            </p>
+          </div>
         </div>
-        <p className={styles.hint}>
-          Everyone who has signed in. People join by signing in; the first to sign in became an admin.
-        </p>
         {children}
-      </Box>
+      </div>
     </>
   );
 };

@@ -6,13 +6,13 @@ exports[`Workspaces --- Snapshot Test > Capturing Snapshot of Workspaces 1`] = `
 >
   <div>
     <div
-      class="_content_a178c7 css-1aaedcz"
+      class="_content_a178c7"
     >
       <div
         class="_toolbar_a178c7"
       >
         <div
-          class="css-lo7xei"
+          class="_search_a178c7"
         >
           <div
             aria-label="Search workspaces"

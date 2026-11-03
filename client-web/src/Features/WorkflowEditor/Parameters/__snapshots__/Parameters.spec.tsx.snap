@@ -22,7 +22,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             role="toolbar"
           >
             <div
-              class="cds--layer-two _search_9d297e"
+              class="_search_9d297e"
             >
               <div
                 aria-label="Search parameters"

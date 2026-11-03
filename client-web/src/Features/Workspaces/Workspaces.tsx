@@ -10,7 +10,6 @@ import debounce from "lodash/debounce";
 import kebabcase from "lodash/kebabCase";
 import moment from "moment";
 import queryString from "query-string";
-import { Box } from "reflexbox";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
 import { useAppContext } from "Hooks";
@@ -41,23 +40,21 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ action, children, default
       <Helmet>
         <title>Workspaces</title>
       </Helmet>
-      <Box p="2rem" className={styles.content}>
-        <>
-          <div className={styles.toolbar}>
-            <Box maxWidth="20rem" width="100%">
-              <Search
-                id="flow-workspaces"
-                labelText="Search workspaces"
-                placeholder="Search workspaces"
-                defaultValue={defaultQuery}
-                onChange={handleSearchChange}
-              />
-            </Box>
-            {action}
+      <div className={styles.content}>
+        <div className={styles.toolbar}>
+          <div className={styles.search}>
+            <Search
+              id="flow-workspaces"
+              labelText="Search workspaces"
+              placeholder="Search workspaces"
+              defaultValue={defaultQuery}
+              onChange={handleSearchChange}
+            />
           </div>
-          {children}
-        </>
-      </Box>
+          {action}
+        </div>
+        {children}
+      </div>
     </>
   );
 };

@@ -4,7 +4,6 @@ import {
   DataTable,
   DataTableSkeleton,
   IconButton,
-  Layer,
   Pagination,
   Search,
   Tag,
@@ -192,20 +191,19 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
             headers={headers}
             render={({ rows, headers, getHeaderProps }: { rows: any; headers: any; getHeaderProps: any }) => (
               <TableContainer>
-                {/* The Schedules list's toolbar: a layered search and the primary action, one height. */}
+                {/* The list anatomy every table page shares: the search and the one primary action on a row. */}
                 <div className={styles.toolbar} aria-label="Parameters toolbar" role="toolbar">
-                  <Layer className={styles.search}>
+                  <div className={styles.search}>
                     <Search
                       id="parameters-search"
                       labelText="Search parameters"
                       placeholder="Search parameters"
-                      size="md"
                       onChange={(event: { target: HTMLInputElement }) => {
                         setQuery(event.target.value ?? "");
                         setPage(1);
                       }}
                     />
-                  </Layer>
+                  </div>
                   {readOnly ? null : (
                     <Button data-testid="create-parameter-button" renderIcon={Add} size="md" onClick={onAdd}>
                       Add parameter

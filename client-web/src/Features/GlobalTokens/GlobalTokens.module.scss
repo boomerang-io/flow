@@ -7,10 +7,11 @@
   overflow-y: auto;
 }
 
+// The same 2rem block as the other admin lists.
 .content {
   display: flex;
   flex-direction: column;
-  margin: 2.5rem 2.5rem 4.5rem 2.5rem;
+  margin: 2rem 2rem 4.5rem 2rem;
 }
 .tableSkeleton {
   thead {
