@@ -183,8 +183,8 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
             <h3 className={styles.panelSubtitle}>Slowest task runs</h3>
             <ul className={styles.failureList}>
               {tasks.slowest.map((slow) => (
-                <li key={slow.taskRunRef} className={styles.failureRow}>
-                  <span className={styles.failureCount}>{formatDuration(slow.duration)}</span>
+                <li key={slow.taskRunRef} className={`${styles.failureRow} ${styles.slowRow}`}>
+                  <span className={styles.slowDuration}>{formatDuration(slow.duration)}</span>
                   <span className={styles.failureBody}>
                     <strong>{slow.name}</strong>
                     <span className={styles.muted}>{slow.status}</span>

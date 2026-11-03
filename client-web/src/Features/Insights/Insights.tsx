@@ -108,6 +108,14 @@ function asString(value: string | Array<string> | null | undefined): string | nu
   return typeof first === "string" && first ? first : null;
 }
 
+/** The one workflow the filter names, whose detail the page shows; null for none or several. */
+function onlyWorkflow(workflows: unknown): string | null {
+  const names = (typeof workflows === "string" ? [workflows] : Array.isArray(workflows) ? workflows : []).filter(
+    (name): name is string => typeof name === "string" && name !== "",
+  );
+  return names.length === 1 ? names[0] : null;
+}
+
 // Server loader (ssr:true). Runs in Node, so it uses serverFetch(request) rather than the browser
 // axios instance. Every filter (statuses/workflows/triggers/labels/fromDate/toDate) and the selected
 // workflow are read off the request URL, the same names the component navigates with.
@@ -125,11 +133,10 @@ export async function loader({
     workflows,
     triggers,
     labels,
-    workflow,
     fromDate = defaultFromDate(),
     toDate = defaultToDate(),
   } = search;
-  const selected = asString(workflow as string | Array<string> | null);
+  const selected = onlyWorkflow(workflows);
   const view = taskView(search);
 
   // One wave: the summary, the workflow filter options and the selected workflow's detail are
@@ -194,16 +201,17 @@ export default function Insights() {
     errorLoadingTasks,
   } = useLoaderData() as LoaderData;
   const search = queryString.parse(location.search, queryStringOptions);
-  const compare = search.compare !== "off";
-  const selected = asString(search.workflow as string | Array<string> | null);
+  const compare = search.compare === "on";
+  // The workflow is a filter: one workflow in it is the one whose detail the page shows.
+  const selected = onlyWorkflow(search.workflows);
 
   function updateHistorySearch(props: Record<string, unknown>) {
     navigate({ search: `?${queryString.stringify(props, queryStringOptions)}` });
   }
 
-  // Selecting the selected row again clears the selection.
+  // A row sets the workflow filter to that workflow; the selected row again clears it.
   const selectHref = (workflowName: string) =>
-    `?${queryString.stringify({ ...search, workflow: workflowName === selected ? undefined : workflowName }, queryStringOptions)}`;
+    `?${queryString.stringify({ ...search, workflows: workflowName === selected ? undefined : workflowName }, queryStringOptions)}`;
 
   // The workspace object comes from the workspace layout route's context - until it resolves,
   // there's nothing to render yet.
@@ -227,9 +235,6 @@ export default function Insights() {
         <div className={styles.chart}>
           <RunsPerDayChart daily={summary.daily} />
         </div>
-        {summary.usage && summary.usage.aiTaskRuns > 0 ? (
-          <UsagePanel id="insights-usage" title="Model usage" usage={summary.usage} />
-        ) : null}
         <WorkflowTable
           workspace={workspace.name}
           rows={summary.workflows}
@@ -251,6 +256,10 @@ export default function Insights() {
           error={errorLoadingTasks}
           update={(params) => updateHistorySearch({ ...search, ...params })}
         />
+        {/* The AI tasks are a corner of the product: their usage comes last, and only where there is any. */}
+        {summary.usage && summary.usage.aiTaskRuns > 0 ? (
+          <UsagePanel id="insights-usage" title="Model usage" usage={summary.usage} />
+        ) : null}
       </div>
     );
   }
@@ -384,7 +393,9 @@ function Selects(props: SelectsProps) {
 
   return (
     <div className={styles.dataFilters}>
+      {/* Keyed on the selection so a row click in By workflow, which sets the same param, shows here too. */}
       <FilterableMultiSelect<SelectableWorkflow>
+        key={(selectedWorkflowRefs ?? []).join(",")}
         id="insights-workflows-select"
         placeholder="Choose workflow(s)"
         invalid={false}
@@ -450,7 +461,7 @@ function Selects(props: SelectsProps) {
             id="insights-compare-toggle"
             label="Compare with previous period"
             orientation="vertical"
-            onToggle={(checked: boolean) => props.updateHistorySearch({ ...search, compare: checked ? undefined : "off" })}
+            onToggle={(checked: boolean) => props.updateHistorySearch({ ...search, compare: checked ? "on" : undefined })}
             toggled={props.compare}
           />
         </div>

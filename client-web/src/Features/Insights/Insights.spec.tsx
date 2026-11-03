@@ -50,8 +50,8 @@ const usage = {
 };
 
 describe("Insights --- page", () => {
-  test("leads with the period's numbers and their previous-period comparison", async () => {
-    renderInsights();
+  test("leads with the period's numbers and, with the toggle on, their previous-period comparison", async () => {
+    renderInsights(`/${WORKSPACE}/insights?compare=on`);
     await screen.findByTestId("completed-insights");
 
     expect(screen.getByTestId("insights-tile-runs")).toHaveTextContent("103");
@@ -81,7 +81,8 @@ describe("Insights --- page", () => {
 
     userEvent.click(screen.getByRole("link", { name: "cheer-finding-verify" }));
 
-    await waitFor(() => expect(history.location.search).toContain("workflow=cheer-finding-verify"));
+    // The row sets the workflow filter itself, the same param the dropdown reads.
+    await waitFor(() => expect(history.location.search).toContain("workflows=cheer-finding-verify"));
     await screen.findByTestId("insights-workflow-detail");
     expect(screen.getByRole("heading", { name: /Where the time goes/ })).toBeInTheDocument();
     // The task appears in both panels: as a timing row and as the failing task.
@@ -89,8 +90,9 @@ describe("Insights --- page", () => {
     expect(screen.getByText(/Task exceeded its timeout of 60 minutes/)).toBeInTheDocument();
   });
 
-  test("hides the comparison when the toggle is off", async () => {
-    renderInsights(`/${WORKSPACE}/insights?compare=off`);
+  // The comparison is off until asked for: on a fresh workspace there is nothing to compare with.
+  test("hides the comparison until the toggle is on", async () => {
+    renderInsights();
     await screen.findByTestId("completed-insights");
 
     expect(screen.getByTestId("insights-tile-runs")).not.toHaveTextContent("vs previous");
@@ -158,9 +160,12 @@ describe("Insights --- page", () => {
         }),
       ),
     );
-    renderInsights(`/${WORKSPACE}/insights?workflow=cheer-finding-verify`);
+    renderInsights(`/${WORKSPACE}/insights?workflows=cheer-finding-verify`);
 
-    await screen.findByTestId("insights-detail-usage");
+    // The detail has no model usage card of its own any more; the page's Model usage panel,
+    // filtered by the workflow, carries it. The task rows still show their tokens.
+    await screen.findByTestId("insights-workflow-detail");
+    expect(screen.queryByTestId("insights-detail-usage")).not.toBeInTheDocument();
     expect(screen.getByTestId("insights-task-usage-run-verifier")).toHaveTextContent("12,000 tokens · 0.0312");
     expect(screen.getByTestId("insights-task-usage-fetch-findings")).toBeEmptyDOMElement();
   });
@@ -225,7 +230,7 @@ describe("Insights --- loader", () => {
 
     await loader({
       params: { workspace: WORKSPACE },
-      request: new Request(`http://localhost/${WORKSPACE}/insights?workflow=cheer-finding-verify`),
+      request: new Request(`http://localhost/${WORKSPACE}/insights?workflows=cheer-finding-verify`),
     });
 
     expect(trace.startedTogether(3)).toBe(true);
@@ -275,7 +280,7 @@ describe("Insights --- loader", () => {
     await loader({
       params: { workspace: WORKSPACE },
       request: new Request(
-        `http://localhost/${WORKSPACE}/insights?workflow=w&labels=example.stage%3Dbuild,team%3Dai`,
+        `http://localhost/${WORKSPACE}/insights?workflows=w&labels=example.stage%3Dbuild,team%3Dai`,
       ),
     });
 

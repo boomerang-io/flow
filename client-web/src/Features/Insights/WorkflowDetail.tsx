@@ -7,7 +7,6 @@ import cx from "classnames";
 import { InsightsTaskRow, InsightsWorkflowDetail } from "Types";
 import { formatCost, formatTokens } from "./format";
 import { formatDuration } from "Utils/dateHelper";
-import UsagePanel from "./UsagePanel";
 import styles from "./Insights.module.scss";
 
 /** "12,345 tokens · 0.0021"; empty for a task that is not an ai task. */
@@ -127,10 +126,6 @@ export default function WorkflowDetail({ workspace, detail }: WorkflowDetailProp
         )}
         <p className={styles.panelNote}>Each row links to the newest run that ended that way.</p>
       </section>
-
-      {usage ? (
-        <UsagePanel className={styles.subPanel} id="insights-detail-usage" title={`Model usage · ${detail.workflowName}`} usage={usage} />
-      ) : null}
     </div>
   );
 }

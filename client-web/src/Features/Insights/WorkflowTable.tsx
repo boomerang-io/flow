@@ -52,7 +52,7 @@ export default function WorkflowTable({ workspace, rows, selected, selectHref, d
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
         <h2 className={styles.panelTitle}>By workflow</h2>
-        <span className={styles.panelHint}>Worst success rate first · select a row for its detail below</span>
+        <span className={styles.panelHint}>Worst success rate first · select a row to filter on it and see its detail</span>
       </div>
       <Table size="md" aria-label="Workflow statistics" useZebraStyles={false}>
         <TableHead>

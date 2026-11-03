@@ -372,6 +372,17 @@
   font-weight: 300;
 }
 
+// A duration leads the slowest-runs rows: wider than a count, and it never wraps.
+.slowRow {
+  grid-template-columns: 7rem minmax(0, 1fr) 8rem;
+}
+
+.slowDuration {
+  font-size: var(--cds-heading-03-font-size, 1.25rem);
+  font-weight: 300;
+  white-space: nowrap;
+}
+
 .failureBody {
   align-items: center;
   display: flex;
