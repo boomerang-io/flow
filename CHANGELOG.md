@@ -439,6 +439,10 @@ tag's release notes.
 
 ### Fixed
 
+- The API contract (`contracts/api-v2.yaml`) declares authentication: a bearer token or `x-access-token` on every
+  route, none on the GitHub callback and Slack routes, and the `access_token` query parameter beside them on `/webhook`,
+  `/event` and `/callback`. It no longer declares the `System` tag twice, reuses an operation summary, omits a path
+  parameter or lists Spring's `HttpHeaders` as a request header.
 - Save refuses a node that asks for retries (`retry.max` above 0) of a type the engine never requeues, with
   `WORKFLOW_INVALID_TASK_RETRY` (1223) naming the task. Such a retry, on a `runworkflow` or `sleep` node for example,
   was stored and never applied; a run-workflow task's retries belong on the tasks of the workflow it runs. The editor

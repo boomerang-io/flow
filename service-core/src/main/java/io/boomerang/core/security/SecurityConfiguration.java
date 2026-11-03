@@ -34,13 +34,13 @@ public class SecurityConfiguration {
 
   // Reached by a browser redirect from GitHub - cannot carry a bearer token. Also exempted from
   // AuthenticationFilter below, since that filter runs ahead of this authorization decision.
-  static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
+  public static final String GITHUB_CALLBACK = "/api/v2/integration/github/callback";
 
   // Reached by Slack's servers (the three signed POST routes) or by a browser redirect from
   // Slack's consent page (auth), so none can carry a Flow token; each checks the request itself -
   // the signing secret, or the code exchange against Slack. Exempted exactly like GITHUB_CALLBACK.
   // The install redirect is not here: it checks nothing, so it stays behind sign-in.
-  static final List<String> SLACK_ROUTES =
+  public static final List<String> SLACK_ROUTES =
       List.of(
           "/api/v2/integration/slack/auth",
           "/api/v2/integration/slack/commands",

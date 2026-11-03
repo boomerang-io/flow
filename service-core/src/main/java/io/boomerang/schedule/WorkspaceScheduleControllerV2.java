@@ -54,6 +54,13 @@ public class WorkspaceScheduleControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(summary = "Validate a Schedules CRON.")
   public CronValidationResponse validateCron(
+      @Parameter(
+              name = "workspace",
+              description = "Owning workspace name.",
+              example = "my-amazing-workspace",
+              required = true)
+          @PathVariable
+          String workspace,
       @Parameter(name = "cron", description = "A CRON expression to validate", required = true)
           @RequestParam
           String cron) {

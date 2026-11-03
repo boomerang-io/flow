@@ -374,23 +374,6 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
-    ContentDisposition:
-      properties:
-        attachment:
-          type: "boolean"
-        charset:
-          type: "string"
-        filename:
-          type: "string"
-        formData:
-          type: "boolean"
-        inline:
-          type: "boolean"
-        name:
-          type: "string"
-        type:
-          type: "string"
-      type: "object"
     CronValidationResponse:
       properties:
         message:
@@ -629,181 +612,6 @@ components:
         title:
           type: "string"
       type: "object"
-    HttpHeaders:
-      properties:
-        accept:
-          items:
-            $ref: "#/components/schemas/MediaType"
-          type: "array"
-        acceptCharset:
-          items:
-            type: "string"
-          type: "array"
-        acceptLanguage:
-          items:
-            properties:
-              range:
-                type: "string"
-              weight:
-                format: "double"
-                type: "number"
-            type: "object"
-          type: "array"
-        acceptLanguageAsLocales:
-          items:
-            type: "string"
-          type: "array"
-        acceptPatch:
-          items:
-            $ref: "#/components/schemas/MediaType"
-          type: "array"
-        accessControlAllowCredentials:
-          type: "boolean"
-        accessControlAllowHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlAllowMethods:
-          items:
-            $ref: "#/components/schemas/HttpMethod"
-          type: "array"
-        accessControlAllowOrigin:
-          type: "string"
-        accessControlExposeHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlMaxAge:
-          format: "int64"
-          type: "integer"
-        accessControlRequestHeaders:
-          items:
-            type: "string"
-          type: "array"
-        accessControlRequestMethod:
-          $ref: "#/components/schemas/HttpMethod"
-        all:
-          additionalProperties:
-            type: "string"
-          type: "object"
-          writeOnly: true
-        allow:
-          items:
-            $ref: "#/components/schemas/HttpMethod"
-          type: "array"
-          uniqueItems: true
-        basicAuth:
-          type: "string"
-          writeOnly: true
-        bearerAuth:
-          type: "string"
-          writeOnly: true
-        cacheControl:
-          type: "string"
-        connection:
-          items:
-            type: "string"
-          type: "array"
-        contentDisposition:
-          $ref: "#/components/schemas/ContentDisposition"
-        contentLanguage:
-          type: "string"
-        contentLength:
-          format: "int64"
-          type: "integer"
-        contentType:
-          $ref: "#/components/schemas/MediaType"
-        date:
-          format: "int64"
-          type: "integer"
-        empty:
-          type: "boolean"
-        etag:
-          type: "string"
-        expires:
-          format: "int64"
-          type: "integer"
-        host:
-          properties:
-            address:
-              properties:
-                address:
-                  format: "byte"
-                  type: "string"
-                anyLocalAddress:
-                  type: "boolean"
-                canonicalHostName:
-                  type: "string"
-                hostAddress:
-                  type: "string"
-                hostName:
-                  type: "string"
-                linkLocalAddress:
-                  type: "boolean"
-                loopbackAddress:
-                  type: "boolean"
-                mcglobal:
-                  type: "boolean"
-                mclinkLocal:
-                  type: "boolean"
-                mcnodeLocal:
-                  type: "boolean"
-                mcorgLocal:
-                  type: "boolean"
-                mcsiteLocal:
-                  type: "boolean"
-                multicastAddress:
-                  type: "boolean"
-                siteLocalAddress:
-                  type: "boolean"
-              type: "object"
-            hostName:
-              type: "string"
-            hostString:
-              type: "string"
-            port:
-              format: "int32"
-              type: "integer"
-            unresolved:
-              type: "boolean"
-          type: "object"
-        ifMatch:
-          items:
-            type: "string"
-          type: "array"
-        ifModifiedSince:
-          format: "int64"
-          type: "integer"
-        ifNoneMatch:
-          items:
-            type: "string"
-          type: "array"
-        ifUnmodifiedSince:
-          format: "int64"
-          type: "integer"
-        lastModified:
-          format: "int64"
-          type: "integer"
-        location:
-          format: "uri"
-          type: "string"
-        origin:
-          type: "string"
-        pragma:
-          type: "string"
-        range:
-          items:
-            $ref: "#/components/schemas/HttpRange"
-          type: "array"
-        upgrade:
-          type: "string"
-        vary:
-          items:
-            type: "string"
-          type: "array"
-      type: "object"
-    HttpMethod: {}
-    HttpRange: {}
     Integration:
       properties:
         description:
@@ -907,30 +715,6 @@ components:
           type: "string"
         value:
           type: "string"
-      type: "object"
-    MediaType:
-      properties:
-        charset:
-          type: "string"
-        concrete:
-          type: "boolean"
-        parameters:
-          additionalProperties:
-            type: "string"
-          type: "object"
-        qualityValue:
-          format: "double"
-          type: "number"
-        subtype:
-          type: "string"
-        subtypeSuffix:
-          type: "string"
-        type:
-          type: "string"
-        wildcardSubtype:
-          type: "boolean"
-        wildcardType:
-          type: "boolean"
       type: "object"
     ModelUsage:
       properties:
@@ -3406,6 +3190,11 @@ components:
       bearerFormat: "JWT"
       scheme: "bearer"
       type: "http"
+    access_token:
+      description: "A token in the URL, for webhook senders that cannot set a header."
+      in: "query"
+      name: "access_token"
+      type: "apiKey"
     x-access-token:
       in: "header"
       name: "x-access-token"
@@ -3418,6 +3207,8 @@ openapi: "3.1.0"
 paths:
   /api/v2/activate:
     put:
+      description: "Requires the `system/action` permission, from a session, user\
+        \ token."
       operationId: "register"
       requestBody:
         content:
@@ -3440,10 +3231,16 @@ paths:
       summary: "Register and activate an installation of Flow"
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/action"
+        tokens:
+        - "session"
+        - "user"
   /api/v2/audit:
     get:
       description: "One event per audited attempt, newest first, including failed\
-        \ and denied ones. Without a from date the last 30 days are returned."
+        \ and denied ones. Without a from date the last 30 days are returned.\n\n\
+        Requires the `system/read` permission, from a session, user, global token."
       operationId: "query_8"
       parameters:
       - description: "Actor id or name, any part of either, ignoring case"
@@ -3581,10 +3378,17 @@ paths:
       summary: "Query the audit trail"
       tags:
       - "Audit"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/audit/stats:
     get:
       description: "Counts the same filters and window as the listing, alongside the\
-        \ configured capture state, level and retention."
+        \ configured capture state, level and retention.\n\nRequires the `system/read`\
+        \ permission, from a session, user, global token."
       operationId: "stats"
       parameters:
       - in: "query"
@@ -3679,8 +3483,16 @@ paths:
       summary: "Count the audit trail by outcome"
       tags:
       - "Audit"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/callback:
     get:
+      description: "Requires the `webhook/action` permission, from a session, user,\
+        \ global, key token."
       operationId: "acceptWaitForEvent"
       parameters:
       - description: "The WorkflowRun reference the request relates to"
@@ -3713,10 +3525,23 @@ paths:
       responses:
         "200":
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Wait for Event Callbcak"
       tags:
       - "Webhooks and Events"
+      x-flow-permission:
+        permission: "webhook/action"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
+        - "key"
     post:
+      description: "Requires the `webhook/action` permission, from a session, user,\
+        \ global, key token."
       operationId: "acceptWaitForEvent_1"
       parameters:
       - description: "The WorkflowRun reference the request relates to"
@@ -3758,11 +3583,24 @@ paths:
       responses:
         "200":
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Wait for Event Callback with JSON Payload"
       tags:
       - "Webhooks and Events"
+      x-flow-permission:
+        permission: "webhook/action"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
+        - "key"
   /api/v2/context:
     get:
+      description: "Requires the `system/read` permission, from a session, user, global\
+        \ token."
       operationId: "getHeaderNavigation"
       responses:
         "200":
@@ -3774,8 +3612,16 @@ paths:
       summary: "Retrieve this instances context, features, and navigation."
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/event:
     post:
+      description: "Requires the `webhook/action` permission, from a session, user,\
+        \ global, key token."
       operationId: "acceptEvent"
       parameters:
       - description: "The workspace whose workflow ref names"
@@ -3790,11 +3636,6 @@ paths:
         required: false
         schema:
           type: "string"
-      - in: "header"
-        name: "headers"
-        required: true
-        schema:
-          $ref: "#/components/schemas/HttpHeaders"
       requestBody:
         content:
           application/json:
@@ -3808,11 +3649,24 @@ paths:
               schema:
                 type: "object"
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept CloudEvent"
       tags:
       - "Webhooks and Events"
+      x-flow-permission:
+        permission: "webhook/action"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
+        - "key"
   /api/v2/features:
     get:
+      description: "Requires the `system/read` permission, from a session, user, global\
+        \ token."
       operationId: "getFlowFeatures"
       responses:
         "200":
@@ -3830,12 +3684,19 @@ paths:
       summary: "Retrieve feature flags."
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/insights:
     get:
       description: "The workspace summary computed over the union of the named workspaces'\
         \ runs, or every workspace's when none is named, with the same-length previous\
         \ period for comparison. Needs a global insights grant; the period defaults\
-        \ to the last 90 days."
+        \ to the last 90 days.\n\nRequires the `insights/read` permission, from a\
+        \ global, user, session token."
       operationId: "summary_2"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
@@ -3905,12 +3766,19 @@ paths:
       summary: "Summarise runs across workspaces over a period"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/insights/taskruns:
     get:
       description: "One page of task runs over the named workspaces, or every workspace,\
         \ newest first, each with its workspace, its identity and its lifecycle: never\
         \ params, results or spec. Task runs are indexed by label, so labels is required.\
-        \ Needs a global insights grant."
+        \ Needs a global insights grant.\n\nRequires the `insights/read` permission,\
+        \ from a global, user, session token."
       operationId: "taskRuns"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
@@ -4009,11 +3877,18 @@ paths:
       summary: "List task runs across workspaces"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/insights/tasks:
     get:
       description: "The workspace task breakdown computed over the union of the named\
         \ workspaces' runs, or every workspace's when none is named. Needs a global\
-        \ insights grant; the period defaults to the last 90 days."
+        \ insights grant; the period defaults to the last 90 days.\n\nRequires the\
+        \ `insights/read` permission, from a global, user, session token."
       operationId: "tasks_1"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
@@ -4119,8 +3994,16 @@ paths:
       summary: "Group task runs across workspaces over a period"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/integration:
     get:
+      description: "Requires the `integration/read` permission, from a key, user,\
+        \ session, global token."
       operationId: "get_5"
       parameters:
       - in: "query"
@@ -4148,8 +4031,19 @@ paths:
       summary: "Retrieve the integrations and their status within a Workspace"
       tags:
       - "Integrations"
+      x-flow-permission:
+        permission: "integration/read"
+        tokens:
+        - "key"
+        - "user"
+        - "session"
+        - "global"
   /api/v2/integration/github/callback:
     get:
+      description: "No permission check: GitHub App setup callback reached by a browser\
+        \ redirect from GitHub, so it carries no bearer; secured by the signed short-lived\
+        \ state, the workspace-membership check and the installer-ownership check\
+        \ against GitHub's token exchange. permitAll in SecurityConfiguration."
       operationId: "githubCallback"
       parameters:
       - in: "query"
@@ -4186,11 +4080,19 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive the GitHub App installation setup callback"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "GitHub App setup callback reached by a browser redirect from GitHub,\
+          \ so it carries no bearer; secured by the signed short-lived state, the\
+          \ workspace-membership check and the installer-ownership check against GitHub's\
+          \ token exchange. permitAll in SecurityConfiguration."
   /api/v2/integration/github/installation:
     get:
+      description: "Requires the `integration/read` permission, from a key, user,\
+        \ session, global token."
       operationId: "githubInstall"
       parameters:
       - in: "query"
@@ -4220,8 +4122,17 @@ paths:
       summary: "Retrieve the installation ID and store against a workspace"
       tags:
       - "Integrations"
+      x-flow-permission:
+        permission: "integration/read"
+        tokens:
+        - "key"
+        - "user"
+        - "session"
+        - "global"
   /api/v2/integration/github/unlink:
     post:
+      description: "Requires the `integration/write` permission, from a key, user,\
+        \ session, global token."
       operationId: "githubUnlink"
       requestBody:
         content:
@@ -4235,8 +4146,19 @@ paths:
       summary: "Unlinks the GitHub Installation ID from a Workspace"
       tags:
       - "Integrations"
+      x-flow-permission:
+        permission: "integration/write"
+        tokens:
+        - "key"
+        - "user"
+        - "session"
+        - "global"
   /api/v2/integration/slack/auth:
     get:
+      description: "No permission check: Reached by Slack, which cannot hold a Flow\
+        \ token, so permitAll in SecurityConfiguration and skipped by AuthenticationFilter\
+        \ (SLACK_ROUTES); the handler checks the request itself - the Slack signature,\
+        \ or the OAuth code exchange against Slack."
       operationId: "receiveSlackAuth"
       parameters:
       - in: "query"
@@ -4268,11 +4190,21 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Oauth2 request"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "Reached by Slack, which cannot hold a Flow token, so permitAll in\
+          \ SecurityConfiguration and skipped by AuthenticationFilter (SLACK_ROUTES);\
+          \ the handler checks the request itself - the Slack signature, or the OAuth\
+          \ code exchange against Slack."
   /api/v2/integration/slack/commands:
     post:
+      description: "No permission check: Reached by Slack, which cannot hold a Flow\
+        \ token, so permitAll in SecurityConfiguration and skipped by AuthenticationFilter\
+        \ (SLACK_ROUTES); the handler checks the request itself - the Slack signature,\
+        \ or the OAuth code exchange against Slack."
       operationId: "receiveSlackCommand"
       parameters:
       - in: "header"
@@ -4298,11 +4230,21 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Slash Commands"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "Reached by Slack, which cannot hold a Flow token, so permitAll in\
+          \ SecurityConfiguration and skipped by AuthenticationFilter (SLACK_ROUTES);\
+          \ the handler checks the request itself - the Slack signature, or the OAuth\
+          \ code exchange against Slack."
   /api/v2/integration/slack/events:
     post:
+      description: "No permission check: Reached by Slack, which cannot hold a Flow\
+        \ token, so permitAll in SecurityConfiguration and skipped by AuthenticationFilter\
+        \ (SLACK_ROUTES); the handler checks the request itself - the Slack signature,\
+        \ or the OAuth code exchange against Slack."
       operationId: "receiveSlackEvent"
       parameters:
       - in: "header"
@@ -4334,11 +4276,21 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Events"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "Reached by Slack, which cannot hold a Flow token, so permitAll in\
+          \ SecurityConfiguration and skipped by AuthenticationFilter (SLACK_ROUTES);\
+          \ the handler checks the request itself - the Slack signature, or the OAuth\
+          \ code exchange against Slack."
   /api/v2/integration/slack/install:
     get:
+      description: "No permission check: Meant for a browser, which may hold a Flow\
+        \ session. Nothing to protect: it redirects to Slack's authorize URL for the\
+        \ configured app and takes no input, but it is kept behind sign-in because\
+        \ it carries no check of its own."
       operationId: "installSlack"
       responses:
         "302":
@@ -4350,8 +4302,17 @@ paths:
       summary: "Install URL Redirect"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "Meant for a browser, which may hold a Flow session. Nothing to protect:\
+          \ it redirects to Slack's authorize URL for the configured app and takes\
+          \ no input, but it is kept behind sign-in because it carries no check of\
+          \ its own."
   /api/v2/integration/slack/interactivity:
     post:
+      description: "No permission check: Reached by Slack, which cannot hold a Flow\
+        \ token, so permitAll in SecurityConfiguration and skipped by AuthenticationFilter\
+        \ (SLACK_ROUTES); the handler checks the request itself - the Slack signature,\
+        \ or the OAuth code exchange against Slack."
       operationId: "receiveSlackInteractivity"
       parameters:
       - in: "header"
@@ -4377,11 +4338,19 @@ paths:
               schema:
                 type: "object"
           description: "Bad Request"
+      security: []
       summary: "Receive Slack Interactivity"
       tags:
       - "Integrations"
+      x-flow-permission:
+        exempt: "Reached by Slack, which cannot hold a Flow token, so permitAll in\
+          \ SecurityConfiguration and skipped by AuthenticationFilter (SLACK_ROUTES);\
+          \ the handler checks the request itself - the Slack signature, or the OAuth\
+          \ code exchange against Slack."
   /api/v2/integration/slack/unlink:
     post:
+      description: "Requires the `integration/write` permission, from a key, user,\
+        \ session, global token."
       operationId: "slackUnlink"
       requestBody:
         content:
@@ -4395,8 +4364,17 @@ paths:
       summary: "Disconnects the Slack installation from a Workspace"
       tags:
       - "Integrations"
+      x-flow-permission:
+        permission: "integration/write"
+        tokens:
+        - "key"
+        - "user"
+        - "session"
+        - "global"
   /api/v2/integration/{integration}/share:
     post:
+      description: "Requires the `integration/write` permission, from a key, user,\
+        \ session, global token."
       operationId: "shareCredentials"
       parameters:
       - in: "path"
@@ -4423,8 +4401,17 @@ paths:
         \ as Google or Microsoft"
       tags:
       - "Integrations"
+      x-flow-permission:
+        permission: "integration/write"
+        tokens:
+        - "key"
+        - "user"
+        - "session"
+        - "global"
   /api/v2/navigation:
     get:
+      description: "Requires the `system/read` permission, from a session, user, global\
+        \ token."
       operationId: "getNavigation"
       parameters:
       - description: "Workspace as owner reference"
@@ -4446,8 +4433,16 @@ paths:
       summary: "Retrieve navigation."
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/parameters:
     get:
+      description: "Requires the `system/read` permission, from a session, user, global\
+        \ token."
       operationId: "getAll"
       responses:
         "200":
@@ -4469,7 +4464,15 @@ paths:
       summary: "Get all global Params"
       tags:
       - "Parameters"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
     post:
+      description: "Requires the `system/write` permission, from a session, user,\
+        \ global token."
       operationId: "create_2"
       requestBody:
         content:
@@ -4493,8 +4496,16 @@ paths:
       summary: "Create a global Param"
       tags:
       - "Parameters"
+      x-flow-permission:
+        permission: "system/write"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/parameters/{name}:
     delete:
+      description: "Requires the `system/delete` permission, from a session, user,\
+        \ global token."
       operationId: "delete_2"
       parameters:
       - in: "path"
@@ -4510,10 +4521,17 @@ paths:
       summary: "Delete a global Param"
       tags:
       - "Parameters"
+      x-flow-permission:
+        permission: "system/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
     patch:
       description: "A JSON Merge Patch (RFC 7396): an absent member is unchanged,\
         \ null clears it, any other value replaces it. A secured value or default\
-        \ sent as ***** keeps the stored one."
+        \ sent as ***** keeps the stored one.\n\nRequires the `system/write` permission,\
+        \ from a session, user, global token."
       operationId: "patch"
       parameters:
       - in: "path"
@@ -4552,8 +4570,15 @@ paths:
       summary: "Update a global Param"
       tags:
       - "Parameters"
+      x-flow-permission:
+        permission: "system/write"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/profile:
     get:
+      description: "Requires the `user/read` permission, from a session, user token."
       operationId: "getProfile"
       responses:
         "200":
@@ -4577,7 +4602,13 @@ paths:
       summary: "Get your Profile"
       tags:
       - "Profile"
+      x-flow-permission:
+        permission: "user/read"
+        tokens:
+        - "session"
+        - "user"
     patch:
+      description: "Requires the `user/write` permission, from a session, user token."
       operationId: "updateProfile"
       requestBody:
         content:
@@ -4595,8 +4626,15 @@ paths:
       summary: "Patch your Profile"
       tags:
       - "Profile"
+      x-flow-permission:
+        permission: "user/write"
+        tokens:
+        - "session"
+        - "user"
   /api/v2/settings:
     get:
+      description: "Requires the `system/read` permission, from a session, user, global\
+        \ token."
       operationId: "getAppConfiguration"
       responses:
         "200":
@@ -4618,11 +4656,18 @@ paths:
       summary: "Retrieve Boomerang Flow Settings"
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
     patch:
       description: "A merge patch of {\"<group>\": {\"<key>\": value}}: an absent\
         \ entry is unchanged, null clears it, any other value replaces it. A secured\
         \ entry sent as ***** keeps the stored value. An unknown group or key refuses\
-        \ the whole patch."
+        \ the whole patch.\n\nRequires the `system/write` permission, from a session,\
+        \ user, global token."
       operationId: "patchSettings"
       requestBody:
         content:
@@ -4653,11 +4698,18 @@ paths:
       summary: "Update Boomerang Flow Settings"
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/write"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/system/outbox:
     get:
       description: "A row that failed delivery carries lastError, the most recent\
         \ failure; a dead row also carries deadAt, when it gave up. Rows that died\
-        \ before these were recorded carry neither."
+        \ before these were recorded carry neither.\n\nRequires the `system/read`\
+        \ permission, from a global token."
       operationId: "query_7"
       parameters:
       - description: "Delivery status to list"
@@ -4700,10 +4752,15 @@ paths:
       summary: "List outbox rows, dead ones by default."
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/read"
+        tokens:
+        - "global"
   /api/v2/system/outbox/replay:
     put:
       description: "Puts rows back in the queue for the next dispatcher pass. Replays\
-        \ the named ids, or every row in the given status when no ids are supplied."
+        \ the named ids, or every row in the given status when no ids are supplied.\n\
+        \nRequires the `system/write` permission, from a global token."
       operationId: "replay"
       parameters:
       - description: "Outbox row ids to replay"
@@ -4743,10 +4800,15 @@ paths:
       summary: "Replay outbox rows"
       tags:
       - "System"
+      x-flow-permission:
+        permission: "system/write"
+        tokens:
+        - "global"
   /api/v2/task:
     post:
       description: "The name needs to be unique and must only contain alphanumeric\
-        \ and - characeters."
+        \ and - characeters.\n\nRequires the `task/write` permission, from a global,\
+        \ user, session token."
       operationId: "create_1"
       requestBody:
         content:
@@ -4773,8 +4835,16 @@ paths:
       summary: "Create a new Task using Tekton Task YAML"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/write"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/task/query:
     get:
+      description: "Requires the `task/read` permission, from a global, user, session\
+        \ token."
       operationId: "query_6"
       parameters:
       - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
@@ -4851,9 +4921,16 @@ paths:
         \ If no workspaces are provided it will query Global Task Templates"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/task/validate:
     post:
-      description: "Validates the Task YAML as a Tekton Task"
+      description: "Validates the Task YAML as a Tekton Task\n\nRequires the `task/read`\
+        \ permission, from a global, user, session token."
       operationId: "validateYaml_1"
       requestBody:
         content:
@@ -4866,11 +4943,19 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      summary: "Validate Tekton Task YAML"
+      summary: "Validate a global task's Tekton Task YAML"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/task/{name}:
     delete:
+      description: "Requires the `task/delete` permission, from a global, user, session\
+        \ token."
       operationId: "delete_1"
       parameters:
       - description: "Name of Task"
@@ -4889,7 +4974,16 @@ paths:
       summary: "Delete a Task"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/delete"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
     get:
+      description: "Requires the `task/read` permission, from a global, user, session\
+        \ token.\n\nRequires the `task/read` permission, from a global, user, session\
+        \ token."
       operationId: "get_1"
       parameters:
       - description: "Name of Task"
@@ -4918,13 +5012,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Retrieve a specific task as Tekton Task YAML. If no version specified,\
+      summary: "Retrieve a global task as Tekton Task YAML. If no version specified,\
         \ the latest version is returned."
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
     put:
       description: "The name must only contain alphanumeric and - characeters. If\
-        \ the name exists, apply will create a new version."
+        \ the name exists, apply will create a new version.\n\nRequires the `task/write`\
+        \ permission, from a global, user, session token."
       operationId: "apply_1"
       parameters:
       - description: "Name of Task"
@@ -4962,12 +5063,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Update, replace, or create new using Tekton Task YAML"
+      summary: "Update, replace, or create a global task using Tekton Task YAML"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/write"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/task/{name}/changelog:
     get:
-      description: "Retrieves each versions changelog and returns them all as a list."
+      description: "Retrieves each versions changelog and returns them all as a list.\n\
+        \nRequires the `task/read` permission, from a global, user, session token."
       operationId: "getChangelog_2"
       parameters:
       - description: "Name of Task"
@@ -4993,11 +5101,19 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Bad Request"
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a global task's changelog"
       tags:
       - "Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "user"
+        - "session"
   /api/v2/taskrun/{taskRunId}/log:
     get:
+      description: "Requires the `taskrun/read` permission, from a key, session, user,\
+        \ global token."
       operationId: "streamTaskRunLog"
       parameters:
       - description: "Id of TaskRun"
@@ -5022,8 +5138,17 @@ paths:
       summary: "Retrieve a TaskRuns log from a specific WorkflowRun."
       tags:
       - "TaskRuns"
+      x-flow-permission:
+        permission: "taskrun/read"
+        tokens:
+        - "key"
+        - "session"
+        - "user"
+        - "global"
   /api/v2/token:
     post:
+      description: "Requires the `token/write` permission, from a global, user, key,\
+        \ session token."
       operationId: "createToken"
       requestBody:
         content:
@@ -5041,11 +5166,19 @@ paths:
       summary: "Create Token"
       tags:
       - "Token Management"
+      x-flow-permission:
+        permission: "token/write"
+        tokens:
+        - "global"
+        - "user"
+        - "key"
+        - "session"
   /api/v2/token/catalog:
     get:
       description: "Returns the resources, actions, and role presets the requesting\
         \ caller could actually grant for the given scope/principal - sourced from\
-        \ the same catalog the enforcement path reads."
+        \ the same catalog the enforcement path reads.\n\nRequires the `token/read`\
+        \ permission, from a global, user, key, session token."
       operationId: "getPermissionCatalog"
       parameters:
       - description: "global or workspace"
@@ -5074,8 +5207,17 @@ paths:
       summary: "Retrieve the permission catalog for building a Token"
       tags:
       - "Token Management"
+      x-flow-permission:
+        permission: "token/read"
+        tokens:
+        - "global"
+        - "user"
+        - "key"
+        - "session"
   /api/v2/token/query:
     get:
+      description: "Requires the `token/read` permission, from a global, user, key,\
+        \ session token."
       operationId: "query_5"
       parameters:
       - description: "List of types to filter for. Defaults to all."
@@ -5164,8 +5306,17 @@ paths:
       summary: "Search for Tokens"
       tags:
       - "Token Management"
+      x-flow-permission:
+        permission: "token/read"
+        tokens:
+        - "global"
+        - "user"
+        - "key"
+        - "session"
   /api/v2/token/{id}:
     delete:
+      description: "Requires the `token/delete` permission, from a global, user, key,\
+        \ session token."
       operationId: "deleteToken"
       parameters:
       - description: "ID of the Token"
@@ -5184,8 +5335,17 @@ paths:
       summary: "Delete Token"
       tags:
       - "Token Management"
+      x-flow-permission:
+        permission: "token/delete"
+        tokens:
+        - "global"
+        - "user"
+        - "key"
+        - "session"
   /api/v2/user/query:
     get:
+      description: "Requires the `user/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "getUsers"
       parameters:
       - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
@@ -5266,8 +5426,17 @@ paths:
       summary: "Search for Users"
       tags:
       - "Users"
+      x-flow-permission:
+        permission: "user/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/user/{userId}:
     delete:
+      description: "Requires the `user/delete` permission, from a session, user, key,\
+        \ global token."
       operationId: "deleteFlowUser"
       parameters:
       - in: "path"
@@ -5283,7 +5452,16 @@ paths:
       summary: "Delete a Boomerang Flow user"
       tags:
       - "Users"
+      x-flow-permission:
+        permission: "user/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
     get:
+      description: "Requires the `user/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "getUserByID"
       parameters:
       - in: "path"
@@ -5307,7 +5485,16 @@ paths:
       summary: "Get a Users details"
       tags:
       - "Users"
+      x-flow-permission:
+        permission: "user/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
     patch:
+      description: "Requires the `user/write` permission, from a session, user, key,\
+        \ global token."
       operationId: "apply_2"
       parameters:
       - in: "path"
@@ -5329,8 +5516,17 @@ paths:
       summary: "Update a Boomerang Flow Users details"
       tags:
       - "Users"
+      x-flow-permission:
+        permission: "user/write"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/user/{userId}/workspaces:
     get:
+      description: "Requires the `user/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "getUserWorkspaces"
       parameters:
       - in: "path"
@@ -5358,8 +5554,17 @@ paths:
       summary: "Get a Users Workspace memberships"
       tags:
       - "Users"
+      x-flow-permission:
+        permission: "user/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/webhook:
     post:
+      description: "Requires the `webhook/action` permission, from a session, user,\
+        \ global, key token."
       operationId: "acceptWebhook"
       parameters:
       - description: "The workspace whose workflow ref names"
@@ -5410,11 +5615,24 @@ paths:
               schema:
                 type: "object"
           description: "OK"
+      security:
+      - BearerAuth: []
+      - x-access-token: []
+      - access_token: []
       summary: "Accept Webhook payloads from various sources."
       tags:
       - "Webhooks and Events"
+      x-flow-permission:
+        permission: "webhook/action"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
+        - "key"
   /api/v2/workspace:
     post:
+      description: "Requires the `workspace/write` permission, from a session, user,\
+        \ global token."
       operationId: "createWorkspace"
       requestBody:
         content:
@@ -5438,8 +5656,16 @@ paths:
       summary: "Create new workspace"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/write"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/workspace/query:
     get:
+      description: "Requires the `workspace/read` permission, from a session, user,\
+        \ key, global token."
       operationId: "getWorkspaces"
       parameters:
       - description: "Free-text search on Workspace name and displayName (prefix match,\
@@ -5534,8 +5760,17 @@ paths:
       summary: "Search for Workspaces"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/quotas/default:
     get:
+      description: "Requires the `workspace/read` permission, from a session, user,\
+        \ key, global token."
       operationId: "getDefaultQuotas"
       responses:
         "200":
@@ -5553,8 +5788,17 @@ paths:
       summary: "Retrieve Default Workspace Quota"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/roles:
     get:
+      description: "Requires the `workspace/read` permission, from a session, user,\
+        \ key, global token."
       operationId: "getRoles"
       responses:
         "200":
@@ -5576,8 +5820,17 @@ paths:
       summary: "Retrieve Workspace Roles"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/validate-name:
     post:
+      description: "Requires the `workspace/read` permission, from a session, user,\
+        \ global token."
       operationId: "validateWorkspaceName"
       requestBody:
         content:
@@ -5607,8 +5860,16 @@ paths:
       summary: "Validate workspace name and check uniqueness."
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/read"
+        tokens:
+        - "session"
+        - "user"
+        - "global"
   /api/v2/workspace/{workspace}:
     delete:
+      description: "Requires the `workspace/delete` permission, from a session, user,\
+        \ key, global token."
       operationId: "deleteWorkflow"
       parameters:
       - description: "ID of Workspace"
@@ -5625,7 +5886,16 @@ paths:
       summary: "Delete Workspace"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
     get:
+      description: "Requires the `workspace/read` permission, from a session, user,\
+        \ key, global token."
       operationId: "getWorkspace"
       parameters:
       - description: "Workspace as owner reference."
@@ -5651,7 +5921,16 @@ paths:
       summary: "Get workspace"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
     patch:
+      description: "Requires the `workspace/write` permission, from a session, user,\
+        \ key, global token."
       operationId: "updateWorkspace"
       parameters:
       - description: "ID of Workspace"
@@ -5682,8 +5961,17 @@ paths:
       summary: "Patch or update a workspace"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/write"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/action:
     put:
+      description: "Requires the `action/action` permission, from a session, user,\
+        \ key, global token."
       operationId: "action"
       parameters:
       - description: "Owning workspace name."
@@ -5709,8 +5997,17 @@ paths:
       summary: "Provide an update for an Action"
       tags:
       - "Actions"
+      x-flow-permission:
+        permission: "action/action"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/action/query:
     get:
+      description: "Requires the `action/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "query_4"
       parameters:
       - description: "Owning workspace name."
@@ -5825,8 +6122,17 @@ paths:
       summary: "Search for Actions"
       tags:
       - "Actions"
+      x-flow-permission:
+        permission: "action/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/action/summary:
     get:
+      description: "Requires the `action/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "summary_1"
       parameters:
       - description: "Owning workspace name."
@@ -5891,8 +6197,17 @@ paths:
       summary: "Get Actions Summary"
       tags:
       - "Actions"
+      x-flow-permission:
+        permission: "action/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/action/{actionId}:
     get:
+      description: "Requires the `action/read` permission, from a session, user, key,\
+        \ global token."
       operationId: "get_4"
       parameters:
       - description: "Owning workspace name."
@@ -5924,8 +6239,17 @@ paths:
       summary: "Retrieve a specific Action by Id"
       tags:
       - "Actions"
+      x-flow-permission:
+        permission: "action/read"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/approvers:
     delete:
+      description: "Requires the `workspace/delete` permission, from a session, user,\
+        \ key, global token."
       operationId: "deleteApproverGroup"
       parameters:
       - description: "Workspace as owner reference."
@@ -5950,8 +6274,17 @@ paths:
       summary: "Delete Approver Groups"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/artifacts:
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "query_3"
       parameters:
       - description: "Owning workspace name."
@@ -6016,14 +6349,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageArtifact"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "List the workspace's artifacts, largest first"
       tags:
       - "Artifacts"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/artifacts/{artifactId}:
     delete:
+      description: "Requires the `workflowrun/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "delete_3"
       parameters:
       - description: "Owning workspace name."
@@ -6043,18 +6382,23 @@ paths:
           description: "OK"
         "404":
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Delete an artifact and its file"
+      summary: "Delete a workspace artifact, by id, and its file"
       tags:
       - "Artifacts"
+      x-flow-permission:
+        permission: "workflowrun/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/insights:
     get:
       description: "Counts, success rate, duration and queue-wait percentiles, runs\
         \ per day, one row per workflow and the model usage of its ai tasks, with\
         \ the same-length previous period for comparison. Computed from the runs the\
-        \ workspace still holds; the period defaults to the last 90 days."
+        \ workspace still holds; the period defaults to the last 90 days.\n\nRequires\
+        \ the `insights/read` permission, from a global, key, user, session token."
       operationId: "summary"
       parameters:
       - description: "Owning workspace name."
@@ -6122,6 +6466,13 @@ paths:
       summary: "Summarise a workspace's runs over a period"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/insights/tasks:
     get:
       description: "Counts and duration statistics (mean, p50, p95, max over succeeded\
@@ -6130,7 +6481,8 @@ paths:
         \ the slowest task runs. A task run counts once it completed, unless it was\
         \ skipped, and a for-each task counts its items under its own name. Computed\
         \ from the runs the workspace still holds; the period defaults to the last\
-        \ 90 days."
+        \ 90 days.\n\nRequires the `insights/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "tasks"
       parameters:
       - description: "Owning workspace name."
@@ -6235,11 +6587,19 @@ paths:
       summary: "Group a workspace's task runs over a period"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/insights/workflow/{workflow}:
     get:
       description: "Where a typical run spends its time (per task), why runs did not\
         \ succeed and the model usage of its ai tasks, from the runs and task runs\
-        \ the workspace still holds."
+        \ the workspace still holds.\n\nRequires the `insights/read` permission, from\
+        \ a global, key, user, session token."
       operationId: "workflow"
       parameters:
       - description: "Owning workspace name."
@@ -6291,8 +6651,17 @@ paths:
       summary: "Detail one workflow's runs over a period"
       tags:
       - "Insights"
+      x-flow-permission:
+        permission: "insights/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/leave:
     delete:
+      description: "Requires the `workspace/action` permission, from a user, session\
+        \ token."
       operationId: "leave"
       parameters:
       - description: "Workspace as owner reference."
@@ -6309,8 +6678,15 @@ paths:
       summary: "Leave Workspace"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/action"
+        tokens:
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/members:
     delete:
+      description: "Requires the `workspace/delete` permission, from a session, user,\
+        \ key, global token."
       operationId: "removeMembers"
       parameters:
       - description: "Workspace as owner reference."
@@ -6336,8 +6712,17 @@ paths:
       summary: "Remove Workspace Members"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/parameters/{name}:
     delete:
+      description: "Requires the `workspace/delete` permission, from a session, user,\
+        \ key, global token."
       operationId: "deleteParameters"
       parameters:
       - description: "Workspace as owner reference."
@@ -6359,8 +6744,17 @@ paths:
       summary: "Delete Workspace Parameter"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/quotas:
     delete:
+      description: "Requires the `workspace/delete` permission, from a session, user,\
+        \ key, global token."
       operationId: "resetQuotas"
       parameters:
       - description: "Workspace as owner reference."
@@ -6377,8 +6771,17 @@ paths:
       summary: "Reset Workspace Quota"
       tags:
       - "Workspace Management"
+      x-flow-permission:
+        permission: "workspace/delete"
+        tokens:
+        - "session"
+        - "user"
+        - "key"
+        - "global"
   /api/v2/workspace/{workspace}/schedule:
     post:
+      description: "Requires the `schedule/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "createSchedule"
       parameters:
       - description: "Owning workspace name."
@@ -6404,7 +6807,16 @@ paths:
       summary: "Create a Schedule."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     put:
+      description: "Requires the `schedule/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "updateSchedule"
       parameters:
       - description: "Owning workspace name."
@@ -6430,8 +6842,17 @@ paths:
       summary: "Apply a Schedule."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/schedule/calendars:
     get:
+      description: "Requires the `schedule/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "getCalendarsForSchedules"
       parameters:
       - description: "Owning workspace name."
@@ -6472,8 +6893,17 @@ paths:
       summary: "Retrieve Calendars for Schedules by Dates."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/schedule/query:
     get:
+      description: "Requires the `schedule/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "query_2"
       parameters:
       - description: "Owning workspace name."
@@ -6537,10 +6967,26 @@ paths:
       summary: "Search for Schedules"
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/schedule/validate-cron:
     get:
+      description: "Requires the `schedule/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "validateCron"
       parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
       - description: "A CRON expression to validate"
         in: "query"
         name: "cron"
@@ -6557,8 +7003,17 @@ paths:
       summary: "Validate a Schedules CRON."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/schedule/{scheduleId}:
     delete:
+      description: "Requires the `schedule/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "deleteSchedule"
       parameters:
       - description: "Owning workspace name."
@@ -6579,7 +7034,16 @@ paths:
       summary: "Delete a Schedule."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     get:
+      description: "Requires the `schedule/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "get_3"
       parameters:
       - description: "Owning workspace name."
@@ -6604,10 +7068,18 @@ paths:
       summary: "Retrieve a Schedule."
       tags:
       - "Schedules"
+      x-flow-permission:
+        permission: "schedule/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/task:
     post:
       description: "The name needs to be unique and must only contain alphanumeric\
-        \ and - characeters."
+        \ and - characeters.\n\nRequires the `task/write` permission, from a global,\
+        \ key, session, user token."
       operationId: "create"
       parameters:
       - description: "Owning workspace name."
@@ -6642,8 +7114,17 @@ paths:
       summary: "Create a new Task Template using Tekton Task YAML"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/write"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
   /api/v2/workspace/{workspace}/task/query:
     get:
+      description: "Requires the `task/read` permission, from a global, key, session,\
+        \ user token."
       operationId: "queryTaskTemplates"
       parameters:
       - description: "Owning workspace name."
@@ -6727,10 +7208,26 @@ paths:
         \ If no workspaces are provided it will query Global Task Templates"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
   /api/v2/workspace/{workspace}/task/validate:
     post:
-      description: "Validates the Task YAML as a Tekton Task"
+      description: "Validates the Task YAML as a Tekton Task\n\nRequires the `task/read`\
+        \ permission, from a global, key, session, user token."
       operationId: "validateYaml"
+      parameters:
+      - description: "Owning workspace name."
+        example: "my-amazing-workspace"
+        in: "path"
+        name: "workspace"
+        required: true
+        schema:
+          type: "string"
       requestBody:
         content:
           application/x-yaml:
@@ -6742,11 +7239,20 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      summary: "Validate Tekton Task YAML"
+      summary: "Validate a workspace task's Tekton Task YAML"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
   /api/v2/workspace/{workspace}/task/{name}:
     delete:
+      description: "Requires the `task/delete` permission, from a global, key, session,\
+        \ user token."
       operationId: "delete"
       parameters:
       - description: "Owning workspace name."
@@ -6770,7 +7276,17 @@ paths:
       summary: "Delete a Workspace Task"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
     get:
+      description: "Requires the `task/read` permission, from a global, key, session,\
+        \ user token.\n\nRequires the `task/read` permission, from a global, key,\
+        \ session, user token."
       operationId: "get"
       parameters:
       - description: "Name of Task"
@@ -6806,13 +7322,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Retrieve a specific task as Tekton Task YAML. If no version specified,\
+      summary: "Retrieve a workspace task as Tekton Task YAML. If no version specified,\
         \ the latest version is returned."
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
     put:
       description: "The name must only contain alphanumeric and - characeters. If\
-        \ the name exists, apply will create a new version."
+        \ the name exists, apply will create a new version.\n\nRequires the `task/write`\
+        \ permission, from a global, key, session, user token."
       operationId: "apply"
       parameters:
       - description: "Name of Task"
@@ -6857,12 +7381,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Task"
           description: "Bad Request"
-      summary: "Update, replace, or create new using Tekton Task YAML"
+      summary: "Update, replace, or create a workspace task using Tekton Task YAML"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/write"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
   /api/v2/workspace/{workspace}/task/{name}/changelog:
     get:
-      description: "Retrieves each versions changelog and returns them all as a list."
+      description: "Retrieves each versions changelog and returns them all as a list.\n\
+        \nRequires the `task/read` permission, from a global, key, session, user token."
       operationId: "getChangelog_1"
       parameters:
       - description: "Owning workspace name."
@@ -6903,14 +7435,22 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Unauthorized"
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a workspace task's changelog"
       tags:
       - "Workspace Tasks"
+      x-flow-permission:
+        permission: "task/read"
+        tokens:
+        - "global"
+        - "key"
+        - "session"
+        - "user"
   /api/v2/workspace/{workspace}/taskrun/query:
     get:
       description: "Lists task runs by label or by WorkflowRun; one of the two is\
         \ required. A row leaves out params, results, spec, annotations and the status\
-        \ message - retrieve the WorkflowRun for those."
+        \ message - retrieve the WorkflowRun for those.\n\nRequires the `taskrun/read`\
+        \ permission, from a global, key, user, session token."
       operationId: "query_1"
       parameters:
       - description: "Owning workspace name."
@@ -7042,14 +7582,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageTaskRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for TaskRuns across WorkflowRuns"
       tags:
       - "TaskRuns"
+      x-flow-permission:
+        permission: "taskrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow:
     post:
+      description: "Requires the `workflow/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "createWorkflow"
       parameters:
       - description: "Owning workspace name."
@@ -7078,13 +7624,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Create a new workflow"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     put:
+      description: "Requires the `workflow/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "applyWorkflow"
       parameters:
       - description: "Owning workspace name."
@@ -7120,14 +7672,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Update, replace, or create new, Workflow"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/query:
     get:
+      description: "Requires the `workflow/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "queryWorkflows"
       parameters:
       - description: "Owning workspace name."
@@ -7215,14 +7773,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowResponsePage"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for Workflows"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}:
     delete:
+      description: "Requires the `workflow/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "deleteWorkflow_1"
       parameters:
       - description: "Owning workspace name."
@@ -7244,15 +7808,20 @@ paths:
           description: "OK"
         "400":
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Delete a workflow"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     get:
       description: "Retrieve a version of the Workflow. Defaults to latest. Optionally\
-        \ without Tasks"
+        \ without Tasks\n\nRequires the `workflow/read` permission, from a global,\
+        \ key, user, session token."
       operationId: "getWorkflow"
       parameters:
       - description: "Workflow name"
@@ -7296,16 +7865,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a Workflow"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     patch:
       description: "Sets the workflow's type: workflow, template or starter. A template\
         \ or starter is the system workspace's alone, and a template that other workspaces\
-        \ link stays one. The revision is untouched."
+        \ link stays one. The revision is untouched.\n\nRequires the `workflow/write`\
+        \ permission, from a global, key, user, session token."
       operationId: "patchWorkflow"
       parameters:
       - description: "Owning workspace name."
@@ -7347,14 +7921,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "Conflict"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Change what a workflow is"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/available-parameters:
     get:
+      description: "Requires the `workflow/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "getAvailableParameters"
       parameters:
       - description: "Owning workspace name."
@@ -7380,15 +7960,21 @@ paths:
                   type: "string"
                 type: "array"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve the parameters."
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/changelog:
     get:
-      description: "Retrieves each versions changelog and returns them all as a list."
+      description: "Retrieves each versions changelog and returns them all as a list.\n\
+        \nRequires the `workflow/read` permission, from a global, key, user, session\
+        \ token."
       operationId: "getChangelog"
       parameters:
       - description: "Owning workspace name."
@@ -7422,14 +8008,20 @@ paths:
                   $ref: "#/components/schemas/ChangeLogVersion"
                 type: "array"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Retrieve the changlog"
+      summary: "Retrieve a workflow's changelog"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/compose:
     get:
+      description: "Requires the `workflow/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "compose"
       parameters:
       - description: "Owning workspace name."
@@ -7466,20 +8058,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowCanvas"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Convert workflow to compose model for UI Designer and detailed Activity\
         \ screens."
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     put:
+      description: "Requires the `workflow/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "applyCanvas"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
         in: "path"
         name: "workspace"
+        required: true
+        schema:
+          type: "string"
+      - description: "Name of the workflow"
+        in: "path"
+        name: "name"
         required: true
         schema:
           type: "string"
@@ -7509,14 +8113,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowCanvas"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Update, replace, or create new, Workflow for Canvas"
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/duplicate:
     post:
+      description: "Requires the `workflow/write` permission, from a global, key,\
+        \ user, session token."
       operationId: "duplicateWorkflow"
       parameters:
       - description: "Owning workspace name."
@@ -7540,14 +8150,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Workflow"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Duplicates the workflow."
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/write"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/export:
     get:
+      description: "Requires the `workflow/read` permission, from a global, key, user,\
+        \ session token."
       operationId: "export"
       parameters:
       - description: "Owning workspace name."
@@ -7572,14 +8188,20 @@ paths:
                 format: "binary"
                 type: "string"
           description: "OK"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Export the Workflow as JSON."
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflow/{name}/submit:
     post:
+      description: "Requires the `workflow/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "submitWorkflow"
       parameters:
       - description: "Owning workspace name."
@@ -7623,15 +8245,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Submit a Workflow to be run. Will queue the WorkflowRun ready for\
         \ execution."
       tags:
       - "Workflows"
+      x-flow-permission:
+        permission: "workflow/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun:
     delete:
+      description: "Requires the `workflowrun/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "purgeByLabels"
       parameters:
       - description: "Owning workspace name."
@@ -7663,16 +8291,22 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunPurge"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Purge the WorkflowRuns matching every label, oldest first, each with\
         \ its lineage. One call takes a page of matches and reports how many remain;\
         \ repeat until none."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/count:
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "count"
       parameters:
       - description: "Owning workspace name."
@@ -7732,14 +8366,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunCount"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a summary of WorkflowRuns by Status."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/query:
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "query"
       parameters:
       - description: "Owning workspace name."
@@ -7859,14 +8499,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageWorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Search for WorkflowRuns"
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}:
     delete:
+      description: "Requires the `workflowrun/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "purge"
       parameters:
       - description: "Owning workspace name."
@@ -7895,15 +8541,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRunPurge"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Purge a WorkflowRun with everything it owns and its lineage: its retries,\
         \ its child runs, their task runs, actions, artifacts and logs. A run in flight\
         \ is cancelled first. Audit records stay."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "get_2"
       parameters:
       - description: "Owning workspace name."
@@ -7939,14 +8591,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retrieve a specific WorkflowRun."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/artifacts:
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "listForRun"
       parameters:
       - description: "Owning workspace name."
@@ -7978,14 +8636,20 @@ paths:
                   $ref: "#/components/schemas/Artifact"
                 type: "array"
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "List a WorkflowRun's artifacts, expired ones included"
       tags:
       - "Artifacts"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/artifacts/{name}:
     delete:
+      description: "Requires the `workflowrun/delete` permission, from a global, key,\
+        \ user, session token."
       operationId: "deleteFromRun"
       parameters:
       - description: "Owning workspace name."
@@ -8011,13 +8675,19 @@ paths:
           description: "OK"
         "404":
           description: "Not Found"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
-      summary: "Delete an artifact and its file"
+      summary: "Delete a run's artifact, by name, and its file"
       tags:
       - "Artifacts"
+      x-flow-permission:
+        permission: "workflowrun/delete"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
     get:
+      description: "Requires the `workflowrun/read` permission, from a global, key,\
+        \ user, session token."
       operationId: "download"
       parameters:
       - description: "Owning workspace name."
@@ -8057,14 +8727,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/StreamingResponseBody"
           description: "Expired"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Download an artifact's file"
       tags:
       - "Artifacts"
+      x-flow-permission:
+        permission: "workflowrun/read"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/cancel:
     delete:
+      description: "Requires the `workflowrun/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "cancel"
       parameters:
       - description: "Owning workspace name."
@@ -8093,14 +8769,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Cancel a WorkflowRun"
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/pause:
     put:
+      description: "Requires the `workflowrun/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "pause"
       parameters:
       - description: "Owning workspace name."
@@ -8129,14 +8811,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Pause a running WorkflowRun"
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/resume:
     put:
+      description: "Requires the `workflowrun/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "resume"
       parameters:
       - description: "Owning workspace name."
@@ -8165,14 +8853,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Resume a paused WorkflowRun"
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/retry:
     put:
+      description: "Requires the `workflowrun/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "retry"
       parameters:
       - description: "Owning workspace name."
@@ -8206,14 +8900,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Retry WorkflowRun execution."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
   /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/start:
     put:
+      description: "Requires the `workflowrun/action` permission, from a global, key,\
+        \ user, session token."
       operationId: "start"
       parameters:
       - description: "Owning workspace name."
@@ -8247,14 +8947,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      security:
-      - BearerAuth: []
-      - x-access-token: []
       summary: "Start WorkflowRun execution. The WorkflowRun has to already have been\
         \ queued."
       tags:
       - "WorkflowRuns"
+      x-flow-permission:
+        permission: "workflowrun/action"
+        tokens:
+        - "global"
+        - "key"
+        - "user"
+        - "session"
+security:
+- BearerAuth: []
+- x-access-token: []
 tags:
+- description: "Create, update and delete global parameters, available to every workspace\
+    \ and workflow."
+  name: "Parameters"
 - description: "Listen for Events or Webhook requests to trigger Workflows and provide\
     \ the ability to resolve Wait For Event TaskRuns."
   name: "Webhooks and Events"
@@ -8264,13 +8974,8 @@ tags:
   name: "Schedules"
 - description: "Provide the ability to search and retrieve Insights."
   name: "Insights"
-- description: "Create, Update, and Delete global parameters available to all Teams\
-    \ and Workflows."
-  name: "Parameters"
 - description: "Manage Workspaces, Workspace Members, Quotas, ApprovalGroups and Parameters."
   name: "Workspace Management"
-- description: "Inspect and replay the outbound event outbox."
-  name: "System"
 - description: "Register the instance, retrieve context and navigation, and manage\
     \ global admin areas."
   name: "System"

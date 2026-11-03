@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.Optional;
@@ -24,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v2/workspace/{workspace}/taskrun")
 @Tag(name = "TaskRuns", description = "View, Start, Stop, and Update Status of your Task Runs.")
-@SecurityRequirement(name = "BearerAuth")
-@SecurityRequirement(name = "x-access-token")
 public class WorkspaceTaskRunControllerV2 {
 
   private final WorkflowRunService workflowRunService;
