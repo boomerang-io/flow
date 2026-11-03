@@ -158,8 +158,9 @@ allowed prefix (`dispatcher-kubernetes.md`).
 
 Two libraries are published beside the images, `io.boomerang:dispatcher-sdk` and `io.boomerang:flow-sdk`:
 the `publish-sdk` job runs once per library, sets its version from the same tag and deploys it to this
-repository's GitHub Packages Maven registry (`ci-release.yml:99-130`, `dispatcher-sdk/pom.xml:97-103`,
-`flow-sdk/pom.xml:87-93`). A library's version is therefore the server version it was built against; an
+repository's GitHub Packages Maven registry (`ci-release.yml:99-142`, `dispatcher-sdk/pom.xml:97-103`,
+`flow-sdk/pom.xml:87-93`). The two run independently, and a re-run skips a library whose version is already
+there, since the registry refuses to overwrite one (`ci-release.yml:128-141`). A library's version is therefore the server version it was built against; an
 application picks the `flow-sdk` of the server it runs against, and a newer server still serves an older
 library because `/api/v2` only gains routes and fields within 5.x (`api-contract.md`). No other module is
 published.
