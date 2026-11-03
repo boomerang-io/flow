@@ -114,7 +114,7 @@ nothing (`engine/TaskRunService.java:905-916`).
 | 10. Recovery | `WorkflowWatcher.sweep` runs fourteen isolated sweeps (timeouts, stalled runs, for-each recovery, claims from gone dispatchers, lapsed leases, deleted workflows, artifact expiry, …); retention runs on its own hourly schedule; any core instance may reap any run | `engine/WorkflowWatcher.java:153-175,192-199` |
 
 Core calls a dispatcher for one thing: a task's live log, read from the dispatcher holding the claim at the URL
-and with the bearer it registered (`engine/LogClient.java:81-90`). Once a task has ended, the log its
+and with the bearer it registered (`engine/LogClient.java:100-159`). Once a task has ended, the log its
 dispatcher uploaded is served from the artifact store; while it runs, the live read comes first and a copy
 stored during this attempt answers only when the dispatcher cannot (`engine/TaskRunService.java:1200-1221`;
 `dispatcher-contract.md`, "Logs").

@@ -1,7 +1,6 @@
 package io.boomerang.engine;
 
 import io.boomerang.common.entity.TaskRunEntity;
-import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
@@ -18,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,7 +31,9 @@ import org.springframework.web.util.UriComponentsBuilder;
  * registration ({@code logsUrl}) and with the bearer it said to present ({@code logsToken}). This is
  * the only call the engine makes to a dispatcher. A task whose dispatcher registered no URL, or
  * that has no claim, is answered with the caller's fallback - the task's stored log, when one
- * counts ({@link TaskRunService#streamLog}) - or else with a message rather than an error.
+ * counts ({@link TaskRunService#streamLog}) - or else with a message rather than an error. A route
+ * that cannot be read, or breaks part way, is answered with a message too: a reader never gets a
+ * bare 500 from a live log.
  */
 @Service
 public class LogClient {
@@ -47,6 +47,14 @@ public class LogClient {
   static final String IDLE_MESSAGE =
       "\nThe task has written nothing for a while, so this view stopped following its log. Open the"
           + " log again to see anything written since.\n";
+
+  static final String UNREACHABLE_MESSAGE =
+      "The live log cannot be read: the dispatcher running this task could not be reached or refused"
+          + " the read. When the task ends, open the log again to see its stored copy, if one was kept.\n";
+
+  static final String CUT_OFF_MESSAGE =
+      "\nThe live log was cut off: the connection to the dispatcher failed. Open the log again to"
+          + " see the rest.\n";
 
   // Log streaming: long idle read so quiet streams are not cut; control templates stay at 60s.
   private final RestTemplate restTemplate;
@@ -84,8 +92,10 @@ public class LogClient {
 
   /**
    * Stream the task's live log, answering with {@code fallback} instead when its dispatcher has no
-   * live route, or the route fails before the dispatcher answers. A stream that fails part way
-   * through is not restarted from the fallback, so a reader never sees a log twice.
+   * live route, or the route fails before the dispatcher answers - or with {@link
+   * #UNREACHABLE_MESSAGE} when there is no fallback. A stream that fails part way through is not
+   * restarted from the fallback, so a reader never sees a log twice; it ends with {@link
+   * #CUT_OFF_MESSAGE}.
    */
   public StreamingResponseBody streamLog(TaskRunEntity task, StreamingResponseBody fallback) {
     Optional<LogSource> resolved = resolve(task);
@@ -124,11 +134,15 @@ public class LogClient {
           // A task silent for longer than the streaming read allows: end the reader's stream with a
           // line saying so, instead of dropping the connection mid-body.
           LOGGER.info("TaskRun[{}] log stream went idle; ending it for the reader.", task.getId());
-          outputStream.write(IDLE_MESSAGE.getBytes(StandardCharsets.UTF_8));
-          outputStream.flush();
+          writeMessage(outputStream, IDLE_MESSAGE);
           return;
         }
-        if (!answered.get() && fallback != null) {
+        if (answered.get()) {
+          LOGGER.warn("TaskRun[{}] live log stream was cut off.", task.getId(), ex);
+          writeMessage(outputStream, CUT_OFF_MESSAGE);
+          return;
+        }
+        if (fallback != null) {
           LOGGER.info(
               "TaskRun[{}] live log route unavailable ({}); serving the stored log.",
               task.getId(),
@@ -136,16 +150,17 @@ public class LogClient {
           fallback.writeTo(outputStream);
           return;
         }
-        LOGGER.error(ex.toString());
-        throw new BoomerangException(
-            ex,
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            ex.getClass().getSimpleName(),
-            "Exception in communicating with internal services.",
-            HttpStatus.INTERNAL_SERVER_ERROR);
+        LOGGER.warn("TaskRun[{}] live log route unavailable and no stored log.", task.getId(), ex);
+        writeMessage(outputStream, UNREACHABLE_MESSAGE);
+        return;
       }
       LOGGER.info("Finished TaskRun[{}] log stream.", task.getId());
     };
+  }
+
+  private static void writeMessage(OutputStream outputStream, String message) throws IOException {
+    outputStream.write(message.getBytes(StandardCharsets.UTF_8));
+    outputStream.flush();
   }
 
   // The streaming template's read timed out: the dispatcher sent nothing for its idle limit.

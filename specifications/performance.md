@@ -224,7 +224,7 @@ reaches only the three routes that answer asynchronously: core's task log and ar
 dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/WorkspaceArtifactControllerV2.java:88`,
 `service-dispatcher/src/main/java/io/boomerang/dispatcher/LogV1Controller.java:20`); the dispatcher queue's long
 polls are synchronous and keep their 30 s hold. A log the dispatcher has sent nothing on for 10 minutes ends at the
-streaming template's read timeout, with a closing line to the reader (`engine/LogClient.java:123-127`). A
+streaming template's read timeout, with a closing line to the reader (`engine/LogClient.java:133-138`). A
 dispatcher task with no timeout of its own gets 60 min, plus a 2 min watch grace
 (`service-dispatcher/src/main/resources/application.properties:29,54`).
 

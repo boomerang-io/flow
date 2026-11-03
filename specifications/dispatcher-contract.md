@@ -239,19 +239,23 @@ the same id within that minute, whose heartbeats no longer list the claims it lo
 
 A task's log is read through core alone: `GET /api/v2/taskrun/{id}/log` authorizes the reader and scrubs the run's
 secrets (`workflow/WorkflowRunService.java:517-553`), and reads from one of three sources
-(`engine/TaskRunService.java:1200-1221`, `engine/LogClient.java:90-149`):
+(`engine/TaskRunService.java:1200-1221`, `engine/LogClient.java:100-159`):
 
 | Source | When |
 | --- | --- |
 | The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end (`engine/TaskRunService.java:1246-1263`). Core stores it as a log-scoped artifact of the run, kept for the "Task Log Retention" setting (7 days by default), and answers 204; a later upload for the same task run replaces it, and so does one that overlaps it - the upload refused by the run-and-name unique index takes over the record the other stored (`workflow/ArtifactService.java:397-446`; `data-model.md`, "Artifacts"). 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. |
-| The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream (`engine/LogClient.java:63-79`). What answers there (the pod, Loki) is the dispatcher's own. |
-| A message | Neither answers: a 200 whose body says no log is available (`engine/LogClient.java:43-45`). Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
+| The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream (`engine/LogClient.java:71-87`). What answers there (the pod, Loki) is the dispatcher's own. |
+| A message | Neither answers: a 200 whose body says no log is available (`engine/LogClient.java:43-45`), or that the dispatcher could not be reached or refused the read (`:51-53`, `:153-155`). Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
 
 While the task runs, the live route answers; a log stored during this attempt, after the current claim was made
 (`engine/TaskRunService.java:1225-1230`), answers instead when the claim's dispatcher registered no `logsUrl` or its
-route fails before answering (`engine/LogClient.java:131-138`). So a mid-run snapshot never hides the live stream, a
+route fails before answering (`engine/LogClient.java:145-152`). So a mid-run snapshot never hides the live stream, a
 requeued task never serves its earlier attempt's log, and a stream that fails part way is not restarted from the
-stored copy. Once the task has ended, the stored log answers; without one, the live route.
+stored copy. With no stored copy to fall back on, an unreachable or refusing route is a 200 whose body says so and
+that a stored copy, if one is kept, shows once the task ends (`:51-53`, `:153-155`), and a
+stream that fails after the dispatcher answered ends with a line saying it was cut off (`:55-57`, `:140-144`); both are
+logged at warn with the cause, and neither is an error response.
+Once the task has ended, the stored log answers; without one, the live route.
 
 A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished, and MAY
 both serve live and upload; Flow's Kubernetes dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
@@ -259,11 +263,11 @@ both serve live and upload; Flow's Kubernetes dispatcher does both (`dispatcher-
 A live route MUST write each line as the task writes it and get it onto the network, never collect the body first.
 Spring 7 does not pass a `StreamingResponseBody`'s `flush()` to the network, so core's log route flushes the servlet
 response instead (`common/util/ResponseFlushingOutputStream.java`, used at `workflow/TaskRunControllerV2.java:57`).
-Core flushes every relayed read (`engine/LogClient.java:166-176`) and its secret scrub holds back only an unfinished
+Core flushes every relayed read (`engine/LogClient.java:181-190`) and its secret scrub holds back only an unfinished
 line (`common/util/FilterValuesOutputStream.java:14-21`). A stream stays open for up to two hours
 (`service-core/src/main/resources/application.properties:72`); after 10 minutes with nothing from the dispatcher,
 core's read gives up (`core/config/RestConfig.java:53`) and the stream ends with a line saying it stopped following
-(`engine/LogClient.java:47-49`, `:123-130`).
+(`engine/LogClient.java:47-49`, `:133-138`).
 
 ## Trace context
 
