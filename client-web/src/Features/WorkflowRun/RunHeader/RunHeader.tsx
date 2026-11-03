@@ -84,7 +84,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
   // queryClient.invalidateQueries(getWorkflowRun) each of these mutations used to run onSuccess.
   const fetcher = useFetcher<ActionResult>();
 
-  const { initiatedByRef, initiatedByWorkflowRunRef, initiatedByName, trigger, creationDate, status, phase, paused, workflowName } =
+  const { initiatedByRef, initiatedByWorkflowRunRef, initiatedByName, trigger, startTime, status, phase, paused, workflowName } =
     workflowRun;
   // Ruled design (#359, Option A): a schedule-fired run stamps the firing Schedule's id into the
   // existing initiatedByRef field (mirrors the retry path's convention). The Schedules page has
@@ -313,7 +313,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Start time</dt>
-            <dd className={styles.dataValue}>{moment(creationDate).format(DATETIME_DISPLAY_FORMAT)}</dd>
+            <dd className={styles.dataValue}>{startTime ? moment(startTime).format(DATETIME_DISPLAY_FORMAT) : "Not started"}</dd>
           </dl>
           {/* Inside to outside: the run error, View results, the one primary run action, then the overflow. */}
           <div className={styles.controls}>

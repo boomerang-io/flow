@@ -233,9 +233,14 @@ equivalent behaviour. A run's timeout MUST be at least the transport timeout of 
 ## Quotas
 
 `workflow/QuotaService.java` holds every quota read and check. Quotas are enforced at workflow create and save,
-run submit and retry, and artifact upload; nothing in the engine path re-checks them. The stored
+run submit and retry, and artifact upload; nothing in the engine path re-checks them. The workflow count is checked
+before the create, so a workspace at its limit takes no more (`QuotaService.java:297-312`). With quotas on, a submit
+queues the run un-started, recounts, and discards a run that pushed a count over; one admitted is then released as a
+started run is: a run with a workspace takes its deadline from its creation and waits for the dispatcher, one with none
+starts (`workflow/WorkflowService.java:764-795`, `workflow/WorkflowRunService.java` `release`). The stored
 `features.workspaceQuotas` setting is the only switch (`QuotaService.java:94-99`). A stored quota of `0` is
-unlimited and the check is skipped (`workspace/model/Quotas.java:11`); an absent quota inherits the platform
+unlimited and the check is skipped (`workspace/model/Quotas.java:11`), an artifact retention of `0` keeping the
+artifact with no expiry (`workflow/ArtifactService.java:183-197`); an absent quota inherits the platform
 default from the `quotas` settings document (`QuotaService.java:102-114,184-188`). The `system` workspace an
 embedded engine serves is seeded with its workflow count, monthly runs, workspace storage and concurrent runs at
 `0` and no run duration or artifact storage of its own, so it inherits the platform defaults for those two

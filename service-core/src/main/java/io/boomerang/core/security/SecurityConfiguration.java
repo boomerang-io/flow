@@ -30,6 +30,9 @@ public class SecurityConfiguration {
 
   private static final String HEALTH = "/health";
 
+  // Kubernetes probes the liveness and readiness groups under it.
+  private static final String HEALTH_PROBES = "/health/**";
+
   private static final String WEBJARS = "/webjars/**";
 
   // Reached by a browser redirect from GitHub - cannot carry a bearer token. Also exempted from
@@ -104,7 +107,7 @@ public class SecurityConfiguration {
                       .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR)
                       .permitAll()
                       .requestMatchers(
-                          HEALTH, API_DOCS, INFO, WEBJARS, GITHUB_CALLBACK, AUTH_EXCHANGE,
+                          HEALTH, HEALTH_PROBES, API_DOCS, INFO, WEBJARS, GITHUB_CALLBACK, AUTH_EXCHANGE,
                           AUTH_CONFIG)
                       .permitAll()
                       .requestMatchers(SLACK_ROUTES.toArray(String[]::new))

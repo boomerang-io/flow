@@ -238,6 +238,33 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     assertThat(retentionOf("long")).isEqualTo(30);
   }
 
+  // A workspace retention of 0 is unlimited, as every quota value is: an artifact with no request
+  // of its own keeps for ever, a task's own request still stands and the platform maximum still caps it.
+  // The workspace's own retention is read only while quotas are enforced.
+  @Test
+  void aWorkspaceRetentionOfZeroKeepsArtifactsWithNoExpiry() {
+    Quotas quotas = new Quotas();
+    quotas.setArtifactRetentionDays(0);
+    WorkspaceRequest patch = new WorkspaceRequest();
+    patch.setQuotas(quotas);
+    workspaceService.patch(workspace, patch);
+    setFeatureSetting(QUOTA_FEATURE, true);
+
+    begin("kept", null);
+    begin("short", 3);
+    begin("long", 500);
+
+    assertThat(retentionOf("kept")).isZero();
+    assertThat(
+            artifactRepository
+                .findByWorkflowRunRefAndName(uploadTask.getWorkflowRunRef(), "kept")
+                .orElseThrow()
+                .getExpirationDate())
+        .isNull();
+    assertThat(retentionOf("short")).isEqualTo(3);
+    assertThat(retentionOf("long")).isEqualTo(90);
+  }
+
   @Test
   void anExpiredArtifactLosesItsFileButKeepsItsRecord() throws Exception {
     TaskRun link = upload("old.log", null, "log".getBytes(StandardCharsets.UTF_8));

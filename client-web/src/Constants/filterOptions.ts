@@ -23,7 +23,8 @@ export const timeframeOptions = [
 ];
 
 export const executionOptions = [
-  { label: "Scheduler", value: "scheduler" },
+  // The run's trigger value is `schedule` (the workflow's trigger setting is `scheduler`).
+  { label: "Schedule", value: "schedule" },
   { label: "Manual", value: "manual" },
   { label: "Webhook", value: "webhook" },
 ];

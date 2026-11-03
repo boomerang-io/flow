@@ -178,14 +178,21 @@ public class ArtifactService {
 
   /*
    * Retention = the task's request when set, otherwise the workspace's; never more than the
-   * workspace's, never more than the platform maximum, never less than a day.
+   * workspace's limit, never more than the platform maximum, never less than a day. A workspace
+   * retention of 0 is unlimited, as every quota value is: a task's request then stands on its own,
+   * and with no request the artifact is kept, 0 days, with no expiry.
    */
   private int resolveRetentionDays(Integer requested, CurrentQuotas quotas) {
     int workspace =
         (quotas != null && quotas.getArtifactRetentionDays() != null)
             ? quotas.getArtifactRetentionDays()
             : quotaService.defaultArtifactRetentionDays();
-    int days = (requested != null && requested > 0) ? Math.min(requested, workspace) : workspace;
+    boolean asked = requested != null && requested > 0;
+    int days =
+        asked ? (Quotas.limited(workspace) ? Math.min(requested, workspace) : requested) : workspace;
+    if (!Quotas.limited(days)) {
+      return 0;
+    }
     return Math.max(1, Math.min(days, setting(RETENTION_MAX_DAYS)));
   }
 
@@ -283,7 +290,9 @@ public class ArtifactService {
       int retentionDays = resolveRetentionDays(retentionParam(task.getParams()), quotas);
       artifact.setStorageKey("runs/" + task.getWorkflowRunRef() + "/" + name);
       artifact.setRetentionDays(retentionDays);
-      artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+      if (retentionDays > 0) {
+        artifact.setExpirationDate(new Date(now.getTime() + TimeUnit.DAYS.toMillis(retentionDays)));
+      }
     }
     try {
       return artifactRepository.save(artifact);

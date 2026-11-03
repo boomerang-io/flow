@@ -799,14 +799,11 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
-    // A run with a workspace stays ready/pending for the dispatcher to provision and start, and
-    // one not admitted (parked for a slot of its workflow, skipped, invalid) is returned as it
-    // stands - the same rules WorkflowRunService.run applies on the un-enforced path.
-    if (enforceQuotas
-        && start
-        && wfRun.getWorkspace() == null
-        && RunStatus.ready.equals(wfRun.getStatus())) {
-      wfRun = workflowRunService.start(wfRun.getId(), Optional.empty());
+    // The run was queued without a start so the quota recheck could discard it; now it is released
+    // the way the un-enforced path starts: a run with a workspace takes its deadline and waits
+    // ready/pending for the dispatcher, one with none starts, one not admitted stays as it stands.
+    if (enforceQuotas && start) {
+      wfRun = workflowRunService.release(wfRun.getId());
     }
     return wfRun;
   }

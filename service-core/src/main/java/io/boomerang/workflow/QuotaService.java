@@ -302,8 +302,9 @@ public class QuotaService {
         return;
       }
       LOGGER.debug("Quotas: {}", quotas);
+      // Checked before the create, so a workspace at its limit has no room for one more.
       if (Quotas.limited(quotas.getMaxWorkflowCount())
-          && quotas.getCurrentWorkflowCount() > quotas.getMaxWorkflowCount()) {
+          && quotas.getCurrentWorkflowCount() >= quotas.getMaxWorkflowCount()) {
         throw new BoomerangException(
             BoomerangError.QUOTA_EXCEEDED,
             "Number of Workflows",

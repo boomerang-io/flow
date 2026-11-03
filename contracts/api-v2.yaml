@@ -6660,7 +6660,7 @@ paths:
         - "session"
   /api/v2/workspace/{workspace}/leave:
     delete:
-      description: "Requires the `workspace/action` permission, from a user, session\
+      description: "Requires the `workspace/read` permission, from a user, session\
         \ token."
       operationId: "leave"
       parameters:
@@ -6679,7 +6679,7 @@ paths:
       tags:
       - "Workspace Management"
       x-flow-permission:
-        permission: "workspace/action"
+        permission: "workspace/read"
         tokens:
         - "user"
         - "session"

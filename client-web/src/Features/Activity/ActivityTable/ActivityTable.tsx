@@ -112,13 +112,16 @@ function ActivityTable(props: ActivityTableProps) {
   const { number, size, totalElements, content } = props.tableData;
   const { TableContainer, Table, TableHead, TableRow, TableBody, TableCell, TableHeader } = DataTable;
 
-  // A skipped or failed run says why under its status.
+  // A skipped or failed run says why under its status; the Start Time column (sorted by creation,
+  // the one order every run has) shows when the run started, not when it was submitted.
   const statusReasonById: Record<string, string | undefined> = {};
+  const startTimeById: Record<string, string | undefined> = {};
   for (const run of content) {
     statusReasonById[run.id] = run.statusReason;
+    startTimeById[run.id] = run.startTime;
   }
 
-  function renderCell(headerList, cellIndex, value, statusReason?: string) {
+  function renderCell(headerList, cellIndex, value, statusReason?: string, startTime?: string) {
     const column = headerList[cellIndex];
 
     switch (column?.key) {
@@ -131,7 +134,11 @@ function ActivityTable(props: ActivityTableProps) {
           </p>
         );
       case HeadersKey.CreationDate:
-        return <time className={styles.tableTextarea}>{moment(value).format(DATETIME_DISPLAY_FORMAT)}</time>;
+        return startTime ? (
+          <time className={styles.tableTextarea}>{moment(startTime).format(DATETIME_DISPLAY_FORMAT)}</time>
+        ) : (
+          <p className={styles.tableTextarea}>---</p>
+        );
       case HeadersKey.Duration:
         return (
           <time className={styles.tableTextarea}>
@@ -196,7 +203,7 @@ function ActivityTable(props: ActivityTableProps) {
                         >
                           {row.cells.map((cell, cellIndex) => (
                             <TableCell key={cell.id}>
-                              <div className={styles.tableCell}>{renderCell(headerList, cellIndex, cell.value, statusReasonById[row.id])}</div>
+                              <div className={styles.tableCell}>{renderCell(headerList, cellIndex, cell.value, statusReasonById[row.id], startTimeById[row.id])}</div>
                             </TableCell>
                           ))}
                         </TableRow>

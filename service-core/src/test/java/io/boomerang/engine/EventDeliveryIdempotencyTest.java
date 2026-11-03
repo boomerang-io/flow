@@ -2,7 +2,11 @@ package io.boomerang.engine;
 
 import io.boomerang.workflow.WorkflowRunService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import io.boomerang.common.error.BoomerangException;
+import java.util.Optional;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -52,6 +56,40 @@ class EventDeliveryIdempotencyTest extends AbstractEngineIntegrationTest {
             wfRun.getId());
     task.setParams(List.of(new RunParam("topic", topic, ParamType.string)));
     return taskRunRepository.save(task);
+  }
+
+  // The callback's status is documented as "Succeeded | Failed": either spelling is the outcome the
+  // task takes (pre-approved here, as the task has not reached its wait), and anything else is
+  // refused rather than read as a success.
+  @Test
+  void aFailedCallbackGivesTheTaskAFailedOutcomeWhateverItsCase() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("event-failed-callback-wf", RunStatus.running, RunPhase.running);
+    String taskRunId = savedEventWaitTask("deploy-failed", wfRun, RunStatus.ready).getId();
+
+    webhookEventService.processWFE(
+        wfRun.getId(), "deploy-failed", "Failed", Optional.empty(), Optional.empty());
+
+    assertEquals(
+        RunStatus.failed,
+        taskRunRepository.findById(taskRunId).orElseThrow().getPreApprovedStatus());
+  }
+
+  @Test
+  void aCallbackWithAnUnknownStatusIsRefused() {
+    WorkflowRunEntity wfRun =
+        savedWorkflowRun("event-bad-callback-wf", RunStatus.running, RunPhase.running);
+    String taskRunId = savedEventWaitTask("deploy-typo", wfRun, RunStatus.ready).getId();
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () ->
+                webhookEventService.processWFE(
+                    wfRun.getId(), "deploy-typo", "done", Optional.empty(), Optional.empty()));
+
+    assertEquals("QUERY_INVALID_FILTERS", ex.getReason());
+    assertEquals(RunStatus.ready, taskRunRepository.findById(taskRunId).orElseThrow().getStatus());
   }
 
   /**

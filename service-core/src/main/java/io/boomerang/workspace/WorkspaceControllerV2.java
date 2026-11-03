@@ -249,9 +249,11 @@ public class WorkspaceControllerV2 {
     workspaceService.removeMembers(workspace, request);
   }
 
+  // Leaving is every member's own call, a reader's included: read is the one permission every
+  // workspace role holds, and the service removes only the caller's own membership.
   @DeleteMapping(value = "/{workspace}/leave")
   @AuthCriteria(
-      action = PermissionAction.ACTION,
+      action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.user, AuthScope.session})
   @Operation(summary = "Leave Workspace")

@@ -192,7 +192,13 @@ public class WebhookEventService {
     WorkflowRunEventRequest request = new WorkflowRunEventRequest();
     eventId.ifPresent(request::setId);
     request.setTopic(topic);
-    request.setStatus(RunStatus.getRunStatus(status));
+    // The callback ends the waiting task one of two ways; anything else, a typo included, is
+    // refused rather than taken as a success.
+    RunStatus outcome = RunStatus.getRunStatus(status);
+    if (!RunStatus.succeeded.equals(outcome) && !RunStatus.failed.equals(outcome)) {
+      throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
+    }
+    request.setStatus(outcome);
     // Stored as plain maps and lists: a JSON node would be written with its class and could not be
     // read back.
     payload.ifPresent(

@@ -28,7 +28,7 @@ public enum RunStatus {
 
   public static RunStatus getRunStatus(String status) {
     return Arrays.asList(RunStatus.values()).stream()
-        .filter(value -> value.getStatus().equals(status))
+        .filter(value -> value.getStatus().equalsIgnoreCase(status))
         .findFirst()
         .orElse(null);
   }

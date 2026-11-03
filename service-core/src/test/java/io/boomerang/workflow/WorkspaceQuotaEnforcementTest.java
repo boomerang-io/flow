@@ -2,13 +2,16 @@ package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.core.audit.AuditEventRepository;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -199,6 +202,48 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     config.setKey(key);
     config.setValue(value);
     return config;
+  }
+
+  // The count is checked before the create, so a workspace at its limit takes no more; one under
+  // it still does.
+  @Test
+  void theWorkflowCountQuotaStopsAtTheLimit() {
+    String workspace = createWorkspace("standalone-quota-count-edge", quotasWithWorkflowCount(2));
+    workflowService.create(workspace, runnableWorkflow("quota-edge-first-workflow", TASK_SLUG));
+    setFeatureSetting(QUOTA_FEATURE, true);
+
+    workflowService.create(workspace, runnableWorkflow("quota-edge-second-workflow", TASK_SLUG));
+
+    BoomerangException ex =
+        assertThrows(
+            BoomerangException.class,
+            () ->
+                workflowService.create(
+                    workspace, runnableWorkflow("quota-edge-third-workflow", TASK_SLUG)));
+    assertEquals("QUOTA_EXCEEDED", ex.getReason());
+  }
+
+  // With quotas on, a run is queued un-started so the quota recheck can discard it; once admitted
+  // it is released like a started run: a run with a workspace takes its deadline from its creation
+  // and waits ready for the dispatcher, so the timeout sweep can end it when no dispatcher claims.
+  @Test
+  void aRunAdmittedUnderQuotasTakesItsDeadlineWhileItWaitsForADispatcher() {
+    String workspace = createWorkspace("standalone-quota-deadline", quotasWithRunDuration(5));
+    Workflow workflow = runnableWorkflow("quota-deadline-workflow", TASK_SLUG);
+    WorkflowWorkspace runWorkspace = new WorkflowWorkspace();
+    runWorkspace.setSize("1Gi");
+    workflow.setWorkspace(runWorkspace);
+    workflowService.create(workspace, workflow);
+    setFeatureSetting(QUOTA_FEATURE, true);
+
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setTrigger(TriggerEnum.manual);
+    WorkflowRun run = workflowService.submit(workspace, "quota-deadline-workflow", request, true);
+
+    assertEquals(RunStatus.ready, run.getStatus(), "a run with a workspace waits for the dispatcher");
+    assertNotNull(
+        workflowRunRepository.findById(run.getId()).orElseThrow().getTimeoutAt(),
+        "the deadline runs from submit while no dispatcher claims, quotas on or off");
   }
 
   private String createWorkspace(String name, Quotas quotas) {

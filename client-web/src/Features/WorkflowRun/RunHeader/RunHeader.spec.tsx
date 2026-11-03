@@ -291,3 +291,16 @@ describe("RunHeader --- Advanced detail", () => {
     expect(screen.getByText(`boomerang.io/workflowrun-ref=${runId}`)).toBeInTheDocument();
   });
 });
+
+describe("RunHeader --- Start time", () => {
+  // Start time is when the run started, which the duration also counts from, not when it was submitted.
+  it("shows the run's start time, and says so when it has not started", () => {
+    renderRunHeader({ creationDate: "2019-09-03T14:00:00.230+0000", startTime: "2019-09-03T15:00:00.230+0000" });
+    // Specs run in UTC; the submit time an hour earlier is not what the header shows.
+    expect(screen.getByText("2019-09-03 03:00 PM")).toBeInTheDocument();
+    expect(screen.queryByText("2019-09-03 02:00 PM")).not.toBeInTheDocument();
+
+    renderRunHeader({ status: RunStatus.Ready, startTime: undefined });
+    expect(screen.getByText("Not started")).toBeInTheDocument();
+  });
+});

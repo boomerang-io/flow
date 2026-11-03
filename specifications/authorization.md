@@ -57,7 +57,7 @@ on one instance, another instance MAY still honour the token until its own entry
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint`
 (`core/security/AuthenticationFilter.java:132-136`), except on `/internal/v1/auth/exchange`, which continues so
 the controller can verify an OpenID Connect (OIDC) id_token itself (`:127-131`). Paths that skip the filter:
-`/error`, `/health`, `/api/docs`, the GitHub App callback, `/internal/v1/auth/config` and the four Slack routes
+`/error`, `/health` and its probe groups `/health/**`, `/api/docs`, the GitHub App callback, `/internal/v1/auth/config` and the four Slack routes
 that check the request themselves (`/api/v2/integration/slack/{auth,commands,interactivity,events}`,
 `core/security/SecurityConfiguration.java:39-48`) (`:345-353`); `SecurityConfiguration.java:106-111` permits the
 same paths plus `/info`, `/webjars` and the exchange endpoint.

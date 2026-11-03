@@ -62,6 +62,20 @@ describe("WorkflowActivity --- RTL", () => {
     );
   });
 
+  // A fired schedule records the trigger `schedule`; the filter must send that, not the workflow
+  // trigger setting's name `scheduler`, or it matches no run.
+  test("filtering by the schedule trigger sends the run's trigger value", async () => {
+    const { history } = renderActivity();
+    await screen.findByText("1969");
+
+    userEvent.click(screen.getByRole("combobox", { name: /Filter by trigger/i }));
+    userEvent.click(screen.getAllByText("Schedule")[0]);
+
+    await waitFor(() =>
+      expect(history.location.search).toBe("?" + queryString.stringify({ triggers: "schedule", ...basicQuery }, queryStringOptions)),
+    );
+  });
+
   test("filtering by status updates the URL search params", async () => {
     const { history } = renderActivity();
     await screen.findByText("1969");
