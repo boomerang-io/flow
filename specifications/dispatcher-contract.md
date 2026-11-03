@@ -108,7 +108,7 @@ The task poll takes optional query parameters:
 | `limit` | Most new task runs to claim for execution, at most 20; absent means 20 and `0` claims none (`dispatcher/DispatcherService.java:356`). Termination orders are never limited. A dispatcher SHOULD send its free capacity: a claimed task is committed to it. |
 | `type` | Task types to claim, a subset of those registered; a value without `*` that is not registered is `400 QUERY_INVALID_FILTERS` (`dispatcher/ClaimFilterService.java:75-85`) |
 | `task` | Tasks in their slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task, where `<workspace>` is the workspace's slug or id; a bare slug never matches a workspace task of the same name, and `*` applies to the slug half (`dispatcher/ClaimFilterService.java:87-128`) |
-| `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels (`dispatcher/ClaimFilterService.java:149-159`) |
+| `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels; a template's labels also match the workspaces' links to it (`dispatcher/ClaimFilterService.java:149-166`) |
 
 `type`, `task` and the `workflowLabel` values are comma-separated lists in which `*` is the only wildcard, anchored at
 both ends (`dispatcher/ClaimFilterService.java:190-195`). Filters are ANDed and values ORed, and termination orders
@@ -162,7 +162,7 @@ with `DispatchPrepareFailed`, and the rest of the poll is still handed out, so n
 never hears of it (`:425-444`).
 
 The task run's params are the task's declared params merged with the values authored on the workflow node
-(`engine/DAGUtility.java:273-276`). A `custom` task takes its runtime from its own params (`image`, `command` and
+(`engine/DAGUtility.java:275-278`). A `custom` task takes its runtime from its own params (`image`, `command` and
 `arguments` split on newlines, and `shellScript`), not from the catalogue entry, which declares no image
 (`:350-377`); a secret-typed one is copied as its reference `$(params.<name>)`, filled in at claim, so a secret
 `command` or `arguments` arrives as one element (`:391-402`).

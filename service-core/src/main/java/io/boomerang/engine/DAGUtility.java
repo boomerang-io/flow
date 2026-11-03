@@ -263,7 +263,9 @@ public class DAGUtility {
         taskRunEntity.setTaskVersion(wfRevisionTask.getTaskVersion());
         taskRunEntity.setAnnotations(wfRevisionTask.getAnnotations());
         taskRunEntity.setDependencies(wfRevisionTask.getDependencies());
-        taskRunEntity.setWorkflowRef(wfRevisionEntity.getWorkflowRef());
+        // The workflow the run was submitted through - for a template, the workspace's link - so the
+        // task run belongs to its run's workspace; the revision ref names what executed.
+        taskRunEntity.setWorkflowRef(wfRunEntity.getWorkflowRef());
         taskRunEntity.setWorkflowRevisionRef(wfRevisionEntity.getId());
         taskRunEntity.setWorkflowRunRef(wfRunEntity.getId());
 

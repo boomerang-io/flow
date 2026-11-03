@@ -18,6 +18,7 @@ import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.TaskRunStartRequest;
+import io.boomerang.common.model.WorkflowTemplateRef;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
@@ -189,6 +190,34 @@ class DispatcherClaimFilterTest extends AbstractEngineIntegrationTest {
 
     assertThat(delivered).containsExactly(gpu);
     assertThat(claimed(cpu)).isFalse();
+  }
+
+  @Test
+  void aTemplatesLabelClaimsTheRunsOfItsLinks() {
+    String taskRef = task("filter-" + tag + "-linked");
+    String linked = run(taskRef, link(workflow("tpl-" + tag)), RunStatus.ready, RunPhase.pending);
+    String unlinked = run(taskRef, workflow("other-" + tag), RunStatus.ready, RunPhase.pending);
+
+    List<String> delivered =
+        ids(
+            dispatcherService.getTaskQueue(
+                dispatcher(), null, null, null, "example.io/workload=tpl-" + tag));
+
+    assertThat(delivered).containsExactly(linked);
+    assertThat(claimed(unlinked)).isFalse();
+  }
+
+  // A workspace's link to a template: no labels of its own, as WorkflowService.createLink writes it.
+  private String link(String templateId) {
+    WorkflowEntity link = new WorkflowEntity();
+    link.setName("filter-" + tag + "-link");
+    link.setStatus(WorkflowStatus.active);
+    WorkflowTemplateRef ref = new WorkflowTemplateRef();
+    ref.setRef(templateId);
+    link.setTemplateRef(ref);
+    String id = workflowRepository.save(link).getId();
+    workflowIds.add(id);
+    return id;
   }
 
   @Test

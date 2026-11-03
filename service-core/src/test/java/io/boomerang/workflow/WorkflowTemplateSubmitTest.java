@@ -17,6 +17,7 @@ import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.Task;
+import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
@@ -68,6 +69,7 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
   private static final String SYSTEM = "system";
 
   @Autowired private WorkflowService workflowService;
+  @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkspaceService workspaceService;
@@ -144,6 +146,47 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
           .as("the revision it runs is the template's")
           .contains(systemWorkflowId(template.getName()));
     }
+  }
+
+  @Test
+  void aTemplateRunsTaskRunsAreTheLinksAndTheWorkspaceQueryFindsThem() {
+    Workflow template = workflowService.create(SYSTEM, definition("task-runs", WorkflowType.template));
+    String runId =
+        workflowService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), true).getId();
+    awaitEngine("the template's run completed")
+        .untilAsserted(
+            () ->
+                assertThat(workflowRunRepository.findById(runId).orElseThrow().getPhase())
+                    .isEqualTo(RunPhase.completed));
+
+    WorkflowEntity link = linkTo(template.getName());
+    String revisionRef = workflowRunRepository.findById(runId).orElseThrow().getWorkflowRevisionRef();
+    assertThat(taskRunRepository.findByWorkflowRunRef(runId))
+        .hasSize(2)
+        .allSatisfy(
+            taskRun -> {
+              assertThat(taskRun.getWorkflowRef()).as("the run's workflow, the link").isEqualTo(link.getId());
+              assertThat(taskRun.getWorkflowRevisionRef()).as("what ran, the template's").isEqualTo(revisionRef);
+            });
+    assertThat(
+            workflowRunService
+                .queryTaskRuns(
+                    workspace,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(runId)),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty())
+                .getContent())
+        .extracting(TaskRun::getName)
+        .containsExactlyInAnyOrder("start", "end");
   }
 
   @Test

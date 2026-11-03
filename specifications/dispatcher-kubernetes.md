@@ -102,7 +102,7 @@ next tick asks again.
 
 The timeout the task run arrives with is settled by the engine, not here: it is the smallest of the platform setting,
 the task's own declared timeout, and the run's timeout, with 0 meaning unguarded
-(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:288-309`). The seed ships the platform setting
+(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:290-311`). The seed ships the platform setting
 (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting is an optional
 operator ceiling for capping one pod inside a long-running graph; a task run that reaches the dispatcher unguarded
 still gets `kube.task.timeout` as a per-pod backstop.

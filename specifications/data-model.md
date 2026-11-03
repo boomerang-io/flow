@@ -23,7 +23,7 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `workflows` + `workflow_revisions` | Workflow parent (name, status, triggers, labels, annotations, `type`: `workflow` when absent, `template` or `starter` in the system workspace only, and `templateRef` on a workflow that runs a template by reference) + one document per version (tasks, params, workspace, timeout, retries; a link's holds no tasks) | `WorkflowEntity`, `WorkflowRevisionEntity` (`common.entity`) |
 | `tasks` + `task_revisions` | Task parent (name, type, status, verified, labels, annotations) + one document per version (`parentRef`, display fields, `version`, `spec`) | `TaskEntity`, `TaskRevisionEntity` (`common.entity`) |
 | `workflow_runs` | The execution record of one workflow run | `WorkflowRunEntity` (`common.entity`) |
-| `task_runs` | The execution record of one task in a run; the claim queue | `TaskRunEntity` (`common.entity`) |
+| `task_runs` | The execution record of one task in a run; the claim queue. Its `workflowRef` is its run's, so a template's task runs carry the workspace's link; `workflowRevisionRef` names the revision that ran (`engine/DAGUtility.java:266-270`) | `TaskRunEntity` (`common.entity`) |
 | `artifacts` | One file an upload task attached to a run, or a task's stored log: run, task run and workflow references, scope (`run`, `workflow` or `log`), size, SHA-256, content type, store key, status and expiry ("Artifacts" below) | `ArtifactEntity` (`common.entity`) |
 | `workflow_schedules` | Cron and one-off schedules: `nextFireAt`, `lastFiredAt`, `retryCount`, params | `WorkflowScheduleEntity` (`common.entity`) |
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`common.entity`) |

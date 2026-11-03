@@ -371,7 +371,7 @@ finds the parent, since the lookup is by exact name and items carry the brackete
 
 ## Task locks
 
-The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow, holding
+The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow (for a template's run, the workspace whose link it was submitted through), holding
 `holder`, `workflowRunRef`, `acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`, `migration/_0021__Indexes.java:124-128`,
 `engine/TaskExecutionService.java:1274-1282`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1213-1243`); a task that
 cannot acquire parks as `waiting` for 5 s and the watcher tries again (`:81`, `:1190-1191`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire
