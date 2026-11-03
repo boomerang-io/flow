@@ -57,8 +57,10 @@ COPY --from=build /build/application ./
 # which Spring Boot maps over application.properties and the OTLP exporter refuses, so the train
 # run must not build one; a deployment without OTEL_* variables builds none either. The JVM flags
 # that shape the cache (compact object headers) MUST match the ENTRYPOINT's, or the JVM ignores
-# the cache at start.
+# the cache at start. Adapter caching is off: the JVM turns it on with an AOT cache, and a cached
+# adapter recorded on one build machine crashed the JVM with SIGILL at start on another.
 RUN ["java", "-XX:AOTCacheOutput=service.aot", "-XX:+UseCompactObjectHeaders", \
+     "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
      "-Dspring.context.exit=onRefresh", "-Dflamingock.enabled=false", \
      "-Dflow.encrypt.secret=aot-training", "-Dflow.encrypt.salt=aot-training", \
      "-Dspring.mongodb.uri=mongodb://localhost:1/aot?serverSelectionTimeoutMS=1000&connectTimeoutMS=1000", \
@@ -85,6 +87,7 @@ ENV FLOW_VERSION=$FLOW_VERSION
 EXPOSE 7700
 # No shell, so no `java $JAVA_OPTS`: the launcher reads JDK_JAVA_OPTIONS from the environment
 # instead, which is where a deployment puts heap and GC flags. Compact object headers (JEP 519)
-# take 4 bytes off every object; the AOT cache is the one the train stage recorded.
+# take 4 bytes off every object; the AOT cache is the one the train stage recorded, without adapters.
 ENTRYPOINT ["java", "-XX:+UseCompactObjectHeaders", "-XX:AOTCache=service.aot", \
+            "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "service.jar"]

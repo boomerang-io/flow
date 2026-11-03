@@ -442,6 +442,9 @@ tag's release notes.
 
 ### Fixed
 
+- `service-core` and `service-dispatcher` no longer crash at start with `SIGILL` on some machines. The JVM cached
+  call adapters in the image's AOT cache, and an adapter recorded on the build machine could fail to link on another
+  CPU; both images now record and start with adapter caching off. Class loading and linking stay cached.
 - Loki live task logs (`dispatcher.logging.type=loki`) select the labels the dispatcher sets on the task's pod, as a
   log shipper's labelmap names them (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`), and the task container
   of either executor (`container=~"task|step-task"`). The query asked for v3's `bmrg_*` labels and Tekton's container
