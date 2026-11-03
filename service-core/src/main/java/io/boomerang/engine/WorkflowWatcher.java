@@ -87,9 +87,10 @@ public class WorkflowWatcher {
   private static final long DISPATCHER_STALE_MILLIS = 60000;
 
   // A registration that has not connected for this long is removed. Far past the stale threshold,
-  // so its claims were reaped long before, yet short enough that the registrations of replicas
-  // that came and went with a deploy do not accumulate. A dispatcher that returns registers again.
-  private static final long DISPATCHER_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L;
+  // so its claims were reaped long before; a week keeps a recent attempt's dispatcherRef traceable
+  // to its host, and replicas that came and went with deploys do not accumulate past it. A
+  // dispatcher that returns registers again.
+  private static final long DISPATCHER_EXPIRY_MILLIS = 7 * 24 * 60 * 60 * 1000L;
 
   private final TaskRunService taskRunService;
   private final WorkflowRunRepository workflowRunRepository;
@@ -526,7 +527,7 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Remove the registrations of dispatchers that have not connected for a day. One delete
+   * Remove the registrations of dispatchers that have not connected for a week. One delete
    * conditioned on {@code lastConnectedDate} still being older than the cutoff, so a dispatcher
    * that connects as the sweep runs keeps its registration and every instance may run it.
    */

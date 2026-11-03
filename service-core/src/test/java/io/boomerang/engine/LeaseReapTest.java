@@ -36,7 +36,7 @@ import org.springframework.data.mongodb.core.query.Update;
 class LeaseReapTest extends AbstractEngineIntegrationTest {
 
   private static final long LEASE_MILLIS = 90000;
-  private static final long HOUR = 60 * 60 * 1000L;
+  private static final long DAY = 24 * 60 * 60 * 1000L;
 
   @Autowired private WorkflowWatcher watcher;
   @Autowired private MongoTemplate mongoTemplate;
@@ -162,9 +162,9 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aRegistrationNotConnectedForADayIsRemovedAndARecentOneKept() {
-    String expired = registeredAgo("expiry-old", 25 * HOUR);
-    String recent = registeredAgo("expiry-recent", 23 * HOUR);
+  void aRegistrationNotConnectedForAWeekIsRemovedAndARecentOneKept() {
+    String expired = registeredAgo("expiry-old", 8 * DAY);
+    String recent = registeredAgo("expiry-recent", 6 * DAY);
 
     watcher.expireDispatcherRegistrations();
 
@@ -174,7 +174,7 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aRegistrationThatConnectsBeforeTheSweepIsKept() {
-    String id = registeredAgo("expiry-refreshed", 48 * HOUR);
+    String id = registeredAgo("expiry-refreshed", 10 * DAY);
 
     dispatcherService.heartbeat(id, List.of());
     watcher.expireDispatcherRegistrations();
@@ -184,7 +184,7 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
 
   @Test
   void anExpiredDispatchersClaimIsStillReapedAndItReRegistersUnderTheSameNameAndHost() {
-    String expired = registeredAgo("expiry-claimant", 25 * HOUR);
+    String expired = registeredAgo("expiry-claimant", 8 * DAY);
     WorkflowRunEntity wfRun = savedWorkflowRun("expiry-claimant-wf", RunStatus.running, RunPhase.running);
     String taskRunId = claimedTaskRun(wfRun, "expiry-claimed", expired);
 

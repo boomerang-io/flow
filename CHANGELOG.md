@@ -331,7 +331,7 @@ tag's release notes.
 
 ### Changed
 
-- **Dispatcher registrations expire.** A registration whose dispatcher has not connected for 24 hours is removed by
+- **Dispatcher registrations expire.** A registration whose dispatcher has not connected for 7 days is removed by
   the watcher, so the replicas a platform replaces on every deploy no longer pile up. A dispatcher that comes back
   registers again on its next call and is given a new id; the dispatcher SDK and Flow's Kubernetes dispatcher already
   do.
