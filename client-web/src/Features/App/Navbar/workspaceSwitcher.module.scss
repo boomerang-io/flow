@@ -11,13 +11,13 @@
   height: 100%;
 }
 
+// No rule before it: Carbon's header rule separates a set of navigation links, and this is one
+// control whose chevron already says what it is.
 .container {
   align-items: center;
-  border-left: 1px solid var(--cds-border-subtle);
   display: flex;
   height: 100%;
-  margin-left: $spacing-03;
-  padding-left: $spacing-03;
+  margin-left: $spacing-05;
   position: relative;
 }
 
