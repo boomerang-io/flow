@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.Updates;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import org.bson.conversions.Bson;
@@ -807,7 +809,8 @@ class MigrationChainTest {
     String issueTaskId = tasks.find(Filters.eq("name", "create-github-issue")).first().get("_id").toString();
     assertThat(collection(db, "rel_nodes").find(Filters.eq("_id", "task:" + issueTaskId)).first()).isNotNull();
     Document issueRevision = revisions.find(Filters.eq("parentRef", issueTaskId)).first();
-    assertThat(issueRevision.get("spec", Document.class).getString("image")).isEqualTo("boomerangio/task-flow:3.3.0");
+    // No task-flow pin: the revision runs on the task settings' default.image.
+    assertThat(issueRevision.get("spec", Document.class).getString("image")).isNull();
     assertThat(issueRevision.get("spec", Document.class).getList("params", Document.class))
         .filteredOn(param -> "token".equals(param.getString("name")))
         .extracting(param -> param.getString("type"), param -> param.getString("defaultValue"))
@@ -829,6 +832,154 @@ class MigrationChainTest {
     assertThat(revisions.countDocuments()).isEqualTo(revisionsBefore + 29);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask")))
         .isEqualTo(edgesBefore + 16);
+  }
+
+  // The starter workflows' revisions reference the workflow and context layers explicitly; a revision
+  // still holding the v3 references is rewritten by its own unit, and nothing else in it moves.
+  @Test
+  void starterWorkflowReferencesNameTheirLayer() {
+    MongoDatabase db = migrate("starter-references");
+    MongoCollection<Document> revisions = collection(db, "workflow_revisions");
+    List<String> starters =
+        collection(db, "workflows")
+            .find(Filters.eq("type", "starter"))
+            .map(workflow -> workflow.getObjectId("_id").toString())
+            .into(new ArrayList<>());
+    for (Document revision : revisions.find(Filters.in("workflowRef", starters))) {
+      assertThat(revision.toJson())
+          .doesNotContain("$(params.workflow-activity-id)", "$(params.query)", "$(params.url)", "$(params.model)");
+    }
+
+    Document mongo =
+        revisions.find(Filters.in("workflowRef", starters)).filter(Filters.regex("tasks.params.value", "workflowrun-ref")).first();
+    List<Document> tasks = mongo.getList("tasks", Document.class);
+    for (Document task : tasks) {
+      if (task.getList("params", Document.class) == null) {
+        continue;
+      }
+      for (Document param : task.getList("params", Document.class)) {
+        if (param.get("value") instanceof String value) {
+          param.put("value", value.replace("$(context.params.workflowrun-ref)", "$(params.workflow-activity-id)").replace("$(workflow.params.query)", "$(params.query)"));
+        }
+      }
+    }
+    revisions.updateOne(Filters.eq("_id", mongo.get("_id")), new Document("$set", new Document("tasks", tasks)));
+
+    new _0042__StarterWorkflowLayerReferences().execute(db, MigrationRunner.environment(PREFIX));
+
+    Document after = revisions.find(Filters.eq("_id", mongo.get("_id"))).first();
+    assertThat(after.toJson()).doesNotContain("$(params.workflow-activity-id)", "$(params.query)");
+    assertThat(after.toJson()).contains("$(context.params.workflowrun-ref)");
+    after.remove("tasks");
+    mongo.remove("tasks");
+    assertThat(after).isEqualTo(mongo);
+  }
+
+  // No task revision pins task-flow: each runs on default.image. A pin an install still holds is
+  // removed by the unit; an image of another family stays.
+  @Test
+  void taskFlowRevisionsRunOnTheDefaultImage() {
+    MongoDatabase db = migrate("task-flow-unpinned");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    assertThat(revisions.countDocuments(Filters.regex("spec.image", "^boomerangio/task-flow:"))).isZero();
+    assertThat(revisions.countDocuments(Filters.regex("spec.image", "^boomerangio/box-service:"))).isEqualTo(8);
+    assertThat(revisions.countDocuments(Filters.regex("spec.image", "^boomerangio/task-ai:"))).isEqualTo(4);
+
+    String issueTaskId = collection(db, "tasks").find(Filters.eq("name", "create-github-issue")).first().get("_id").toString();
+    revisions.updateOne(Filters.eq("parentRef", issueTaskId), Updates.set("spec.image", "boomerangio/task-flow:3.1.0"));
+
+    new _0043__UnpinTaskFlowImages().execute(db, MigrationRunner.environment(PREFIX));
+
+    assertThat(revisions.find(Filters.eq("parentRef", issueTaskId)).first().get("spec", Document.class).get("image")).isNull();
+    assertThat(revisions.countDocuments(Filters.regex("spec.image", "^boomerangio/box-service:"))).isEqualTo(8);
+  }
+
+  // The Box private key is a password on every Box revision, and a workflow holding one in the
+  // clear has it sealed: typed secret and encrypted; a value already sealed is left alone.
+  @Test
+  void theBoxPrivateKeyIsASecretOnTheTaskAndInWorkflows() {
+    MongoDatabase db = migrate("box-private-key");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    assertThat(
+            revisions.countDocuments(
+                Filters.elemMatch("spec.params", Filters.and(Filters.eq("name", "privateKey"), Filters.ne("type", "password")))))
+        .isZero();
+    String boxTaskId = collection(db, "tasks").find(Filters.eq("name", "add-box-folder")).first().get("_id").toString();
+    revisions.updateOne(
+        Filters.eq("parentRef", boxTaskId),
+        Updates.set("spec.params.$[p].type", "texteditor::text"),
+        new UpdateOptions().arrayFilters(List.of(Filters.eq("p.name", "privateKey"))));
+    Document task =
+        new Document("name", "Add folder")
+            .append("type", "template")
+            .append("taskRef", boxTaskId)
+            .append("taskVersion", 1)
+            .append(
+                "params",
+                List.of(
+                    new Document("name", "privateKey").append("value", "-----BEGIN KEY-----").append("type", "string"),
+                    new Document("name", "folderName").append("value", "reports").append("type", "string")));
+    Document workflowRevision =
+        new Document("workflowRef", "box-test-workflow").append("version", 1).append("tasks", List.of(task));
+    collection(db, "workflow_revisions").insertOne(workflowRevision);
+
+    new _0044__BoxPrivateKeyIsASecret().execute(db, MigrationRunner.environment(PREFIX));
+
+    assertThat(
+            revisions.countDocuments(
+                Filters.elemMatch("spec.params", Filters.and(Filters.eq("name", "privateKey"), Filters.ne("type", "password")))))
+        .isZero();
+    Document sealedTask =
+        collection(db, "workflow_revisions")
+            .find(Filters.eq("_id", workflowRevision.get("_id")))
+            .first()
+            .getList("tasks", Document.class)
+            .get(0);
+    Document key = sealedTask.getList("params", Document.class).get(0);
+    assertThat(key.getString("type")).isEqualTo("secret");
+    assertThat(key.getString("value")).startsWith("crypt_v1{AESGCM|").isNotEqualTo("-----BEGIN KEY-----");
+    assertThat(sealedTask.getList("params", Document.class).get(1).getString("value")).isEqualTo("reports");
+    String sealedValue = key.getString("value");
+
+    new _0044__BoxPrivateKeyIsASecret().execute(db, MigrationRunner.environment(PREFIX));
+    assertThat(
+            collection(db, "workflow_revisions")
+                .find(Filters.eq("_id", workflowRevision.get("_id")))
+                .first()
+                .getList("tasks", Document.class)
+                .get(0)
+                .getList("params", Document.class)
+                .get(0)
+                .getString("value"))
+        .as("a second run leaves the sealed value as it is")
+        .isEqualTo(sealedValue);
+  }
+
+  // No seeded parameter defaults to the placeholder; one an install still holds is cleared, the
+  // parameter kept.
+  @Test
+  void placeholderCredentialDefaultsAreCleared() {
+    MongoDatabase db = migrate("placeholder-defaults");
+    MongoCollection<Document> revisions = collection(db, "task_revisions");
+    assertThat(revisions.countDocuments(Filters.eq("spec.params.defaultValue", _0045__ClearPlaceholderDefaults.PLACEHOLDER))).isZero();
+    String taskId = collection(db, "tasks").find(Filters.eq("name", "get-organization-info")).first().get("_id").toString();
+    revisions.updateOne(
+        Filters.and(Filters.eq("parentRef", taskId), Filters.eq("version", 1)),
+        Updates.set("spec.params.$[p].defaultValue", _0045__ClearPlaceholderDefaults.PLACEHOLDER),
+        new UpdateOptions().arrayFilters(List.of(Filters.eq("p.name", "token"))));
+
+    new _0045__ClearPlaceholderDefaults().execute(db, MigrationRunner.environment(PREFIX));
+
+    Document token =
+        revisions.find(Filters.and(Filters.eq("parentRef", taskId), Filters.eq("version", 1))).first()
+            .get("spec", Document.class)
+            .getList("params", Document.class)
+            .stream()
+            .filter(param -> "token".equals(param.getString("name")))
+            .findFirst()
+            .orElseThrow();
+    assertThat(token.getString("defaultValue")).isEmpty();
+    assertThat(token.getString("type")).isEqualTo("password");
   }
 
   /** Every template seeded with earlier instructions reads the seed's text after the refresh; nothing else moves. */

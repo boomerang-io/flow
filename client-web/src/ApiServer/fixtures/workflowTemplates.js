@@ -128,7 +128,7 @@ const workflowTemplates = {
             },
             {
               name: "query",
-              value: "$(params.query)",
+              value: "$(workflow.params.query)",
             },
             {
               name: "host",
@@ -144,7 +144,7 @@ const workflowTemplates = {
             },
             {
               name: "ouputfile",
-              value: "/tekton/results/$(params.workflow-activity-id)/response.json",
+              value: "/tekton/results/$(context.params.workflowrun-ref)/response.json",
             },
             {
               name: "username",
@@ -198,7 +198,7 @@ const workflowTemplates = {
             },
             {
               name: "script",
-              value: "cat /tekton/results/$(params.workflow-activity-id)/response.json",
+              value: "cat /tekton/results/$(context.params.workflowrun-ref)/response.json",
             },
           ],
           type: "script",
@@ -248,7 +248,7 @@ const workflowTemplates = {
             },
             {
               name: "attachments",
-              value: "/tekton/results/$(params.workflow-activity-id)/response.json",
+              value: "/tekton/results/$(context.params.workflowrun-ref)/response.json",
             },
             {
               name: "apiKey",
@@ -269,7 +269,7 @@ const workflowTemplates = {
             {
               name: "bodyContent",
               value:
-                "You asked for the results of the mongo DB query.\nThe executed query was:\n$(params.query)\n\nThe results can be found in the attachement.\n\nRegards, \nThe bot",
+                "You asked for the results of the mongo DB query.\nThe executed query was:\n$(workflow.params.query)\n\nThe results can be found in the attachement.\n\nRegards, \nThe bot",
             },
             {
               name: "to",
@@ -348,7 +348,7 @@ const workflowTemplates = {
             {
               name: "bodyContent",
               value:
-                "Hi there, \n  \n  Sorry to let you know, the MongoDB query execution failed. \n  We can not upload the results, please forward the executed query to the proper authorities and ask them to look into it.\n  \n  Executed MongoDB query:\n$(params.query)\n\nRegards, \nThe bot",
+                "Hi there, \n  \n  Sorry to let you know, the MongoDB query execution failed. \n  We can not upload the results, please forward the executed query to the proper authorities and ask them to look into it.\n  \n  Executed MongoDB query:\n$(workflow.params.query)\n\nRegards, \nThe bot",
             },
             {
               name: "to",

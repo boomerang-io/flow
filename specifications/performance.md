@@ -238,7 +238,9 @@ before the create, so a workspace at its limit takes no more (`QuotaService.java
 queues the run un-started, recounts, and discards a run that pushed a count over; one admitted is then released as a
 started run is: a run with a workspace takes its deadline from its creation and waits for the dispatcher, one with none
 starts (`workflow/WorkflowService.java:764-795`, `workflow/WorkflowRunService.java` `release`). The stored
-`features.workspaceQuotas` setting is the only switch (`QuotaService.java:94-99`). A stored quota of `0` is
+`features.workspaceQuotas` setting switches every check but one (`QuotaService.java:94-99`): the run-duration
+ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
+(`QuotaService.java:192-202`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
 unlimited and the check is skipped (`workspace/model/Quotas.java:11`), an artifact retention of `0` keeping the
 artifact with no expiry (`workflow/ArtifactService.java:183-197`); an absent quota inherits the platform
 default from the `quotas` settings document (`QuotaService.java:102-114,184-188`). The `system` workspace an

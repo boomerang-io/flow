@@ -664,7 +664,7 @@
             },
             {
               "name": "query",
-              "value": "$(params.query)"
+              "value": "$(workflow.params.query)"
             },
             {
               "name": "host",
@@ -680,7 +680,7 @@
             },
             {
               "name": "ouputfile",
-              "value": "/tekton/results/$(params.workflow-activity-id)/response.json"
+              "value": "/tekton/results/$(context.params.workflowrun-ref)/response.json"
             },
             {
               "name": "username",
@@ -734,7 +734,7 @@
             },
             {
               "name": "script",
-              "value": "cat /tekton/results/$(params.workflow-activity-id)/response.json"
+              "value": "cat /tekton/results/$(context.params.workflowrun-ref)/response.json"
             }
           ],
           "type": "script",
@@ -784,7 +784,7 @@
             },
             {
               "name": "attachments",
-              "value": "/tekton/results/$(params.workflow-activity-id)/response.json"
+              "value": "/tekton/results/$(context.params.workflowrun-ref)/response.json"
             },
             {
               "name": "apiKey",
@@ -804,7 +804,7 @@
             },
             {
               "name": "bodyContent",
-              "value": "You asked for the results of the mongo DB query.\nThe executed query was:\n$(params.query)\n\nThe results can be found in the attachement.\n\nRegards, \nThe bot"
+              "value": "You asked for the results of the mongo DB query.\nThe executed query was:\n$(workflow.params.query)\n\nThe results can be found in the attachement.\n\nRegards, \nThe bot"
             },
             {
               "name": "to",
@@ -882,7 +882,7 @@
             },
             {
               "name": "bodyContent",
-              "value": "Hi there, \n  \n  Sorry to let you know, the MongoDB query execution failed. \n  We can not upload the results, please forward the executed query to the proper authorities and ask them to look into it.\n  \n  Executed MongoDB query:\n$(params.query)\n\nRegards, \nThe bot"
+              "value": "Hi there, \n  \n  Sorry to let you know, the MongoDB query execution failed. \n  We can not upload the results, please forward the executed query to the proper authorities and ask them to look into it.\n  \n  Executed MongoDB query:\n$(workflow.params.query)\n\nRegards, \nThe bot"
             },
             {
               "name": "to",
@@ -1005,7 +1005,7 @@
             },
             {
               "name": "url",
-              "value": "$(params.url)"
+              "value": "$(workflow.params.url)"
             },
             {
               "name": "header",
@@ -1051,7 +1051,7 @@
           "params": [
             {
               "name": "model",
-              "value": "$(params.model)"
+              "value": "$(workflow.params.model)"
             },
             {
               "name": "systemPrompt",
@@ -1059,7 +1059,7 @@
             },
             {
               "name": "prompt",
-              "value": "The file in context is the HTML of $(params.url). Summarise it in three short bullet points: what the page is, who it is for, and what it asks the reader to do."
+              "value": "The file in context is the HTML of $(workflow.params.url). Summarise it in three short bullet points: what the page is, who it is for, and what it asks the reader to do."
             },
             {
               "name": "files",

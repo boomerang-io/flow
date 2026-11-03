@@ -321,6 +321,10 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0039__SeedWorkspaceCreateSetting` | all | Adds the `features` setting `workspaceCreate` (whether a user who is not an admin may create a workspace) from the seed to an install built before it existed; an install that has the key is left as it is |
 | `_0040__SeedAcquireLockMillisecondsRevision` | all | Inserts the Acquire Lock task's revision 2, whose `timeout` is stated in milliseconds and defaults to `300000` (revision 1 said seconds and defaulted to `300`), where an install holds the task but not that revision; an empty database has it from `_0017` |
 | `_0041__RefreshIntegrationInstructions` | all | Replaces each integration template's `instructions` with the seed's text, by `type`, so an install seeded earlier reads the same Connect and Disconnect guidance; nothing else on the template changes |
+| `_0042__StarterWorkflowLayerReferences` | all | Rewrites, in the starter workflows' revisions alone, the references admission refuses: a task param reading its own name through `$(params.x)` names `$(workflow.params.x)`, and the v3 `$(params.workflow-activity-id)` becomes `$(context.params.workflowrun-ref)` |
+| `_0043__UnpinTaskFlowImages` | all | Unsets `spec.image` on every task revision pinning `boomerangio/task-flow:*`, so each runs on the `task` settings' `default.image`; the AI, Box and Python worker images stay |
+| `_0044__BoxPrivateKeyIsASecret` | all | Types the Box tasks' `privateKey` as `password` on their revisions, and in every workflow revision using them makes the stored value a `secret` run param encrypted under `flow.encrypt.secret`/`salt`; a sealed, blank or redacted value is left as it is |
+| `_0045__ClearPlaceholderDefaults` | all | Empties the placeholder default a few credential parameters carried (older GitHub revisions' `token`, the SendGrid template task's `apiKey` and `templateId`); the parameters stay |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

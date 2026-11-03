@@ -157,7 +157,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -594,7 +594,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -677,7 +676,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -766,7 +764,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -1172,7 +1170,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Append information",
@@ -1271,7 +1268,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Append information",
@@ -1438,7 +1434,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The absolute path of the downloaded file",
@@ -1687,7 +1682,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The artifact's URL, as Artifactory reports it",
@@ -2066,7 +2060,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -2149,7 +2142,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -2361,7 +2353,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The ID of the file.",
@@ -2491,7 +2482,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The ID of the file.",
@@ -2823,7 +2813,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -2917,7 +2906,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -2956,7 +2944,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -3490,7 +3477,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Newly created spreadsheet information",
@@ -3567,7 +3553,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Newly created spreadsheet information",
@@ -3732,7 +3717,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -3857,7 +3842,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -3896,7 +3880,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -4011,7 +3995,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "The newly created team",
@@ -4055,7 +4038,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -4487,7 +4470,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -4559,7 +4541,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -4821,7 +4802,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -4904,7 +4884,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -5108,7 +5087,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -5277,7 +5256,7 @@
      {
       "description": "",
       "label": "Authnetication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -5546,7 +5525,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -6141,7 +6119,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [],
     "script": "",
     "workingDir": ""
@@ -6889,7 +6866,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Filtered repositories list",
@@ -7581,7 +7557,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -7733,7 +7709,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -7774,7 +7750,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "List of teams in the organization",
@@ -7818,7 +7793,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -8037,7 +8012,7 @@
      {
       "description": "",
       "label": "Authnetication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -8320,7 +8295,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The list of row cell data from the provided ranges",
@@ -8404,7 +8378,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The list of row cell data from the provided ranges",
@@ -8467,7 +8440,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Github repository details",
@@ -8753,7 +8725,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -8774,7 +8746,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Github organization details",
@@ -8818,7 +8789,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -9547,7 +9518,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -9578,7 +9549,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Github team details",
@@ -9622,7 +9592,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -9791,7 +9761,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -9997,7 +9967,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -10058,7 +10028,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Result containing the url, role and state of the action",
@@ -10102,7 +10071,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -10530,7 +10499,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -10581,7 +10550,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Result containing the details and outcome of the action",
@@ -10625,7 +10593,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -10823,7 +10791,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -10881,7 +10848,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "The value based on the applied expression",
@@ -11007,7 +10973,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -11191,7 +11157,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The resulting array of permissions associated with the file",
@@ -11268,7 +11233,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The resulting array of permissions associated with the file",
@@ -11449,7 +11413,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "An array of file objects based on the listing query.",
@@ -11545,7 +11508,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "An array of file objects based on the listing query.",
@@ -12177,7 +12139,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -12259,7 +12221,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -12597,7 +12559,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "Personal access tokens",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "token"
      },
@@ -12786,7 +12748,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -13226,7 +13188,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -13633,7 +13594,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.1.0",
     "results": [
      {
       "description": "Recipient email address",
@@ -14085,7 +14045,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.1.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -14281,7 +14240,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "apiKey"
      },
@@ -14352,7 +14311,7 @@
       "required": true,
       "placeholder": "bmrgadmin",
       "helpertext": "",
-      "defaultValue": "youll-come-a-waltzing-maltilda-with-me",
+      "defaultValue": "",
       "readOnly": false,
       "name": "templateId"
      },
@@ -15746,7 +15705,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Update information",
@@ -15845,7 +15803,6 @@
     ],
     "command": [],
     "envs": [],
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "Update information",
@@ -16012,7 +15969,7 @@
      {
       "description": "",
       "label": "Authentication - Private Key",
-      "type": "texteditor::text",
+      "type": "password",
       "required": true,
       "placeholder": "",
       "helpertext": "Box private key",
@@ -17999,7 +17956,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The membership's ID",
@@ -18102,7 +18058,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The comment's ID",
@@ -18238,7 +18193,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The new issue's number",
@@ -18378,7 +18332,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The new pull request's number",
@@ -18561,7 +18514,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The release's ID",
@@ -18696,7 +18648,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The new channel's ID",
@@ -18810,7 +18761,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The workflow run's ID, when the server reports it (github.com does); empty otherwise",
@@ -18891,7 +18841,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The absolute path of the downloaded file",
@@ -19009,7 +18958,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The absolute path of the downloaded file",
@@ -19123,7 +19071,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The file's text, when it is UTF-8 and fits in a result (3000 bytes); otherwise empty and the file is in Output File",
@@ -19245,7 +19192,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "A JSON array of {name, path, type, size, lastModified, webUrl}, when it fits in a result (3000 bytes); otherwise empty and the listing is in Output File",
@@ -19330,7 +19276,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": null,
     "script": null,
     "workingDir": null
@@ -19475,7 +19420,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The status's ID",
@@ -19628,7 +19572,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The new permission's ID",
@@ -19720,7 +19663,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The new file's ID",
@@ -19874,7 +19816,6 @@
     ],
     "command": [],
     "envs": null,
-    "image": "boomerangio/task-flow:3.3.0",
     "results": [
      {
       "description": "The uploaded item's ID",

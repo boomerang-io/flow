@@ -13,7 +13,9 @@ tag's release notes.
 - **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.3.0`** (the `task` settings'
   `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change unit
   `_0036__DefaultTaskImageTaskFlow33` moves an install whose setting still holds 3.1.0; an image an operator chose is
-  kept. What changes for those tasks:
+  kept. No seeded revision pins a task-flow version any more: `_0043__UnpinTaskFlowImages` removes the pin from every
+  revision naming `boomerangio/task-flow`, so each follows the setting (the AI, Box and Python worker images stay).
+  What changes for those tasks:
   - Script tasks run on Alpine 3.24 with Node 24 (was 20), npm 11 at `/usr/local/bin/npm` (`/usr/bin/npm` is gone),
     GNU tar, OpenSSL 3.5, curl 8.23 and bash 5.3.
   - Tasks that exited successfully having done nothing now do their work, or fail visibly: Append Data (Sheets)
@@ -281,7 +283,9 @@ tag's release notes.
   the same choice. The new run starts with an empty run workspace, so files the carried-over tasks wrote there are
   not carried over; pass them as workflow-scoped artifacts, or re-run everything. The dialog says so.
 - `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
-  and never written to a log.
+  and never written to a log. The Box tasks' `privateKey` is one: `_0044__BoxPrivateKeyIsASecret` types it as a
+  password and seals the value a workflow already holds for it. The placeholder default a few older GitHub revisions
+  and the SendGrid template task carried on a credential parameter is cleared (`_0045__ClearPlaceholderDefaults`).
 - The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that
   changes or clears a secret names it in the event's `detail`, never its value.
 - A run-workflow task may run for each item, one child run per item, and a waited child's results become the
