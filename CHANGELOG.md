@@ -7,6 +7,9 @@ tag's release notes.
 
 ### Upgrading
 
+- **The dispatcher takes service-core's address as one URL.** `flow.engine.service.host` is gone: set
+  `flow.engine.url` (`FLOW_ENGINE_URL`, for example `http://service-core:7700`). Its default is
+  `http://localhost:7700`, service-core's port; the old default pointed at 7701, where nothing listens.
 - **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.3.0`** (the `task` settings'
   `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change unit
   `_0036__DefaultTaskImageTaskFlow33` moves an install whose setting still holds 3.1.0; an image an operator chose is

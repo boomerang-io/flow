@@ -115,7 +115,7 @@ service in `docker-compose.yml`):
 docker compose up -d --build service-dispatcher     # naming the service enables its profile
 ```
 
-It reaches `service-core` on the host by default; set `FLOW_ENGINE_SERVICE_HOST=service-core:7700` to pair
+It reaches `service-core` on the host by default; set `FLOW_ENGINE_URL=http://service-core:7700` to pair
 it with the `stack` profile. The dispatcher scenarios then run with
 `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 

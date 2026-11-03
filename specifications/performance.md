@@ -19,7 +19,7 @@ instance. Correctness rests on three primitives, all in the live path:
 Crash recovery is the lease the claim sets 90 s ahead (`flow.dispatcher.lease-ms`,
 `service-core/src/main/resources/application.properties:47`; `engine/TaskRunService.java:333`) and each 30 s
 heartbeat renews (`engine/TaskRunService.java:622-634`; `flow.dispatcher.lease.beat-ms`,
-`service-dispatcher/src/main/resources/application.properties:130`), served by the sparse `lease_sweep` index
+`service-dispatcher/src/main/resources/application.properties:132`), served by the sparse `lease_sweep` index
 (`migration/_0021__Indexes.java:64`), which holds only live claims because completion clears the lease
 (`engine/TaskRunService.java:598-604`); the absolute `timeoutAt` written at claim = now + timeout + 5 s grace
 (`engine/RunTimeouts.java:15-19`, `engine/EngineConstants.java:13`); and the gone-dispatcher sweep below.
@@ -88,7 +88,7 @@ median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval
 on the polled instance: a `retry.after` that elapses, an admission on another replica, or a slot that frees while
 the engine holds a full dispatcher's `limit=0` poll. A multi-replica engine whose chains hop often can trade queries
 for that latency: one dispatcher with seven pools at 200 ms costs 35 queries/s instead of 7. A dispatcher holds at most `flow.dispatcher.task.max-in-flight` tasks (25,
-`service-dispatcher/src/main/resources/application.properties:96`), a Pending pod and a retried end report
+`service-dispatcher/src/main/resources/application.properties:98`), a Pending pod and a retried end report
 included, and each poll claims no more than its free slots, so under a backlog the work it cannot run stays
 claimable by other dispatchers (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/InFlightTasks.java:29-33`,
 `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:259-283`).
@@ -224,7 +224,7 @@ dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/Workspa
 polls are synchronous and keep their 30 s hold. A log the dispatcher has sent nothing on for 10 minutes ends at the
 streaming template's read timeout, with a closing line to the reader (`engine/LogClient.java:123-127`). A
 dispatcher task with no timeout of its own gets 60 min, plus a 2 min watch grace
-(`service-dispatcher/src/main/resources/application.properties:26,51`).
+(`service-dispatcher/src/main/resources/application.properties:29,54`).
 
 Enterprises run Flow behind proxies and private certificate authorities, so proxy routing, the trust-all
 template, and per-template timeouts are product features that a framework upgrade MUST preserve with
@@ -290,7 +290,7 @@ pass by reference (a workspace path or a URI).
 
 Per run, the dispatcher creates at most one persistent volume claim, keyed by the run id
 (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkflowService.java:36-56`). Defaults: 1Gi, the
-cluster default class, `ReadWriteMany` (`service-dispatcher/src/main/resources/application.properties:43-45`),
+cluster default class, `ReadWriteMany` (`service-dispatcher/src/main/resources/application.properties:46-48`),
 with a 30 s wait for the claim to reach `Bound` or `Pending`
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeServiceImpl.java:160,167-172`). Both executors mount the
 same claim (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:283-305`); a completed run's
@@ -336,7 +336,7 @@ speculation. The laptop baseline above is not that test.
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:455-473`, `service-dispatcher/src/main/java/io/boomerang/executor/JobWatcher.java:23-33`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
 | A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by the admissions on its own instance that its filter can claim (`dispatcher/PollWakeups.java:34-110`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:72-74`, `:552-574`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`engine/TaskRunService.java:215-227`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
-| A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` (15, `service-dispatcher/src/main/resources/application.properties:37`) is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
+| A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` (15, `service-dispatcher/src/main/resources/application.properties:40`) is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 
 ## Also worth knowing
 

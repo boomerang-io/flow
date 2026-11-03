@@ -162,8 +162,8 @@ application picks the `flow-sdk` of the server it runs against, and a newer serv
 library because `/api/v2` only gains routes and fields within 5.x (`api-contract.md`). No other module is
 published.
 
-The dispatcher reaches core at `flow.engine.url`, `http://${flow.engine.service.host}` by default, and
-authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:86-87,143`);
+The dispatcher reaches core at `flow.engine.url`, `http://localhost:7700` by default, and
+authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:89,145`);
 core runs the dispatcher's `/dispatcher/**` filter chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`)
 and the product chain second (`core/security/SecurityConfiguration.java:89-90`).
 

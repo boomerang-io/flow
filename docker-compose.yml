@@ -141,7 +141,7 @@ services:
   #
   # Behind a profile so `docker compose up -d` without a cluster does not start a dispatcher that
   # cannot work; naming the service on the command line enables the profile. It reaches
-  # service-core on the host by default; set FLOW_ENGINE_SERVICE_HOST=service-core:7700 to pair it
+  # service-core on the host by default; set FLOW_ENGINE_URL=http://service-core:7700 to pair it
   # with the `stack` profile instead. Dispatcher authentication is switched off on service-core
   # here (the documented dev/test escape hatch); never carry that into a real deployment.
   service-dispatcher:
@@ -154,7 +154,7 @@ services:
     environment:
       DISPATCHER_EXECUTOR: kube-jobs
       FLOW_DISPATCHER_NAME: orbstack-kube-jobs
-      FLOW_ENGINE_SERVICE_HOST: ${FLOW_ENGINE_SERVICE_HOST:-host.docker.internal:7700}
+      FLOW_ENGINE_URL: ${FLOW_ENGINE_URL:-http://host.docker.internal:7700}
       FLOW_ENGINE_DISPATCHER_TOKEN: ""
       # Registered with the engine as where it reads a running task's log, with the bearer the
       # dispatcher generates at start. service-core on the host reaches the published port; set

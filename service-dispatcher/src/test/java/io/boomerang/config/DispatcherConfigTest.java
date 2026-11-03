@@ -17,7 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * The application wires the SDK to its handlers: the async-proxied container handler is still
- * injected by its class, the engine URL derives from {@code flow.engine.service.host}, and the
+ * injected by its class, the engine URL defaults to service-core's port, and the
  * configuration builds a dispatcher from the dispatcher properties.
  */
 @SpringBootTest
@@ -42,8 +42,8 @@ class DispatcherConfigTest {
   }
 
   @Test
-  void theEngineUrlDerivesFromTheEngineHost() {
-    assertThat(engineUrl).isEqualTo("http://localhost:7701");
+  void theEngineUrlDefaultsToServiceCoresPort() {
+    assertThat(engineUrl).isEqualTo("http://localhost:7700");
   }
 
   // A plain instance: the context's configuration proxy would hand back the mocked bean instead.
