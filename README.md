@@ -254,6 +254,17 @@ There is one `service-core`; two properties express how it is deployed
 | `flow.security.enabled` | `true` | The single switch for authentication and endpoint authorization. With it `false`, every request runs as a synthetic admin; set it only for a headless embedded engine or local development. |
 | `flow.workspace.single` | `false` | With it `true`, only the seeded `system` workspace is served and workspaces cannot be created or deleted. An embedding product sets it together with `flow.security.enabled=false`. |
 
+**The first admin.** A secured install's first person to sign in becomes its admin by entering the activation code
+(`FLOW_ACTIVATION_CODE`, at least 32 characters). An install needs no code when:
+
+- only machines call it: the bootstrap token (`FLOW_SECURITY_BOOTSTRAP_TOKEN`) and declared tokens work from first start;
+- an identity provider decides admins (`flow.security.admin-claim.name` and `.values`);
+- the bootstrap token names the admin: create a workspace with the person as a member by email, let them sign in once,
+  then `PATCH /api/v2/user/{id}` with `{"type":"admin"}`;
+- security is off.
+
+`specifications/authorization.md`, "Who may sign in", has the full rules.
+
 These security classes load on `flow.security.enabled`:
 
 | Class | Loaded when |
