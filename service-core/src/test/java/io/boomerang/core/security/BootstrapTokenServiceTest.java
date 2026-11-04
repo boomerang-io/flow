@@ -29,7 +29,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 /**
  * The bootstrap token is registered on start, survives a restart unchanged, is replaced when the
- * operator rotates it, refuses a value too weak to be a global token, and authenticates a request
+ * operator rotates it, is revoked when the operator clears it, refuses a value too weak to be a global token, and authenticates a request
  * like any other global service token.
  */
 class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
@@ -139,6 +139,25 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
 
   @Test
   void aBlankValueRegistersNothing() {
+    bootstrapToken("").register();
+
+    assertThat(tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID)).isEmpty();
+  }
+
+  @Test
+  void aBlankValueAfterARegistrationRevokesTheToken() {
+    bootstrapToken(FIRST).register();
+    assertThat(tokenService.validate(FIRST)).isTrue();
+
+    bootstrapToken("").register();
+
+    assertThat(tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID)).isEmpty();
+    assertThat(tokenService.validate(FIRST)).isFalse();
+  }
+
+  @Test
+  void aBlankValueWithNothingStoredDoesNothing() {
+    bootstrapToken("").register();
     bootstrapToken("").register();
 
     assertThat(tokenRepository.findById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID)).isEmpty();

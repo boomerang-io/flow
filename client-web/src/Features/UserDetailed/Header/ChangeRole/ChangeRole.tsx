@@ -28,7 +28,8 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
   // action settles - so nothing refreshes it by hand (queryClient.invalidateQueries would be an
   // inert no-op against a loader-driven read).
   const fetcher = useFetcher<UserDetailedActionResult>();
-  const role = user?.type;
+  // A type the picker doesn't list (auditor, author) is a plain user, so User is preselected.
+  const role = rolesList.some((listed) => listed.id === user?.type) ? user?.type : UserType.User;
   const [selectedRole, setSelectedRole] = useState<string | undefined>(role);
   const [error, setError] = useState<{ title: string; subtitle: string } | undefined>();
 
@@ -104,7 +105,7 @@ const ChangeRole: React.FC<ChangeRoleProps> = ({ closeModal, user }) => {
         <Button kind="secondary" onClick={closeModal}>
           Cancel
         </Button>
-        <Button type="submit" disabled={role === (selectedRole as PlatformRole) || isSubmitting}>
+        <Button type="submit" disabled={user?.type === (selectedRole as PlatformRole) || isSubmitting}>
           {isSubmitting ? "Updating..." : error ? "Try again" : "Submit"}
         </Button>
       </ModalFooter>

@@ -83,6 +83,21 @@ class UserServiceTest {
   }
 
   @Test
+  void onlyAnAdminOrOperatorIsAnAdminAndEveryOtherTypeIsAPlainUser() {
+    for (UserType type : UserType.values()) {
+      UserEntity entity = new UserEntity();
+      entity.setId("u-" + type);
+      entity.setType(type);
+      when(identityService.getCurrentPrincipal()).thenReturn(entity.getId());
+      when(userRepository.findById(entity.getId())).thenReturn(Optional.of(entity));
+
+      assertThat(userService.isCurrentUserAdmin())
+          .as("%s", type)
+          .isEqualTo(type == UserType.admin || type == UserType.operator);
+    }
+  }
+
+  @Test
   void resolvedPrincipalGetCurrentUserStillLooksUpTheUser() {
     UserEntity entity = new UserEntity();
     entity.setId("u1");

@@ -193,7 +193,7 @@
           "readOnly": false
         },
         {
-          "description": "Create a user account the first time someone signs in. When off, only people an admin has added to a workspace, or an admin claim admits, can sign in.",
+          "description": "Create a user account the first time someone signs in. When off, a person who isn't a user yet can sign in only if an admin has added them to a workspace or the admin claim admits them. Existing users are unaffected.",
           "key": "autoCreateUsers",
           "label": "Auto-Create Users",
           "type": "boolean",

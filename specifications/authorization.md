@@ -162,7 +162,7 @@ omits `groups` above a size limit) is a verdict of `false`, and demotes.
 
 | `AuthScope` | Prefix | Holder | Grants | How it is minted |
 | --- | --- | --- | --- | --- |
-| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:753-785`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:125-127`) |
+| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise (every other type, `auditor` and `author` included) a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:753-785`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:125-127`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:180-190`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:192-195,365-380`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:818-835`) |
 | `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:152-154`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
@@ -170,11 +170,11 @@ omits `groups` above a size limit) is a verdict of `false`, and demotes.
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
 `flow.security.bootstrap-token`. When it is set — `bfg_` and at least 32 further characters, else the start
 fails — `BootstrapTokenService` stores its hash at startup as a global `**/**` token with `actorKind=SERVICE`
-under the fixed id `bootstrap-token` (`core/security/BootstrapTokenService.java:62-104`). A restart changes
-nothing, instances starting together converge on one record, and a changed value replaces the hash and evicts
-the old one from the local token cache; it is rotated by changing the value and restarting. It registers whether
-or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, which admits only `user` and
-`session` tokens (`workspace/ProfileControllerV2.java:54,78`), so the webapp cannot sign in with it.
+under the fixed id `bootstrap-token` (`core/security/BootstrapTokenService.java:63-118`). A restart changes
+nothing, instances starting together converge on one record, and a changed value replaces the hash and evicts the old
+one from the local token cache. Clearing the variable revokes the token at the next start, as for a removed declared
+token. It registers whether or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, which
+admits only `user` and `session` tokens (`workspace/ProfileControllerV2.java:54,78`), so the webapp cannot sign in with it.
 
 **Declared tokens.** `flow.security.tokens.<name>.*` declares narrower machine tokens so a hosted install needs no
 minting step. The map key is the name, so the environment form carries it:
@@ -185,19 +185,19 @@ name from an environment variable and keeps a properties key as written, so an u
 folded. An entry has exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`), `permissions`, and optionally
 `description` and `expiry` (an ISO-8601 instant, or a date meaning the end of that day in UTC). `hash` is the
 lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256` on macOS), the form
-`TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the bootstrap token.
-Either way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each permission is a
-`<resource>/<action>` string checked by `TokenService.assertValidPermissions`, the check `POST /api/v2/token` runs, and
-becomes one `global` grant with principal `**`. A bad entry fails the binding, so the start stops before the install
+`TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the bootstrap token. Either
+way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each permission is a `<resource>/<action>`
+string checked by `TokenService.assertValidPermissions` (as `POST /api/v2/token` does) and becomes one `global` grant, principal `**`. A bad entry fails the binding, so the start stops before the install
 serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not stop it: the token is stored and
-refused like any expired token.
-`DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under `declared-token:<name>`; an unchanged entry
+refused like any expired token. `DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under `declared-token:<name>`; an unchanged entry
 writes nothing, a changed one replaces the record and evicts the old hash (`core/security/DeclaredTokenService.java:58-106`).
 A minted token holding a configured token's value is deleted so the configured one takes it over, while two configured
-tokens (declared or bootstrap) sharing a value stop the start (`:113-132`); a value two stored tokens hold authenticates as
-neither, never a 500 (`core/TokenService.java:406-425`). A stored `declared-token:` id no longer configured is revoked, so
-a rotation is: add the new entry, roll the client, remove the old one. Declared tokens register whether or not security
-is on, and `TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409) (`core/TokenService.java:475-478`).
+tokens (declared or bootstrap) sharing a value stop the start (`:113-132`); a value two stored tokens hold authenticates
+as neither, never a 500 (`core/TokenService.java:406-425`). A stored `declared-token:` id no longer configured is
+revoked, so a rotation is: add the new entry, roll the client, remove the old one. Every instance MUST carry the same
+`flow.security.tokens` entries: each revokes, at its start, the declared tokens its own configuration does not name.
+Declared tokens register whether or not security is on; `TokenService.delete` refuses their ids with `TOKEN_DECLARED`
+(409) (`core/TokenService.java:475-478`).
 
 **OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
 sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,
