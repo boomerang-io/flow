@@ -10,13 +10,14 @@ import org.bson.Document;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
  * Applies the {@code audit.retentionDays} setting to the audit collection's TTL index at startup
- * (collMod is idempotent, so every instance applying it is safe). {@code
- * io.boomerang.migration._0021__Indexes} creates the index at the 365-day default; an
- * operator-changed setting takes effect on the next boot.
+ * and again, on every instance, within one check interval of the setting changing (collMod is
+ * idempotent, so instances applying it at once is safe). {@code
+ * io.boomerang.migration._0021__Indexes} creates the index at the 365-day default.
  *
  * <p>The retention is floored at {@value #MIN_RETENTION_DAYS} days — monthly quota counting relies
  * on at least one month of rows. Best-effort: a missing collection, index, or setting logs and
@@ -35,6 +36,9 @@ public class AuditRetentionService {
   private final MongoConfiguration mongoConfiguration;
   private final SettingsRepository settingsRepository;
 
+  // The days this instance last applied; 0 until the first successful apply.
+  private volatile int appliedDays;
+
   public AuditRetentionService(
       MongoTemplate mongoTemplate,
       MongoConfiguration mongoConfiguration,
@@ -46,8 +50,22 @@ public class AuditRetentionService {
 
   @EventListener(ApplicationReadyEvent.class)
   public void applyRetention() {
+    apply(configuredRetentionDays());
+  }
+
+  /** Re-apply the TTL when the setting no longer matches what this instance last applied. */
+  @Scheduled(
+      initialDelayString = "${flow.audit.retention-interval-ms:60000}",
+      fixedDelayString = "${flow.audit.retention-interval-ms:60000}")
+  public void reapplyOnChange() {
+    int days = configuredRetentionDays();
+    if (days != appliedDays) {
+      apply(days);
+    }
+  }
+
+  private void apply(int days) {
     try {
-      int days = configuredRetentionDays();
       String collection = mongoConfiguration.fullCollectionName("audit");
       mongoTemplate
           .getDb()
@@ -57,6 +75,7 @@ public class AuditRetentionService {
                       "index",
                       new Document("name", TTL_INDEX_NAME)
                           .append("expireAfterSeconds", days * 86400L)));
+      appliedDays = days;
       LOGGER.info("Audit retention set to {} days on {}", days, collection);
     } catch (RuntimeException e) {
       LOGGER.warn("Could not apply audit retention ({}) - the trail keeps its current TTL", e.toString());

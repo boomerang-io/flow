@@ -179,7 +179,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `actions` | `task_run`, unique where `taskRunRef` exists (`:130-137`); `status_sweep` |
 | `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
-| `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup, at least 60, `core/audit/AuditRetentionService.java:28`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
+| `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup and re-applied on every instance within a minute of a change, at least 60, `core/audit/AuditRetentionService.java:29,52-72`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:184-191`) |
 
 Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:196-199`): task

@@ -454,6 +454,10 @@ tag's release notes.
 
 ### Fixed
 
+- A change to the audit retention setting (`audit` `retentionDays`) through `PATCH /api/v2/settings` now reaches the
+  audit expiry index on every instance within a minute (`flow.audit.retention-interval-ms`), instead of at the next
+  restart. The 60-day floor is unchanged. The run (`workflowrun` `retention.days`) and task log retention settings
+  already took effect without a restart.
 - A task's live log answers with a line saying what happened, instead of a bare `500`, when the dispatcher holding
   the task cannot be reached (and no stored log counts) or its stream breaks part way.
 - `service-core` and `service-dispatcher` no longer crash at start with `SIGILL` on some machines. The JVM cached
