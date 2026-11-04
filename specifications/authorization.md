@@ -107,15 +107,15 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 again, without activating, when they are added to a second workspace (`core/UserService.java:141-151`). A record in any
 other non-active status is not revived. There is no route that creates a user outside a workspace.
 
-**The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an empty install is made only by the code in
-`flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time before anything is created
-(`UserService.activationCodeValid`, `core/security/ActivationCode.java:52-58`). At least 32 characters or the start fails;
-unset, activation is off (no sign-in without a readable claim can create the first admin, the start logs one warning whether or not a claim is configured, a sign-in is told activation is
-required); the retired `flow.otc` (`FLOW_OTC`) is read when the new name is unset, with one deprecation warning, and two
-different values stop the start (`ActivationCode.java:28-49`). The request field stays `otc`. "Empty" is
-`userRepository.count() == 0`; a bootstrap token or any other machine token is not a user, so it works from first start
-and neither counts as the first person nor activates anything. Once the install has users `PUT /api/v2/activate`
-refuses every code (`UserService.java:97-106`), so the code is useless after the first activation.
+**The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an
+empty install is made only by the code in `flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time
+before anything is created (`UserService.activationCodeValid`, `core/security/ActivationCode.java:52-58`). Under 32
+characters stops the start; unset, activation is off and the start logs one warning. The retired `flow.otc` (`FLOW_OTC`)
+is read when the new name is unset, with a deprecation warning, and two different values stop the start
+(`ActivationCode.java:28-49`); the request field stays `otc`. "Empty" is `userRepository.count() == 0`, so a machine
+token, which is not a user, works from first start and never activates anything; once any user exists
+`PUT /api/v2/activate` refuses every code (`UserService.java:97-106`). No code is needed where no person must be the
+first admin or something else names them (the second table).
 
 | Path | What the code does |
 | --- | --- |
@@ -123,6 +123,14 @@ refuses every code (`UserService.java:97-106`), so the code is useless after the
 | any other proxy route on an empty install | `423 Locked`, which the webapp reads as "show the activation screen" (`TokenService.java:663-665`) |
 | `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-158`); a person the install does not admit is `AUTH_USER_NOT_ADMITTED` (`403`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
 | an activated install | the code is not read; sign-in is as in the table above |
+
+| Without the code | How | Proof |
+| --- | --- | --- |
+| Machine tokens only | Leave the code unset; the bootstrap and declared tokens work from first start | `ActivationTest` (the bootstrap token before activation) |
+| Admin claim | A sign-in whose claim is read: the webapp's own sign-in, or a proxy with `trust-forwarded-token` | `ActivationWithClaimTest` |
+| The bootstrap token names the admin | Create a workspace with the person as a member by email (a user now exists, so the install is activated); the person signs in, with no code, as a user; then `PATCH /api/v2/user/{id}` `{"type":"admin"}`. The record must be active first, which the first sign-in does | `ActivationTest.theBootstrapTokenCanNameTheFirstAdminWithNoActivationCode` |
+| External user directory | With one configured the install always counts as activated (`UserService.java:116-121`) | |
+| Security off | `flow.security.enabled=false`: requests run as a synthetic admin ("Security off: the synthetic admin") | |
 
 The code is skipped only on a sign-in whose claim was read: the webapp's verified id_token, or a forwarded token with
 `trust-forwarded-token` on. A forwarded email, Basic, an untrusted forwarded token (even one naming the admin group) or a

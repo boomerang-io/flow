@@ -2,6 +2,7 @@ package io.boomerang.core.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -37,7 +38,8 @@ import org.testcontainers.utility.DockerImageName;
  * The first admin of an empty install, through the real filter chain and stores, with no admin
  * claim configured: only the one-time code creates them, on the proxy route (PUT /api/v2/activate)
  * and the webapp's verified-id_token exchange; a wrong code or none creates nobody; and the
- * bootstrap token works throughout without counting as a person. Its own context and database,
+ * bootstrap token works throughout without counting as a person, and can name the first admin
+ * itself. Its own context and database,
  * because it needs an install with no users.
  */
 @SpringBootTest
@@ -109,6 +111,44 @@ class ActivationTest {
                 .header("x-forwarded-email", "founder@example.test"))
         .andExpect(status().isLocked());
     assertThat(userRepository.count()).isZero();
+  }
+
+  @Test
+  void theBootstrapTokenCanNameTheFirstAdminWithNoActivationCode() throws Exception {
+    // 1. The bootstrap token adds the person to a workspace by email: a user record now exists, so
+    // the install counts as activated and the code is never asked for.
+    mockMvc
+        .perform(
+            post("/api/v2/workspace")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + BOOTSTRAP)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"name\":\"founders\",\"displayName\":\"Founders\","
+                        + "\"members\":[{\"email\":\"founder@example.test\",\"role\":\"owner\"}]}"))
+        .andExpect(status().is2xxSuccessful());
+    SecurityContextHolder.clearContext();
+    assertThat(userService.isActivated()).isTrue();
+
+    // 2. Their first sign-in needs no code and activates their record, as a plain user.
+    mockMvc
+        .perform(
+            get("/api/v2/profile")
+                .servletPath("/api/v2/profile")
+                .header("x-forwarded-email", "founder@example.test"))
+        .andExpect(status().isOk());
+    SecurityContextHolder.clearContext();
+    String id = userRepository.findByEmail("founder@example.test").getId();
+    assertThat(userRepository.findById(id).orElseThrow().getType()).isEqualTo(UserType.user);
+
+    // 3. The bootstrap token makes them an admin.
+    mockMvc
+        .perform(
+            patch("/api/v2/user/" + id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + BOOTSTRAP)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"type\":\"admin\"}"))
+        .andExpect(status().isOk());
+    assertThat(userRepository.findById(id).orElseThrow().getType()).isEqualTo(UserType.admin);
   }
 
   // --- behind a proxy ---------------------------------------------------------------------------
