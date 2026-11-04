@@ -56,7 +56,7 @@ public class DeclaredTokenService {
    */
   @EventListener(ApplicationReadyEvent.class)
   public void register() {
-    List<TokenEntity> declared = properties.tokens().stream().map(this::toEntity).toList();
+    List<TokenEntity> declared = properties.tokens().entrySet().stream().map(e -> toEntity(e.getKey(), e.getValue())).toList();
     Set<String> hashes = new HashSet<>();
     declared.forEach(
         entity -> {
@@ -104,14 +104,14 @@ public class DeclaredTokenService {
         previous == null ? "new" : "replaced the previous");
   }
 
-  private TokenEntity toEntity(DeclaredTokenProperties.Entry entry) {
+  private TokenEntity toEntity(String name, DeclaredTokenProperties.Entry entry) {
     TokenEntity entity = new TokenEntity();
-    entity.setId(ID_PREFIX + entry.name());
+    entity.setId(ID_PREFIX + name);
     entity.setType(AuthScope.global);
-    entity.setName(entry.name());
+    entity.setName(name);
     entity.setDescription(entry.description());
     entity.setActorKind(entry.actorKind());
-    Instant expiresAt = entry.expiresAt();
+    Instant expiresAt = entry.expiresAt("flow.security.tokens." + name);
     entity.setExpirationDate(expiresAt == null ? null : Date.from(expiresAt));
     entity.setPermissions(
         new LinkedList<>(
