@@ -15,6 +15,7 @@ import io.boomerang.core.model.TokenCreateRequest;
 import io.boomerang.core.model.TokenCreateResponse;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
+import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
@@ -62,7 +63,8 @@ class TokenServiceTest {
             mongoTemplate,
             identityService,
             new TokenLookupCache(true, Duration.ofSeconds(60), 10_000),
-            settingsService);
+            settingsService,
+            new AdminClaim("", List.of(), false));
   }
 
   // =====================================================================================

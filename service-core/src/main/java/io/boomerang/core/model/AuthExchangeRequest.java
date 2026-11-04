@@ -7,11 +7,13 @@ import lombok.Data;
  * fields are optional and empty is a valid, meaningful request: an empty body selects the
  * proxy-forwarded-identity path. A populated {@code idToken} selects the direct OIDC login path -
  * {@code nonce} must be the value the frontend generated for its PKCE authorize request, so it can
- * be checked against the token's own {@code nonce} claim.
+ * be checked against the token's own {@code nonce} claim. {@code otc} is the instance's one-time
+ * activation code, sent with the id_token only to create the first admin of an empty install.
  */
 @Data
 public class AuthExchangeRequest {
 
   private String idToken;
   private String nonce;
+  private String otc;
 }

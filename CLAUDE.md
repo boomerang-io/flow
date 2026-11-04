@@ -113,8 +113,8 @@ docker compose --profile stack up -d --build          # or the whole product in 
   Router's dev server; `pnpm run build && pnpm start` is the built server the image runs
   (`react-router-serve`, no hand-written server). The probe is `GET /apps/flow/health`.
 - The stack runs **secured** (`FLOW_SECURITY_ENABLED=true`) with a local IDPZero OpenID Connect provider on
-  `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker and the first user to sign in on a fresh
-  database becomes admin. Set `flow.security.enabled=false` (with `flow.workspace.single=true`) only for a
+  `:4380` (`docker/idpzero/`); sign-in is a passwordless user picker, and the first person to sign in on a fresh
+  database enters the activation code (`FLOW_ACTIVATION_CODE` in `docker-compose.yml`) and becomes admin. Set `flow.security.enabled=false` (with `flow.workspace.single=true`) only for a
   headless embedded engine — requests then run as a synthetic admin (see `authorization.md`).
 - Dispatcher scenarios, with the dispatcher up: `cd e2e && E2E_DISPATCHER=true E2E_KUBECTL_CONTEXT=orbstack npx playwright test tests/dispatcher-kube.spec.ts`.
 - Tests: `mvn -pl service-core -am test` (Testcontainers), `cd client-web && pnpm test` (vitest + MSW),

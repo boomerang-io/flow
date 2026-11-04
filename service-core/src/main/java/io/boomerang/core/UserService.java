@@ -12,6 +12,7 @@ import io.boomerang.core.model.*;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.ActivationCode;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -49,15 +50,13 @@ public class UserService {
   @Value("${flow.externalUrl.user}")
   private String externalUserUrl;
 
-  @Value("${flow.otc}")
-  private String corePlatformOTC;
-
   private final UserRepository userRepository;
   private final IdentityService identityService;
   private final ExternalUserService extUserService;
   private final RelationshipService relationshipService;
   private final MongoTemplate mongoTemplate;
   private final ObjectMapper objectMapper;
+  private final ActivationCode activationCode;
 
   UserService(
       MongoTemplate mongoTemplate,
@@ -65,7 +64,9 @@ public class UserService {
       ExternalUserService extUserService,
       RelationshipService relationshipService,
       UserRepository userRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      ActivationCode activationCode) {
+    this.activationCode = activationCode;
     this.userRepository = userRepository;
     this.identityService = identityService;
     this.extUserService = extUserService;
@@ -94,17 +95,19 @@ public class UserService {
   }
 
   /*
-   * If OTC matches, activate the instance
-   *
-   * TODO: move to a better service
+   * Answers whether the activation code is right. It is useful once only: after the install has
+   * users it refuses, unless this very request is the one that created the first admin.
    */
-  public ResponseEntity<Boolean> activateSetup(OneTimeCode otc) {
-    if (externalUserUrl.isBlank()) {
-      if (corePlatformOTC.equals(otc.getOtc())) {
-        return new ResponseEntity<>(HttpStatus.OK);
-      }
+  public ResponseEntity<Boolean> activateSetup(OneTimeCode otc, boolean activatedByThisRequest) {
+    if ((activatedByThisRequest || !isActivated()) && otc != null && activationCodeValid(otc.getOtc())) {
+      return new ResponseEntity<>(HttpStatus.OK);
     }
     return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+  }
+
+  /** Whether {@code code} is this instance's activation code (never with an external user directory). */
+  public boolean activationCodeValid(String code) {
+    return externalUserUrl.isBlank() && activationCode.matches(code);
   }
 
   /*
@@ -135,6 +138,17 @@ public class UserService {
     if (externalUserUrl.isBlank()) {
       // The one write path for users.email in the application - see normaliseEmail().
       String normalisedEmail = normaliseEmail(email);
+      if (userEntity.isEmpty()) {
+        // A person an admin added by email is stored inactive; their sign-in activates them.
+        UserEntity invited = userRepository.findByEmail(normalisedEmail);
+        if (invited != null && UserStatus.inactive.equals(invited.getStatus())) {
+          if (userStatus.filter(UserStatus.inactive::equals).isPresent()) {
+            return Optional.of(invited);
+          }
+          invited.setStatus(UserStatus.active);
+          userEntity = Optional.of(invited);
+        }
+      }
       if (userEntity.isEmpty() && allowUserCreation) {
         // Create new User (UserEntity is defaulted on new)
         UserEntity newUserEntity = new UserEntity();
@@ -176,6 +190,24 @@ public class UserService {
       }
     }
     return userEntity;
+  }
+
+  /**
+   * Makes a local user an admin or, when {@code admin} is false and they are one, an ordinary user,
+   * as the identity provider's claim says; any other type is left alone. Returns whether the type
+   * changed. The external directory owns its users' types, so it is never written.
+   */
+  public boolean applyAdminClaim(UserEntity user, boolean admin) {
+    if (!externalUserUrl.isBlank() || user == null || user.getId() == null) {
+      return false;
+    }
+    boolean isAdmin = UserType.admin.equals(user.getType());
+    if (admin == isAdmin) {
+      return false;
+    }
+    user.setType(admin ? UserType.admin : UserType.user);
+    userRepository.save(user);
+    return true;
   }
 
   private void convertExternalUserType(ExternalUserProfile extUser, UserEntity userEntity) {

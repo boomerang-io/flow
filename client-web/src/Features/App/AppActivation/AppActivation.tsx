@@ -25,9 +25,8 @@ const AppActivation: React.FC<PlatformActivationProps> = ({ setActivationCode })
         subtitle: (
           <>
             <span className={styles.break}>
-              To ensure that Boomerang Flow is secure, we have generated a one-time token during the installation
-              process that can be used to complete the post-installation steps and activate this Boomerang Flow
-              instance.
+              To ensure that Boomerang Flow is secure, the person who installed it sets an activation code, which
+              is needed to complete the post-installation steps and activate this Boomerang Flow instance.
             </span>
             <span className={styles.break}>Your user will be created and granted admin rights.</span>
           </>
@@ -84,7 +83,7 @@ const Form: React.FC<PlatformActivationProps> = ({ setActivationCode }) => {
         <TextInput
           id="activation-code"
           labelText="Activation code"
-          helperText="Look for it in your shell"
+          helperText="The code set for FLOW_ACTIVATION_CODE when this instance was installed"
           onChange={(e) => setCode(e.target.value)}
         />
         {Boolean(errorMessage) && (

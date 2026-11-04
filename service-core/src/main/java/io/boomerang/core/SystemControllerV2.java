@@ -8,6 +8,7 @@ import io.boomerang.core.model.Navigation;
 import io.boomerang.core.model.OneTimeCode;
 import io.boomerang.core.model.Setting;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.AuthenticationFilter;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -108,8 +110,10 @@ public class SystemControllerV2 {
         @ApiResponse(responseCode = "200", description = "OK"),
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
-  public ResponseEntity<Boolean> register(@RequestBody(required = false) OneTimeCode otc) {
-    return userService.activateSetup(otc);
+  public ResponseEntity<Boolean> register(
+      @RequestBody(required = false) OneTimeCode otc, HttpServletRequest request) {
+    return userService.activateSetup(
+        otc, request.getAttribute(AuthenticationFilter.ACTIVATION_PROVEN) != null);
   }
 
   @GetMapping(value = "/context")

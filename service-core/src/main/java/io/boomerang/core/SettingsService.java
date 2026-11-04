@@ -148,6 +148,18 @@ public class SettingsService {
     }
   }
 
+  /*
+   * Whether sign-up is invite only: the {@code auth} document's {@code signup.mode} is
+   * {@code invite}. An install whose settings lack the key answers as the seed does: open.
+   */
+  public boolean signupInviteOnly() {
+    try {
+      return "invite".equalsIgnoreCase(getSettingConfig("auth", "signup.mode").getValue());
+    } catch (RuntimeException missing) {
+      return false;
+    }
+  }
+
   public SettingConfig getSettingConfig(String key, String name) {
     final SettingEntity settings = this.settingsRepository.findOneByKey(key);
     final List<SettingConfig> configList = settings.getConfig();

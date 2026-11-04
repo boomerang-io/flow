@@ -30,17 +30,17 @@ describe("AppActivation --- RTL", () => {
   it("submits the code through the route action and hands it back on success", async () => {
     const { actionSpy, setActivationCode } = renderAppActivation();
 
-    fireEvent.change(screen.getByLabelText("Activation code"), { target: { value: "otc-123" } });
+    fireEvent.change(screen.getByLabelText("Activation code"), { target: { value: "code-123" } });
     fireEvent.click(screen.getByText("Submit"));
 
-    await waitFor(() => expect(setActivationCode).toHaveBeenCalledWith("otc-123"));
+    await waitFor(() => expect(setActivationCode).toHaveBeenCalledWith("code-123"));
     expect(actionSpy).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces the upstream error body via the action result without activating", async () => {
     server.use(
       http.put(serviceUrl.putActivationApp(), () =>
-        HttpResponse.json({ status: "401", error: "Invalid one-time code" }, { status: 401 }),
+        HttpResponse.json({ status: "401", error: "Invalid activation code" }, { status: 401 }),
       ),
     );
     const { actionSpy, setActivationCode } = renderAppActivation();
@@ -49,7 +49,7 @@ describe("AppActivation --- RTL", () => {
     fireEvent.click(screen.getByText("Submit"));
 
     // formatErrorMessage builds "status - error" from the upstream body the action passes through.
-    expect(await screen.findByText("401 - Invalid one-time code")).toBeInTheDocument();
+    expect(await screen.findByText("401 - Invalid activation code")).toBeInTheDocument();
     expect(screen.getByText("Try again?")).toBeInTheDocument();
     expect(actionSpy).toHaveBeenCalledTimes(1);
     expect(setActivationCode).not.toHaveBeenCalled();

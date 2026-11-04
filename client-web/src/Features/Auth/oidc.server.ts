@@ -10,12 +10,14 @@
  * The `.server.ts` suffix keeps all of this (and remix-auth/arctic) out of build/client.
  */
 import { Cookie, SetCookie } from "@mjackson/headers";
+import axios from "axios";
 import { redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from "react-router";
 import { Authenticator } from "remix-auth";
 import { OAuth2Strategy } from "remix-auth-oauth2";
 import { serverFetch } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import type { AuthConfig } from "./authClient";
+import { writePendingActivation } from "./pendingActivation";
 
 /** What the verify callback returns: the Java exchange's Set-Cookie header(s), relayed onward. */
 interface SessionRelay {
@@ -140,11 +142,20 @@ async function buildStrategy(request: Request): Promise<FlowOidcStrategy> {
     },
     async ({ request: callbackRequest, tokens }) => {
       // Java verifies (JWKS, iss/aud/exp, exact-match nonce) and mints; axios throws on a non-2xx
-      // exchange, which surfaces as the loader's readable error - never a minted session.
-      const exchange = await serverFetch(callbackRequest).post(serviceUrl.postAuthExchange(), {
-        idToken: tokens.idToken(),
-        nonce: readSigninStash(callbackRequest)?.nonce ?? "",
-      });
+      // exchange, which surfaces as the loader's readable error - never a minted session. The one
+      // exception is 423: an install with no admin yet wants its activation code, so the verified
+      // sign-in is held in a cookie and the activation screen finishes it (resActivate.tsx).
+      const idToken = tokens.idToken();
+      const nonce = readSigninStash(callbackRequest)?.nonce ?? "";
+      let exchange;
+      try {
+        exchange = await serverFetch(callbackRequest).post(serviceUrl.postAuthExchange(), { idToken, nonce });
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 423) {
+          return { setCookies: [writePendingActivation(idToken, nonce)] };
+        }
+        throw error;
+      }
       const setCookies = exchange.headers["set-cookie"] ?? [];
       if (setCookies.length === 0) throw new Error("The sign-in exchange returned no session cookie.");
       return { setCookies };

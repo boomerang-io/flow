@@ -65,6 +65,26 @@
           "type": "text",
           "value": "",
           "readOnly": false
+        },
+        {
+          "description": "Who can sign up. Open registers anyone the identity provider signs in; Invite only admits a person an admin has added to a workspace, or whom the admin claim makes an admin.",
+          "key": "signup.mode",
+          "label": "Sign-up",
+          "type": "select",
+          "minValueLength": 0,
+          "maxValueLength": 128,
+          "options": [
+            {
+              "key": "open",
+              "value": "Open (anyone who signs in is registered)"
+            },
+            {
+              "key": "invite",
+              "value": "Invite only (an admin must add the person first)"
+            }
+          ],
+          "value": "open",
+          "readOnly": false
         }
       ],
       "description": "The identity provider that signs people in, and how their tokens are exchanged.",

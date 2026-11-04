@@ -85,7 +85,14 @@ and `client-web`. This is what the e2e suite runs in GitHub Actions.
 | `service-core` direct — the `/api` surface for integrations, the dispatcher, and test setup (the webapp never uses it from the browser) | http://localhost:7700 |
 
 The stack runs secured (`FLOW_SECURITY_ENABLED=true`) with the real sign-in flow against the local
-IDPZero user picker; the first user to sign in on a fresh database becomes the founding admin.
+IDPZero user picker. On a fresh database the first person to sign in is asked for the activation code and,
+once they enter it, becomes the founding admin. The stack's code is `FLOW_ACTIVATION_CODE` in
+`docker-compose.yml` (`flow-local-activation-code-for-development`, a local-only value like its encryption
+keys); the `local` Spring profile sets the same one, and the e2e setup types it. An install of your own sets
+`FLOW_ACTIVATION_CODE` (at least 32 characters; the start fails on a shorter one, and with none set nobody
+can create the first admin and the start warns). `FLOW_OTC`, the old name, is still read and logs a
+deprecation warning. An identity provider can decide admins instead: see "Authentication and authorization"
+in `specifications/authorization.md`.
 
 ### Developing: the services on the host, the rest in Docker
 

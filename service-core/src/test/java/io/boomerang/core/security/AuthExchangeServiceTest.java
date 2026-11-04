@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -21,6 +23,7 @@ import io.boomerang.core.model.AuthConfig.AuthMode;
 import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +51,14 @@ class AuthExchangeServiceTest {
   void setUp() {
     authExchangeService =
         new AuthExchangeService(
-            identityService, userService, tokenService, oidcTokenVerifier, environment);
+            identityService,
+            userService,
+            tokenService,
+            oidcTokenVerifier,
+            environment,
+            new AdminClaim("", List.of(), false));
+    // An activated install unless a test says otherwise.
+    lenient().when(userService.isActivated()).thenReturn(true);
   }
 
   @Test
@@ -99,7 +109,7 @@ class AuthExchangeServiceTest {
 
     SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
     when(tokenService.createSessionTokenWithRaw(
-            "person@example.test", "Person", "Example", true, true))
+            "person@example.test", "Person", "Example", false, true, null))
         .thenReturn(minted);
 
     SessionToken result = authExchangeService.exchange(request);
@@ -128,7 +138,7 @@ class AuthExchangeServiceTest {
     when(oidcTokenVerifier.verify("a.b.c", "nonce-1")).thenReturn(claims);
 
     SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
-    when(tokenService.createSessionTokenWithRaw("person@example.test", null, null, true, true))
+    when(tokenService.createSessionTokenWithRaw("person@example.test", null, null, false, true, null))
         .thenReturn(minted);
 
     assertThat(authExchangeService.exchange(request)).isSameAs(minted);
@@ -152,7 +162,7 @@ class AuthExchangeServiceTest {
         .extracting(ex -> ((BoomerangException) ex).getReason())
         .isEqualTo(BoomerangError.AUTH_TOKEN_INVALID.getReason());
 
-    verify(tokenService, never()).createSessionTokenWithRaw(any(), any(), any(), anyBoolean(), anyBoolean());
+    verify(tokenService, never()).createSessionTokenWithRaw(any(), any(), any(), anyBoolean(), anyBoolean(), any());
   }
 
   @Test
@@ -171,10 +181,107 @@ class AuthExchangeServiceTest {
 
     SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
     when(tokenService.createSessionTokenWithRaw(
-            "person@example.test", "Grace", "Brewster Hopper", true, true))
+            "person@example.test", "Grace", "Brewster Hopper", false, true, null))
         .thenReturn(minted);
 
     assertThat(authExchangeService.exchange(request)).isSameAs(minted);
+  }
+
+  // The id_token is signature-verified, so the provider's admin claim reaches the sign-in as its verdict.
+  @Test
+  void aVerifiedIdTokensAdminClaimReachesTheSignInAsAVerdict() {
+    AuthExchangeRequest request = new AuthExchangeRequest();
+    request.setIdToken("a.b.c");
+    request.setNonce("nonce-1");
+    JWTClaimsSet claims =
+        new JWTClaimsSet.Builder()
+            .subject("idp-user-1")
+            .claim("email", "person@example.test")
+            .claim("groups", List.of("flow-admins"))
+            .build();
+    when(oidcTokenVerifier.verify("a.b.c", "nonce-1")).thenReturn(claims);
+    SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
+    when(tokenService.createSessionTokenWithRaw(
+            "person@example.test", null, null, false, true, Boolean.TRUE))
+        .thenReturn(minted);
+    AuthExchangeService withClaim =
+        new AuthExchangeService(
+            identityService,
+            userService,
+            tokenService,
+            oidcTokenVerifier,
+            environment,
+            new AdminClaim("groups", List.of("flow-admins"), false));
+
+    assertThat(withClaim.exchange(request)).isSameAs(minted);
+  }
+
+  // An empty install with no admin claim: the first admin is made only by the one-time code.
+  private AuthExchangeRequest idTokenRequest(String otc) {
+    AuthExchangeRequest request = new AuthExchangeRequest();
+    request.setIdToken("a.b.c");
+    request.setNonce("nonce-1");
+    request.setOtc(otc);
+    when(oidcTokenVerifier.verify("a.b.c", "nonce-1"))
+        .thenReturn(
+            new JWTClaimsSet.Builder().subject("idp-user-1").claim("email", "person@example.test").build());
+    return request;
+  }
+
+  @Test
+  void anEmptyInstallAsksForTheCodeAndCreatesNobodyWithoutOne() {
+    when(userService.isActivated()).thenReturn(false);
+    AuthExchangeRequest request = idTokenRequest(null);
+
+    assertThatThrownBy(() -> authExchangeService.exchange(request))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_ACTIVATION_REQUIRED.getReason());
+    verifyNoInteractions(tokenService);
+  }
+
+  @Test
+  void anEmptyInstallRefusesAWrongCodeAndCreatesNobody() {
+    when(userService.isActivated()).thenReturn(false);
+    when(userService.activationCodeValid("wrong")).thenReturn(false);
+    AuthExchangeRequest request = idTokenRequest("wrong");
+
+    assertThatThrownBy(() -> authExchangeService.exchange(request))
+        .isInstanceOf(BoomerangException.class)
+        .extracting(ex -> ((BoomerangException) ex).getReason())
+        .isEqualTo(BoomerangError.AUTH_ACTIVATION_CODE_INVALID.getReason());
+    verifyNoInteractions(tokenService);
+  }
+
+  @Test
+  void anEmptyInstallWithTheRightCodeMakesTheFirstAdmin() {
+    when(userService.isActivated()).thenReturn(false);
+    when(userService.activationCodeValid("right")).thenReturn(true);
+    AuthExchangeRequest request = idTokenRequest("right");
+    SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
+    when(tokenService.createSessionTokenWithRaw("person@example.test", null, null, true, true, null))
+        .thenReturn(minted);
+
+    assertThat(authExchangeService.exchange(request)).isSameAs(minted);
+  }
+
+  @Test
+  void withAnAdminClaimAnEmptyInstallNeedsNoCode() {
+    AuthExchangeRequest request = idTokenRequest(null);
+    SessionToken minted = new SessionToken(new Token(AuthScope.session), "bfs_raw-value");
+    when(tokenService.createSessionTokenWithRaw(
+            "person@example.test", null, null, false, true, Boolean.FALSE))
+        .thenReturn(minted);
+    AuthExchangeService withClaim =
+        new AuthExchangeService(
+            identityService,
+            userService,
+            tokenService,
+            oidcTokenVerifier,
+            environment,
+            new AdminClaim("groups", List.of("flow-admins"), false));
+
+    assertThat(withClaim.exchange(request)).isSameAs(minted);
   }
 
   @Test

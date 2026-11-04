@@ -12,12 +12,14 @@ import static org.mockito.Mockito.when;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
+import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import java.time.Duration;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,7 +74,8 @@ class TokenServiceLookupCacheTest {
         mongoTemplate,
         identityService,
         cache,
-        settingsService);
+        settingsService,
+        new AdminClaim("", List.of(), false));
   }
 
   @Test

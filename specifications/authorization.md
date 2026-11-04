@@ -31,17 +31,17 @@ relationship check reads.
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
 | 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `AuthenticationFilter.java:309-312`) | `getTokenAuthentication` (`AuthenticationFilter.java:286-306`) | shape gate `TokenTypePrefix.isFlowToken` (`AuthenticationFilter.java:292`), then SHA-256 hash lookup in `tokens` and expiry check (`core/TokenService.java:393-418`) |
-| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`AuthenticationFilter.java:197-244`) | the token is parsed for `emailAddress`/`email` and names as the proxy sent it, **not signature-verified**: the route relies on the authenticating proxy in front of `service-core`. A session token is minted for that email |
+| 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`AuthenticationFilter.java:197-244`) | the token is parsed for `emailAddress`/`email` and names as the proxy sent it, **not signature-verified**: the route relies on the authenticating proxy in front of `service-core`. A session token is minted for that email; its admin claim is read only when `flow.security.admin-claim.trust-forwarded-token` is on (`AuthenticationFilter.java:238-249`, "Who may sign in") |
 | 1c | `Authorization: Basic email:password` | same method (`AuthenticationFilter.java:245-275`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `AuthenticationFilter.java:89`); session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
 | 3 | `?access_token=` query parameter | `getTokenAuthentication` | as row 1; kept for webhook senders that cannot set headers (`AuthenticationFilter.java:50-57`) |
-| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`AuthenticationFilter.java:317-341`) | session token minted for the forwarded email |
+| 4 | `x-forwarded-email` / `x-forwarded-user` (an authenticating proxy) | `getGithubUserAuthentication` (`AuthenticationFilter.java:317-341`) | session token minted for the forwarded email; carries no claim, so it never grants or removes admin |
 | 5 | `flow_session` cookie | `getTokenAuthentication` (`AuthenticationFilter.java:119-120,161-172`) | the opaque `bfs_` value minted by `POST /internal/v1/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
 normalised email for 60 seconds per instance (`core/TokenService.java:71,555-582`). User creation is allowed
-only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
-(`core/security/AuthenticationFilter.java:185-195`).
+only on `/api/v2/profile` and the exchange path (`core/security/AuthenticationFilter.java:341-344`); the first admin
+only by the activation code (see "Who may sign in").
 
 Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java:24-54`), a
 per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
@@ -72,12 +72,75 @@ a caller that reaches `service-core` directly reaches them as well.
 | Endpoint | Auth | What it does |
 | --- | --- | --- |
 | `GET /internal/v1/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both the `auth.oidc.issuer` and `auth.oidc.clientId` settings set) or `proxy`, which carries `flow.signOutUrl` (`core/security/AuthExchangeService.java:51-64`) |
-| `POST /internal/v1/auth/exchange` | public | Empty body: mints a session for the user the filter already resolved (`AuthExchangeService.java:80-96`). `{idToken, nonce}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys, matches `iss`, `aud` and `nonce` exactly and requires an unexpired `exp` (`core/security/OidcTokenVerifier.java:83-134`); symmetric and `none` algorithms are rejected (`OidcTokenVerifier.java:99-109`). Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
+| `POST /internal/v1/auth/exchange` | public | Empty body: mints a session for the user the filter already resolved (`AuthExchangeService.java:80-96`). `{idToken, nonce, otc?}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys, matches `iss`, `aud` and `nonce` exactly and requires an unexpired `exp` (`core/security/OidcTokenVerifier.java:83-134`); symmetric and `none` algorithms are rejected (`OidcTokenVerifier.java:99-109`). Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
 | `POST /internal/v1/auth/logout` | `session` token | Deletes the token and clears the cookie (`core/InternalAuthControllerV1.java:96-107`, `AuthExchangeService.java:137-142`) |
 
 The cookie carries only the opaque token; the webapp runs the OIDC redirect and logout from its own server
 routes (`client-web/src/Features/Auth/oidc.server.ts`, `client-web/app/routes/authCallback.tsx`), so the
 id_token never reaches the browser.
+
+## Who may sign in
+
+Three inputs decide what `TokenService.createSessionTokenWithRaw` does with an identity (`core/TokenService.java:644-686`):
+the `auth` setting `signup.mode` (`open`, the default, or `invite`; absent reads as `open`,
+`core/SettingsService.java:155-161`); the admin claim, `flow.security.admin-claim.name` and `.values`
+(`core/security/AdminClaim.java:21-50`); and whether the install has any user (`UserService.isActivated`, always true when
+an external user directory is configured). A **claim verdict** is `true`, `false` or none: a path that read no claim, or
+no claim is configured, has none, and a verdict of none never changes a user's type.
+
+| Install | Sign-up | Claim configured | Identity | Result |
+| --- | --- | --- | --- | --- |
+| has users | `open` | no | unknown | registered as a user (today's behaviour) |
+| has users | `invite` | no | unknown | refused, `403` (`HttpClientErrorException(FORBIDDEN)`, as any refused sign-in) |
+| has users | `invite` | no | added by an admin | admitted and activated |
+| has users | `invite` | yes | unknown, verdict `true` | created as an admin |
+| has users | `invite` | yes | unknown, verdict `false` or none | refused |
+| has users | either | yes | known, verdict `true` / `false` | made an admin / an admin is made a user and their `session` tokens deleted; other types untouched |
+| has users | either | yes | known, no verdict | type unchanged |
+| empty | either | no | first person, activation code proven | admin, owner of the `system` workspace |
+| empty | either | no | first person, no code or a wrong one | nobody is created: `423` on the proxy routes and the exchange asks for the code; `400` for a wrong code |
+| empty | `open` | yes | first sign-in | admin only on verdict `true`, otherwise a user: being first grants nothing; no code is used |
+| empty | `invite` | yes | first sign-in | admin on verdict `true`, otherwise refused; no code is used |
+
+"Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
+(`workspace/WorkspaceService.java:955-960`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
+again, without activating, when they are added to a second workspace (`core/UserService.java:138-147`). A record in any
+other non-active status is not revived. There is no route that creates a user outside a workspace.
+
+**The activation code.** With no admin claim, the first admin of an empty install is made only by the code in
+`flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time before anything is created
+(`UserService.activationCodeValid`, `core/security/ActivationCode.java:51-58`). At least 32 characters or the start fails;
+unset, activation is off (nothing can create the first admin, the start logs one warning, a sign-in is told activation is
+required); the retired `flow.otc` (`FLOW_OTC`) is read when the new name is unset, with one deprecation warning, and two
+different values stop the start (`ActivationCode.java:28-47`). The request field stays `otc`. "Empty" is
+`userRepository.count() == 0`; a bootstrap token or any other machine token is not a user, so it works from first start
+and neither counts as the first person nor activates anything. Once the install has users `PUT /api/v2/activate`
+refuses every code (`UserService.java:96-106`), so the code is useless after the first activation.
+
+| Path | What the code does |
+| --- | --- |
+| `PUT /api/v2/activate` behind a proxy | the filter reads the body (replayed for the controller) before it resolves an identity; on an empty install a wrong, missing or oversized (over 4 KB) body is answered `400` and nobody is created, the right code lets the filter register the caller as the first admin and marks the request so the controller accepts it (`AuthenticationFilter.java:121-135,220-221`) |
+| any other proxy route on an empty install | `423 Locked`, which the webapp reads as "show the activation screen" (`TokenService.java:661-664`) |
+| `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-147`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
+| an activated install | the code is not read; sign-in is as in the table above |
+
+With an admin claim configured the code is not used at all: the claim makes the first admin (or nobody does).
+
+**Where the claim is read.** The claim is read wherever a user's identity is established from a token, and from nothing
+else. Each path is protected as follows:
+
+| Path | Claim source | Protection |
+| --- | --- | --- |
+| Webapp sign-in, `POST /internal/v1/auth/exchange {idToken}`: the webapp-run provider and a local IDPZero | the id_token's claims, after `OidcTokenVerifier.verify` | signature, `iss`, `aud`, `exp` and `nonce` are checked; always read (`AuthExchangeService.java:145-147`) |
+| Proxy-forwarded `Authorization: Bearer <JWT>` (OAuth2 Proxy), on any route or the exchange | the JWT's claims | the token is not signature-verified, so the claim is read only with `flow.security.admin-claim.trust-forwarded-token=true` (default `false`), which states that the proxy is the trust boundary and that `service-core` is reachable only through it (`AdminClaim.java:48-50`) |
+| `x-forwarded-email`, Basic, a Flow token, the `flow_session` cookie | none | a header or password carries no group; admin neither granted nor removed |
+
+A claim is a string, or an array of strings, holding any configured value exactly. A change takes effect at the next
+sign-in that reads a claim: the proxy paths re-mint at most every 60 seconds (`core/TokenService.java:567-603`), the
+exchange on every sign-in, and a demotion deletes the user's `session` tokens at once, so a signed-in admin does not
+keep the global grant for the session's 24 hours. Tokens that carry no user (`global`, the bootstrap token, the
+security-off synthetic admin) are never read or changed. An id_token whose claim is missing (for example a provider that
+omits `groups` above a size limit) is a verdict of `false`, and demotes.
 
 ## Token kinds
 

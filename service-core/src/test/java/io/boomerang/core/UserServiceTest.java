@@ -13,10 +13,14 @@ import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
+import io.boomerang.core.model.OneTimeCode;
 import io.boomerang.core.model.UserRequest;
 import io.boomerang.core.model.UserSettings;
 import io.boomerang.core.repository.UserRepository;
+import io.boomerang.core.security.ActivationCode;
+import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
+import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +50,8 @@ class UserServiceTest {
   @Mock private RelationshipService relationshipService;
   @Mock private UserRepository userRepository;
 
+  private static final String CODE = "right-code-right-code-right-code-0123";
+
   private UserService userService;
 
   @BeforeEach
@@ -57,7 +63,8 @@ class UserServiceTest {
             extUserService,
             relationshipService,
             userRepository,
-            JsonMapper.builder().build());
+            JsonMapper.builder().build(),
+            new ActivationCode(CODE, "", new AdminClaim("", List.of(), false)));
     // externalUserUrl blank = the internal (non-external-IdP) user store, the default posture.
     ReflectionTestUtils.setField(userService, "externalUserUrl", "");
   }
@@ -272,5 +279,140 @@ class UserServiceTest {
     when(userRepository.findById("u1")).thenReturn(java.util.Optional.of(entity));
 
     assertThat(userService.isCurrentUserAdmin()).isTrue();
+  }
+
+  // A person an admin added to a workspace by email is stored inactive; signing in activates them.
+  @Test
+  void aSignInActivatesAUserAnAdminAddedByEmail() {
+    UserEntity invited = new UserEntity();
+    invited.setId("u-invited");
+    invited.setEmail("grace.hopper@example.com");
+    invited.setStatus(UserStatus.inactive);
+    when(userRepository.findByEmailAndStatus("grace.hopper@example.com", UserStatus.active))
+        .thenReturn(null);
+    when(userRepository.findByEmail("grace.hopper@example.com")).thenReturn(invited);
+    when(userRepository.save(any(UserEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+    Optional<UserEntity> signedIn =
+        userService.getAndRegisterUser(
+            "Grace.Hopper@example.com", Optional.empty(), Optional.empty(), Optional.empty(), false);
+
+    assertThat(signedIn).get().extracting(UserEntity::getId).isEqualTo("u-invited");
+    assertThat(signedIn.get().getStatus()).isEqualTo(UserStatus.active);
+    verify(relationshipService, never()).createNodeAndEdge(any(), any(), any(), any(), any(), any(), any(), any());
+  }
+
+  // Adding the same person to a second workspace finds the invitation; it neither activates nor duplicates it.
+  @Test
+  void addingAnAlreadyInvitedPersonAgainReturnsTheInvitationUnchanged() {
+    UserEntity invited = new UserEntity();
+    invited.setId("u-invited");
+    invited.setEmail("grace.hopper@example.com");
+    invited.setStatus(UserStatus.inactive);
+    when(userRepository.findByEmailAndStatus("grace.hopper@example.com", UserStatus.active))
+        .thenReturn(null);
+    when(userRepository.findByEmail("grace.hopper@example.com")).thenReturn(invited);
+
+    Optional<UserEntity> added =
+        userService.getAndRegisterUser(
+            "grace.hopper@example.com",
+            Optional.empty(),
+            Optional.of(UserType.user),
+            Optional.of(UserStatus.inactive),
+            true);
+
+    assertThat(added).containsSame(invited);
+    assertThat(invited.getStatus()).isEqualTo(UserStatus.inactive);
+    verify(userRepository, never()).save(any(UserEntity.class));
+  }
+
+  @Test
+  void aDeletedUsersRecordIsNotRevivedBySigningIn() {
+    UserEntity gone = new UserEntity();
+    gone.setId("u-gone");
+    gone.setEmail("grace.hopper@example.com");
+    gone.setStatus(UserStatus.deleted);
+    when(userRepository.findByEmailAndStatus("grace.hopper@example.com", UserStatus.active))
+        .thenReturn(null);
+    when(userRepository.findByEmail("grace.hopper@example.com")).thenReturn(gone);
+
+    assertThat(
+            userService.getAndRegisterUser(
+                "grace.hopper@example.com", Optional.empty(), Optional.empty(), Optional.empty(), false))
+        .isEmpty();
+  }
+
+  @Test
+  void theAdminClaimPromotesAUserAndDemotesAnAdminButLeavesOtherTypesAlone() {
+    when(userRepository.save(any(UserEntity.class))).thenAnswer(i -> i.getArgument(0));
+    UserEntity user = userOfType(UserType.user);
+    UserEntity admin = userOfType(UserType.admin);
+    UserEntity operator = userOfType(UserType.operator);
+
+    assertThat(userService.applyAdminClaim(user, true)).isTrue();
+    assertThat(user.getType()).isEqualTo(UserType.admin);
+    assertThat(userService.applyAdminClaim(admin, false)).isTrue();
+    assertThat(admin.getType()).isEqualTo(UserType.user);
+    assertThat(userService.applyAdminClaim(operator, false)).isFalse();
+    assertThat(operator.getType()).isEqualTo(UserType.operator);
+    assertThat(userService.applyAdminClaim(userOfType(UserType.admin), true)).isFalse();
+  }
+
+  @Test
+  void theAdminClaimNeverWritesTheExternalDirectorysUsers() {
+    ReflectionTestUtils.setField(userService, "externalUserUrl", "http://users.example.test");
+
+    assertThat(userService.applyAdminClaim(userOfType(UserType.user), true)).isFalse();
+    verify(userRepository, never()).save(any(UserEntity.class));
+  }
+
+  @Test
+  void onlyTheConfiguredActivationCodeActivates() {
+    assertThat(userService.activationCodeValid(CODE)).isTrue();
+    assertThat(userService.activationCodeValid("wrong-code")).isFalse();
+    assertThat(userService.activationCodeValid("")).isFalse();
+    assertThat(userService.activationCodeValid(null)).isFalse();
+    assertThat(userService.activateSetup(null, false).getStatusCode().value()).isEqualTo(400);
+  }
+
+  @Test
+  void anUnsetCodeActivatesNobody() {
+    UserService noCode =
+        new UserService(
+            mongoTemplate, identityService, extUserService, relationshipService, userRepository,
+            JsonMapper.builder().build(), new ActivationCode("", "", new AdminClaim("", List.of(), false)));
+    ReflectionTestUtils.setField(noCode, "externalUserUrl", "");
+
+    assertThat(noCode.activationCodeValid("")).isFalse();
+    assertThat(noCode.activationCodeValid(CODE)).isFalse();
+  }
+
+  @Test
+  void anExternalUserDirectoryIsNeverActivatedByCode() {
+    ReflectionTestUtils.setField(userService, "externalUserUrl", "http://users.example.test");
+
+    assertThat(userService.activationCodeValid(CODE)).isFalse();
+  }
+
+  // The code is useful once: after the install has users, the endpoint refuses even the right code.
+  @Test
+  void theActivateEndpointRefusesOnceTheInstallHasUsers() {
+    OneTimeCode right = new OneTimeCode();
+    right.setOtc(CODE);
+
+    when(userRepository.count()).thenReturn(0L);
+    assertThat(userService.activateSetup(right, false).getStatusCode().value()).isEqualTo(200);
+
+    when(userRepository.count()).thenReturn(1L);
+    assertThat(userService.activateSetup(right, false).getStatusCode().value()).isEqualTo(400);
+    // Except for the request that just created the first admin.
+    assertThat(userService.activateSetup(right, true).getStatusCode().value()).isEqualTo(200);
+  }
+
+  private static UserEntity userOfType(UserType type) {
+    UserEntity entity = new UserEntity();
+    entity.setId("id-" + type);
+    entity.setType(type);
+    return entity;
   }
 }
