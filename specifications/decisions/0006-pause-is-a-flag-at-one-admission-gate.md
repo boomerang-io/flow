@@ -17,18 +17,18 @@ be a status value. Pause also has to say what happens to work already admitted, 
 
 ## Decision
 
-C. `pauseRequestedAt` is a timestamp on the workflow run (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:57`),
-set by compare-and-set on a running, unpaused run (`engine/WorkflowRunStateHelper.java:223-237`). The single gate is
-`TaskExecutionService.queue`, which returns before admission while the run is paused (`engine/TaskExecutionService.java:174-179`).
+C. `pauseRequestedAt` is a timestamp on the workflow run (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:66`),
+set by compare-and-set on a running, unpaused run (`engine/WorkflowRunStateHelper.java:363-377`). The single gate is
+`TaskExecutionService.queue`, which returns before admission while the run is paused (`engine/TaskExecutionService.java:179-184`).
 Resume clears the flag, moves the run deadline forward by the time paused, and calls `advance`, which queues whatever
-the gate held back (`WorkflowRunStateHelper.java:241-246`, `:282-293`; `workflow/WorkflowRunService.java:884-892`). One
+the gate held back (`WorkflowRunStateHelper.java:392-397`, `:433-444`; `workflow/WorkflowRunService.java:1010-1025`). One
 gate is enough because every path that creates new work passes through `queue`.
 
 ## Consequences
 
 - Tasks already claimed or running finish, and time out on their own deadlines, regardless of pause
-  (`engine/TaskRunService.java:606-618`).
+  (`engine/TaskRunService.java:647-658`).
 - The run clock stops while paused: the run-timeout sweep skips a paused run and resume extends its deadline
-  (`WorkflowRunStateHelper.java:298-313`); the stalled-run and for-each recovery sweeps skip it too
-  (`:315-323`, `engine/WorkflowWatcher.java:288-302`).
+  (`WorkflowRunStateHelper.java:429-465`); the stalled-run and for-each recovery sweeps skip it too
+  (`:315-323`, `engine/WorkflowWatcher.java:319-323`).
 - `RunStatus` stays a closed ten-value enum (`common/enums/RunStatus.java:6-16`); `PAUSED` and `SUPERSEDED` MUST NOT be added.

@@ -27,10 +27,10 @@ Per-param variables with engine substitution and caps, v3 layering, stores read 
 the same layers (`:459-490`), and `fillSpec` fills the spec's references, the task's params included, at claim
 (`:288-314`). The dispatcher exports `PARAM_<NAME>` and `PARAM_NAMES` (`kube/KubeHelperService.java:124-163`); params
 over `flow.engine.task.params.max-bytes` end the task `invalid` and results over `flow.engine.task.results.max-bytes`
-end it `failed` (`engine/TaskExecutionService.java:211-226`, `engine/TaskRunService.java:1037-1051`). Layers are read
+end it `failed` (`engine/TaskExecutionService.java:237-253`, `engine/TaskRunService.java:1123-1137`). Layers are read
 from their stores through a 10-second cache (`workflow/ParamLayerService.java:140-180`); a task result and a supplied
-run param are inserted as written (`ParameterManager.java:80-86,579-641`). References match case-insensitively, names
-that fold alike fail with `PARAM_NAME_COLLISION` at save (`workflow/WorkflowService.java:1606-1614`), and an empty value
+run param are inserted as written (`ParameterManager.java:77-86,594-656`). References match case-insensitively, names
+that fold alike fail with `PARAM_NAME_COLLISION` at save (`workflow/WorkflowService.java:1821-1831`), and an empty value
 is valid.
 
 ## Consequences

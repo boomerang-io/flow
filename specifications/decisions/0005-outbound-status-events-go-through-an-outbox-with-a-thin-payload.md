@@ -21,7 +21,7 @@ Most consumers treat the event as a trigger and read the run back, yet a sink se
 
 An outbox written by the transition winner and drained by every instance, with a thin payload. `CloudEventsBridge` inserts
 one `events_outbox` row per externally visible status change, from the event the winning CAS publishes, and exists only
-while the sink is enabled (`service-core/src/main/java/io/boomerang/event/CloudEventsBridge.java:21-77`; off by default).
+while the sink is enabled (`service-core/src/main/java/io/boomerang/event/CloudEventsBridge.java:23-86`; off by default).
 `OutboxDispatcher` drains pending rows every 5 s on every instance, gives the re-read run the row's status and phase,
 marks the row `sent` by CAS, retries with the shared backoff and marks it `dead` after three attempts
 (`event/OutboxDispatcher.java:64-115`, `:133-163`); `/api/v2/system/outbox` lists and replays rows

@@ -19,15 +19,15 @@ renaming the reader but not the stored value turns a feature off silently.
 
 ## Decision
 
-B and D. Routes are `/api/v2/workspace/{workspace}/...` only (`workflow/WorkspaceWorkflowControllerV2.java:38`) and
-error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:26,44-47`). The v3 units rename
+B and D. Routes are `/api/v2/workspace/{workspace}/...` only (`workflow/WorkspaceWorkflowControllerV2.java:39`) and
+error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:26,45-49`). The v3 units rename
 `teams` to `workspaces` and drop v3 tokens for re-issue (`migration/_0002__V3PrepareCollections.java:62,67-82`), build
 `workspace` graph nodes (`migration/_0013__V3BuildRelationshipGraph.java:246`) and map the `team*` settings keys to
 `quotas` and `workspace*` (`migration/_0016__BuildSettingsFromSeed.java:54,70-73`), the keys
-`core/FeatureService.java:44-77` and `client-web/src/Features/App/App.tsx:227-231` read. Workspace tokens use `bfk`;
+`core/FeatureService.java:44-78` and `client-web/src/Features/App/App.tsx:227-231` read. Workspace tokens use `bfk`;
 `bft` and `bfw` are rejected (`core/enums/TokenTypePrefix.java:22-35`). The worker is `service-dispatcher`, since it
 claims work and hands it to a runtime rather than hosting it: wire `/dispatcher/v1`
-(`dispatcher/DispatcherControllerV1.java:52`), registry `dispatchers`, claim field `claim.by`, runtime
+(`dispatcher/DispatcherControllerV1.java:54`), registry `dispatchers`, claim field `claim.by`, runtime
 `dispatcher.executor`, `tekton` or `kube-jobs` (`service-dispatcher/src/main/resources/application.properties:63`).
 
 ## Consequences

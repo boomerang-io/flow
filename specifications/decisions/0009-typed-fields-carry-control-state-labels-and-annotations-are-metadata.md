@@ -21,15 +21,15 @@ groups by the model an `ai` task used and the item a for-each child ran for, whi
 ## Decision
 
 B and C. Anything the engine reads to decide, or queries and indexes on, is a typed field: retry lineage is
-`initiatedByRef` plus `trigger` and the count `retryCount` (`common/entity/WorkflowRunEntity.java:71-76`); claims,
+`initiatedByRef` plus `trigger` and the count `retryCount` (`common/entity/WorkflowRunEntity.java:83-88`); claims,
 deadlines and pause are `claim`, `timeoutAt`, `retry`, `waitUntil` and `pauseRequestedAt`
-(`common/entity/TaskRunEntity.java:76-88`); an early event's status is `preApprovedStatus` (`:51`); a run's workspace
+(`common/entity/TaskRunEntity.java:77-94`); an early event's status is `preApprovedStatus` (`:51`); a run's workspace
 and task defaults are derived, not stamped (decision 0025). `ServerLabel` reserves the prefix
 (`common/model/ServerLabel.java:10-32`): admission sets `boomerang.io/model` from the resolved `model` param unless it
-is secret (`engine/TaskExecutionService.java:228-238`); the fan-out sets `boomerang.io/item` on each item task run, and the run-workflow task
-on a for-each child, when the item is text holding no secret value of the run's parameter layers (`:747-755`, `:1187-1196`,
+is secret (`engine/TaskExecutionService.java:254-264`); the fan-out sets `boomerang.io/item` on each item task run, and the run-workflow task
+on a for-each child, when the item is text holding no secret value of the run's parameter layers (`:904-913`, `:1370-1381`,
 `engine/ParameterManager.java:341-345`); every client-set label under the prefix is dropped
-(`workflow/WorkflowRunService.java:825`, `workflow/WorkflowService.java:668`). The engine reads neither label to decide
+(`workflow/WorkflowRunService.java:948-950`, `workflow/WorkflowService.java:773`). The engine reads neither label to decide
 anything. Kubernetes (spec and status versus annotations), Tekton, Argo and Temporal draw the same line.
 
 ## Consequences

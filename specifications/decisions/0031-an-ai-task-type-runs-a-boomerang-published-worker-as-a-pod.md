@@ -18,7 +18,7 @@ and writes results. The question is where the call runs.
 
 ## Decision
 
-C. `ai` is dispatched like `template`, `custom`, `script` and `generic` (`engine/TaskExecutionService.java:252-258`); the
+C. `ai` is dispatched like `template`, `custom`, `script` and `generic` (`engine/TaskExecutionService.java:281-291`); the
 dispatcher runs the image and command the revision declares and never a script
 (`service-dispatcher/.../executor/TaskImageResolver.java:124-151`). The seeded `ai-prompt` and `ai-agent` revisions pin
 exact `boomerangio/task-ai` tags, released from `boomerang-io/tasks` rather than with the product
@@ -26,14 +26,14 @@ exact `boomerangio/task-ai` tags, released from `boomerang-io/tasks` rather than
 be parsed in the process that holds the dispatcher's engine credential, and a dispatcher registered for `ai` alone is
 by itself the egress zone (decision 0017). The zone holds because a declared image must start with
 `flow.dispatcher.ai.image-prefixes`, default `boomerangio/task-ai`, or the task is refused before anything is created
-(`TaskImageResolver.java:71-77`, `service-dispatcher/.../dispatcher/TaskService.java:127-132`).
+(`TaskImageResolver.java:71-77`, `service-dispatcher/.../dispatcher/TaskService.java:128-133`).
 
 ## Consequences
 
 - An author fills the revision's params (20 on `ai-prompt`, 29 on `ai-agent`) and the canvas renders them. The
   dispatcher may supply the endpoint and token itself (`OPENAI_BASE_URL`, `OPENAI_API_KEY`; `TaskImageResolver.java:87-110`).
 - `token` is password-typed, so a value on the node or a workflow param is stamped secret, encrypted at rest and masked
-  on reads (decision 0018, `workflow/WorkflowService.java:1671-1677`); it reaches the pod as a plain `PARAM_TOKEN`.
+  on reads (decision 0018, `workflow/WorkflowService.java:1722,1892-1894`); it reaches the pod as a plain `PARAM_TOKEN`.
 - `output` is an ordinary result under the results caps (4 KB on Kubernetes), so a long response fails with
   `RESULTS_TOO_LARGE`; it belongs in an artifact (decision 0025). Usage is flat results (`promptTokens` to `cost`)
   that a platform meters by summing over task runs.

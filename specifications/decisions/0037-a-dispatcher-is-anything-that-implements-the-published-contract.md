@@ -25,7 +25,7 @@ B, D and F. `/dispatcher/v1/**` is its own OpenAPI group (`dispatcher/Dispatcher
 checked in at `contracts/dispatcher-v1.yaml`; one `DispatcherContractTest` fails when the engine drifts from the file,
 another when the SDK's models do (`dispatcher-sdk/src/test/java/io/boomerang/dispatcher/sdk/DispatcherContractTest.java:52-68`),
 so no shared model module couples the two releases. The wire carries `DispatchTaskRun` and `DispatchWorkflowRun`, mapped
-with the answer's status and headers kept (`dispatcher/DispatcherControllerV1.java:260-265`). The SDK depends on
+with the answer's status and headers kept (`dispatcher/DispatcherControllerV1.java:290-295`). The SDK depends on
 spring-web and Jackson only and is the one published artifact (`dispatcher-sdk/pom.xml:54-62,97-103`). A dispatcher is
 its own process when it needs credentials core must not hold, another network zone, isolation of untrusted content, or
 placement core cannot reach; a Docker dispatcher (development only) and an in-process one embed the SDK. What decided
@@ -34,7 +34,7 @@ it: the contract, not the process, is the boundary, as in durable-execution syst
 ## Consequences
 
 - `service-core` never gains Kubernetes, Tekton or Docker dependencies; it reaches a dispatcher only through the log
-  route and bearer that dispatcher registered (decision 0039, `engine/LogClient.java:63-79`).
+  route and bearer that dispatcher registered (decision 0039, `engine/LogClient.java:71-87`).
 - A field a dispatcher needs is added to the record, the contract and the SDK together; additive changes stay on v1,
   a removal or redefinition ships as `/dispatcher/v2`. Registration expiry and a queue-depth read come with the first
   pool or serverless dispatcher.
