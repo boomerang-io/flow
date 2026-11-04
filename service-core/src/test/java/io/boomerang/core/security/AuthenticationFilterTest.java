@@ -387,15 +387,19 @@ class AuthenticationFilterTest {
     verify(userService, never()).activationCodeValid(any());
   }
 
+  // The activation route carries no claim, so with an admin claim configured the code still counts.
   @Test
-  void withAnAdminClaimTheCodeIsNotUsedToActivate() throws Exception {
+  void withAnAdminClaimConfiguredTheRightCodeStillActivatesThroughTheActivationRoute() throws Exception {
     when(userService.isActivated()).thenReturn(false);
-    MockHttpServletResponse response = new MockHttpServletResponse();
+    when(userService.activationCodeValid("right")).thenReturn(true);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, true, true))
+        .thenReturn(sessionToken);
 
-    filterTrusting(true).doFilter(activateRequest("{\"otc\":\"right\"}"), response, filterChain);
+    filterTrusting(true).doFilter(activateRequest("{\"otc\":\"right\"}"), new MockHttpServletResponse(), filterChain);
 
-    assertThat(response.getStatus()).isEqualTo(400);
-    verifyNoInteractions(tokenService);
+    verify(tokenService).createSessionToken("person@example.test", null, null, true, true);
   }
 
   @Test

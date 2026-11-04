@@ -97,20 +97,20 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | has users | off | yes | unknown, verdict `false` or none | refused |
 | has users | either | yes | known, verdict `true` / `false` | made an admin / an admin is made a user and their `session` tokens deleted; other types untouched |
 | has users | either | yes | known, no verdict | type unchanged |
-| empty | either | no | first person, activation code proven | admin, owner of the `system` workspace |
-| empty | either | no | first person, no code or a wrong one | nobody is created: `423` on the proxy routes and the exchange asks for the code; `400` for a wrong code |
-| empty | on | yes | first sign-in | admin only on verdict `true`, otherwise a user: being first grants nothing; no code is used |
-| empty | off | yes | first sign-in | admin on verdict `true`, otherwise refused; no code is used |
+| empty | either | no, or yes with no verdict | first person, activation code proven | admin, owner of the `system` workspace |
+| empty | either | no, or yes with no verdict | first person, no code or a wrong one | nobody is created: `423` on the proxy routes and the exchange asks for the code; `400` for a wrong code |
+| empty | on | yes, with a verdict | first sign-in | the claim decides, no code is used: admin on `true`, otherwise a user (being first grants nothing) |
+| empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
 "Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
 (`workspace/WorkspaceService.java:955-960`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
 again, without activating, when they are added to a second workspace (`core/UserService.java:138-147`). A record in any
 other non-active status is not revived. There is no route that creates a user outside a workspace.
 
-**The activation code.** With no admin claim, the first admin of an empty install is made only by the code in
+**The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an empty install is made only by the code in
 `flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time before anything is created
 (`UserService.activationCodeValid`, `core/security/ActivationCode.java:51-58`). At least 32 characters or the start fails;
-unset, activation is off (nothing can create the first admin, the start logs one warning, a sign-in is told activation is
+unset, activation is off (no sign-in without a readable claim can create the first admin, the start logs one warning whether or not a claim is configured, a sign-in is told activation is
 required); the retired `flow.otc` (`FLOW_OTC`) is read when the new name is unset, with one deprecation warning, and two
 different values stop the start (`ActivationCode.java:28-47`). The request field stays `otc`. "Empty" is
 `userRepository.count() == 0`; a bootstrap token or any other machine token is not a user, so it works from first start
@@ -124,7 +124,11 @@ refuses every code (`UserService.java:96-106`), so the code is useless after the
 | `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-147`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
 | an activated install | the code is not read; sign-in is as in the table above |
 
-With an admin claim configured the code is not used at all: the claim makes the first admin (or nobody does).
+The code is skipped only on a sign-in whose claim was read: the webapp's verified id_token, or a forwarded token with
+`trust-forwarded-token` on. A forwarded email, Basic, an untrusted forwarded token (even one naming the admin group) or a
+token without the claim has no verdict, so on an empty install it needs the code exactly as with no claim configured; an
+activated install leaves such a user's type alone (`TokenService.java:655-667`, `AuthExchangeService.java:133-148`,
+`AuthenticationFilter.java:127-133`).
 
 **Where the claim is read.** The claim is read wherever a user's identity is established from a token, and from nothing
 else. Each path is protected as follows:

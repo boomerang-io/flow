@@ -24,8 +24,7 @@ public class ActivationCode {
 
   public ActivationCode(
       @Value("${flow.activation-code:}") String code,
-      @Value("${flow.otc:}") String legacyCode,
-      AdminClaim adminClaim) {
+      @Value("${flow.otc:}") String legacyCode) {
     boolean legacySet = legacyCode != null && !legacyCode.isBlank();
     boolean set = code != null && !code.isBlank();
     if (set && legacySet && !code.equals(legacyCode)) {
@@ -40,10 +39,12 @@ public class ActivationCode {
       throw new IllegalStateException(
           "flow.activation-code must be at least " + MIN_LENGTH + " characters.");
     }
-    if (this.code.isEmpty() && !adminClaim.configured()) {
+    if (this.code.isEmpty()) {
       LOGGER.warn(
-          "No activation code is set, so the first admin cannot be created. Set FLOW_ACTIVATION_CODE"
-              + " (at least {} characters), or configure an admin claim.",
+          "No activation code is set, so no first admin can be created on any sign-in that carries no"
+              + " readable admin claim (a claim is read from the webapp's OpenID Connect sign-in, and"
+              + " from a proxy-forwarded token only with trust-forwarded-token). Set FLOW_ACTIVATION_CODE"
+              + " (at least {} characters).",
           MIN_LENGTH);
     }
   }

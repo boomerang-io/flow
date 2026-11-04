@@ -18,7 +18,6 @@ import io.boomerang.core.model.UserRequest;
 import io.boomerang.core.model.UserSettings;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.ActivationCode;
-import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
 import java.util.List;
 import java.util.Optional;
@@ -64,7 +63,7 @@ class UserServiceTest {
             relationshipService,
             userRepository,
             JsonMapper.builder().build(),
-            new ActivationCode(CODE, "", new AdminClaim("", List.of(), false)));
+            new ActivationCode(CODE, ""));
     // externalUserUrl blank = the internal (non-external-IdP) user store, the default posture.
     ReflectionTestUtils.setField(userService, "externalUserUrl", "");
   }
@@ -380,7 +379,7 @@ class UserServiceTest {
     UserService noCode =
         new UserService(
             mongoTemplate, identityService, extUserService, relationshipService, userRepository,
-            JsonMapper.builder().build(), new ActivationCode("", "", new AdminClaim("", List.of(), false)));
+            JsonMapper.builder().build(), new ActivationCode("", ""));
     ReflectionTestUtils.setField(noCode, "externalUserUrl", "");
 
     assertThat(noCode.activationCodeValid("")).isFalse();

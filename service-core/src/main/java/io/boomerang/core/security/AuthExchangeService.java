@@ -130,10 +130,12 @@ public class AuthExchangeService {
       lastName = firstNonBlank(claimString(claims, "family_name"), claimString(claims, "lastName"));
     }
 
-    // On an empty install with no admin claim, the first admin is made only by the one-time code:
-    // without it the webapp is told to ask for the code, with a wrong one nobody is created.
+    // On an empty install, a token whose claim is not read (none configured) makes the first admin
+    // only by the activation code: without it the webapp is told to ask for the code, with a wrong
+    // one nobody is created.
+    Boolean claimAdmin = adminClaim.evaluateVerified(claims);
     boolean codeProven = userService.activationCodeValid(request.getOtc());
-    if (!adminClaim.configured() && !userService.isActivated()) {
+    if (claimAdmin == null && !userService.isActivated()) {
       if (request.getOtc() == null || request.getOtc().isBlank()) {
         throw new BoomerangException(BoomerangError.AUTH_ACTIVATION_REQUIRED);
       }
@@ -143,7 +145,7 @@ public class AuthExchangeService {
     }
     // The id_token is signature-verified above, so its admin claim is the provider's word.
     return tokenService.createSessionTokenWithRaw(
-        email, firstName, lastName, codeProven, true, adminClaim.evaluateVerified(claims));
+        email, firstName, lastName, codeProven, true, claimAdmin);
   }
 
   /** Revokes the current session token (identified by AuthenticationFilter's cookie branch). */

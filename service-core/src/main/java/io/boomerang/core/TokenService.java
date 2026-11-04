@@ -634,11 +634,12 @@ public class TokenService {
    * or {@code false} from a claim read ({@link AdminClaim}), {@code null} when this path carries
    * none.
    *
-   * <p>{@code allowActivation} means the request proved the instance's one-time code: without a
-   * claim configured it alone creates the first admin of an empty install, and an empty install is
-   * otherwise locked. With a claim configured, admin comes from the claim alone and the code plays
-   * no part: a new user is created an admin only on {@code true}, an existing user's type follows
-   * the verdict on every sign-in, and being first grants nothing. With auto-create users off, an
+   * <p>{@code allowActivation} means the request proved the instance's activation code. On an empty
+   * install a sign-in whose claim was read (a verdict of {@code true} or {@code false}) is decided
+   * by the claim alone and the code plays no part: a new user is created an admin only on {@code
+   * true}, and being first grants nothing. A sign-in with no verdict (no claim configured, or a
+   * path that cannot read it) makes the first admin only by the code, and is otherwise locked. For
+   * an existing user, the type follows a verdict on every sign-in. With auto-create users off, an
    * identity that is no user yet is refused unless the claim makes it an admin.
    */
   public SessionToken createSessionTokenWithRaw(
@@ -652,8 +653,8 @@ public class TokenService {
     String name = String.format("%s %s", sanitise(firstName), sanitise(lastName));
     boolean claimGrantsAdmin = Boolean.TRUE.equals(claimAdmin);
     if (!userService.isActivated()) {
-      if (adminClaim.configured()) {
-        // The provider decides who is admin, so the one-time code plays no part.
+      if (claimAdmin != null) {
+        // The claim was read, so the provider decides who is admin and the code plays no part.
         if (claimGrantsAdmin || settingsService.autoCreateUsers()) {
           user = registerFirstUser(email, name, claimGrantsAdmin, allowUserCreation);
         }

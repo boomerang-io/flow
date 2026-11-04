@@ -124,8 +124,7 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       ReplayableRequest replayable = new ReplayableRequest(incoming);
       req = replayable;
       if (!userService.isActivated()) {
-        boolean proven =
-            !adminClaim.configured() && userService.activationCodeValid(replayable.activationCode());
+        boolean proven = userService.activationCodeValid(replayable.activationCode());
         if (!proven) {
           res.sendError(HttpServletResponse.SC_BAD_REQUEST);
           return;

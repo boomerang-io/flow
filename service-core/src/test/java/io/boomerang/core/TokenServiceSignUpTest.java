@@ -239,14 +239,26 @@ class TokenServiceSignUpTest {
     verify(relationshipService, never()).createEdge(any(), any(), any(), any(), any(), any());
   }
 
+  // A path that cannot read the claim has no verdict: the activation code makes the first admin.
   @Test
-  void withAClaimConfiguredAPathThatReadsNoClaimNeverMakesTheFirstSignInAdmin() {
+  void withAClaimConfiguredAPathThatReadsNoClaimMakesTheFirstAdminOnlyByTheCode() {
     install(false, false);
-    registers(UserType.user, true, user("u6", UserType.user));
+    registers(UserType.admin, true, user("u6", UserType.admin));
 
     service(claim).createSessionTokenWithRaw(EMAIL, "A", "B", true, true, null);
 
-    verify(relationshipService, never()).createEdge(any(), any(), any(), any(), any(), any());
+    verify(relationshipService).createEdge(any(), eq("u6"), any(), any(), eq("system"), any());
+  }
+
+  @Test
+  void withAClaimConfiguredAPathThatReadsNoClaimIsLockedWithoutTheCode() {
+    install(false, false);
+
+    assertThatThrownBy(() -> service(claim).createSessionTokenWithRaw(EMAIL, "A", "B", false, true, null))
+        .isInstanceOfSatisfying(
+            HttpClientErrorException.class,
+            ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.LOCKED));
+    verify(userService, never()).getAndRegisterUser(any(), any(), any(), any(), anyBoolean());
   }
 
   @Test

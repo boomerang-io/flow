@@ -363,7 +363,7 @@ tag's release notes.
 - The first admin of an empty install is made only by the activation code, on every sign-in path. The webapp's
   sign-in no longer makes its first user an admin: it asks for the code on the activation screen, and a wrong or
   missing code creates nobody (behind a proxy, `PUT /api/v2/activate` checks the code before it registers the
-  caller). With an admin claim set the code is not used. The bootstrap token and other machine tokens are not
+  caller). With an admin claim set, a sign-in whose claim is read (the webapp's, or a trusted forwarded token) is decided by the claim and the code is not used; one that cannot read it (a forwarded email, an untrusted forwarded token) still needs the code on an empty install. The bootstrap token and other machine tokens are not
   users: they work from first start and never activate the install. Once the install has users the activation
   endpoint refuses every code.
 - **The activation code is `FLOW_ACTIVATION_CODE` (`flow.activation-code`), and it has no default.** The old
