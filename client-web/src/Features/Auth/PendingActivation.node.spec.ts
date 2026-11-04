@@ -106,6 +106,23 @@ describe("activation submit --- Node SSR", () => {
   });
 });
 
+describe("activation submit behind a proxy --- Node SSR", () => {
+  it("returns the structured wrong-code error as data", async () => {
+    const body = {
+      code: 1007,
+      reason: "AUTH_ACTIVATION_CODE_INVALID",
+      message: "The activation code is not correct.",
+      status: "400 BAD_REQUEST",
+    };
+    server.use(http.put(`${INTERNAL_ORIGIN}/api/activate`, () => HttpResponse.json(body, { status: 400 })));
+
+    const { action } = await import("../../../app/routes/resActivate");
+    const result: any = await action({ request: activateRequest() });
+
+    expect(result).toEqual({ ok: false, status: 400, data: body });
+  });
+});
+
 describe("root loader --- Node SSR", () => {
   function core(profileStatus: number) {
     server.use(

@@ -140,9 +140,12 @@ public class DeclaredTokenService {
     entity.setActorKind(entry.actorKind());
     Instant expiresAt = entry.expiresAt("flow.security.tokens." + name);
     entity.setExpirationDate(expiresAt == null ? null : Date.from(expiresAt));
+    // No permissions declared: the token holds no grant at all.
     entity.setPermissions(
-        new LinkedList<>(
-            List.of(new ResolvedPermissions(PermissionScope.global, "**", entry.permissions()))));
+        entry.permissions().isEmpty()
+            ? new LinkedList<>()
+            : new LinkedList<>(
+                List.of(new ResolvedPermissions(PermissionScope.global, "**", entry.permissions()))));
     entity.setToken(
         entry.hash() != null ? entry.hash() : tokenService.hashString(entry.value()));
     return entity;

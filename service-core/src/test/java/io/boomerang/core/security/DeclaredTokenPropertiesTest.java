@@ -171,13 +171,21 @@ class DeclaredTokenPropertiesTest {
   }
 
   @Test
-  void permissionsAreRequiredAndMustBeResourceActionGrants() {
-    assertThat(failureOf(entry("a", "hash", HASH)))
-        .contains("flow.security.tokens.a.permissions must name");
+  void permissionsMayBeLeftOutAndTheEntryHoldsNone() {
+    DeclaredTokenProperties.Entry entry =
+        bind(entry("dispatcher", "hash", HASH)).tokens().get("dispatcher");
+
+    assertThat(entry.permissions()).isEmpty();
+  }
+
+  @Test
+  void anyPermissionGivenMustStillBeAResourceActionGrant() {
     for (String bad : List.of("workspace", "nothing/read", "workspace/destroy", "workspace/read/x")) {
       assertThat(failureOf(entry("a", "hash", HASH, "permissions", bad)))
           .contains("flow.security.tokens.a.permissions must each be <resource>/<action>");
     }
+    assertThat(failureOf(entry("a", "hash", HASH, "permissions", "workspace/read,nothing/read")))
+        .contains("flow.security.tokens.a.permissions must each be <resource>/<action>");
   }
 
   @Test

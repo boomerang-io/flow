@@ -24,6 +24,9 @@ interface SessionRelay {
   setCookies: string[];
 }
 
+/** The install refused this person (not the provider): carries the server's own message to the callback screen. */
+class SignInRefused extends Error {}
+
 // The strategy's own cookie holds state + PKCE verifier; ours holds nonce + returnPath. Both are
 // httpOnly, SameSite=Lax (the callback arrives as a top-level GET navigation from the issuer),
 // Secure (same posture as the Java SessionCookie; browsers allow Secure on localhost).
@@ -154,6 +157,13 @@ async function buildStrategy(request: Request): Promise<FlowOidcStrategy> {
         if (axios.isAxiosError(error) && error.response?.status === 423) {
           return { setCookies: [writePendingActivation(idToken, nonce)] };
         }
+        if (
+          axios.isAxiosError(error) &&
+          error.response?.status === 403 &&
+          error.response.data?.reason === "AUTH_USER_NOT_ADMITTED"
+        ) {
+          throw new SignInRefused(error.response.data.message ?? "This install did not admit you.");
+        }
         throw error;
       }
       const setCookies = exchange.headers["set-cookie"] ?? [];
@@ -222,6 +232,7 @@ export async function callbackLoader({ request }: LoaderFunctionArgs) {
     // With ?state present the strategy never redirects, so any Response here is unexpected -
     // rethrow rather than swallow. RangeError is its state-mismatch signal (lib/store.js).
     if (thrown instanceof Response) throw thrown;
+    if (thrown instanceof SignInRefused) return { error: thrown.message };
     if (thrown instanceof RangeError) {
       return { error: "The sign-in response did not match this browser's sign-in request (state mismatch)." };
     }

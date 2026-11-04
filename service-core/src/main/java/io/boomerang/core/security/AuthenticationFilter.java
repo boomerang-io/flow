@@ -126,7 +126,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       if (!userService.isActivated()) {
         boolean proven = userService.activationCodeValid(replayable.activationCode());
         if (!proven) {
-          res.sendError(HttpServletResponse.SC_BAD_REQUEST);
+          authEntryPoint.commence(
+              req, res, new FlowAuthenticationException(BoomerangError.AUTH_ACTIVATION_CODE_INVALID, null));
           return;
         }
         req.setAttribute(ACTIVATION_PROVEN, true);
