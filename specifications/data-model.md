@@ -44,9 +44,9 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 `maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxArtifactStorage`,
 `artifactRetentionDays`; `workspace/model/Quotas.java:15-23`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:102-114,183-188`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:108-120,189-194`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:220,316`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:222,318`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
 way back to absent (`workspace/WorkspaceControllerV2.java:316-327`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
@@ -156,7 +156,7 @@ decrypt is kept as stored, on load and on the next save of its group, never writ
 | Collection | Document | Notes |
 | --- | --- | --- |
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`core/entity/RelationshipNodeEntity.java:32`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue) (`core/enums/RelationshipType.java:12-23`). |
-| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:289-342`). |
+| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:323-376`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
 `_0004__SeedSystemWorkspace`.

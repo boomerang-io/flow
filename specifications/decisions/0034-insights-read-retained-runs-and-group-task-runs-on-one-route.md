@@ -28,7 +28,7 @@ B and D. `WorkflowRunInsightService` computes the summary and workflow detail fr
 hour, day or month and by the span of a run label (`:188-260`). One aggregation streams a small document per counted
 task run, with its labels and the usage an `ai` task reports, on the `workflowRunRef`-first index (`:375-410`), and
 percentiles use the summary's nearest-rank method in Java (`:635-643`). Quotas count from audit events
-(`core/audit/AuditQueryService.java:153,181`). What decided it: analytics over retained executions and metering at
+(`core/audit/AuditQueryService.java:162,191`). What decided it: analytics over retained executions and metering at
 event time, the line GitHub Actions and Step Functions draw, with labels as the grouping key.
 
 ## Consequences

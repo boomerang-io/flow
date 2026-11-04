@@ -60,7 +60,7 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:176-191,303-304,467-470`; unique sparse index `external_ref`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:178-193,305-306,469-472`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
@@ -115,7 +115,7 @@ secret adds `payload.detail.secretsChanged` or `secretsCleared`, naming secrets,
 (`core/audit/AuditEvent.java:8-17`, `core/audit/SecretChangeHolder.java:15-24`). A write is level `WRITE` unless
 marked `DESTRUCTIVE` (`core/audit/Audited.java:45`), as deleting a workspace, a parameter, a workflow, a schedule, an
 artifact or a run and revoking a token are; deleting a catalogue task is not audited. The engine records each run's
-admission (`CREATE`) and completion (`UPDATE`) (`core/audit/WorkflowRunAuditBridge.java:64-72`); the monthly run quota counts the `CREATE` events (`core/audit/AuditQueryService.java:181-190`).
+admission (`CREATE`) and completion (`UPDATE`) (`core/audit/WorkflowRunAuditBridge.java:64-72`); the monthly run quota counts the `CREATE` events (`core/audit/AuditQueryService.java:191-208`).
 
 ## Error response
 
@@ -350,7 +350,7 @@ keeps the stored value, because there a missing member and a `null` member canno
 `labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>` (`common/model/Workflow.java:52-53`,
 `common/model/WorkflowRun.java:42-43`). Keys under `boomerang.io/` are the server's; every other key is the
 client's, free-form, and MAY carry a `prefix/name` form. A dot in a label key is stored as `#`. Label updates differ
-by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:305-309`), while `PUT /workflow` merges unless `replace=true`.
+by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:307-311`), while `PUT /workflow` merges unless `replace=true`.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |
