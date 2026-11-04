@@ -13,7 +13,7 @@ server:
   keyphrase: 1EFA5840-95B8-4FDA-9494-8CB5E8C692F1
 
 clients:
-  # Must match the `oidc.clientId` value seeded by docker/mongo/seed-auth-oidc.js - the backend
+  # Must match FLOW_AUTH_OIDC_CLIENT_ID (docker-compose.yml, application-local.properties) - the backend
   # verifies the id_token's aud claim against it (OidcTokenVerifier), and the frontend sends it
   # as client_id on the authorize and token requests.
   - client_id: flow

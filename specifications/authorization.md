@@ -71,7 +71,7 @@ a caller that reaches `service-core` directly reaches them as well.
 
 | Endpoint | Auth | What it does |
 | --- | --- | --- |
-| `GET /internal/v1/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both the `auth.oidc.issuer` and `auth.oidc.clientId` settings set) or `proxy`, which carries `flow.signOutUrl` (`core/security/AuthExchangeService.java:51-64`) |
+| `GET /internal/v1/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both the `auth.oidc.issuer` and `auth.oidc.clientId` settings set, by an admin or seeded from properties, below) or `proxy`, which carries `flow.signOutUrl` (`core/security/AuthExchangeService.java:51-64`) |
 | `POST /internal/v1/auth/exchange` | public | Empty body: mints a session for the user the filter already resolved (`AuthExchangeService.java:80-96`). `{idToken, nonce}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys, matches `iss`, `aud` and `nonce` exactly and requires an unexpired `exp` (`core/security/OidcTokenVerifier.java:83-134`); symmetric and `none` algorithms are rejected (`OidcTokenVerifier.java:99-109`). Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
 | `POST /internal/v1/auth/logout` | `session` token | Deletes the token and clears the cookie (`core/InternalAuthControllerV1.java:96-107`, `AuthExchangeService.java:137-142`) |
 
@@ -119,6 +119,20 @@ Every stored token whose id has that prefix and whose name is no longer configur
 an entry revokes only it and a rotation is: add the new entry, roll the client, remove the old one. Declared tokens
 are registered whether or not security is on. `TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409), so
 the API cannot fight the configuration (`core/TokenService.java:463-466`).
+
+**OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
+sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,
+`FLOW_AUTH_OIDC_CLIENT_ID`) fill them on a fresh install: `OidcSettingsSeedService` runs on `ApplicationReadyEvent`,
+after the migrations, and writes each property that is set through `SettingsService.setIfEmpty`, one conditional
+Mongo update that matches only while the stored value is empty
+(`core/security/OidcSettingsSeedService.java:50-60`, `core/SettingsService.java:194-209`). A value an admin set
+through `PATCH /api/v2/settings`, or that another instance seeded first, is kept, and a later change to the
+property does not overwrite it; the start logs at info that the stored value is kept. The issuer must be an
+absolute `https` URL without credentials, `http` only for `localhost`, `*.localhost`, `127.0.0.0/8` and `::1`,
+else the start fails (`OidcSettingsSeedService.java:80-107`). The auth config is read from the settings on every
+request and is not cached, so it shows the value at once on every instance; the write also clears the writing
+instance's parameter-layer cache, as `PATCH` does. The compose stack sets both properties for IDPZero
+(`docker-compose.yml`, `application-local.properties`).
 
 `TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
 human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or

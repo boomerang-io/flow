@@ -171,6 +171,11 @@ tag's release notes.
   `expiry`. Removing an entry revokes its token, and two entries are valid at once so a token rotates without a gap.
   A declared token cannot be deleted through `DELETE /api/v2/token/{id}`: it answers `409`. With none declared
   nothing changes.
+- Sign-in with OpenID Connect can be configured at install time. `flow.auth.oidc.issuer` and
+  `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`, `FLOW_AUTH_OIDC_CLIENT_ID`) fill the `auth` settings'
+  `oidc.issuer` and `oidc.clientId` at startup, only while they are empty; a value set in Settings is never
+  overwritten, and a later change to the property does not replace it. The issuer must be an absolute `https` URL
+  (`http` only for localhost), or the start fails. Without them sign-in stays in proxy mode.
 - CloudEvents sink filters. `flow.events.sink.types`, `statuses` (any run status, or `terminal`) and `phases` narrow
   what is sent, and each destination takes the same keys plus `labels` (`key=value`). A transition no sink wants is
   never stored, so a filtered event is not counted as dead; labels filter at delivery. `phases=completed` is the true
