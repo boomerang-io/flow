@@ -263,7 +263,9 @@ Replicas that start together wait on `sys_migration_lock` for up to 30 minutes (
 replica applied; a failed unit fails startup.
 
 The chain migrates exactly two starting points, an empty database and an in-place v3 install, to the shape the
-application reads. `_0001` refuses anything else before writing: a v4 install, or a database a 5.0 beta already
+application reads. A v3 install is one whose loader changelog holds changeset `111`, the last that flow-loader 0.5.9
+writes, which every v3 chart from bmrg-flow 4.13.5 ships (`migration/InstallGeneration.java:39`). `_0001` refuses
+anything else before writing: an older v3 install, a v4 install, or a database a 5.0 beta already
 migrated (it holds `sys_changelog_loader`); a refusal is retried on every start
 (`migration/_0001__GuardAndDetectGeneration.java:30,47-62`). Every unit retries after a failure
 (`@Recovery(ALWAYS_RETRY)`), so a start interrupted mid-migration resumes on the next one. The seeds in

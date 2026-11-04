@@ -335,12 +335,22 @@ class MigrationChainTest {
   @Test
   void aV4DatabaseIsRefused() {
     MongoDatabase db = database("v4");
-    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "111"));
     collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "4000"));
 
     assertThatThrownBy(() -> MigrationRunner.run(uriOf("v4"), PREFIX)).isInstanceOf(Exception.class);
     assertThat(collection(db, "rel_nodes").countDocuments()).as("nothing is written").isZero();
     assertThat(collection(db, "settings").countDocuments()).isZero();
+  }
+
+  @Test
+  void aV3InstallOlderThanTheLastV3ChartIsRefused() {
+    MongoDatabase db = database("v3old");
+    // flow-loader 0.5.8, shipped by bmrg-flow 4.13.3-4.13.4, stops at changeset 110.
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "110"));
+
+    assertThatThrownBy(() -> MigrationRunner.run(uriOf("v3old"), PREFIX)).isInstanceOf(Exception.class);
+    assertThat(collection(db, "rel_nodes").countDocuments()).as("nothing is written").isZero();
   }
 
   @Test
@@ -1563,7 +1573,7 @@ class MigrationChainTest {
   }
 
   private static void markV3(MongoDatabase db) {
-    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    collection(db, "sys_changelog_flow").insertOne(new Document("changeId", "111"));
   }
 
   private static String uriOf(String database) {

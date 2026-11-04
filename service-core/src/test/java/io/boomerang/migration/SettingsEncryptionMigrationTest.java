@@ -195,7 +195,7 @@ class SettingsEncryptionMigrationTest {
 
   private static MongoDatabase v3Database(String name) {
     MongoDatabase db = client.getDatabase(name);
-    db.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    db.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "111"));
     return db;
   }
 
