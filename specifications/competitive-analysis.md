@@ -29,8 +29,8 @@ target its job runs.
 
 Parity already: 7-day cleanup (`kube.task.ttlDays`, `service-dispatcher/src/main/resources/application.properties:52`); one run per
 inbound event with a small typed payload (their 4 KB cron cap against Flow's 16 KB `flow.engine.task.params.max-bytes`,
-`service-core/src/main/resources/application.properties:187`); big data by reference (object-storage mounts against Flow's
-S3-compatible artifact store, `service-core/src/main/resources/application.properties:195-204`).
+`service-core/src/main/resources/application.properties:231`); big data by reference (object-storage mounts against Flow's
+S3-compatible artifact store, `service-core/src/main/resources/application.properties:239-248`).
 
 | Code Engine | Flow | Position |
 | ----------- | ---- | -------- |

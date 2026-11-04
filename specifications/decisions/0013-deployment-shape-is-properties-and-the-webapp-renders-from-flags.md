@@ -25,7 +25,7 @@ B and D, and the webapp reads only server-computed flags. `flow.security.enabled
 workspace create and delete (`core/security/SingleWorkspaceInterceptorConfiguration.java:22-28`,
 `workspace/WorkspaceService.java:167,351`). With security off, every request carries an `UnauthenticatedGlobalToken`
 (principal `system`, actor kind `SERVICE`, one `**/**` grant; `core/security/UnauthenticatedGlobalToken.java:64-72`)
-that `core/UserService.java:279-281` maps to an admin user built in memory: the token already holds every permission, so
+that `core/UserService.java:311-313` maps to an admin user built in memory: the token already holds every permission, so
 the profile adds no privilege, where a stored user would add risk. `core/FeatureService.java:31-87` turns the properties
 and stored `features.*` settings into the `/api/v2/features` flags.
 
@@ -33,8 +33,8 @@ and stored `features.*` settings into the `/api/v2/features` flags.
 
 - An embedder sets `flow.security.enabled=false` and `flow.workspace.single=true` and adds `client-web` with only
   `CORE_SERVICE_INTERNAL_ORIGIN`; with `authentication` false the webapp skips the sign-in config read
-  (`client-web/src/Features/App/App.tsx:142-146`), so that shape belongs on a laptop or behind a protected route.
+  (`client-web/src/Features/App/App.tsx:143-147`), so that shape belongs on a laptop or behind a protected route.
 - Audit records `actor.principal=system`; the synthetic user belongs to nothing and the profile lists every workspace as
-  its own (`core/UserService.java:332-346`). Both exist only per request.
+  its own (`core/UserService.java:364-378`). Both exist only per request.
 - Deployment shape is a `flow.<subsystem>.<switch>` property and a runtime toggle a stored `features.<name>` setting,
   never both. Revisit if an embedder needs a smaller classpath, or `workspace.single` must become a stored setting.

@@ -17,7 +17,7 @@ instance. Correctness rests on three primitives, all in the live path:
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:44-49,172-198` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
 Crash recovery is the lease the claim sets 90 s ahead (`flow.dispatcher.lease-ms`,
-`service-core/src/main/resources/application.properties:47`; `engine/TaskRunService.java:343`) and each 30 s
+`service-core/src/main/resources/application.properties:73`; `engine/TaskRunService.java:343`) and each 30 s
 heartbeat renews (`engine/TaskRunService.java:662-674`; `flow.dispatcher.lease.beat-ms`,
 `service-dispatcher/src/main/resources/application.properties:132`), served by the sparse `lease_sweep` index
 (`migration/_0021__Indexes.java:64`), which holds only live claims because completion clears the lease
@@ -38,7 +38,7 @@ revision admitted within 10 s share those five. A workflow's owning workspace is
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:235,333,646`,
-`core/SettingsService.java:186,208`, `workflow/WorkflowService.java:1631,2048`); token writes do not, because the
+`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1631,2048`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
@@ -99,7 +99,7 @@ polls (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.jav
 Indexes come only from migration change units: `_0021__Indexes` holds the inventory, and
 `_0029__ClaimIndexKeysTheClaimant` re-keys `claim_page` on a database built before the index held `claim.by`
 (`migration/_0029__ClaimIndexKeysTheClaimant.java:39-66`). Entity annotations are inert
-(`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:76`).
+(`spring.data.mongodb.auto-index-creation=false`, `service-core/src/main/resources/application.properties:118`).
 
 | Index | Collection / keys | Defined at (`migration/_0021__Indexes.java`) | Serves |
 | --- | --- | --- | --- |
@@ -141,7 +141,7 @@ well under 10 fixed queries per second; per-row checks grow with in-flight runs.
 ## Virtual threads
 
 Request handling runs on virtual threads (`spring.threads.virtual.enabled=true`,
-`service-core/src/main/resources/application.properties:96`) because each connected dispatcher parks one request
+`service-core/src/main/resources/application.properties:132`) because each connected dispatcher parks one request
 thread for its 30 s poll; the dispatcher sets it too (`service-dispatcher/src/main/resources/application.properties:9`),
 where a live log stream parks its request thread for up to two hours. **Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
 drives 200 pollers through 10 cycles each under Java Flight Recorder and asserts carrier pinning stays under 1% of
@@ -218,7 +218,7 @@ quiet-but-healthy stream is not cut at the control read timeout (`core/config/Re
 
 Pool: 200 total / 200 per route for the internal, self and external templates (`:48-49,174-185`); the two
 trust-all templates use the HTTP client's default pool; keep-alive 5 min for all (`:187-189`). Companions: Mongo
-`connectTimeoutMS=10000&socketTimeoutMS=120000` (`service-core/src/main/resources/application.properties:67`);
+`connectTimeoutMS=10000&socketTimeoutMS=120000` (`service-core/src/main/resources/application.properties:109`);
 async request timeout two hours for a streamed response, so a running task's log is followed for that long, on
 both core (`:72`) and the dispatcher (`service-dispatcher/src/main/resources/application.properties:6`). It
 reaches only the three routes that answer asynchronously: core's task log and artifact download and the
@@ -284,7 +284,7 @@ checked only before it is created. Audit retention is floored at
 
 ## Payload caps
 
-Two byte caps bound what the engine stores (`service-core/src/main/resources/application.properties:187-188`):
+Two byte caps bound what the engine stores (`service-core/src/main/resources/application.properties:231-232`):
 resolved params ≤ `flow.engine.task.params.max-bytes` (16384) at admission — oversize invalidates the task before
 it is claimable (`engine/TaskExecutionService.java:237-253`) — and results ≤ `flow.engine.task.results.max-bytes`
 (1 MB) at end, a storage guard behind each dispatcher's own limit (4096 bytes, Kubernetes' termination message) —

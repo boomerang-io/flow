@@ -20,12 +20,12 @@ context refresh and must never see a half-migrated database, and indexes and see
 
 C, and indexes built by a unit. `MigrationConfiguration` runs Flamingock on core's own `MongoClient`
 (`migration/MigrationConfiguration.java:20-44`) with `flamingock.management-mode=INITIALIZING_BEAN`
-(`service-core/src/main/resources/application.properties:83`), before the web server and the sweeps
+(`service-core/src/main/resources/application.properties:125`), before the web server and the sweeps
 (`event/OutboxDispatcher.java:64-66`, `engine/WorkflowWatcher.java:168-171`). Replicas starting together wait up to 30
 minutes on the lock (`:84`), then skip what another applied; a failed unit fails startup.
 `_0001__GuardAndDetectGeneration` refuses a v4 database, or one a 5.0 beta's separate loader migrated, before writing
 anything (`migration/_0001__GuardAndDetectGeneration.java:47-63`). With `spring.data.mongodb.auto-index-creation=false`
-(`application.properties:76`) and no index annotation on any entity, `_0021__Indexes` builds one inventory, the same on
+(`application.properties:118`) and no index annotation on any entity, `_0021__Indexes` builds one inventory, the same on
 an empty and an upgraded database, after every data unit and seed, deduping first where a unique index needs it
 (`migration/_0021__Indexes.java:199-212`).
 

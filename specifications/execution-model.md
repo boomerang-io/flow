@@ -289,7 +289,7 @@ records a CREATE audit event on a run's first status change and an UPDATE with t
 `completed`, the events the monthly run quota counts (`core/audit/WorkflowRunAuditBridge.java:58-103`); task-run
 transitions are not audited, and auditing never fails the transition.
 
-When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:51`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
+When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:83`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
 change, or per run reaching `completed` with a status its caller wrote directly; the start and end nodes write none (`event/CloudEventsBridge.java:39-86`). `OutboxDispatcher` then drains every
 `flow.events.outbox.interval-ms` (5 s) on every instance, at least once, marking rows `sent` by compare-and-set and `dead` after 3 failed attempts (`event/OutboxDispatcher.java:43`, `:64-91`); each
 row is delivered as its own transition with the row's status, phase, id and time, so a late row reports what it recorded and a retried delivery keeps its id (`:97-115`,

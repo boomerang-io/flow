@@ -26,7 +26,7 @@ One key, `flow.encrypt.secret`/`salt`, encrypts everything with authenticated AE
 (`core/SecretCipher.java:25`); a blank key refuses startup (`core/model/EncryptionConfig.java:19-32`).
 `mongo.encrypt.*` means v3's pair and is read only by `migration/_0022__ReencryptSettingsAesGcm.java`, which
 re-encrypts v3's values under the new key. Both pairs default to `FLOW_ENCRYPT_SECRET`/`FLOW_ENCRYPT_SALT`, and
-`MONGO_ENCRYPT_*` overrides v3's pair alone (`service-core/src/main/resources/application.properties:134-140`). A
+`MONGO_ENCRYPT_*` overrides v3's pair alone (`service-core/src/main/resources/application.properties:175-181`). A
 value that does not decrypt stops the migration unless `flow.migration.reset-unreadable-settings=true` blanks it and
 logs the setting (`_0022__ReencryptSettingsAesGcm.java:95-114`). The pass already decrypts with one key and encrypts
 with another, so rotating at upgrade costs nothing; a wrong pair looks exactly like a lost one, so blanking
