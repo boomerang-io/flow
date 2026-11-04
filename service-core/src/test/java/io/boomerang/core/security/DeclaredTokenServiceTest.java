@@ -18,7 +18,9 @@ import jakarta.servlet.Filter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,19 +69,35 @@ class DeclaredTokenServiceTest extends AbstractEngineIntegrationTest {
     SecurityContextHolder.clearContext();
   }
 
-  private DeclaredTokenProperties.Entry byValue(String name, String value, String... permissions) {
-    return new DeclaredTokenProperties.Entry(
-        name, null, value, TokenActorKind.SERVICE, List.of(permissions), null, null);
+  private Map.Entry<String, DeclaredTokenProperties.Entry> byValue(
+      String name, String value, String... permissions) {
+    return Map.entry(
+        name,
+        new DeclaredTokenProperties.Entry(
+            null, value, TokenActorKind.SERVICE, List.of(permissions), null, null));
   }
 
-  private DeclaredTokenProperties.Entry byHash(String name, String raw, String... permissions) {
-    return new DeclaredTokenProperties.Entry(
-        name, tokenService.hashString(raw), null, TokenActorKind.SERVICE, List.of(permissions), null, null);
+  private Map.Entry<String, DeclaredTokenProperties.Entry> byHash(
+      String name, String raw, String... permissions) {
+    return Map.entry(
+        name,
+        new DeclaredTokenProperties.Entry(
+            tokenService.hashString(raw),
+            null,
+            TokenActorKind.SERVICE,
+            List.of(permissions),
+            null,
+            null));
   }
 
-  private void register(DeclaredTokenProperties.Entry... entries) {
+  @SafeVarargs
+  private void register(Map.Entry<String, DeclaredTokenProperties.Entry>... entries) {
+    Map<String, DeclaredTokenProperties.Entry> tokens = new LinkedHashMap<>();
+    for (Map.Entry<String, DeclaredTokenProperties.Entry> entry : entries) {
+      tokens.put(entry.getKey(), entry.getValue());
+    }
     new DeclaredTokenService(
-            new DeclaredTokenProperties(List.of(entries)), tokenService, tokenRepository, lookupCache)
+            new DeclaredTokenProperties(tokens), tokenService, tokenRepository, lookupCache)
         .register();
   }
 
@@ -132,9 +150,11 @@ class DeclaredTokenServiceTest extends AbstractEngineIntegrationTest {
   void expiryAndDescriptionAreStoredAndAnExpiredTokenStopsWorking() {
     Instant expiry = Instant.now().plusSeconds(3600);
     register(
-        new DeclaredTokenProperties.Entry(
-            "timed", tokenService.hashString(FIRST), null, TokenActorKind.SERVICE,
-            List.of("workspace/read"), "for the backend", expiry.toString()));
+        Map.entry(
+            "timed",
+            new DeclaredTokenProperties.Entry(
+                tokenService.hashString(FIRST), null, TokenActorKind.SERVICE,
+                List.of("workspace/read"), "for the backend", expiry.toString())));
 
     TokenEntity entity = stored("timed");
     assertThat(entity.getDescription()).isEqualTo("for the backend");

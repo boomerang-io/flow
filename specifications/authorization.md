@@ -101,17 +101,21 @@ the old one from the local token cache; it is rotated by changing the value and 
 or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, which admits only `user` and
 `session` tokens (`workspace/ProfileControllerV2.java:54,76`), so the webapp cannot sign in with it.
 
-**Declared tokens.** `flow.security.tokens[n]` (environment: `FLOW_SECURITY_TOKENS_0_NAME`, `_HASH`, `_PERMISSIONS`,
-`_ACTORKIND`, `_EXPIRY`) declares narrower machine tokens so a hosted install needs no minting step. An entry has a
-`name` (a lowercase slug, unique in the list), exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`),
-`permissions`, and optionally `description` and `expiry` (an ISO-8601 instant, or a date meaning the end of that
-day in UTC). `hash` is the lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256`
-on macOS), the form `TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the
-bootstrap token. Either way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each
-permission is a `<resource>/<action>` string checked by `TokenService.assertValidPermissions`, the check
-`POST /api/v2/token` runs, and becomes one `global` grant with principal `**`. A bad entry fails the binding, so the
-start stops before the install serves (`core/security/DeclaredTokenProperties.java:32-86`). A past `expiry` does not stop it:
-the token is stored and refused like any expired token.
+**Declared tokens.** `flow.security.tokens.<name>.*` declares narrower machine tokens so a hosted install needs no
+minting step. The map key is the name, so the environment form carries it:
+`FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS`, `_ACTORKIND`, `_DESCRIPTION`, `_EXPIRY` declare `dispatcher`.
+A name is 1 to 63 lowercase letters and digits and is not `bootstrap` (that is `FLOW_SECURITY_BOOTSTRAP_TOKEN`); a
+hyphen or underscore cannot be used because an underscore in a variable name becomes a dot. The binder lowercases the
+name from an environment variable and keeps a properties key as written, so an uppercase key is refused rather than
+folded. An entry has exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`), `permissions`, and optionally
+`description` and `expiry` (an ISO-8601 instant, or a date meaning the end of that day in UTC). `hash` is the
+lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256` on macOS), the form
+`TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the bootstrap token.
+Either way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each permission is a
+`<resource>/<action>` string checked by `TokenService.assertValidPermissions`, the check `POST /api/v2/token` runs, and
+becomes one `global` grant with principal `**`. A bad entry fails the binding, so the start stops before the install
+serves (`core/security/DeclaredTokenProperties.java:34-73`). A past `expiry` does not stop it: the token is stored and
+refused like any expired token.
 `DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under the id `declared-token:<name>`; an entry
 unchanged since the last start writes nothing, a changed hash or grant replaces the record and evicts the old hash
 from the local cache, and two entries sharing a token stop the start (`core/security/DeclaredTokenService.java:58-105`).
