@@ -318,6 +318,13 @@ export const TokenActorKind = {
   Workflow: "WORKFLOW",
 } as const;
 
+// How the Actor column and the create-token form name each kind.
+export const TokenActorKindLabel: Record<string, string> = {
+  [TokenActorKind.Service]: "Service",
+  [TokenActorKind.Agent]: "Agent",
+  [TokenActorKind.Workflow]: "Workflow",
+};
+
 export const yamlInstructions = `  # Getting started
   Task Templates allow you to define what you want to happen at the execution of the task as well as parameters that are needed and the expected results.
   

@@ -1,5 +1,14 @@
 import React from "react";
-import { Button, DatePicker, DatePickerInput, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
+import {
+  Button,
+  DatePicker,
+  DatePickerInput,
+  InlineNotification,
+  ModalBody,
+  ModalFooter,
+  RadioButton,
+  RadioButtonGroup,
+} from "@carbon/react";
 import { Information } from "@carbon/react/icons";
 import {
   ModalFlowForm,
@@ -20,6 +29,15 @@ import PermissionSelector, { PermissionSelection } from "./PermissionSelector";
 import styles from "./form.module.scss";
 
 type TokenActorKindType = (typeof TokenActorKind)[keyof typeof TokenActorKind];
+
+// A platform (global) token is a machine token unless a person asks otherwise: the dispatcher
+// protocol only accepts a token that carries an actor kind. "none" sends no actorKind.
+const NO_ACTOR_KIND = "none";
+const ACTOR_KIND_OPTIONS = [
+  { value: TokenActorKind.Service, label: "Service", hint: "A system, script or dispatcher" },
+  { value: TokenActorKind.Agent, label: "Agent", hint: "An AI agent" },
+  { value: NO_ACTOR_KIND, label: "None", hint: "A person's token" },
+];
 
 interface CreateServiceTokenFormProps {
   // Injected by ModalFlow's cloneElement at runtime (see CreateToken.tsx, which renders this
@@ -85,7 +103,7 @@ function CreateServiceTokenForm({
         : null,
       description: values.description,
       principal: values.principal,
-      ...(actorKind ? { actorKind } : {}),
+      ...(values.actorKind && values.actorKind !== NO_ACTOR_KIND ? { actorKind: values.actorKind } : {}),
       // Exactly one of role/permissions travels with the request.
       ...(type !== TokenType.User ? (values.role ? { role: values.role } : { permissions: values.permissions ?? [] }) : {}),
     };
@@ -114,6 +132,7 @@ function CreateServiceTokenForm({
         expirationDate: "",
         description: "",
         principal: principal,
+        actorKind: actorKind ?? (type === TokenType.Global ? TokenActorKind.Service : NO_ACTOR_KIND),
         role: undefined,
         permissions: undefined,
       }}
@@ -160,6 +179,29 @@ function CreateServiceTokenForm({
                 placeholder="my-unique-task-name"
                 value={values.name}
               />
+              {type === TokenType.Global && !actorKind ? (
+                <RadioButtonGroup
+                  className={styles.actorKind}
+                  legendText="Actor"
+                  name="actorKind"
+                  orientation="vertical"
+                  valueSelected={values.actorKind}
+                  onChange={(selection: string | number | undefined) => setFieldValue("actorKind", String(selection))}
+                >
+                  {ACTOR_KIND_OPTIONS.map((option) => (
+                    <RadioButton
+                      key={option.value}
+                      id={`actorKind-${option.value}`}
+                      value={option.value}
+                      labelText={
+                        <>
+                          {option.label} <span className={styles.actorKindHint}>{option.hint}</span>
+                        </>
+                      }
+                    />
+                  ))}
+                </RadioButtonGroup>
+              ) : null}
               {type !== TokenType.User ? (
                 <PermissionSelector onChange={handlePermissionSelectionChange} />
               ) : null}

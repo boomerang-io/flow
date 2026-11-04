@@ -22,7 +22,7 @@ import moment from "moment";
 import { useFetcher } from "react-router-dom";
 import CreateToken from "Components/CreateToken";
 import DeleteToken from "Components/DeleteToken";
-import { TokenActorKind } from "Constants";
+import { TokenActorKind, TokenActorKindLabel } from "Constants";
 import type { Token, TokenScopeType } from "Types";
 import { isActionError } from "Utils/actionResult";
 import styles from "./TokenSection.module.scss";
@@ -140,6 +140,8 @@ const TokenSection: React.FC<TokenProps> = ({ type, principal, actorKind }) => {
     switch (column.key) {
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
+      case "actorKind":
+        return <p className={styles.tableTextarea}>{(value && TokenActorKindLabel[value]) || "---"}</p>;
       case "creationDate":
       case "expirationDate":
         return (

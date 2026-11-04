@@ -24,7 +24,7 @@ import { globalTokensLoader, tokenAction, type TokenActionResult } from "Compone
 import type { TokenSectionRouteData } from "Components/TokenSection/tokenRouteData";
 import { arrayPagination } from "Utils/arrayHelper";
 import { isActionError } from "Utils/actionResult";
-import { TokenType } from "Constants";
+import { TokenActorKindLabel, TokenType } from "Constants";
 import { Token } from "Types";
 import styles from "./GlobalTokens.module.scss";
 import { DATE_LONG_DISPLAY_FORMAT } from "Utils/dateHelper";
@@ -152,6 +152,8 @@ function Tokens() {
     switch (column.key) {
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
+      case "actorKind":
+        return <p className={styles.tableTextarea}>{(value && TokenActorKindLabel[value]) || "---"}</p>;
       case "creationDate":
       case "expirationDate":
         return (

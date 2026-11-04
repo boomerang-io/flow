@@ -141,6 +141,8 @@ public class TokenService {
       throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
     }
 
+    assertActorKindFitsType(request.getType(), request.getActorKind());
+
     // createdBy is ALWAYS the server-resolved authenticated principal - NEVER taken from the
     // request body (the third token invariant). Resolved once, up front, so both the createdBy
     // stamp and the admin-authority check below use the same identity snapshot.
@@ -225,6 +227,26 @@ public class TokenService {
     tokenResponse.setExpirationDate(request.getExpirationDate());
     tokenResponse.setActorKind(request.getActorKind());
     return tokenResponse;
+  }
+
+  /**
+   * The actor kind a token may declare depends on its class: a {@code global} token is a machine
+   * ({@code SERVICE} or {@code AGENT}) or a person's (none), a {@code key} token may also be a
+   * workflow's own ({@code WORKFLOW}), and a {@code user} token is a person's and declares none.
+   */
+  private void assertActorKindFitsType(AuthScope type, TokenActorKind actorKind) {
+    if (actorKind == null) {
+      return;
+    }
+    boolean allowed =
+        switch (type) {
+          case global -> actorKind != TokenActorKind.WORKFLOW;
+          case key -> true;
+          default -> false;
+        };
+    if (!allowed) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_ACTOR);
+    }
   }
 
   /**

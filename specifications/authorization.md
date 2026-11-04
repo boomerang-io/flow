@@ -165,7 +165,7 @@ omits `groups` above a size limit) is a verdict of `false`, and demotes.
 | `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:753-785`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:125-127`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:180-190`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:192-195,365-380`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:818-835`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:152-154`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
+| `global` | `bfg_` | platform admin, or a machine (`actorKind=SERVICE` for the dispatcher, `AGENT` for an AI agent; the Admin › Tokens form defaults to `SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:152-154`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
 
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
 `flow.security.bootstrap-token`. When it is set — `bfg_` and at least 32 further characters, else the start
@@ -213,16 +213,16 @@ request and is not cached, so it shows the value at once on every instance; the 
 instance's parameter-layer cache, as `PATCH` does. The compose stack sets both properties for IDPZero
 (`docker-compose.yml`, `application-local.properties`).
 
-`TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:21-25`), null on
-human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or
-`createWorkflowSchedulerToken` minted it (`core/TokenService.java:818-824`); a workflow name is only unique within
-its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:882`),
-and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
-(`workspace/WorkspaceService.java:375-376`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:215-217,382-390`), and a
-token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
-database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
-(`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`)
-— so a retired `bft_`/`bfw_` bearer never reaches MongoDB.
+`TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:21-25`), null on human tokens. `POST /api/v2/token`
+stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR` (400): `global` takes none, `SERVICE` or `AGENT`, `key` any, `user`
+none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
+workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
+token of that principal (`workflow/WorkflowService.java:882`), and deleting a workspace revokes every token whose principal is the workspace's name,
+its reference everywhere (`workspace/WorkspaceService.java:375-376`). Only the SHA-256 hash of a raw token is stored
+(`core/TokenService.java:215-217,382-390`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
+before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
+(`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_`
+bearer never reaches MongoDB.
 
 Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator` (`**/read`,
 `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`, `**/action`) and `reader`

@@ -26,7 +26,7 @@ import { useTokenSectionData } from "Components/TokenSection/tokenRouteData";
 import type { TokenActionResult } from "Components/TokenSection/tokenRoute";
 import { arrayPagination } from "Utils/arrayHelper";
 import { isActionError } from "Utils/actionResult";
-import { TokenType } from "Constants";
+import { TokenActorKindLabel, TokenType } from "Constants";
 import type { Token } from "Types";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./tokens.module.scss";
@@ -128,6 +128,8 @@ function Tokens() {
     switch (column.key) {
       case "valid":
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
+      case "actorKind":
+        return <p className={styles.tableTextarea}>{(value && TokenActorKindLabel[value]) || "---"}</p>;
       case "creationDate":
       case "expirationDate":
         return (
