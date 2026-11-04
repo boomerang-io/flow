@@ -65,26 +65,6 @@
           "type": "text",
           "value": "",
           "readOnly": false
-        },
-        {
-          "description": "Who can sign up. Open registers anyone the identity provider signs in; Invite only admits a person an admin has added to a workspace, or whom the admin claim makes an admin.",
-          "key": "signup.mode",
-          "label": "Sign-up",
-          "type": "select",
-          "minValueLength": 0,
-          "maxValueLength": 128,
-          "options": [
-            {
-              "key": "open",
-              "value": "Open (anyone who signs in is registered)"
-            },
-            {
-              "key": "invite",
-              "value": "Invite only (an admin must add the person first)"
-            }
-          ],
-          "value": "open",
-          "readOnly": false
         }
       ],
       "description": "The identity provider that signs people in, and how their tokens are exchanged.",
@@ -208,6 +188,14 @@
           "description": "Let any signed-in user create a workspace and become its owner. Admins and operators always can; a change applies to sessions signed in afterwards.",
           "key": "workspaceCreate",
           "label": "Workspace creation by users",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
+          "description": "Create a user account the first time someone signs in. When off, only people an admin has added to a workspace, or an admin claim admits, can sign in.",
+          "key": "autoCreateUsers",
+          "label": "Auto-Create Users",
           "type": "boolean",
           "value": "true",
           "readOnly": false

@@ -325,6 +325,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0043__UnpinTaskFlowImages` | all | Unsets `spec.image` on every task revision pinning `boomerangio/task-flow:*`, so each runs on the `task` settings' `default.image`; the AI, Box and Python worker images stay |
 | `_0044__BoxPrivateKeyIsASecret` | all | Types the Box tasks' `privateKey` as `password` on their revisions, and in every workflow revision using them makes the stored value a `secret` run param encrypted under `flow.encrypt.secret`/`salt`; a sealed, blank or redacted value is left as it is |
 | `_0045__ClearPlaceholderDefaults` | all | Empties the placeholder default a few credential parameters carried (older GitHub revisions' `token`, the SendGrid template task's `apiKey` and `templateId`); the parameters stay |
+| `_0046__SeedAutoCreateUsersSetting` | all | Adds the `features` setting `autoCreateUsers` (whether a person's first sign-in creates their user) from the seed to an install built before it existed; an install that has the key is left as it is |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

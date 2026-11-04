@@ -156,14 +156,15 @@ public class SettingsService {
   }
 
   /*
-   * Whether sign-up is invite only: the {@code auth} document's {@code signup.mode} is
-   * {@code invite}. An install whose settings lack the key answers as the seed does: open.
+   * Whether a person's first sign-in creates their user: the {@code features} document's {@code
+   * autoCreateUsers}. An install upgraded before the key existed, or one whose unit has not run
+   * yet, answers as the seed does: yes.
    */
-  public boolean signupInviteOnly() {
+  public boolean autoCreateUsers() {
     try {
-      return "invite".equalsIgnoreCase(getSettingConfig("auth", "signup.mode").getValue());
+      return getSettingConfig("features", "autoCreateUsers").getBooleanValue();
     } catch (RuntimeException missing) {
-      return false;
+      return true;
     }
   }
 

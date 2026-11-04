@@ -638,7 +638,7 @@ public class TokenService {
    * claim configured it alone creates the first admin of an empty install, and an empty install is
    * otherwise locked. With a claim configured, admin comes from the claim alone and the code plays
    * no part: a new user is created an admin only on {@code true}, an existing user's type follows
-   * the verdict on every sign-in, and being first grants nothing. With sign-up invite only, an
+   * the verdict on every sign-in, and being first grants nothing. With auto-create users off, an
    * identity that is no user yet is refused unless the claim makes it an admin.
    */
   public SessionToken createSessionTokenWithRaw(
@@ -654,7 +654,7 @@ public class TokenService {
     if (!userService.isActivated()) {
       if (adminClaim.configured()) {
         // The provider decides who is admin, so the one-time code plays no part.
-        if (claimGrantsAdmin || !settingsService.signupInviteOnly()) {
+        if (claimGrantsAdmin || settingsService.autoCreateUsers()) {
           user = registerFirstUser(email, name, claimGrantsAdmin, allowUserCreation);
         }
       } else if (allowActivation) {
@@ -669,7 +669,7 @@ public class TokenService {
               Optional.of(name),
               Optional.of(claimGrantsAdmin ? UserType.admin : UserType.user),
               Optional.empty(),
-              allowUserCreation && (claimGrantsAdmin || !settingsService.signupInviteOnly()));
+              allowUserCreation && (claimGrantsAdmin || settingsService.autoCreateUsers()));
     }
     if (!user.isPresent()) {
       throw new HttpClientErrorException(HttpStatus.FORBIDDEN);

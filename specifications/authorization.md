@@ -82,25 +82,25 @@ id_token never reaches the browser.
 ## Who may sign in
 
 Three inputs decide what `TokenService.createSessionTokenWithRaw` does with an identity (`core/TokenService.java:644-686`):
-the `auth` setting `signup.mode` (`open`, the default, or `invite`; absent reads as `open`,
-`core/SettingsService.java:155-161`); the admin claim, `flow.security.admin-claim.name` and `.values`
+the `features` setting `autoCreateUsers` (on by default, "Auto-Create Users"; absent reads as on,
+`core/SettingsService.java:158-168`); the admin claim, `flow.security.admin-claim.name` and `.values`
 (`core/security/AdminClaim.java:21-50`); and whether the install has any user (`UserService.isActivated`, always true when
 an external user directory is configured). A **claim verdict** is `true`, `false` or none: a path that read no claim, or
 no claim is configured, has none, and a verdict of none never changes a user's type.
 
-| Install | Sign-up | Claim configured | Identity | Result |
+| Install | Auto-create users | Claim configured | Identity | Result |
 | --- | --- | --- | --- | --- |
-| has users | `open` | no | unknown | registered as a user (today's behaviour) |
-| has users | `invite` | no | unknown | refused, `403` (`HttpClientErrorException(FORBIDDEN)`, as any refused sign-in) |
-| has users | `invite` | no | added by an admin | admitted and activated |
-| has users | `invite` | yes | unknown, verdict `true` | created as an admin |
-| has users | `invite` | yes | unknown, verdict `false` or none | refused |
+| has users | on | no | unknown | registered as a user (today's behaviour) |
+| has users | off | no | unknown | refused, `403` (`HttpClientErrorException(FORBIDDEN)`, as any refused sign-in) |
+| has users | off | no | added by an admin | admitted and activated |
+| has users | off | yes | unknown, verdict `true` | created as an admin |
+| has users | off | yes | unknown, verdict `false` or none | refused |
 | has users | either | yes | known, verdict `true` / `false` | made an admin / an admin is made a user and their `session` tokens deleted; other types untouched |
 | has users | either | yes | known, no verdict | type unchanged |
 | empty | either | no | first person, activation code proven | admin, owner of the `system` workspace |
 | empty | either | no | first person, no code or a wrong one | nobody is created: `423` on the proxy routes and the exchange asks for the code; `400` for a wrong code |
-| empty | `open` | yes | first sign-in | admin only on verdict `true`, otherwise a user: being first grants nothing; no code is used |
-| empty | `invite` | yes | first sign-in | admin on verdict `true`, otherwise refused; no code is used |
+| empty | on | yes | first sign-in | admin only on verdict `true`, otherwise a user: being first grants nothing; no code is used |
+| empty | off | yes | first sign-in | admin on verdict `true`, otherwise refused; no code is used |
 
 "Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
 (`workspace/WorkspaceService.java:955-960`); `getAndRegisterUser` activates it on the person's first sign-in and finds it

@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
- * Who a sign-in admits, through the real filter chain and real stores: the sign-up mode setting
+ * Who a sign-in admits, through the real filter chain and real stores: the auto-create users setting
  * and the identity provider's admin claim, on the proxy-forwarded bearer JWT, the forwarded-email
  * header and the verified-id_token path of the sign-in exchange (the webapp-run provider and a
  * local IDPZero both arrive there). The context sets the claim to {@code groups} holding {@code
@@ -68,16 +68,16 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
     userRepository.save(anchor);
     // Every request signs in afresh rather than reusing the previous request's minted session.
     ReflectionTestUtils.setField(tokenService, "sessionMintReuseWindow", Duration.ZERO);
-    setSignup("open");
+    setAutoCreateUsers(true);
   }
 
   @AfterEach
   void restore() {
-    setSignup("open");
+    setAutoCreateUsers(true);
     ReflectionTestUtils.setField(tokenService, "sessionMintReuseWindow", Duration.ofSeconds(60));
   }
 
-  // --- open: today's behaviour --------------------------------------------------------------
+  // --- auto-create users on: today's behaviour --------------------------------------------------------------
 
   @Test
   void openSignUpRegistersAnUnknownIdentityOnTheForwardedJwt() throws Exception {
@@ -98,11 +98,11 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
     assertThat(stored(email).getType()).isEqualTo(UserType.user);
   }
 
-  // --- invite only ----------------------------------------------------------------------------
+  // --- auto-create users off ----------------------------------------------------------------------------
 
   @Test
   void inviteOnlyRefusesAnUnknownIdentityOnEveryProxyPath() throws Exception {
-    setSignup("invite");
+    setAutoCreateUsers(false);
     String viaJwt = email();
     String viaHeader = email();
 
@@ -120,7 +120,7 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
     // What adding a member to a workspace by email does: an inactive user.
     userService.getAndRegisterUser(
         email, Optional.empty(), Optional.of(UserType.user), Optional.of(UserStatus.inactive), true);
-    setSignup("invite");
+    setAutoCreateUsers(false);
 
     signIn(jwtRequest(email, List.of("staff"))).andExpect(status().isOk());
 
@@ -131,7 +131,7 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
 
   @Test
   void inviteOnlyAdmitsAndCreatesAnAdminTheClaimNames() throws Exception {
-    setSignup("invite");
+    setAutoCreateUsers(false);
     String email = email();
 
     signIn(jwtRequest(email, List.of("flow-admins"))).andExpect(status().isOk());
@@ -141,7 +141,7 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
 
   @Test
   void inviteOnlyAdmitsAClaimAdminOnTheVerifiedIdTokenPath() {
-    setSignup("invite");
+    setAutoCreateUsers(false);
     String email = email();
 
     // What the sign-in exchange passes for a signature-verified id_token (webapp-run provider, IDPZero).
@@ -152,7 +152,7 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
 
   @Test
   void inviteOnlyRefusesAnUnknownIdentityOnTheVerifiedIdTokenPathWithoutTheClaim() {
-    setSignup("invite");
+    setAutoCreateUsers(false);
     String email = email();
 
     org.assertj.core.api.Assertions.assertThatThrownBy(
@@ -216,11 +216,11 @@ class SignInModesTest extends AbstractEngineIntegrationTest {
     return "signin-" + UUID.randomUUID() + "@example.test";
   }
 
-  private void setSignup(String mode) {
-    SettingEntity auth = settingsService.getSettingByKey("auth");
-    auth.getConfig().stream()
-        .filter(config -> "signup.mode".equals(config.getKey()))
-        .forEach(config -> config.setValue(mode));
-    settingsService.updateSetting(auth);
+  private void setAutoCreateUsers(boolean on) {
+    SettingEntity features = settingsService.getSettingByKey("features");
+    features.getConfig().stream()
+        .filter(config -> "autoCreateUsers".equals(config.getKey()))
+        .forEach(config -> config.setValue(Boolean.toString(on)));
+    settingsService.updateSetting(features);
   }
 }

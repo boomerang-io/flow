@@ -37,7 +37,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 
 /**
- * Who a sign-in admits: the sign-up mode, the first sign-in on an empty install, and the identity
+ * Who a sign-in admits: the auto-create users setting, the first sign-in on an empty install, and the identity
  * provider's admin claim, in each combination. The claim verdict is {@code TRUE}/{@code FALSE}
  * when the path read a claim and {@code null} when it carries none.
  */
@@ -91,7 +91,7 @@ class TokenServiceSignUpTest {
 
   private void install(boolean activated, boolean inviteOnly) {
     when(userService.isActivated()).thenReturn(activated);
-    lenient().when(settingsService.signupInviteOnly()).thenReturn(inviteOnly);
+    lenient().when(settingsService.autoCreateUsers()).thenReturn(!inviteOnly);
   }
 
   private void registers(UserType type, boolean creationAllowed, UserEntity result) {
@@ -100,7 +100,7 @@ class TokenServiceSignUpTest {
         .thenReturn(Optional.ofNullable(result));
   }
 
-  // --- open sign-up, no claim: today's behaviour -------------------------------------------
+  // --- auto-create users on, no claim: today's behaviour -------------------------------------------
 
   @Test
   void openFirstSignInOnAnEmptyInstallBecomesAdminOwnerOfTheSystemWorkspace() {
@@ -125,7 +125,7 @@ class TokenServiceSignUpTest {
     verify(userService, never()).applyAdminClaim(any(), anyBoolean());
   }
 
-  // --- invite only ----------------------------------------------------------------------------
+  // --- auto-create users off ----------------------------------------------------------------------------
 
   @Test
   void inviteOnlyRefusesAnIdentityThatIsNoUserYet() {
@@ -165,7 +165,7 @@ class TokenServiceSignUpTest {
         .isInstanceOf(HttpClientErrorException.class);
   }
 
-  // Without a claim the one-time code alone makes the first admin, in either sign-up mode.
+  // Without a claim the one-time code alone makes the first admin, with auto-create users on or off.
   @Test
   void anEmptyInstallIsLockedUntilTheOneTimeCodeIsProven() {
     install(false, false);

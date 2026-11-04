@@ -73,6 +73,7 @@ class TokenServiceSessionTest {
     // Lenient: the permission-resolution tests below mint nothing.
     lenient().when(tokenRepository.save(any(TokenEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
     lenient().when(relationshipService.roles(any())).thenReturn(Map.of());
+    lenient().when(settingsService.autoCreateUsers()).thenReturn(true);
   }
 
   // A user in no workspace still reaches their own profile, the flags, navigation and templates:

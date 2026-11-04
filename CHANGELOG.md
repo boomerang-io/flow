@@ -349,11 +349,10 @@ tag's release notes.
   workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
   `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
   grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
-- Invite-only sign-up: the `auth` setting Sign-up (`signup.mode`, `open` by default, which is how sign-in has always
-  worked) set to `invite` refuses a person who is not a user yet, unless an admin has added them to a workspace or the
-  admin claim below makes them an admin. A person added to a workspace by email is activated by their first sign-in
-  (it was refused before). A fresh database has the setting; an upgraded one reads as `open` until the setting is
-  seeded.
+- Invite-only sign-up: the `features` setting Auto-Create Users (`autoCreateUsers`, on by default, which is how
+  sign-in has always worked), switched off, refuses a person who is not a user yet, unless an admin has added them to a
+  workspace or the admin claim below makes them an admin. A person added to a workspace by email is activated by their
+  first sign-in (it was refused before). `_0046__SeedAutoCreateUsersSetting` adds the setting to an upgraded install.
 - Admins from the identity provider: `flow.security.admin-claim.name` and `flow.security.admin-claim.values`
   (`FLOW_SECURITY_ADMIN_CLAIM_NAME`, `FLOW_SECURITY_ADMIN_CLAIM_VALUES`, comma-separated) name a claim, a string or an
   array such as `roles` or `groups`, and the values that make its holder an admin. With a claim set, the provider
