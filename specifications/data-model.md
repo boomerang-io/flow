@@ -29,7 +29,7 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `actions` | Manual approvals and task actions awaiting a person | `ActionEntity` (`common.entity`) |
 | `task_locks` | One lock document per key for the `acquirelock` and `releaselock` tasks | `TaskLockEntity` (`engine`) |
 | `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (the transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (at most 1024 characters, `event/OutboxDispatcher.java:46`) and `deadAt`; inbound event receipts with their processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
-| `dispatchers` | Registered dispatchers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent) | `DispatcherEntity` (`dispatcher`) |
+| `dispatchers` | Registered dispatchers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent); removed after 7 days without a connection (`execution-model.md`, "The watcher sweeps") | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (`type` `personal`, `hobby`, `pro`, `enterprise` or `system`): status, labels, annotations, parameters, quotas | `WorkspaceEntity` (`workspace`) |
 | `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts, with per-user interface `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java:8-12`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions and expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
@@ -179,7 +179,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `actions` | `task_run`, unique where `taskRunRef` exists (`:130-137`); `status_sweep` |
 | `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
-| `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup, at least 60, `core/audit/AuditRetentionService.java:28`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
+| `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup and re-applied on every instance within a minute of a change, at least 60, `core/audit/AuditRetentionService.java:29,52-72`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
 | `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:184-191`) |
 
 Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:196-199`): task

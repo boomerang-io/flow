@@ -90,7 +90,7 @@ id_token never reaches the browser.
 | `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:681-720`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:109-110`) |
 | `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:178-188`) | `POST /api/v2/token` |
 | `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:190-193,374-381`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:734-751`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:136-138`); or at startup from `flow.security.bootstrap-token` (below) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:136-138`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
 
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
 `flow.security.bootstrap-token`. When it is set — `bfg_` and at least 32 further characters, else the start
@@ -100,6 +100,25 @@ nothing, instances starting together converge on one record, and a changed value
 the old one from the local token cache; it is rotated by changing the value and restarting. It registers whether
 or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, which admits only `user` and
 `session` tokens (`workspace/ProfileControllerV2.java:54,76`), so the webapp cannot sign in with it.
+
+**Declared tokens.** `flow.security.tokens[n]` (environment: `FLOW_SECURITY_TOKENS_0_NAME`, `_HASH`, `_PERMISSIONS`,
+`_ACTORKIND`, `_EXPIRY`) declares narrower machine tokens so a hosted install needs no minting step. An entry has a
+`name` (a lowercase slug, unique in the list), exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`),
+`permissions`, and optionally `description` and `expiry` (an ISO-8601 instant, or a date meaning the end of that
+day in UTC). `hash` is the lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256`
+on macOS), the form `TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the
+bootstrap token. Either way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each
+permission is a `<resource>/<action>` string checked by `TokenService.assertValidPermissions`, the check
+`POST /api/v2/token` runs, and becomes one `global` grant with principal `**`. A bad entry fails the binding, so the
+start stops before the install serves (`core/security/DeclaredTokenProperties.java:32-86`). A past `expiry` does not stop it:
+the token is stored and refused like any expired token.
+`DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under the id `declared-token:<name>`; an entry
+unchanged since the last start writes nothing, a changed hash or grant replaces the record and evicts the old hash
+from the local cache, and two entries sharing a token stop the start (`core/security/DeclaredTokenService.java:58-105`).
+Every stored token whose id has that prefix and whose name is no longer configured is deleted and evicted, so removing
+an entry revokes only it and a rotation is: add the new entry, roll the client, remove the old one. Declared tokens
+are registered whether or not security is on. `TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409), so
+the API cannot fight the configuration (`core/TokenService.java:463-466`).
 
 **OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
 sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,

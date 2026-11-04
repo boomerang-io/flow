@@ -165,6 +165,12 @@ tag's release notes.
 
 ### Added
 
+- Machine tokens declared in configuration. `flow.security.tokens[n]` (`FLOW_SECURITY_TOKENS_0_NAME` and so on)
+  registers a global token at start from a `name`, a `hash` (the SHA-256 of the raw token, so the environment never
+  holds it) or a `value`, `permissions` such as `workspace/read`, and optionally `actor-kind` (default `SERVICE`) and
+  `expiry`. Removing an entry revokes its token, and two entries are valid at once so a token rotates without a gap.
+  A declared token cannot be deleted through `DELETE /api/v2/token/{id}`: it answers `409`. With none declared
+  nothing changes.
 - Sign-in with OpenID Connect can be configured at install time. `flow.auth.oidc.issuer` and
   `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`, `FLOW_AUTH_OIDC_CLIENT_ID`) fill the `auth` settings'
   `oidc.issuer` and `oidc.clientId` at startup, only while they are empty; a value set in Settings is never
@@ -344,6 +350,10 @@ tag's release notes.
 
 ### Changed
 
+- **Dispatcher registrations expire.** A registration whose dispatcher has not connected for 7 days is removed by
+  the watcher, so the replicas a platform replaces on every deploy no longer pile up. A dispatcher that comes back
+  registers again on its next call and is given a new id; the dispatcher SDK and Flow's Kubernetes dispatcher already
+  do.
 - The Google Sheets (revision 4) and Drive (revision 3) tasks default their service-account key to
   `$(workspace.params.google-service-account-key)`, the Google integration's parameter, as the Drive file tasks
   do. A workflow moves when it is upgraded in the editor. Upgraded, a node that still signs in with Client Email
@@ -459,6 +469,10 @@ tag's release notes.
 
 ### Fixed
 
+- A change to the audit retention setting (`audit` `retentionDays`) through `PATCH /api/v2/settings` now reaches the
+  audit expiry index on every instance within a minute (`flow.audit.retention-interval-ms`), instead of at the next
+  restart. The 60-day floor is unchanged. The run (`workflowrun` `retention.days`) and task log retention settings
+  already took effect without a restart.
 - A task's live log answers with a line saying what happened, instead of a bare `500`, when the dispatcher holding
   the task cannot be reached (and no stored log counts) or its stream breaks part way.
 - `service-core` and `service-dispatcher` no longer crash at start with `SIGILL` on some machines. The JVM cached
