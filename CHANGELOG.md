@@ -174,6 +174,10 @@ tag's release notes.
 
 ### Added
 
+- **Admin › Tokens sets a token's actor.** The create form for a platform (global) token chooses Service (the default, a
+  system, script or dispatcher), Agent (an AI agent) or None (a person's token), so a token made there can run the
+  dispatcher protocol, which needs one. The Actor column names the kind. `POST /api/v2/token` now refuses an actor that does not fit the token
+  (`TOKEN_INVALID_ACTOR`, 400): a global token takes none, `SERVICE` or `AGENT`, a user token none.
 - Machine tokens declared in configuration. `flow.security.tokens.<name>.*` registers a global token at start, named by
   the key: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS=workspace/read` and `_ACTORKIND` declare `dispatcher`.
   A name is lowercase letters and digits only (an underscore in a variable name becomes a dot), and `bootstrap` is not

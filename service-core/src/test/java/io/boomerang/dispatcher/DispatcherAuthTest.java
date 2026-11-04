@@ -184,6 +184,26 @@ class DispatcherAuthTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void releaseQueryAcceptsAnAgentToken() throws Exception {
+    String raw = mintToken(AuthScope.global, TokenActorKind.AGENT, null);
+
+    mockMvc
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + raw)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void aGlobalTokenCannotBeMintedAsAWorkflowActor() {
+    org.junit.jupiter.api.Assertions.assertThrows(
+        io.boomerang.common.error.BoomerangException.class,
+        () -> mintToken(AuthScope.global, TokenActorKind.WORKFLOW, null));
+  }
+
+  @Test
   void lifecycleCallbackAcceptsAValidDispatcherToken() throws Exception {
     String raw = mintToken(AuthScope.global, TokenActorKind.SERVICE, null);
 

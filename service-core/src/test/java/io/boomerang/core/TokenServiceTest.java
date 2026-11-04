@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +27,7 @@ import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -207,6 +211,91 @@ class TokenServiceTest {
     String requiredRegex = "(\\*{2}|" + resource + ")\\/(\\*{2}|" + action + ")";
     return entity.getPermissions().stream()
         .anyMatch(p -> p.getActions().stream().anyMatch(a -> a.matches(requiredRegex)));
+  }
+
+  // =====================================================================================
+  // The actor a token may declare depends on its class: a mismatch is refused before anything
+  // is stored.
+  // =====================================================================================
+
+  @Test
+  void globalTokenWithWorkflowActorIsRefused() {
+    TokenCreateRequest request = globalRequest();
+    request.setActorKind(TokenActorKind.WORKFLOW);
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_INVALID_ACTOR.getReason());
+    verify(tokenRepository, never()).save(any(TokenEntity.class));
+  }
+
+  @Test
+  void globalTokenWithServiceOrAgentActorIsCreatedWithIt() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(identityService.getCurrentIdentity()).thenReturn(globalScopedIdentity("admin"));
+
+    for (TokenActorKind kind : List.of(TokenActorKind.SERVICE, TokenActorKind.AGENT)) {
+      TokenCreateRequest request = globalRequest();
+      request.setActorKind(kind);
+      assertThat(tokenService.create(request).getActorKind()).isEqualTo(kind);
+    }
+
+    ArgumentCaptor<TokenEntity> captor = ArgumentCaptor.forClass(TokenEntity.class);
+    verify(tokenRepository, times(2)).save(captor.capture());
+    assertThat(captor.getAllValues())
+        .extracting(TokenEntity::getActorKind)
+        .containsExactly(TokenActorKind.SERVICE, TokenActorKind.AGENT);
+  }
+
+  @Test
+  void userTokenWithAnActorIsRefused() {
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.user);
+    request.setName("my-token");
+    request.setPrincipal("user-1");
+    request.setActorKind(TokenActorKind.SERVICE);
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_INVALID_ACTOR.getReason());
+  }
+
+  @Test
+  void keyTokenAcceptsEveryActor() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    for (TokenActorKind kind : TokenActorKind.values()) {
+      TokenCreateRequest request = new TokenCreateRequest();
+      request.setType(AuthScope.key);
+      request.setName("workspace-key");
+      request.setPrincipal("workspace-a");
+      request.setPermissions(List.of("workflow/read"));
+      request.setActorKind(kind);
+      assertThat(tokenService.create(request).getActorKind()).isEqualTo(kind);
+    }
+  }
+
+  @Test
+  void workflowSchedulerTokenStillMints() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(tokenRepository.findByToken(anyString()))
+        .thenAnswer(
+            invocation -> {
+              ArgumentCaptor<TokenEntity> saved = ArgumentCaptor.forClass(TokenEntity.class);
+              verify(tokenRepository).save(saved.capture());
+              return Optional.of(saved.getValue());
+            });
+
+    Token token = tokenService.createWorkflowSchedulerToken("workflow-1");
+
+    assertThat(token.getType()).isEqualTo(AuthScope.key);
+    assertThat(token.getActorKind()).isEqualTo(TokenActorKind.WORKFLOW);
+    assertThat(token.getPrincipal()).isEqualTo("workflow-1");
   }
 
   // =====================================================================================
