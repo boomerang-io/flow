@@ -12,13 +12,16 @@ import io.boomerang.core.TokenService;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import jakarta.servlet.Filter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -262,6 +265,64 @@ class DeclaredTokenServiceTest extends AbstractEngineIntegrationTest {
             delete("/api/v2/workspace/declared-token-test")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void aDeclaredTokenTakesOverTheValueOfAMintedTokenAndHoldsOnlyItsDeclaredGrants() throws Exception {
+    TokenEntity minted = minted(FIRST);
+    register(byValue("reader", FIRST, "workspace/read"));
+    SecurityContextHolder.clearContext();
+
+    assertThat(tokenRepository.findById(minted.getId())).as("the minted token is deleted").isEmpty();
+    mockMvc
+        .perform(get(WORKSPACE_QUERY).header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            delete("/api/v2/workspace/declared-token-test")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void aValueTwoStoredTokensHoldIsRefusedNotAnsweredWithA500() throws Exception {
+    TokenEntity first = minted(SECOND);
+    TokenEntity second = minted(SECOND);
+    try {
+      SecurityContextHolder.clearContext();
+      mockMvc
+          .perform(get(WORKSPACE_QUERY).header(HttpHeaders.AUTHORIZATION, "Bearer " + SECOND))
+          .andExpect(status().isUnauthorized());
+    } finally {
+      tokenRepository.deleteAll(List.of(first, second));
+    }
+  }
+
+  @Test
+  void aDeclaredTokenWithTheBootstrapTokensValueStopsTheStart() {
+    TokenEntity bootstrap = minted(FIRST);
+    bootstrap.setId(BootstrapTokenService.BOOTSTRAP_TOKEN_ID);
+    bootstrap.setName("bootstrap-token");
+    tokenRepository.save(bootstrap);
+    try {
+      assertThatThrownBy(() -> register(byValue("reader", FIRST, "workspace/read")))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("flow.security.tokens.reader is the same token as bootstrap-token");
+    } finally {
+      tokenRepository.deleteById(BootstrapTokenService.BOOTSTRAP_TOKEN_ID);
+    }
+  }
+
+  // A global token minted through the API, holding every permission.
+  private TokenEntity minted(String raw) {
+    TokenEntity entity = new TokenEntity();
+    entity.setType(AuthScope.global);
+    entity.setName("minted");
+    entity.setToken(tokenService.hashString(raw));
+    entity.setPermissions(
+        new LinkedList<>(
+            List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**")))));
+    return tokenRepository.save(entity);
   }
 
   @Test

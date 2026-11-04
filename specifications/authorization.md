@@ -191,13 +191,13 @@ Either way the raw token the client sends must begin `bfg_` to pass the shape ga
 becomes one `global` grant with principal `**`. A bad entry fails the binding, so the start stops before the install
 serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not stop it: the token is stored and
 refused like any expired token.
-`DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under the id `declared-token:<name>`; an entry
-unchanged since the last start writes nothing, a changed hash or grant replaces the record and evicts the old hash
-from the local cache, and two entries sharing a token stop the start (`core/security/DeclaredTokenService.java:58-105`).
-Every stored token whose id has that prefix and whose name is no longer configured is deleted and evicted, so removing
-an entry revokes only it and a rotation is: add the new entry, roll the client, remove the old one. Declared tokens
-are registered whether or not security is on. `TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409), so
-the API cannot fight the configuration (`core/TokenService.java:467-470`).
+`DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under `declared-token:<name>`; an unchanged entry
+writes nothing, a changed one replaces the record and evicts the old hash (`core/security/DeclaredTokenService.java:58-106`).
+A minted token holding a configured token's value is deleted so the configured one takes it over, while two configured
+tokens (declared or bootstrap) sharing a value stop the start (`:113-132`); a value two stored tokens hold authenticates as
+neither, never a 500 (`core/TokenService.java:406-425`). A stored `declared-token:` id no longer configured is revoked, so
+a rotation is: add the new entry, roll the client, remove the old one. Declared tokens register whether or not security
+is on, and `TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409) (`core/TokenService.java:475-478`).
 
 **OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
 sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,

@@ -48,6 +48,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -411,7 +412,14 @@ public class TokenService {
       }
       return Optional.of(cached);
     }
-    Optional<TokenEntity> found = tokenRepository.findByToken(hash);
+    Optional<TokenEntity> found;
+    try {
+      found = tokenRepository.findByToken(hash);
+    } catch (IncorrectResultSizeDataAccessException shared) {
+      // A value two tokens hold is a misconfiguration; it authenticates as neither, never a 500.
+      LOGGER.error("Refused a token whose value more than one stored token holds.");
+      return Optional.empty();
+    }
     found.filter(te -> isValid(te.getExpirationDate())).ifPresent(te -> lookupCache.put(hash, te));
     return found;
   }
