@@ -200,7 +200,7 @@ class SettingsFromSeedTest {
    */
   private static MongoDatabase v3Install(String database) {
     MongoDatabase db = client.getDatabase(database);
-    db.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "112"));
+    db.getCollection(PREFIX + "_sys_changelog_flow").insertOne(new Document("changeId", "111"));
     insertV3(
         db,
         USER_DEFAULTS_ID,

@@ -41,6 +41,8 @@ tag's release notes.
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
 - **You can upgrade from v3, although runs are dropped.**
+- **The v3 install must come from bmrg-flow 4.13.5 or later** (flow-loader 0.5.9 or later, whose changelog holds
+  changeset `111`). An older v3 install is refused at startup: move it to that chart first.
 - **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
   once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
   key v5 encrypts with and is required on every install. Set both before the first start against a v3
