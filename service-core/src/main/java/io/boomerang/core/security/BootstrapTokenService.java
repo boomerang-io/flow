@@ -36,7 +36,7 @@ public class BootstrapTokenService {
   static final String BOOTSTRAP_TOKEN_ID = "bootstrap-token";
 
   // "bfg_" and at least 32 more characters: a global token's shape, and too long to guess.
-  private static final String BOOTSTRAP_TOKEN_PATTERN = "^bfg_.{32,}$";
+  static final String BOOTSTRAP_TOKEN_PATTERN = "^bfg_.{32,}$";
 
   private final String bootstrapToken;
   private final TokenService tokenService;

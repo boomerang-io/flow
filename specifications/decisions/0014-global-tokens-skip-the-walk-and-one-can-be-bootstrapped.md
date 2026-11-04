@@ -27,7 +27,8 @@ caller reaches the object through its true workspace URL. `BootstrapTokenService
 `flow.security.bootstrap-token` at startup as a global `**/**` service token under the fixed id `bootstrap-token`;
 a value that is not `bfg_` plus at least 32 characters stops the start, the same value again changes nothing, and a
 new value replaces the stored hash and evicts the old one (`core/security/BootstrapTokenService.java:62-104`). It
-registers whether or not security is on. It is one property, and the hosts that need it already carry secrets.
+registers whether or not security is on. The hosts that need it already carry secrets; narrower tokens are declared
+the same way under `flow.security.tokens` (`authorization.md`).
 
 ## Consequences
 

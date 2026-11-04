@@ -11,5 +11,7 @@ public interface TokenRepository extends MongoRepository<TokenEntity, String> {
 
   Optional<List<TokenEntity>> findByPrincipalAndType(String principal, AuthScope type);
 
+  List<TokenEntity> findByIdStartingWith(String prefix);
+
   void deleteAllByPrincipal(String principal);
 }
