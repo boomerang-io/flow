@@ -165,6 +165,12 @@ tag's release notes.
 
 ### Added
 
+- Machine tokens declared in configuration. `flow.security.tokens[n]` (`FLOW_SECURITY_TOKENS_0_NAME` and so on)
+  registers a global token at start from a `name`, a `hash` (the SHA-256 of the raw token, so the environment never
+  holds it) or a `value`, `permissions` such as `workspace/read`, and optionally `actor-kind` (default `SERVICE`) and
+  `expiry`. Removing an entry revokes its token, and two entries are valid at once so a token rotates without a gap.
+  A declared token cannot be deleted through `DELETE /api/v2/token/{id}`: it answers `409`. With none declared
+  nothing changes.
 - CloudEvents sink filters. `flow.events.sink.types`, `statuses` (any run status, or `terminal`) and `phases` narrow
   what is sent, and each destination takes the same keys plus `labels` (`key=value`). A transition no sink wants is
   never stored, so a filtered event is not counted as dead; labels filter at delivery. `phases=completed` is the true

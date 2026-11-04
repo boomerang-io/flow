@@ -15,6 +15,7 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.DeclaredTokenService;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
@@ -150,21 +151,7 @@ public class TokenService {
 
     // Validate permissions matches the REGEX
     if (!AuthScope.user.equals(request.getType()) && Objects.isNull(request.getRole())) {
-      request
-          .getPermissions()
-          .forEach(
-              p -> {
-                if (!p.matches(TOKEN_PERMISSION_REGEX)) {
-                  throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
-                }
-                String[] pSplit = p.split("/");
-                LOGGER.debug("Resource: " + PermissionResource.valueOfLabel(pSplit[0]));
-                if (PermissionResource.valueOfLabel(pSplit[0]) == null) {
-                  throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
-                }
-                LOGGER.debug("Action: " + pSplit[1]);
-                // ACTION is already checked as part of the regex
-              });
+      assertValidPermissions(request.getPermissions());
     }
 
     // Create TokenEntity
@@ -463,7 +450,20 @@ public class TokenService {
         TokenEntity.class);
   }
 
+  /** Throw {@code TOKEN_INVALID_PERMISSION} unless every entry is a {@code resource/action} grant. */
+  public static void assertValidPermissions(List<String> permissions) {
+    for (String permission : permissions) {
+      if (!permission.matches(TOKEN_PERMISSION_REGEX)
+          || PermissionResource.valueOfLabel(permission.split("/")[0]) == null) {
+        throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
+      }
+    }
+  }
+
   public boolean delete(String id) {
+    if (id != null && id.startsWith(DeclaredTokenService.ID_PREFIX)) {
+      throw new BoomerangException(BoomerangError.TOKEN_DECLARED);
+    }
     TokenEntity tokenEntity = this.tokenRepository.findById(id).orElse(null);
     if (tokenEntity == null) {
       return false;
