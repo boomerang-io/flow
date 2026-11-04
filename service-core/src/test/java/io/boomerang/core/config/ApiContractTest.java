@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -97,5 +99,22 @@ class ApiContractTest extends AbstractEngineIntegrationTest {
   @Test
   void theContractCoversOnlyThePublicApi() throws Exception {
     served().get("paths").propertyNames().forEach(path -> assertThat(path).startsWith("/api/v2/"));
+  }
+
+  // springdoc numbers an id it has already handed out (query_8), and a generated client names its
+  // functions and types after the ids, so every operation carries one of its own.
+  @Test
+  void everyOperationHasItsOwnId() throws Exception {
+    List<String> ids = new ArrayList<>();
+    served()
+        .get("paths")
+        .properties()
+        .forEach(
+            path ->
+                path.getValue()
+                    .properties()
+                    .forEach(
+                        operation -> ids.add(operation.getValue().get("operationId").asString())));
+    assertThat(ids).doesNotHaveDuplicates().noneMatch(id -> id.matches(".*_[0-9]+"));
   }
 }

@@ -104,7 +104,9 @@ public class SystemControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user})
-  @Operation(summary = "Register and activate an installation of Flow")
+  @Operation(
+      operationId = "activateInstallation",
+      summary = "Register and activate an installation of Flow")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

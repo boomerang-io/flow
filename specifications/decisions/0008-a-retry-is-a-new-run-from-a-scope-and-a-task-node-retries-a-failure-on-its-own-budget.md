@@ -21,7 +21,7 @@ final, so an embedder retried transient errors inside its task images: Flow show
 ## Decision
 
 A new run from a scope, and a selector-less node retry. `PUT.../workflowrun/{id}/retry` takes `scope` (`all`, `failed`, `nodes`), task `nodes`, and param and
-label overrides (`workflow/WorkspaceWorkflowRunControllerV2.java:423-450`); `WorkflowRunService.retry` clones the origin on the same revision with
+label overrides (`workflow/WorkspaceWorkflowRunControllerV2.java:428-455`); `WorkflowRunService.retry` clones the origin on the same revision with
 `trigger=retry` and `initiatedByRef` = the first origin, re-runs the scoped tasks and their descendants and copies every other succeeded task run with its
 results and a `reusedFromRef` (`workflow/WorkflowRunService.java:1146-1148,1356-1400`). `retry.max` and `retry.backoff` are copied from the node onto the task run, and
 onto each for-each item with the item's own budget (`engine/DAGUtility.java:359-369`, `engine/TaskExecutionService.java:937-944`); a reported `failed` end is

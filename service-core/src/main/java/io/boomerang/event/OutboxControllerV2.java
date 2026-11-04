@@ -47,6 +47,7 @@ public class OutboxControllerV2 {
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.global})
   @Operation(
+      operationId = "queryOutbox",
       summary = "List outbox rows, dead ones by default.",
       description =
           "A row that failed delivery carries lastError, the most recent failure; a dead row also "
@@ -72,6 +73,7 @@ public class OutboxControllerV2 {
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.global})
   @Operation(
+      operationId = "replayOutbox",
       summary = "Replay outbox rows",
       description =
           "Puts rows back in the queue for the next dispatcher pass. Replays the named ids, or "

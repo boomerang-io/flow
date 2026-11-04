@@ -48,6 +48,7 @@ public class WorkspaceInsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getWorkspaceInsights",
       summary = "Summarise a workspace's runs over a period",
       description =
           "Counts, success rate, duration and queue-wait percentiles, runs per day, one row per"
@@ -86,6 +87,7 @@ public class WorkspaceInsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getWorkflowInsights",
       summary = "Detail one workflow's runs over a period",
       description =
           "Where a typical run spends its time (per task), why runs did not succeed and the model"
@@ -117,6 +119,7 @@ public class WorkspaceInsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getWorkspaceTaskInsights",
       summary = "Group a workspace's task runs over a period",
       description =
           "Counts and duration statistics (mean, p50, p95, max over succeeded task runs) per"

@@ -48,6 +48,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
+      operationId = "getWorkspaceTask",
       summary =
           "Retrieve a specific task. If no version specified, the latest version is returned.")
   @ApiResponses(
@@ -106,6 +107,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
+      operationId = "queryWorkspaceTasks",
       summary =
           "Search for Tasks. If workspaces are provided it will query the workspaces. If no workspaces are provided it will query Global Task Templates")
   @ApiResponses(
@@ -169,6 +171,7 @@ public class WorkspaceTaskControllerV2 {
       resourceId = "#task?.getName()",
       workspaceId = "#workspace")
   @Operation(
+      operationId = "createWorkspaceTask",
       summary = "Create a new Task",
       description =
           "The name needs to be unique and must only contain alphanumeric and - characeters.")
@@ -231,6 +234,7 @@ public class WorkspaceTaskControllerV2 {
       resourceId = "#name",
       workspaceId = "#workspace")
   @Operation(
+      operationId = "applyWorkspaceTask",
       summary = "Update, replace, or create new, Task",
       description =
           "The name must only contain alphanumeric and - characeters. If the name exists, apply will create a new version.")
@@ -298,6 +302,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
+      operationId = "getWorkspaceTaskChangelog",
       summary = "Retrieve a workspace task's changelog",
       description = "Retrieves each versions changelog and returns them all as a list.")
   @ApiResponses(
@@ -328,6 +333,7 @@ public class WorkspaceTaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
   @Operation(
+      operationId = "validateWorkspaceTaskYaml",
       summary = "Validate a workspace task's Tekton Task YAML",
       description = "Validates the Task YAML as a Tekton Task")
   @ApiResponses(
@@ -352,7 +358,7 @@ public class WorkspaceTaskControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.session, AuthScope.user})
-  @Operation(summary = "Delete a Workspace Task")
+  @Operation(operationId = "deleteWorkspaceTask", summary = "Delete a Workspace Task")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "OK"),

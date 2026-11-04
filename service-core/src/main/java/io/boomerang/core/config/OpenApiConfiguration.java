@@ -8,10 +8,12 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +43,16 @@ import org.springframework.web.method.HandlerMethod;
  * {@code @AuthCriteria} or {@code @AuthExempt} by the rule {@code AuthCriteriaAuthorizationManager}
  * enforces: an {@code x-flow-permission} extension and a sentence in its description.
  *
+ * <p>The run models state what the server always sends and what it may send as null, which
+ * springdoc cannot infer from the classes: a {@code required} property is on every response that
+ * carries the schema, and a nullable one goes out as {@code null} when unset. The lists apply to
+ * this group alone: {@code RunParam}, {@code RunResult}, {@code RunAttempt} and {@code TaskRunSpec}
+ * also appear in the dispatcher contract, which they leave as it is.
+ *
+ * <p>An operation whose method name does not say what it acts on names its id on its handler
+ * ({@code @Operation(operationId = ...)}): a verb and the resource, unique across the group, so a
+ * generated client never meets springdoc's numbered fallback ({@code query_8}).
+ *
  * <p>A request parameter declared as {@code Optional<T>} with a {@code defaultValue} gets that
  * default converted to an {@code Optional}, which the document's serialiser cannot write - and one
  * such parameter fails the whole document - so the customizer below unwraps it.
@@ -57,6 +69,69 @@ public class OpenApiConfiguration {
   static final String ACCESS_TOKEN_HEADER = "x-access-token";
   static final String ACCESS_TOKEN_QUERY = "access_token";
   static final String PERMISSION_EXTENSION = "x-flow-permission";
+
+  // What a page of results always carries beside its content.
+  private static final List<String> PAGE_REQUIRED =
+      List.of(
+          "content",
+          "number",
+          "size",
+          "numberOfElements",
+          "totalElements",
+          "totalPages",
+          "first",
+          "last",
+          "empty");
+
+  // The properties each public run model sends on every response, as each path that creates or
+  // converts the model leaves it (RunModelRequiredFieldsTest serialises those paths).
+  static final Map<String, List<String>> REQUIRED =
+      Map.of(
+          "WorkflowRun",
+          List.of(
+              "id",
+              "creationDate",
+              "status",
+              "phase",
+              "paused",
+              "awaitingApproval",
+              "duration",
+              "workflowRef",
+              "workflowRevisionRef",
+              "labels",
+              "annotations",
+              "params",
+              "results"),
+          // A queried task run leaves out its params, results, spec and annotations.
+          "TaskRun",
+          List.of(
+              "id",
+              "creationDate",
+              "status",
+              "phase",
+              "duration",
+              "workflowRef",
+              "workflowRunRef",
+              "labels"),
+          "RunParam",
+          List.of("name"),
+          "RunResult",
+          List.of("name", "description", "value"),
+          "RunAttempt",
+          List.of("number", "endedAt", "duration", "status"),
+          "PageWorkflowRun",
+          PAGE_REQUIRED,
+          "PageTaskRun",
+          PAGE_REQUIRED);
+
+  // The properties a model without NON_NULL writes as null when they are unset.
+  static final Map<String, List<String>> NULLABLE =
+      Map.of(
+          "TaskRunSpec",
+          List.of(
+              "arguments", "command", "envs", "image", "script", "workingDir", "debug", "deletion"),
+          "RunResult",
+          List.of("description"));
 
   // The routes a sender that can set only a URL calls with the token in its query.
   static final Set<String> WEBHOOK_ROUTES = Set.of("/api/v2/webhook", "/api/v2/event", "/api/v2/callback");
@@ -76,6 +151,7 @@ public class OpenApiConfiguration {
                             "The public API. The rules every route follows:"
                                 + " specifications/api-contract.md.")))
         .addOpenApiCustomizer(OpenApiConfiguration::declareSecurity)
+        .addOpenApiCustomizer(OpenApiConfiguration::describeRunModels)
         .addOperationCustomizer(OpenApiConfiguration::describePermission)
         .build();
   }
@@ -106,6 +182,44 @@ public class OpenApiConfiguration {
             ? sentence
             : operation.getDescription() + "\n\n" + sentence);
     return operation;
+  }
+
+  // The run models' required and nullable properties, and the properties TaskRunSpec passes
+  // through beyond the ones it declares. A listed property the document lacks fails the document,
+  // so a renamed field cannot leave a stale entry behind.
+  static void describeRunModels(OpenAPI openApi) {
+    Map<String, Schema> schemas = openApi.getComponents().getSchemas();
+    REQUIRED.forEach(
+        (name, properties) -> {
+          properties.forEach(property -> propertyOf(schemas, name, property));
+          schemas.get(name).setRequired(properties);
+        });
+    NULLABLE.forEach(
+        (name, properties) ->
+            properties.forEach(property -> allowNull(propertyOf(schemas, name, property))));
+    schemas.get("TaskRunSpec").setAdditionalProperties(true);
+  }
+
+  private static Schema<?> propertyOf(Map<String, Schema> schemas, String name, String property) {
+    Schema<?> schema = schemas.get(name);
+    if (schema == null
+        || schema.getProperties() == null
+        || !schema.getProperties().containsKey(property)) {
+      throw new IllegalStateException("The API contract has no property " + name + "." + property);
+    }
+    return schema.getProperties().get(property);
+  }
+
+  // OpenAPI 3.1 states null as a type of its own, and an enum lists it among its values.
+  private static void allowNull(Schema<?> property) {
+    LinkedHashSet<String> types =
+        new LinkedHashSet<>(
+            (property.getTypes() != null) ? property.getTypes() : List.of(property.getType()));
+    types.add("null");
+    property.setTypes(types);
+    if (property.getEnum() != null) {
+      property.getEnum().add(null);
+    }
   }
 
   // The document's security, as SecurityConfiguration and AuthenticationFilter enforce it: a token

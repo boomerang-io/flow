@@ -72,7 +72,7 @@ public class WorkspaceScheduleControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Retrieve a Schedule.")
+  @Operation(operationId = "getSchedule", summary = "Retrieve a Schedule.")
   public WorkflowSchedule get(
       @Parameter(
               name = "workspace",
@@ -90,7 +90,7 @@ public class WorkspaceScheduleControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.SCHEDULE,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Search for Schedules")
+  @Operation(operationId = "querySchedules", summary = "Search for Schedules")
   public Page<WorkflowSchedule> query(
       @Parameter(
               name = "workspace",

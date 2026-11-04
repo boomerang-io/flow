@@ -114,7 +114,7 @@ public class UserControllerV2 {
       action = PermissionAction.WRITE,
       resource = PermissionResource.USER,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
-  @Operation(summary = "Update a Boomerang Flow Users details")
+  @Operation(operationId = "patchUser", summary = "Update a Boomerang Flow Users details")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

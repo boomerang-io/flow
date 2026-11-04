@@ -217,6 +217,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getWorkflowChangelog",
       summary = "Retrieve a workflow's changelog",
       description = "Retrieves each versions changelog and returns them all as a list.")
   @ApiResponses(
@@ -293,7 +294,7 @@ public class WorkspaceWorkflowControllerV2 {
       resourceId = "#name",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete a workflow")
+  @Operation(operationId = "deleteWorkflow", summary = "Delete a workflow")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "OK"),
@@ -366,7 +367,7 @@ public class WorkspaceWorkflowControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Export the Workflow as JSON.")
+  @Operation(operationId = "exportWorkflow", summary = "Export the Workflow as JSON.")
   public ResponseEntity<InputStreamResource> export(
       @Parameter(
               name = "workspace",
@@ -391,6 +392,7 @@ public class WorkspaceWorkflowControllerV2 {
       resource = PermissionResource.WORKFLOW,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getWorkflowCanvas",
       summary = "Convert workflow to compose model for UI Designer and detailed Activity screens.")
   @ApiResponses(
       value = {

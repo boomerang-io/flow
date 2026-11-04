@@ -935,6 +935,16 @@ components:
         totalPages:
           format: "int32"
           type: "integer"
+      required:
+      - "content"
+      - "empty"
+      - "first"
+      - "last"
+      - "number"
+      - "numberOfElements"
+      - "size"
+      - "totalElements"
+      - "totalPages"
       type: "object"
     PageToken:
       properties:
@@ -1031,6 +1041,16 @@ components:
         totalPages:
           format: "int32"
           type: "integer"
+      required:
+      - "content"
+      - "empty"
+      - "first"
+      - "last"
+      - "number"
+      - "numberOfElements"
+      - "size"
+      - "totalElements"
+      - "totalPages"
       type: "object"
     PageWorkflowSchedule:
       properties:
@@ -1329,6 +1349,11 @@ components:
           type: "string"
         statusReason:
           type: "string"
+      required:
+      - "duration"
+      - "endedAt"
+      - "number"
+      - "status"
       type: "object"
     RunParam:
       properties:
@@ -1342,14 +1367,22 @@ components:
           - "secret"
           type: "string"
         value: {}
+      required:
+      - "name"
       type: "object"
     RunResult:
       properties:
         description:
-          type: "string"
+          type:
+          - "string"
+          - "null"
         name:
           type: "string"
         value: {}
+      required:
+      - "description"
+      - "name"
+      - "value"
       type: "object"
     RunRetry:
       properties:
@@ -1746,6 +1779,15 @@ components:
           type: "string"
         workspace:
           $ref: "#/components/schemas/WorkflowWorkspace"
+      required:
+      - "creationDate"
+      - "duration"
+      - "id"
+      - "labels"
+      - "phase"
+      - "status"
+      - "workflowRef"
+      - "workflowRunRef"
       type: "object"
     TaskRunRow:
       properties:
@@ -1831,36 +1873,54 @@ components:
           type: "string"
       type: "object"
     TaskRunSpec:
+      additionalProperties: true
       properties:
         arguments:
           items:
             type: "string"
-          type: "array"
+          type:
+          - "array"
+          - "null"
         command:
           items:
             type: "string"
-          type: "array"
+          type:
+          - "array"
+          - "null"
         debug:
-          type: "boolean"
+          type:
+          - "boolean"
+          - "null"
         deletion:
           enum:
           - "Never"
           - "OnSuccess"
           - "Always"
-          type: "string"
+          - null
+          type:
+          - "string"
+          - "null"
         envs:
           items:
             $ref: "#/components/schemas/TaskEnvVar"
-          type: "array"
+          type:
+          - "array"
+          - "null"
         image:
-          type: "string"
+          type:
+          - "string"
+          - "null"
         script:
-          type: "string"
+          type:
+          - "string"
+          - "null"
         timeout:
           format: "int32"
           type: "integer"
         workingDir:
-          type: "string"
+          type:
+          - "string"
+          - "null"
       type: "object"
     TaskSpec:
       properties:
@@ -2589,6 +2649,20 @@ components:
           type: "integer"
         workspace:
           $ref: "#/components/schemas/WorkflowWorkspace"
+      required:
+      - "annotations"
+      - "awaitingApproval"
+      - "creationDate"
+      - "duration"
+      - "id"
+      - "labels"
+      - "params"
+      - "paused"
+      - "phase"
+      - "results"
+      - "status"
+      - "workflowRef"
+      - "workflowRevisionRef"
       type: "object"
     WorkflowRunCount:
       properties:
@@ -3209,7 +3283,7 @@ paths:
     put:
       description: "Requires the `system/action` permission, from a session, user\
         \ token."
-      operationId: "register"
+      operationId: "activateInstallation"
       requestBody:
         content:
           application/json:
@@ -3241,7 +3315,7 @@ paths:
       description: "One event per audited attempt, newest first, including failed\
         \ and denied ones. Without a from date the last 30 days are returned.\n\n\
         Requires the `system/read` permission, from a session, user, global token."
-      operationId: "query_8"
+      operationId: "queryAuditEvents"
       parameters:
       - description: "Actor id or name, any part of either, ignoring case"
         in: "query"
@@ -3389,7 +3463,7 @@ paths:
       description: "Counts the same filters and window as the listing, alongside the\
         \ configured capture state, level and retention.\n\nRequires the `system/read`\
         \ permission, from a session, user, global token."
-      operationId: "stats"
+      operationId: "getAuditStats"
       parameters:
       - in: "query"
         name: "actor"
@@ -3493,7 +3567,7 @@ paths:
     get:
       description: "Requires the `webhook/action` permission, from a session, user,\
         \ global, key token."
-      operationId: "acceptWaitForEvent"
+      operationId: "acceptCallbackQuery"
       parameters:
       - description: "The WorkflowRun reference the request relates to"
         in: "query"
@@ -3542,7 +3616,7 @@ paths:
     post:
       description: "Requires the `webhook/action` permission, from a session, user,\
         \ global, key token."
-      operationId: "acceptWaitForEvent_1"
+      operationId: "acceptCallback"
       parameters:
       - description: "The WorkflowRun reference the request relates to"
         in: "query"
@@ -3697,7 +3771,7 @@ paths:
         \ period for comparison. Needs a global insights grant; the period defaults\
         \ to the last 90 days.\n\nRequires the `insights/read` permission, from a\
         \ global, user, session token."
-      operationId: "summary_2"
+      operationId: "getInsights"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
           \ One that does not exist contributes nothing."
@@ -3779,7 +3853,7 @@ paths:
         \ params, results or spec. Task runs are indexed by label, so labels is required.\
         \ Needs a global insights grant.\n\nRequires the `insights/read` permission,\
         \ from a global, user, session token."
-      operationId: "taskRuns"
+      operationId: "getTaskRunInsights"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
           \ One that does not exist contributes nothing."
@@ -3889,7 +3963,7 @@ paths:
         \ workspaces' runs, or every workspace's when none is named. Needs a global\
         \ insights grant; the period defaults to the last 90 days.\n\nRequires the\
         \ `insights/read` permission, from a global, user, session token."
-      operationId: "tasks_1"
+      operationId: "getTaskInsights"
       parameters:
       - description: "Workspace names to aggregate over; absent means every workspace.\
           \ One that does not exist contributes nothing."
@@ -4004,7 +4078,7 @@ paths:
     get:
       description: "Requires the `integration/read` permission, from a key, user,\
         \ session, global token."
-      operationId: "get_5"
+      operationId: "getIntegrations"
       parameters:
       - in: "query"
         name: "workspace"
@@ -4443,7 +4517,7 @@ paths:
     get:
       description: "Requires the `system/read` permission, from a session, user, global\
         \ token."
-      operationId: "getAll"
+      operationId: "getGlobalParameters"
       responses:
         "200":
           content:
@@ -4473,7 +4547,7 @@ paths:
     post:
       description: "Requires the `system/write` permission, from a session, user,\
         \ global token."
-      operationId: "create_2"
+      operationId: "createGlobalParameter"
       requestBody:
         content:
           application/json:
@@ -4506,7 +4580,7 @@ paths:
     delete:
       description: "Requires the `system/delete` permission, from a session, user,\
         \ global token."
-      operationId: "delete_2"
+      operationId: "deleteGlobalParameter"
       parameters:
       - in: "path"
         name: "name"
@@ -4532,7 +4606,7 @@ paths:
         \ null clears it, any other value replaces it. A secured value or default\
         \ sent as ***** keeps the stored one.\n\nRequires the `system/write` permission,\
         \ from a session, user, global token."
-      operationId: "patch"
+      operationId: "patchGlobalParameter"
       parameters:
       - in: "path"
         name: "name"
@@ -4710,7 +4784,7 @@ paths:
         \ failure; a dead row also carries deadAt, when it gave up. Rows that died\
         \ before these were recorded carry neither.\n\nRequires the `system/read`\
         \ permission, from a global token."
-      operationId: "query_7"
+      operationId: "queryOutbox"
       parameters:
       - description: "Delivery status to list"
         example: "dead"
@@ -4761,7 +4835,7 @@ paths:
       description: "Puts rows back in the queue for the next dispatcher pass. Replays\
         \ the named ids, or every row in the given status when no ids are supplied.\n\
         \nRequires the `system/write` permission, from a global token."
-      operationId: "replay"
+      operationId: "replayOutbox"
       parameters:
       - description: "Outbox row ids to replay"
         in: "query"
@@ -4809,7 +4883,7 @@ paths:
       description: "The name needs to be unique and must only contain alphanumeric\
         \ and - characeters.\n\nRequires the `task/write` permission, from a global,\
         \ user, session token."
-      operationId: "create_1"
+      operationId: "createTask"
       requestBody:
         content:
           application/json:
@@ -4845,7 +4919,7 @@ paths:
     get:
       description: "Requires the `task/read` permission, from a global, user, session\
         \ token."
-      operationId: "query_6"
+      operationId: "queryTasks"
       parameters:
       - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
           \ would be encoded as Organization%3DBoomerang,customKey%3Dtest)"
@@ -4931,7 +5005,7 @@ paths:
     post:
       description: "Validates the Task YAML as a Tekton Task\n\nRequires the `task/read`\
         \ permission, from a global, user, session token."
-      operationId: "validateYaml_1"
+      operationId: "validateTaskYaml"
       requestBody:
         content:
           application/x-yaml:
@@ -4956,7 +5030,7 @@ paths:
     delete:
       description: "Requires the `task/delete` permission, from a global, user, session\
         \ token."
-      operationId: "delete_1"
+      operationId: "deleteTask"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -4984,7 +5058,7 @@ paths:
       description: "Requires the `task/read` permission, from a global, user, session\
         \ token.\n\nRequires the `task/read` permission, from a global, user, session\
         \ token."
-      operationId: "get_1"
+      operationId: "getTask"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -5026,7 +5100,7 @@ paths:
       description: "The name must only contain alphanumeric and - characeters. If\
         \ the name exists, apply will create a new version.\n\nRequires the `task/write`\
         \ permission, from a global, user, session token."
-      operationId: "apply_1"
+      operationId: "applyTask"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -5076,7 +5150,7 @@ paths:
     get:
       description: "Retrieves each versions changelog and returns them all as a list.\n\
         \nRequires the `task/read` permission, from a global, user, session token."
-      operationId: "getChangelog_2"
+      operationId: "getTaskChangelog"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -5218,7 +5292,7 @@ paths:
     get:
       description: "Requires the `token/read` permission, from a global, user, key,\
         \ session token."
-      operationId: "query_5"
+      operationId: "queryTokens"
       parameters:
       - description: "List of types to filter for. Defaults to all."
         in: "query"
@@ -5495,7 +5569,7 @@ paths:
     patch:
       description: "Requires the `user/write` permission, from a session, user, key,\
         \ global token."
-      operationId: "apply_2"
+      operationId: "patchUser"
       parameters:
       - in: "path"
         name: "userId"
@@ -5870,7 +5944,7 @@ paths:
     delete:
       description: "Requires the `workspace/delete` permission, from a session, user,\
         \ key, global token."
-      operationId: "deleteWorkflow"
+      operationId: "deleteWorkspace"
       parameters:
       - description: "ID of Workspace"
         in: "path"
@@ -5972,7 +6046,7 @@ paths:
     put:
       description: "Requires the `action/action` permission, from a session, user,\
         \ key, global token."
-      operationId: "action"
+      operationId: "updateAction"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -6008,7 +6082,7 @@ paths:
     get:
       description: "Requires the `action/read` permission, from a session, user, key,\
         \ global token."
-      operationId: "query_4"
+      operationId: "queryActions"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -6133,7 +6207,7 @@ paths:
     get:
       description: "Requires the `action/read` permission, from a session, user, key,\
         \ global token."
-      operationId: "summary_1"
+      operationId: "getActionSummary"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -6208,7 +6282,7 @@ paths:
     get:
       description: "Requires the `action/read` permission, from a session, user, key,\
         \ global token."
-      operationId: "get_4"
+      operationId: "getAction"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -6285,7 +6359,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "query_3"
+      operationId: "queryArtifacts"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -6363,7 +6437,7 @@ paths:
     delete:
       description: "Requires the `workflowrun/delete` permission, from a global, key,\
         \ user, session token."
-      operationId: "delete_3"
+      operationId: "deleteArtifact"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -6399,7 +6473,7 @@ paths:
         \ the same-length previous period for comparison. Computed from the runs the\
         \ workspace still holds; the period defaults to the last 90 days.\n\nRequires\
         \ the `insights/read` permission, from a global, key, user, session token."
-      operationId: "summary"
+      operationId: "getWorkspaceInsights"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -6483,7 +6557,7 @@ paths:
         \ from the runs the workspace still holds; the period defaults to the last\
         \ 90 days.\n\nRequires the `insights/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "tasks"
+      operationId: "getWorkspaceTaskInsights"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -6600,7 +6674,7 @@ paths:
         \ succeed and the model usage of its ai tasks, from the runs and task runs\
         \ the workspace still holds.\n\nRequires the `insights/read` permission, from\
         \ a global, key, user, session token."
-      operationId: "workflow"
+      operationId: "getWorkflowInsights"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -6662,7 +6736,7 @@ paths:
     delete:
       description: "Requires the `workspace/read` permission, from a user, session\
         \ token."
-      operationId: "leave"
+      operationId: "leaveWorkspace"
       parameters:
       - description: "Workspace as owner reference."
         in: "path"
@@ -6904,7 +6978,7 @@ paths:
     get:
       description: "Requires the `schedule/read` permission, from a global, key, user,\
         \ session token."
-      operationId: "query_2"
+      operationId: "querySchedules"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7044,7 +7118,7 @@ paths:
     get:
       description: "Requires the `schedule/read` permission, from a global, key, user,\
         \ session token."
-      operationId: "get_3"
+      operationId: "getSchedule"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7080,7 +7154,7 @@ paths:
       description: "The name needs to be unique and must only contain alphanumeric\
         \ and - characeters.\n\nRequires the `task/write` permission, from a global,\
         \ key, session, user token."
-      operationId: "create"
+      operationId: "createWorkspaceTask"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7125,7 +7199,7 @@ paths:
     get:
       description: "Requires the `task/read` permission, from a global, key, session,\
         \ user token."
-      operationId: "queryTaskTemplates"
+      operationId: "queryWorkspaceTasks"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7219,7 +7293,7 @@ paths:
     post:
       description: "Validates the Task YAML as a Tekton Task\n\nRequires the `task/read`\
         \ permission, from a global, key, session, user token."
-      operationId: "validateYaml"
+      operationId: "validateWorkspaceTaskYaml"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7253,7 +7327,7 @@ paths:
     delete:
       description: "Requires the `task/delete` permission, from a global, key, session,\
         \ user token."
-      operationId: "delete"
+      operationId: "deleteWorkspaceTask"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7287,7 +7361,7 @@ paths:
       description: "Requires the `task/read` permission, from a global, key, session,\
         \ user token.\n\nRequires the `task/read` permission, from a global, key,\
         \ session, user token."
-      operationId: "get"
+      operationId: "getWorkspaceTask"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -7337,7 +7411,7 @@ paths:
       description: "The name must only contain alphanumeric and - characeters. If\
         \ the name exists, apply will create a new version.\n\nRequires the `task/write`\
         \ permission, from a global, key, session, user token."
-      operationId: "apply"
+      operationId: "applyWorkspaceTask"
       parameters:
       - description: "Name of Task"
         in: "path"
@@ -7395,7 +7469,7 @@ paths:
     get:
       description: "Retrieves each versions changelog and returns them all as a list.\n\
         \nRequires the `task/read` permission, from a global, key, session, user token."
-      operationId: "getChangelog_1"
+      operationId: "getWorkspaceTaskChangelog"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7451,7 +7525,7 @@ paths:
         \ required. A row leaves out params, results, spec, annotations and the status\
         \ message - retrieve the WorkflowRun for those.\n\nRequires the `taskrun/read`\
         \ permission, from a global, key, user, session token."
-      operationId: "query_1"
+      operationId: "queryTaskRuns"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7787,7 +7861,7 @@ paths:
     delete:
       description: "Requires the `workflow/delete` permission, from a global, key,\
         \ user, session token."
-      operationId: "deleteWorkflow_1"
+      operationId: "deleteWorkflow"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -7975,7 +8049,7 @@ paths:
       description: "Retrieves each versions changelog and returns them all as a list.\n\
         \nRequires the `workflow/read` permission, from a global, key, user, session\
         \ token."
-      operationId: "getChangelog"
+      operationId: "getWorkflowChangelog"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8022,7 +8096,7 @@ paths:
     get:
       description: "Requires the `workflow/read` permission, from a global, key, user,\
         \ session token."
-      operationId: "compose"
+      operationId: "getWorkflowCanvas"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8164,7 +8238,7 @@ paths:
     get:
       description: "Requires the `workflow/read` permission, from a global, key, user,\
         \ session token."
-      operationId: "export"
+      operationId: "exportWorkflow"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8260,7 +8334,7 @@ paths:
     delete:
       description: "Requires the `workflowrun/delete` permission, from a global, key,\
         \ user, session token."
-      operationId: "purgeByLabels"
+      operationId: "purgeWorkflowRunsByLabels"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8307,7 +8381,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "count"
+      operationId: "countWorkflowRuns"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8380,7 +8454,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "query"
+      operationId: "queryWorkflowRuns"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8513,7 +8587,7 @@ paths:
     delete:
       description: "Requires the `workflowrun/delete` permission, from a global, key,\
         \ user, session token."
-      operationId: "purge"
+      operationId: "purgeWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8556,7 +8630,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "get_2"
+      operationId: "getWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8605,7 +8679,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "listForRun"
+      operationId: "listWorkflowRunArtifacts"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -8650,7 +8724,7 @@ paths:
     delete:
       description: "Requires the `workflowrun/delete` permission, from a global, key,\
         \ user, session token."
-      operationId: "deleteFromRun"
+      operationId: "deleteWorkflowRunArtifact"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -8688,7 +8762,7 @@ paths:
     get:
       description: "Requires the `workflowrun/read` permission, from a global, key,\
         \ user, session token."
-      operationId: "download"
+      operationId: "downloadWorkflowRunArtifact"
       parameters:
       - description: "Owning workspace name."
         in: "path"
@@ -8741,7 +8815,7 @@ paths:
     delete:
       description: "Requires the `workflowrun/action` permission, from a global, key,\
         \ user, session token."
-      operationId: "cancel"
+      operationId: "cancelWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8783,7 +8857,7 @@ paths:
     put:
       description: "Requires the `workflowrun/action` permission, from a global, key,\
         \ user, session token."
-      operationId: "pause"
+      operationId: "pauseWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8825,7 +8899,7 @@ paths:
     put:
       description: "Requires the `workflowrun/action` permission, from a global, key,\
         \ user, session token."
-      operationId: "resume"
+      operationId: "resumeWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8867,7 +8941,7 @@ paths:
     put:
       description: "Requires the `workflowrun/action` permission, from a global, key,\
         \ user, session token."
-      operationId: "retry"
+      operationId: "retryWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
@@ -8914,7 +8988,7 @@ paths:
     put:
       description: "Requires the `workflowrun/action` permission, from a global, key,\
         \ user, session token."
-      operationId: "start"
+      operationId: "startWorkflowRun"
       parameters:
       - description: "Owning workspace name."
         example: "my-amazing-workspace"
