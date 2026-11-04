@@ -80,6 +80,7 @@ public class DeclaredTokenService {
   }
 
   private void upsert(TokenEntity entity) {
+    takeOverValue(entity, "flow.security.tokens." + entity.getName(), tokenRepository, lookupCache);
     TokenEntity previous = tokenRepository.findById(entity.getId()).orElse(null);
     if (previous != null) {
       entity.setCreationDate(previous.getCreationDate());
@@ -102,6 +103,32 @@ public class DeclaredTokenService {
         "Registered the declared token '{}' ({}).",
         entity.getName(),
         previous == null ? "new" : "replaced the previous");
+  }
+
+  /**
+   * Make {@code entity}'s value its own before it is stored: a token minted through the API with
+   * the same value is deleted, so a token moved into configuration keeps working with the
+   * configured grants. Throw when another configured token holds the value, so the start stops.
+   */
+  static void takeOverValue(
+      TokenEntity entity, String setting, TokenRepository tokenRepository, TokenLookupCache lookupCache) {
+    for (TokenEntity holder : tokenRepository.findAllByToken(entity.getToken())) {
+      if (holder.getId().equals(entity.getId())) {
+        continue;
+      }
+      if (BootstrapTokenService.BOOTSTRAP_TOKEN_ID.equals(holder.getId())
+          || holder.getId().startsWith(ID_PREFIX)) {
+        throw new IllegalStateException(
+            setting + " is the same token as " + holder.getName() + "; give each a value of its own.");
+      }
+      tokenRepository.delete(holder);
+      lookupCache.evict(holder.getToken());
+      LOGGER.warn(
+          "{} took over the value of the token '{}' ({}), which is deleted.",
+          setting,
+          holder.getName(),
+          holder.getId());
+    }
   }
 
   private TokenEntity toEntity(String name, DeclaredTokenProperties.Entry entry) {

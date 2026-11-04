@@ -82,6 +82,20 @@ class BootstrapTokenServiceTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void theBootstrapTokenTakesOverTheValueOfAMintedToken() {
+    TokenEntity minted = new TokenEntity();
+    minted.setType(AuthScope.global);
+    minted.setName("minted");
+    minted.setToken(tokenService.hashString(FIRST));
+    String mintedId = tokenRepository.save(minted).getId();
+
+    bootstrapToken(FIRST).register();
+
+    assertThat(tokenRepository.findById(mintedId)).as("the minted token is deleted").isEmpty();
+    assertThat(tokenService.validate(FIRST)).isTrue();
+  }
+
+  @Test
   void registeringTheSameValueAgainChangesNothing() {
     bootstrapToken(FIRST).register();
     TokenEntity first =

@@ -69,6 +69,8 @@ public class BootstrapTokenService {
           "flow.security.bootstrap-token must be bfg_ followed by at least 32 characters.");
     }
     String hash = tokenService.hashString(bootstrapToken);
+    DeclaredTokenService.takeOverValue(
+        bootstrapTokenEntity(hash), "flow.security.bootstrap-token", tokenRepository, lookupCache);
     TokenEntity previous = tokenRepository.findById(BOOTSTRAP_TOKEN_ID).orElse(null);
     if (previous != null && hash.equals(previous.getToken())) {
       return;
