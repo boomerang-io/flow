@@ -1,18 +1,24 @@
 package io.boomerang.engine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.RunClaim;
 import io.boomerang.common.model.RunRetry;
 import io.boomerang.dispatcher.DispatcherService;
+import io.boomerang.dispatcher.entity.DispatcherEntity;
+import io.boomerang.dispatcher.repository.DispatcherRepository;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -30,10 +36,12 @@ import org.springframework.data.mongodb.core.query.Update;
 class LeaseReapTest extends AbstractEngineIntegrationTest {
 
   private static final long LEASE_MILLIS = 90000;
+  private static final long DAY = 24 * 60 * 60 * 1000L;
 
   @Autowired private WorkflowWatcher watcher;
   @Autowired private MongoTemplate mongoTemplate;
   @Autowired private DispatcherService dispatcherService;
+  @Autowired private DispatcherRepository dispatcherRepository;
 
   private TaskRunEntity claimedTaskRun(String name, String claimedBy, Date leaseExpiresAt) {
     WorkflowRunEntity wfRun = savedWorkflowRun(name + "-wf", RunStatus.running, RunPhase.running);
@@ -140,6 +148,59 @@ class LeaseReapTest extends AbstractEngineIntegrationTest {
             .getClaim()
             .getBy(),
         "a live dispatcher's claim is untouched");
+  }
+
+  private String registeredAgo(String name, long millisAgo) {
+    String id =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(name, name + ".local", List.of("template")));
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(id)),
+        new Update().set("lastConnectedDate", new Date(System.currentTimeMillis() - millisAgo)),
+        DispatcherEntity.class);
+    return id;
+  }
+
+  @Test
+  void aRegistrationNotConnectedForAWeekIsRemovedAndARecentOneKept() {
+    String expired = registeredAgo("expiry-old", 8 * DAY);
+    String recent = registeredAgo("expiry-recent", 6 * DAY);
+
+    watcher.expireDispatcherRegistrations();
+
+    assertFalse(dispatcherRepository.existsById(expired));
+    assertTrue(dispatcherRepository.existsById(recent));
+  }
+
+  @Test
+  void aRegistrationThatConnectsBeforeTheSweepIsKept() {
+    String id = registeredAgo("expiry-refreshed", 10 * DAY);
+
+    dispatcherService.heartbeat(id, List.of());
+    watcher.expireDispatcherRegistrations();
+
+    assertTrue(dispatcherRepository.existsById(id), "a heartbeat refreshes the registration");
+  }
+
+  @Test
+  void anExpiredDispatchersClaimIsStillReapedAndItReRegistersUnderTheSameNameAndHost() {
+    String expired = registeredAgo("expiry-claimant", 8 * DAY);
+    WorkflowRunEntity wfRun = savedWorkflowRun("expiry-claimant-wf", RunStatus.running, RunPhase.running);
+    String taskRunId = claimedTaskRun(wfRun, "expiry-claimed", expired);
+
+    watcher.expireDispatcherRegistrations();
+    watcher.reapClaimsFromGoneDispatchers();
+
+    assertEquals(
+        RunStatus.waiting,
+        taskRunRepository.findById(taskRunId).orElseThrow().getStatus(),
+        "a removed registration does not hide its claims from the gone-dispatcher reap");
+    assertThrows(BoomerangException.class, () -> dispatcherService.heartbeat(expired, List.of()));
+    String reregistered =
+        dispatcherService.register(
+            new DispatcherRegistrationRequest(
+                "expiry-claimant", "expiry-claimant.local", List.of("template")));
+    assertTrue(dispatcherRepository.existsById(reregistered));
   }
 
   private String claimedTaskRun(WorkflowRunEntity wfRun, String name, String dispatcherId) {
