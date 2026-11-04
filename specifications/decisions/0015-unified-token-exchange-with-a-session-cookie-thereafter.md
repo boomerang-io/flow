@@ -20,7 +20,7 @@ with no proxy must still be able to sign in.
 
 C. `POST /internal/v1/auth/exchange` mints a `bfs_` session for the identity `AuthenticationFilter` already resolved
 (empty body), or for an id_token `OidcTokenVerifier` has checked against the issuer's published keys with exact-match
-issuer, audience, expiry and nonce (`service-core/src/main/java/io/boomerang/core/InternalAuthControllerV1.java:76-89`,
+issuer, audience, expiry and nonce (`service-core/src/main/java/io/boomerang/core/InternalAuthControllerV1.java:72-85`,
 `core/security/AuthExchangeService.java:66-134`, `core/security/OidcTokenVerifier.java:83-134`). The cookie is
 httpOnly, `Secure`, `SameSite=Lax` and carries only the opaque token (`core/security/SessionCookie.java:22-30`).
 `GET /internal/v1/auth/config` tells the webapp which mode applies, derived from the `auth` settings

@@ -27,7 +27,7 @@ minutes on the lock (`:84`), then skip what another applied; a failed unit fails
 anything (`migration/_0001__GuardAndDetectGeneration.java:47-63`). With `spring.data.mongodb.auto-index-creation=false`
 (`application.properties:76`) and no index annotation on any entity, `_0021__Indexes` builds one inventory, the same on
 an empty and an upgraded database, after every data unit and seed, deduping first where a unique index needs it
-(`migration/_0021__Indexes.java:193-206`).
+(`migration/_0021__Indexes.java:199-212`).
 
 ## Consequences
 

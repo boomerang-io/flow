@@ -18,15 +18,15 @@ comparable system studied (Code Engine, Tekton, Google Cloud Batch, Trigger.dev)
 ## Decision
 
 B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason` (`service-core/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java:30`,
-`common/model/TaskRun.java:47`, `common/entity/TaskRunEntity.java:49`). The closed set lives in one class
+`common/model/TaskRun.java:47`, `common/entity/TaskRunEntity.java:50`). The closed set lives in one class
 (`common/model/StatusReason.java:11-50`): a dispatcher sends `DispatchError`, `DeadlineExceeded`, `JobFailed`,
 `JobDeleted`, `OOMKilled`, `ImagePull`, `ImageNotAllowed`, `AdmissionDenied` or `ResultsTooLarge`, or, for a task that
 did not run to an end, `ExceededQuota`, `StartTimeout`, `RateLimited`, `ClusterUnavailable` or `DispatcherStopping`; the engine writes `DispatcherGone`, `LeaseExpired` and
 `DeadlineExceeded` on its reaps (`engine/WorkflowWatcher.java:250`, `:521`, `:564`) and its own causes for refused
 specs, parameters, artifacts, for-each items and child runs. The `StatusReason` in `dispatcher-sdk` is a subset, checked by its tests
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/StatusReason.java:8-56`), and Flow's Kubernetes dispatcher maps
-Job and TaskRun conditions and the pod's container state onto it (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:458-478`,
-`kube/TektonServiceImpl.java:541-565`).
+Job and TaskRun conditions and the pod's container state onto it (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:505-525`,
+`kube/TektonServiceImpl.java:595-619`).
 A reason the engine does not know is recorded as an ordinary failure. The name pairs with `status` and `statusMessage`
 rather than starting a second vocabulary, and policy derives from it.
 
@@ -35,6 +35,6 @@ rather than starting a second vocabulary, and policy derives from it.
 - The one policy built on it is the requeue of a task that did not run to an end: `StartTimeout`, `ExceededQuota`,
   `RateLimited`, `ClusterUnavailable` and `DispatcherStopping` (`common/model/StatusReason.java:53-59`,
   `engine/TaskRunService.java:1189-1208`); any further retry policy derives from it without a wire change.
-- Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:347`,
-  `event/model/RunStatusSummary.java:88-99`).
+- Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:542`,
+  `event/model/RunStatusSummary.java:89-100`).
 - Cancel and delete carry no reason; add values only when something consumes them.

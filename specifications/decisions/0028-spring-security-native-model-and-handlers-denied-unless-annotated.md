@@ -23,7 +23,7 @@ B with D. `MethodSecurityConfiguration` intercepts every request-mapped method o
 `@RestController` (`service-core/src/main/java/io/boomerang/core/security/MethodSecurityConfiguration.java:51-85`);
 `AuthCriteriaAuthorizationManager` reads `@AuthCriteria` from the method or its class and denies a handler with
 neither it nor `@AuthExempt`, counted as `flow.security.denied{resource=unannotated}`
-(`core/security/AuthCriteriaAuthorizationManager.java:67-98`). `@AuthExempt` requires a `reason`
+(`core/security/AuthCriteriaAuthorizationManager.java:95-117`). `@AuthExempt` requires a `reason`
 (`core/security/AuthExempt.java:25-29`); `AuthCriteriaCoverageTest` names an unannotated route at build time. Basic
 auth stays in `AuthenticationFilter`, whose session takes its rights from the request path, and uses
 `PasswordEncoder.matches`, so a blank password admits nobody (`core/security/AuthenticationFilter.java:185-195,263`).

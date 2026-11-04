@@ -66,7 +66,7 @@ security-off synthetic identity, independent of `flow.security.enabled` (`author
 | Report the outcome | `PUT /taskrun/{id}/end` | the task run |
 | Release storage | `POST /workspaces/releasable` | which held volumes may go |
 
-(`dispatcher/DispatcherControllerV1.java:76-258`)
+(`dispatcher/DispatcherControllerV1.java:81-288`)
 
 ## Registration
 
@@ -135,7 +135,7 @@ Each claim is a compare-and-set on one document, so two dispatchers never receiv
 | `DispatchTaskRun` | The task poll, start and end | `id`, `type`, `name`, `labels`, `timeout` (minutes; null or 0 is unguarded), `params`, `results` (the task's declared results), `workspace`, `spec`, `status`, `phase`, `taskRef` (the task's slug form, as the `task` filter takes it, resolved from the stored id once per answer; a task the catalogue no longer holds keeps its id, `dispatcher/DispatcherService.java:136-144`), `workflowRef`, `workflowRunRef`, `index` (on a for-each item), `statusReason` (on a terminate order, why the task ended), `attempt` (which attempt the order is for: 1 plus one per requeue of any cause) and `attempts` (the attempts a requeue superseded, oldest first: `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage`, `dispatcherRef`; absent on a first attempt), so a dispatcher that applies its own retry budget can count the engine's, and `retry` (`max`, the node's `retry.max`, absent when the node asked for none; `failures`, the reported failures the engine has already retried, never its own requeues of an attempt that never ran), so a handler knows whether a failure it reports now will be retried: the engine retries while `failures < max` (`engine/TaskRunService.java:1209-1210`), so a node gets `max + 1` attempts and the SDK's `TaskRun.isLastAttempt()` reads `failures >= max`, true with no `retry`. The state rides on the hand-out form the dispatcher service builds, never the public model (`dispatcher/model/DispatchTaskRun.java:41-48`, `dispatcher/model/HandOutTaskRun.java`, `dispatcher/DispatcherService.java:123-144`) |
 | `DispatchWorkflowRun` | The workflow poll and its start | `id`, `status`, `phase`, `workflowRef`, `labels`, `workspace`, `statusReason` (the typed cause the engine ended the run with, when it had one, `dispatcher/model/DispatchWorkflowRun.java:24`) |
 
-A task run in the answer is one of two orders (`sdk/model/TaskRun.java:37-48`):
+A task run in the answer is one of two orders (`sdk/model/TaskRun.java:44-55`):
 
 | Phase and status | Order | The dispatcher |
 | --- | --- | --- |
@@ -247,12 +247,12 @@ for a poll still held at the timeout waits out its lease (`sdk/Dispatcher.java:1
 ## Logs
 
 A task's log is read through core alone: `GET /api/v2/taskrun/{id}/log` authorizes the reader and scrubs the run's
-secrets (`workflow/WorkflowRunService.java:517-553`), and reads from one of three sources
+secrets (`workflow/WorkflowRunService.java:587-623`), and reads from one of three sources
 (`engine/TaskRunService.java:1325-1346`, `engine/LogClient.java:100-159`):
 
 | Source | When |
 | --- | --- |
-| The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end (`engine/TaskRunService.java:1371-1388`). Core stores it as a log-scoped artifact of the run, kept for the "Task Log Retention" setting (7 days by default), and answers 204; a later upload for the same task run replaces it, and so does one that overlaps it - the upload refused by the run-and-name unique index takes over the record the other stored (`workflow/ArtifactService.java:397-446`; `data-model.md`, "Artifacts"). 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. |
+| The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end (`engine/TaskRunService.java:1371-1388`). Core stores it as a log-scoped artifact of the run, kept for the "Task Log Retention" setting (7 days by default), and answers 204; a later upload for the same task run replaces it, and so does one that overlaps it - the upload refused by the run-and-name unique index takes over the record the other stored (`workflow/ArtifactService.java:406-455`; `data-model.md`, "Artifacts"). 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. |
 | The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream (`engine/LogClient.java:71-87`). What answers there (the pod, Loki) is the dispatcher's own. |
 | A message | Neither answers: a 200 whose body says no log is available (`engine/LogClient.java:43-45`), or that the dispatcher could not be reached or refused the read (`:51-53`, `:153-155`). Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
 
@@ -286,7 +286,7 @@ The version is `00`; the trace id is `00000000` followed by the run's `workflowR
 is the last 16 hex of the task run's `id`; the flags are `01` (sampled). A task run `6ad1bfa6cfefa66e88d5e2e0` of run
 `6ad1bfa3cfefa66e88d5e24a` gets `00-000000006ad1bfa3cfefa66e88d5e24a-cfefa66e88d5e2e0-01`. It is computed, not
 carried on the wire; the SDK derives it, and gives none when either id is not 24 hex characters
-(`sdk/model/TaskRun.java:55-63`). A retry is a new run, so it is its own trace, linked to its origin through the run's
+(`sdk/model/TaskRun.java:62-70`). A retry is a new run, so it is its own trace, linked to its origin through the run's
 `initiatedByRef`.
 
 ## Storage
@@ -296,7 +296,7 @@ carried on the wire; the SDK derives it, and gives none when either id is not 24
 `PUT /workflowrun/{id}/start`. A dispatcher that cannot provision SHOULD report it with
 `PUT /{id}/workflowrun/{workflowRunId}/provision-failed` and the cause in `message` (`dispatcher/DispatcherControllerV1.java:187`):
 the run shows the cause, the claim is released for the next attempt after `flow.watcher.provision-retry-ms` (60 s),
-and the third attempt fails the run (`engine/WorkflowExecutionService.java:369`). A report for a run the dispatcher
+and the third attempt fails the run (`engine/WorkflowExecutionService.java:462-498`). A report for a run the dispatcher
 does not hold is ignored. One that never reports, or dies holding the claim, is released after a 5-minute grace and the
 run failed after three attempts (`engine/WorkflowWatcher.java:451-482`). The SDK reports the innermost cause of a failed
 `WorkflowHandler.provision` (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:56-72`).
@@ -307,7 +307,7 @@ storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
-at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:1895-1901`).
+at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2109-2115`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
 own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:371-383`).
 
@@ -342,7 +342,7 @@ the seed later needs a change unit of its own to reach an existing database (`da
 revisions added with task-flow 3.3.0 pin that image themselves, so an install that pins an older default still runs them.
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1499-1500`), and the task run records it (`engine/DAGUtility.java:282`), so a new
+(`workflow/WorkflowService.java:1716-1717`), and the task run records it (`engine/DAGUtility.java:282`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks
@@ -352,7 +352,7 @@ the engine treats it as any other dispatched type, and a dispatcher runs the ima
 `boomerangio/task-ai:2.1.0` at revision 2 and `2.0.0` at revision 1, with the command `prompt` or `agent`
 (`dispatcher-kubernetes.md`, "AI tasks"; an in-process dispatcher ignores the image). Admission labels the task run
 `boomerang.io/model` with its `model` param's value unless that param is secret
-(`engine/TaskExecutionService.java:228-238`). Everything the model call needs is a declared param:
+(`engine/TaskExecutionService.java:254-264`). Everything the model call needs is a declared param:
 
 | Task | Params | Results |
 | --- | --- | --- |
@@ -388,11 +388,11 @@ fields ignored, an unknown enum value read as `unknown`), and its `DispatcherCon
 
 | Class | Gives the author |
 | --- | --- |
-| `DispatcherClient` | One method per route over the host's `RestClient`, keeping its proxy, certificates and timeouts; the token on engine calls only (`sdk/DispatcherClient.java:56-64`) |
+| `DispatcherClient` | One method per route over the host's `RestClient`, keeping its proxy, certificates and timeouts; the token on engine calls only (`sdk/DispatcherClient.java:57-65`) |
 | `Dispatcher` | Registration retried with backoff until the engine answers (`sdk/Dispatcher.java:281-317`), and again when a poll or heartbeat is answered `404 DISPATCHER_NOT_REGISTERED` (`:252-279`), with `logs(url, token)` registering the live log route and its bearer and `logsToken()` handing the bearer to the host's own check (`Builder.randomLogsToken()` makes one); one work poll per task pool with the pacing above, `limit` set to the pool's free capacity on every poll, and optional filters, plus a `limit=0` poll while the pool is full (`sdk/Dispatcher.java:342-365`); the workflow queue only when a `WorkflowHandler` is given; one heartbeat every 30 s listing every task in flight; a stop that has every runner refuse the claims still arriving, lets each poll in progress return within the 10 s drain, shuts the executor down and drains it, then hands back every claim still unstarted with `DispatcherStopping` (`sdk/Dispatcher.java:140-189`) |
 | `TaskRunner` | A claim taken into flight and handed to the executor as one step against the stop, under a read lock the stop takes for writing, so a claim is either drained or refused before it is taken, never registered and dropped; a refused run order, and an unstarted one at the drain, is ended `DispatcherStopping` (`sdk/TaskRunner.java:181-228`); the start answer honoured; the end retried with backoff, 1 s doubling to 30 s, until the engine takes it or refuses it with a 4xx other than 408 or 429, the task held in flight and its lease renewed meanwhile; terminate orders signalled to the running task, with no end; the task's context is registered before the start call, so an order that arrives while the engine answers the start stops the task before the handler runs (`sdk/TaskRunner.java:255-299`, `:393-457`). Around every handler call (`:301-333`): an observation named `flow.task`, started before the handler and stopped after it with the handler's exception as its error, carrying the task-run id, task name and workflow run id as low-cardinality keys and the task's `traceparent` as a receiver carrier, so the registry's tracing handler parents it on the run's trace and the handler's own spans join it (`:369-380`); with no registry on the builder it is a no-op. With a `TaskLogCapture` on the builder, the handler's thread carries the task-run id in the SLF4J MDC under `taskRunId` for the handler's duration, and the captured log is uploaded through `LogUploader` as the handler returns, before the end is reported and replacing any log the handler uploaded itself (`:330`), and every `logUploadInterval` while it runs, 30 s by default, zero for only at the end (`:382-391`); a periodic upload still in flight when the handler returns is never interrupted but finishes first, waited for up to 30 s, so the final upload is the last one stored (`:335-367`) |
 | `TaskHandler`, `TaskContext` | The interface the author implements: `run(task, context)` returns a `TaskResult` or throws a `TaskFailure` with one of `StatusReason`'s reasons (`TaskFailure.exceededQuota`, `startTimeout`, `rateLimited` and `clusterUnavailable` for the requeued ones; `TaskFailure.terminal` for one the engine must not retry, sent as `retryable: false`, `sdk/TaskFailure.java:70-81`, `sdk/TaskRunner.java:484-493`); `cancel(task)` stops work for a terminate order. The context carries the cancellation signal, the artifact transfer, and `uploadLog`, which stores the finished log with the engine best effort and stops asking an engine that answered it keeps none (`sdk/LogUploader.java:41-67`) |
-| `TaskLogCapture` | One buffer per task run, fed by the host's log framework through `append(taskRunId, line)` with the id each event carries in its MDC (`sdk/TaskLogCapture.java:52-57`); the first `headBytes` and the last `tailBytes` are kept, 64 KB each by default, with one line between them saying how many bytes were dropped (`:96-120`); `snapshot(taskRunId)` is the log so far, for a host that serves a live log route. `logback.TaskLogAppender` is the adapter for logback: `attach(capture)` adds it to the root logger (`sdk/logback/TaskLogAppender.java:31-38`); a log4j2 host writes the equivalent three-line appender. SLF4J and logback are optional dependencies of the SDK, so a dispatcher that captures nothing carries neither |
+| `TaskLogCapture` | One buffer per task run, fed by the host's log framework through `append(taskRunId, line)` with the id each event carries in its MDC (`sdk/TaskLogCapture.java:52-57`); the first `headBytes` and the last `tailBytes` are kept, 64 KB each by default, with one line between them saying how many bytes were dropped (`:96-120`); `snapshot(taskRunId)` is the log so far, for a host that serves a live log route. `logback.TaskLogAppender` is the adapter for logback: `attach(capture)` adds it to the root logger (`sdk/logback/TaskLogAppender.java:35-42`); a log4j2 host writes the equivalent three-line appender. SLF4J and logback are optional dependencies of the SDK, so a dispatcher that captures nothing carries neither |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim, the download verified against `sha256` (`sdk/ArtifactTransfer.java:83-131`) |
 
 It is the only Flow library published: to GitHub Packages as `io.boomerang:dispatcher-sdk`, versioned with the product

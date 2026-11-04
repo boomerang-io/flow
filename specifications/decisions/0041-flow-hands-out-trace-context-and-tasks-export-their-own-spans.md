@@ -19,7 +19,7 @@ spans read as one trace. LangChain, Langflow, Dify and n8n all export to such a 
 ## Decision
 
 B. Every task run gets a W3C `traceparent` whose trace id is its run's id and whose parent id is its task run's
-(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/model/TaskRun.java:50-59`). Flow's Kubernetes dispatcher
+(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/model/TaskRun.java:57-66`). Flow's Kubernetes dispatcher
 hands it to every pod as `TRACEPARENT` and, when `flow.dispatcher.ai.otel.endpoint` is set, gives `ai` pods the
 exporter settings and resource attributes (`service-dispatcher/.../executor/TaskImageResolver.java:87-105`); the
 `task-ai` worker and embedding dispatchers emit their spans under it. Derived from ids already on the wire, it changes

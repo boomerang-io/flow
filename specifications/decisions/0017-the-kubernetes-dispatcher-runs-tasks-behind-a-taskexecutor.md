@@ -22,10 +22,10 @@ plain Kubernetes Job does as well as Tekton. Some deployments need tasks sandbox
 ## Decision
 
 B, D and F. `TaskExecutor` has four methods, `create`, `watch`, `cancel`, `delete`
-(`service-dispatcher/.../executor/TaskExecutor.java:12-28`); `dispatcher.executor` selects `tekton` (default) or
-`kube-jobs` (`kube/TektonServiceImpl.java:56-57`, `kube/KubeJobsExecutor.java:70-71`), a Job whose timeout is
-`activeDeadlineSeconds` and whose results are its termination message (`:205-206,231-232`). Both apply
-`dispatcher.tasks.runtimeClassName` to every task (`KubeJobsExecutor.java:219-220`, `TektonServiceImpl.java:410-414`);
+(`service-dispatcher/.../executor/TaskExecutor.java:14-41`); `dispatcher.executor` selects `tekton` (default) or
+`kube-jobs` (`kube/TektonServiceImpl.java:58-59`, `kube/KubeJobsExecutor.java:72-73`), a Job whose timeout is
+`activeDeadlineSeconds` and whose results are its termination message (`:230-231,257`). Both apply
+`dispatcher.tasks.runtimeClassName` to every task (`KubeJobsExecutor.java:244-246`, `TektonServiceImpl.java:451-454`);
 a deployment needing another tier registers as its own dispatcher, and claims already route by registered task type
 (`dispatcher/DispatcherService.java:374-382` in `service-core`). On Tekton, `service-dispatcher/.../TaskRuntimeReconciler.java:51-89`
 hourly deletes this dispatcher's labelled TaskRuns that finished more than `kube.task.ttlDays` (7) ago, as Jobs expire by

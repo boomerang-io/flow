@@ -20,14 +20,14 @@ knows the pod labels and filters, and must keep doing so.
 
 C. A dispatcher registers `logsUrl` and `logsToken` (`dispatcher/DispatcherService.java:172-173`) and may
 `PUT /dispatcher/v1/taskrun/{id}/log`, fenced on the claim and capped by `flow.engine.task.log.max-bytes`, 10 MiB
-(`dispatcher/DispatcherControllerV1.java:223-258`, `engine/TaskRunService.java:1371-1388`). Core stores it as a
-`log`-scoped artifact of the run (`workflow/ArtifactService.java:395-421`). A finished task's log comes from the stored
+(`dispatcher/DispatcherControllerV1.java:253-288`, `engine/TaskRunService.java:1371-1388`). Core stores it as a
+`log`-scoped artifact of the run (`workflow/ArtifactService.java:407-455`). A finished task's log comes from the stored
 copy, else the registered route with its bearer, else a message; a running task's comes from the route, else a copy
 stored during this attempt (`engine/TaskRunService.java:1325-1346`, `engine/LogClient.java:71-87`). Core stays the
 only reader the webapp talks to, so authorization and secret scrubbing stay in one place. Flow's Kubernetes dispatcher
 generates its bearer at every start (`service-dispatcher/.../config/DispatcherConfig.java:57`), accepts nothing else
 on its log route (`service-dispatcher/.../dispatcher/LogAuthFilter.java:17-24`), and uploads each finished pod log
-(`service-dispatcher/.../dispatcher/TaskService.java:176-186`).
+(`service-dispatcher/.../dispatcher/TaskService.java:200-218`).
 
 ## Consequences
 

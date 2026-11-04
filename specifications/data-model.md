@@ -44,21 +44,21 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 `maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxArtifactStorage`,
 `artifactRetentionDays`; `workspace/model/Quotas.java:15-23`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:136-168`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:102-114,183-188`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
 request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:220,316`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
-way back to absent (`workspace/WorkspaceControllerV2.java:308-319`). The v3 migration drops a v3 `0`, which v3
+way back to absent (`workspace/WorkspaceControllerV2.java:316-327`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
 
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1278-1294`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1480-1507,2489-2514`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1474-1478`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1619-1623,2492-2511`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -66,7 +66,7 @@ A revision carries the workflow's run settings beside its tasks: `timeout`, `ret
 its nodes (`workflow/model/CanvasNodeData.java:27-28`).
 
 A reference to a task is stored as the task's id: `taskRef` on a workflow revision's node
-(`common/model/WorkflowTask.java:34`) and on a task run (`common/entity/TaskRunEntity.java:54`). The API and
+(`common/model/WorkflowTask.java:34`) and on a task run (`common/entity/TaskRunEntity.java:55`). The API and
 the dispatcher protocol read and write it in the task's slug form, translated through the relationship graph
 by node id and its `type_slug` and `to_label` indexes (`api-contract.md`, "Public run models"), so nothing
 stored carries a name.
@@ -82,15 +82,15 @@ carry control state.
 
 | Kind | Fields | Where |
 | --- | --- | --- |
-| Control state (typed, never on a public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count, failures, max, backoff}` (task: the engine's and the node's budgets, and the node's setting copied on), `waitUntil` (task), `pauseRequestedAt` (workflow; the public model shows only `paused`), `purgeRequestedAt` (workflow: a purge was requested while its tasks had not settled; the purge sweep removes it), `waitingSince` (workflow: set while every in-flight task waits, so the run clock is stopped), `graphEndedAt` (workflow: the graph ended with the final status while the finally tasks run; with the phase still `running` it marks the finally stage), `retryCount` (workflow). All but `pauseRequestedAt` are `@JsonIgnore` | `common/entity/WorkflowRunEntity.java:50-81`, `common/entity/TaskRunEntity.java:76-88`, `common/model/RunClaim.java:19-22`, `common/model/RunRetry.java:21-25` |
+| Control state (typed, never on a public model) | `claim{by, at, leaseExpiresAt, seq}`, `timeoutAt`, `retry{after, count, failures, max, backoff}` (task: the engine's and the node's budgets, and the node's setting copied on), `waitUntil` (task), `pauseRequestedAt` (workflow; the public model shows only `paused`), `purgeRequestedAt` (workflow: a purge was requested while its tasks had not settled; the purge sweep removes it), `waitingSince` (workflow: set while every in-flight task waits, so the run clock is stopped), `graphEndedAt` (workflow: the graph ended with the final status while the finally tasks run; with the phase still `running` it marks the finally stage), `retryCount` (workflow). All but `pauseRequestedAt` are `@JsonIgnore` | `common/entity/WorkflowRunEntity.java:50-88`, `common/entity/TaskRunEntity.java:72-94`, `common/model/RunClaim.java:19-22`, `common/model/RunRetry.java:21-25` |
 | Attempt history (typed, serialised) | `attempts[]` on a task run: each attempt a requeue superseded, `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage`, `dispatcherRef`; absent until the first requeue | `common/entity/TaskRunEntity.java:90`, `common/model/RunAttempt.java:20-27` |
-| Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:71-80`, `common/entity/TaskRunEntity.java:68` |
-| For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:62-63` |
-| For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `common/entity/TaskRunEntity.java:71`, `common/model/WorkflowTaskForeach.java:19` |
-| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:45-49`, `common/model/StatusReason.java:34-36` |
-| Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `common/entity/TaskRunEntity.java:51`, `engine/TaskRunService.java:406-414` |
+| Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:83-92`, `common/entity/TaskRunEntity.java:69` |
+| For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:63-64` |
+| For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `common/entity/TaskRunEntity.java:72`, `common/model/WorkflowTaskForeach.java:19` |
+| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:45-49`, `common/model/StatusReason.java:34-36` |
+| Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `common/entity/TaskRunEntity.java:52`, `engine/TaskRunService.java:406-414` |
 | Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>` and queryable on every v2 list endpoint. A task run stacks its task's, its node's and its run's labels (`engine/DAGUtility.java:286-292`). Keys under `boomerang.io/` are the server's (`common/model/ServerLabel.java:12-18`): `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission, `engine/TaskExecutionService.java:254-264`) and `boomerang.io/item` on every item task run of a for-each and on a for-each Run workflow child (its text item, `engine/TaskExecutionService.java:904-913,1370-1381`), which the child's task runs inherit; a client's keys under that prefix are dropped. The engine decides from none of them | `common/entity/WorkflowRunEntity.java:30`, `common/entity/TaskRunEntity.java:35` |
-| Annotations | `annotations: Map<String,Object>`: user metadata and the `boomerang.io/*` keys below; the engine decides from none of them | `common/entity/WorkflowRunEntity.java:31`, `common/entity/TaskRunEntity.java:36` |
+| Annotations | `annotations: Map<String,Object>`: user metadata and the `boomerang.io/*` keys below; the engine decides from none of them | `common/entity/WorkflowRunEntity.java:31`, `common/entity/TaskRunEntity.java:37` |
 
 `claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat
 (`engine/TaskRunService.java:343,662-674`), and unset on completion and requeue (`:637-644,826`), so the sparse
@@ -109,12 +109,12 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 | `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1279` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:667-668`, `workflow/WorkflowRunService.java:825-827`). The engine
+it dropped (`workflow/WorkflowService.java:767-773`, `workflow/WorkflowRunService.java:946-953`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
 | --- | --- |
-| The run's workspace: its parameter layer, its secret values, the task lock scope | The workspace that owns the run's workflow in the relationship graph (`workspace --hasWorkflow--> workflow`), held by id so a rename does not move it, and cached per workflow (`workflow/ParamLayerService.java:91`, `core/ParamLayerCache.java:92`) |
+| The run's workspace: its parameter layer, its secret values, the task lock scope | The workspace that owns the run's workflow in the relationship graph (`workspace --hasWorkflow--> workflow`), held by id so a rename does not move it, and cached per workflow (`workflow/ParamLayerService.java:84`, `core/ParamLayerCache.java:92`) |
 | A task run's per-task timeout ceiling, default image and pod deletion policy | The `task` settings, read once when the run's task runs are created at queue, onto the task run's own `timeout`, `spec.image` and `spec.deletion` (`engine/DAGUtility.java:74-87,275-277,338,357,391,420`) |
 | The status an early event gave a wait-for-event task | `preApprovedStatus` on the task run (above) |
 
@@ -164,7 +164,7 @@ The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelati
 ## Indexes
 
 Indexes exist only because `_0021__Indexes` built them: its `INVENTORY` is the whole set, the same on an empty
-and an upgraded database (`migration/_0021__Indexes.java:53-191`).
+and an upgraded database (`migration/_0021__Indexes.java:53-197`).
 `spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:76`)
 makes every entity `@Indexed` and `@CompoundIndex` inert; they have drifted and MUST NOT be read as the
 inventory. A new query that needs an index MUST add it to the inventory.
@@ -180,9 +180,9 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
 | `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup and re-applied on every instance within a minute of a change, at least 60, `core/audit/AuditRetentionService.java:29,51-65`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
-| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:184-191`) |
+| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:190-197`) |
 
-Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:196-199`): task
+Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:202-205`): task
 runs keep the finished one, else the earliest; actions keep the earliest per task run, after a null
 `taskRunRef` is unset; dispatchers keep the most recently connected. Users are never deleted: a shared email is
 logged (`:283-291`) and then fails the unique index, and startup with it. An existing index that holds an
@@ -204,7 +204,7 @@ replaces it.
 
 A task's finished log, when its dispatcher uploads it (`PUT /dispatcher/v1/taskrun/{id}/log`), is the third
 scope, `log`: named `<task run id>.log`, keyed `runs/<run>/logs/<task run id>`, written by `service-core`
-itself and `available` at once (`workflow/ArtifactService.java:394-411`). Two keys of the `artifacts` settings
+itself and `available` at once (`workflow/ArtifactService.java:406-445`). Two keys of the `artifacts` settings
 document govern it, apart from artifact retention: `logs.enabled` (on; off refuses uploads with
 `TASKRUN_LOGS_DISABLED` and keeps serving what is stored) and `logs.retention.days` (7); the same expiry sweep
 deletes the file when the date passes. It is read only through the task run's log route
@@ -214,25 +214,25 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 
 | Status | Written when | File |
 | --- | --- | --- |
-| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java:206`, from `dispatcher/DispatcherService.java:328`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:275-282`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
-| `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:303`, called from `engine/TaskRunService.java:1234`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:363`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
-| `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:535`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java:214-240`, from `dispatcher/DispatcherService.java:328`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:284-291`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:314-372`, called from `engine/TaskRunService.java:1234`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:375-384`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
+| `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:569-578`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:137`) or its
+A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:257-290`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
 document (365; `service-core/src/main/resources/seed/settings.json:456`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
-(`workflow/WorkflowRetentionService.java:173-179`). An hourly pass (`flow.watcher.retention-interval-ms`,
+(`workflow/WorkflowRetentionService.java:292-303`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `engine/WorkflowWatcher.java:213-223`) pages runs in phase `completed` created before the cutoff, oldest first,
 on the `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first),
-actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:97-128,194-201`).
+actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:208-248,314-322`).
 A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'
-ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:186-192`, on the
+ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:305-312`, on the
 `initiated_by_phase` index), so a carried-over task run never outlives the one it stands for and a child's
 "started by" link never dangles. A purge request (`api-contract.md`, "Run purge") removes one run the same way with
 its lineage, deepest first, cancelling one in flight and stamping `purgeRequestedAt` on one whose tasks have not
 settled (still ending, or terminated and held by a dispatcher), which the `purgeRequestedRuns` sweep removes on the sparse `purge_sweep` index
-(`workflow/WorkflowRetentionService.java:120-198`). Workflow-scoped artifacts and audit
+(`workflow/WorkflowRetentionService.java:116-175`). Workflow-scoped artifacts and audit
 events are never purged. The first pass runs within a minute of startup, so an upgraded install purges its old
 runs before the setting can be changed, and no value turns the purge off; history worth keeping is exported
 before upgrading.
@@ -241,7 +241,7 @@ Limits are admin settings: the `artifacts` document (default retention 30 days, 
 1024 MB) and the `max.artifact.storage` quota (5Gi); a workspace overrides storage and retention with its
 `maxArtifactStorage` and `artifactRetentionDays` quotas. A task may ask for a shorter retention, never a longer one; a workflow-scoped upload may not set
 `retention-days` at all and is refused with `ARTIFACT_INVALID_SCOPE` if it does
-(`workflow/ArtifactService.java:238-243`). Workflow-scoped artifacts count toward the same quota and hold it
+(`workflow/ArtifactService.java:246-251`). Workflow-scoped artifacts count toward the same quota and hold it
 until replaced or deleted. An upload over the largest artifact or the storage quota has its own file deleted
 and its task refused; no existing artifact is deleted to make room.
 

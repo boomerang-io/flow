@@ -21,15 +21,15 @@ closed `RunStatus` enum.
 
 ## Decision
 
-`start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:306-312`); a child run, a fired schedule and
+`start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:353-359`); a child run, a fired schedule and
 webhook and event triggers start too (`engine/TaskExecutionService.java:1388`, `schedule/ScheduleJob.java:76`,
 `flow.workflowrun.auto-start-on-submit`). A run without a workspace starts at once; one with a workspace stays pending
-until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:792-808`, decision 0025). A workflow
+until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:856-894`, decision 0025). A workflow
 carries `concurrency: {limit, overflow}` (`common/model/WorkflowConcurrency.java:18-19`): at admission the engine counts
 its runs in `ready` or `running` on `workflow_ref_status`, at the limit parks the run as `waiting/pending` with a message
 or, with `overflow: skip`, completes it `cancelled` with `ConcurrencyLimit`, and after admitting recounts and steps back a
-run not among the oldest `limit` (`engine/WorkflowExecutionService.java:91-116`, `:135-165`,
-`engine/WorkflowRunStateHelper.java:181-217`). A run's completion re-admits the oldest parked run
+run not among the oldest `limit` (`engine/WorkflowExecutionService.java:95-118`, `:138-172`,
+`engine/WorkflowRunStateHelper.java:168-225`). A run's completion re-admits the oldest parked run
 (`engine/ConcurrencyAdmissionListener.java:33-55`); the `readmitParkedRuns` sweep is the fallback.
 
 ## Consequences

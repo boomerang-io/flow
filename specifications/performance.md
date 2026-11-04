@@ -40,7 +40,7 @@ global parameter, workspace, setting, workflow and revision write calls `evictAl
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:235,333,646`,
 `core/SettingsService.java:186,208`, `workflow/WorkflowService.java:1631,2048`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
-secured values uncached (`workflow/ParamLayerService.java:201-214`).
+secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
 ## Queue fairness and the indexes behind it
 
@@ -50,7 +50,7 @@ starve fresh work and a burst of one workflow's tasks cannot jump the queue.
 dispatcher's registered types, `claim.by` absent, and `retry.after` absent or elapsed, narrowed by the poll's
 task and workflow filters, sorted by `creationDate`, projected to `_id` and `timeout`, then claims each candidate
 by CAS (page-then-CAS, `dispatcher/DispatcherService.java:428-440`). Backoff is one generic class: 10 s base,
-doubling per attempt, 5 min ceiling, up to 5 s jitter (`common/util/Backoff.java:12-22`), with a budget of 3
+doubling per attempt, 5 min ceiling, up to 5 s jitter (`common/util/Backoff.java:15-34`), with a budget of 3
 requeues (`engine/EngineConstants.java:43`).
 
 A for-each task adds up to `max.foreach.items` (default 256, `service-core/src/main/resources/seed/settings.json`)
@@ -68,7 +68,7 @@ second scale with its pools × 1000 / the interval. Admitting a task wakes the t
 whose filter can claim it, by type and, when the poll filtered on them, task and workflow, and each re-runs its claim
 page at once; submitting a run with a workspace to start wakes the workflow polls alone
 (`dispatcher/PollWakeups.java:41-160`, `engine/TaskExecutionService.java:278-280`,
-`workflow/WorkflowRunService.java:820`, `dispatcher/DispatcherService.java:397-400`, `:562-584`): one indexed query
+`workflow/WorkflowRunService.java:886-889`, `dispatcher/DispatcherService.java:397-400`, `:562-584`): one indexed query
 per admission per poll that can claim the task, none for the others and none while nothing is admitted, so a
 dispatcher holding eight typed pools costs one find per admission, not eight
 (`DispatcherRequestDatabaseCommandsTest.anAdmissionWakesOnlyThePollsWhoseFilterMatches`). The two termination
@@ -105,7 +105,7 @@ Indexes come only from migration change units: `_0021__Indexes` holds the invent
 | --- | --- | --- | --- |
 | `claim_page` | `task_runs {type, status, phase, claim.by, creationDate}` | `:58-62` | `claimableQuery` and its sort (a claimable task run has no `claim.by`, which the index holds as null); the two termination pages, which ask for a string `claim.by` and so read only held task runs: 3 documents for 3 held among 2,003 cancelled, where the earlier keys read all 2,003 (`ClaimIndexQueryPlanTest`) |
 | `node_uniqueness` (unique) | `task_runs {workflowRunRef, name}` | `:68-72` | One TaskRun per DAG (directed acyclic graph) node; duplicate creation fails at insert |
-| `run_tasks` | `task_runs {workflowRunRef, status, name}` | `:63` | A run's task runs; the Insights reads of a period's task runs and its one usage aggregation per response, matched on the counted runs' ids (`workflow/WorkflowRunInsightService.java:331,375,450`) |
+| `run_tasks` | `task_runs {workflowRunRef, status, name}` | `:63` | A run's task runs; the Insights reads of a period's task runs and its one usage aggregation per response, matched on the counted runs' ids (`workflow/WorkflowRunInsightService.java:526,570,645`) |
 | `timeout_sweep`, `wait_sweep` (sparse) | `task_runs {timeoutAt}`, `{waitUntil}` | `:65-66` | `reapTaskTimeouts`, `resumeDueWaitingTasks` |
 | `claimed_sweep` | `task_runs {phase, claim.at}` | `:67` | `reapClaimsFromGoneDispatchers` |
 | `parent_index` (sparse) | `task_runs {parentRef, index}` | `:74` | A for-each parent's items: an item end's `exists` and `count`, and the last end's projected load |
@@ -121,14 +121,14 @@ Indexes come only from migration change units: `_0021__Indexes` holds the invent
 Every sweep runs on every instance with a random start offset; correctness never depends on ticks not
 colliding. The sweeps' paged queries carry `maxTimeMsec(5000)` so a slow database cannot hang the sweeper
 (`engine/TaskRunService.java:656,689,707,723,896`, `engine/SweepCursor.java:77-82`,
-`engine/WorkflowRunStateHelper.java:119,311,390`), and each sweep runs isolated, so a timeout in one does not stop
+`engine/WorkflowRunStateHelper.java:121,255,463,527,542`), and each sweep runs isolated, so a timeout in one does not stop
 the rest (`engine/WorkflowWatcher.java:178-198`).
 
 | Sweeper | Property (default) | Start jitter | Page | Notes |
 | --- | --- | --- | --- | --- |
 | `DueWaitPoller` (`engine/DueWaitPoller.java:21`) | `flow.watcher.wait-interval-ms` (1000); same `flow.watcher.enabled` switch | none | 50 | `resumeDueWaitingTasks` on its own virtual thread, not the scheduler's: due sleeps and `acquirelock` retries end within about a second. One query on the sparse `wait_sweep` index a second per instance, usually empty; a resume holds the wait with a 60 s lease on `waitUntil` |
-| `WorkflowWatcher.sweep` (16 sweeps, `engine/WorkflowWatcher.java:172-198`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:168-171`) | 50 (`engine/EngineConstants.java:19`) | Stall grace 60 s (`WorkflowWatcher.java:59`); dispatcher declared gone after 60 s without a poll (`:87`) and its registration deleted after 7 days (`:93`, `:534`); a provisioning claim released after the grace, the run failed on its third (`:75,117-120`). The stalled-run, for-each and stray-action sweeps resume after the last row they read, so rows they leave alone do not hide the ones behind (`engine/SweepCursor.java:35-60`); the gone-dispatcher reap reads the live dispatchers once and pages only the other dispatchers' claims (`WorkflowWatcher.java:504-527`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finish (`workflow/WorkflowRetentionService.java:137`) |
-| `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`engine/WorkflowWatcher.java:218-223`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`workflow/WorkflowRetentionService.java:52`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60, `WorkflowRetentionService.java:44-48`) are purged with their task runs, actions, artifacts (stored logs included) and relationship node (`WorkflowRetentionService.java:97-128,194-201`); two lineage checks per candidate, `existsByInitiatedByRef` on the run id and `existsByInitiatedByRefIn` on its task-run ids (read by id only on `run_tasks`), both on the `initiated_by_phase` index |
+| `WorkflowWatcher.sweep` (16 sweeps, `engine/WorkflowWatcher.java:172-198`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:168-171`) | 50 (`engine/EngineConstants.java:19`) | Stall grace 60 s (`WorkflowWatcher.java:59`); dispatcher declared gone after 60 s without a poll (`:87`) and its registration deleted after 7 days (`:93`, `:534`); a provisioning claim released after the grace, the run failed on its third (`:75,117-120`). The stalled-run, for-each and stray-action sweeps resume after the last row they read, so rows they leave alone do not hide the ones behind (`engine/SweepCursor.java:35-60`); the gone-dispatcher reap reads the live dispatchers once and pages only the other dispatchers' claims (`WorkflowWatcher.java:504-527`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finish (`workflow/WorkflowRetentionService.java:257-290`) |
+| `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`engine/WorkflowWatcher.java:218-223`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`workflow/WorkflowRetentionService.java:61`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60, `WorkflowRetentionService.java:53-57`) are purged with their task runs, actions, artifacts (stored logs included) and relationship node (`WorkflowRetentionService.java:208-248,314-322`); two lineage checks per candidate, `existsByInitiatedByRef` on the run id and `existsByInitiatedByRefIn` on its task-run ids (read by id only on `run_tasks`), both on the `initiated_by_phase` index |
 | `AuditRetentionService.reapplyOnChange` (`core/audit/AuditRetentionService.java:56-65`) | `flow.audit.retention-interval-ms` (60000) | none | none | Reads the `audit` settings document and runs `collMod` on the `createdAt_ttl` index only when the floored `retentionDays` differs from what this instance last applied, so a change made through the settings API reaches every instance within one interval without a restart; a failed apply is retried on the next tick. One indexed read a minute per instance |
 | `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:65-67`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:37`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:34-37`) | up to 5 s (`:64-66`) | 50 | 3 delivery attempts, then the row is marked dead (`:43`) |
@@ -157,7 +157,7 @@ them: Boot's virtual-thread `applicationTaskExecutor` backs off whenever the con
 | Bean | Where | Carries |
 | --- | --- | --- |
 | `asyncTaskExecutor` | `engine/config/AsyncConfig.java:20-23` | Task-run transitions (`engine/TaskExecutionService.java:146`), audit writes (`core/audit/AuditEventWriter.java:27`) |
-| `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | The workflow-run timeout (`engine/WorkflowExecutionService.java:211-212`) |
+| `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | The workflow-run timeout (`engine/WorkflowExecutionService.java:360-363`) |
 | `logStreamExecutor` | `core/config/AsyncConfiguration.java:24-30` | The default `@Async` executor, and Spring MVC's async dispatch — a log stream parks its thread for the life of the stream |
 | `applicationTaskExecutor` (dispatcher) | `service-dispatcher/src/main/java/io/boomerang/config/ThreadConfig.java:32-39` | The dispatcher's one `@Async` method, `TaskService.deleteTaskRun` |
 | Dispatcher SDK work | `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:85-86` | One virtual thread per claimed task (start, handler, end report) and per workflow run to provision; the polls and the heartbeat have virtual threads of their own (`QueuePoller.java:68`, `Dispatcher.java:378-380`) |
@@ -222,7 +222,7 @@ trust-all templates use the HTTP client's default pool; keep-alive 5 min for all
 async request timeout two hours for a streamed response, so a running task's log is followed for that long, on
 both core (`:72`) and the dispatcher (`service-dispatcher/src/main/resources/application.properties:6`). It
 reaches only the three routes that answer asynchronously: core's task log and artifact download and the
-dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/WorkspaceArtifactControllerV2.java:88`,
+dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/WorkspaceArtifactControllerV2.java:85`,
 `service-dispatcher/src/main/java/io/boomerang/dispatcher/LogV1Controller.java:20`); the dispatcher queue's long
 polls are synchronous and keep their 30 s hold. A log the dispatcher has sent nothing on for 10 minutes ends at the
 streaming template's read timeout, with a closing line to the reader (`engine/LogClient.java:133-139`). A
@@ -240,7 +240,7 @@ run submit and retry, and artifact upload; nothing in the engine path re-checks 
 before the create, so a workspace at its limit takes no more (`QuotaService.java:297-312`). With quotas on, a submit
 queues the run un-started, recounts, and discards a run that pushed a count over; one admitted is then released as a
 started run is: a run with a workspace takes its deadline from its creation and waits for the dispatcher, one with none
-starts (`workflow/WorkflowService.java:764-795`, `workflow/WorkflowRunService.java` `release`). The stored
+starts (`workflow/WorkflowService.java:775-809`, `workflow/WorkflowRunService.java` `release`). The stored
 `features.workspaceQuotas` setting switches every check but one (`QuotaService.java:94-99`): the run-duration
 ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
 (`QuotaService.java:192-202`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
@@ -255,15 +255,15 @@ A check finds the workspace by id, else by name ignoring case (`workspace/reposi
 `QuotaService.java:126-136,195-206,214-216`): an API path names it, while a schedule, a webhook or a GitHub trigger
 passes the id its workflow's `hasWorkflow` edge yields. Usage is counted under the workspace's own name, the key its
 audit events carry, whatever form the caller used (`QuotaService.java:222-225`). A workflow no workspace owns has no
-workspace quota and passes the run checks (`QuotaService.java:321-349,356-377`).
+workspace quota and passes the run checks (`QuotaService.java:322-350,357-378`).
 
 | Quota (settings key, `QuotaService.java:57-62`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:485`, `QuotaService.java:297-314` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:756,782`, `workflow/WorkflowRunService.java:1063`, `QuotaService.java:321-349,356-377` |
-| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:582-601`, `QuotaService.java:126-136,385-395` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2127`, `workflow/WorkflowRunService.java:1064`, `QuotaService.java:195-206` |
-| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:256-265,324-335,682-693`, `QuotaService.java:279-292` |
+| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:485`, `QuotaService.java:297-315` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:756,782`, `workflow/WorkflowRunService.java:1101-1104`, `QuotaService.java:322-350,357-378` |
+| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:582-601`, `QuotaService.java:126-136,386-396` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2119-2124`, `workflow/WorkflowRunService.java:1104-1110`, `QuotaService.java:195-206` |
+| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:279-292` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:222-272`).
 Concurrent = the live count of non-terminal runs (`notstarted`/`ready`/`running`/`waiting`, `:65-66`) over the
@@ -298,7 +298,7 @@ Per run, the dispatcher creates at most one persistent volume claim, keyed by th
 cluster default class, `ReadWriteMany` (`service-dispatcher/src/main/resources/application.properties:46-48`),
 with a 30 s wait for the claim to reach `Bound` or `Pending`
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeServiceImpl.java:160,167-172`). Both executors mount the
-same claim (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:283-305`); a completed run's
+same claim (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:321-345`); a completed run's
 claim is deleted by the dispatcher's reconciliation, which asks the engine which of the runs it holds volumes for
 are finished (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkspaceReconciler.java:57-72`,
 `dispatcher/DispatcherService.java:596-619`). Nothing is shared between runs; files kept for later runs are
@@ -333,13 +333,13 @@ speculation. The laptop baseline above is not that test.
 
 | Not built | What exists instead | Reopen when |
 | --- | --- | --- |
-| Per-class or per-type concurrency caps on tasks | A workflow bounds its own runs at admission (`concurrency.limit`, `engine/WorkflowExecutionService.java:91-116`, two counts on `workflow_ref_status`); `claimableQuery` selects by task type and the poll's filters with no cap per type (`engine/TaskRunService.java:130-154`); a dispatcher caps only its own total | Load testing shows one task type starving others or overrunning the cluster |
+| Per-class or per-type concurrency caps on tasks | A workflow bounds its own runs at admission (`concurrency.limit`, `engine/WorkflowExecutionService.java:95-118`, two counts on `workflow_ref_status`); `claimableQuery` selects by task type and the poll's filters with no cap per type (`engine/TaskRunService.java:130-154`); a dispatcher caps only its own total | Load testing shows one task type starving others or overrunning the cluster |
 | A per-task resource request or limit | Six deployment-wide `kube.resource.*` values sized by the operator and applied to every task container this dispatcher runs (`service-dispatcher/src/main/java/io/boomerang/executor/TaskResourceResolver.java:48-63`), the same per-deployment shape as the isolation tier (`dispatcher-kubernetes.md`) | A deployment genuinely needs mixed sizing behind one dispatcher, rather than a second dispatcher deployment with its own task types |
 | Per-class kill switches | One global `flow.queue.enabled` that stops claiming only | An incident needs one class stopped while others run |
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
-| Per-class retry policies (a rate-limit backoff of the engine's own, a per-reason selector) | One `Backoff` shape, parameterised by a task node's `retry.backoff`; a node's `retry.max` retries every reported failure except the fixed `NOT_RETRIABLE` list, and the three could-not-start reasons keep the engine's budget (`common/model/StatusReason.java:45-64`, `engine/TaskRunService.java:1178-1228`) | A runtime whose rate-limit signal needs a different backoff from the shared one, or a dispatcher whose reasons separate transient from final failures |
-| A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:455-473`, `service-dispatcher/src/main/java/io/boomerang/executor/JobWatcher.java:23-33`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
-| A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by the admissions on its own instance that its filter can claim (`dispatcher/PollWakeups.java:34-110`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:73-75`, `:562-584`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
+| Per-class retry policies (a rate-limit backoff of the engine's own, a per-reason selector) | One `Backoff` shape, parameterised by a task node's `retry.backoff`; a node's `retry.max` retries every reported failure except the fixed `NOT_RETRIABLE` list, and the three could-not-start reasons keep the engine's budget (`common/model/StatusReason.java:52-74`, `engine/TaskRunService.java:1178-1228`) | A runtime whose rate-limit signal needs a different backoff from the shared one, or a dispatcher whose reasons separate transient from final failures |
+| A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:506-545`, `service-dispatcher/src/main/java/io/boomerang/executor/JobWatcher.java:23-35`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
+| A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by the admissions on its own instance that its filter can claim (`dispatcher/PollWakeups.java:41-158`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:73-75`, `:562-584`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`engine/TaskRunService.java:228-237`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
 | A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` (15, `service-dispatcher/src/main/resources/application.properties:40`) is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 
