@@ -60,7 +60,7 @@ the build stage, and the release workflow builds nothing on the runner first.
 
 `docker-compose.yml` is the local stack: MongoDB (in the `mongo_data` volume, kept until
 `docker compose down -v`), a local IDPZero OIDC provider for real sign-in, SeaweedFS as the S3-compatible
-artifact store, and two one-shot seeds that point the settings at them. Every image builds from a clean
+artifact store, and a one-shot seed that points a setting at them (service-core takes the sign-in provider from `FLOW_AUTH_OIDC_ISSUER` and `FLOW_AUTH_OIDC_CLIENT_ID`). Every image builds from a clean
 checkout: the Java Dockerfiles run Maven in a build stage and `client-web`'s runs pnpm, so nothing is built
 on the host first. Published `boomerangio/*` images are the v4 line and will not match this branch.
 
@@ -97,7 +97,7 @@ in `specifications/authorization.md`.
 ### Developing: the services on the host, the rest in Docker
 
 ```bash
-docker compose up -d                                                        # Mongo, IDPZero, SeaweedFS, seeds
+docker compose up -d                                                        # Mongo, IDPZero, SeaweedFS, seed
 export JAVA_HOME=$(/usr/libexec/java_home -v 25)
 mvn -pl service-core -am spring-boot:run -Dspring-boot.run.profiles=local   # the API + engine on :7700
 cd client-web && pnpm install && pnpm dev                                   # the webapp on :3000, hot reload
@@ -105,7 +105,7 @@ cd client-web && pnpm install && pnpm dev                                   # th
 
 The `local` Spring profile (`service-core/src/main/resources/application-local.properties`) carries the
 stack's addresses and the same local-only encryption keys the stack uses, so one database serves both
-ways of running. The seeds wait for `service-core` to migrate the database, wherever it runs.
+ways of running. The seed waits for `service-core` to migrate the database, wherever it runs.
 
 `pnpm dev` is React Router's dev server: a change to the frontend is live in the browser without a
 rebuild, and its loaders call `service-core` on the host at http://localhost:7700 unless

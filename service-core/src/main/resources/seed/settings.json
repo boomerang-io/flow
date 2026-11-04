@@ -523,7 +523,7 @@
           "readOnly": false
         },
         {
-          "description": "Days audit events are retained before expiry. Applied to the TTL index at startup; floored at 60 days because monthly quota counting needs at least one month of events.",
+          "description": "Days audit events are retained before expiry. Applied to the TTL index at startup and within about a minute of a change, on every instance; floored at 60 days because monthly quota counting needs at least one month of events.",
           "key": "retentionDays",
           "label": "Retention Days",
           "type": "number",

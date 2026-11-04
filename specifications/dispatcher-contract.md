@@ -76,6 +76,13 @@ whole on every registration (`dispatcher/DispatcherService.java:138-170`). A tas
 dropped (`common/enums/TaskType.java:55-60`). A dispatcher registered for no task types is answered 204 on every
 task poll (`dispatcher/DispatcherService.java:350-353`).
 
+Register, heartbeat and every poll refresh `lastConnectedDate` (`dispatcher/DispatcherService.java:170,207,217`). A
+dispatcher silent for 60 s is gone and its claims are reaped (`execution-model.md`, "The watcher sweeps"); after 7 days
+its registration is deleted (`engine/WorkflowWatcher.java:93,534-546`), so replicas replaced on each deploy do not pile
+up. Nothing else needs the record: the dispatcher token is shared, claims and attempts only carry the id, and a gone
+dispatcher's task has no live log route (`engine/LogClient.java:63-79`). With `flow.queue.enabled=false` polls do not
+refresh it, so an idle dispatcher may expire during a week-long switch; it registers again on its next call.
+
 ## Polling
 
 Both queue routes are long polls. The engine holds the request for up to 30 s, looks for claimable work whenever a
@@ -193,18 +200,14 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
   `dispatcherRef` is not fenced, so a dispatcher MUST send it.
 - `results` SHOULD carry only the result names the task declares; the engine merges what arrives by name, and the
   caps below bound its size.
-- `retryable` is the dispatcher's own judgement of a failure: `false` marks it final, and the engine never requeues
-  it, whatever the reason or the node's `retry` setting (`common/model/TaskRunEndRequest.java:37`,
-  `engine/TaskRunService.java:1179`); absent or `true` leaves the engine's rules to decide. A dispatcher that
-  classifies failures itself, a refused request or a bad credential against a transient reset, sends `false` for
-  the final ones and lets the node's budget carry the rest, so every retry is the engine's and every attempt is on
-  the run.
+- `retryable: false` marks a failure final: the engine never requeues it, whatever the reason or the node's `retry`
+  (`common/model/TaskRunEndRequest.java:37`, `engine/TaskRunService.java:1179`); absent or `true` leaves the engine's
+  rules to decide, so every retry is the engine's and every attempt is on the run.
 - `statusReason` is one of the engine's known reasons (`common/model/StatusReason.java`), of which the SDK's
   `StatusReason` is the subset a dispatcher sends (`StatusReasonTest`); any other value is an ordinary failure. Five
-  mean the task did not run to an end: the engine requeues it with backoff, on the same budget of three more attempts
-  as a timed-out claimant, and fails it with that reason once the budget is spent (`common/model/StatusReason.java:53-59`,
-  `engine/TaskRunService.java:1189-1207`). The requeue keeps the claim, so the next attempt waits for the termination
-  order, which removes any work left behind (`:287-302`):
+  mean the task did not run to an end and are requeued with backoff on the timed-out claimant's budget of three, then
+  failed (`common/model/StatusReason.java:53-59`, `engine/TaskRunService.java:1189-1207`); the requeue keeps the claim,
+  so the next attempt waits for the termination order that removes any work left behind (`:287-302`):
 
 | Reason | Send when |
 | --- | --- |
@@ -214,18 +217,16 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 | `ClusterUnavailable` | The runtime's control plane could not be reached (a timeout, a refused connection, a 5xx), whether the call was a create or a watch |
 | `DispatcherStopping` | The dispatcher is stopping and never started the claim (the SDK sends it, "Leases and heartbeat") |
 
-**Caps.** The params cap is the engine's, identical on every dispatcher. The results limit belongs to the dispatcher
-that runs the task (`dispatcher-kubernetes.md`, "Results on Kubernetes"); the engine's results setting is only a
-storage guard, so a faulty dispatcher cannot grow a task run toward MongoDB's 16 MB document limit.
+**Caps.** The params cap is the engine's. The results limit is the dispatcher's (`dispatcher-kubernetes.md`, "Results
+on Kubernetes"); the engine's results setting only guards storage against MongoDB's 16 MB document limit.
 
 | Cap | Property (`service-core/src/main/resources/application.properties:187-188`) | Where checked | Effect |
 | --- | --- | --- | --- |
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`engine/TaskExecutionService.java:211-226`) | The task ends `invalid` with a `PARAMS_TOO_LARGE` message and never becomes claimable |
 | Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`engine/TaskRunService.java:1037-1051`) | Status becomes `failed` with a `RESULTS_TOO_LARGE` message and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
 
-Each item of a for-each task is capped like any task; the parent's results are the items' values collected into
-arrays by the engine, with no cap of their own (`engine/TaskExecutionService.java:792-837`). When MongoDB refuses the
-combined arrays as over 16 MB, the parent fails with `statusReason=ResultsTooLarge` and no results (`:479-489`).
+A for-each item is capped like any task; the parent collects the items' values into arrays with no cap of its own
+(`engine/TaskExecutionService.java:792-837`), and fails `ResultsTooLarge` if MongoDB refuses them as over 16 MB (`:479-489`).
 
 ## Leases and heartbeat
 
@@ -238,12 +239,10 @@ dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:74`)
 (`execution-model.md`, "Timeouts and crash recovery"); the lease catches a dispatcher that crashes and comes back under
 the same id within that minute, whose heartbeats no longer list the claims it lost.
 
-A dispatcher that stops SHOULD end each claim it never started `failed` with `DispatcherStopping`, which the engine
-requeues at once on the same budget and backoff (10 s to 15 s for the first) instead of after the lease. The SDK does
-this for every claim that arrives once it is stopping and every claim still unstarted when its drain gives up. A poll
-in progress is not cut off, since the engine may have claimed for it: the stop waits for it within the drain timeout
-and hands back what it returns. A poll still held at the timeout is abandoned, and a claim made for it afterwards
-waits out its lease; a drain of 30 s or more closes that (`sdk/Dispatcher.java:140-201`, `sdk/TaskRunner.java:181-229`).
+A stopping dispatcher SHOULD end each claim it never started `failed`/`DispatcherStopping`, requeued after the
+backoff (10-15 s) rather than the lease. The SDK does so for claims arriving after the stop and those unstarted when
+the drain ends; it waits for a poll in progress within the drain and hands back what it returns, and only a claim made
+for a poll still held at the timeout waits out its lease (`sdk/Dispatcher.java:140-201`, `sdk/TaskRunner.java:181-229`).
 
 ## Logs
 
@@ -261,14 +260,11 @@ While the task runs, the live route answers; a log stored during this attempt, a
 (`engine/TaskRunService.java:1225-1230`), answers instead when the claim's dispatcher registered no `logsUrl` or its
 route fails before answering (`engine/LogClient.java:145-152`). So a mid-run snapshot never hides the live stream, a
 requeued task never serves its earlier attempt's log, and a stream that fails part way is not restarted from the
-stored copy. With no stored copy to fall back on, an unreachable or refusing route is a 200 whose body says so and
-that a stored copy, if one is kept, shows once the task ends (`:51-53`, `:153-155`), and a
-stream that fails after the dispatcher answered ends with a line saying it was cut off (`:55-57`, `:140-144`); both are
-logged at warn with the cause, and neither is an error response.
-Once the task has ended, the stored log answers; without one, the live route.
+stored copy. With no stored copy, an unreachable or refusing route answers 200 with a line saying so (`:51-53`,
+`:153-155`) and a stream that breaks after answering ends with a cut-off line (`:55-57`, `:140-144`), both logged at
+warn. Once the task has ended, the stored log answers; without one, the live route.
 
-A dispatcher SHOULD upload before it reports the end, so the log is in place when the task shows as finished, and MAY
-both serve live and upload; Flow's Kubernetes dispatcher does both (`dispatcher-kubernetes.md`, "Flow's dispatcher").
+A dispatcher SHOULD upload before it reports the end and MAY also serve live, as Flow's Kubernetes dispatcher does.
 
 A live route MUST write each line as the task writes it and get it onto the network, never collect the body first.
 Spring 7 does not pass a `StreamingResponseBody`'s `flush()` to the network, so core's log route flushes the servlet
@@ -378,8 +374,8 @@ environment variable on a Kubernetes pod, readable by anyone who can read the po
 Every error is the engine's standard body (`CLAUDE.md`, "API errors") except one: the authentication filter's bare
 401. A registration without a host is `400 DISPATCHER_INVALID_REQ` (`dispatcher/DispatcherService.java:139-141`). A
 poll or heartbeat under an id the engine does not hold is `404 DISPATCHER_NOT_REGISTERED` (`:214-216`, `:244-246`,
-`:346-348`): nothing deletes a registration, so the id goes unknown when the database is reset under a running
-dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
+`:346-348`): the id goes unknown when the registration expired after 7 days without a connection, or when the database
+is reset under a running dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
 backoff; no other error re-registers (`sdk/Dispatcher.java:211-240`).
 
 ## SDK

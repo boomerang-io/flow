@@ -19,6 +19,10 @@ import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -34,14 +38,17 @@ public class SettingsService {
   private final SettingsRepository settingsRepository;
   private final SecretCipher secretCipher;
   private final ParamLayerCache paramLayerCache;
+  private final MongoTemplate mongoTemplate;
 
   public SettingsService(
       SettingsRepository settingsRepository,
       SecretCipher secretCipher,
-      ParamLayerCache paramLayerCache) {
+      ParamLayerCache paramLayerCache,
+      MongoTemplate mongoTemplate) {
     this.settingsRepository = settingsRepository;
     this.secretCipher = secretCipher;
     this.paramLayerCache = paramLayerCache;
+    this.mongoTemplate = mongoTemplate;
   }
 
   /**
@@ -189,6 +196,30 @@ public class SettingsService {
 
     this.settingsRepository.save(configuration);
     paramLayerCache.evictAll();
+  }
+
+  /**
+   * Set a plain (not secured) entry only while it is empty, as one conditional update, so
+   * instances starting together and a value an admin has set are never overwritten. Returns whether
+   * this call wrote it.
+   */
+  public boolean setIfEmpty(String group, String key, String value) {
+    Query query =
+        Query.query(
+            Criteria.where("key")
+                .is(group)
+                .and("config")
+                .elemMatch(Criteria.where("key").is(key).and("value").in(null, "")));
+    Update update =
+        new Update()
+            .set("config.$.value", value)
+            .set("lastModiifed", DateUtil.asDate(LocalDateTime.now()));
+    boolean written =
+        mongoTemplate.updateFirst(query, update, SettingEntity.class).getModifiedCount() > 0;
+    if (written) {
+      paramLayerCache.evictAll();
+    }
+    return written;
   }
 
   private void setEncryptedValues(SettingEntity configuration) {
