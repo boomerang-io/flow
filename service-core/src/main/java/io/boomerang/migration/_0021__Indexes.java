@@ -45,7 +45,7 @@ public class _0021__Indexes {
   private static final Set<String> TERMINAL_STATUSES =
       Set.of("succeeded", "failed", "invalid", "skipped", "cancelled", "timedout");
 
-  /** Audit events expire after a year; {@code AuditRetentionService} re-tunes it at startup. */
+  /** Audit events expire after a year; {@code AuditRetentionService} re-tunes it from the setting. */
   static final long AUDIT_RETENTION_DAYS = 365;
 
   record Index(String collection, String name, Document keys, IndexOptions options) {}
