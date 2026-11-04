@@ -26,7 +26,7 @@ claiming and never the sweeps (`dispatcher/DispatcherService.java:69-71`, `:259-
 doubling, 5 min ceiling, up to 5 s jitter: `common/util/Backoff.java:15-34`) for the task queue, the outbox and schedule
 re-arming, with three requeues (`engine/EngineConstants.java:43`); `RunRetry` holds only `after` and `count`
 (`common/model/RunRetry.java:21-22`). A retried workflow run is a new run pointing back at its origin
-(`workflow/WorkflowRunService.java:1112-1119`, `:1136-1141`), and `TaskExecutionService.advance` re-applies the graph from
+(`workflow/WorkflowRunService.java:1072-1079`, `:1136-1141`), and `TaskExecutionService.advance` re-applies the graph from
 persisted state as the reconcile (`engine/TaskExecutionService.java:790-820`). No measured need asks for more.
 
 ## Consequences
