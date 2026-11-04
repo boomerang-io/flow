@@ -167,9 +167,16 @@ class ActivationTest {
 
   @Test
   void behindAProxyAWrongOrMissingCodeCreatesNobody() throws Exception {
-    activate("{\"otc\":\"wrong\"}").andExpect(status().isBadRequest());
-    activate("{}").andExpect(status().isBadRequest());
-    activate("").andExpect(status().isBadRequest());
+    activate("{\"otc\":\"wrong\"}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.reason").value("AUTH_ACTIVATION_CODE_INVALID"))
+        .andExpect(jsonPath("$.message").value("The activation code is not correct."));
+    activate("{}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.reason").value("AUTH_ACTIVATION_CODE_INVALID"));
+    activate("")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.reason").value("AUTH_ACTIVATION_CODE_INVALID"));
 
     assertThat(userRepository.count()).isZero();
   }

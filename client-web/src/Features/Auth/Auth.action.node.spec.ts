@@ -227,6 +227,38 @@ describe("callback loader --- Node SSR", () => {
     expect(setCookies.find((cookie) => cookie.startsWith("flow_oauth2"))).toMatch(/expires=thu, 01 jan 1970/i);
   });
 
+  it("shows the server's own message when the install does not admit the person", async () => {
+    useOidcConfig();
+    const message = "You are not a user of this Flow install. Ask an admin to add you to a workspace.";
+    server.use(
+      http.post(`${ISSUER}/token`, () => HttpResponse.json({ id_token: "eyJ.fake-id-token.sig" })),
+      http.post(`${INTERNAL_ORIGIN}/internal/v1/auth/exchange`, () =>
+        HttpResponse.json({ code: 1008, reason: "AUTH_USER_NOT_ADMITTED", message }, { status: 403 }),
+      ),
+    );
+
+    const { state, cookieHeader } = await runSignin();
+    const result = await runCallback(`?code=the-code&state=${state}`, cookieHeader);
+
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { error: string }).error).toBe(message);
+  });
+
+  it("keeps the identity-provider text for any other exchange failure", async () => {
+    useOidcConfig();
+    server.use(
+      http.post(`${ISSUER}/token`, () => HttpResponse.json({ id_token: "eyJ.fake-id-token.sig" })),
+      http.post(`${INTERNAL_ORIGIN}/internal/v1/auth/exchange`, () =>
+        HttpResponse.json({ code: 1002, reason: "AUTH_TOKEN_INVALID", message: "no" }, { status: 403 }),
+      ),
+    );
+
+    const { state, cookieHeader } = await runSignin();
+    const result = await runCallback(`?code=the-code&state=${state}`, cookieHeader);
+
+    expect((result as { error: string }).error).toMatch(/identity provider/i);
+  });
+
   it("refuses a callback when no sign-in is in progress in this browser", async () => {
     useOidcConfig();
     let tokenCalls = 0;

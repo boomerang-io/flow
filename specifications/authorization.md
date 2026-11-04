@@ -91,7 +91,7 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | Install | Auto-create users | Claim configured | Identity | Result |
 | --- | --- | --- | --- | --- |
 | has users | on | no | unknown | registered as a user (today's behaviour) |
-| has users | off | no | unknown | refused, `403`; the webapp's sign-in answers `AUTH_USER_NOT_ADMITTED` (`core/security/AuthExchangeService.java:149-158`) |
+| has users | off | no | unknown | refused, `403`; the webapp's sign-in answers `AUTH_USER_NOT_ADMITTED` (`core/security/AuthExchangeService.java:149-158`) and its callback screen shows the server's message |
 | has users | off | no | added by an admin | admitted and activated |
 | has users | off | yes | unknown, verdict `true` | created as an admin |
 | has users | off | yes | unknown, verdict `false` or none | refused |
@@ -119,7 +119,7 @@ first admin or something else names them (the second table).
 
 | Path | What the code does |
 | --- | --- |
-| `PUT /api/v2/activate` behind a proxy | the filter reads the body (replayed for the controller) before it resolves an identity; on an empty install a wrong, missing or oversized (over 4 KB) body is answered `400` and nobody is created, the right code lets the filter register the caller as the first admin and marks the request so the controller accepts it (`AuthenticationFilter.java:121-134,219-220`) |
+| `PUT /api/v2/activate` behind a proxy | the filter reads the body (replayed for the controller) before it resolves an identity; on an empty install a wrong, missing or oversized (over 4 KB) body is answered `400 AUTH_ACTIVATION_CODE_INVALID` in the standard error shape (as the exchange does) and nobody is created, the right code lets the filter register the caller as the first admin and marks the request so the controller accepts it (`AuthenticationFilter.java:121-134,219-220`) |
 | any other proxy route on an empty install | `423 Locked`, which the webapp reads as "show the activation screen" (`TokenService.java:663-665`) |
 | `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-158`); a person the install does not admit is `AUTH_USER_NOT_ADMITTED` (`403`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
 | an activated install | the code is not read; sign-in is as in the table above |
@@ -177,27 +177,27 @@ token. It registers whether or not security is on. Being a `global` token, it is
 admits only `user` and `session` tokens (`workspace/ProfileControllerV2.java:54,78`), so the webapp cannot sign in with it.
 
 **Declared tokens.** `flow.security.tokens.<name>.*` declares narrower machine tokens so a hosted install needs no
-minting step. The map key is the name, so the environment form carries it:
-`FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS`, `_ACTORKIND`, `_DESCRIPTION`, `_EXPIRY` declare `dispatcher`.
-A name is 1 to 63 lowercase letters and digits and is not `bootstrap` (that is `FLOW_SECURITY_BOOTSTRAP_TOKEN`); a
-hyphen or underscore cannot be used because an underscore in a variable name becomes a dot. The binder lowercases the
-name from an environment variable and keeps a properties key as written, so an uppercase key is refused rather than
-folded. An entry has exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`), `permissions`, and optionally
-`description` and `expiry` (an ISO-8601 instant, or a date meaning the end of that day in UTC). `hash` is the
-lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256` on macOS), the form
-`TokenService.hashString` stores; `value` must be `bfg_` plus at least 32 characters, as for the bootstrap token. Either
-way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each permission is a `<resource>/<action>`
-string checked by `TokenService.assertValidPermissions` (as `POST /api/v2/token` does) and becomes one `global` grant, principal `**`. A bad entry fails the binding, so the start stops before the install
-serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not stop it: the token is stored and
-refused like any expired token. `DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under `declared-token:<name>`; an unchanged entry
-writes nothing, a changed one replaces the record and evicts the old hash (`core/security/DeclaredTokenService.java:58-106`).
-A minted token holding a configured token's value is deleted so the configured one takes it over, while two configured
-tokens (declared or bootstrap) sharing a value stop the start (`:113-132`); a value two stored tokens hold authenticates
-as neither, never a 500 (`core/TokenService.java:406-425`). A stored `declared-token:` id no longer configured is
-revoked, so a rotation is: add the new entry, roll the client, remove the old one. Every instance MUST carry the same
-`flow.security.tokens` entries: each revokes, at its start, the declared tokens its own configuration does not name.
-Declared tokens register whether or not security is on; `TokenService.delete` refuses their ids with `TOKEN_DECLARED`
-(409) (`core/TokenService.java:475-478`).
+minting step. The map key is the name, so the environment form carries it: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`,
+`_PERMISSIONS`, `_ACTORKIND`, `_DESCRIPTION`, `_EXPIRY` declare `dispatcher`. A name is 1 to 63 lowercase letters and
+digits and is not `bootstrap` (that is `FLOW_SECURITY_BOOTSTRAP_TOKEN`); a hyphen or underscore cannot be used because
+an underscore in a variable name becomes a dot. A properties key with uppercase is refused, not folded. An entry has
+exactly one of `hash` or `value`, `actor-kind` (default `SERVICE`), optional `permissions`, and `description` and
+`expiry` (an ISO-8601 instant, or a date meaning the end of that day in UTC). `hash` is the lowercase hex SHA-256 of the
+raw token (`printf %s "$RAW" | sha256sum`, or `shasum -a 256` on macOS); `value` must be `bfg_` plus at least 32
+characters, as for the bootstrap token. Either way the raw token the client sends must begin `bfg_` to pass the shape
+gate below. Each permission is a `<resource>/<action>` string checked by `TokenService.assertValidPermissions` (as `POST
+/api/v2/token` does) and becomes one `global` grant with principal `**`; with none the token holds no grant, so a route
+that needs a permission answers `403` and only the exempt dispatcher wire admits it. A bad entry fails the binding, so
+the start stops before the install serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not
+stop it; the token is refused like any expired one. `DeclaredTokenService` upserts each entry on `ApplicationReadyEvent`
+under `declared-token:<name>`; an unchanged entry writes nothing, a changed one replaces the record and evicts the old
+hash (`core/security/DeclaredTokenService.java:58-106`). A minted token holding a configured token's value is deleted so
+the configured one takes it over, while two configured tokens (declared or bootstrap) sharing a value stop the start
+(`:113-132`); a value two stored tokens hold authenticates as neither, never a 500 (`core/TokenService.java:406-425`). A
+stored `declared-token:` id no longer configured is revoked, so a rotation is: add the new entry, roll the client,
+remove the old one. Every instance MUST carry the same `flow.security.tokens` entries: each revokes, at its start, the
+declared tokens its own configuration does not name. Declared tokens register whether or not security is on, and
+`TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409) (`core/TokenService.java:475-478`).
 
 **OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
 sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,
@@ -360,9 +360,9 @@ minutes (`core/TokenService.java:68,434-455`). The token then becomes the reques
 bearer carries on `/api/v2` (`dispatcher/DispatcherAuthFilter.java:88-100`): `RelationshipService` sees a `global`
 caller and audit records name the dispatcher's token as the actor. That holds with security off too, because this
 chain runs ahead of the synthetic admin's. The chain's `SecurityContextHolderFilter` clears the identity when the
-request ends. `flow.dispatcher.auth.enabled=false` (default `true`,
-`service-core/src/main/resources/application.properties:69`) checks nothing, for local development, and the
-request acts as the synthetic admin of "Security off" (`dispatcher/DispatcherAuthFilter.java:66-71`).
+request ends. The token needs no grant, because the routes are exempt: a declared token with no `permissions` is
+enough. `flow.dispatcher.auth.enabled=false` (default `true`, `application.properties:69`) checks nothing, for local
+development, and the request acts as the synthetic admin of "Security off" (`dispatcher/DispatcherAuthFilter.java:66-71`).
 The chain's matcher is the only statement of which paths need the token: the filter keeps no path list of its
 own, and nothing else is served under the prefix. `DispatcherAuthTest` pins that a path under the prefix no
 handler serves still needs the token, and that `/api/v1/dispatcher` is not the dispatcher wire. The wire has its
