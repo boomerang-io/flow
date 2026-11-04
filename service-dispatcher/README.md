@@ -129,20 +129,25 @@ the kubeconfig is pointing to. If that kubeconfig context has no namespace set, 
 
 The dispatcher's ServiceAccount needs a namespace Role over what its executor creates, as the Helm chart's
 [rbac-role-dispatcher.yaml](https://github.com/boomerang-io/charts/blob/main/bmrg-flow/templates/rbac-role-dispatcher.yaml)
-grants it:
+grants it from chart 6.0.1:
 
 | Resource | Verbs |
 | --- | --- |
-| `batch/jobs` (`kube-jobs` executor) | create, get, list, watch, delete |
+| `batch/jobs` (`kube-jobs` executor) | create, get, list, watch, delete, deletecollection |
 | `pods` | get, list |
 | `pods/log` | get |
-| `persistentvolumeclaims`, `configmaps` | create, get, list, delete |
-| `tekton.dev/taskruns` (`tekton` executor) | create, get, list, watch, delete |
-| `tekton.dev/taskruns/status` (`tekton` executor, to cancel) | get, update, patch |
+| `persistentvolumeclaims` | create, get, list, watch, delete, deletecollection |
+| `configmaps` (`kube-jobs` executor) | create, deletecollection |
+| `tekton.dev/taskruns` (`tekton` executor) | create, get, list, watch, delete, deletecollection |
+| `tekton.dev/taskruns/status` (`tekton` executor, to cancel) | get, update |
+
+Cleanup deletes by label (`withLabels(..).delete()`), which the client sends as one collection delete, so
+RBAC checks `deletecollection`, not `delete`; without it, finished Jobs, ConfigMaps, TaskRuns and run
+volumes are refused with 403 and accumulate. Waiting for a run's volume to bind watches the claim.
 
 ### Verification
 
-`kubectl auth can-i create jobs --as=system:serviceaccount:<namespace>:bmrg-flow-dispatcher`
+`kubectl auth can-i deletecollection jobs --as=system:serviceaccount:<namespace>:bmrg-flow-dispatcher`
 
 ## References
 
