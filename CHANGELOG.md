@@ -41,6 +41,8 @@ tag's release notes.
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
 - **You can upgrade from v3, although runs are dropped.**
+- **The v3 install must come from bmrg-flow 4.13.5 or later** (flow-loader 0.5.9 or later, whose changelog holds
+  changeset `111`). An older v3 install is refused at startup: move it to that chart first.
 - **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
   once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
   key v5 encrypts with and is required on every install. Set both before the first start against a v3
@@ -169,11 +171,11 @@ tag's release notes.
   system, script or dispatcher), Agent (an AI agent) or None (a person's token), so a token made there can run the
   dispatcher protocol, which needs one. The Actor column names the kind. `POST /api/v2/token` now refuses an actor that does not fit the token
   (`TOKEN_INVALID_ACTOR`, 400): a global token takes none, `SERVICE` or `AGENT`, a user token none.
-- Machine tokens declared in configuration. `flow.security.tokens.<name>.*` registers a global token at start,
-  named by the key: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS=workspace/read,workflowrun/action` and
-  `_ACTORKIND` declare `dispatcher`. A name is lowercase letters and digits only (an underscore in a variable name
-  becomes a dot), and `bootstrap` is not usable. Give a `hash` (the SHA-256 of the raw token, so the environment
-  never holds it) or a `value`, `permissions` such as `workspace/read`, and optionally `actor-kind` (default
+- Machine tokens declared in configuration. `flow.security.tokens.<name>.*` registers a global token at start, named by
+  the key: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS=workspace/read` and `_ACTORKIND` declare `dispatcher`.
+  A name is lowercase letters and digits only (an underscore in a variable name becomes a dot), and `bootstrap` is not
+  usable. Give a `hash` (the SHA-256 of the raw token, so the environment never holds it) or a `value`, optional
+  `permissions` such as `workspace/read` (none for a dispatcher-only token), and optionally `actor-kind` (default
   `SERVICE`) and `expiry`. Removing an entry revokes its token, and two entries are valid at once so a token rotates
   without a gap. A declared token cannot be deleted through `DELETE /api/v2/token/{id}`: it answers `409`. With none
   declared nothing changes.
@@ -502,7 +504,14 @@ tag's release notes.
   The configured token now takes the value over and the minted one is deleted (logged at warn); two configured tokens
   sharing a value stop the start, and a value two stored tokens hold is refused (`401`), never a `500`.
 - The webapp's sign-in answers `403 AUTH_USER_NOT_ADMITTED`, not a `500`, when Auto-Create Users is off and the
-  person is not a user yet.
+  person is not a user yet. The sign-in page now shows that refusal's own message ("Ask an admin to add you to a
+  workspace") instead of blaming the identity provider.
+- `PUT /api/v2/activate` behind a proxy answers a wrong, missing or oversized activation code with
+  `400 AUTH_ACTIVATION_CODE_INVALID` and its message, as the OpenID Connect sign-in already did, instead of a bare
+  `400`. An error response whose status is not `401` no longer carries `WWW-Authenticate`.
+- A declared token's `permissions` are optional. With none, the token holds no grant and can call only routes that
+  need no permission, which is the dispatcher protocol; any permission given is still validated. A dispatcher-only
+  token no longer has to name a grant it never uses.
 - A change to the audit retention setting (`audit` `retentionDays`) through `PATCH /api/v2/settings` now reaches the
   audit expiry index on every instance within a minute (`flow.audit.retention-interval-ms`), instead of at the next
   restart. The 60-day floor is unchanged. The run (`workflowrun` `retention.days`) and task log retention settings

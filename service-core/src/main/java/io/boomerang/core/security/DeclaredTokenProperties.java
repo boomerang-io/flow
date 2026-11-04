@@ -20,7 +20,8 @@ import org.springframework.util.StringUtils;
  * start by {@link DeclaredTokenService}. Each entry carries exactly one of {@code hash} (the SHA-256
  * of the raw token as hex, so the environment never holds the plaintext) or {@code value} (a {@code
  * bfg_} token of at least 32 further characters). An invalid entry fails the binding, so the start
- * stops before the install serves.
+ * stops before the install serves. {@code permissions} may be left out: the token then holds no
+ * grant and reaches only routes that need no permission, which is the dispatcher protocol.
  *
  * <p>A name is lowercase letters and digits only: in an environment variable an underscore becomes a
  * dot, so a hyphen or underscore in a name cannot survive {@code FLOW_SECURITY_TOKENS_<NAME>_HASH}.
@@ -56,7 +57,6 @@ public record DeclaredTokenProperties(@DefaultValue Map<String, Entry> tokens) {
         !StringUtils.hasText(entry.value())
             || entry.value().matches(BootstrapTokenService.BOOTSTRAP_TOKEN_PATTERN),
         key + ".value must be bfg_ followed by at least 32 characters");
-    Assert.notEmpty(entry.permissions(), key + ".permissions must name at least one grant");
     try {
       TokenService.assertValidPermissions(entry.permissions());
     } catch (BoomerangException e) {
@@ -70,7 +70,7 @@ public record DeclaredTokenProperties(@DefaultValue Map<String, Entry> tokens) {
    * One declared token. {@code expiry} is an ISO-8601 instant, or a date meaning the end of that day
    * in UTC; once it passes the token stops authenticating, like any expired token, and the start
    * still goes ahead. {@code permissions} are global grants in the shape {@code
-   * POST /api/v2/token} takes.
+   * POST /api/v2/token} takes; none is allowed.
    */
   public record Entry(
       String hash,

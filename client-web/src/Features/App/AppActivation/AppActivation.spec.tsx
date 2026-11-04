@@ -54,4 +54,27 @@ describe("AppActivation --- RTL", () => {
     expect(actionSpy).toHaveBeenCalledTimes(1);
     expect(setActivationCode).not.toHaveBeenCalled();
   });
+
+  it("shows the server's own message when the activation route answers its structured invalid-code error", async () => {
+    server.use(
+      http.put(serviceUrl.putActivationApp(), () =>
+        HttpResponse.json(
+          {
+            code: 1007,
+            reason: "AUTH_ACTIVATION_CODE_INVALID",
+            message: "The activation code is not correct.",
+            status: "400 BAD_REQUEST",
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const { setActivationCode } = renderAppActivation();
+
+    fireEvent.change(screen.getByLabelText("Activation code"), { target: { value: "wrong-code" } });
+    fireEvent.click(screen.getByText("Submit"));
+
+    expect(await screen.findByText("The activation code is not correct.")).toBeInTheDocument();
+    expect(setActivationCode).not.toHaveBeenCalled();
+  });
 });

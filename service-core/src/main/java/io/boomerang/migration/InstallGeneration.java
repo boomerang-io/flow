@@ -14,13 +14,15 @@ import com.mongodb.client.model.Filters;
  * carries the changeset id in a field annotated {@code @Field("changeId")} — confirmed by
  * inspecting that class in the cached {@code mongock-driver-api} jar — so every changelog document
  * stores the changeset id verbatim under the key {@code changeId}. The legacy loader's own
- * {@code @ChangeSet(id = ...)} values give the markers this class checks for: {@code "112"}
- * ({@code FlowDatabaseChangeLog}, the v3 chain) and {@code "4000"} ({@code
+ * {@code @ChangeSet(id = ...)} values give the markers this class checks for: {@code "111"}
+ * ({@code FlowDatabaseChangeLog}, the v3 chain: the last changeset of flow-loader 0.5.9, which every
+ * v3 chart from bmrg-flow 4.13.5 to 4.14.3 ships; 0.5.11's {@code "112"} only set the worker image
+ * default, which v5 replaces) and {@code "4000"} ({@code
  * FlowDatabasev4ChangeLog}, the first changeset of the v4 migration chain — it only ever runs
  * after the v3 chain has completed).
  *
  * <ul>
- *   <li>{@link #V3} — {@code changeId: "112"} exists and {@code changeId: "4000"} does not: the
+ *   <li>{@link #V3} — {@code changeId: "111"} exists and {@code changeId: "4000"} does not: the
  *       install completed the v3 chain but has never run the v3→v4 migration.
  *   <li>{@link #V4} — {@code changeId: "4000"} exists: the v4 chain has run. {@link
  *       _0001__GuardAndDetectGeneration} refuses such a database.
@@ -34,7 +36,7 @@ public enum InstallGeneration {
   FRESH;
 
   private static final String CHANGE_ID_FIELD = "changeId";
-  private static final String V3_MARKER = "112";
+  private static final String V3_MARKER = "111";
   private static final String V4_MARKER = "4000";
 
   /** Detect the generation of {@code db} from its legacy loader changelog, if any. */
@@ -54,7 +56,7 @@ public enum InstallGeneration {
       return V3;
     }
     // Neither marker is present but the changelog is non-empty - an install that predates
-    // changeset 112, or an unrecognised shape. Report V4 (i.e. "not v3") so
+    // changeset 111 (a v3 loader older than 0.5.9), or an unrecognised shape. Report V4 (i.e. "not v3") so
     // _0001__GuardAndDetectGeneration refuses it rather than migrating it as a v3 install.
     return V4;
   }

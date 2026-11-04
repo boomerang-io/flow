@@ -21,7 +21,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Guards the dispatcher wire ({@code /dispatcher/**}) with a real Flow token — a global-scope
  * token carrying a machine {@code actorKind} (see {@link
- * io.boomerang.core.security.enums.TokenActorKind}), minted through the existing token API. No
+ * io.boomerang.core.security.enums.TokenActorKind}), minted through the token API or declared in
+ * configuration. It needs no grant, since the dispatcher routes are {@code @AuthExempt}. No
  * new {@code AuthScope} value or token prefix was added: the dispatcher token is deliberately an
  * ordinary {@code bfg_} global token, an orthogonal discriminator field is the only difference
  * from any other global token.
@@ -45,7 +46,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * flow.dispatcher.token} shared-secret
  * property, which no longer exists: {@code service-dispatcher}'s configured bearer value
  * ({@code flow.engine.dispatcher.token}) is unchanged code-wise, it just now needs to hold a real
- * minted token instead of an arbitrary shared string.
+ * token instead of an arbitrary shared string.
  */
 public class DispatcherAuthFilter extends OncePerRequestFilter {
 

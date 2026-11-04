@@ -163,7 +163,8 @@ Operator-facing changes for the next release are collected in [`CHANGELOG.md`](.
 
 `service-core` migrates its database as it starts, before it serves anything: there is no separate loader
 Job. The migrations take exactly two starting points to the current shape, an **empty database** and a
-**v3 database**. A v4 database, or one a 5.0 beta already migrated, is refused at startup with a message
+**v3 database** built by bmrg-flow 4.13.5 or later (flow-loader 0.5.9 or later; an older v3 install moves to
+that chart first). A v4 database, or one a 5.0 beta already migrated, is refused at startup with a message
 saying why; reset it, or restore the v3 database it came from.
 
 Before the first start against a v3 database:
