@@ -9,6 +9,8 @@ import io.boomerang.core.security.enums.AuthScope;
 public interface TokenRepository extends MongoRepository<TokenEntity, String> {
   Optional<TokenEntity> findByToken(String token);
 
+  List<TokenEntity> findAllByToken(String token);
+
   Optional<List<TokenEntity>> findByPrincipalAndType(String principal, AuthScope type);
 
   List<TokenEntity> findByIdStartingWith(String prefix);

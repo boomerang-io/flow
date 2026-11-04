@@ -494,6 +494,9 @@ tag's release notes.
 
 ### Fixed
 
+- A declared or bootstrap token whose value a minted token already held made every request with it answer `500`.
+  The configured token now takes the value over and the minted one is deleted (logged at warn); two configured tokens
+  sharing a value stop the start, and a value two stored tokens hold is refused (`401`), never a `500`.
 - The webapp's sign-in answers `403 AUTH_USER_NOT_ADMITTED`, not a `500`, when Auto-Create Users is off and the
   person is not a user yet. The sign-in page now shows that refusal's own message ("Ask an admin to add you to a
   workspace") instead of blaming the identity provider.

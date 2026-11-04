@@ -180,24 +180,24 @@ or not security is on. Being a `global` token, it is refused by `/api/v2/profile
 minting step. The map key is the name, so the environment form carries it: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`,
 `_PERMISSIONS`, `_ACTORKIND`, `_DESCRIPTION`, `_EXPIRY` declare `dispatcher`. A name is 1 to 63 lowercase letters and
 digits and is not `bootstrap` (that is `FLOW_SECURITY_BOOTSTRAP_TOKEN`); a hyphen or underscore cannot be used because
-an underscore in a variable name becomes a dot. The binder lowercases an environment variable's name and keeps a
-properties key as written, so an uppercase key is refused. An entry has exactly one of `hash` or `value`, `actor-kind`
-(default `SERVICE`), optional `permissions`, and optionally `description` and `expiry` (an ISO-8601 instant, or a date
-meaning the end of that day in UTC). `hash` is the lowercase hex SHA-256 of the raw token (`printf %s "$RAW" |
+an underscore in a variable name becomes a dot. The binder lowercases the name from an environment variable and keeps a
+properties key as written, so an uppercase key is refused rather than folded. An entry has exactly one of `hash` or
+`value`, `actor-kind` (default `SERVICE`), optional `permissions`, and `description` and `expiry` (an ISO-8601 instant,
+or a date meaning the end of that day in UTC). `hash` is the lowercase hex SHA-256 of the raw token (`printf %s "$RAW" |
 sha256sum`, or `shasum -a 256` on macOS), the form `TokenService.hashString` stores; `value` must be `bfg_` plus at
-least 32 characters, as for the bootstrap token. The raw token a client sends must begin `bfg_`, for the shape gate
-below. Each permission is a `<resource>/<action>` string checked by `TokenService.assertValidPermissions` (as `POST
-/api/v2/token` does) and becomes one `global` grant with principal `**`; with none the token holds no grant: a route
-that needs a permission answers `403`, the exempt dispatcher wire admits it. A bad entry fails the binding, so the start
-stops before the install serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not stop it:
-the token is stored and refused like any expired token. `DeclaredTokenService` upserts each entry on
-`ApplicationReadyEvent` under the id `declared-token:<name>`; an entry unchanged since the last start writes nothing, a
-changed hash or grant replaces the record and evicts the old hash from the local cache, and two entries sharing a token
-stop the start (`core/security/DeclaredTokenService.java:58-105`). Every stored token whose id has that prefix and whose
-name is no longer configured is deleted and evicted, so removing an entry revokes only it and a rotation is: add the new
-entry, roll the client, remove the old one. Declared tokens are registered whether or not security is on.
-`TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409), so the API cannot fight the configuration
-(`core/TokenService.java:467-470`).
+least 32 characters, as for the bootstrap token. Either way the raw token the client sends must begin `bfg_` to pass the
+shape gate below. Each permission is a `<resource>/<action>` string checked by `TokenService.assertValidPermissions`,
+the check `POST /api/v2/token` runs, and becomes one `global` grant with principal `**`; with none the token holds no
+grant, so a route that needs a permission answers `403` and only the exempt dispatcher wire admits it. A bad entry fails
+the binding, so the start stops before the install serves (`core/security/DeclaredTokenProperties.java:34-67`). A past
+`expiry` does not stop it: the token is stored and refused like any expired token. `DeclaredTokenService` upserts each
+entry on `ApplicationReadyEvent` under `declared-token:<name>`; an unchanged entry writes nothing, a changed one
+replaces the record and evicts the old hash (`core/security/DeclaredTokenService.java:58-106`). A minted token holding a
+configured token's value is deleted so the configured one takes it over, while two configured tokens (declared or
+bootstrap) sharing a value stop the start (`:113-132`); a value two stored tokens hold authenticates as neither, never a
+500 (`core/TokenService.java:406-425`). A stored `declared-token:` id no longer configured is revoked, so a rotation is:
+add the new entry, roll the client, remove the old one. Declared tokens register whether or not security is on, and
+`TokenService.delete` refuses their ids with `TOKEN_DECLARED` (409) (`core/TokenService.java:475-478`).
 
 **OpenID Connect seed.** The migrations seed `auth.oidc.issuer` and `auth.oidc.clientId` empty, which leaves
 sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`,
