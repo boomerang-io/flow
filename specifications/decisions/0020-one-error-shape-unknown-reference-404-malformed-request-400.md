@@ -24,7 +24,7 @@ B and D. `core/RestExceptionHandler.java:43-65` renders every `BoomerangExceptio
 `:91-105` an unreadable parameter type onto it, and `:132-150` an `AuthenticationException`, so a 401 has the body of a
 400. Codes and statuses come from `common/error/BoomerangError.java`; messages from `messages.properties`, keyed by
 `reason`. A `*_INVALID_REF*` code answers 404 and means the resource the request path addresses does not exist
-(`BoomerangError.java:44,48,65,72`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
+(`BoomerangError.java:45,50,72,79`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
 reference that does not resolve inside a body is 400, since the route exists and the payload is wrong:
 `WORKFLOW_INVALID_TASK_REF` (`:52`). What decided it: a client can act on the status alone and switch on `reason`.
 

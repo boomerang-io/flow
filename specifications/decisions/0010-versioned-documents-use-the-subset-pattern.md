@@ -19,18 +19,18 @@ must not leak into the public model.
 ## Decision
 
 Option C. `WorkflowEntity` in `workflows`
-(`service-core/src/main/java/io/boomerang/common/entity/WorkflowEntity.java:18-30`) pairs with
+(`service-core/src/main/java/io/boomerang/common/entity/WorkflowEntity.java:20-32`) pairs with
 `WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` in `workflow_revisions`
 (`common/entity/WorkflowRevisionEntity.java:21-37`); `TaskEntity` in `tasks` pairs with `TaskRevisionEntity{parentRef,
 version, spec, …}` in `task_revisions` (`common/entity/TaskRevisionEntity.java:23-34`). The domain services join them
-(`workflow/WorkflowService.java:1278-1294`, `workflow/TaskService.java:581-599`). A new version inserts a child; a
-replace rewrites the latest child in place (`WorkflowService.java:1782-1796`, `TaskService.java:804-827`).
+(`workflow/WorkflowService.java:1480-1507,2489-2514`, `workflow/TaskService.java:590-608`). A new version inserts a child; a
+replace rewrites the latest child in place (`WorkflowService.java:2037-2047`, `TaskService.java:812-837`).
 
 ## Consequences
 
 - Versions are pageable and indexed on parent and version: `workflow_ref_version` and `parent_ref_version`
-  (`migration/_0021__Indexes.java:99-110`).
-- Every definition read is two lookups, and deleting a parent MUST delete its revisions (`TaskService.java:985-986`,
-  `workflow/WorkflowRetentionService.java:153-155`).
+  (`migration/_0021__Indexes.java:100-110`).
+- Every definition read is two lookups, and deleting a parent MUST delete its revisions (`TaskService.java:994-995`,
+  `workflow/WorkflowRetentionService.java:277`).
 - `workflow_templates` is the one collection that keeps `version` on a single document
   (`common/entity/WorkflowTemplateEntity.java:30`).

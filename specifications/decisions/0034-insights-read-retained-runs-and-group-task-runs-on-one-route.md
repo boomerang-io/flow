@@ -23,7 +23,7 @@ trail's run events carry only status, phase, duration and workflow (`core/audit/
 ## Decision
 
 B and D. `WorkflowRunInsightService` computes the summary and workflow detail from projected records
-(`workflow/WorkflowRunInsightService.java:108-176`); `GET /api/v2/workspace/{workspace}/insights/tasks` groups by
+(`workflow/WorkflowRunInsightService.java:121-220`); `GET /api/v2/workspace/{workspace}/insights/tasks` groups by
 `task`, `type`, `workflow` or `label:<key>`, the server's model and item labels included (decision 0009), optionally by
 hour, day or month and by the span of a run label (`:188-260`). One aggregation streams a small document per counted
 task run, with its labels and the usage an `ai` task reports, on the `workflowRunRef`-first index (`:375-410`), and
@@ -36,4 +36,4 @@ event time, the line GitHub Actions and Step Functions draw, with labels as the 
 - Insights cover only the runs retention keeps (`workflowrun` `retention.days`, 365 by default), so they can differ
   from the quota's monthly count; the page says deleted workflows are excluded (`client-web/src/Features/Insights/Insights.tsx:286-287`).
 - A request reads every counted task run of the period and truncates past 1,000 rows
-  (`workflow/WorkflowRunInsightService.java:75,250-251`); revisit with G or a rollup collection on a load test.
+  (`workflow/WorkflowRunInsightService.java:85,327-328`); revisit with G or a rollup collection on a load test.

@@ -21,12 +21,12 @@ in flight when its owner is deleted, and a cancelled task's document is the term
 
 C with the lineage walked server-side. `WorkflowRetentionService.purge` collects the run and every run whose
 `initiatedByRef` names it or one of its task runs, transitively, and removes them deepest first through the retention
-sweep's own per-run purge (`workflow/WorkflowRetentionService.java:120-146,175-198,311`). A member in flight is
+sweep's own per-run purge (`workflow/WorkflowRetentionService.java:116-146,177-202,314-322`). A member in flight is
 cancelled through the ordinary cancel, which ends its tasks off the caller's thread; a member whose tasks have not
 settled (one still ending, or a cancelled or timed-out one a dispatcher still holds, `claim.by` set) is stamped
-`purgeRequestedAt` (`engine/WorkflowRunStateHelper.java:336`) and the `purgeRequestedRuns` sweep removes it once they
+`purgeRequestedAt` (`engine/WorkflowRunStateHelper.java:381-388`) and the `purgeRequestedRuns` sweep removes it once they
 have, or ten minutes after the stamp (`:149-172`). A label purge takes one
-sweep page of the workspace's matching runs and reports `remaining` (`workflow/WorkflowRunService.java:492-518`). What
+sweep page of the workspace's matching runs and reports `remaining` (`workflow/WorkflowRunService.java:488-525`). What
 decided it: a dispatcher learns of a termination only from the task document, so the document outlives the order.
 
 ## Consequences

@@ -22,8 +22,8 @@ showed its error page. Whether such a user may create a workspace was never deci
 
 C, with the creation of workspaces as a setting. `resolvePermissionsForUser` gives a user who is not an admin a
 `user`-scoped grant of `user/read`, `user/write`, `system/read`, `workflowtemplate/read` and `workspace/read`, plus
-`workspace/write` when the `features` setting `workspaceCreate` is on (`core/TokenService.java:681-720`,
-`core/SettingsService.java:138-150`); the global-keyed checks are unchanged. `WorkspaceService.create` refuses a
+`workspace/write` when the `features` setting `workspaceCreate` is on (`core/TokenService.java:689-721`,
+`core/SettingsService.java:145-156`); the global-keyed checks are unchanged. `WorkspaceService.create` refuses a
 user who is not an admin when the setting is off (`workspace/WorkspaceService.java`), and the flag reaches the webapp
 as `workspace.create` so Home and Workspaces offer the button only to those who may (`core/FeatureService.java`).
 `_0039__SeedWorkspaceCreateSetting` adds the key, from the seed, to an install built before it.

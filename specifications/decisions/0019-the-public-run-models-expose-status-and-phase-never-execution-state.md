@@ -19,12 +19,12 @@ claim, deadline, retry and pause state so any instance can claim, fence and reap
 
 ## Decision
 
-B and D. `WorkflowRun` and `TaskRun` are standalone classes (`common/model/WorkflowRun.java:38`,
+B and D. `WorkflowRun` and `TaskRun` are standalone classes (`common/model/WorkflowRun.java:39`,
 `common/model/TaskRun.java:18-28`), and `PublicRunModelSerialisationTest` fails the build if `claim`, `timeoutAt`,
 `retry`, `retryAfter`, `waitUntil`, `pauseRequestedAt`, `waitingSince`, `agentRef`, `dispatcherRef`, `dependencies`,
 `preApprovedStatus` or `decisionValue` is serialised (`service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:56-69`).
-Pause shows only as the derived boolean `paused` (`WorkflowRun.java:53-54`), and a claimed task's `attempt` is derived
-from its hidden retry count (`TaskRun.java:60-71`). `phase` stays on both models because the webapp reads it and the list
+Pause shows only as the derived boolean `paused` (`WorkflowRun.java:53-55`), and a claimed task's `attempt` is derived
+from its hidden retry count (`TaskRun.java:63-80`). `phase` stays on both models because the webapp reads it and the list
 routes filter on it; a dispatcher reads its own wire models instead (decision 0037). The tripwire
 `phaseIsStillSerialisedOnThePublicModels` (`PublicRunModelSerialisationTest.java:172-185`) asserts the deviation and
 is inverted when `phase` leaves. What decided it: an explicit list makes every public field a deliberate edit.

@@ -14,7 +14,7 @@ shape"). Two mutually exclusive configurations key off it:
 
 | Security | Filter chain | Identity on every request | Authorization |
 | --- | --- | --- | --- |
-| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:24,88-118`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
+| on | `SecurityConfiguration` — `AuthenticationFilter`, `anyRequest().authenticated()` (`core/security/SecurityConfiguration.java:24,91-121`) | the real `Token` the filter resolved | `AuthCriteriaAuthorizationManager` wired as a method-security `Advisor` by `MethodSecurityConfiguration` (same condition) |
 | off | `SecurityDisabledConfiguration` — `anyRequest().permitAll()`, `http.anonymous(...)` (`core/security/SecurityDisabledConfiguration.java:13,18-33`) | a synthetic `UnauthenticatedGlobalToken` (see below) | the advisor is not registered; `RelationshipService` still runs but its `global` branch allows everything |
 
 The dispatcher's `/dispatcher/**` chain (`dispatcher/DispatcherSecurityConfiguration.java:37-47`) is ordered
@@ -24,13 +24,13 @@ first and is independent of this switch — see "Dispatcher endpoints".
 
 `AuthenticationFilter` checks the identity sources in a fixed order and stops at the first one present
 (`core/security/AuthenticationFilter.java:107-121`). Only `SecurityConfiguration` constructs it, so it runs only
-when security is on (`core/security/SecurityConfiguration.java:24,91-93`). Every branch installs the resolved
+when security is on (`core/security/SecurityConfiguration.java:24,94-96`). Every branch installs the resolved
 `Token` as the `Authentication`'s details with an empty authority list: the `Token` is what every permission and
 relationship check reads.
 
 | Order | Source | Handled by | Result |
 | --- | --- | --- | --- |
-| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `AuthenticationFilter.java:309-312`) | `getTokenAuthentication` (`AuthenticationFilter.java:286-306`) | shape gate `TokenTypePrefix.isFlowToken` (`AuthenticationFilter.java:292`), then SHA-256 hash lookup in `tokens` and expiry check (`core/TokenService.java:393-418`) |
+| 1 | `Authorization: Bearer bf?_…` (a Flow-minted token, `AuthenticationFilter.java:309-312`) | `getTokenAuthentication` (`AuthenticationFilter.java:286-306`) | shape gate `TokenTypePrefix.isFlowToken` (`AuthenticationFilter.java:292`), then SHA-256 hash lookup in `tokens` and expiry check (`core/TokenService.java:388-413`) |
 | 1b | `Authorization: Bearer <JSON Web Token (JWT)>` (not Flow-shaped) | `getUserSessionAuthentication` (`AuthenticationFilter.java:197-244`) | the token is parsed for `emailAddress`/`email` and names as the proxy sent it, **not signature-verified**: the route relies on the authenticating proxy in front of `service-core`. A session token is minted for that email |
 | 1c | `Authorization: Basic email:password` | same method (`AuthenticationFilter.java:245-275`) | password checked against `flow.authorization.basic.password` via `PasswordEncoder.matches` (constant-time; encoded once at filter construction, `AuthenticationFilter.java:89`); session token minted for the email |
 | 2 | `x-access-token` header | `getTokenAuthentication` | as row 1 |
@@ -39,19 +39,19 @@ relationship check reads.
 | 5 | `flow_session` cookie | `getTokenAuthentication` (`AuthenticationFilter.java:119-120,161-172`) | the opaque `bfs_` value minted by `POST /internal/v1/auth/exchange` |
 
 Rows 1b, 1c and 4 mint through `TokenService.createSessionToken`, which reuses one persisted session per
-normalised email for 60 seconds per instance (`core/TokenService.java:71,555-582`). User creation is allowed
+normalised email for 60 seconds per instance (`core/TokenService.java:72,563-594`). User creation is allowed
 only on `/api/v2/profile` and the exchange path; activation only on `/api/v2/activate` and the exchange path
 (`core/security/AuthenticationFilter.java:185-195`).
 
 Rows 1, 2, 3 and 5 resolve the bearer through `TokenLookupCache` (`core/security/TokenLookupCache.java:24-54`), a
 per-instance Caffeine cache keyed by the stored SHA-256 hash and holding the validated `TokenEntity`, so the
-filter's `validate` followed by `get` costs one repository read (`core/TokenService.java:406-418`). Only a
+filter's `validate` followed by `get` costs one repository read (`core/TokenService.java:394-413`). Only a
 present, unexpired entity is cached — misses are never cached — and the entity's `expirationDate` is re-checked
 on every hit. Entries live 60 seconds and the cache holds at most 10 000 (`flow.security.token-cache.enabled`,
 `flow.security.token-cache.ttl`, `flow.security.token-cache.max-size`,
 `service-core/src/main/resources/application.properties:26-28`). `TokenService.delete` evicts the token's hash
-and `deleteAllForPrincipal` flushes the cache (`core/TokenService.java:458-472`); `touchLastUsed` writes only the
-`lastUsedAt` field and does not evict (`core/TokenService.java:440-456`). Eviction is per instance: after a revoke
+and `deleteAllForPrincipal` flushes the cache (`core/TokenService.java:463-480`); `touchLastUsed` writes only the
+`lastUsedAt` field and does not evict (`core/TokenService.java:430-451`). Eviction is per instance: after a revoke
 on one instance, another instance MAY still honour the token until its own entry ages out, at most 60 seconds.
 
 No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoint`
@@ -59,7 +59,7 @@ No identity → `AUTH_REQUIRED` (HTTP 401) via `DelegatedAuthenticationEntryPoin
 the controller can verify an OpenID Connect (OIDC) id_token itself (`:127-131`). Paths that skip the filter:
 `/error`, `/health` and its probe groups `/health/**`, `/api/docs`, the GitHub App callback, `/internal/v1/auth/config` and the four Slack routes
 that check the request themselves (`/api/v2/integration/slack/{auth,commands,interactivity,events}`,
-`core/security/SecurityConfiguration.java:39-48`) (`:345-353`); `SecurityConfiguration.java:106-111` permits the
+`core/security/SecurityConfiguration.java:42-51`) (`:345-353`); `SecurityConfiguration.java:109-114` permits the
 same paths plus `/info`, `/webjars` and the exchange endpoint.
 
 ### Session sign-in (the browser flow)
@@ -73,7 +73,7 @@ a caller that reaches `service-core` directly reaches them as well.
 | --- | --- | --- |
 | `GET /internal/v1/auth/config` | public | Returns `mode` = `none` (security off), `oidc` (both the `auth.oidc.issuer` and `auth.oidc.clientId` settings set, by an admin or seeded from properties, below) or `proxy`, which carries `flow.signOutUrl` (`core/security/AuthExchangeService.java:51-64`) |
 | `POST /internal/v1/auth/exchange` | public | Empty body: mints a session for the user the filter already resolved (`AuthExchangeService.java:80-96`). `{idToken, nonce}`: `OidcTokenVerifier.verify` checks the signature against the issuer's published signing keys, matches `iss`, `aud` and `nonce` exactly and requires an unexpired `exp` (`core/security/OidcTokenVerifier.java:83-134`); symmetric and `none` algorithms are rejected (`OidcTokenVerifier.java:99-109`). Either way the response sets an httpOnly, `Secure`, `SameSite=Lax` `flow_session` cookie (`core/security/SessionCookie.java:22-30`) |
-| `POST /internal/v1/auth/logout` | `session` token | Deletes the token and clears the cookie (`core/InternalAuthControllerV1.java:96-107`, `AuthExchangeService.java:137-142`) |
+| `POST /internal/v1/auth/logout` | `session` token | Deletes the token and clears the cookie (`core/InternalAuthControllerV1.java:92-104`, `AuthExchangeService.java:137-142`) |
 
 The cookie carries only the opaque token; the webapp runs the OIDC redirect and logout from its own server
 routes (`client-web/src/Features/Auth/oidc.server.ts`, `client-web/app/routes/authCallback.tsx`), so the
@@ -83,14 +83,14 @@ id_token never reaches the browser.
 
 `AuthScope` is the token **class**; `TokenActorKind` is an orthogonal badge for machine tokens; `PermissionScope`
 (`global` | `workspace` | `user`) is the scope of each grant and is always derived server-side
-(`core/TokenService.java:174-203`).
+(`core/TokenService.java:172-201`).
 
 | `AuthScope` | Prefix | Holder | Grants | How it is minted |
 | --- | --- | --- | --- | --- |
-| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:681-720`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:109-110`) |
-| `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:178-188`) | `POST /api/v2/token` |
-| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:190-193,374-381`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:734-751`) |
-| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:136-138`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
+| `session` | `bfs_` | a signed-in human | re-resolved from the user's type and memberships: the global role for an admin or operator, otherwise a `user`-scoped self-service baseline (own profile, flags, context, navigation, templates, listing workspaces, and creating one when the `features` setting `workspaceCreate` allows) plus one workspace grant per membership (`resolvePermissionsForUser`, `TokenService.java:689-721`) | only by `AuthenticationFilter` or the exchange; `POST /api/v2/token` rejects it (`TokenService.java:121-123`) |
+| `user` | `bfu_` | a human's long-lived personal token | copied from that user's workspace roles (`TokenService.java:176-186`) | `POST /api/v2/token` |
+| `key` | `bfk_` | a machine — service, AI agent, or a workflow's own scheduler credential (`actorKind`) | always `workspace`-scoped; a `global` grant is refused (`TokenService.java:188-191,361-376`) | `POST /api/v2/token`; `createWorkflowSchedulerToken` for workflows (`TokenService.java:754-771`) |
+| `global` | `bfg_` | platform admin or the dispatcher (`actorKind=SERVICE`) | one `global` grant | `POST /api/v2/token`, and only by a caller who already holds a `global` grant (`TokenService.java:148-150`); or at startup from `flow.security.bootstrap-token` or `flow.security.tokens` (below) |
 
 **Bootstrap token.** A secured install where no person will sign in gets its first credential from
 `flow.security.bootstrap-token`. When it is set — `bfg_` and at least 32 further characters, else the start
@@ -99,7 +99,7 @@ under the fixed id `bootstrap-token` (`core/security/BootstrapTokenService.java:
 nothing, instances starting together converge on one record, and a changed value replaces the hash and evicts
 the old one from the local token cache; it is rotated by changing the value and restarting. It registers whether
 or not security is on. Being a `global` token, it is refused by `/api/v2/profile`, which admits only `user` and
-`session` tokens (`workspace/ProfileControllerV2.java:54,76`), so the webapp cannot sign in with it.
+`session` tokens (`workspace/ProfileControllerV2.java:54,78`), so the webapp cannot sign in with it.
 
 **Declared tokens.** `flow.security.tokens.<name>.*` declares narrower machine tokens so a hosted install needs no
 minting step. The map key is the name, so the environment form carries it:
@@ -114,7 +114,7 @@ lowercase hex SHA-256 of the raw token (`printf %s "$RAW" | sha256sum`, or `shas
 Either way the raw token the client sends must begin `bfg_` to pass the shape gate below. Each permission is a
 `<resource>/<action>` string checked by `TokenService.assertValidPermissions`, the check `POST /api/v2/token` runs, and
 becomes one `global` grant with principal `**`. A bad entry fails the binding, so the start stops before the install
-serves (`core/security/DeclaredTokenProperties.java:34-73`). A past `expiry` does not stop it: the token is stored and
+serves (`core/security/DeclaredTokenProperties.java:34-67`). A past `expiry` does not stop it: the token is stored and
 refused like any expired token.
 `DeclaredTokenService` upserts each entry on `ApplicationReadyEvent` under the id `declared-token:<name>`; an entry
 unchanged since the last start writes nothing, a changed hash or grant replaces the record and evicts the old hash
@@ -129,21 +129,21 @@ sign-in in `proxy` mode. `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` 
 `FLOW_AUTH_OIDC_CLIENT_ID`) fill them on a fresh install: `OidcSettingsSeedService` runs on `ApplicationReadyEvent`,
 after the migrations, and writes each property that is set through `SettingsService.setIfEmpty`, one conditional
 Mongo update that matches only while the stored value is empty
-(`core/security/OidcSettingsSeedService.java:50-60`, `core/SettingsService.java:194-209`). A value an admin set
+(`core/security/OidcSettingsSeedService.java:49-69`, `core/SettingsService.java:194-211`). A value an admin set
 through `PATCH /api/v2/settings`, or that another instance seeded first, is kept, and a later change to the
 property does not overwrite it; the start logs at info that the stored value is kept. The issuer must be an
-absolute `https` URL without credentials, `http` only for `localhost`, `*.localhost`, `127.0.0.0/8` and `::1`,
-else the start fails (`OidcSettingsSeedService.java:80-107`). The auth config is read from the settings on every
+absolute `https` URL with no credentials or fragment, `http` only for `localhost`, `*.localhost`, `127.0.0.0/8` and `::1`,
+else the start fails (`OidcSettingsSeedService.java:80-108`). The auth config is read from the settings on every
 request and is not cached, so it shows the value at once on every instance; the write also clears the writing
 instance's parameter-layer cache, as `PATCH` does. The compose stack sets both properties for IDPZero
 (`docker-compose.yml`, `application-local.properties`).
 
-`TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:22-26`), null on
+`TokenActorKind` is `SERVICE`, `AGENT` or `WORKFLOW` (`core/security/enums/TokenActorKind.java:21-25`), null on
 human tokens. A `WORKFLOW` token's principal is the workflow's id, whether the editor's Configure › Tokens tab or
-`createWorkflowSchedulerToken` minted it (`core/TokenService.java:734-739`); a workflow name is only unique within
-its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:740`),
+`createWorkflowSchedulerToken` minted it (`core/TokenService.java:754-760`); a workflow name is only unique within
+its workspace. Deleting the workflow revokes every token of that principal (`workflow/WorkflowService.java:882`),
 and deleting a workspace revokes every token whose principal is the workspace's name, its reference everywhere
-(`workspace/WorkspaceService.java:358`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:213-214,383-391`), and a
+(`workspace/WorkspaceService.java:375-376`). Only the SHA-256 hash of a raw token is stored (`core/TokenService.java:211-213,378-386`), and a
 token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected before any
 database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:292`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`)
@@ -165,23 +165,23 @@ scope-blind and a workspace editor's `**/write` would pass it.
 Every REST handler MUST carry one of two annotations, on the method or on its controller class.
 `@AuthCriteria` declares `resource`, `action` and `assignableScopes` (`core/security/AuthCriteria.java:11-19`).
 `@AuthExempt(reason = …)` is the explicit opt-out, with a mandatory reason, for a handler that needs no
-permission rule (`core/security/AuthExempt.java:25-29`). A handler with neither is **denied**, so a route cannot
+permission rule (`core/security/AuthExempt.java:26-30`). A handler with neither is **denied**, so a route cannot
 ship open by omission. `AuthCriteriaCoverageTest` scans every `io.boomerang` `@RestController` and fails the build
 naming any handler without a decision.
 
 Enforcement is Spring Security method security, not a `HandlerInterceptor`: `MethodSecurityConfiguration`
-(`core/security/MethodSecurityConfiguration.java:51-70`) registers `AuthCriteriaAuthorizationManager` as an
+(`core/security/MethodSecurityConfiguration.java:50-69`) registers `AuthCriteriaAuthorizationManager` as an
 `Advisor` — `AuthorizationManagerBeforeMethodInterceptor` over a `Pointcut` that matches every request-mapped
 method of an `io.boomerang` `@RestController` (`RestHandlerPointcut`, `:73-85`; framework controllers such as
 springdoc stay outside) plus any class or method carrying `@AuthCriteria` — via `@EnableMethodSecurity`; the
 bean carries `@Role(ROLE_INFRASTRUCTURE)` because `EnableMethodSecurity`'s auto-proxy creator only ever applies
-advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:68-138`) reads
+advisor beans with that role. `authorize()` (`core/security/AuthCriteriaAuthorizationManager.java:96-157`) reads
 the method's annotations first, then the class's, whichever kind each is:
 
 1. Neither annotation → error log, `flow.security.denied{resource=unannotated}` and a denied `AuthorizationDecision`, answered like the missing permission in step 5 (`:80-98`).
 2. `@AuthExempt` → the call proceeds with no permission check (`:74-76`, `:81-84`).
 3. `@AuthCriteria` but no identity → throws `AuthenticationCredentialsNotFoundException` (`:100-106`), which `RestExceptionHandler` renders as the structured 401 before it leaves the dispatcher (`core/RestExceptionHandler.java:132-150`).
-4. Token class not in `assignableScopes` → the same exception and response, counted in `flow.security.denied` (`core/security/AuthCriteriaAuthorizationManager.java:108-117`).
+4. Token class not in `assignableScopes` → the same exception and response, counted in `flow.security.denied` (`core/security/AuthCriteriaAuthorizationManager.java:127-136`).
 5. No grant action matching `(**|<resource>)/(**|<action>)` → a denied `AuthorizationDecision`, which Spring turns into `AuthorizationDeniedException` (an `AccessDeniedException`); Spring Security's exception translation answers it with a 403 that carries no `RestErrorResponse` body, counted in `flow.security.denied` (`:119-136`).
 
 `EndpointAuthorizationResponseTest` pins the 401 and the 403 over HTTP against real endpoints, and that an exempt
@@ -195,7 +195,7 @@ unannotated handler and both placements of `@AuthExempt`.
 | `global`, `key`, `user`, `session` | 77 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
 | `global`, `user`, `session` | 28 | settings, context, features, navigation, audit, global parameters, the task catalogue, the platform-wide Insights, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
-| `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:45,70`) |
+| `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:48,73`) |
 
 A `key` token therefore reaches no system, audit or catalogue route, and only a `global` token reaches
 the outbox: a signed-in admin's `session` token is refused there.
@@ -207,18 +207,18 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 
 | Handlers | Must sign in | Why no permission rule |
 | --- | --- | --- |
-| `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:57,77`) |
+| `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:53,73`) |
 | `POST /internal/v1/auth/logout` | Yes | Ends the caller's own session, the one its cookie authenticated; takes no input and touches no other token, so a user outside every workspace role can sign out (`core/InternalAuthControllerV1.java:95`) |
 | `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:340-346`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:84,1005-1017`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret, and links the installation to a workspace only under a valid signed state naming a member of it (`:521-576`) |
 | `GET /api/v2/integration/slack/install` | Yes | A redirect to Slack's authorize URL for the configured app, linked to no workspace, that takes no input and checks nothing of its own; while the app's client id or secret is unset it is `409 INTEGRATION_NOT_CONFIGURED` (`integrations/IntegrationControllerV2.java:66-71`, `integrations/SlackService.java:983-998`) |
-| The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:53`) |
+| The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:55`) |
 
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
 workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
 re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
 (`core/audit/AuditControllerV2.java:217-232`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
-(`core/UserService.java:456-474`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
+(`core/UserService.java:478-496`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
 (HTTP 401) otherwise.
 
 ### Layer 2 — `RelationshipService` on the data
@@ -242,18 +242,18 @@ beside its `hasWorkflow` edge (`core/RelationshipService.java:289-342`).
 action granularity is layer 1's job. A failed `check()` returns `false` and counts `flow.security.denied`
 with `layer=relationship` (`:362-384`). Most callers then answer with the object's not-found error, so a hidden
 object reads like a missing one (for example `WORKSPACE_INVALID_REF`, HTTP 404); a few raise `PERMISSION_DENIED`,
-which serialises as HTTP 401 (`common/error/BoomerangError.java:25,44`). Workspace-scoped routes pass the
+which serialises as HTTP 401 (`common/error/BoomerangError.java:25,45`). Workspace-scoped routes pass the
 `{workspace}` path segment as an intermediate containment (for example
-`workflow/WorkflowRunService.java:673-684`). Because `global` returns before the walk, a global token's requests
+`workflow/WorkflowRunService.java:743-754`). Because `global` returns before the walk, a global token's requests
 ignore that path segment; the same caller could reach the object through its real workspace URL, so nothing extra
 is granted. `filter()` for `TASK` always anchors at `root` — the task catalogue is global
-(`core/RelationshipService.java:535-539`).
+(`core/RelationshipService.java:540-544`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:592-596,687-695`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:695-704,791-801`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
-parent (`workflow/WorkflowRunService.java:642-666,956,1023-1033`); child runs get the edge from
+parent (`workflow/WorkflowRunService.java:683-736,1085-1088,1152-1162`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).
 
 ## Security off: the synthetic admin
@@ -265,14 +265,14 @@ request that has no identity yet (`core/security/UnauthenticatedGlobalAuthentica
 `global`-class token, principal `system`, `actorKind=SERVICE`, one `**/**` grant, and an empty `GrantedAuthority`
 list (`core/security/UnauthenticatedGlobalToken.java:64-72`). `UserService.getCurrentUser()` maps it to
 `virtualUser()` — id `system`, type `admin`, active — so `/api/v2/profile` and `/api/v2/context` render
-(`core/UserService.java:257-258`, `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is
+(`core/UserService.java:279-280`, `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is
 ever written to MongoDB, and the user cannot be activated by an identity-provider email match. Audit records
 carry `actor.principal=system`.
 
 With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}`
 or `/api/v2/workspace/{workspace}/**` request whose segment is not `system`
 (`core/security/SingleWorkspaceInterceptor.java:32-45`, `SingleWorkspaceInterceptorConfiguration.java:22-27`), and
-`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:166,334`).
+`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:167,351`).
 
 ## Dispatcher endpoints
 
@@ -280,8 +280,8 @@ or `/api/v2/workspace/{workspace}/**` request whose segment is not `system`
 `DispatcherAuthFilter` checks every request that chain claims, regardless of `flow.security.enabled`
 (`dispatcher/DispatcherAuthFilter.java:63-93`): the bearer must be Flow-shaped, then
 `TokenService.validateActorToken` requires a stored, unexpired `global` token with a non-null `actorKind`
-(`core/TokenService.java:428-433`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5
-minutes (`core/TokenService.java:66,440-456`). The token then becomes the request's identity, the one the same
+(`core/TokenService.java:415-428`, read through the same lookup cache). `lastUsedAt` is stamped at most every 5
+minutes (`core/TokenService.java:67,430-451`). The token then becomes the request's identity, the one the same
 bearer carries on `/api/v2` (`dispatcher/DispatcherAuthFilter.java:88-100`): `RelationshipService` sees a `global`
 caller and audit records name the dispatcher's token as the actor. That holds with security off too, because this
 chain runs ahead of the synthetic admin's. The chain's `SecurityContextHolderFilter` clears the identity when the
@@ -296,12 +296,12 @@ own prefix so that it can be routed separately from the public API (`api-contrac
 ## Secured settings at rest
 
 A `settings.config[]` entry typed `secured` is encrypted on every save and decrypted on every internal read
-(`core/SettingsService.java:138-150,162-173`). The settings API (`GET` and `PATCH /api/v2/settings`, the latter a
+(`core/SettingsService.java:213-217,158-180`). The settings API (`GET` and `PATCH /api/v2/settings`, the latter a
 merge patch of `{"<group>": {"<key>": value}}`, `core/SystemControllerV2.java:56,71`) follows the one secret rule
 (`parameters.md`, "Sensitive parameters"): a set value reads as `*****` and an unset one as nothing
-(`core/SettingsService.java:183-190`); a patch that sends `*****` or leaves the entry out keeps the stored value, a
-blank or a null clears it, and any other value replaces it (`core/SettingsService.java:118-123`). A value that will
-not decrypt is kept as stored on the next save of its group (`core/SettingsService.java:205-212`). The cipher is
+(`core/SettingsService.java:225-234`); a patch that sends `*****` or leaves the entry out keeps the stored value, a
+blank or a null clears it, and any other value replaces it (`core/SettingsService.java:125-135`). A value that will
+not decrypt is kept as stored on the next save of its group (`core/SettingsService.java:247-256`). The cipher is
 AES-256-GCM with a random initialisation vector per call (`Encryptors.delux`, `core/model/AESAlgorithm.java:49-52`),
 and the stored value carries the scheme in its own label, `crypt_v1{AESGCM|…}` — the library does not tag it. A
 blank value and a value carrying the whole label pass through the cipher untouched, and an encryption failure

@@ -21,7 +21,7 @@ Option B. `service-core/src/main/java/io/boomerang/core/config/RestConfig.java` 
 upgrade MUST keep each of its four settings with equivalent behaviour: proxy routing from `proxy.host`/`proxy.port` on
 the external template (`:42-46,56-78`); a trust-all TLS strategy on the insecure and streaming templates (`:118-123`);
 connect 10 s, idle read 60 s and pool lease 10 s on every control template (`:50-52,167-185`); and a 10-minute idle read
-on `streamingRestTemplate` (`:53,108-116`), which the log client uses (`engine/LogClient.java:56`) so a quiet but
+on `streamingRestTemplate` (`:53,108-116`), which the log client uses (`engine/LogClient.java:59-64`) so a quiet but
 healthy log stream is not cut. "The framework default is fine" is not an acceptable outcome for any of the four.
 
 ## Consequences

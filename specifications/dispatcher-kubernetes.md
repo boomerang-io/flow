@@ -16,43 +16,43 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 
 ## Flow's dispatcher
 
-`TaskService` is the task handler and runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:117-179`);
+`TaskService` is the task handler and runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:118-180`);
 `WorkflowService` is the workflow handler and provisions each claimed run's volume
 (`dispatcher/WorkflowService.java:36-56`); both are wired in `config/DispatcherConfig.java:40-59`.
 
 - **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and waits
   until 5 s after the start of one that failed or was answered empty at once (`sdk/QueuePoller.java:23`,
-  `:104-123`). A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
+  `:146-165`). A newly ready task is claimed within about 1 s while a dispatcher for its type has a free slot.
 - **Slots.** It holds at most `flow.dispatcher.task.max-in-flight` tasks (25; 0 is no cap). A task is in flight from
   its claim, taken on the poll's thread so the next poll counts it, until the engine has taken its end, a Pending pod
   and a retried end included; each task poll sends `limit` = the free slots (`sdk/InFlightTasks.java:30-33`,
-  `sdk/TaskRunner.java:94-100`, `sdk/Dispatcher.java:265`). It sends no filters; termination orders take no slot.
+  `sdk/TaskRunner.java:149-166`, `sdk/Dispatcher.java:348`). It sends no filters; termination orders take no slot.
   While every slot is taken a `limit=0` poll keeps termination orders coming, and a slot that frees starts a work
-  poll at once beside it (`sdk/Dispatcher.java:259-282`).
+  poll at once beside it (`sdk/Dispatcher.java:342-365`).
 - **Lease.** One heartbeat every `flow.dispatcher.lease.beat-ms` (30 s) lists every task in flight, from its claim
   until its end is taken, so the lease the claim set is renewed for as long as its handler runs and its end is
-  pending (`sdk/Dispatcher.java:189-200`, `:291-299`). `0` sends no heartbeat, and the engine then requeues every
+  pending (`sdk/Dispatcher.java:229-250`, `:377-386`). `0` sends no heartbeat, and the engine then requeues every
   claim once its first lease lapses.
 - **Start answer.** It runs nothing when start answers `completed` or a 4xx, and goes ahead when the engine cannot be
-  reached (`sdk/TaskRunner.java:162-183`). A claim for a type it did not register is skipped (`:94-108`).
+  reached (`sdk/TaskRunner.java:394-414`). A claim for a type it did not register is skipped (`:149-179`).
 - **Termination.** A terminate order signals the running task and calls `TaskService.cancel`, which cancels the
-  runtime object, and reports nothing, not even when there is nothing left to cancel (`sdk/TaskRunner.java:214-226`,
-  `dispatcher/TaskService.java:100-104`).
+  runtime object, and reports nothing, not even when there is nothing left to cancel (`sdk/TaskRunner.java:445-457`,
+  `dispatcher/TaskService.java:101-105`).
 - **End.** Any executor exception ends the task `failed` with a typed `statusReason` and the results the task wrote
-  before it failed (`error/TaskExecutionException.java:28-33`, `dispatcher/TaskService.java:88-98`); "Starting a
+  before it failed (`error/TaskExecutionException.java:28-33`, `dispatcher/TaskService.java:89-99`); "Starting a
   task" below lists the reasons for a task that never started or whose cluster could not be reached. The `statusMessage` is the Job's or TaskRun's
   condition first, then the task container's exit code and termination reason and the last 20 lines of its log, at
   most 4096 bytes, while its pod can still be read (`kube/KubeHelperService.java:393-470`). The container's
   termination message is the results channel, so an error never travels there. The end is retried with backoff, 1 s
   doubling to 30 s, until the engine takes it or refuses it with a 4xx other than 408 or 429
-  (`sdk/TaskRunner.java:185-212`, `sdk/Backoff.java:8`).
+  (`sdk/TaskRunner.java:416-443`, `sdk/Backoff.java:8`).
 - **Registration and stop.** Registration is retried the same way until the engine answers
-  (`sdk/Dispatcher.java:202-238`). Stopping waits up to 10 s for the poll in progress and the tasks in flight, and ends each claim it never started
+  (`sdk/Dispatcher.java:281-317`). Stopping waits up to 10 s for the poll in progress and the tasks in flight, and ends each claim it never started
   with `DispatcherStopping`, which the engine requeues at once; a task already running then reports nothing, so its
-  lease lapses and the engine hands it out again (`sdk/Dispatcher.java:140-201`; `dispatcher-contract.md`, "Leases
+  lease lapses and the engine hands it out again (`sdk/Dispatcher.java:140-189`; `dispatcher-contract.md`, "Leases
   and heartbeat"). Both executors then adopt the object still running under the task's labels rather than create a
-  second one (`kube/KubeJobsExecutor.java:179-196`, `kube/TektonServiceImpl.java:219-232`).
-- **Storage.** It provisions a claimed run's volume before `workflowrun/{id}/start` (`sdk/WorkflowRunner.java:38-49`),
+  second one (`kube/KubeJobsExecutor.java:184-196`, `kube/TektonServiceImpl.java:219-232`).
+- **Storage.** It provisions a claimed run's volume before `workflowrun/{id}/start` (`sdk/WorkflowRunner.java:42-72`),
   and every `flow.dispatcher.workspace.reconcile-ms` (60 s) lists the volumes it holds from the cluster and asks which
   may go (`dispatcher/WorkspaceReconciler.java:57-72`).
 - **Engine and token.** It calls `flow.engine.url` (`http://localhost:7700` by default) through `RestConfig`'s
@@ -72,10 +72,10 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
   (`executor/TaskExecutor.java:29-40`, `dispatcher/TaskService.java:170-171`, `:209-214`); a task this instance is not running,
   or one that started before it last restarted, falls back to the first pod under the task labels
   (`kube/KubeLogService.java:58-95`, `:97-116`). A running pod's log is followed and every read is written and flushed at once
-  (`kube/KubeLogService.java:122-144`, `:273-283`); the route flushes the servlet response, because Spring 7 makes the
+  (`kube/KubeLogService.java:135-157`, `:273-283`); the route flushes the servlet response, because Spring 7 makes the
   body stream's own flush a no-op (`dispatcher/ResponseFlushingOutputStream.java:16-38`). A Pending pod is answered
   with one "Waiting for the task's container to start" line and followed once it starts, or told it has not started
-  after five minutes (`kube/KubeLogService.java:146-181`); a finished pod is read once (`:190-200`). With
+  after five minutes (`kube/KubeLogService.java:159-194`); a finished pod is read once (`:190-200`). With
   `flow.dispatcher.logs.upload` (on) a finished task's pod log is read before the runtime object is deleted and stored
   with the engine, where it is served first and outlives the pod (`dispatcher/TaskService.java:168-218`;
   `dispatcher-contract.md`, "Logs").
@@ -83,13 +83,13 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 ## Executors
 
 `TaskExecutor` has six methods: `create`, `watch`, `cancel`, `delete`, `runtimePodSelector`, `forgetRuntimeObject` (`executor/TaskExecutor.java:12-40`).
-`TaskService` requires an image (`dispatcher/TaskService.java:119-126`), falls back to `kube.task.timeout` (60
-minutes) whenever the task run carries no timeout or 0 (`:84-86`), runs `create` then `watch` (`:134-138`), and
-deletes the runtime object per the task run's `spec.deletion` (`:80-82`, `:165-169`). The engine always sets it from
+`TaskService` requires an image (`dispatcher/TaskService.java:122-127`), falls back to `kube.task.timeout` (60
+minutes) whenever the task run carries no timeout or 0 (`:85-87`), runs `create` then `watch` (`:138-139`), and
+deletes the runtime object per the task run's `spec.deletion` (`:81-83`, `:172-176`). The engine always sets it from
 the admin "Deletion Policy" (`task`/`deletion.policy`: `Never`, the default, `OnSuccess` or `Always`;
-`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:74-85`, `:360`), so the fallback `kube.task.deletion`
+`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:74-87`, `:420`), so the fallback `kube.task.deletion`
 never applies. The delete runs off the dispatch thread, through a self proxy to an `@Async` method, after a one-second
-grace (`dispatcher/TaskService.java:43`, `:63-65`, `:219-233`).
+grace (`dispatcher/TaskService.java:44`, `:64-66`, `:220-234`).
 
 Whatever the deletion policy says, a finished runtime object is removed `kube.task.ttlDays` (7) days after
 completion, so retention means the same on both executors. The Jobs executor stamps `ttlSecondsAfterFinished` and
@@ -103,7 +103,7 @@ next tick asks again.
 
 The timeout the task run arrives with is settled by the engine, not here: it is the smallest of the platform setting,
 the task's own declared timeout, and the run's timeout, with 0 meaning unguarded
-(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:290-311`). The seed ships the platform setting
+(`service-core/src/main/java/io/boomerang/engine/DAGUtility.java:328-357`). The seed ships the platform setting
 (`task`/`default.timeout`) at 0, so by default a task inherits its run's timeout and the setting is an optional
 operator ceiling for capping one pod inside a long-running graph; a task run that reaches the dispatcher unguarded
 still gets `kube.task.timeout` as a per-pod backstop.
@@ -112,19 +112,19 @@ still gets `kube.task.timeout` as a per-pod backstop.
 
 | `dispatcher.executor` | Class | Runtime object | Timeout | Results channel | Cancel |
 | --- | --- | --- | --- | --- | --- |
-| `tekton` (default) | `kube/TektonServiceImpl.java:56-58` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`kube/TektonServiceImpl.java:381-398`, `:438-472`) | `spec.timeout` in minutes (`kube/TektonServiceImpl.java:427`, `:462`) | `status.results` (`kube/TektonServiceImpl.java:559-564`, `:583-593`); a 4096-byte overflow is detected from the last line of the pod log (`kube/KubeServiceImpl.java:237-261`) | Overwrite the status condition with `TaskRunCancelled` (`kube/TektonServiceImpl.java:648-689`) |
-| `kube-jobs` | `kube/KubeJobsExecutor.java:71-73` | One `batch/v1` `Job` (`kube/KubeJobsExecutor.java:254-270`); `restartPolicy`, `backoffLimit` and `ttlSecondsAfterFinished` from `kube.task.*` (`kube/KubeJobsExecutor.java:209`, `:230-231`) | `activeDeadlineSeconds` = minutes × 60 (`kube/KubeJobsExecutor.java:232`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`kube/KubeJobsExecutor.java:198`, `:205-206`; `executor/TerminationMessageParser.java:35-62`) | Delete the Job and its script ConfigMap (`kube/KubeJobsExecutor.java:534-556`) |
+| `tekton` (default) | `kube/TektonServiceImpl.java:58-60` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`kube/TektonServiceImpl.java:381-398`, `:438-472`) | `spec.timeout` in minutes (`kube/TektonServiceImpl.java:427`, `:462`) | `status.results` (`kube/TektonServiceImpl.java:559-564`, `:583-593`); a 4096-byte overflow is detected from the last line of the pod log (`kube/KubeServiceImpl.java:237-261`) | Overwrite the status condition with `TaskRunCancelled` (`kube/TektonServiceImpl.java:648-689`) |
+| `kube-jobs` | `kube/KubeJobsExecutor.java:71-73` | One `batch/v1` `Job` (`kube/KubeJobsExecutor.java:254-270`); `restartPolicy`, `backoffLimit` and `ttlSecondsAfterFinished` from `kube.task.*` (`kube/KubeJobsExecutor.java:234`, `:255-256`) | `activeDeadlineSeconds` = minutes × 60 (`kube/KubeJobsExecutor.java:257`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`kube/KubeJobsExecutor.java:223`, `:230-231`; `executor/TerminationMessageParser.java:35-62`) | Delete the Job and its script ConfigMap (`kube/KubeJobsExecutor.java:582-604`) |
 
 Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
 `kube.timeout.reconcileSeconds` (30) the loop re-reads the object by name, applies the same terminal logic, and
-re-opens the watch if it was closed (`kube/KubeJobsExecutor.java:416-481`, `kube/TektonServiceImpl.java:495-577`); it
+re-opens the watch if it was closed (`kube/KubeJobsExecutor.java:425-481`, `kube/TektonServiceImpl.java:495-577`); it
 gives up at the timeout plus `kube.timeout.watchGraceMinutes` (2). A Job whose pod count reports a failure before its
 `Failed` condition exists is held until the condition arrives, so a deadline kill is reported as `DeadlineExceeded`
 rather than `JobFailed`; after `kube.timeout.failedConditionGraceSeconds` (60) without a condition it is reported as
 `JobFailed` (`executor/JobWatcher.java:14-22`). Every attempt of a task carries the same labels, so `create` adopts
 an object under them only while it is still running — a Job with no true `Complete` or `Failed` condition
-(`kube/KubeJobsExecutor.java:179-196`, `:281-291`), a TaskRun whose `Succeeded` condition is absent or `Unknown`
-(`kube/TektonServiceImpl.java:219-232`, `:487-492`) — and otherwise creates a new one beside the finished attempt.
+(`kube/KubeJobsExecutor.java:184-196`, `:281-291`), a TaskRun whose `Succeeded` condition is absent or `Unknown`
+(`kube/TektonServiceImpl.java:219-232`, `:486-492`) — and otherwise creates a new one beside the finished attempt.
 Each watch is bound, by name, to the object its attempt created or adopted: events and the reconcile for any other
 Job or TaskRun are ignored (`executor/JobWatcher.java:29-31`, `kube/KubeJobsExecutor.java:454-460`;
 `kube/TaskWatcher.java:19-21`, `kube/TektonServiceImpl.java:535-541`). The pod read for the start check, the failure
@@ -169,7 +169,7 @@ environment variables, a later row winning on a name collision (`kube/KubeHelper
 | Proxy | `PROXY_HOST`, `PROXY_PORT`, `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` and their lower-case forms, when `proxy.enable=true` (`kube/KubeHelperService.java:90-107`) |
 | `DEBUG`, `CI`, `FLOW_VERSION` | The run's debug flag, `true`, and the dispatcher's `flow.version` |
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
-| `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`: `4096` on Jobs (`kube/KubeJobsExecutor.java:80`, `:225-226`); `tekton.results.maxBytes` on Tekton, default `4096`, raised to the cluster's `max-result-size` under sidecar logs (`kube/TektonServiceImpl.java:311-314`). A task budgets against it rather than a constant of its own |
+| `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`: `4096` on Jobs (`kube/KubeJobsExecutor.java:80`, `:225-226`); `tekton.results.maxBytes` on Tekton, default `4096`, raised to the cluster's `max-result-size` under sidecar logs (`kube/TektonServiceImpl.java:355-357`). A task budgets against it rather than a constant of its own |
 | `PARAM_NAMES` | The original param names, comma-separated, so a library can map `PARAM_PRIVATEKEY` back to `privateKey` |
 | `PARAM_<NAME>` | One per param; the name upper-cased with any character outside `[A-Za-z0-9_]` replaced by `_` (`kube/KubeHelperService.java:170-172`); a string value as is, null as empty, anything else JSON-encoded (`kube/KubeHelperService.java:179-187`). Two params that fold to one name fail the task (`kube/KubeHelperService.java:142-155`) |
 | `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids, on every task (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`) |
@@ -233,8 +233,8 @@ workspace enters the engine, because a Kubernetes quantity would read it as byte
 alike, a blank size takes the platform's `max.workspace.storage` value, lowered to the owning workspace's own storage
 quota when quotas are enforced and it is smaller (0 is unlimited), and a blank mount path becomes `/workspace`; a size
 above that workspace quota is refused with `QUOTA_EXCEEDED` when quotas are enforced
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:479-507`), and the same check runs
-when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:385-395`). A
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:582-601`), and the same check runs
+when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:386-396`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
 `ReadWriteMany`; `dispatcher/WorkspaceService.java:51-58`); a blank class leaves `storageClassName` unset, because an
 empty string disables dynamic provisioning (`kube/KubeServiceImpl.java:127-130`). After creating a claim the
@@ -246,7 +246,7 @@ A workflow upgraded from v3 keeps its mount path, written as `/workspace/workflo
 (`service-core/src/main/java/io/boomerang/migration/_0010__V3MigrateWorkflows.java:226`), so its tasks need no
 change. One that declared v3's workflow storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on
 its revision and is refused at submit with `WORKFLOW_STORAGE_REMOVED` until it is saved again
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:1879-1883`).
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2091-2095`).
 
 ## Isolation and placement
 
@@ -297,11 +297,11 @@ Kubernetes-only.
 An `ai` revision declares its image and command (`dispatcher-contract.md`, "AI tasks"), and this dispatcher runs them
 exactly as it does for `custom` or `template`: a revision with an image and no command runs the image's own
 entrypoint, and one with no image is refused as `NO_TASK_IMAGE` (`executor/TaskImageResolver.java:124-143`,
-`dispatcher/TaskService.java:119-126`). There is no worker-image property: every `ai` revision declares its image.
+`dispatcher/TaskService.java:122-127`). There is no worker-image property: every `ai` revision declares its image.
 That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default `boomerangio/task-ai`,
 which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other `ai` task before it
 creates anything, failing it with `statusReason=ImageNotAllowed` and a message naming the image and the property
-(`dispatcher/TaskService.java:127-133`, `executor/TaskImageResolver.java:71-77`), so a dispatcher registered for `ai`
+(`dispatcher/TaskService.java:128-134`, `executor/TaskImageResolver.java:71-77`), so a dispatcher registered for `ai`
 stays the egress zone for the worker alone unless an operator adds a prefix. An `ai` task never runs a script
 (`executor/TaskImageResolver.java:149-151`).
 

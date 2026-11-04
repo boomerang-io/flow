@@ -19,7 +19,7 @@ from stale data until it is rebuilt, and a stale answer here is a wrong access d
 ## Decision
 
 B. `check` and `filter` read live MongoDB, one edge query and one node batch-load per level from the caller's node
-(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:412-471,524-582,730-808`); only node
+(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:412-476,529-594,742-820`); only node
 resolutions are memoised, for one HTTP request (`:94-134`). Any instance sees every committed write at once, which
 `RelationshipServiceTest` pins with two service instances on one database
 (`service-core/src/test/java/io/boomerang/core/RelationshipServiceTest.java:262-280`).
@@ -27,6 +27,6 @@ resolutions are memoised, for one HTTP request (`:94-134`). Any instance sees ev
 ## Consequences
 
 - Adding replicas needs no cache coordination; the indexes `rel_nodes{type,ref}`, `rel_nodes{type,slug}`,
-  `rel_edges{from,label}` and `rel_edges{to,label}` carry the load (`migration/_0021__Indexes.java:146-159`).
+  `rel_edges{from,label}` and `rel_edges{to,label}` carry the load (`migration/_0021__Indexes.java:159-165`).
 - Revisit with `$graphLookup` if the hierarchy grows beyond two levels, or with a shared cache if a load test shows
   check volume is the bottleneck.
