@@ -7,6 +7,13 @@ tag's release notes.
 
 ### Upgrading
 
+- **Clearing `flow.security.bootstrap-token` revokes the bootstrap token.** Before, a blank variable left the stored
+  token valid; now the next start deletes it (logged at info), as for a removed declared token. Every instance
+  must carry the same `flow.security.tokens` entries, because each revokes the declared tokens its own configuration
+  does not name.
+- **Users of type `auditor` and `author` are plain users.** They were counted as admins for the navigation and
+  for creating a workspace when users may not, though they never held the global grant; only `admin` and
+  `operator` are admins. Stored users are not changed, and the webapp shows both as User.
 - **The dispatcher takes service-core's address as one URL.** `flow.engine.service.host` is gone: set
   `flow.engine.url` (`FLOW_ENGINE_URL`, for example `http://service-core:7700`). Its default is
   `http://localhost:7700`, service-core's port; the old default pointed at 7701, where nothing listens.
@@ -377,6 +384,9 @@ tag's release notes.
 
 ### Changed
 
+- **The Auto-Create Users description says who can still sign in.** With the setting off, a person who is not a user
+  yet signs in only if an admin has added them to a workspace or the admin claim admits them; existing users are
+  unaffected. The text is seeded on a fresh install, and an install that already holds the old one keeps it.
 - **Dispatcher registrations expire.** A registration whose dispatcher has not connected for 7 days is removed by
   the watcher, so the replicas a platform replaces on every deploy no longer pile up. A dispatcher that comes back
   registers again on its next call and is given a new id; the dispatcher SDK and Flow's Kubernetes dispatcher already

@@ -104,6 +104,28 @@ class TokenServiceSessionTest {
     assertThat(actions).contains("workspace/write").containsAll(TokenService.SELF_SERVICE_PERMISSIONS);
   }
 
+  // The legacy auditor and author types are plain users: the baseline plus their memberships.
+  @Test
+  void anAuditorAndAnAuthorHoldOnlyTheSelfServiceAndWorkspaceGrants() {
+    RoleEntity editor = new RoleEntity();
+    editor.setPermissions(List.of("**/read", "**/write"));
+    when(relationshipService.roles("legacy-1")).thenReturn(Map.of("ws-1", "editor"));
+    when(roleRepository.findByTypeAndName("workspace", "editor")).thenReturn(editor);
+
+    for (UserType type : List.of(UserType.auditor, UserType.author)) {
+      UserEntity user = new UserEntity();
+      user.setId("legacy-1");
+      user.setType(type);
+
+      List<ResolvedPermissions> grants = tokenService.resolvePermissionsForUser(user);
+
+      assertThat(grants).extracting(ResolvedPermissions::getScope)
+          .as("%s", type)
+          .containsExactly(PermissionScope.user, PermissionScope.workspace);
+      assertThat(grants.get(0).getActions()).isEqualTo(TokenService.SELF_SERVICE_PERMISSIONS);
+    }
+  }
+
   // An admin's grant is the global role alone: the baseline is for users the roles do not cover.
   @Test
   void anAdminHoldsTheGlobalRoleNotTheBaseline() {

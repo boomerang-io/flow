@@ -222,11 +222,12 @@ export const UserRole = {
   User: "user",
 } as const;
 
+// Auditor and author are legacy types the server treats as plain users, so they read as User.
 export const UserRoleCopy: Record<UserRoleType, string> = {
   [UserRole.Admin]: "Admin",
-  [UserRole.Auditor]: "Auditor",
+  [UserRole.Auditor]: "User",
   [UserRole.Operator]: "Operator",
-  [UserRole.Author]: "Author",
+  [UserRole.Author]: "User",
   [UserRole.User]: "User",
 } as const;
 

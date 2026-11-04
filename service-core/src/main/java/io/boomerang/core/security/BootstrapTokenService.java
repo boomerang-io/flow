@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
  * one fixed id, so a restart changes nothing, instances starting together converge on one record,
  * and a new value replaces the old one. It runs whether or not security is on: with security off
  * the record is unused, and the token works the moment security is turned on. Blank registers
- * nothing.
+ * nothing and revokes a token stored by an earlier start.
  */
 @Service
 public class BootstrapTokenService {
@@ -62,6 +62,7 @@ public class BootstrapTokenService {
   @EventListener(ApplicationReadyEvent.class)
   public void register() {
     if (!StringUtils.hasText(bootstrapToken)) {
+      revokeStored();
       return;
     }
     if (!bootstrapToken.matches(BOOTSTRAP_TOKEN_PATTERN)) {
@@ -88,6 +89,17 @@ public class BootstrapTokenService {
     LOGGER.info(
         "Registered the bootstrap token ({}).",
         previous == null ? "new" : "replaced the previous");
+  }
+
+  /** A cleared property revokes the stored token, as a removed declared token is; a missing record is fine. */
+  private void revokeStored() {
+    TokenEntity stored = tokenRepository.findById(BOOTSTRAP_TOKEN_ID).orElse(null);
+    if (stored == null) {
+      return;
+    }
+    tokenRepository.deleteById(BOOTSTRAP_TOKEN_ID);
+    lookupCache.evict(stored.getToken());
+    LOGGER.info("Revoked the bootstrap token: flow.security.bootstrap-token is no longer set.");
   }
 
   private static TokenEntity bootstrapTokenEntity(String hash) {

@@ -20,7 +20,7 @@ const user = { ...(userFixture as unknown as FlowUser), name: "Test User", type:
  * SUBMITS is observable - the component now writes through a bare useFetcher(), which resolves to
  * the nearest matched route's action (Features/UserDetailed/UserDetailed.tsx in the app).
  */
-function renderWithAction() {
+function renderWithAction(target: FlowUser = user) {
   const submitted: Array<Record<string, string>> = [];
   const action = vi.fn(async ({ request }: { request: Request }) => {
     const formData = await request.formData();
@@ -28,7 +28,7 @@ function renderWithAction() {
     return { intent: "changeRole" };
   });
   const view = renderWithContext(
-    <Route path="*" element={<ChangeRole user={user} closeModal={() => vi.fn()} />} action={action} />,
+    <Route path="*" element={<ChangeRole user={target} closeModal={() => vi.fn()} />} action={action} />,
   );
   return { ...view, submitted };
 }
@@ -65,5 +65,16 @@ describe("ChangeRole --- Submission", () => {
 
     await userEvent.click(screen.getByLabelText("User"));
     expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled();
+  });
+
+  it("opens a legacy auditor as a User and lets the admin save it as User", async () => {
+    const auditor = { ...user, type: "auditor" } as unknown as FlowUser;
+    const { submitted } = renderWithAction(auditor);
+
+    expect(screen.getByLabelText("User")).toBeChecked();
+    const submit = screen.getByRole("button", { name: /submit/i });
+    expect(submit).toBeEnabled();
+    await userEvent.click(submit);
+    await waitFor(() => expect(submitted).toEqual([{ intent: "changeRole", type: "user" }]));
   });
 });

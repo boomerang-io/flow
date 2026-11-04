@@ -539,12 +539,7 @@ public class UserService {
   public boolean isCurrentUserAdmin() {
     // Routed through getCurrentUser() so the security-off virtual user resolves here too.
     return Optional.ofNullable(getCurrentUser())
-        .map(
-            user ->
-                user.getType() == UserType.admin
-                    || user.getType() == UserType.operator
-                    || user.getType() == UserType.auditor
-                    || user.getType() == UserType.author)
+        .map(user -> user.getType() == UserType.admin || user.getType() == UserType.operator)
         .orElse(false);
   }
 }
