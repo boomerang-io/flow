@@ -955,6 +955,43 @@ class MigrationChainTest {
         .isEqualTo(sealedValue);
   }
 
+  // The features setting the seed carries is added to an install built before it, once.
+  @Test
+  void theAutoCreateUsersSettingIsAddedToAnInstallThatLacksIt() {
+    MongoDatabase db = migrate("auto-create-users");
+    MongoCollection<Document> settings = collection(db, "settings");
+    Document seeded = autoCreateUsersEntry(settings);
+    assertThat(seeded.getString("value")).isEqualTo("true");
+    assertThat(seeded.getString("type")).isEqualTo("boolean");
+
+    settings.updateOne(
+        Filters.eq("key", "features"), Updates.pull("config", new Document("key", "autoCreateUsers")));
+    assertThat(settings.countDocuments(Filters.eq("config.key", "autoCreateUsers"))).isZero();
+
+    new _0046__SeedAutoCreateUsersSetting().execute(db, MigrationRunner.environment(PREFIX));
+    assertThat(autoCreateUsersEntry(settings)).isEqualTo(seeded);
+
+    settings.updateOne(
+        Filters.and(Filters.eq("key", "features"), Filters.eq("config.key", "autoCreateUsers")),
+        Updates.set("config.$.value", "false"));
+    new _0046__SeedAutoCreateUsersSetting().execute(db, MigrationRunner.environment(PREFIX));
+    assertThat(autoCreateUsersEntry(settings).getString("value"))
+        .as("a second run keeps what an admin set and adds nothing")
+        .isEqualTo("false");
+    assertThat(
+            settings.find(Filters.eq("key", "features")).first().getList("config", Document.class).stream()
+                .filter(c -> "autoCreateUsers".equals(c.getString("key")))
+                .count())
+        .isEqualTo(1);
+  }
+
+  private static Document autoCreateUsersEntry(MongoCollection<Document> settings) {
+    return settings.find(Filters.eq("key", "features")).first().getList("config", Document.class).stream()
+        .filter(c -> "autoCreateUsers".equals(c.getString("key")))
+        .findFirst()
+        .orElseThrow();
+  }
+
   // No seeded parameter defaults to the placeholder; one an install still holds is cleared, the
   // parameter kept.
   @Test

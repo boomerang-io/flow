@@ -2,6 +2,7 @@ package io.boomerang.core.security;
 
 import io.boomerang.core.TokenService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.UserService;
 import jakarta.servlet.DispatcherType;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +70,12 @@ public class SecurityConfiguration {
   private SettingsService settingsService;
 
   @Autowired
+  private AdminClaim adminClaim;
+
+  @Autowired
+  private UserService userService;
+
+  @Autowired
   @Qualifier("delegatedAuthenticationEntryPoint")
   AuthenticationEntryPoint authEntryPoint;
 
@@ -93,7 +100,13 @@ public class SecurityConfiguration {
     SecurityFilterChain authFilterChain(HttpSecurity http) throws Exception {
       final AuthenticationFilter authFilter =
           new AuthenticationFilter(
-              tokenService, settingsService, basicPassword, authEntryPoint, passwordEncoder());
+              tokenService,
+              settingsService,
+              basicPassword,
+              authEntryPoint,
+              passwordEncoder(),
+              adminClaim,
+              userService);
       http.csrf(csrf -> csrf.disable())
           .authorizeHttpRequests(
               authorize ->

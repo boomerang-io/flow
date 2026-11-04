@@ -26,18 +26,21 @@ public class AuthExchangeService {
   private final TokenService tokenService;
   private final OidcTokenVerifier oidcTokenVerifier;
   private final Environment environment;
+  private final AdminClaim adminClaim;
 
   public AuthExchangeService(
       IdentityService identityService,
       UserService userService,
       TokenService tokenService,
       OidcTokenVerifier oidcTokenVerifier,
-      Environment environment) {
+      Environment environment,
+      AdminClaim adminClaim) {
     this.identityService = identityService;
     this.userService = userService;
     this.tokenService = tokenService;
     this.oidcTokenVerifier = oidcTokenVerifier;
     this.environment = environment;
+    this.adminClaim = adminClaim;
   }
 
   /*
@@ -127,10 +130,22 @@ public class AuthExchangeService {
       lastName = firstNonBlank(claimString(claims, "family_name"), claimString(claims, "lastName"));
     }
 
-    // The exchange endpoint is a first-call bootstrap path exactly like /api/v2/profile and
-    // /api/v2/activate: it may both activate the instance (first admin) and register a brand new
-    // user.
-    return tokenService.createSessionTokenWithRaw(email, firstName, lastName, true, true);
+    // On an empty install, a token whose claim is not read (none configured) makes the first admin
+    // only by the activation code: without it the webapp is told to ask for the code, with a wrong
+    // one nobody is created.
+    Boolean claimAdmin = adminClaim.evaluateVerified(claims);
+    boolean codeProven = userService.activationCodeValid(request.getOtc());
+    if (claimAdmin == null && !userService.isActivated()) {
+      if (request.getOtc() == null || request.getOtc().isBlank()) {
+        throw new BoomerangException(BoomerangError.AUTH_ACTIVATION_REQUIRED);
+      }
+      if (!codeProven) {
+        throw new BoomerangException(BoomerangError.AUTH_ACTIVATION_CODE_INVALID);
+      }
+    }
+    // The id_token is signature-verified above, so its admin claim is the provider's word.
+    return tokenService.createSessionTokenWithRaw(
+        email, firstName, lastName, codeProven, true, claimAdmin);
   }
 
   /** Revokes the current session token (identified by AuthenticationFilter's cookie branch). */

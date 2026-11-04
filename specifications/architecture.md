@@ -22,12 +22,12 @@ out by a dispatcher, which is any process that implements the published contract
 (`pom.xml:15-20`, `service-core/pom.xml:11-15`); `dispatcher-sdk` has no parent and imports the same Spring
 Boot version's dependency management for versions only (`dispatcher-sdk/pom.xml:28-50`). All three compile
 for Java 25 (`service-core/pom.xml:18`, `service-dispatcher/pom.xml:12`, `dispatcher-sdk/pom.xml:27`). Each
-service reads its `application.properties`, overridden by environment variables (`docker-compose.yml:195-214`).
+service reads its `application.properties`, overridden by environment variables (`docker-compose.yml:195-217`).
 
 ## Deployment shape of `service-core` by properties
 
 There is one shape of `service-core`: every bean loads in every deployment, and four properties in
-`service-core/src/main/resources/application.properties` (`:14`, `:18`, `:43`, `:65`, in the order below)
+`service-core/src/main/resources/application.properties` (`:14`, `:18`, `:69`, `:107`, in the order below)
 express how a deployment is used. There is no separate engine image (`.github/workflows/ci-release.yml:31-36`).
 
 | Property | Default | `true` | `false` |
@@ -66,7 +66,7 @@ only when its setting is on and the shape leaves a surface behind it (`core/Feat
 
 The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false`
 the webapp's startup loader never requests `GET /internal/v1/auth/config`
-(`client-web/src/Features/App/App.tsx:142-146`).
+(`client-web/src/Features/App/App.tsx:143-147`).
 
 ## Feature packages inside `service-core`
 
@@ -110,7 +110,7 @@ nothing (`engine/TaskRunService.java:972-1002`).
 | 6. Execute | The SDK's `TaskRunner` calls `PUT /dispatcher/v1/taskrun/{id}/start`, then the dispatcher's `TaskService.run` → `TaskExecutor.create` and `watch` (a Tekton `TaskRun` or a `batch/v1` `Job`), then `PUT …/taskrun/{id}/end` with the results (HTTP), retried until the engine takes it | `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/TaskRunner.java:255-299,394-443`, `service-dispatcher/src/main/java/io/boomerang/dispatcher/TaskService.java:90,138-139` |
 | 7. Results back | `DispatcherControllerV1.startTaskRun` and `endTaskRun` → `DispatcherService` → `TaskRunService.start` and `end` → `TaskExecutionService.start` and `end`. A request that names its dispatcher must match `claim.by` on a task in `queued` or `running`, or it is refused with `TASKRUN_CLAIM_SUPERSEDED`; `claim.seq` is not on the wire | `dispatcher/DispatcherControllerV1.java:223-251`, `engine/TaskRunService.java:1027,1079,1301-1316`, `engine/TaskExecutionService.java:304,524` |
 | 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. `completed` is terminal; a run's workspace storage is released separately, when the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which of the runs it holds volumes for are finished | `engine/TaskExecutionService.java:673,1708,1676`, `engine/WorkflowRunStateHelper.java:299`, `dispatcher/DispatcherService.java:596` |
-| 9. Events out | Each compare-and-set publishes a `TaskRunTransition` or `WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (5 s; the sink is off by default, `service-core/src/main/resources/application.properties:51`) | `engine/TaskRunService.java:1004-1014`, `event/CloudEventsBridge.java:39-76`, `event/OutboxDispatcher.java:64-67` |
+| 9. Events out | Each compare-and-set publishes a `TaskRunTransition` or `WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (5 s; the sink is off by default, `service-core/src/main/resources/application.properties:83`) | `engine/TaskRunService.java:1004-1014`, `event/CloudEventsBridge.java:39-76`, `event/OutboxDispatcher.java:64-67` |
 | 10. Recovery | `WorkflowWatcher.sweep` runs sixteen isolated sweeps (timeouts, stalled runs, for-each recovery, claims from gone dispatchers, lapsed leases, deleted workflows, artifact expiry, …); retention runs on its own hourly schedule; any core instance may reap any run | `engine/WorkflowWatcher.java:172-198,213-223` |
 
 Core calls a dispatcher for one thing: a task's live log, read from the dispatcher holding the claim at the URL
@@ -168,7 +168,7 @@ published.
 The dispatcher reaches core at `flow.engine.url`, `http://localhost:7700` by default, and
 authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:89,145`);
 core runs the dispatcher's `/dispatcher/**` filter chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`)
-and the product chain second (`core/security/SecurityConfiguration.java:92-93`).
+and the product chain second (`core/security/SecurityConfiguration.java:99-100`).
 
 ## Local stack
 
@@ -184,7 +184,7 @@ dev server (`pnpm dev`), which calls core at `http://localhost:7700` by default
 (`client-web/src/Config/serverFetch.ts:31-35`).
 
 The `stack` profile adds both to Docker instead, secured, with core on `:7700` and `client-web` on `:3000`
-calling it at `http://service-core:7700` (`docker-compose.yml:188-271`); that is what the e2e job runs
+calling it at `http://service-core:7700` (`docker-compose.yml:188-274`); that is what the e2e job runs
 (`.github/workflows/ci-e2e.yml:35`). `service-dispatcher` sits behind the `dispatcher` profile, which naming
 the service on the command line enables, because it needs a Kubernetes cluster and the kubeconfig at
 `docker/kube/config`; it runs the `kube-jobs` executor and reaches a host-run core by default

@@ -21,7 +21,7 @@ The layers and the revision are served from a per-instance cache for 10 seconds 
 `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks admitted together share one read of each store.
 A global or workspace parameter, setting, workflow or revision write clears the cache on the instance that
 took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:235`,
-`core/SettingsService.java:186`, `workflow/WorkflowService.java:1631`); other instances see it within the cache
+`core/SettingsService.java:199`, `workflow/WorkflowService.java:1631`); other instances see it within the cache
 lifetime. A task admitted after an edit gets the new value; each task run keeps the param values it was
 admitted with.
 
@@ -130,7 +130,7 @@ case-insensitive everywhere: `$(params.myparam)` resolves a param declared `MyPa
 emptiness can be meaningful, and a substitution can resolve to empty; a task that requires a value fails its
 own run with a message naming the parameter. Names that are case or separator variants of each other
 (`my-key`, `MY_KEY`) are rejected with `PARAM_NAME_COLLISION` (code 1209,
-`common/error/BoomerangError.java:57`) at workflow save (`workflow/WorkflowService.java:1821-1831`) and task
+`common/error/BoomerangError.java:59`) at workflow save (`workflow/WorkflowService.java:1821-1831`) and task
 save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at dispatch
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:142-155`).
 
@@ -240,7 +240,7 @@ merge of node values over task specs is separate.
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:206-216`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
 | Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:301-336`, canvas `:956-960`). Duplicate copies the unfiltered workflow (`:931-942`) |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:235-238`); `internalGet`, which fires the run, is not filtered |
-| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:225-234`) |
+| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:238-247`) |
 
 The name join and value scrub cover runs stored before params carried a type, and secrets that land in free
 text. The join takes the definitions: the workflow revision's param spec and each catalogue task's own spec
@@ -263,12 +263,12 @@ never print a value (`ParameterUtil.runParamNames`, `common/util/ParameterUtil.j
 a `password` field's default and value as `*****`, an env var by name only, and leaves a run spec's script,
 command and arguments out (`common/model/RunParam.java:36-38`, `common/model/AbstractParam.java:49-57`,
 `common/model/TaskEnvVar.java:24`, `common/model/TaskRunSpec.java:18-22`). Boomerang loggers default to INFO;
-DEBUG is opt-in (`service-core/src/main/resources/application.properties:165-176`).
+DEBUG is opt-in (`service-core/src/main/resources/application.properties:209-220`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
 every task of the owning run (`common/util/FilterValuesOutputStream.java:23`). The dispatcher ends the stream
 when the pod finishes (`service-dispatcher/src/main/java/io/boomerang/kube/KubeLogService.java:25-27`); its
-asynchronous completion skips a second authorization (`core/security/SecurityConfiguration.java:107-108`).
+asynchronous completion skips a second authorization (`core/security/SecurityConfiguration.java:120-121`).
 
 Downward, the dispatcher reads `type`
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/model/RunParam.java`, `contracts/dispatcher-v1.yaml`)
@@ -287,5 +287,5 @@ params a dispatcher's start request adds (`engine/TaskRunService.java:1049-1053`
 value is never encrypted twice, and an encryption failure throws rather than storing nothing (`:50-60`). An
 unlabelled value is encrypted on its next save, and one that will not decrypt is kept as stored, by the
 listener on load (`core/config/SecretValueMongoListener.java:163-170`) and by settings on the next save of its
-group (`core/SettingsService.java:236-256`). The fields are listed in `data-model.md`, "Secret values
+group (`core/SettingsService.java:249-269`). The fields are listed in `data-model.md`, "Secret values
 at rest".

@@ -349,6 +349,29 @@ tag's release notes.
   workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
   `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
   grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
+- Invite-only sign-up: the `features` setting Auto-Create Users (`autoCreateUsers`, on by default, which is how
+  sign-in has always worked), switched off, refuses a person who is not a user yet, unless an admin has added them to a
+  workspace or the admin claim below makes them an admin. A person added to a workspace by email is activated by their
+  first sign-in (it was refused before). `_0046__SeedAutoCreateUsersSetting` adds the setting to an upgraded install.
+- Admins from the identity provider: `flow.security.admin-claim.name` and `flow.security.admin-claim.values`
+  (`FLOW_SECURITY_ADMIN_CLAIM_NAME`, `FLOW_SECURITY_ADMIN_CLAIM_VALUES`, comma-separated) name a claim, a string or an
+  array such as `roles` or `groups`, and the values that make its holder an admin. With a claim set, the provider
+  decides admin on every sign-in that carries the token: a holder is made an admin, one who no longer matches is made
+  a user and their sessions end, and the first sign-in on an empty install is not an admin by being first. Unset,
+  nothing changes. The signature-checked id_token of the webapp's sign-in is always read; the unverified JWT an
+  OAuth2 Proxy forwards is read only with `flow.security.admin-claim.trust-forwarded-token=true` (default `false`).
+- The first admin of an empty install is made only by the activation code, on every sign-in path. The webapp's
+  sign-in no longer makes its first user an admin: it asks for the code on the activation screen, and a wrong or
+  missing code creates nobody (behind a proxy, `PUT /api/v2/activate` checks the code before it registers the
+  caller). With an admin claim set, a sign-in whose claim is read (the webapp's, or a trusted forwarded token) is decided by the claim and the code is not used; one that cannot read it (a forwarded email, an untrusted forwarded token) still needs the code on an empty install. The bootstrap token and other machine tokens are not
+  users: they work from first start and never activate the install. Once the install has users the activation
+  endpoint refuses every code.
+- **The activation code is `FLOW_ACTIVATION_CODE` (`flow.activation-code`), and it has no default.** The old
+  `FLOW_OTC` / `flow.otc` is still read when the new name is unset and logs a deprecation warning; both set to
+  different values stops the start. The code must be at least 32 characters or the start fails, and with none set
+  nobody can create the first admin and the start warns: set it before a fresh install is first signed in to. The
+  built-in default `test` is gone. The compose stack and the `local` Spring profile set a fixed development value;
+  the e2e setup types it. The `otc` field of `PUT /api/v2/activate` is unchanged.
 
 ### Changed
 

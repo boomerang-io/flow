@@ -26,7 +26,7 @@ neither it nor `@AuthExempt`, counted as `flow.security.denied{resource=unannota
 (`core/security/AuthCriteriaAuthorizationManager.java:95-117`). `@AuthExempt` requires a `reason`
 (`core/security/AuthExempt.java:25-29`); `AuthCriteriaCoverageTest` names an unannotated route at build time. Basic
 auth stays in `AuthenticationFilter`, whose session takes its rights from the request path, and uses
-`PasswordEncoder.matches`, so a blank password admits nobody (`core/security/AuthenticationFilter.java:185-195,263`).
+`PasswordEncoder.matches`, so a blank password admits nobody (`core/security/AuthenticationFilter.java:219-220,340-343,295`).
 Security off installs its synthetic admin via `http.anonymous()` (`core/security/SecurityDisabledConfiguration.java:29-31`).
 No identity carries a `GrantedAuthority`: every check reads the `Token`, and a flat list would drop each grant's scope.
 
@@ -36,5 +36,5 @@ No identity carries a `GrantedAuthority`: every check reads the `Token`, and a f
   controller class or handler method would escape the check.
 - Sign-in and the permission rule are separate: a public route needs both a `SecurityConfiguration` permit entry
   and `@AuthExempt`.
-- A proxy-forwarded bearer token is read unverified, as `x-forwarded-email` is (`AuthenticationFilter.java:197-244`):
+- A proxy-forwarded bearer token is read unverified, as `x-forwarded-email` is (`AuthenticationFilter.java:222-276`):
   an issuer check would lock out proxy sign-in. Revisit when `service-core` is reachable other than through its proxy.

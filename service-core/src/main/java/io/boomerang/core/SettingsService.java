@@ -155,6 +155,19 @@ public class SettingsService {
     }
   }
 
+  /*
+   * Whether a person's first sign-in creates their user: the {@code features} document's {@code
+   * autoCreateUsers}. An install upgraded before the key existed, or one whose unit has not run
+   * yet, answers as the seed does: yes.
+   */
+  public boolean autoCreateUsers() {
+    try {
+      return getSettingConfig("features", "autoCreateUsers").getBooleanValue();
+    } catch (RuntimeException missing) {
+      return true;
+    }
+  }
+
   public SettingConfig getSettingConfig(String key, String name) {
     final SettingEntity settings = this.settingsRepository.findOneByKey(key);
     final List<SettingConfig> configList = settings.getConfig();

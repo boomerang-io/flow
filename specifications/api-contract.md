@@ -2,7 +2,7 @@
 
 `service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
 `/dispatcher/v1`. This document states the rules every public route follows; route-level detail is the OpenAPI document springdoc serves at `/api/docs/spec`
-(`service-core/src/main/resources/application.properties:155`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
+(`service-core/src/main/resources/application.properties:205-207`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
 (`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is the `api-v2` group at `/api/docs/spec/api-v2`
 (`core/config/OpenApiConfiguration.java:64-81`), checked in as `contracts/api-v2.yaml` with every object's keys sorted; `ApiContractTest` fails when the served document and the file differ and
 rewrites the file under `-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`). `contracts/dispatcher-v1.yaml` and `DispatcherContractTest`
@@ -23,14 +23,14 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:42` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
 | Global | `/api/v2/{user,profile,token,task,taskrun,parameters,insights,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:35`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
-| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:36`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:38`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:54` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:35` |
 
 The prefix says who the caller is, so whatever fronts `service-core` can route by it. A front door SHOULD route
 `/api/v2/**` only, and `/dispatcher/v1/**` as well when a dispatcher runs outside core's network. `/internal/v1/**`
 MUST NOT be routed from outside: only the webapp's server calls it, at `CORE_SERVICE_INTERNAL_ORIGIN`
-(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:163`). The prefix is a routing boundary, not a
+(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:207`). The prefix is a routing boundary, not a
 credential: a caller that reaches `service-core` directly reaches it too.
 
 `{workspace}` is the workspace's name; there is no `/api/v2/team/...` route. With `flow.workspace.single=true` a
@@ -132,7 +132,7 @@ sends `WWW-Authenticate: Bearer`.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-137`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,112,126`). Codes 1405 and 1802 each carry two reasons (`:84-87,106-109`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-139`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,114,128`). Codes 1405 and 1802 each carry two reasons (`:86-89,108-111`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 
@@ -279,7 +279,7 @@ the repository's name, and any other field a JSON path into the payload; a field
 
 Every externally visible run status change is POSTed to each configured sink as a structured CloudEvent 1.0
 (`application/cloudevents+json`). Egress is off by default (`flow.events.sink.enabled=false`,
-`service-core/src/main/resources/application.properties:51`), and while it is off no outbox row is written
+`service-core/src/main/resources/application.properties:83`), and while it is off no outbox row is written
 (`event/CloudEventsBridge.java:24-27`). Delivery is at-least-once through the outbox, three attempts with backoff and
 then dead until replayed (`event/OutboxDispatcher.java:43,74-88`), so a consumer MUST treat duplicates as benign. An
 event describes the transition it was recorded for: its subject and `data.status`/`data.phase` are that
@@ -396,4 +396,4 @@ which targets `CORE_SERVICE_INTERNAL_ORIGIN`, forwards the session `Cookie` and 
 (`client-web/src/Config/serverFetch.ts:34-36,77,80-88`). Binary or streamed reads go through the webapp's `/res/*`
 routes (`client-web/src/Config/resourceRoutes.ts:19-44`). `PRODUCT_SERVICE_ENV_URL` (default `/api`) only builds URLs
 the webapp displays, such as the webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-21`). The webapp's server
-on `:3000` is the one browser-facing origin; `service-core` on `:7700` stays open to integrations, the dispatcher and direct use (`docker-compose.yml:188-194,231-253`).
+on `:3000` is the one browser-facing origin; `service-core` on `:7700` stays open to integrations, the dispatcher and direct use (`docker-compose.yml:188-194,234-256`).

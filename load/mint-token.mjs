@@ -7,6 +7,8 @@
 //
 //   FLOW_URL      service-core origin (default http://localhost:7700)
 //   IDP_USER      IDPZero subject to sign in as (default usr-flow-admin)
+//   FLOW_ACTIVATION_CODE  the activation code, sent only when an empty install asks for it
+//                 (default: the compose stack's)
 //   IDP_ADDRESS   host:port to connect to for the issuer, when the issuer's own address is not
 //                 reachable from this machine (e.g. another process owns host port 4380):
 //                 IDP_ADDRESS=$(docker inspect flow-idpzero-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):4380
@@ -77,9 +79,13 @@ const token = await idp("POST", "/oauth/token", {
 if (token.status !== 200) throw new Error(`token endpoint ${token.status}: ${token.text.slice(0, 200)}`);
 const idToken = JSON.parse(token.text).id_token;
 
-const exchange = await fetch(`${FLOW_URL}/internal/v1/auth/exchange`, {
-  method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, nonce }),
-});
+const exchangeWith = (otc) =>
+  fetch(`${FLOW_URL}/internal/v1/auth/exchange`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, nonce, otc }),
+  });
+let exchange = await exchangeWith(undefined);
+// An empty install answers 423 until the one-time code is given.
+if (exchange.status === 423) exchange = await exchangeWith(process.env.FLOW_ACTIVATION_CODE ?? "flow-local-activation-code-for-development");
 if (!exchange.ok) throw new Error(`exchange ${exchange.status}: ${await exchange.text()}`);
 const session = exchange.headers.get("set-cookie")?.match(/flow_session=([^;]+)/)?.[1];
 if (!session) throw new Error("exchange returned no flow_session cookie");

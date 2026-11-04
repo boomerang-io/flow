@@ -193,6 +193,14 @@
           "readOnly": false
         },
         {
+          "description": "Create a user account the first time someone signs in. When off, only people an admin has added to a workspace, or an admin claim admits, can sign in.",
+          "key": "autoCreateUsers",
+          "label": "Auto-Create Users",
+          "type": "boolean",
+          "value": "true",
+          "readOnly": false
+        },
+        {
           "description": "Allow management and editing of Users. The Users screen will always be visible but if disabled will be in view only mode",
           "key": "userManagement",
           "label": "User Management",

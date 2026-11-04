@@ -7,14 +7,22 @@ import com.nimbusds.jwt.SignedJWT;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.UserService;
 import io.boomerang.core.enums.TokenTypePrefix;
 import io.boomerang.core.model.Token;
+import io.boomerang.core.model.OneTimeCode;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,6 +40,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.filter.OncePerRequestFilter;
+import tools.jackson.databind.json.JsonMapper;
 
 /*
  * The Filter ensures that the user is Authenticated before AuthCriteriaAuthorizationManager
@@ -58,14 +67,18 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   private static final String AUTHORIZATION_HEADER = "Authorization";
   private static final String PATH_ACTIVATE = "/api/v2/activate";
   private static final String PATH_PROFILE = "/api/v2/profile";
-  // The unified token exchange (PATH_AUTH_EXCHANGE) is now, alongside
-  // PATH_PROFILE/PATH_ACTIVATE, a valid first call for a brand-new proxy-identified caller - so it
-  // gets the same allowActivation/allowUserCreation treatment below. It is ALSO the one path this
+  // The unified token exchange (PATH_AUTH_EXCHANGE) is, alongside PATH_PROFILE, a valid first call
+  // for a brand-new proxy-identified caller - so it may register a user (allowUserCreation below),
+  // but only PUT /api/v2/activate with the right one-time code may make the first admin. It is ALSO the one path this
   // filter must not reject with a 401 when it resolves no identity at all: the direct OIDC login
   // body ({idToken}) carries no proxy headers, and the exchange controller verifies that token
   // itself rather than relying on this filter.
   static final String PATH_AUTH_EXCHANGE = "/internal/v1/auth/exchange";
   private static final String BEARER_PREFIX = "Bearer ";
+  // Set on a request whose body carried the instance's activation code.
+  public static final String ACTIVATION_PROVEN = AuthenticationFilter.class.getName() + ".activation";
+  private static final int MAX_ACTIVATION_BODY = 4096;
+  private static final JsonMapper JSON = JsonMapper.builder().build();
 
   private TokenService tokenService;
   private SettingsService settingsService;
@@ -75,14 +88,20 @@ public class AuthenticationFilter extends OncePerRequestFilter {
   // never a raw String.equals.
   private String encodedBasicPassword;
   private AuthenticationEntryPoint authEntryPoint;
+  private AdminClaim adminClaim;
+  private UserService userService;
 
   public AuthenticationFilter(
       TokenService tokenService,
       SettingsService settingsService,
       String basicPassword,
       AuthenticationEntryPoint authEntryPoint,
-      PasswordEncoder passwordEncoder) {
+      PasswordEncoder passwordEncoder,
+      AdminClaim adminClaim,
+      UserService userService) {
     super();
+    this.adminClaim = adminClaim;
+    this.userService = userService;
     this.tokenService = tokenService;
     this.settingsService = settingsService;
     this.passwordEncoder = passwordEncoder;
@@ -95,9 +114,24 @@ public class AuthenticationFilter extends OncePerRequestFilter {
    */
   @Override
   protected void doFilterInternal(
-      HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+      HttpServletRequest incoming, HttpServletResponse res, FilterChain chain)
       throws IOException, ServletException {
     LOGGER.debug("In AuthFilter()");
+    HttpServletRequest req = incoming;
+    if ("PUT".equals(incoming.getMethod()) && incoming.getServletPath().startsWith(PATH_ACTIVATE)) {
+      // The one-time code is checked here, before any identity is resolved, so a wrong code
+      // creates nobody; the body is replayed for the controller.
+      ReplayableRequest replayable = new ReplayableRequest(incoming);
+      req = replayable;
+      if (!userService.isActivated()) {
+        boolean proven = userService.activationCodeValid(replayable.activationCode());
+        if (!proven) {
+          res.sendError(HttpServletResponse.SC_BAD_REQUEST);
+          return;
+        }
+        req.setAttribute(ACTIVATION_PROVEN, true);
+      }
+    }
     try {
       Authentication authentication = null;
 
@@ -182,17 +216,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       {
     final String token = request.getHeader(AUTHORIZATION_HEADER);
 
-    boolean allowActivation = false;
-    if (request.getServletPath().startsWith(PATH_ACTIVATE)
-        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
-      allowActivation = true;
-    }
-
-    boolean allowUserCreation = false;
-    if (request.getServletPath().startsWith(PATH_PROFILE)
-        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
-      allowUserCreation = true;
-    }
+    boolean allowActivation = request.getAttribute(ACTIVATION_PROVEN) != null;
+    boolean allowUserCreation = allowActivation || mayRegisterUser(request);
 
     if (token.startsWith("Bearer ")) {
       LOGGER.debug("AuthFilter() - Bearer JWT");
@@ -233,9 +258,16 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       }
 
       if (email != null && !email.isBlank()) {
+        // The forwarded JWT is unverified: its admin claim counts only when the operator trusts
+        // the proxy (AdminClaim), otherwise null leaves the user's type as it is.
         final Token sessionToken =
             tokenService.createSessionToken(
-                email, firstName, lastName, allowActivation, allowUserCreation);
+                email,
+                firstName,
+                lastName,
+                allowActivation,
+                allowUserCreation,
+                adminClaim.evaluateForwarded(claims));
         final List<GrantedAuthority> authorities = new ArrayList<>();
         final UsernamePasswordAuthenticationToken authToken =
             new UsernamePasswordAuthenticationToken(email, null, authorities);
@@ -305,6 +337,65 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     return null;
   }
 
+  private static boolean mayRegisterUser(HttpServletRequest request) {
+    return request.getServletPath().startsWith(PATH_PROFILE)
+        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE);
+  }
+
+  /**
+   * A request whose body has been read once and can be read again: the activation code is peeked
+   * here, ahead of the controller that reads the same body.
+   */
+  private static final class ReplayableRequest extends HttpServletRequestWrapper {
+    private final byte[] body;
+
+    ReplayableRequest(HttpServletRequest request) throws IOException {
+      super(request);
+      byte[] read = request.getInputStream().readNBytes(MAX_ACTIVATION_BODY + 1);
+      this.body = read.length > MAX_ACTIVATION_BODY ? new byte[0] : read;
+    }
+
+    /** The code the body carries, or null when it carries none. */
+    String activationCode() {
+      try {
+        return JSON.readValue(body, OneTimeCode.class).getOtc();
+      } catch (RuntimeException e) {
+        return null;
+      }
+    }
+
+    @Override
+    public ServletInputStream getInputStream() {
+      ByteArrayInputStream bytes = new ByteArrayInputStream(body);
+      return new ServletInputStream() {
+        @Override
+        public boolean isFinished() {
+          return bytes.available() == 0;
+        }
+
+        @Override
+        public boolean isReady() {
+          return true;
+        }
+
+        @Override
+        public void setReadListener(ReadListener listener) {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int read() {
+          return bytes.read();
+        }
+      };
+    }
+
+    @Override
+    public BufferedReader getReader() {
+      return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
+    }
+  }
+
   /** True for an {@code Authorization} header carrying a Flow-minted bearer, false for a JWT or Basic. */
   private static boolean isFlowBearer(String header) {
     return header.startsWith(BEARER_PREFIX)
@@ -315,17 +406,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
    * Validate and Bump GitHub Protected Auth
    */
   private Authentication getGithubUserAuthentication(HttpServletRequest request) {
-    boolean allowActivation = false;
-    if (request.getServletPath().startsWith(PATH_ACTIVATE)
-        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
-      allowActivation = true;
-    }
-
-    boolean allowUserCreation = false;
-    if (request.getServletPath().startsWith(PATH_PROFILE)
-        || request.getServletPath().startsWith(PATH_AUTH_EXCHANGE)) {
-      allowUserCreation = true;
-    }
+    boolean allowActivation = request.getAttribute(ACTIVATION_PROVEN) != null;
+    boolean allowUserCreation = allowActivation || mayRegisterUser(request);
     String email = request.getHeader(X_FORWARDED_EMAIL);
     String userName = request.getHeader(X_FORWARDED_USER);
     final Token token =

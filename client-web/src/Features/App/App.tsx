@@ -22,6 +22,7 @@ import {
   PaginatedResponse,
   WorkflowTemplate,
 } from "Types";
+import { readPendingActivation } from "Features/Auth/pendingActivation";
 import { lastWorkspaceFrom } from "Utils/lastWorkspace";
 import { hasPermission } from "Utils/permissionHelper";
 import type { RoutePermissions } from "./AppRoutes";
@@ -154,6 +155,10 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
       return { ...emptyBootstrap("activationRequired"), authConfig: await resolveAuthConfig() };
     }
     if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // A sign-in that verified but waits on the activation code goes to the activation screen.
+      if (readPendingActivation(request)) {
+        return { ...emptyBootstrap("activationRequired"), authConfig: await resolveAuthConfig() };
+      }
       return { ...emptyBootstrap("unauthorized"), authConfig: await resolveAuthConfig() };
     }
     // Any other failure - including an unconfigured/unreachable CORE_SERVICE_INTERNAL_ORIGIN,

@@ -9,7 +9,7 @@ and every index and schema change is applied by the change units in
 ## Collection naming
 
 Every collection is named `<prefix>_<name>`; the prefix is `flow.mongo.collection.prefix` (default `flow`,
-`service-core/src/main/resources/application.properties:78`). Each entity declares
+`service-core/src/main/resources/application.properties:120`). Each entity declares
 `@Document(collection = "#{@mongoConfiguration.fullCollectionName('<name>')}")`, resolved by
 `core/config/MongoConfiguration.java:16-29` (a blank prefix gives the bare name); the change units apply the
 same rule through `migration/CollectionNames.java:15-32`, built from the same property (`:26-28`). Map keys
@@ -165,7 +165,7 @@ The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelati
 
 Indexes exist only because `_0021__Indexes` built them: its `INVENTORY` is the whole set, the same on an empty
 and an upgraded database (`migration/_0021__Indexes.java:53-197`).
-`spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:76`)
+`spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:118`)
 makes every entity `@Indexed` and `@CompoundIndex` inert; they have drifted and MUST NOT be read as the
 inventory. A new query that needs an index MUST add it to the inventory.
 
@@ -258,7 +258,7 @@ decision after the task can branch on `found`. The store is any S3-compatible se
 
 `service-core` runs every pending change unit on Flamingock while its context starts, before the web server,
 the scheduler and the dispatcher API (`migration/MigrationConfiguration.java:20-21`;
-`flamingock.management-mode=INITIALIZING_BEAN`, `service-core/src/main/resources/application.properties:83`).
+`flamingock.management-mode=INITIALIZING_BEAN`, `service-core/src/main/resources/application.properties:125`).
 Replicas that start together wait on `sys_migration_lock` for up to 30 minutes (`:84`), then skip what another
 replica applied; a failed unit fails startup.
 
@@ -325,6 +325,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0043__UnpinTaskFlowImages` | all | Unsets `spec.image` on every task revision pinning `boomerangio/task-flow:*`, so each runs on the `task` settings' `default.image`; the AI, Box and Python worker images stay |
 | `_0044__BoxPrivateKeyIsASecret` | all | Types the Box tasks' `privateKey` as `password` on their revisions, and in every workflow revision using them makes the stored value a `secret` run param encrypted under `flow.encrypt.secret`/`salt`; a sealed, blank or redacted value is left as it is |
 | `_0045__ClearPlaceholderDefaults` | all | Empties the placeholder default a few credential parameters carried (older GitHub revisions' `token`, the SendGrid template task's `apiKey` and `templateId`); the parameters stay |
+| `_0046__SeedAutoCreateUsersSetting` | all | Adds the `features` setting `autoCreateUsers` (whether a person's first sign-in creates their user) from the seed to an install built before it existed; an install that has the key is left as it is |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

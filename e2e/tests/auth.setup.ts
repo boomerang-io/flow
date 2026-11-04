@@ -11,8 +11,9 @@ import { APP_BASENAME } from "../support/api";
  * both pick the cookie up from that storage state, so the support/api.ts helpers stay
  * authenticated too.
  *
- * Signs in as usr-flow-admin (docker/idpzero/server.yaml): the first sign-in on a fresh database
- * founds the admin, which admin-settings.spec.ts relies on.
+ * Signs in as usr-flow-admin (docker/idpzero/server.yaml): on a fresh database the first sign-in
+ * is asked for the instance's activation code (the compose stack's FLOW_ACTIVATION_CODE) and, once
+ * it is given, founds the admin, which admin-settings.spec.ts relies on.
  */
 setup("sign in via IDPZero and save storage state", async ({ page, baseURL }) => {
   // The sign-in surface is SERVER-RENDERED (BFF slice: the root loader resolves /auth/config in
@@ -46,9 +47,14 @@ setup("sign in via IDPZero and save storage state", async ({ page, baseURL }) =>
   await page.waitForURL(
     (url) => url.origin === appOrigin && !url.pathname.startsWith(`${APP_BASENAME}/auth/`),
   );
-  await expect(page.getByRole("navigation", { name: "Platform navigation" })).toBeVisible({
-    timeout: 15_000,
-  });
+  const navigation = page.getByRole("navigation", { name: "Platform navigation" });
+  const activationCode = page.getByLabel("Activation code");
+  await expect(navigation.or(activationCode)).toBeVisible({ timeout: 15_000 });
+  if (await activationCode.isVisible()) {
+    await activationCode.fill(process.env.FLOW_ACTIVATION_CODE ?? "flow-local-activation-code-for-development");
+    await page.getByRole("button", { name: "Submit" }).click();
+  }
+  await expect(navigation).toBeVisible({ timeout: 15_000 });
 
   await page.context().storageState({ path: STORAGE_STATE });
 

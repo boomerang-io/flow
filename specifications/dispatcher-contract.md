@@ -48,7 +48,7 @@ The protocol carries its own version, `1`, apart from the product version.
 
 Every call carries `Authorization: Bearer <token>`: a global Flow token with an actor kind, a machine token, which
 becomes the identity the request runs as; anything else is a bare 401 (`dispatcher/DispatcherAuthFilter.java:63-93`,
-`core/TokenService.java:415-428`). `flow.dispatcher.auth.enabled=false` checks nothing and runs the request as the
+`core/TokenService.java:419-432`). `flow.dispatcher.auth.enabled=false` checks nothing and runs the request as the
 security-off synthetic identity, independent of `flow.security.enabled` (`authorization.md`, "Dispatcher endpoints").
 
 ## The lifecycle
@@ -220,7 +220,7 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 **Caps.** The params cap is the engine's. The results limit is the dispatcher's (`dispatcher-kubernetes.md`, "Results
 on Kubernetes"); the engine's results setting only guards storage against MongoDB's 16 MB document limit.
 
-| Cap | Property (`service-core/src/main/resources/application.properties:187-188`) | Where checked | Effect |
+| Cap | Property (`service-core/src/main/resources/application.properties:231-232`) | Where checked | Effect |
 | --- | --- | --- | --- |
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`engine/TaskExecutionService.java:237-253`) | The task ends `invalid` with a `PARAMS_TOO_LARGE` message and never becomes claimable |
 | Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`engine/TaskRunService.java:1123-1137`) | Status becomes `failed` with a `RESULTS_TOO_LARGE` message and `statusReason=ResultsTooLarge`; the oversize results are not persisted |
@@ -271,7 +271,7 @@ Spring 7 does not pass a `StreamingResponseBody`'s `flush()` to the network, so 
 response instead (`common/util/ResponseFlushingOutputStream.java`, used at `workflow/TaskRunControllerV2.java:57`).
 Core flushes every relayed read (`engine/LogClient.java:181-190`) and its secret scrub holds back only an unfinished
 line (`common/util/FilterValuesOutputStream.java:14-21`). A stream stays open for up to two hours
-(`service-core/src/main/resources/application.properties:72`); after 10 minutes with nothing from the dispatcher,
+(`service-core/src/main/resources/application.properties:114`); after 10 minutes with nothing from the dispatcher,
 core's read gives up (`core/config/RestConfig.java:53`) and the stream ends with a line saying it stopped following
 (`engine/LogClient.java:47-49`, `:133-139`).
 

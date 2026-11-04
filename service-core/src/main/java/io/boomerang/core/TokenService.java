@@ -15,6 +15,7 @@ import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.DeclaredTokenService;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
@@ -81,6 +82,7 @@ public class TokenService {
   private final IdentityService identityService;
   private final TokenLookupCache lookupCache;
   private final SettingsService settingsService;
+  private final AdminClaim adminClaim;
 
   /*
    * What every signed-in human may do before any workspace admits them: read and edit their own
@@ -98,8 +100,10 @@ public class TokenService {
       MongoTemplate mongoTemplate,
       IdentityService identityService,
       TokenLookupCache lookupCache,
-      SettingsService settingsService) {
+      SettingsService settingsService,
+      AdminClaim adminClaim) {
     this.settingsService = settingsService;
+    this.adminClaim = adminClaim;
     this.tokenRepository = tokenRepository;
     this.userService = userService;
     this.roleRepository = roleRepository;
@@ -566,9 +570,20 @@ public class TokenService {
       String lastName,
       boolean allowActivation,
       boolean allowUserCreation) {
+    return createSessionToken(email, firstName, lastName, allowActivation, allowUserCreation, null);
+  }
+
+  /** As above, with the identity provider's admin verdict when the token carried one ({@link AdminClaim}). */
+  public Token createSessionToken(
+      String email,
+      String firstName,
+      String lastName,
+      boolean allowActivation,
+      boolean allowUserCreation,
+      Boolean claimAdmin) {
     if (email == null || email.isBlank()) {
       return createSessionTokenWithRaw(
-              email, firstName, lastName, allowActivation, allowUserCreation)
+              email, firstName, lastName, allowActivation, allowUserCreation, claimAdmin)
           .token();
     }
     // Keyed on the normalised email - the same fold UserService.normaliseEmail applies.
@@ -578,7 +593,8 @@ public class TokenService {
       return reusable.token();
     }
     Token minted =
-        createSessionTokenWithRaw(email, firstName, lastName, allowActivation, allowUserCreation)
+        createSessionTokenWithRaw(
+                email, firstName, lastName, allowActivation, allowUserCreation, claimAdmin)
             .token();
     // Sweep expired entries on each put: keys derive from caller-supplied identity
     // (x-forwarded-email), so without eviction the map would grow with every identity ever
@@ -609,40 +625,88 @@ public class TokenService {
       String lastName,
       boolean allowActivation,
       boolean allowUserCreation) {
+    return createSessionTokenWithRaw(
+        email, firstName, lastName, allowActivation, allowUserCreation, null);
+  }
+
+  /**
+   * As above, with the identity provider's admin verdict when the token carried one: {@code true}
+   * or {@code false} from a claim read ({@link AdminClaim}), {@code null} when this path carries
+   * none.
+   *
+   * <p>{@code allowActivation} means the request proved the instance's activation code. On an empty
+   * install a sign-in whose claim was read (a verdict of {@code true} or {@code false}) is decided
+   * by the claim alone and the code plays no part: a new user is created an admin only on {@code
+   * true}, and being first grants nothing. A sign-in with no verdict (no claim configured, or a
+   * path that cannot read it) makes the first admin only by the code, and is otherwise locked. For
+   * an existing user, the type follows a verdict on every sign-in. With auto-create users off, an
+   * identity that is no user yet is refused unless the claim makes it an admin.
+   */
+  public SessionToken createSessionTokenWithRaw(
+      String email,
+      String firstName,
+      String lastName,
+      boolean allowActivation,
+      boolean allowUserCreation,
+      Boolean claimAdmin) {
     Optional<UserEntity> user = Optional.empty();
     String name = String.format("%s %s", sanitise(firstName), sanitise(lastName));
-    if (allowActivation && !userService.isActivated()) {
-      user =
-          userService.getAndRegisterUser(
-              email,
-              Optional.of(name),
-              Optional.of(UserType.admin),
-              Optional.empty(),
-              allowUserCreation);
-      if (user.isPresent()) {
-        relationshipService.createEdge(
-            RelationshipType.USER,
-            user.get().getId(),
-            RelationshipLabel.MEMBER_OF,
-            RelationshipType.WORKSPACE,
-            "system",
-            Optional.of(Map.of("role", RoleEnum.OWNER.getLabel())));
+    boolean claimGrantsAdmin = Boolean.TRUE.equals(claimAdmin);
+    if (!userService.isActivated()) {
+      if (claimAdmin != null) {
+        // The claim was read, so the provider decides who is admin and the code plays no part.
+        if (claimGrantsAdmin || settingsService.autoCreateUsers()) {
+          user = registerFirstUser(email, name, claimGrantsAdmin, allowUserCreation);
+        }
+      } else if (allowActivation) {
+        user = registerFirstUser(email, name, true, allowUserCreation);
+      } else {
+        throw new HttpClientErrorException(HttpStatus.LOCKED);
       }
-    } else if (userService.isActivated()) {
+    } else {
       user =
           userService.getAndRegisterUser(
               email,
               Optional.of(name),
-              Optional.of(UserType.user),
+              Optional.of(claimGrantsAdmin ? UserType.admin : UserType.user),
               Optional.empty(),
-              allowUserCreation);
-    } else {
-      throw new HttpClientErrorException(HttpStatus.LOCKED);
+              allowUserCreation && (claimGrantsAdmin || settingsService.autoCreateUsers()));
     }
     if (!user.isPresent()) {
       throw new HttpClientErrorException(HttpStatus.FORBIDDEN);
     }
+    if (claimAdmin != null && adminClaim.configured()) {
+      UserEntity signedIn = user.get();
+      if (userService.applyAdminClaim(signedIn, claimGrantsAdmin) && !claimGrantsAdmin) {
+        // A demoted admin's sessions still carry the global grant; end them.
+        tokenRepository
+            .findByPrincipalAndType(signedIn.getId(), AuthScope.session)
+            .ifPresent(sessions -> sessions.forEach(session -> delete(session.getId())));
+      }
+    }
     return mintSessionToken(user.get());
+  }
+
+  /** Registers the first user of an empty install; an admin also owns the system workspace. */
+  private Optional<UserEntity> registerFirstUser(
+      String email, String name, boolean admin, boolean allowUserCreation) {
+    Optional<UserEntity> user =
+        userService.getAndRegisterUser(
+            email,
+            Optional.of(name),
+            Optional.of(admin ? UserType.admin : UserType.user),
+            Optional.empty(),
+            allowUserCreation);
+    if (admin && user.isPresent()) {
+      relationshipService.createEdge(
+          RelationshipType.USER,
+          user.get().getId(),
+          RelationshipLabel.MEMBER_OF,
+          RelationshipType.WORKSPACE,
+          "system",
+          Optional.of(Map.of("role", RoleEnum.OWNER.getLabel())));
+    }
+    return user;
   }
 
   /**

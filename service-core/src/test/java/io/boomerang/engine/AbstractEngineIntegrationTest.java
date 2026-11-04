@@ -69,6 +69,10 @@ public abstract class AbstractEngineIntegrationTest {
     registry.add("flow.events.sink.enabled", () -> "false");
     // Watcher sweeps are exercised deterministically by direct invocation, not on a schedule.
     registry.add("flow.watcher.enabled", () -> "false");
+    // The identity provider's admin claim, trusted on a proxy-forwarded token (SignInModesTest).
+    registry.add("flow.security.admin-claim.name", () -> "groups");
+    registry.add("flow.security.admin-claim.values", () -> "flow-admins");
+    registry.add("flow.security.admin-claim.trust-forwarded-token", () -> "true");
   }
 
   @Autowired protected TaskRunRepository taskRunRepository;

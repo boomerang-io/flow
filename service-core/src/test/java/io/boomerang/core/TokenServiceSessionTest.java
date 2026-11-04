@@ -18,6 +18,7 @@ import io.boomerang.core.model.Token;
 import java.time.Duration;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
+import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
@@ -66,11 +67,13 @@ class TokenServiceSessionTest {
             mongoTemplate,
             identityService,
             new TokenLookupCache(true, Duration.ofSeconds(60), 10_000),
-            settingsService);
+            settingsService,
+            new AdminClaim("", List.of(), false));
     ReflectionTestUtils.setField(tokenService, "MAX_SESSION_TOKEN_DURATION", 8);
     // Lenient: the permission-resolution tests below mint nothing.
     lenient().when(tokenRepository.save(any(TokenEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
     lenient().when(relationshipService.roles(any())).thenReturn(Map.of());
+    lenient().when(settingsService.autoCreateUsers()).thenReturn(true);
   }
 
   // A user in no workspace still reaches their own profile, the flags, navigation and templates:

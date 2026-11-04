@@ -2,6 +2,7 @@ package io.boomerang.core.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -13,10 +14,12 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.UserService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +50,7 @@ class AuthenticationFilterTest {
 
   @Mock private TokenService tokenService;
   @Mock private SettingsService settingsService;
+  @Mock private UserService userService;
   @Mock private AuthenticationEntryPoint authEntryPoint;
   @Mock private FilterChain filterChain;
 
@@ -62,7 +66,9 @@ class AuthenticationFilterTest {
             settingsService,
             "basic-pass",
             authEntryPoint,
-            passwordEncoder);
+            passwordEncoder,
+            new AdminClaim("", List.of(), false),
+            userService);
     SecurityContextHolder.clearContext();
   }
 
@@ -185,7 +191,13 @@ class AuthenticationFilterTest {
     // supplies an empty one: the two must not match, or Basic would admit any email.
     AuthenticationFilter unconfigured =
         new AuthenticationFilter(
-            tokenService, settingsService, "", authEntryPoint, passwordEncoder);
+            tokenService,
+                settingsService,
+                "",
+                authEntryPoint,
+                passwordEncoder,
+                new AdminClaim("", List.of(), false),
+                userService);
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
     request.setServletPath("/api/v2/workflow");
     request.addHeader(
@@ -210,7 +222,7 @@ class AuthenticationFilterTest {
             .serialize();
     Token sessionToken = new Token(AuthScope.session);
     sessionToken.setPrincipal("person@example.test");
-    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false, null))
         .thenReturn(sessionToken);
 
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/workflow");
@@ -224,6 +236,186 @@ class AuthenticationFilterTest {
     verify(authEntryPoint, never()).commence(any(), any(), any());
     assertThat(SecurityContextHolder.getContext().getAuthentication().getDetails())
         .isEqualTo(sessionToken);
+  }
+
+  private AuthenticationFilter filterTrusting(boolean trustForwardedToken) {
+    return new AuthenticationFilter(
+        tokenService,
+        settingsService,
+        "basic-pass",
+        authEntryPoint,
+        passwordEncoder,
+        new AdminClaim("groups", List.of("flow-admins"), trustForwardedToken),
+        userService);
+  }
+
+  private MockHttpServletRequest forwardedJwtWithGroups(String... groups) {
+    String jwt =
+        new PlainJWT(
+                new JWTClaimsSet.Builder()
+                    .claim("email", "person@example.test")
+                    .claim("groups", List.of(groups))
+                    .build())
+            .serialize();
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/profile");
+    request.setServletPath("/api/v2/profile");
+    request.addHeader("Authorization", "Bearer " + jwt);
+    return request;
+  }
+
+  // The forwarded JWT is unverified, so its admin claim is ignored unless the operator trusts the proxy.
+  @Test
+  void aForwardedJwtsAdminClaimIsIgnoredUnlessTheProxyIsTrusted() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, true, null))
+        .thenReturn(sessionToken);
+
+    filterTrusting(false)
+        .doFilter(forwardedJwtWithGroups("flow-admins"), new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, false, true, null);
+  }
+
+  @Test
+  void aTrustedForwardedJwtCarriesTheClaimVerdictToTheSignIn() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("person@example.test");
+    when(tokenService.createSessionToken(
+            eq("person@example.test"), any(), any(), eq(false), eq(true), any(Boolean.class)))
+        .thenReturn(sessionToken);
+
+    filterTrusting(true)
+        .doFilter(forwardedJwtWithGroups("flow-admins"), new MockHttpServletResponse(), filterChain);
+    filterTrusting(true)
+        .doFilter(forwardedJwtWithGroups("staff"), new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService)
+        .createSessionToken("person@example.test", null, null, false, true, Boolean.TRUE);
+    verify(tokenService)
+        .createSessionToken("person@example.test", null, null, false, true, Boolean.FALSE);
+  }
+
+  // Headers and Basic carry no claim, so they never grant or remove admin.
+  @Test
+  void aForwardedEmailHeaderCarriesNoClaimVerdict() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, true))
+        .thenReturn(sessionToken);
+
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v2/profile");
+    request.setServletPath("/api/v2/profile");
+    request.addHeader("x-forwarded-email", "person@example.test");
+
+    filterTrusting(true).doFilter(request, new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, false, true);
+    verify(tokenService, never())
+        .createSessionToken(any(), any(), any(), anyBoolean(), anyBoolean(), any());
+  }
+
+  // --- the one-time code and the first admin -------------------------------------------------
+
+  private MockHttpServletRequest activateRequest(String body) {
+    MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/v2/activate");
+    request.setServletPath("/api/v2/activate");
+    request.addHeader("x-forwarded-email", "person@example.test");
+    request.setContent(body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    return request;
+  }
+
+  @Test
+  void aWrongCodeOnAnEmptyInstallCreatesNobodyAndIsAnswered400() throws Exception {
+    when(userService.isActivated()).thenReturn(false);
+    when(userService.activationCodeValid("wrong")).thenReturn(false);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(activateRequest("{\"otc\":\"wrong\"}"), response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(400);
+    verifyNoInteractions(tokenService);
+    verify(filterChain, never()).doFilter(any(), any());
+  }
+
+  @Test
+  void aMissingBodyOnAnEmptyInstallCreatesNobody() throws Exception {
+    when(userService.isActivated()).thenReturn(false);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(activateRequest(""), response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(400);
+    verifyNoInteractions(tokenService);
+  }
+
+  @Test
+  void theRightCodeOnAnEmptyInstallLetsTheFirstAdminBeCreatedAndReplaysTheBody() throws Exception {
+    when(userService.isActivated()).thenReturn(false);
+    when(userService.activationCodeValid("right")).thenReturn(true);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, true, true))
+        .thenReturn(sessionToken);
+    String[] replayed = new String[1];
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              var forwarded = (jakarta.servlet.http.HttpServletRequest) invocation.getArgument(0);
+              replayed[0] = new String(forwarded.getInputStream().readAllBytes());
+              return null;
+            })
+        .when(filterChain)
+        .doFilter(any(), any());
+
+    filter.doFilter(activateRequest("{\"otc\":\"right\"}"), new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, true, true);
+    assertThat(replayed[0]).isEqualTo("{\"otc\":\"right\"}");
+  }
+
+  @Test
+  void onAnActivatedInstallTheActivationRouteSignsInLikeAnyOther() throws Exception {
+    when(userService.isActivated()).thenReturn(true);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, false))
+        .thenReturn(sessionToken);
+
+    filter.doFilter(activateRequest("{\"otc\":\"wrong\"}"), new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, false, false);
+    verify(userService, never()).activationCodeValid(any());
+  }
+
+  // The activation route carries no claim, so with an admin claim configured the code still counts.
+  @Test
+  void withAnAdminClaimConfiguredTheRightCodeStillActivatesThroughTheActivationRoute() throws Exception {
+    when(userService.isActivated()).thenReturn(false);
+    when(userService.activationCodeValid("right")).thenReturn(true);
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, true, true))
+        .thenReturn(sessionToken);
+
+    filterTrusting(true).doFilter(activateRequest("{\"otc\":\"right\"}"), new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, true, true);
+  }
+
+  @Test
+  void theExchangeRouteNeverActivatesThroughTheFilter() throws Exception {
+    Token sessionToken = new Token(AuthScope.session);
+    sessionToken.setPrincipal("user-1");
+    when(tokenService.createSessionToken("person@example.test", null, null, false, true))
+        .thenReturn(sessionToken);
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("POST", AuthenticationFilter.PATH_AUTH_EXCHANGE);
+    request.setServletPath(AuthenticationFilter.PATH_AUTH_EXCHANGE);
+    request.addHeader("x-forwarded-email", "person@example.test");
+
+    filter.doFilter(request, new MockHttpServletResponse(), filterChain);
+
+    verify(tokenService).createSessionToken("person@example.test", null, null, false, true);
   }
 
   @Test

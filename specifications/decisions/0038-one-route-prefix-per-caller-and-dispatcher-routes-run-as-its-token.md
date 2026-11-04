@@ -23,11 +23,11 @@ mode it mints a session from forwarded headers. Code a dispatcher route reaches 
 One prefix per caller, each with its own version. The sign-in routes are `/internal/v1/auth/{config,exchange,logout}`
 (`service-core/src/main/java/io/boomerang/core/InternalAuthControllerV1.java:35`), called only from the webapp's
 loaders and actions (`client-web/src/Config/servicesConfig.ts:27,63-65`) and left out of the published OpenAPI
-document (`service-core/src/main/resources/application.properties:163`). The dispatcher wire is `/dispatcher/v1`
+document (`service-core/src/main/resources/application.properties:207`). The dispatcher wire is `/dispatcher/v1`
 on its own filter chain (`dispatcher/DispatcherControllerV1.java:54`), not under `/internal/v1`, so a dispatcher in
 another network zone is routed without opening sign-in. `DispatcherAuthFilter` accepts only an unexpired `global`
 token with an actor kind and installs it as the request's identity, the one the same bearer carries on `/api/v2`, so
-it grants nothing new (`dispatcher/DispatcherAuthFilter.java:72-100`, `core/TokenService.java:415-428`); with
+it grants nothing new (`dispatcher/DispatcherAuthFilter.java:72-100`, `core/TokenService.java:419-432`); with
 `flow.dispatcher.auth.enabled=false` the request runs as the security-off synthetic admin (`:66-71`).
 
 ## Consequences
@@ -35,6 +35,6 @@ it grants nothing new (`dispatcher/DispatcherAuthFilter.java:72-100`, `core/Toke
 - A front door routes `/api/v2/**` only, and `/dispatcher/v1` only for a dispatcher outside core's network.
 - A prefix is a routing boundary, not a credential: a caller that reaches `service-core` directly reaches
   `/internal/v1`, and proxy identity headers are believed on every prefix the main chain serves
-  (`core/security/AuthenticationFilter.java:117-118`).
+  (`core/security/AuthenticationFilter.java:151-152`).
 - Reads that must not depend on the caller stay caller-free: the artifact quota is read from the run's workspace
   (`workflow/QuotaService.java:279-292`). Revisit if a dispatcher token ever carries less than a `global` grant.
