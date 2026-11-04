@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.boomerang.common.error.BoomerangError;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -261,6 +263,25 @@ class DeclaredTokenServiceTest extends AbstractEngineIntegrationTest {
         .perform(
             delete("/api/v2/workspace/declared-token-test")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void aDeclaredTokenWithNoGrantsReachesTheDispatcherWireAndNothingThatNeedsAPermission()
+      throws Exception {
+    register(byValue("dispatcher", FIRST));
+    assertThat(stored("dispatcher").getPermissions()).isEmpty();
+    SecurityContextHolder.clearContext();
+
+    mockMvc
+        .perform(
+            post("/dispatcher/v1/workspaces/releasable")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"workflowRunRefs\":[],\"workflowRefs\":[]}"))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(get(WORKSPACE_QUERY).header(HttpHeaders.AUTHORIZATION, "Bearer " + FIRST))
         .andExpect(status().isForbidden());
   }
 

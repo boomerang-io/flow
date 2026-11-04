@@ -9,6 +9,7 @@ import org.springframework.context.NoSuchMessageException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -125,7 +126,7 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
    * Renders Spring Security's AuthenticationException (raised via the delegatedAuthenticationEntryPoint
    * bean - see DelegatedAuthenticationEntryPoint/AuthenticationFilter) as the platform's standard
    * RestErrorResponse body instead of the framework's default error page,
-   * with a distinguishing code/reason and a WWW-Authenticate header. FlowAuthenticationException carries the
+   * with a distinguishing code/reason and, on a 401, a WWW-Authenticate header. FlowAuthenticationException carries the
    * specific BoomerangError; any other AuthenticationException (e.g. thrown directly by Spring Security
    * machinery) falls back to the generic AUTH_REQUIRED shape.
    */
@@ -138,14 +139,24 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
     RestErrorResponse re = new RestErrorResponse();
     re.setCode(error.getCode());
     re.setReason(error.getReason());
-    re.setMessage(ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Authentication failed.");
+    if (ex.getMessage() != null && !ex.getMessage().isBlank()) {
+      re.setMessage(ex.getMessage());
+    } else {
+      try {
+        re.setMessage(messageSource.getMessage(error.getReason(), null, Locale.ENGLISH));
+      } catch (NoSuchMessageException nsme) {
+        re.setMessage("Authentication failed.");
+      }
+    }
     re.setStatus(error.getStatus().toString());
     if (includeCause && ex.getCause() != null) {
       re.setCause(ex.getCause().toString());
     }
 
     HttpHeaders headers = new HttpHeaders();
-    headers.add(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+    if (error.getStatus() == HttpStatus.UNAUTHORIZED) {
+      headers.add(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+    }
     return new ResponseEntity<>(re, headers, error.getStatus());
   }
 }

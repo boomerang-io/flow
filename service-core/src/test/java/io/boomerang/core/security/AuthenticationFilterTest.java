@@ -326,14 +326,14 @@ class AuthenticationFilterTest {
   }
 
   @Test
-  void aWrongCodeOnAnEmptyInstallCreatesNobodyAndIsAnswered400() throws Exception {
+  void aWrongCodeOnAnEmptyInstallCreatesNobodyAndIsAnsweredAsTheStructuredInvalidCode() throws Exception {
     when(userService.isActivated()).thenReturn(false);
     when(userService.activationCodeValid("wrong")).thenReturn(false);
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     filter.doFilter(activateRequest("{\"otc\":\"wrong\"}"), response, filterChain);
 
-    assertThat(response.getStatus()).isEqualTo(400);
+    assertActivationCodeInvalid();
     verifyNoInteractions(tokenService);
     verify(filterChain, never()).doFilter(any(), any());
   }
@@ -345,8 +345,31 @@ class AuthenticationFilterTest {
 
     filter.doFilter(activateRequest(""), response, filterChain);
 
-    assertThat(response.getStatus()).isEqualTo(400);
+    assertActivationCodeInvalid();
     verifyNoInteractions(tokenService);
+  }
+
+  @Test
+  void anOversizedBodyOnAnEmptyInstallIsTheSameStructuredRefusal() throws Exception {
+    when(userService.isActivated()).thenReturn(false);
+
+    filter.doFilter(
+        activateRequest("{\"otc\":\"" + "x".repeat(5000) + "\"}"),
+        new MockHttpServletResponse(),
+        filterChain);
+
+    assertActivationCodeInvalid();
+    verifyNoInteractions(tokenService);
+  }
+
+  private void assertActivationCodeInvalid() throws Exception {
+    ArgumentCaptor<AuthenticationException> captor =
+        ArgumentCaptor.forClass(AuthenticationException.class);
+    verify(authEntryPoint).commence(any(), any(), captor.capture());
+    assertThat(captor.getValue()).isInstanceOf(FlowAuthenticationException.class);
+    assertThat(((FlowAuthenticationException) captor.getValue()).getError())
+        .isEqualTo(io.boomerang.common.error.BoomerangError.AUTH_ACTIVATION_CODE_INVALID);
+    verify(filterChain, never()).doFilter(any(), any());
   }
 
   @Test
