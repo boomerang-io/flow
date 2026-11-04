@@ -91,7 +91,7 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | Install | Auto-create users | Claim configured | Identity | Result |
 | --- | --- | --- | --- | --- |
 | has users | on | no | unknown | registered as a user (today's behaviour) |
-| has users | off | no | unknown | refused, `403` (`HttpClientErrorException(FORBIDDEN)`, as any refused sign-in) |
+| has users | off | no | unknown | refused, `403`; the webapp's sign-in answers `AUTH_USER_NOT_ADMITTED` (`core/security/AuthExchangeService.java:149-158`) |
 | has users | off | no | added by an admin | admitted and activated |
 | has users | off | yes | unknown, verdict `true` | created as an admin |
 | has users | off | yes | unknown, verdict `false` or none | refused |
@@ -121,7 +121,7 @@ refuses every code (`UserService.java:97-106`), so the code is useless after the
 | --- | --- |
 | `PUT /api/v2/activate` behind a proxy | the filter reads the body (replayed for the controller) before it resolves an identity; on an empty install a wrong, missing or oversized (over 4 KB) body is answered `400` and nobody is created, the right code lets the filter register the caller as the first admin and marks the request so the controller accepts it (`AuthenticationFilter.java:121-134,219-220`) |
 | any other proxy route on an empty install | `423 Locked`, which the webapp reads as "show the activation screen" (`TokenService.java:663-665`) |
-| `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-148`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
+| `POST /internal/v1/auth/exchange {idToken, nonce}` | the token is verified, then `AUTH_ACTIVATION_REQUIRED` (`423`) with no `otc`, `AUTH_ACTIVATION_CODE_INVALID` (`400`) with a wrong one; with the right `otc` the first admin is created and the session minted (`AuthExchangeService.java:133-158`); a person the install does not admit is `AUTH_USER_NOT_ADMITTED` (`403`). The webapp holds the verified sign-in in a five-minute httpOnly cookie, shows the activation screen, and resubmits it with the code (`client-web/src/Features/Auth/pendingActivation.ts`, `client-web/app/routes/resActivate.tsx`) |
 | an activated install | the code is not read; sign-in is as in the table above |
 
 The code is skipped only on a sign-in whose claim was read: the webapp's verified id_token, or a forwarded token with

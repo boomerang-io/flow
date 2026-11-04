@@ -494,6 +494,8 @@ tag's release notes.
 
 ### Fixed
 
+- The webapp's sign-in answers `403 AUTH_USER_NOT_ADMITTED`, not a `500`, when Auto-Create Users is off and the
+  person is not a user yet.
 - A change to the audit retention setting (`audit` `retentionDays`) through `PATCH /api/v2/settings` now reaches the
   audit expiry index on every instance within a minute (`flow.audit.retention-interval-ms`), instead of at the next
   restart. The 60-day floor is unchanged. The run (`workflowrun` `retention.days`) and task log retention settings

@@ -26,6 +26,8 @@ import io.boomerang.core.security.enums.AuthScope;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -251,6 +253,21 @@ class AuthExchangeServiceTest {
         .extracting(ex -> ((BoomerangException) ex).getReason())
         .isEqualTo(BoomerangError.AUTH_ACTIVATION_CODE_INVALID.getReason());
     verifyNoInteractions(tokenService);
+  }
+
+  @Test
+  void aPersonTheInstallDoesNotAdmitIsAnswered403NotA500() {
+    when(tokenService.createSessionTokenWithRaw("person@example.test", null, null, false, true, null))
+        .thenThrow(new HttpClientErrorException(HttpStatus.FORBIDDEN));
+
+    assertThatThrownBy(() -> authExchangeService.exchange(idTokenRequest(null)))
+        .isInstanceOf(BoomerangException.class)
+        .satisfies(
+            ex -> {
+              assertThat(((BoomerangException) ex).getReason())
+                  .isEqualTo(BoomerangError.AUTH_USER_NOT_ADMITTED.getReason());
+              assertThat(((BoomerangException) ex).getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+            });
   }
 
   @Test

@@ -12,7 +12,9 @@ import io.boomerang.core.model.AuthExchangeRequest;
 import io.boomerang.core.model.Token;
 import java.text.ParseException;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 
 /**
  * The two identity sources of {@code POST /internal/v1/auth/exchange} converging on the same
@@ -144,8 +146,16 @@ public class AuthExchangeService {
       }
     }
     // The id_token is signature-verified above, so its admin claim is the provider's word.
-    return tokenService.createSessionTokenWithRaw(
-        email, firstName, lastName, codeProven, true, claimAdmin);
+    try {
+      return tokenService.createSessionTokenWithRaw(
+          email, firstName, lastName, codeProven, true, claimAdmin);
+    } catch (HttpClientErrorException refused) {
+      // A refusal is answered as the API's own error, not left to surface as a 500.
+      throw new BoomerangException(
+          HttpStatus.LOCKED.equals(refused.getStatusCode())
+              ? BoomerangError.AUTH_ACTIVATION_REQUIRED
+              : BoomerangError.AUTH_USER_NOT_ADMITTED);
+    }
   }
 
   /** Revokes the current session token (identified by AuthenticationFilter's cookie branch). */
