@@ -175,10 +175,10 @@ and the product chain second (`core/security/SecurityConfiguration.java:89-90`).
 One compose file runs the stack two ways. `docker compose up -d` starts what a developer keeps in Docker:
 `mongo` in a named volume, published on `127.0.0.1:27017` (`docker-compose.yml:28-40`), a local IDPZero OpenID
 Connect provider at `idp.localhost:4380` (`:51-65`), SeaweedFS as the artifact store and a one-shot that
-creates its bucket (`:71-97`), and two one-shot seeds that wait for core's migrations to create the settings
-they edit, wherever core runs: `auth-oidc-seed` points the `auth` settings at IDPZero so sign-in resolves to
-`oidc`, and `task-deletion-seed` sets the task deletion policy to Always so a finished run's storage claim can
-be released (`:105-127`, `docker/mongo/*.js`). `service-core` then runs on the host under the `local` Spring
+creates its bucket (`:71-97`), and a one-shot seed that waits for core's migrations to create the settings
+document it edits, wherever core runs: `task-deletion-seed` sets the task deletion policy to Always so a finished
+run's storage claim can be released (`docker/mongo/*.js`). Core points the `auth` settings at IDPZero itself, from
+`flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`authorization.md`, "OpenID Connect seed"). `service-core` then runs on the host under the `local` Spring
 profile (`service-core/src/main/resources/application-local.properties`) and `client-web` under React Router's
 dev server (`pnpm dev`), which calls core at `http://localhost:7700` by default
 (`client-web/src/Config/serverFetch.ts:31-35`).

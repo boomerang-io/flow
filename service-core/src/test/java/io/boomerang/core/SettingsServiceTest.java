@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 /**
  * Secured setting values are encrypted at rest and decrypted on read. Unit-level (mocked
@@ -32,6 +33,7 @@ class SettingsServiceTest {
 
   @Mock private SettingsRepository settingsRepository;
   @Mock private ParamLayerCache paramLayerCache;
+  @Mock private MongoTemplate mongoTemplate;
 
   private SettingsService settingsService;
 
@@ -42,7 +44,7 @@ class SettingsServiceTest {
     encryptionConfig.setSalt("test-salt");
     settingsService =
         new SettingsService(
-            settingsRepository, new SecretCipher(encryptionConfig), paramLayerCache);
+            settingsRepository, new SecretCipher(encryptionConfig), paramLayerCache, mongoTemplate);
   }
 
   @Test
