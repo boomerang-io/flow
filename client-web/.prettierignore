@@ -3,3 +3,6 @@ node_modules
 # Ignore artifacts:
 build
 coverage
+
+# Generated from the API contract (pnpm gen:api)
+src/Api

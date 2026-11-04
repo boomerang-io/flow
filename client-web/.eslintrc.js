@@ -7,5 +7,5 @@ module.exports = {
     mount: true,
     renderer: true,
   },
-  ignorePatterns: ["public/*"],
+  ignorePatterns: ["public/*", "src/Api/*"],
 };

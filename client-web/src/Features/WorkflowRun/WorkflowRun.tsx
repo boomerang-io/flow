@@ -18,6 +18,7 @@ import {
   FlowWorkspace,
   RunPhase,
   RunStatus,
+  RunStatusType,
   Task,
   TaskRun,
   WorkflowCanvas,
@@ -47,7 +48,7 @@ const POLL_INTERVAL_MS = 5000;
 // A run in one of these statuses will not change again on its own, so polling stops. Anything
 // that *can* still change it from here is a user action (retry), and those submit through the
 // fetcher below, which revalidates on completion.
-const TERMINAL_STATUSES = [
+const TERMINAL_STATUSES: ReadonlyArray<RunStatusType> = [
   RunStatus.Succeeded,
   RunStatus.Failed,
   RunStatus.Invalid,
@@ -158,18 +159,22 @@ export async function loader({
   }
 
   let workflow: WorkflowCanvas | null = null;
-  let errorLoading = false;
-  try {
-    const workflowResponse = await api.get(
-      serviceUrl.workspace.workflow.getWorkflowComposeRun({
-        workspace,
-        workflow: workflowRun.workflowName,
-        version: workflowRun.workflowVersion,
-      }),
-    );
-    workflow = workflowResponse.data;
-  } catch (error) {
-    errorLoading = true;
+  // The run's workflow name is resolved on read and absent once the workflow is gone: there is
+  // no definition to draw the run against.
+  let errorLoading = !workflowRun.workflowName;
+  if (workflowRun.workflowName) {
+    try {
+      const workflowResponse = await api.get(
+        serviceUrl.workspace.workflow.getWorkflowComposeRun({
+          workspace,
+          workflow: workflowRun.workflowName,
+          version: workflowRun.workflowVersion,
+        }),
+      );
+      workflow = workflowResponse.data;
+    } catch (error) {
+      errorLoading = true;
+    }
   }
 
   const actions = await resolveActions(api, workspace, workflowRun.tasks);

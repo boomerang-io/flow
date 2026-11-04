@@ -22,7 +22,7 @@ import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
 import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { ACTIVE_TIME_DESCRIPTION, ExecutionStatusCopy, executionStatusIcon } from "Constants";
-import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
+import { RunPhase, RunPhaseType, RunStatus, RunStatusType, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
 import { isActionError } from "Utils/actionResult";
 import styles from "./RunHeader.module.scss";
@@ -36,16 +36,21 @@ type Props = {
   onRetry?: () => void;
 };
 
-const cancelStatusTypes = [RunStatus.NotStarted, RunStatus.Waiting, RunStatus.Ready, RunStatus.Running];
+const cancelStatusTypes: ReadonlyArray<RunStatusType> = [
+  RunStatus.NotStarted,
+  RunStatus.Waiting,
+  RunStatus.Ready,
+  RunStatus.Running,
+];
 // A finished run can be retried whatever its outcome: a succeeded one from a selected task.
-const retryStatusTypes = [
+const retryStatusTypes: ReadonlyArray<RunStatusType> = [
   RunStatus.Cancelled,
   RunStatus.Failed,
   RunStatus.TimedOut,
   RunStatus.Invalid,
   RunStatus.Succeeded,
 ];
-const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
+const startPhaseTypes: ReadonlyArray<RunPhaseType> = [RunPhase.Pending, RunPhase.Queued];
 // The run's status tag takes the colour its tasks use: teal done, red failed or stopped, blue in
 // progress, gray not run.
 const statusTagType: Partial<Record<RunStatus, "teal" | "red" | "blue" | "gray">> = {
@@ -268,7 +273,10 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
             {isScheduleTriggered ? (
               <dd className={styles.dataValue}>
                 <Link
-                  to={appLink.schedulesForWorkflow({ workspace: workspace.name, workflow: workflowName })}
+                  to={appLink.schedulesForWorkflow({
+                    workspace: workspace.name,
+                    workflow: workflowName ?? workflow.name,
+                  })}
                   data-testid="initiated-by-schedule-link"
                 >
                   {initiatedByRef}
@@ -286,7 +294,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
             ) : isRetry ? (
               <dd className={styles.dataValue}>
                 <Link
-                  to={appLink.execution({ workspace: workspace.name, runId: initiatedByRef })}
+                  to={appLink.execution({ workspace: workspace.name, runId: initiatedByRef as string })}
                   data-testid="initiated-by-origin-run-link"
                 >
                   {initiatedByRef}
@@ -338,7 +346,11 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
               </ComposedModal>
             )}
             {workflowRun.results && Object.keys(workflowRun.results).length > 0 && (
-              <OutputPropertiesLog isOutput taskName={workflowRun.workflowName} results={workflowRun.results} />
+              <OutputPropertiesLog
+                isOutput
+                taskName={workflowRun.workflowName ?? workflow.name}
+                results={workflowRun.results}
+              />
             )}
             {canActionWorkflowRun && displayStartButton && (
               <ConfirmModal

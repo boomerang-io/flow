@@ -5,9 +5,19 @@ import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import moment from "moment";
 import ReactMarkdown from "react-markdown";
 import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
-import { foreachItemSuffix, foreachParentSummary } from "Utils/taskRunHelper";
+import { foreachItemSuffix, foreachParentSummary, formatRunValue } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, NodeType, PASSWORD_CONSTANT, executionStatusIcon } from "Constants";
-import { Action, Param, RunPhase, RunStatus, SimpleApprover, TaskRun, WorkflowRun } from "Types";
+import {
+  Action,
+  RunParam,
+  RunPhase,
+  RunResult,
+  RunStatus,
+  RunStatusType,
+  SimpleApprover,
+  TaskRun,
+  WorkflowRun,
+} from "Types";
 import ManualTaskModal from "./ManualTaskModal";
 import PropertiesTable from "./PropertiesTable";
 import ResultsTable from "./ResultsTable";
@@ -16,7 +26,7 @@ import TaskExecutionLog from "./TaskRunLog";
 import styles from "./runTaskItem.module.scss";
 
 const logTaskTypes = ["customtask", "template", "script", "uploadartifact", "downloadartifact"];
-const logStatusTypes = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running];
+const logStatusTypes: ReadonlyArray<RunStatusType> = [RunStatus.Succeeded, RunStatus.Failed, RunStatus.Running];
 
 function hasLog(taskRun: TaskRun) {
   return (
@@ -29,6 +39,13 @@ function taskRunDuration(taskRun: TaskRun) {
   return taskRun.duration
     ? formatDuration(taskRun.duration)
     : dateHelper.durationFromThenToNow(taskRun.startTime) || "---";
+}
+
+// The value of a param or result the engine sets as text - an action's id, a child run's id, a
+// manual task's instructions - when the task run carries it.
+function textValue(entries: Array<RunParam | RunResult>, name: string): string | undefined {
+  const value = entries.find((entry) => entry.name === name)?.value;
+  return typeof value === "string" ? value : undefined;
 }
 
 // The attempt, shown only once the task was requeued: a first attempt is the ordinary case.
@@ -58,7 +75,7 @@ type Props = {
 
 // A retry can start from a task that finished, well or badly; one still in flight, or never
 // started, is picked up by the retry's own rules.
-const retryFromStatuses = [
+const retryFromStatuses: ReadonlyArray<RunStatusType> = [
   RunStatus.Succeeded,
   RunStatus.Failed,
   RunStatus.TimedOut,
@@ -208,10 +225,7 @@ function RunTaskItem({
             )}
           >
             {({ closeModal }) => (
-              <TaskApprovalModal
-                actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
-                closeModal={closeModal}
-              />
+              <TaskApprovalModal actionId={textValue(taskRun.results, "actionRef")} closeModal={closeModal} />
             )}
           </ComposedModal>
         )}
@@ -232,9 +246,9 @@ function RunTaskItem({
           >
             {({ closeModal }) => (
               <ManualTaskModal
-                actionId={taskRun.results.find((result) => result.name === "actionRef")?.value}
+                actionId={textValue(taskRun.results, "actionRef")}
                 closeModal={closeModal}
-                instructions={taskRun.params.find((param) => param.name === "instructions")?.value}
+                instructions={textValue(taskRun.params, "instructions")}
               />
             )}
           </ComposedModal>
@@ -245,7 +259,7 @@ function RunTaskItem({
             size="sm"
             onClick={() =>
               executionViewRedirect({
-                workflowRunRef: taskRun.results.find((result) => result.name === "workflowRunRef")?.value ?? "",
+                workflowRunRef: textValue(taskRun.results, "workflowRunRef") ?? "",
               })
             }
             renderIcon={ArrowRight}
@@ -303,7 +317,12 @@ function RunTaskItem({
 
 export default RunTaskItem;
 
-const itemFailedStatuses = [RunStatus.Failed, RunStatus.Cancelled, RunStatus.TimedOut, RunStatus.Invalid];
+const itemFailedStatuses: ReadonlyArray<RunStatusType> = [
+  RunStatus.Failed,
+  RunStatus.Cancelled,
+  RunStatus.TimedOut,
+  RunStatus.Invalid,
+];
 
 function itemValue(item: TaskRun) {
   const value = item.params.find((param) => param.name === "item")?.value;
@@ -447,20 +466,8 @@ function ManualResult({ taskRun, action }: ManualResultProps) {
 
 // A secret is masked whatever its value - the server already sends "*****", so this only
 // guarantees that an empty or unexpected value cannot show through.
-function formatParamValue(param: Param): string {
-  switch (param.type) {
-    case "secret":
-      return PASSWORD_CONSTANT;
-    case "string":
-    case "array":
-    case "object":
-    default:
-      return !param.value
-        ? "---"
-        : Array.isArray(param.value) || typeof param.value === "string"
-          ? param.value
-          : JSON.stringify(param.value);
-  }
+function formatParamValue(param: RunParam): string {
+  return param.type === "secret" ? PASSWORD_CONSTANT : formatRunValue(param.value);
 }
 
 interface TaskRunDetailModalProps {
@@ -473,7 +480,7 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
   taskRun.params.forEach((result, index) =>
     paramList.push({
       id: `${result.name}-${index}`,
-      key: result.name,
+      key: result.name ?? "",
       value: formatParamValue(result),
     }),
   );
@@ -482,13 +489,9 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
   taskRun.results.forEach((result, index) =>
     resultsList.push({
       id: `${result.name}-${index}`,
-      key: result.name,
+      key: result.name ?? "",
       description: result.description ? result.description : "---",
-      value: !result.value
-        ? "---"
-        : Array.isArray(result.value) || typeof result.value === "string"
-        ? result.value
-        : JSON.stringify(result.value),
+      value: formatRunValue(result.value),
     }),
   );
 

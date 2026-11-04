@@ -21,3 +21,11 @@ The dev server reaches `service-core` at http://localhost:7700 unless `CORE_SERV
 set; the built server takes `PORT`, `CORE_SERVICE_INTERNAL_ORIGIN` and the `window._SERVER_DATA` values
 (`app/serverData.server.ts`) from the environment, as `docker-compose.yml` shows. The probe is
 `GET /apps/flow/health`. Unit tests: `pnpm test` (vitest + MSW, run in UTC); `pnpm run typecheck`.
+
+## API types
+
+`src/Api` holds the public API's types, generated from `contracts/api-v2.yaml` by Hey API
+(`openapi-ts.config.ts`); it is checked in and never edited by hand. After the contract changes, run
+`pnpm gen:api` and commit the result: `ci-web.yml` regenerates the directory and fails when it differs.
+`src/Types` re-exports the generated models the webapp uses (runs and task runs so far) beside its own
+webapp-only types.

@@ -122,6 +122,7 @@ export default defineConfig(({ command, mode }) => {
     ],
     resolve: {
       alias: [
+        { find: "Api", replacement: resolve(projectRootDir, "./src/Api") },
         { find: "ApiServer", replacement: resolve(projectRootDir, "./src/ApiServer") },
         { find: "Assets", replacement: resolve(projectRootDir, "./src/Assets") },
         { find: "Components", replacement: resolve(projectRootDir, "./src/Components") },
