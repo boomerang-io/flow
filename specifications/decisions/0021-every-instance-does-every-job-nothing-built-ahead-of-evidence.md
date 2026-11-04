@@ -20,14 +20,14 @@ the schedule watcher and the outbox drain. The choice is how much coordination a
 
 None of them. Every instance does everything, and every action is a single-document compare-and-set (decision 0004),
 so a second instance acting on the same run finds the state changed and does nothing. The sweeps, the schedule watcher
-and the outbox drain run on every instance from a random start offset (`service-core/src/main/java/io/boomerang/engine/WorkflowWatcher.java:149-152`,
+and the outbox drain run on every instance from a random start offset (`service-core/src/main/java/io/boomerang/engine/WorkflowWatcher.java:168-171`,
 `schedule/ScheduleWatcher.java:65-67`, `event/OutboxDispatcher.java:64-67`). One switch, `flow.queue.enabled`, stops
-claiming and never the sweeps (`dispatcher/DispatcherService.java:63-65`, `:239-242`, `:340-343`). Retry is one backoff (10 s base,
+claiming and never the sweeps (`dispatcher/DispatcherService.java:69-71`, `:259-262`, `:364-367`). Retry is one backoff (10 s base,
 doubling, 5 min ceiling, up to 5 s jitter: `common/util/Backoff.java:12-22`) for the task queue, the outbox and schedule
-re-arming, with three requeues (`engine/EngineConstants.java:34`); `RunRetry` holds only `after` and `count`
+re-arming, with three requeues (`engine/EngineConstants.java:43`); `RunRetry` holds only `after` and `count`
 (`common/model/RunRetry.java:17-18`). A retried workflow run is a new run pointing back at its origin
 (`workflow/WorkflowRunService.java:986`, `:1008-1013`), and `TaskExecutionService.advance` re-applies the graph from
-persisted state as the reconcile (`engine/TaskExecutionService.java:641-661`). No measured need asks for more.
+persisted state as the reconcile (`engine/TaskExecutionService.java:790-820`). No measured need asks for more.
 
 ## Consequences
 

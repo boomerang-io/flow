@@ -34,7 +34,7 @@ it: the contract, not the process, is the boundary, as in durable-execution syst
 ## Consequences
 
 - `service-core` never gains Kubernetes, Tekton or Docker dependencies; it reaches a dispatcher only through the log
-  route and bearer that dispatcher registered (decision 0039, `engine/LogClient.java:63-79`).
+  route and bearer that dispatcher registered (decision 0039, `engine/LogClient.java:71-87`).
 - A field a dispatcher needs is added to the record, the contract and the SDK together; additive changes stay on v1,
   a removal or redefinition ships as `/dispatcher/v2`. Registration expiry and a queue-depth read come with the first
   pool or serverless dispatcher.

@@ -26,7 +26,7 @@ timeout, the run takes its final status, reason and message, stamps `graphEndedA
 deadline becomes the `workflowrun` setting `finally.timeout`, and the finally tasks are queued in parallel
 (`engine/TaskExecutionService.java:685-729`, `engine/WorkflowRunStateHelper.java:322-353`); the run completes when
 the last of them ends, a finally task that failed, timed out or was invalid turning a succeeded run into `failed`
-with the reason `FinallyFailed` (`:737-766`). In the stage a cancel does nothing more, while a purge and the
+with the reason `FinallyFailed` (`:751-780`). In the stage a cancel does nothing more, while a purge and the
 stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:238-241,355-372`).
 A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`. The editor draws it
 as the switch and for-each pattern does: a purple border, a `Finally` badge, no output port, a purple link from End.

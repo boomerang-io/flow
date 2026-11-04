@@ -18,7 +18,7 @@ and writes results. The question is where the call runs.
 
 ## Decision
 
-C. `ai` is dispatched like `template`, `custom`, `script` and `generic` (`engine/TaskExecutionService.java:252-258`); the
+C. `ai` is dispatched like `template`, `custom`, `script` and `generic` (`engine/TaskExecutionService.java:281-291`); the
 dispatcher runs the image and command the revision declares and never a script
 (`service-dispatcher/.../executor/TaskImageResolver.java:124-151`). The seeded `ai-prompt` and `ai-agent` revisions pin
 exact `boomerangio/task-ai` tags, released from `boomerang-io/tasks` rather than with the product

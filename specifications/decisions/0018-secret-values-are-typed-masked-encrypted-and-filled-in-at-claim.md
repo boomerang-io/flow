@@ -27,7 +27,7 @@ Consumer reads redact by type and scrub resolved values from free text and the l
 (`workflow/WorkflowRunService.java:199-223,535-552`); engine and dispatcher reads stay plain. A Mongo hook encrypts
 typed secrets in the stored document and decrypts on load (`core/config/SecretValueMongoListener.java:62-131`).
 Admission stores the resolved params, sealed, and leaves the spec's references; the claim fills a copy
-(`engine/TaskRunService.java:362-378`, `dispatcher/DispatcherService.java:451-471`). Every layer writes by one rule,
+(`engine/TaskRunService.java:372-393`, `dispatcher/DispatcherService.java:532-552`). Every layer writes by one rule,
 `*****` or no value keeps, `""` clears, anything else replaces (`common/util/DataAdapterUtil.java:132-137`), and reads
 by one: set reads `*****`, unset reads nothing (`:173-178`). Each choice keeps one source of truth and adds no stored field or protocol change.
 

@@ -27,7 +27,7 @@ B, D and F. `TaskExecutor` has four methods, `create`, `watch`, `cancel`, `delet
 `activeDeadlineSeconds` and whose results are its termination message (`:205-206,231-232`). Both apply
 `dispatcher.tasks.runtimeClassName` to every task (`KubeJobsExecutor.java:219-220`, `TektonServiceImpl.java:410-414`);
 a deployment needing another tier registers as its own dispatcher, and claims already route by registered task type
-(`dispatcher/DispatcherService.java:357-358` in `service-core`). On Tekton, `service-dispatcher/.../TaskRuntimeReconciler.java:51-89`
+(`dispatcher/DispatcherService.java:374-382` in `service-core`). On Tekton, `service-dispatcher/.../TaskRuntimeReconciler.java:51-89`
 hourly deletes this dispatcher's labelled TaskRuns that finished more than `kube.task.ttlDays` (7) ago, as Jobs expire by
 `ttlSecondsAfterFinished`. What decided it: no field, route or install ahead of a real need, and one retention for both.
 

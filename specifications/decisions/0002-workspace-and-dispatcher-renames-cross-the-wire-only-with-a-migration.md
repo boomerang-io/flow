@@ -20,7 +20,7 @@ renaming the reader but not the stored value turns a feature off silently.
 ## Decision
 
 B and D. Routes are `/api/v2/workspace/{workspace}/...` only (`workflow/WorkspaceWorkflowControllerV2.java:38`) and
-error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:26,44-47`). The v3 units rename
+error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:26,45-49`). The v3 units rename
 `teams` to `workspaces` and drop v3 tokens for re-issue (`migration/_0002__V3PrepareCollections.java:62,67-82`), build
 `workspace` graph nodes (`migration/_0013__V3BuildRelationshipGraph.java:246`) and map the `team*` settings keys to
 `quotas` and `workspace*` (`migration/_0016__BuildSettingsFromSeed.java:54,70-73`), the keys

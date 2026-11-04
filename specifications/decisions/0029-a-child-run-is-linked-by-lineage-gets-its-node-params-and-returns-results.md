@@ -22,11 +22,11 @@ child's outcome and results, the two runs linked both ways, a cap on a workflow 
 
 The lineage pair, the snapshot and the node's params. `TaskExecutionService.runWorkflow` climbs the lineage against the
 `workflowrun` setting `max.nesting.depth` (5), then submits the child with `trigger=task`, `initiatedByRef` = the task
-run and `start=true` (`engine/TaskExecutionService.java:1118-1205,1241-1265`). The child gets copies of the task's
-params minus `workflowRef` and `wait` (`:1207-1217`) and the parent run's timeout, retries, labels and annotations, not
+run and `start=true` (`engine/TaskExecutionService.java:1323-1413,1415-1425`). The child gets copies of the task's
+params minus `workflowRef` and `wait` (`:1415-1425`) and the parent run's timeout, retries, labels and annotations, not
 its workspace; saving checks that the child's latest revision declares each forwarded param
 (`workflow/WorkflowService.java:1638-1668`). `wait=true` arms the task `waiting` with no `waitUntil` before the submit,
-so a fast child cannot outrun it (`engine/TaskRunService.java:853-858`). `ChildWorkflowRunListener` ends the task
+so a fast child cannot outrun it (`engine/TaskRunService.java:919-935`). `ChildWorkflowRunListener` ends the task
 through the dispatcher's own end, whose compare-and-set absorbs a redelivered event: a succeeded child hands it the
 run's results beside `workflowRunRef`, any other status fails it with `CHILD_RUN_FAILED`, and a cancelled or timed-out
 run cancels its in-flight children (`engine/ChildWorkflowRunListener.java:93-155`). `wait=false` ends the task at once
@@ -35,6 +35,6 @@ with only `workflowRunRef`. What decided it: no new field or held thread, and re
 ## Consequences
 
 - A for-each `runworkflow` (`workflow/WorkflowService.java:129-145`, decision 0032) submits a child per item with `item`
-  and `index`; the parent collects results into arrays in item order (`engine/TaskExecutionService.java:852-865`).
+  and `index`; the parent collects results into arrays in item order (`engine/TaskExecutionService.java:976-1021`).
 - The cascade reads `workflow_runs {initiatedByRef, phase}` (`migration/_0021__Indexes.java:91-93`). Pause does not
   cascade (decision 0006); a parent's secrets reach a child only when its node passes them.

@@ -60,8 +60,7 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:176-191,303-304,467-470`; unique sparse
-index `external_ref`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:176-191,303-304,467-470`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:268`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:980-984`).
@@ -133,7 +132,7 @@ sends `WWW-Authenticate: Bearer`.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-126`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,105,118`). Codes 1405 and 1802 each carry two reasons (`:78-80,100-102`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-137`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,112,126`). Codes 1405 and 1802 each carry two reasons (`:84-87,106-109`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:13`); an explicit exception message wins (`core/RestExceptionHandler.java:49-58`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:37,60-62`) |
 
@@ -188,7 +187,7 @@ entities are separate classes and MUST NOT be returned from a controller. The di
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `common/model/WorkflowRunRetryRequest.java:11-24`; `workflow/WorkspaceWorkflowRunControllerV2.java:344-369` |
 | A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:611,656`; `workflow/WorkflowRunService.java:172-180`; `workflow/WorkflowService.java:1162-1175,1226-1241`; `workflow/WorkflowRunInsightService.java:340-347`; `event/EventSinkService.java:72-78` |
 | A task a dispatcher has claimed shows `attempt`: 1, plus one per requeue for any cause, so a requeued task waiting out its backoff already shows the next one. An approval, a wait or a reused task has none. `attempts` lists the superseded attempts, oldest first, each with `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage` and `dispatcherRef`; the task run's own fields are the current attempt | `common/model/TaskRun.java:60-67`, `:75-80`; `common/model/RunAttempt.java:20-27` |
-| A workflow run carries `statusReason` beside `statusMessage`, as a task run does: `ConcurrencyLimit` on a run skipped over its workflow's limit, `WorkflowInvalid`, `DeadlineExceeded`, `FinallyFailed` on a succeeded run whose finally task failed; absent when the run ended for no cause of its own | `common/model/WorkflowRun.java:59`; `common/model/StatusReason.java:31-33` |
+| A workflow run carries `statusReason` beside `statusMessage`, as a task run does: `ConcurrencyLimit` on a run skipped over its workflow's limit, `WorkflowInvalid`, `DeadlineExceeded`, `FinallyFailed` on a succeeded run whose finally task failed; absent when the run ended for no cause of its own | `common/model/WorkflowRun.java:59`; `common/model/StatusReason.java:34-36` |
 | Pause is the derived boolean `paused`, never the timestamp | `common/model/WorkflowRun.java:52-54` |
 | `status` (`notstarted, ready, running, waiting, succeeded, failed, invalid, skipped, cancelled, timedout`) is the external field | `common/enums/RunStatus.java:6-16` |
 | **Exception:** `phase` (`queued, pending, running, completed`) is serialised on both models; the webapp reads it on both and the list routes filter on it. `queued` is the only position `status` cannot express, and a terminal `status` with `phase` `running` is a run whose graph has ended while its finally tasks run (`execution-model.md`, "Finally tasks") | `common/model/WorkflowRun.java:50`; `common/model/TaskRun.java:44`; read at `client-web/src/Features/WorkflowRun/RunHeader/RunHeader.tsx:111-112` and `client-web/src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:252`; tripwire `PublicRunModelSerialisationTest.phaseIsStillSerialisedOnThePublicModels` |
@@ -203,7 +202,7 @@ per element, named `<name>[<index>]` and carrying `parentRef` (the parent's `id`
 other task run lacks (`common/model/TaskRun.java:54-56`). Items keep their own `status`, `statusReason` and logs;
 the parent's `foreach` setting stays on the entity. A parent that fails for a for-each cause has `statusReason`
 `ItemFailed`, `ForeachItemsInvalid`, `ForeachTooManyItems`, or `ResultsTooLarge` when its combined results exceed
-MongoDB's 16 MB document limit (`common/model/StatusReason.java:22,37-39`, `engine/TaskExecutionService.java:818-835`).
+MongoDB's 16 MB document limit (`common/model/StatusReason.java:22,45-47`, `engine/TaskExecutionService.java:828-852`).
 
 `GET …/workspace/{workspace}/taskrun/query` (`workflow/WorkspaceTaskRunControllerV2.java:37`) pages task runs across
 runs with the run query's filters, applied to the task run, plus `tasks`: node names, each matching its for-each
@@ -211,7 +210,7 @@ items too, and `foreach`: `true` keeps for-each parents only, `false` leaves the
 (`workflow/WorkflowRunService.java:325-426`, the parent being the task run carrying the foreach setting, `:368`). It
 needs `labels` or `workflowruns`, the two ways task runs are indexed (`migration/_0021__Indexes.java:63,75`), or it is
 `400 QUERY_INVALID_FILTERS` (`workflow/WorkflowRunService.java:347-350`). A task run carries its run's labels, and a
-run-workflow child its parent's (`engine/DAGUtility.java:248-252`, `engine/TaskExecutionService.java:1162-1174`), so one
+run-workflow child its parent's (`engine/DAGUtility.java:286-292`, `engine/TaskExecutionService.java:1370-1381`), so one
 label finds a run's task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`,
 `annotations` or `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:372-374,419-426`);
 a for-each parent's row carries `foreach: true` and never the setting's items (`common/model/TaskRun.java:59`). Rows sort by creation, then id, so pages stay stable (`:353`).
@@ -287,7 +286,7 @@ event describes the transition it was recorded for: its subject and `data.status
 transition's, and the rest of `data` is the run as it stands when the event is sent (`:93-115`). A task event is
 sent for every task the run executes; the start and end nodes send none, and the run's own event reports its end
 (`event/CloudEventsBridge.java:15-19,35-36`). A skipped task, or one admission refuses, completes in one write and
-sends one event, as does a run timeout (`engine/TaskExecutionService.java:197-199,264-266`, `engine/WorkflowRunStateHelper.java:414-417`).
+sends one event, as does a run timeout (`engine/TaskExecutionService.java:169-176,231-234,296`, `engine/WorkflowRunStateHelper.java:414-417`).
 
 | Envelope field | Value |
 | --- | --- |
@@ -341,7 +340,7 @@ secured value sent as `*****` keeps the stored one.
 | Call | Body | Errors |
 | --- | --- | --- |
 | `PATCH /api/v2/parameters/{name}` | The members to change, `{"description": "…", "value": "…"}`; `name`, if sent, must match the path, and `hiddenValue` is ignored. Answers the param as a read shows it (`workflow/ParameterService.java:73-106`) | `400 PARAMS_INVALID_REQ` (a rename, or a body that is not an object); `404 PARAMS_INVALID_REFERENCE` |
-| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans. Answers every setting (`core/SettingsService.java:73-97`) | `400 SETTINGS_INVALID_KEY` (1030) for an unknown group or key, or a value that is not a scalar; nothing is written |
+| `PATCH /api/v2/settings` | `{"<group>": {"<key>": value}}`, values strings, numbers or booleans. Answers every setting (`core/SettingsService.java:73-104`) | `400 SETTINGS_INVALID_KEY` (1030) for an unknown group or key, or a value that is not a scalar; nothing is written |
 
 A `null` here clears, whereas on a full-replace `PUT` (workflows, catalogue tasks, schedules) a secret sent as `null`
 keeps the stored value, because there a missing member and a `null` member cannot be told apart.
@@ -351,13 +350,13 @@ keeps the stored value, because there a missing member and a `null` member canno
 `labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>` (`common/model/Workflow.java:50-51`,
 `common/model/WorkflowRun.java:41-42`). Keys under `boomerang.io/` are the server's; every other key is the
 client's, free-form, and MAY carry a `prefix/name` form. A dot in a label key is stored as `#`. Label updates differ
-by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:287-291`), while `PUT /workflow` merges unless `replace=true`.
+by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:305-309`), while `PUT /workflow` merges unless `replace=true`.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |
-| Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:664-667,1132,1407-1408,1802-1803,1947-1950`; `workflow/TaskService.java:709-710,797-798`; `workflow/WorkflowRunService.java:821-827` |
-| Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:228-238,747-755,1187-1196`; `engine/ParameterManager.java:345` |
-| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:668,1892`; `workflow/WorkflowRunService.java:825,1006`; `engine/DAGUtility.java:248-251` |
+| Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:767-773,1279,1612-1613,2019-2020,2162-2163`; `workflow/TaskService.java:718-719,806-807`; `workflow/WorkflowRunService.java:950-953` |
+| Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:254-264,904-913,1370-1381`; `engine/ParameterManager.java:345` |
+| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:773,2106`; `workflow/WorkflowRunService.java:950,1135`; `engine/DAGUtility.java:288-291` |
 
 ## Parameter model
 
@@ -385,10 +384,10 @@ A workflow task, and a canvas node's `data`, MAY carry `foreach: { "items": … 
 whole-value reference such as `"$(tasks.stage.results.batches)"` (`common/model/WorkflowTask.java:50`,
 `workflow/model/CanvasNodeData.java:21`). Each item gets the `RunParam`s `item` and `index`; after the task,
 `$(tasks.<name>.results.<result>)` is a JSON array in item order, `null` for an item that did not succeed
-(`engine/TaskExecutionService.java:806-816`). Save refuses with `WORKFLOW_INVALID_TASK_FOREACH` (1213) items neither an
+(`engine/TaskExecutionService.java:976-1021`). Save refuses with `WORKFLOW_INVALID_TASK_FOREACH` (1213) items neither an
 array nor one reference, a literal array over `max.foreach.items` (default 256), a task type other than those a
 dispatcher runs and `runworkflow`, and a task declaring `item` or `index`; and with `WORKFLOW_INVALID_TASK_NAME` (1214)
-a name ending in `[<digits>]`, the item form (`workflow/WorkflowService.java:128-148,1476-1496,1686-1723`; `engine/TaskExecutionService.java:96-97`).
+a name ending in `[<digits>]`, the item form (`workflow/WorkflowService.java:128-148,1476-1496,1686-1723`; `engine/TaskExecutionService.java:92-99`).
 
 ## How the webapp calls the API
 
@@ -396,6 +395,5 @@ The browser never calls `/api/*`: a React Router `loader` or `action` calls it s
 which targets `CORE_SERVICE_INTERNAL_ORIGIN`, forwards the session `Cookie` and rewrites `/api/...` to `/api/v2/...`
 (`client-web/src/Config/serverFetch.ts:34-36,77,80-88`). Binary or streamed reads go through the webapp's `/res/*`
 routes (`client-web/src/Config/resourceRoutes.ts:19-44`). `PRODUCT_SERVICE_ENV_URL` (default `/api`) only builds URLs
-the webapp displays, such as the webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-21`). The webapp's
-server on `:3000` is the one browser-facing origin; `service-core` on `:7700` stays reachable for integrations, the dispatcher and direct API use (`docker-compose.yml:188-194,231-253`).
-
+the webapp displays, such as the webhook trigger URL (`client-web/src/Config/servicesConfig.ts:18-21`). The webapp's server
+on `:3000` is the one browser-facing origin; `service-core` on `:7700` stays open to integrations, the dispatcher and direct use (`docker-compose.yml:188-194,231-253`).

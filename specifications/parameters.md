@@ -10,9 +10,9 @@ Paths below are under `service-core/src/main/java/io/boomerang/` unless they sta
 The global, workspace and workflow-context values are not copied onto the run. `ParameterManager` reads them
 from their stores each time it resolves (`engine/ParameterManager.java:534-571`, through
 `workflow/ParamLayerService.java:140-180`): at run start for the run's params
-(`engine/WorkflowExecutionService.java:70`), at each task's admission (`engine/TaskExecutionService.java:201`),
+(`engine/WorkflowExecutionService.java:70`), at each task's admission (`engine/TaskExecutionService.java:226-227`),
 at its claim for the spec (`engine/ParameterManager.java:306`), and for a for-each task's items at fan-out
-(`engine/TaskExecutionService.java:672`). It reads them for the run's workspace, which is the workspace that owns
+(`engine/TaskExecutionService.java:829-831`). It reads them for the run's workspace, which is the workspace that owns
 the run's workflow in the relationship graph, by id, so a rename does not move it
 (`workflow/ParamLayerService.java:91`). The workflow context (name, display name, id and version) comes from
 the run's workflow and the revision it runs, so a version saved mid-run does not change it.
@@ -20,8 +20,8 @@ the run's workflow and the revision it runs, so a version saved mid-run does not
 The layers and the revision are served from a per-instance cache for 10 seconds (`core/ParamLayerCache.java:41-49`,
 `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks admitted together share one read of each store.
 A global or workspace parameter, setting, workflow or revision write clears the cache on the instance that
-took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:216`,
-`core/SettingsService.java:166`, `workflow/WorkflowService.java:1419`); other instances see it within the cache
+took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:235`,
+`core/SettingsService.java:186`, `workflow/WorkflowService.java:1631`); other instances see it within the cache
 lifetime. A task admitted after an edit gets the new value; each task run keeps the param values it was
 admitted with.
 
@@ -44,11 +44,11 @@ A layer is read only while its feature setting is on: `features.globalParameters
 ## When a value resolves
 
 The engine fills in references in two places, at two times. The task run's own parameter values resolve at
-admission (`engine/ParameterManager.java:144-238`, `engine/TaskExecutionService.java:201`) and are frozen by
-the admission compare-and-set with secret values encrypted (`engine/TaskRunService.java:362-377`).
+admission (`engine/ParameterManager.java:144-238`, `engine/TaskExecutionService.java:226-227`) and are frozen by
+the admission compare-and-set with secret values encrypted (`engine/TaskRunService.java:372-393`).
 `spec.script`, `spec.command`, `spec.arguments` and `spec.envs` are filled in when a dispatcher claims the task
 (`ParameterManager.fillSpec`, `engine/ParameterManager.java:288-314`, called from
-`dispatcher/DispatcherService.java:451-458`): the stored spec keeps its references and only the copy on the
+`dispatcher/DispatcherService.java:532-540`): the stored spec keeps its references and only the copy on the
 claim carries values, so no secret value is ever written into a stored spec.
 
 At claim, `$(params.x)` reads the task's params as frozen at admission, so a requeued task gets the same
@@ -56,8 +56,8 @@ values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and `$(context.params.x)`
 `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec field are read from their stores,
 so an edit since admission, or across a requeue, shows. Admission has checked every reference (below), so the
 fill-in fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
-`SpecFillFailed` (`dispatcher/DispatcherService.java:460-469`). The task run's params are the task's declared
-params merged with the values authored on the workflow node (`engine/DAGUtility.java:275-278`).
+`SpecFillFailed` (`dispatcher/DispatcherService.java:541-550`). The task run's params are the task's declared
+params merged with the values authored on the workflow node (`engine/DAGUtility.java:313-316`).
 
 ## Substitution
 
@@ -101,7 +101,7 @@ the task's params, `script`, `command`, `arguments` and env values (`engine/Para
 An undeclared reference fails the task before it is claimable: `failed`, reason `ParamUnresolved`, with a
 message naming task, field, reference and why, such as
 `Task 'deploy': script references $(params.registryTokn): no such param 'registryTokn'`
-(`engine/ParameterManager.java:252-260`, `engine/TaskExecutionService.java:200-208`). Values inserted as
+(`engine/ParameterManager.java:252-260`, `engine/TaskExecutionService.java:226-234`). Values inserted as
 written are not scanned; a run's own params are not checked.
 
 A task's params never read each other: a task param's `$(params.y)` names the outer `y`, and with no outer `y` it is
@@ -130,7 +130,7 @@ case-insensitive everywhere: `$(params.myparam)` resolves a param declared `MyPa
 emptiness can be meaningful, and a substitution can resolve to empty; a task that requires a value fails its
 own run with a message naming the parameter. Names that are case or separator variants of each other
 (`my-key`, `MY_KEY`) are rejected with `PARAM_NAME_COLLISION` (code 1209,
-`common/error/BoomerangError.java:55`) at workflow save (`workflow/WorkflowService.java:1606-1614`) and task
+`common/error/BoomerangError.java:57`) at workflow save (`workflow/WorkflowService.java:1606-1614`) and task
 save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at dispatch
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:142-155`).
 
@@ -158,7 +158,7 @@ is linked while the workspace holds its fields (`integrations/enums/IntegrationK
 | Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:91-105,165-180` |
 | A form integration's `values` are checked against its fields: an unknown name is `400 INTEGRATION_FIELD_UNKNOWN` (1911), a required field left without a value `400 INTEGRATION_FIELD_REQUIRED` (1910), and values sent to an `app` integration `400 INTEGRATION_VALUES_NOT_ACCEPTED` (1912). A secret sent as `*****`, or left out, keeps the stored one and any other field left out keeps its value, so sharing again edits them | `integrations/IntegrationParameterService.java:107-145`, `integrations/IntegrationService.java:137-187` |
 | The share's audit event names each secret it set, replaced or cleared, never a value | `integrations/IntegrationParameterService.java:148-163,182-203` |
-| A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:528-537,555-565,589` |
+| A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:581-591,609-618,642` |
 | A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:67-81` |
 | Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team. A form integration is disconnected by sharing off | `integrations/GitHubService.java:412-416`, `integrations/IntegrationService.java:230-250`, `integrations/SlackService.java:651-684,961-981`, `integrations/IntegrationParameterService.java:147-163` |
 | A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:191-228`, `integrations/IntegrationParameterService.java:222-243` |
@@ -178,7 +178,7 @@ and the container see the real value.
 
 | How a param becomes `secret` | Where |
 | --- | --- |
-| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1893`) and each task run (`engine/DAGUtility.java:275`) are built |
+| Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:1893`) and each task run (`engine/DAGUtility.java:315`) are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`common/util/ParameterUtil.java:130-140`) |
 | A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:1505,1675-1677` and `schedule/ScheduleService.java:228-231` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParamLayers` (`engine/ParameterManager.java:187-192`) |
@@ -206,7 +206,7 @@ written, keeping its secret type so the value it resolves to is masked on every 
 
 | A client sends | Means | Where it is decided |
 | --- | --- | --- |
-| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`common/util/DataAdapterUtil.java:132-137`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:101-122`) and `ParameterService.patch` (`workflow/ParameterService.java:73,110-115`) |
+| `*****`, `null`, or no value | Keep the stored secret; with nothing stored, no value at all (never the marker) | `DataAdapterUtil.keepSecretValue` (`common/util/DataAdapterUtil.java:132-137`), called by `keepParamSpecValueByFieldType` (`:143`) and `keepRunParamValueByFieldType` (`:289`) on every layer, and for the marker by `SettingsService.patchGroup` (`core/SettingsService.java:106-139`) and `ParameterService.patch` (`workflow/ParameterService.java:73,110-115`) |
 | `""` | Clear it | the same |
 | `null` on a JSON Merge Patch (settings, global parameters) | Clear it: on a merge patch a null member removes the value, so only `*****` or leaving the member out keeps it | `SettingsService.patchGroup`, `ParameterService.patch` |
 | Any other value | Replace it | the same |
@@ -235,12 +235,12 @@ merge of node values over task specs is separate.
 | Task log stream; manual action instructions | Value scrub (`workflow/WorkflowRunService.java:533-586`; `workflow/ActionService.java:325-341`, which keeps the instructions' text and hides only the secret) |
 | Task-run query rows | Nothing to filter: a row leaves out params, results, spec, annotations and status message (`workflow/WorkflowRunService.java:361-365`) |
 | Insights task view | No param is read; a row groups on labels and sums the usage results of `ai` task runs |
-| Server labels | Never written from a secret: `boomerang.io/model` is skipped when the `model` param is secret-typed, and `boomerang.io/item` when the item contains the value of any secret in the run's parameter layers (`engine/TaskExecutionService.java:228-238,747-755,1192-1196`, `engine/ParameterManager.java:345`) |
-| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:820-821`) |
+| Server labels | Never written from a secret: `boomerang.io/model` is skipped when the `model` param is secret-typed, and `boomerang.io/item` when the item contains the value of any secret in the run's parameter layers (`engine/TaskExecutionService.java:254-264,904-913,1370-1381`, `engine/ParameterManager.java:345`) |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:886-887`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:206-216`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
 | Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:301-325`, canvas `:801`). Duplicate copies the unfiltered workflow (`:777-783`) |
 | Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:235-238`); `internalGet`, which fires the run, is not filtered |
-| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:183-189`) |
+| Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:225-234`) |
 
 The name join and value scrub cover runs stored before params carried a type, and secrets that land in free
 text. The join takes the definitions: the workflow revision's param spec and each catalogue task's own spec
@@ -279,13 +279,13 @@ the BSON document: it encrypts on save (`:63-67`) and decrypts on load before th
 (`:70-74`), so every read (repository, template, find-and-modify, aggregation) hands out plaintext, the masking
 above works unchanged, and nothing in Flow sees ciphertext. Three writes set params through a Mongo update,
 which never reaches the save hook, so they seal the values themselves (`sealRunParams`, `:80-93`): the task run
-and workflow run admissions (`engine/TaskRunService.java:375`, `engine/WorkflowRunStateHelper.java:167`) and the
-params a dispatcher's start request adds (`engine/TaskRunService.java:964-966`). The cipher is
+and workflow run admissions (`engine/TaskRunService.java:390`, `engine/WorkflowRunStateHelper.java:167`) and the
+params a dispatcher's start request adds (`engine/TaskRunService.java:1049-1053`). The cipher is
 `core/SecretCipher.java`, shared with secured settings: AES-256-GCM under `flow.encrypt.secret` and
 `flow.encrypt.salt`, written as `crypt_v1{AESGCM|<ciphertext>}`. Only that whole label counts as encrypted
 (`isEncrypted`, `:38-43`): a value that merely starts with `crypt_v1` is plaintext and is encrypted, a labelled
 value is never encrypted twice, and an encryption failure throws rather than storing nothing (`:50-60`). An
 unlabelled value is encrypted on its next save, and one that will not decrypt is kept as stored, by the
 listener on load (`core/config/SecretValueMongoListener.java:163-170`) and by settings on the next save of its
-group (`core/SettingsService.java:175-178,205-210`). The fields are listed in `data-model.md`, "Secret values
+group (`core/SettingsService.java:236-256`). The fields are listed in `data-model.md`, "Secret values
 at rest".

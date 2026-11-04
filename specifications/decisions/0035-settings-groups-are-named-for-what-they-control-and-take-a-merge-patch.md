@@ -27,7 +27,7 @@ volume's size comes from the workflow's workspace, defaulted and capped at save 
 (`workflow/WorkflowService.java:486-504`); its class and access mode default in the dispatcher
 (`service-dispatcher/.../dispatcher/WorkspaceService.java:25-32`). Customization stays apart from Features: its values
 are strings the platform context reads (`core/ContextService.java:110-115`), not flags. `PATCH /api/v2/settings` takes
-`{"<group>": {"<key>": value}}` (`core/SettingsService.java:73`) and `PATCH /api/v2/parameters/{name}` the members to
+`{"<group>": {"<key>": value}}` (`core/SettingsService.java:80`) and `PATCH /api/v2/parameters/{name}` the members to
 change (`workflow/ParameterService.java:73`), each read as a tree so an explicit `null` is told from an absent member;
 the `*****` marker still keeps a stored secret (`:108-113`). There is no `PUT` on either. Workflows, tasks and schedules
 keep their `PUT` apply, because each apply writes a whole new version.
@@ -35,6 +35,6 @@ keep their `PUT` apply, because each apply writes a whole new version.
 ## Consequences
 
 - A client sends only what it changes, and leaves an untouched secret out rather than echoing it.
-- An unknown settings group or key is refused with `400 SETTINGS_INVALID_KEY` (`SettingsService.java:135`), since a
+- An unknown settings group or key is refused with `400 SETTINGS_INVALID_KEY` (`SettingsService.java:141-143`), since a
   typo would otherwise do nothing silently; an unknown parameter member is ignored, as elsewhere.
 - Revisit the merge patch for workflows or tasks only if their applies stop creating a version per call.

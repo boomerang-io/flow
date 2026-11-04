@@ -21,15 +21,15 @@ failed workspace provisioning went unreported for 15 minutes.
 ## Decision
 
 `tryClaim` writes `claim.leaseExpiresAt` = claim time + `flow.dispatcher.lease-ms` (90 s)
-(`engine/TaskRunService.java:333`); `dispatcher-sdk` sends every id in flight in one `PUT /dispatcher/v1/{id}/heartbeat`
-every 30 s (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:190-200`). A poll starts again at
+(`engine/TaskRunService.java:343`); `dispatcher-sdk` sends every id in flight in one `PUT /dispatcher/v1/{id}/heartbeat`
+every 30 s (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:235-250`). A poll starts again at
 once after one that brought work or was held 30 s, asks for `limit` = its free slots, may name task types, slugs and one
-definition label, and the engine claims at most a page of 20 (`QueuePoller.java:104-123`, `InFlightTasks.java:8-33`,
-`dispatcher/ClaimFilterService.java:40-69`, `dispatcher/DispatcherService.java:356-402`). A held poll registers its
+definition label, and the engine claims at most a page of 20 (`QueuePoller.java:114-122`, `InFlightTasks.java:8-33`,
+`dispatcher/ClaimFilterService.java:41-70`, `dispatcher/DispatcherService.java:362-406`). A held poll registers its
 filter under each type on its own `Condition`, and an admission signals the matching waiters
 (`dispatcher/PollWakeups.java:41-160`). The Kubernetes dispatcher reports `ImagePull`, `DispatchError`, `StartTimeout`
 and `ExceededQuota` (`executor/PodStartWatch.java:43-70`), which the engine requeues on the shared budget
-(`TaskRunService.java:1189-1207`); a failed provisioning is reported with its cause, held with "Retrying in 1 minute
+(`TaskRunService.java:1189-1208`); a failed provisioning is reported with its cause, held with "Retrying in 1 minute
 (attempt n of 3)" and failed on the third (`engine/WorkflowExecutionService.java`).
 
 ## Consequences
