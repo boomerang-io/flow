@@ -1,6 +1,6 @@
 import { User } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Edge, EdgeProps, Node, NodeProps, ReactFlowInstance } from "@xyflow/react";
-import type * as Api from "Api";
+import type * as Api from "Api/api-v2";
 import {
   EdgeExecutionCondition,
   FlowWorkspaceStatus,
