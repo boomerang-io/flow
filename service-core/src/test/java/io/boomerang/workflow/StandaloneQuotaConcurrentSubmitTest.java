@@ -9,6 +9,9 @@ import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
@@ -17,6 +20,7 @@ import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -48,6 +52,9 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private AuditQueryService auditQueryService;
+
+  private SettingEntity auditSettingsAdded;
 
   @BeforeEach
   void seedFixtures() {
@@ -55,12 +62,25 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
     setFeatureSetting("globalParameters", false);
     setFeatureSetting("workspaceParameters", false);
     setFeatureSetting(QUOTA_FEATURE, false);
+    // Run creation is audited only while capture is on; another class may have removed the
+    // settings document, so it is put back for this class and removed again after.
+    if (settingsRepository.findOneByKey("audit") == null) {
+      SettingEntity settings = new SettingEntity();
+      settings.setKey("audit");
+      settings.setName("Audit");
+      settings.setConfig(List.of(config("enabled", "true"), config("level", "WRITE")));
+      auditSettingsAdded = settingsRepository.save(settings);
+    }
   }
 
   @AfterEach
   void resetQuotaFeature() {
     // Shared Testcontainers Mongo: leave the feature off, the state the other test classes seed.
     setFeatureSetting(QUOTA_FEATURE, false);
+    if (auditSettingsAdded != null) {
+      settingsRepository.delete(auditSettingsAdded);
+      auditSettingsAdded = null;
+    }
   }
 
   @Test
@@ -77,8 +97,8 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
     assertTrue(
         admitted <= 1, "monthly quota of 1 admitted " + admitted + " of " + BURST + " submits");
     // Simultaneous racers may all withdraw (each counted the others), leaving the slot free -
-    // the guarantee is that the limit is never over-filled. A follow-up submit fills exactly
-    // the remaining slot, and one more is refused.
+    // the guarantee is that the limit is never over-filled. A withdrawn run counts for nothing, so
+    // a follow-up submit fills exactly the remaining slot, and one more is refused.
     if (admitted == 0) {
       workflowService.submit(workspace, workflow, manualRequest(), false);
     }
@@ -89,6 +109,10 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
     assertEquals("QUOTA_EXCEEDED", refused.getReason());
     assertEquals(
         1, persistedRuns(workspace, workflow), "WorkflowRun documents exceed the monthly quota");
+    // The monthly count also reads the audit trail, which outlives the run documents: only the
+    // admitted run is audited as created, never a withdrawn one.
+    awaitEngine("the admitted run is audited").until(() -> auditedRunCreates(workspace) >= 1);
+    assertEquals(1, auditedRunCreates(workspace), "withdrawn runs were audited as created");
   }
 
   @Test
@@ -174,6 +198,17 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
         new UsernamePasswordAuthenticationToken(principal.getPrincipal(), null);
     authentication.setDetails(principal);
     SecurityContextHolder.getContext().setAuthentication(authentication);
+  }
+
+  private static SettingConfig config(String key, String value) {
+    SettingConfig config = new SettingConfig();
+    config.setKey(key);
+    config.setValue(value);
+    return config;
+  }
+
+  private long auditedRunCreates(String workspace) {
+    return auditQueryService.countRunsCreated(workspace, new Date(0), new Date(Long.MAX_VALUE));
   }
 
   private long persistedRuns(String workspace, String workflow) {

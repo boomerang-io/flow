@@ -21,7 +21,7 @@ C. `pauseRequestedAt` is a timestamp on the workflow run (`service-core/src/main
 set by compare-and-set on a running, unpaused run (`engine/WorkflowRunStateHelper.java:363-377`). The single gate is
 `TaskExecutionService.queue`, which returns before admission while the run is paused (`engine/TaskExecutionService.java:179-184`).
 Resume clears the flag, moves the run deadline forward by the time paused, and calls `advance`, which queues whatever
-the gate held back (`WorkflowRunStateHelper.java:392-397`, `:433-444`; `workflow/WorkflowRunService.java:1010-1025`). One
+the gate held back (`WorkflowRunStateHelper.java:392-397`, `:433-444`; `workflow/WorkflowRunService.java:970-985`). One
 gate is enough because every path that creates new work passes through `queue`.
 
 ## Consequences
