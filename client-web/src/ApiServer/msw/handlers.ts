@@ -541,10 +541,15 @@ export const handlers: HttpHandler[] = [
   // array (see db.ts), so rebuild a single-page envelope around it via `paginatedResponse` rather
   // than returning a bare `{content}` that leaves those fields `undefined` (Carbon's `Pagination`
   // free-falls into an infinite re-render loop once `totalItems` is `NaN`/`undefined`).
+  // `search` mirrors UserService.query: a case-insensitive contains on name, displayName and email.
   http.get(serviceUrl.getUsers({ query: "" }), ({ request }) => {
-    const query = new URL(request.url).searchParams.get("query");
-    const content = query
-      ? db.users.filter((user) => user.name?.includes(query) || user.email?.includes(query))
+    const search = new URL(request.url).searchParams.get("search")?.trim().toLowerCase();
+    const content = search
+      ? db.users.filter((user) =>
+          [user.name, user.displayName, user.email].some(
+            (field) => typeof field === "string" && field.toLowerCase().includes(search),
+          ),
+        )
       : db.users;
     return HttpResponse.json(paginatedResponse(content));
   }),
