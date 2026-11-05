@@ -396,5 +396,4 @@ label, so a second run changes nothing.
 
 ## Known gaps
 
-- **A workspace route's permission check does not read the workspace.** Layer 1 matches the action against every grant and layer 2 asks only whether the workspace is reachable, so an owner or editor of one workspace who is a reader of another can write in it: a workflow create there answers `200` (`core/security/AuthCriteriaAuthorizationManager.java:142-144`). Matching the grant to the `{workspace}` segment would close it.
 - **Machine tokens cannot approve group approvals.** `ActionService.action` resolves the current *user*; a `key`/`global` token resolves none and is not a member, so an automation must be given a real user identity placed in the approver group (`workflow/ActionService.java:128,155-160`). The controller's `assignableScopes` still admit machine tokens. Manual tasks and approvals without a group accept a machine token and record its name as the actor (`workflow/ActionService.java:169-182`).
