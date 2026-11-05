@@ -757,12 +757,12 @@ public class WorkspaceService {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
 
-    for (String r : request) {
-      Optional<ApproverGroupEntity> ag = approverGroupRepository.findById(r);
-      if (ag.isPresent()) {
-        approverGroupRepository.deleteById(r);
-        relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.APPROVERGROUP, r);
-      }
+    // Only this workspace's own groups, named by id or name.
+    for (String ref :
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, workspace, Optional.of(request))) {
+      approverGroupRepository.deleteById(ref);
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.APPROVERGROUP, ref);
     }
   }
 

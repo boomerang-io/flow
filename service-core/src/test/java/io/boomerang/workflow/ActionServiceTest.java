@@ -89,6 +89,8 @@ class ActionServiceTest {
             identityService,
             mongoTemplate);
     when(relationshipService.check(any(), anyString(), any(), any())).thenReturn(true);
+    // Every action here belongs to a workflow of the workspace it is reached through.
+    when(relationshipService.hasNodes(any(), any(), any(), any(), any(), any())).thenReturn(true);
     // The mocked store mirrors the atomic append: the actioner lands on the action findById holds.
     lenient()
         .when(

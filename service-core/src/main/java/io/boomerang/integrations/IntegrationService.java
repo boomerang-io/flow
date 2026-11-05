@@ -7,6 +7,8 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.integrations.entity.IntegrationTemplateEntity;
@@ -146,7 +148,9 @@ public class IntegrationService {
       throw new BoomerangException(BoomerangError.INTEGRATION_INVALID_REF);
     }
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())
+        || !relationshipService.grantsIn(
+            workspace, PermissionResource.INTEGRATION, PermissionAction.WRITE)) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     WorkspaceEntity workspaceEntity = integrationParameterService.workspace(workspace);

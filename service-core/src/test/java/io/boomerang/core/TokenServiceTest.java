@@ -22,6 +22,8 @@ import io.boomerang.core.security.AdminClaim;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.TokenLookupCache;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
@@ -160,6 +162,9 @@ class TokenServiceTest {
     request.setName("ci-key-token");
     request.setPrincipal("workspace-a");
     request.setPermissions(List.of("workflow/read"));
+    // The caller's grant to write tokens counts in workspace-a.
+    when(relationshipService.grantsIn("workspace-a", PermissionResource.TOKEN, PermissionAction.WRITE))
+        .thenReturn(true);
 
     tokenService.create(request);
 
@@ -267,6 +272,7 @@ class TokenServiceTest {
   void keyTokenAcceptsEveryActor() {
     when(tokenRepository.save(any(TokenEntity.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
+    when(relationshipService.grantsIn(any(), any(), any())).thenReturn(true);
 
     for (TokenActorKind kind : TokenActorKind.values()) {
       TokenCreateRequest request = new TokenCreateRequest();
@@ -339,6 +345,39 @@ class TokenServiceTest {
         List.of(
             new ResolvedPermissions(PermissionScope.workspace, "workspace-a", List.of("**/**"))));
     return identity;
+  }
+
+  @Test
+  void aKeyTokenIsMintedOnlyByACallerWhoseGrantCountsInItsWorkspace() {
+    when(identityService.getCurrentIdentity()).thenReturn(workspaceScopedIdentity());
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.key);
+    request.setName("another-workspace-key");
+    request.setPrincipal("workspace-b");
+    request.setPermissions(List.of("workflow/read"));
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_ADMIN_REQUIRED.getReason());
+    verify(tokenRepository, never()).save(any(TokenEntity.class));
+  }
+
+  @Test
+  void aPersonalTokenIsMintedOnlyForTheCallerThemself() {
+    Token caller = new Token(AuthScope.session);
+    caller.setPrincipal("user-a");
+    when(identityService.getCurrentIdentity()).thenReturn(caller);
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.user);
+    request.setName("someone-elses");
+    request.setPrincipal("user-b");
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_ADMIN_REQUIRED.getReason());
+    verify(tokenRepository, never()).save(any(TokenEntity.class));
   }
 
   private Token globalScopedIdentity(String principal) {

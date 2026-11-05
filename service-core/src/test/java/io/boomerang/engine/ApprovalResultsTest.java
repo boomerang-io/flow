@@ -26,6 +26,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.Actioner;
 import java.util.Objects;
+import java.util.Optional;
+import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.enums.RelationshipType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -37,6 +40,8 @@ import org.springframework.data.mongodb.core.query.Query;
  * ends with the five results it declares, which a later task reads like any other task's.
  */
 class ApprovalResultsTest extends AbstractEngineIntegrationTest {
+
+  private static final String WORKSPACE = "approval-results-ws";
 
   @Autowired private TaskExecutionService taskExecutionService;
   @Autowired private WorkflowService workflowService;
@@ -83,7 +88,7 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
     request.setId(action.getId());
     request.setApproved(true);
     request.setComments("ship it");
-    actionService.action("approval-results-ws", List.of(request));
+    actionService.action(WORKSPACE, List.of(request));
 
     TaskRunEntity after =
         awaitEngine("the task after the approval is admitted")
@@ -119,13 +124,13 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
         awaitEngine("the approval action is created")
             .until(() -> mongoTemplate.findOne(byApprove, ActionEntity.class), a -> a != null);
 
-    actionService.action("approval-results-ws", List.of(approval(action.getId(), "first")));
+    actionService.action(WORKSPACE, List.of(approval(action.getId(), "first")));
 
     ActionEntity afterFirst = mongoTemplate.findById(action.getId(), ActionEntity.class);
     assertEquals(1, afterFirst.getActioners().size(), "the first approval is kept");
     assertEquals(ActionStatus.submitted, afterFirst.getStatus());
 
-    actionService.action("approval-results-ws", List.of(approval(action.getId(), "second")));
+    actionService.action(WORKSPACE, List.of(approval(action.getId(), "second")));
 
     awaitEngine("the approval ends once the second approval lands")
         .until(
@@ -179,7 +184,7 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
             BoomerangException.class,
             () ->
                 actionService.action(
-                    "approval-results-ws", List.of(approval(action.getId(), "third"))));
+                    WORKSPACE, List.of(approval(action.getId(), "third"))));
 
     assertEquals("ACTION_UNABLE_TO_ACTION", refused.getReason());
     assertEquals(
@@ -243,7 +248,29 @@ class ApprovalResultsTest extends AbstractEngineIntegrationTest {
                     "approve",
                     List.of(new RunParam("msg", "$(tasks.approve.results.approvalStatus)"))),
                 node("end", TaskType.end, null, "after", List.of()))));
-    return workflowService.create(workflow, false).getBody().getId();
+    String workflowId = workflowService.create(workflow, false).getBody().getId();
+    // The approvals are actioned through the workspace the workflow belongs to.
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, WORKSPACE)) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.ROOT,
+          "root",
+          RelationshipLabel.CONTAINS,
+          RelationshipType.WORKSPACE,
+          WORKSPACE,
+          WORKSPACE,
+          Optional.empty(),
+          Optional.empty());
+    }
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        workflowId,
+        workflowId,
+        Optional.empty(),
+        Optional.empty());
+    return workflowId;
   }
 
   private static WorkflowTask node(
