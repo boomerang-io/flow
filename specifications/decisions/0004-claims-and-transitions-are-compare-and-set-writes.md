@@ -32,7 +32,7 @@ winner-only action needs; paging first lets a claimant skip what it cannot take.
 ## Consequences
 
 - The claim block is the only ownership record: a dispatcher's start and end are fenced on `claim.by` (`claim.seq` is
-  not on the wire, `TaskRunService.java:1295-1316`), every requeue and abandon on `claim.seq` (`:963-967`).
+  not on the wire, `TaskRunService.java:1301-1322`), every requeue and abandon on `claim.seq` (`:963-967`).
 - Whole-document `save()` remains for creating a document and for merging a caller's request into a workflow run before
   its handler runs (`workflow/WorkflowRunService.java:873`, `:966`, `:1142`); a dispatcher's start and end merges are
   field-scoped updates (`TaskRunService.java:1064-1068,1152-1157`).

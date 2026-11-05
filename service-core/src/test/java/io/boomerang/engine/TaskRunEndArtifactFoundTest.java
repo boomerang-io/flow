@@ -10,6 +10,7 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.workflow.ArtifactService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.groups.Tuple;
@@ -17,8 +18,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The engine owns the download task's {@code found} result: a succeeded download ends with
- * found=true without the worker writing it, an end that already carries the result (the optional
- * miss ends with found=false) keeps it, and a failed download reports nothing.
+ * found=true without the worker writing it, also over the declared result that has no value; an
+ * end that already carries a value (the optional miss ends with found=false) keeps it, and a
+ * failed download reports nothing.
  */
 class TaskRunEndArtifactFoundTest extends AbstractEngineIntegrationTest {
 
@@ -27,6 +29,23 @@ class TaskRunEndArtifactFoundTest extends AbstractEngineIntegrationTest {
     TaskRunEntity task = download("found-true");
     TaskRunEndRequest succeeded = new TaskRunEndRequest();
     succeeded.setStatus(RunStatus.succeeded);
+
+    taskRunService.end(task.getId(), Optional.of(succeeded));
+
+    assertThat(taskRunRepository.findById(task.getId()).orElseThrow().getResults())
+        .extracting(RunResult::getName, RunResult::getValue)
+        .containsExactly(Tuple.tuple(ArtifactService.FOUND_RESULT, "true"));
+  }
+
+  // The catalogue task declares found, so the task run starts with it, and with no value.
+  @Test
+  void aDeclaredFoundWithNoValueReportsTrue() {
+    TaskRunEntity task = download("found-declared");
+    task.setResults(new ArrayList<>(List.of(new RunResult(ArtifactService.FOUND_RESULT, null))));
+    taskRunRepository.save(task);
+    TaskRunEndRequest succeeded = new TaskRunEndRequest();
+    succeeded.setStatus(RunStatus.succeeded);
+    succeeded.setResults(List.of(new RunResult(ArtifactService.FOUND_RESULT, "")));
 
     taskRunService.end(task.getId(), Optional.of(succeeded));
 

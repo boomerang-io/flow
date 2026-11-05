@@ -5,10 +5,13 @@ import java.util.Arrays;
 
 public enum TriggerEnum {
   manual("manual"),
+  // A submit on demand by a token or a program rather than a person signed in to the webapp.
+  api("api"),
   schedule("schedule"),
   webhook("webhook"),
   event("event"),
   github("github"),
+  // Written by submits before the caller decided the trigger; read on runs stored then.
   engine("engine"),
   task("task"),
   retry("retry");

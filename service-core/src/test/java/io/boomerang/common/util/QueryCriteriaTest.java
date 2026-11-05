@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.WorkflowType;
+import java.util.Arrays;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import java.util.Date;
@@ -87,6 +89,36 @@ class QueryCriteriaTest {
                     .in("status", RunStatus.class, Optional.of(List.of("finished")), "status"))
         .isInstanceOf(BoomerangException.class)
         .satisfies(ex -> assertThat(((BoomerangException) ex).getArgs()).containsExactly("status"));
+  }
+
+  // $in with null matches a document that stores no value, which reads as the absent constant.
+  @Test
+  void anEnumFilterOnTheAbsentConstantAlsoMatchesNoStoredValue() {
+    assertThat(
+            only(
+                new QueryCriteria()
+                    .in(
+                        "type",
+                        WorkflowType.class,
+                        Optional.of(List.of("workflow", "starter")),
+                        "type",
+                        WorkflowType.workflow)))
+        .isEqualTo(
+            new Document(
+                "type",
+                new Document(
+                    "$in", Arrays.asList(WorkflowType.workflow, WorkflowType.starter, null))));
+
+    assertThat(
+            only(
+                new QueryCriteria()
+                    .in(
+                        "type",
+                        WorkflowType.class,
+                        Optional.of(List.of("template")),
+                        "type",
+                        WorkflowType.workflow)))
+        .isEqualTo(new Document("type", new Document("$in", List.of(WorkflowType.template))));
   }
 
   @Test

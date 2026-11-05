@@ -7,6 +7,9 @@ tag's release notes.
 
 ### Upgrading
 
+- **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
+  `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
+  workflow a program starts this way. A body `trigger` other than `manual` or `api` is now `400`.
 - **Clearing `flow.security.bootstrap-token` revokes the bootstrap token.** Before, a blank variable left the stored
   token valid; now the next start deletes it (logged at info), as for a removed declared token. Every instance
   must carry the same `flow.security.tokens` entries, because each revokes the declared tokens its own configuration
@@ -510,6 +513,25 @@ tag's release notes.
 
 ### Fixed
 
+- A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
+  `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every
+  submit answer `500`; it now submits, and saving it again asks for a field type.
+- A `download-artifact` task that finds its artifact reports `found=true`. It reported an empty value, because the
+  task run already held the catalogue's declared `found` result without one.
+- User, workspace and session tokens record `lastUsedAt` when they authenticate a request, at most every 5 minutes
+  as dispatcher tokens already did, so Manage > Tokens no longer shows "Never" for a token in use.
+- `GET …/workflow/query?types=workflow` lists workflows created without a type, and a workflow created without one
+  stores `workflow`. Stored workflows are not changed.
+- `POST …/workflow/{name}/submit` records the trigger from the caller, not the body: `manual` for a person signed in
+  to the webapp, and the new `api` for any token (and for every request with security off). Both are refused with
+  `WORKFLOWRUN_TRIGGER_DISABLED` while the workflow's Manual switch is off; a submit without a trigger used to skip
+  the switch and record `engine`. A body naming any trigger other than `manual` or `api` is
+  `400 WORKFLOWRUN_INVALID_TRIGGER`; schedules, webhooks, events, GitHub, child runs and retries keep their own.
+  `flow-sdk` gains `Trigger.api`.
+- Every error body is a `RestErrorResponse`, with the status unchanged: a missing permission (`403`) carries
+  `PERMISSION_DENIED`, a framework error such as an unsupported method (`405`) carries the HTTP status as its code
+  and reason, and an unhandled error answers `500 INTERNAL_SERVER_ERROR` with a fixed message, keeping the
+  exception in the server log.
 - A declared or bootstrap token whose value a minted token already held made every request with it answer `500`.
   The configured token now takes the value over and the minted one is deleted (logged at warn); two configured tokens
   sharing a value stop the start, and a value two stored tokens hold is refused (`401`), never a `500`.

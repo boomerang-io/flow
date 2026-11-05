@@ -74,22 +74,40 @@ public final class QueryCriteria {
    */
   public <E extends Enum<E>> QueryCriteria in(
       String field, Class<E> type, Optional<List<String>> values, String filter) {
-    values.ifPresent(
-        list ->
-            in(
-                field,
-                list.stream()
-                    .map(
-                        value -> {
-                          E constant = EnumUtils.getEnumIgnoreCase(type, value);
-                          if (constant == null) {
-                            throw new BoomerangException(
-                                BoomerangError.QUERY_INVALID_FILTERS, filter);
-                          }
-                          return constant;
-                        })
-                    .toList()));
+    values.ifPresent(list -> in(field, constants(type, list, filter)));
     return this;
+  }
+
+  /**
+   * The enum filter above, for a field whose absent value reads as {@code absent}: a filter that
+   * names {@code absent} also matches a document that stores no value ({@code $in} with {@code
+   * null} matches a missing field).
+   */
+  public <E extends Enum<E>> QueryCriteria in(
+      String field, Class<E> type, Optional<List<String>> values, String filter, E absent) {
+    values.ifPresent(
+        list -> {
+          List<E> matched = new ArrayList<>(constants(type, list, filter));
+          if (matched.contains(absent)) {
+            matched.add(null);
+          }
+          in(field, matched);
+        });
+    return this;
+  }
+
+  private static <E extends Enum<E>> List<E> constants(
+      Class<E> type, List<String> values, String filter) {
+    return values.stream()
+        .map(
+            value -> {
+              E constant = EnumUtils.getEnumIgnoreCase(type, value);
+              if (constant == null) {
+                throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, filter);
+              }
+              return constant;
+            })
+        .toList();
   }
 
   public QueryCriteria add(Criteria criterion) {

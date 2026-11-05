@@ -2883,6 +2883,7 @@ components:
         trigger:
           enum:
           - "manual"
+          - "api"
           - "schedule"
           - "webhook"
           - "event"

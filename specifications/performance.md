@@ -12,7 +12,7 @@ instance. Correctness rests on three primitives, all in the live path:
 
 | Primitive | Where | What it guarantees |
 | --- | --- | --- |
-| Claim CAS (`findAndModify` on `_id` + full eligibility) | `engine/TaskRunService.java:327-365` | One dispatcher owns a TaskRun; losers get `null` and skip. Each claim increments `claim.seq` (`:350`). A dispatcher's start and end are refused unless it still holds the claim (`claim.by`, `:1301-1316`), and the engine's own requeue and abandon fence on the `claim.seq` they read (`:963-967`), so a superseded claimant cannot write results. |
+| Claim CAS (`findAndModify` on `_id` + full eligibility) | `engine/TaskRunService.java:327-365` | One dispatcher owns a TaskRun; losers get `null` and skip. Each claim increments `claim.seq` (`:350`). A dispatcher's start and end are refused unless it still holds the claim (`claim.by`, `:1307-1322`), and the engine's own requeue and abandon fence on the `claim.seq` they read (`:963-967`), so a superseded claimant cannot write results. |
 | Status-CAS transitions (`transition`, `tryComplete`, `tryRequeue`) | `engine/TaskRunService.java:538-614,776-846,972-985`, `engine/WorkflowRunStateHelper.java` | Concurrent advance from two instances converges: the second CAS finds the state already changed and performs no side effects. |
 | Level-triggered sweeps on every instance | `engine/WorkflowWatcher.java:44-49,172-198` | Any survivor reaps a crashed instance's or dispatcher's work; overlapping sweeps are harmless because each acts only through the CAS above. |
 
@@ -38,7 +38,7 @@ revision admitted within 10 s share those five. A workflow's owning workspace is
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,645`,
-`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1623,2040`); token writes do not, because the
+`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2091`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
@@ -239,7 +239,7 @@ equivalent behaviour. A run's timeout MUST be at least the transport timeout of 
 run submit and retry, and artifact upload; nothing in the engine path re-checks them. The workflow count is checked
 before the create, so a workspace at its limit takes no more (`QuotaService.java:328-343`). With quotas on, a submit
 saves the run before queueing it, recounts, and removes a run that pushed a count over; one admitted is then queued and
-started as with quotas off (`workflow/WorkflowService.java:774-804`). The stored
+started as with quotas off (`workflow/WorkflowService.java:801-831`). The stored
 `features.workspaceQuotas` setting switches every check but one (`QuotaService.java:100-105`): the run-duration
 ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
 (`QuotaService.java:198-208`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
@@ -258,10 +258,10 @@ workspace quota and passes the run checks (`QuotaService.java:353-381,388-409`).
 
 | Quota (settings key, `QuotaService.java:63-68`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:484`, `QuotaService.java:328-346` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:755,782`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
-| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:581-600`, `QuotaService.java:132-142,417-427` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2120-2125`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
+| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:492`, `QuotaService.java:328-346` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:782,809`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
+| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:589-608`, `QuotaService.java:132-142,417-427` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2171-2176`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
 | `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:310-323` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:228-303`).
@@ -276,7 +276,7 @@ live run documents (the `workflow_ref_creation` index). The max is deliberate â€
 async best-effort, so a just-admitted run may not be audited yet (the live count covers that
 race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
 Submit re-checks the same counters once the run is saved and before it is queued, so a burst cannot over-fill a
-limit (`QuotaService.assertAdmittedRunWithinQuotas` `:388-409`, called from `workflow/WorkflowService.java:777-789`,
+limit (`QuotaService.assertAdmittedRunWithinQuotas` `:388-409`, called from `workflow/WorkflowService.java:804-816`,
 which removes the run on any failure of the re-check, so no un-queued run is left without an owner). A removed run
 never left `notstarted`, so it published no transition and has no `CREATE` audit event: a refused submit uses no
 monthly quota. Racers that each count the others may all be refused, leaving the slot free for the next submit; the
@@ -317,7 +317,7 @@ pass by reference (a workspace path or a URI).
 ## Storage
 
 Per run, the dispatcher creates at most one persistent volume claim, keyed by the run id
-(`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkflowService.java:36-56`). Defaults: 1Gi, the
+(`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkflowService.java:37-60`). Defaults: 1Gi, the
 cluster default class, `ReadWriteMany` (`service-dispatcher/src/main/resources/application.properties:46-48`),
 with a 30 s wait for the claim to reach `Bound` or `Pending`
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeServiceImpl.java:160,167-172`). Both executors mount the

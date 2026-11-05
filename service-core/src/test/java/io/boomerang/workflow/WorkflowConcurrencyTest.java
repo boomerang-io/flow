@@ -128,7 +128,9 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
     WorkflowRunEntity parked = run(second.getId());
     assertEquals(RunStatus.waiting, parked.getStatus(), "parked for a slot");
     assertEquals(RunPhase.pending, parked.getPhase());
-    assertTrue(parked.getStatusMessage().startsWith("Waiting for a slot"));
+    assertEquals(
+        "Waiting for a slot: the workflow's concurrency limit of 1 in-flight run is reached.",
+        parked.getStatusMessage());
     assertEquals(RunStatus.waiting, second.getStatus(), "the submit response says so");
     BoomerangException refused =
         assertThrows(
@@ -162,6 +164,9 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
     assertEquals(RunPhase.completed, skipped.getPhase());
     assertEquals(StatusReason.CONCURRENCY_LIMIT, skipped.getStatusReason());
     assertEquals(StatusReason.CONCURRENCY_LIMIT, second.getStatusReason(), "on the public model");
+    assertEquals(
+        "Skipped: the workflow's concurrency limit of 1 in-flight run is reached.",
+        skipped.getStatusMessage());
   }
 
   @Test

@@ -147,8 +147,8 @@ public class WorkflowExecutionService {
               RunStatus.cancelled,
               StatusReason.CONCURRENCY_LIMIT,
               "Skipped: the workflow's concurrency limit of "
-                  + concurrency.getLimit()
-                  + " in-flight runs is reached.",
+                  + inFlightRuns(concurrency)
+                  + " is reached.",
               0)
           != null) {
         LOGGER.info(
@@ -161,14 +161,19 @@ public class WorkflowExecutionService {
     if (workflowRunStateHelper.tryPark(
             wfRunEntity.getId(),
             "Waiting for a slot: the workflow's concurrency limit of "
-                + concurrency.getLimit()
-                + " in-flight runs is reached.")
+                + inFlightRuns(concurrency)
+                + " is reached.")
         != null) {
       LOGGER.info(
           "[{}] Over the workflow's concurrency limit of {}. Parked for a slot.",
           wfRunEntity.getId(),
           concurrency.getLimit());
     }
+  }
+
+  private static String inFlightRuns(WorkflowConcurrency concurrency) {
+    int limit = concurrency.getLimit();
+    return limit + (limit == 1 ? " in-flight run" : " in-flight runs");
   }
 
   /**
