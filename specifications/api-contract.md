@@ -59,7 +59,7 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:178-193,305-306,474-477`; unique sparse index `external_ref`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:178-193,305-306,476-479`; unique sparse index `external_ref`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:274`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
@@ -165,7 +165,7 @@ on every route that takes it, and no filter matches everything (`:118-123`):
 | `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`; a dot in a key matches its stored form, `#`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
 | `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:24-33`) |
 | `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:71-80,101-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:82-98`) |
-| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:478-488`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
+| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:480-490`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
 
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,
