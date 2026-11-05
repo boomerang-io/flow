@@ -76,6 +76,11 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
           subtitle={fetcher.data.error.message ?? "Failed to retry this run"}
         />,
       );
+      // The new run exists but did not start: its page has the Start button.
+      if (fetcher.data.workflowRunRef) {
+        onClose();
+        executionViewRedirect({ workflowRunRef: fetcher.data.workflowRunRef });
+      }
       return;
     }
     notify(<ToastNotification kind="success" title="Retry run" subtitle="Retry successful" />);

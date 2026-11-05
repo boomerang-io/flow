@@ -1,8 +1,8 @@
 import React from "react";
 import { Button, ModalBody } from "@carbon/react";
 import { ComposedModal, ConfirmModal, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import moment from "moment";
 import { useFetcher } from "react-router-dom";
+import FormattedDate from "Components/FormattedDate";
 import type { ActionResult } from "Features/WorkflowRun/WorkflowRun";
 import { formatBytes } from "Utils/byteHelper";
 import { resourceRoute } from "Config/resourceRoutes";
@@ -74,13 +74,13 @@ type ItemProps = {
 
 // A kept (scope `workflow`) artifact never expires: it stays until a later upload of the same
 // name replaces it or someone deletes it.
-function expiryLabel(artifact: Artifact): { title: string; value: string } {
+function expiryLabel(artifact: Artifact): { title: string; value: React.ReactNode } {
   if (artifact.scope === ArtifactScope.Workflow) {
     return { title: "Expires", value: "Kept until replaced" };
   }
   return {
     title: artifact.status === ArtifactStatus.Expired ? "Expired" : "Expires",
-    value: artifact.expirationDate ? moment(artifact.expirationDate).format(DATETIME_DISPLAY_FORMAT) : "---",
+    value: artifact.expirationDate ? <FormattedDate value={artifact.expirationDate} format={DATETIME_DISPLAY_FORMAT} /> : "---",
   };
 }
 
@@ -171,7 +171,7 @@ function ArtifactDetail({ artifact, uploadedBy }: { artifact: Artifact; uploaded
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Uploaded</span>
         <p className={styles.sectionDetail}>
-          {artifact.creationDate ? moment(artifact.creationDate).format(DATETIME_DISPLAY_FORMAT) : "---"}
+          {artifact.creationDate ? <FormattedDate value={artifact.creationDate} format={DATETIME_DISPLAY_FORMAT} /> : "---"}
         </p>
       </section>
       <section className={styles.detailedSection}>

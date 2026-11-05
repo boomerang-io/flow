@@ -138,7 +138,8 @@ describe("RunHeader --- Initiated by", () => {
     renderRunHeader({ trigger: "retry", initiatedByRef: "651e4789ab1cb56bc8976ae9" });
 
     const link = screen.getByTestId("initiated-by-origin-run-link");
-    expect(link).toHaveTextContent("651e4789ab1cb56bc8976ae9");
+    expect(link).toHaveTextContent(/^Original run$/);
+    expect(link).toHaveAttribute("title", "651e4789ab1cb56bc8976ae9");
     expect(link).toHaveAttribute("href", `/${workspace}/activity/651e4789ab1cb56bc8976ae9`);
     expect(screen.queryByTestId("retry-from")).not.toBeInTheDocument();
     expect(screen.queryByTestId("initiated-by-schedule-link")).not.toBeInTheDocument();

@@ -167,6 +167,25 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(await screen.findByTestId("create-token-button")).toBeInTheDocument();
   });
 
+  // A token names its creator by user id; a member's name reads in its place, an unknown id as it is.
+  test("names a token's creator from the workspace's members", async () => {
+    const token = { type: "key", valid: true, creationDate: "2026-01-05T04:08:52.880+00:00", permissions: [] };
+    server.use(
+      http.get(serviceUrl.getTokens({ query: "" }), () =>
+        HttpResponse.json({
+          content: [
+            { ...token, id: "token-1", name: "joe-token", createdBy: "61d5db083aa9034ded32cae7" },
+            { ...token, id: "token-2", name: "other-token", createdBy: "not-a-member" },
+          ],
+        }),
+      ),
+    );
+    renderWorkspaceDetailed(appLink.manageWorkspaceTokens({ workspace: workspaceFixture.name }));
+    expect(await screen.findByText("Boomerang Joe")).toBeInTheDocument();
+    expect(screen.getByText("not-a-member")).toBeInTheDocument();
+    expect(screen.queryByText("61d5db083aa9034ded32cae7")).not.toBeInTheDocument();
+  });
+
   test("deep-links into the artifacts tab and lists available artifacts by default", async () => {
     renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
     // Seeded by ApiServer/fixtures/artifacts.js via ApiServer/msw/db - available by default.
@@ -524,5 +543,35 @@ describe("WorkspaceDetailed --- approver groups action", () => {
     expect(isActionError(result.data)).toBe(true);
     expect(result.data.name).toBe("Some Group");
     expect(result.data.error).toBeDefined();
+  });
+});
+
+describe("WorkspaceDetailed --- Workflows loader", () => {
+  async function workflowsQuery(workspace: string) {
+    let query: URLSearchParams | undefined;
+    server.use(
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: ":workspace" }), ({ request }) => {
+        query = new URL(request.url).searchParams;
+        return HttpResponse.json({ content: [] });
+      }),
+    );
+    await workflowsLoader({
+      params: { workspace },
+      request: new Request(`http://localhost${appLink.manageWorkspaceWorkflows({ workspace })}`),
+    });
+    return query;
+  }
+
+  // The starters and templates listed beside a workspace's workflows are not its own, so they are
+  // neither listed nor counted here - the same workflows the Workflows page counts.
+  test("asks for the workspace's own workflows only", async () => {
+    const query = await workflowsQuery(workspaceFixture.name);
+    expect(query?.get("types")).toBe("workflow");
+    expect(query?.get("statuses")).toBe("active,inactive");
+  });
+
+  test("lists the system workspace's starters and templates, since it owns them", async () => {
+    const query = await workflowsQuery("system");
+    expect(query?.has("types")).toBe(false);
   });
 });

@@ -13,7 +13,7 @@ import {
   TooltipHover,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { FormikProps } from "formik";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import { useParams } from "react-router-dom";
 import VersionHistory from "Components/VersionHistory";
 import { taskIcons } from "Utils/taskIcons";
@@ -409,9 +409,10 @@ const Header: React.FC<HeaderProps> = ({
             <Identification style={{ marginLeft: "0.5rem" }} />
           </TooltipHover>
         )}
-        <p className={styles.lastUpdate}>{`Version ${versionCount === 1 ? "created" : "updated"} ${moment(
-          lastUpdated.date,
-        ).format(DATE_SHORT_DISPLAY_FORMAT)}`}</p>
+        <p className={styles.lastUpdate}>
+          {`Version ${versionCount === 1 ? "created" : "updated"} `}
+          <FormattedDate value={lastUpdated.date} format={DATE_SHORT_DISPLAY_FORMAT} />
+        </p>
       </div>
     </FeatureHeader>
   );

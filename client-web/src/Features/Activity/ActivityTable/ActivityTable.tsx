@@ -3,10 +3,10 @@ import React from "react";
 import { DataTableSkeleton, DataTable, Pagination } from "@carbon/react";
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import cx from "classnames";
-import moment from "moment";
 import queryString from "query-string";
 import { useParams, NavigateFunction } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
+import FormattedDate from "Components/FormattedDate";
 import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
 import { appLink } from "Config/appConfig";
 import styles from "./activityTable.module.scss";
@@ -135,7 +135,9 @@ function ActivityTable(props: ActivityTableProps) {
         );
       case HeadersKey.CreationDate:
         return startTime ? (
-          <time className={styles.tableTextarea}>{moment(startTime).format(DATETIME_DISPLAY_FORMAT)}</time>
+          <time className={styles.tableTextarea}>
+            <FormattedDate value={startTime} format={DATETIME_DISPLAY_FORMAT} />
+          </time>
         ) : (
           <p className={styles.tableTextarea}>---</p>
         );

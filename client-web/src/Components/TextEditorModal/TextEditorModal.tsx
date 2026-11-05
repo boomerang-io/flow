@@ -15,9 +15,13 @@ import styles from "./TextEditorModal.module.scss";
 // `<TextEditorView>`, which - because of the isOpen gate above - only ever happens client-side.
 const TextEditorView = lazy(() => import("./TextEditorView"));
 
+/** The editor language a `texteditor::<language>` input type names, or none for a plain `texteditor`. */
+export function textEditorLanguage(type?: string): string | undefined {
+  return type?.includes("::") ? type.split("::")[1] : undefined;
+}
+
 const TextEditorModal = (props) => {
   const [value, setValue] = useState(props.initialValue);
-  console.log({ value });
   return (
     <ComposedModal
       composedModalProps={{
@@ -51,7 +55,8 @@ const TextEditorModal = (props) => {
           <TextEditorView
             {...props}
             closeModal={closeModal}
-            language={props.type?.includes("::") ? props.type.split("::")[1] : undefined}
+            // A form's DataDrivenInput keeps `type` to itself, so the form hands the language over as its own prop.
+            language={props.language ?? textEditorLanguage(props.type)}
             setTextAreaValue={setValue}
             value={value}
           />

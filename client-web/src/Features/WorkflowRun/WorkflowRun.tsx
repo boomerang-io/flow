@@ -189,10 +189,11 @@ export async function loader({
 
 export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action" | "deleteArtifact";
 
-// A retry answers with the run it created, so the page can move to it.
+// A retry answers with the run it created, so the page can move to it - even when that run then
+// failed to start, since its page carries the Start button.
 export type ActionResult =
   | { intent: RunActionIntent; workflowRunRef?: string }
-  | ({ intent: RunActionIntent } & ActionError);
+  | ({ intent: RunActionIntent; workflowRunRef?: string } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
   Exclude<RunActionIntent, "action" | "deleteArtifact">,
@@ -273,7 +274,21 @@ export async function action({
         method: requestConfig.method,
         data: { scope, nodes },
       });
-      return { intent, workflowRunRef: created?.data?.id };
+      const workflowRunRef: string | undefined = created?.data?.id;
+      // The retry only creates the new run; it is started the way the Start button starts a run.
+      if (workflowRunRef) {
+        const start = RUN_INTENT_REQUESTS.start;
+        try {
+          await api({ url: start.url({ workspace, id: workflowRunRef }), method: start.method });
+        } catch (error) {
+          return actionError({
+            intent,
+            workflowRunRef,
+            error: formatErrorMessage({ error, defaultMessage: "The retry was created but failed to start" }),
+          });
+        }
+      }
+      return { intent, workflowRunRef };
     }
     await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method });
     return { intent };

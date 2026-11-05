@@ -11,12 +11,12 @@ import {
   notify,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import capitalize from "lodash/capitalize";
-import moment from "moment";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { Link, useFetcher, useLocation } from "react-router-dom";
 import OutputPropertiesLog from "Features/WorkflowRun/TaskRunList/TaskRunItem/OutputPropertiesLog";
 import ClientOnly from "Components/ClientOnly";
 import ErrorModal from "Components/ErrorModal";
+import FormattedDate from "Components/FormattedDate";
 import { useAppContext, useWorkspaceContext } from "Hooks";
 import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
@@ -285,11 +285,13 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
               </dd>
             ) : isRetry ? (
               <dd className={styles.dataValue}>
+                {/* The origin run is this workflow's too, so it reads by its role; its id stays on hover. */}
                 <Link
                   to={appLink.execution({ workspace: workspace.name, runId: initiatedByRef })}
+                  title={initiatedByRef}
                   data-testid="initiated-by-origin-run-link"
                 >
-                  {initiatedByRef}
+                  Original run
                 </Link>
                 {retryFromCopy ? (
                   <span className={styles.retryFrom} data-testid="retry-from">
@@ -313,7 +315,9 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Start time</dt>
-            <dd className={styles.dataValue}>{startTime ? moment(startTime).format(DATETIME_DISPLAY_FORMAT) : "Not started"}</dd>
+            <dd className={styles.dataValue}>
+              {startTime ? <FormattedDate value={startTime} format={DATETIME_DISPLAY_FORMAT} /> : "Not started"}
+            </dd>
           </dl>
           {/* Inside to outside: the run error, View results, the one primary run action, then the overflow. */}
           <div className={styles.controls}>
