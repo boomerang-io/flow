@@ -28,11 +28,15 @@ export type WorkflowSpec = {
   name: string;
   displayName?: string;
   timeout?: number;
-  params?: { name: string; type?: string; defaultValue?: unknown; description?: string }[];
+  // A workflow param's default is `default` on the wire (AbstractParam).
+  params?: { name: string; type?: string; default?: unknown; description?: string }[];
   // The one shared filesystem every task of a run can mount; absent means none.
   workspace?: { size?: string; mountPath?: string; className?: string; accessMode?: string };
+  // The switches that let a run start: absent ones keep their defaults (Manual on, the rest off).
+  triggers?: WorkflowTriggers;
   tasks: WorkflowTaskSpec[];
 };
+export type WorkflowTriggers = Partial<Record<"manual" | "schedule" | "webhook" | "event" | "github", { enabled: boolean }>>;
 export type TaskRunView = {
   id: string;
   name: string;
@@ -48,12 +52,19 @@ export type TaskRunView = {
   // Set on the items of a for-each task: the parent task run's id and the item's position.
   parentRef?: string;
   index?: number;
+  // Set on a task a scoped retry carried over: the origin run's task run whose results it reuses.
+  reusedFromRef?: string;
 };
 export type WorkflowRunView = {
   id: string;
   status: string;
   phase?: string;
   statusMessage?: string;
+  trigger?: string;
+  // The run that started this one: the origin run of a retry, the firing schedule's id.
+  initiatedByRef?: string;
+  paused?: boolean;
+  params?: { name: string; value: unknown }[];
   results?: { name: string; value: unknown }[];
   tasks?: TaskRunView[];
 };
@@ -101,6 +112,27 @@ export async function getRun(
   return res.json();
 }
 
+/** Polls until `until` holds for the run, or throws after timeoutMs with the last view. */
+export async function waitForRunState(
+  request: APIRequestContext,
+  workspace: string,
+  runId: string,
+  until: (run: WorkflowRunView) => boolean,
+  timeoutMs = 60_000,
+  intervalMs = 2_000,
+): Promise<WorkflowRunView> {
+  const deadline = Date.now() + timeoutMs;
+  let last: WorkflowRunView | undefined;
+  while (Date.now() < deadline) {
+    last = await getRun(request, workspace, runId);
+    if (until(last)) {
+      return last;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(`run ${runId} did not reach the expected state in ${timeoutMs} ms: ${describe(last)}`);
+}
+
 /** Polls until the run's status is terminal, or throws after timeoutMs with the last view. */
 export async function waitForRun(
   request: APIRequestContext,
@@ -143,4 +175,82 @@ export function result(t: TaskRunView, name: string): unknown {
 export async function taskLog(request: APIRequestContext, taskRunId: string): Promise<string> {
   const res = await request.get(`${API_ORIGIN}/api/v2/taskrun/${taskRunId}/log`);
   return res.ok() ? res.text() : `(log ${res.status()})`;
+}
+
+/**
+ * Sets the workflow's trigger switches by applying its current definition with them changed, the
+ * same PUT the editor's Configure save sends.
+ */
+export async function setWorkflowTriggers(
+  request: APIRequestContext,
+  workspace: string,
+  workflowName: string,
+  triggers: WorkflowTriggers,
+): Promise<void> {
+  const current = await request.get(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflowName}`);
+  if (!current.ok()) {
+    throw new Error(`get workflow ${workflowName} failed: ${current.status()} ${await current.text()}`);
+  }
+  const workflow = (await current.json()) as { triggers?: WorkflowTriggers };
+  const res = await request.put(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow`, {
+    data: { ...workflow, triggers: { ...workflow.triggers, ...triggers } },
+  });
+  if (!res.ok()) {
+    throw new Error(`apply workflow ${workflowName} failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
+/*
+ * Task builders shared by the run scenarios. A shell task runs on the catalogue's execute-shell
+ * template and writes its results to $RESULTS_PATH as one JSON object (see dispatcher-kube.spec.ts
+ * for why). An omitted executionCondition means `always`, which lets a failed task's successors
+ * run, so a scenario that needs the run to fail with its task gates `end` with endOnSuccessOf.
+ * A sleep task is the engine's own: its duration is in milliseconds and it needs no dispatcher.
+ */
+export const startTask: WorkflowTaskSpec = { name: "start", type: "start" };
+
+export function shellTask(
+  name: string,
+  script: string,
+  extra: Partial<WorkflowTaskSpec> = {},
+  deps: TaskDependency[] = [{ taskRef: "start" }],
+): WorkflowTaskSpec {
+  return {
+    name,
+    type: "script",
+    taskRef: "execute-shell",
+    params: [
+      { name: "shell", value: "sh" },
+      { name: "script", value: script },
+    ],
+    dependencies: deps,
+    ...extra,
+  };
+}
+
+export function sleepTask(name: string, durationMs: number, after = "start"): WorkflowTaskSpec {
+  return {
+    name,
+    type: "sleep",
+    taskRef: "sleep",
+    params: [{ name: "duration", value: String(durationMs) }],
+    dependencies: [{ taskRef: after }],
+  };
+}
+
+export function endAfter(...deps: string[]): WorkflowTaskSpec {
+  return { name: "end", type: "end", dependencies: deps.map((taskRef) => ({ taskRef })) };
+}
+
+export function endOnSuccessOf(...deps: string[]): WorkflowTaskSpec {
+  return {
+    name: "end",
+    type: "end",
+    dependencies: deps.map((taskRef) => ({ taskRef, executionCondition: "success" })),
+  };
+}
+
+/** A shell line writing one result, for a value with no quotes in it. */
+export function writeResult(name: string, value: string): string {
+  return `echo '{"${name}":"${value}"}' > "$RESULTS_PATH"`;
 }
