@@ -108,9 +108,10 @@ class TokenServiceSessionTest {
   @Test
   void anAuditorAndAnAuthorHoldOnlyTheSelfServiceAndWorkspaceGrants() {
     RoleEntity editor = new RoleEntity();
+    editor.setName("editor");
     editor.setPermissions(List.of("**/read", "**/write"));
     when(relationshipService.roles("legacy-1")).thenReturn(Map.of("ws-1", "editor"));
-    when(roleRepository.findByTypeAndName("workspace", "editor")).thenReturn(editor);
+    when(roleRepository.findByType("workspace")).thenReturn(List.of(editor));
 
     for (UserType type : List.of(UserType.auditor, UserType.author)) {
       UserEntity user = new UserEntity();

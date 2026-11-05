@@ -22,7 +22,7 @@ showed its error page. Whether such a user may create a workspace was never deci
 
 C, with the creation of workspaces as a setting. `resolvePermissionsForUser` gives a user who is not an admin a
 `user`-scoped grant of `user/read`, `user/write`, `system/read`, `workflowtemplate/read` and `workspace/read`, plus
-`workspace/write` when the `features` setting `workspaceCreate` is on (`core/TokenService.java:760-792`,
+`workspace/write` when the `features` setting `workspaceCreate` is on (`core/TokenService.java:795-840`,
 `core/SettingsService.java:145-156`); the global-keyed checks are unchanged. `WorkspaceService.create` refuses a
 user who is not an admin when the setting is off (`workspace/WorkspaceService.java`), and the flag reaches the webapp
 as `workspace.create` so Home and Workspaces offer the button only to those who may (`core/FeatureService.java`).
@@ -31,5 +31,5 @@ as `workspace.create` so Home and Workspaces offer the button only to those who 
 ## Consequences
 
 - A new user lands on Home with no workspaces and a line asking an administrator to add them, not an error page.
-- The setting applies to sessions minted after it changes; a session is re-minted on sign-in.
+- The setting applies to every session on its next request: a session's grants are resolved per request.
 - A `key` or `user` token never carries the baseline: it copies workspace roles, as before.

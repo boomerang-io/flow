@@ -751,6 +751,29 @@ public class RelationshipService {
     return (role == null || role.isEmpty()) ? "viewer" : role;
   }
 
+  /**
+   * Makes the user a member of the workspace with the role. A user already a member keeps their
+   * one membership and takes the new role, on every copy of the edge an earlier write duplicated;
+   * a second edge would never be read, since a user's roles take the first per workspace.
+   */
+  public void setMemberRole(String userId, String workspace, String role) {
+    RelationshipNodeEntity userNode = resolveNodeOrThrow(RelationshipType.USER, userId);
+    RelationshipNodeEntity workspaceNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, workspace);
+    Map<String, String> data = Map.of("role", role);
+    boolean member =
+        edgeRepository
+            .findByFromAndLabel(userNode.getId(), RelationshipLabel.MEMBER_OF.getLabel())
+            .stream()
+            .anyMatch(edge -> workspaceNode.getId().equals(edge.getTo()));
+    if (member) {
+      edgeRepository.updateDataByFromAndTo(userNode.getId(), workspaceNode.getId(), data);
+    } else {
+      edgeRepository.save(
+          new RelationshipEdgeEntity(
+              userNode.getId(), RelationshipLabel.MEMBER_OF, workspaceNode.getId(), Optional.of(data)));
+    }
+  }
+
   // ── Traversal ──────────────────────────────────────────────────────────────
 
   /*

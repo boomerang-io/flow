@@ -487,7 +487,10 @@ public class UserService {
           user.setDisplayName(
               (!request.getDisplayName().isBlank()) ? request.getDisplayName() : null);
         }
-        if (request.getType() != null) {
+        // The type is the platform role a session's grants follow, so self-service never changes
+        // it: only a global grant does, on the caller's own record too.
+        if (request.getType() != null && request.getType() != user.getType()) {
+          identityService.requireGlobalGrant(PermissionResource.USER, PermissionAction.WRITE);
           user.setType(request.getType());
         }
         if (request.getLabels() != null) {

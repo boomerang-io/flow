@@ -1020,13 +1020,8 @@ public class WorkspaceService {
         }
         // Check the provided role is valid in our system
         if (RoleEnum.hasLabel(userSummary.getRole())) {
-          relationshipService.createEdge(
-              RelationshipType.USER,
-              userEntity.get().getId(),
-              RelationshipLabel.MEMBER_OF,
-              RelationshipType.WORKSPACE,
-              workspace,
-              Optional.of(Map.of("role", userSummary.getRole())));
+          relationshipService.setMemberRole(
+              userEntity.get().getId(), workspace, userSummary.getRole());
         } else {
           throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_USER_ROLE);
         }
