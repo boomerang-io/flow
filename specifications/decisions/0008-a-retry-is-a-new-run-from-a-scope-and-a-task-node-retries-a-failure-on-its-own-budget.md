@@ -23,12 +23,12 @@ final, so an embedder retried transient errors inside its task images: Flow show
 A new run from a scope, and a selector-less node retry. `PUT.../workflowrun/{id}/retry` takes `scope` (`all`, `failed`, `nodes`), task `nodes`, and param and
 label overrides (`workflow/WorkspaceWorkflowRunControllerV2.java:428-455`); `WorkflowRunService.retry` clones the origin on the same revision with
 `trigger=retry` and `initiatedByRef` = the first origin, re-runs the scoped tasks and their descendants and copies every other succeeded task run with its
-results and a `reusedFromRef` (`workflow/WorkflowRunService.java:1146-1148,1356-1400`). `retry.max` and `retry.backoff` are copied from the node onto the task run, and
+results and a `reusedFromRef` (`workflow/WorkflowRunService.java:1106-1108,1316-1360`). `retry.max` and `retry.backoff` are copied from the node onto the task run, and
 onto each for-each item with the item's own budget (`engine/DAGUtility.java:359-369`, `engine/TaskExecutionService.java:937-944`); a reported `failed` end is
 requeued while `retry.failures` is below `retry.max` and the reason is not in `StatusReason.NOT_RETRIABLE`, could-not-start reasons keep the engine's own
 budget, every requeue pushes the superseded attempt onto `attempts`, and a dispatcher marks a final failure with `retryable: false`
 (`engine/TaskRunService.java:830-832`, `:1178-1228`). Only the types a dispatcher runs are requeued, so save refuses `retry.max` above 0 on any other node; a
-`runworkflow` task's retries belong to the tasks of the workflow it runs (`workflow/WorkflowService.java:544-556`).
+`runworkflow` task's retries belong to the tasks of the workflow it runs (`workflow/WorkflowService.java:543-555`).
 
 ## Consequences
 

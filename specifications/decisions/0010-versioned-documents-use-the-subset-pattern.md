@@ -23,8 +23,8 @@ Option C. `WorkflowEntity` in `workflows`
 `WorkflowRevisionEntity{workflowRef, version, tasks, params, …}` in `workflow_revisions`
 (`common/entity/WorkflowRevisionEntity.java:21-37`); `TaskEntity` in `tasks` pairs with `TaskRevisionEntity{parentRef,
 version, spec, …}` in `task_revisions` (`common/entity/TaskRevisionEntity.java:23-34`). The domain services join them
-(`workflow/WorkflowService.java:1480-1507,2489-2514`, `workflow/TaskService.java:590-608`). A new version inserts a child; a
-replace rewrites the latest child in place (`WorkflowService.java:2037-2047`, `TaskService.java:812-837`).
+(`workflow/WorkflowService.java:1472-1499,2490-2515`, `workflow/TaskService.java:590-608`). A new version inserts a child; a
+replace rewrites the latest child in place (`WorkflowService.java:2029-2039`, `TaskService.java:812-837`).
 
 ## Consequences
 

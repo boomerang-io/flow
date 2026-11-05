@@ -38,7 +38,7 @@ revision admitted within 10 s share those five. A workflow's owning workspace is
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:235,333,646`,
-`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1631,2048`); token writes do not, because the
+`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1623,2040`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
@@ -68,7 +68,7 @@ second scale with its pools × 1000 / the interval. Admitting a task wakes the t
 whose filter can claim it, by type and, when the poll filtered on them, task and workflow, and each re-runs its claim
 page at once; submitting a run with a workspace to start wakes the workflow polls alone
 (`dispatcher/PollWakeups.java:41-160`, `engine/TaskExecutionService.java:278-280`,
-`workflow/WorkflowRunService.java:886-889`, `dispatcher/DispatcherService.java:397-400`, `:562-584`): one indexed query
+`workflow/WorkflowRunService.java:885-888`, `dispatcher/DispatcherService.java:397-400`, `:562-584`): one indexed query
 per admission per poll that can claim the task, none for the others and none while nothing is admitted, so a
 dispatcher holding eight typed pools costs one find per admission, not eight
 (`DispatcherRequestDatabaseCommandsTest.anAdmissionWakesOnlyThePollsWhoseFilterMatches`). The two termination
@@ -238,9 +238,8 @@ equivalent behaviour. A run's timeout MUST be at least the transport timeout of 
 `workflow/QuotaService.java` holds every quota read and check. Quotas are enforced at workflow create and save,
 run submit and retry, and artifact upload; nothing in the engine path re-checks them. The workflow count is checked
 before the create, so a workspace at its limit takes no more (`QuotaService.java:297-312`). With quotas on, a submit
-queues the run un-started, recounts, and discards a run that pushed a count over; one admitted is then released as a
-started run is: a run with a workspace takes its deadline from its creation and waits for the dispatcher, one with none
-starts (`workflow/WorkflowService.java:775-809`, `workflow/WorkflowRunService.java` `release`). The stored
+saves the run before queueing it, recounts, and removes a run that pushed a count over; one admitted is then queued and
+started as with quotas off (`workflow/WorkflowService.java:774-804`). The stored
 `features.workspaceQuotas` setting switches every check but one (`QuotaService.java:94-99`): the run-duration
 ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
 (`QuotaService.java:192-202`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
@@ -259,10 +258,10 @@ workspace quota and passes the run checks (`QuotaService.java:322-350,357-378`).
 
 | Quota (settings key, `QuotaService.java:57-62`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:485`, `QuotaService.java:297-315` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:756,782`, `workflow/WorkflowRunService.java:1101-1104`, `QuotaService.java:322-350,357-378` |
-| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:582-601`, `QuotaService.java:126-136,386-396` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2119-2124`, `workflow/WorkflowRunService.java:1104-1110`, `QuotaService.java:195-206` |
+| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:484`, `QuotaService.java:297-315` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:755,782`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:322-350,357-378` |
+| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:581-600`, `QuotaService.java:126-136,386-396` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2120-2125`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:195-206` |
 | `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:279-292` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:222-272`).
@@ -276,10 +275,12 @@ outside `max.workflowrun.duration` ("Finally tasks" in `execution-model.md`). Mo
 live run documents (the `workflow_ref_creation` index). The max is deliberate — the audit write is
 async best-effort, so a just-admitted run may not be audited yet (the live count covers that
 race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
-Submit re-checks the same counters after admitting the run, so a burst cannot over-fill a limit
-(`QuotaService.assertAdmittedRunWithinQuotas` `:356-377`, called from `workflow/WorkflowService.java:778-789`,
-which discards the run on any failure of the re-check, so no un-started run is left without an owner); a retry is
-checked only before it is created. Audit retention is floored at
+Submit re-checks the same counters once the run is saved and before it is queued, so a burst cannot over-fill a
+limit (`QuotaService.assertAdmittedRunWithinQuotas` `:357-378`, called from `workflow/WorkflowService.java:777-789`,
+which removes the run on any failure of the re-check, so no un-queued run is left without an owner). A removed run
+never left `notstarted`, so it published no transition and has no `CREATE` audit event: a refused submit uses no
+monthly quota. Racers that each count the others may all be refused, leaving the slot free for the next submit; the
+limit is never over-filled. A retry is checked only before it is created. Audit retention is floored at
 60 days so the month window always holds (`core/audit/AuditRetentionService.java:29`).
 
 ## Payload caps
