@@ -21,13 +21,13 @@ are the models: steps outside the graph that run once its outcome is known.
 
 C. `ExecutionCondition.Finally` serialises as `finally` (`common/enums/ExecutionCondition.java:9-16`). Saving and
 submitting hold a finally task to one dependency, on `end`, and let nothing depend on it, so finally tasks never
-chain (`workflow/WorkflowService.java:1299-1337`). When the graph ends, by its own completion, a cancel or a
+chain (`workflow/WorkflowService.java:1328-1366`). When the graph ends, by its own completion, a cancel or a
 timeout, the run takes its final status, reason and message, stamps `graphEndedAt` and stays in the `running` phase, the stage's
 deadline becomes the `workflowrun` setting `finally.timeout`, and the finally tasks are queued in parallel
 (`engine/TaskExecutionService.java:685-729`, `engine/WorkflowRunStateHelper.java:323-359`); the run completes when
 the last of them ends, a finally task that failed, timed out or was invalid turning a succeeded run into `failed`
 with the reason `FinallyFailed` (`:751-780`). In the stage a cancel does nothing more, while a purge and the
-stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:236-241,273-299,380-398`).
+stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:241-246,278-304,385-403`).
 A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`. The editor draws it
 as the switch and for-each pattern does: a purple border, a `Finally` badge, no output port, a purple link from End.
 

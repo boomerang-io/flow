@@ -26,8 +26,27 @@ export const executionOptions = [
   // The run's trigger value is `schedule` (the workflow's trigger setting is `scheduler`).
   { label: "Schedule", value: "schedule" },
   { label: "Manual", value: "manual" },
+  { label: "API", value: "api" },
   { label: "Webhook", value: "webhook" },
 ];
+
+// The engine's TriggerEnum values, as stored on a run. `engine` is only on runs submitted through the
+// API before it recorded `api`.
+export const triggerOptions = [
+  { label: "Manual", value: "manual" },
+  { label: "API", value: "api" },
+  { label: "Schedule", value: "schedule" },
+  { label: "Webhook", value: "webhook" },
+  { label: "Event", value: "event" },
+  { label: "GitHub", value: "github" },
+  { label: "Engine", value: "engine" },
+  { label: "Task", value: "task" },
+  { label: "Retry", value: "retry" },
+];
+
+export function triggerLabel(trigger?: string): string {
+  return triggerOptions.find((option) => option.value === trigger)?.label ?? trigger ?? "---";
+}
 
 export const statusOptions: Array<{ label: string; value: RunStatus }> = [
   { label: "Succeeded", value: RunStatus.Succeeded },

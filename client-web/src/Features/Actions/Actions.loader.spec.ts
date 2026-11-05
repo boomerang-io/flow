@@ -72,6 +72,29 @@ describe("Actions --- loader", () => {
     expect(captured[0]).not.toBe(captured[1]);
   });
 
+  // The API reads epoch milliseconds: a window sent in seconds lands in 1970 and counts nothing.
+  test("sends the today's-numbers window in milliseconds", async () => {
+    const windows: Array<{ fromDate: string | null; toDate: string | null }> = [];
+    server.use(
+      http.get(serviceUrl.workspace.action.getActionsSummary({ workspace: ":workspace" }), ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        if (params.has("fromDate")) windows.push({ fromDate: params.get("fromDate"), toDate: params.get("toDate") });
+        return HttpResponse.json({});
+      }),
+    );
+
+    try {
+      vi.setSystemTime(new Date("2030-01-15T12:00:00.000Z"));
+      await loader({ params: { workspace: WORKSPACE, "*": "approvals" }, request: request() });
+    } finally {
+      vi.setSystemTime(new Date("2020-01-01T00:00:00.000Z"));
+    }
+
+    expect(windows).toEqual([
+      { fromDate: String(Date.parse("2030-01-14T12:00:00.000Z")), toDate: String(Date.parse("2030-01-15T12:00:00.000Z")) },
+    ]);
+  });
+
   // Actions opens on what is waiting; clearing the filter (statuses=any) asks for every status.
   test("asks for waiting actions by default, and for every status once the filter is cleared", async () => {
     const statuses: Array<string | null> = [];

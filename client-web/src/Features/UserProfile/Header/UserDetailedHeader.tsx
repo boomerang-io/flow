@@ -1,5 +1,5 @@
 import React from "react";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import {
   Avatar,
   FeatureHeader as Header,
@@ -62,11 +62,11 @@ function UserDetailedHeader({ user, userManagementEnabled }: UserDetailedHeaderP
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Joined</dt>
-                  <dd className={styles.dataValue}>{moment(user.creationDate).format(DATE_DISPLAY_FORMAT)}</dd>
+                  <dd className={styles.dataValue}><FormattedDate value={user.creationDate} format={DATE_DISPLAY_FORMAT} /></dd>
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Last Login</dt>
-                  <dd className={styles.dataValue}>{moment(user.lastLoginDate).format(DATETIME_DISPLAY_FORMAT)}</dd>
+                  <dd className={styles.dataValue}><FormattedDate value={user.lastLoginDate} format={DATETIME_DISPLAY_FORMAT} /></dd>
                 </dl>
               </section>
               <section className={styles.actionButtonsContainer}></section>

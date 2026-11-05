@@ -28,7 +28,7 @@ until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java
 carries `concurrency: {limit, overflow}` (`common/model/WorkflowConcurrency.java:18-19`): at admission the engine counts
 its runs in `ready` or `running` on `workflow_ref_status`, at the limit parks the run as `waiting/pending` with a message
 or, with `overflow: skip`, completes it `cancelled` with `ConcurrencyLimit`, and after admitting recounts and steps back a
-run not among the oldest `limit` (`engine/WorkflowExecutionService.java:95-118`, `:138-172`,
+run not among the oldest `limit` (`engine/WorkflowExecutionService.java:95-118`, `:138-177`,
 `engine/WorkflowRunStateHelper.java:168-225`). A run's completion re-admits the oldest parked run
 (`engine/ConcurrencyAdmissionListener.java:33-55`); the `readmitParkedRuns` sweep is the fallback.
 

@@ -10,7 +10,7 @@ import { Breadcrumb, BreadcrumbItem, Button } from "@carbon/react";
 import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import { emailIsValid } from "Utils";
 import ChangeRole from "./ChangeRole";
 import styles from "./UserDetailedHeader.module.scss";
@@ -90,11 +90,11 @@ function UserDetailedHeader({ isError, isLoading, user, userManagementEnabled, w
               </div>
               <div>
                 <dt>Joined</dt>
-                <dd>{moment(user.creationDate).format("D MMM YYYY")}</dd>
+                <dd><FormattedDate value={user.creationDate} format="D MMM YYYY" /></dd>
               </div>
               <div>
                 <dt>Last sign-in</dt>
-                <dd>{user.lastLoginDate ? moment(user.lastLoginDate).format(DATETIME_READABLE_FORMAT) : "---"}</dd>
+                <dd>{user.lastLoginDate ? <FormattedDate value={user.lastLoginDate} format={DATETIME_READABLE_FORMAT} /> : "---"}</dd>
               </div>
             </dl>
             <ComposedModal

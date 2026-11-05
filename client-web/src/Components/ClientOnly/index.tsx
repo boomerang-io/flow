@@ -1,1 +1,1 @@
-export { default } from "./ClientOnly";
+export { default, useHydrated } from "./ClientOnly";

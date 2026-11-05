@@ -4,7 +4,7 @@ import { CheckmarkFilled, Misuse } from "@carbon/react/icons";
 import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import { isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import debounce from "lodash/debounce";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
@@ -263,7 +263,7 @@ function UsersTable(props: UsersTableProps) {
                         default:
                           return (
                             <TableCell key={cell.id}>
-                              {cell.value ? moment(cell.value).format(CREATED_DATE_FORMAT) : "---"}
+                              {cell.value ? <FormattedDate value={cell.value} format={CREATED_DATE_FORMAT} /> : "---"}
                             </TableCell>
                           );
                       }

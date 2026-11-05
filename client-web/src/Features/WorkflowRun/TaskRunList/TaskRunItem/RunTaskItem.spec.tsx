@@ -148,11 +148,23 @@ describe("TaskItem --- Attempts and reason", () => {
     const attempts = await screen.findByLabelText("Attempts");
     const rows = within(attempts).getAllByRole("listitem", { hidden: true });
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveTextContent(/^Attempt 1 · failed · Error · .+ · .+exit code 1$/);
-    expect(rows[1]).toHaveTextContent(/^Attempt 2 · failed · --- · /);
+    expect(rows[0]).toHaveTextContent(/^Attempt 1 · Failed · Error · .+ · .+exit code 1$/);
+    expect(rows[1]).toHaveTextContent(/^Attempt 2 · Failed · --- · /);
     expect(rows[2]).toHaveTextContent("Attempt 3 · current");
     expect(screen.getByText("Reason")).toBeInTheDocument();
     expect(screen.getByText("OOMKilled")).toBeInTheDocument();
+  });
+
+  // The dialog labels the status the way the rest of the run page does.
+  it("labels the task's status in View Details", async () => {
+    renderWithRouter(<TaskItem {...props} taskRun={{ ...taskRun, status: RunStatus.Failed }} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "View Details" }));
+
+    const dialog = await screen.findByRole("dialog", { hidden: true });
+    expect(within(dialog).getByText("Status")).toBeInTheDocument();
+    expect(within(dialog).getByText("Failed")).toBeInTheDocument();
+    expect(within(dialog).queryByText("failed")).not.toBeInTheDocument();
   });
 
   it("shows the Reason section with a placeholder and no Attempts for a first attempt", async () => {

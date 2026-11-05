@@ -94,7 +94,10 @@ class EndpointAuthorizationResponseTest extends AbstractEngineIntegrationTest {
 
     mockMvc
         .perform(get(FEATURES).header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value(403))
+        .andExpect(jsonPath("$.reason").value("PERMISSION_DENIED"))
+        .andExpect(jsonPath("$.status").value("403 FORBIDDEN"));
 
     // The denial is the endpoint's own check, not some other refusal further out.
     assertThat(denied(PermissionResource.SYSTEM, PermissionAction.READ))

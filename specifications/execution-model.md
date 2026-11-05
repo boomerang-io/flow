@@ -56,9 +56,9 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   log upload is refused with `409 TASKRUN_CLAIM_SUPERSEDED` before its body is merged unless its `dispatcherRef`
   matches `claim.by` and the task is `queued` or `running`, the only phases a dispatcher holds a task in; a reaped
   claim a termination hand-off released and a requeued task in `pending` with its claim kept both refuse
-  (`engine/TaskRunService.java:1301-1316`, called at `:1035`, `:1088`, `:1376`). The handler re-checks the claimant on
+  (`engine/TaskRunService.java:1307-1322`, called at `:1035`, `:1088`, `:1382`). The handler re-checks the claimant on
   entry (`engine/TaskExecutionService.java:1085-1116`) and the start and end write their fields only under that hold
-  (`engine/TaskRunService.java:1281-1292`). A request with no `dispatcherRef` is accepted as the legacy protocol.
+  (`engine/TaskRunService.java:1287-1298`). A request with no `dispatcherRef` is accepted as the legacy protocol.
   `claim.seq` is not on the wire, so a dispatcher that lost and re-won a claim is not told apart from its earlier self.
 - `claim.leaseExpiresAt` (`common/model/RunClaim.java:21`) is the dispatcher's liveness signal. The claim sets it
   90 s ahead (`flow.dispatcher.lease-ms`, `engine/TaskRunService.java:79-80`, `:343`); each dispatcher sends one batched
@@ -104,17 +104,17 @@ first count (`engine/WorkflowExecutionService.java:95-118`, `engine/WorkflowRunS
 recount is `workflow/QuotaService.java:388-409`). A run over the limit with `overflow: queue` (the default) is parked by
 one compare-and-set to `waiting/pending` with "Waiting for a slot…" in `statusMessage` (`tryPark` `:191`); submit
 returns it as it stands (`workflow/WorkflowRunService.java:876-892`) and a caller's start is `WORKFLOWRUN_INVALID_PHASE`
-(`engine/WorkflowExecutionService.java:209-216`). With `overflow: skip` it is completed `cancelled` with `statusReason`
+(`engine/WorkflowExecutionService.java:214-221`). With `overflow: skip` it is completed `cancelled` with `statusReason`
 `ConcurrencyLimit` (`overflow` `:143-159`), a normal terminal run to its triggers and callers. A parked run holds no slot
 but counts against the workspace quota, being `waiting`. When a run of the workflow completes, its oldest parked run
 is re-admitted through the same `queue`, which drops the message, and started when it has nothing to provision
 (`engine/ConcurrencyAdmissionListener.java:33`, `readmit` `:172`, `tryAdmit` `engine/WorkflowRunStateHelper.java:170`),
-the `readmitParkedRuns` sweep being the fallback. A limit below 1 is refused at save (`workflow/WorkflowService.java:529-533`).
+the `readmitParkedRuns` sweep being the fallback. A limit below 1 is refused at save (`workflow/WorkflowService.java:537-541`).
 
 A dispatcher that fails to provision reports the cause (`dispatcher/DispatcherControllerV1.java:187`,
 `dispatcher-sdk/.../WorkflowRunner.java:56-72`). Below the third attempt the engine keeps the claim, says "Retrying in 1
 minute (attempt n of 3)" in `statusMessage` and ends the claim's lease after `flow.watcher.provision-retry-ms` (60 s);
-the third fails the run with the cause (`engine/WorkflowExecutionService.java:462-498`). A claim a dispatcher dies holding
+the third fails the run with the cause (`engine/WorkflowExecutionService.java:467-503`). A claim a dispatcher dies holding
 is released by `recoverStaleProvisionClaims` once older than `flow.watcher.provision-claim-grace-ms` (5 minutes) or past
 its lease, failing the run after a third (`engine/WorkflowWatcher.java:451-482`). Every write is fenced on `claim.seq`; a
 start clears `statusMessage` (`engine/WorkflowRunStateHelper.java:127-154,274`).
@@ -141,7 +141,7 @@ moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engi
 | `cancelDeletedWorkflowRuns` (`WorkflowWatcher.java:367`) | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel |
 | `pruneDeletedWorkflows` (`WorkflowWatcher.java:388`) | a page of deleted workflows with no run in flight (`WorkflowRetentionService.java:250-290`) | purges each run as retention does (`WorkflowRetentionService.java:314-322`), then deletes the workflow's artifacts, leftover task runs, revisions, schedules, actions and relationship node, then the workflow; audit records stay |
 | `purgeRequestedRuns` (`WorkflowWatcher.java:396`) | runs stamped `purgeRequestedAt` by a purge request (`api-contract.md`, "Run purge"), oldest request first, one page (`WorkflowRetentionService.java:148-175`) | purges each run as retention does once its tasks have settled (every task completed, and no cancelled or timed-out task still carrying `claim.by`), or once the request is 10 minutes old; one found in flight again is cancelled again |
-| `reapRunsWithMissingRevision` (`WorkflowWatcher.java:406`) | in-flight runs whose `workflowRevisionRef` no longer resolves: the distinct in-flight refs minus those that exist, then a page of the runs holding them (`WorkflowRunStateHelper.java:524-544`) | completes the run `invalid` and winds its stored task runs down as a cancel does: queued and running ones are ended, pending ones queued so they skip (`WorkflowExecutionService.java:500-549`) |
+| `reapRunsWithMissingRevision` (`WorkflowWatcher.java:406`) | in-flight runs whose `workflowRevisionRef` no longer resolves: the distinct in-flight refs minus those that exist, then a page of the runs holding them (`WorkflowRunStateHelper.java:524-544`) | completes the run `invalid` and winds its stored task runs down as a cancel does: queued and running ones are ended, pending ones queued so they skip (`WorkflowExecutionService.java:505-554`) |
 | `recoverStaleProvisionClaims` (`WorkflowWatcher.java:451`) | `ready/queued` runs whose `claim.at` is older than the grace (`WorkflowRunStateHelper.java:109-123`) | releases the claim while `claim.seq` < 3, else completes the run `failed` and winds its task runs down |
 | `readmitParkedRuns` (`WorkflowWatcher.java:490`) | runs parked for a slot of their workflow's concurrency limit, `waiting/pending`, longest waiting first (`WorkflowRunStateHelper.java:250-257`) | re-drives each through admission (`WorkflowExecutionService.readmit` `:179-190`); one still over the limit stays parked |
 | `reapClaimsFromGoneDispatchers` (`WorkflowWatcher.java:504`) | claimed task runs whose dispatcher has not connected for 60 s (`WorkflowWatcher.java:87`); live dispatchers are read once and only the others' claims paged (`TaskRunService.java:696-711`) | requeue or abandon, without the deadline guard, `DispatcherGone` |
@@ -166,7 +166,7 @@ the setting caps a single pod, it is not a budget.
 When a timed-out task ends, its run times out too (`engine/TaskExecutionService.java:637-647`). A workflow timeout is two writes: `WorkflowRunService.timeout` marks a pending or running run
 `timedout` on the caller's thread, publishing nothing and leaving the phase as it is (`workflow/WorkflowRunService.java:991-1020`, `engine/WorkflowRunStateHelper.java:572-584`); the
 asynchronous `timeoutWorkflow` then completes it with one compare-and-set, and only that winner ends the run's task runs and starts an automatic retry
-(`engine/WorkflowExecutionService.java:370-453`). A lost completion leaves the run `timedout` in its phase for the timeout sweep to drive again once the run's own deadline has passed.
+(`engine/WorkflowExecutionService.java:375-458`). A lost completion leaves the run `timedout` in its phase for the timeout sweep to drive again once the run's own deadline has passed.
 
 **The run's budget bounds execution, not waiting.** A run is waiting when every in-flight task is `waiting`: an approval, a manual task, an event wait, a run-workflow task waiting on its
 child, a sleep or an acquire-lock wait (`engine/EngineConstants.java:56-63`, `engine/TaskRunService.java:865-888`). When the last executing task enters a wait the run gains `waitingSince`
@@ -178,7 +178,7 @@ a gate nobody answers leaves the run active until cancelled.
 one it has no `timeoutAt`; with one it is reaped like any task and times out its run. That timeout is left out of the critical path that floors the run budget
 (`workflow/RunTimeoutPolicy.java:145-149`), so an hour-long gate does not make the run ask for an hour.
 
-A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2117-2125`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
+A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2168-2176`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
 timeout, else the revision's, else the run-duration quota itself, the workspace's own limit or else the platform `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the
 revision's critical path, the longest chain of declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's maximum run duration
 then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
@@ -191,7 +191,7 @@ never ran and `failures` for the retries of a reported failure its node asked fo
 (`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:359-369`), and from a for-each parent onto each of its items with the item's own budget (`engine/TaskExecutionService.java:937-944`). A
 requeueable task (`template`, `custom`, `script`, `generic`, `ai`, `uploadartifact`, `downloadartifact`) gets three engine requeues; `retry.max` is at most 10 (`engine/EngineConstants.java:27-49`).
 Any other type, `runworkflow` among them, is never requeued, and save refuses such a node that asks for retries (`retry.max` above 0) with `WORKFLOW_INVALID_TASK_RETRY` (1223)
-(`workflow/WorkflowService.java:543-555`). Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message, dispatcher) onto `attempts`
+(`workflow/WorkflowService.java:551-563`). Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message, dispatcher) onto `attempts`
 (`engine/TaskRunService.java:830`, `common/model/RunAttempt.java:20-27`); the run's own fields are the current attempt. The public task run shows a claimed task's `attempt`, the superseded ones plus
 one, and `attempts`, never `retry` (`common/model/TaskRun.java:67`, `:75-80`).
 
@@ -202,19 +202,19 @@ one, and `attempts`, never `retry` (`common/model/TaskRun.java:67`, `:75-80`).
 | The dispatcher reports any other `failed` end and the node's `retry.max` is not spent | yes, on the node's budget with the node's backoff, unless the reason is one a retry cannot change: `ImageNotAllowed`, `AdmissionDenied`, `ResultsTooLarge` or an engine-written cause (`StatusReason.NOT_RETRIABLE`, `common/model/StatusReason.java:61-74`) | `TaskRunService.java:1209-1227`, `tryRequeueFailure` `:784` |
 | Any other `failed` or `invalid` end: no setting, a spent budget, a cause a retry cannot change, or a failure the dispatcher marked final (`retryable: false` on the end, `TaskRunService.java:1181`) | no; the graph advances or the run fails | `TaskRunService.java:1178-1228` |
 | A gate, wait or inline system task times out | no; terminal `timedout` | `EngineConstants.java:27-40` |
-| A workflow run times out with retries left | yes, as a new workflow run (`trigger=retry`, `initiatedByRef` = the first origin) | `WorkflowExecutionService.java:436-452`, `workflow/WorkflowRunService.java:1096-1101` |
+| A workflow run times out with retries left | yes, as a new workflow run (`trigger=retry`, `initiatedByRef` = the first origin) | `WorkflowExecutionService.java:441-457`, `workflow/WorkflowRunService.java:1096-1101` |
 
 A retried workflow run is a new run, so it clears the same quotas a submit clears and is clamped to the run-duration
 maximum as it stands now (`workflow/WorkflowRunService.java:1056-1071`); the floor is not re-checked, as a retry re-runs
 the same revision. When the quota refuses an automatic retry the source run is already terminal, so the timeout path
-logs and stops (`engine/WorkflowExecutionService.java:445-450`); a user retry gets `429 QUOTA_EXCEEDED`.
+logs and stops (`engine/WorkflowExecutionService.java:450-455`); a user retry gets `429 QUOTA_EXCEEDED`.
 
 A user retry takes a `scope` of `all`, `failed` or `nodes` (`api-contract.md`, "Public run models"). With `failed` or
 `nodes`, every origin task run that succeeded and is not downstream of the retry point is copied under the new run
 with its results and a `reusedFromRef`, without claim, deadline, retry or wait state, so the plan adopts it by name
 and only the rest executes (`workflow/WorkflowRunService.java:1168-1257`, `:1356-1400`); a skipped task run is planned
 afresh, and queueing refuses a completed task run, so the start advances from the copies
-(`engine/WorkflowExecutionService.java:335-339`). Run results a re-run set-property task writes are dropped, and an
+(`engine/WorkflowExecutionService.java:340-344`). Run results a re-run set-property task writes are dropped, and an
 active origin is cancelled once the new run is queued (`workflow/WorkflowRunService.java:1139-1144`). The new run gets
 an empty workspace volume, so a re-run task cannot read files a carried-over task wrote; the retry dialog warns of this
 (`client-web/src/Features/WorkflowRun/RetryRunModal/RetryRunModal.tsx:94-95`, `:155-164`). A retry is refused before
@@ -227,7 +227,7 @@ A requeue of a claimed attempt parks the task `waiting/pending`, keeps `claim.by
 increments `claim.seq`; the next attempt cannot be claimed until a dispatcher's termination poll releases the claim
 and returns the task to `ready` in the same write (`engine/TaskRunService.java:805-846`, `:287-310`), while an
 unclaimed attempt goes straight back to `ready/pending`. A start or end from the superseded attempt's own dispatcher
-that arrives before the release is refused with `TASKRUN_CLAIM_SUPERSEDED`, so the retry stands (`:1301-1316`).
+that arrives before the release is refused with `TASKRUN_CLAIM_SUPERSEDED`, so the retry stands (`:1307-1322`).
 
 ## Pause
 
@@ -254,7 +254,7 @@ dependencies are all done, reading the whole graph once there for the path check
    `:548-552`).
 3. Every write MUST be a guarded compare-and-set or a field-scoped update; no handler saves a task run whole. A
    dispatcher's start and end merge their request fields one by one, held to the claimant and an unfinished phase
-   (`engine/TaskRunService.java:1281-1292`, `:1064-1068`, `:1152-1157`), and every wait is armed fenced on the `running` phase (`:919-935`).
+   (`engine/TaskRunService.java:1287-1298`, `:1064-1068`, `:1152-1157`), and every wait is armed fenced on the `running` phase (`:919-935`).
 4. Only the compare-and-set winner performs side effects: queueing dependants, finishing the run, starting a retry.
 
 Results are keyed by name on every path: a `setwfproperty` result, an event delivery and a run-workflow task's `workflowRunRef` upsert the element with that name, a positional `$set` or else
@@ -266,14 +266,14 @@ the arm (`applyEventDelivery`, `:406-414`) is honoured (`engine/TaskExecutionSer
 ## Finally tasks
 
 A finally task is a task whose single dependency is `end` with the execution condition `finally` (`common/enums/ExecutionCondition.java:9-16`): it runs once the run has ended, any way. Saving and
-submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1299-1337`). When the graph ends, by its own completion, a cancel
+submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1328-1366`). When the graph ends, by its own completion, a cancel
 or a timeout, the run takes its final status, reason and message in one compare-and-set that stamps `graphEndedAt` and leaves the phase `running`, its `timeoutAt` becomes the finally stage's deadline,
 the `workflowrun` setting `finally.timeout` (5 minutes), and the pending finally tasks are queued in parallel (`engine/TaskExecutionService.java:685-729`,
 `engine/WorkflowRunStateHelper.java:323-359`); a run with no finally task completes as before. A finally task is admitted without the path check, since the graph has ended whichever paths it took, and
 any other task still pending then is skipped (`:186-204`); its own timeout is capped by the stage's (`engine/DAGUtility.java:349-356`) and times out the task alone. The run completes when the last
 finally task ends: a finally task that failed, timed out or was invalid turns a succeeded run into `failed` with the reason `FinallyFailed`, any other final status stands (`:751-780`). In the stage a
 cancel does nothing more, while a purge completes the run at once with the status it ended with and ends the finally tasks, as the stage's deadline does
-(`engine/WorkflowExecutionService.java:236-241,273-299,380-398`). A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`.
+(`engine/WorkflowExecutionService.java:241-246,278-304,385-403`). A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`.
 
 **The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
 clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it
@@ -321,15 +321,15 @@ A `runworkflow` task submits another workflow as a child run (`engine/TaskExecut
 task's own params minus `workflowRef` and `wait` (`:1420-1425`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
-saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1837-1877`). A
+saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1888-1928`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
 `timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1534-1537`). A `workflowRef` naming a template
 runs as the parent's workspace's link to that template, created under the template's name on first use, so a template's
 children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace,
-and for any other reference, the reference is used as given (`:1359-1362`, `workflow/WorkflowService.java:2305-2321`).
+and for any other reference, the reference is used as given (`:1359-1362`, `workflow/WorkflowService.java:2357-2373`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
-typed pair the retry path uses (`workflow/WorkflowService.java:2156-2160`); a run has no `parentRef`. The single-run
+typed pair the retry path uses (`workflow/WorkflowService.java:2208-2212`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1367-1374`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
@@ -354,7 +354,7 @@ the same way. When a run ends `cancelled` or `timedout`, the same listener cance
 A task with `foreach` set runs once per item of an array, in parallel, in the same run. Only the types a
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow`, which
 submits one child run per item, may carry it; saving refuses it anywhere else, `start` and `end` included
-(`workflow/WorkflowService.java:140-151`, `:1706-1713`, `:1896-1940`). The graph still sees one task run per node:
+(`workflow/WorkflowService.java:144-155`, `:1736-1743`, `:1947-1991`). The graph still sees one task run per node:
 `DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef` (`engine/DAGUtility.java:168-218`), so items are never vertices.
 
 | Step | What happens | Where |
@@ -366,9 +366,9 @@ submits one child run per item, may carry it; saving refuses it anywhere else, `
 
 An item that times out is a task timeout: it times out the whole run, which cancels the parent and the remaining items
 (`engine/TaskExecutionService.java:637-647`); a cancel reaches every item because the cancel pass reads the stored
-task runs, not the graph (`engine/WorkflowExecutionService.java:504-513`). Downstream, `$(tasks.<name>.results.<result>)`
+task runs, not the graph (`engine/WorkflowExecutionService.java:509-518`). Downstream, `$(tasks.<name>.results.<result>)`
 finds the parent, since the lookup is by exact name and items carry the bracketed suffix; a task name ending in
-`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1685-1694`).
+`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1715-1724`).
 
 ## Task locks
 

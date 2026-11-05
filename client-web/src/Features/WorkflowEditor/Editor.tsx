@@ -2,7 +2,7 @@ import { gbToQuantity } from "Utils/storageQuantity";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Loading, Error, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import type { FormikProps } from "formik";
-import { Route, Routes, useBlocker, useFetcher, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useBlocker, useFetcher, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useImmerReducer } from "use-immer";
 import { useWorkspaceContext } from "Hooks";
 import { EditorContextProvider } from "State/context";
@@ -19,6 +19,7 @@ import {
   WorkflowReactFlowInstance,
 } from "Types";
 import { groupTasksByName } from "Utils";
+import { appLink } from "Config/appConfig";
 import { isActionError } from "Utils/actionResult";
 import { isReadOnlyTasks } from "Utils/workflowTemplate";
 import {
@@ -411,6 +412,12 @@ const EditorStateContainer: React.FC<EditorStateContainerProps> = ({
           />
           <Route path="schedule" element={<Schedule workflow={revisionState} />} />
           <Route path="changelog" element={<ChangeLog changeLogData={changeLogData} />} />
+          {/* Configure renders its own tabs; any path the editor does not know opens the canvas. */}
+          <Route path="configure/*" element={null} />
+          <Route
+            path="*"
+            element={<Navigate to={appLink.editorCanvas({ workspace: workspace.name, workflow: workflowRef })} replace />}
+          />
         </Routes>
         {
           // Always render parent Configure component so state isn't lost when switching tabs

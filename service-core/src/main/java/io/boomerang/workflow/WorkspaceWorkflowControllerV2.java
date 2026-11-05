@@ -359,7 +359,7 @@ public class WorkspaceWorkflowControllerV2 {
           @RequestParam(required = false, defaultValue = "true")
           boolean start,
       @RequestBody WorkflowSubmitRequest request) {
-    return workflowService.submit(workspace, name, request, start);
+    return workflowService.submitOnDemand(workspace, name, request, start);
   }
 
   @GetMapping(value = "/{name}/export", produces = "application/json")

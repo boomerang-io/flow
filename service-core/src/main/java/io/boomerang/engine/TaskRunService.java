@@ -1247,8 +1247,9 @@ public class TaskRunService {
 
   /*
    * A succeeded download task reports found=true. The engine owns the result: the worker does not
-   * write it, and an end that already carries one (an optional download that found nothing ends
-   * succeeded with found=false before it is dispatched) stands.
+   * write it, and an end that already carries a value (an optional download that found nothing
+   * ends succeeded with found=false before it is dispatched) stands. The declared result the task
+   * run is created with has no value, so an empty one is overwritten.
    */
   private void reportArtifactFound(TaskRunEntity taskRunEntity) {
     if (!TaskType.downloadartifact.equals(taskRunEntity.getType())
@@ -1257,7 +1258,12 @@ public class TaskRunService {
     }
     List<RunResult> results =
         taskRunEntity.getResults() != null ? taskRunEntity.getResults() : new ArrayList<>();
-    if (results.stream().noneMatch(r -> ArtifactService.FOUND_RESULT.equals(r.getName()))) {
+    if (results.stream()
+        .noneMatch(
+            r ->
+                ArtifactService.FOUND_RESULT.equals(r.getName())
+                    && r.getValue() != null
+                    && !r.getValue().toString().isEmpty())) {
       taskRunEntity.setResults(
           ResultUtil.addUniqueResults(
               results, List.of(new RunResult(ArtifactService.FOUND_RESULT, "true"))));

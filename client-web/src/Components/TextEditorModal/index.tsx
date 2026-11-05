@@ -1,1 +1,1 @@
-export { default } from "./TextEditorModal"
+export { default, textEditorLanguage } from "./TextEditorModal";

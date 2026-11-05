@@ -8,7 +8,7 @@ import {
   FeatureNavTabs as Tabs,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Checkmark, Close } from "@carbon/react/icons";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import { useFeature } from "flagged";
 import { Link, useLocation } from "react-router-dom";
 import { appLink, FeatureFlag } from "Config/appConfig";
@@ -80,7 +80,7 @@ function WorkspaceDetailedHeader({ workspace }: WorkspaceDetailedHeaderProps) {
                 </dl>
                 <dl className={styles.detailedInfoContainer}>
                   <dt className={styles.dataTitle}>Date Created</dt>
-                  <dd className={styles.dataValue}>{moment(workspace.creationDate).format(DATE_DISPLAY_FORMAT)}</dd>
+                  <dd className={styles.dataValue}><FormattedDate value={workspace.creationDate} format={DATE_DISPLAY_FORMAT} /></dd>
                 </dl>
               </section>
             </div>

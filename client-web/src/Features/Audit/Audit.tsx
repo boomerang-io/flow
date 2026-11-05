@@ -18,6 +18,7 @@ import { ErrorMessage } from "@boomerang-io/carbon-addons-boomerang-react";
 import cx from "classnames";
 import debounce from "lodash/debounce";
 import moment from "moment";
+import FormattedDate, { useFormatDate } from "Components/FormattedDate";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { Link, useLoaderData, useLocation, useNavigate } from "react-router-dom";
@@ -241,8 +242,9 @@ export default function Audit() {
 }
 
 function StatTiles({ stats }: { stats: AuditStats }) {
-  const since = moment(stats.from).format(DATE_SHORT_DISPLAY_FORMAT);
-  const until = stats.to ? moment(stats.to).format(DATE_SHORT_DISPLAY_FORMAT) : "now";
+  const formatDate = useFormatDate();
+  const since = formatDate(stats.from, DATE_SHORT_DISPLAY_FORMAT);
+  const until = stats.to ? formatDate(stats.to, DATE_SHORT_DISPLAY_FORMAT) : "now";
   return (
     <>
       <div className={styles.stats} data-testid="audit-stats">
@@ -417,7 +419,9 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
                     <React.Fragment key={row.id}>
                       <TableExpandRow {...getRowProps({ row })}>
                         <TableCell>
-                          <time dateTime={event.time}>{moment(event.time).format("MMM D, YYYY h:mm:ss a")}</time>
+                          <time dateTime={event.time}>
+                            <FormattedDate value={event.time} format="MMM D, YYYY h:mm:ss a" />
+                          </time>
                           <span className={styles.muted}>{moment(event.time).fromNow()}</span>
                         </TableCell>
                         <TableCell>
