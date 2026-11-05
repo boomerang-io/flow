@@ -208,7 +208,9 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
   }
 
   private long auditedRunCreates(String workspace) {
-    return auditQueryService.countRunsCreated(workspace, new Date(0), new Date(Long.MAX_VALUE));
+    return auditQueryService
+        .countRunsCreated(List.of(workspace), new Date(0), new Date(Long.MAX_VALUE))
+        .getOrDefault(workspace, 0L);
   }
 
   private long persistedRuns(String workspace, String workflow) {
