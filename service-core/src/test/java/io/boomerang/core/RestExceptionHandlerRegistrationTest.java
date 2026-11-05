@@ -1,8 +1,11 @@
 package io.boomerang.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -19,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -146,7 +150,47 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value(1216))
         .andExpect(jsonPath("$.reason").value("PARAM_INVALID_TYPE"))
+        .andExpect(
+            jsonPath("$.message")
+                .value(
+                    "Parameter type \"password\" is invalid. A parameter type is one of string,"
+                        + " array, object or secret; leave it out for string."))
         .andExpect(jsonPath("$.status").value("400 BAD_REQUEST"));
+  }
+
+  @Test
+  void accessDeniedStaysForbiddenInThePlatformShape() throws Exception {
+    mockMvc()
+        .perform(get("/test-denied"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value(403))
+        .andExpect(jsonPath("$.reason").value("PERMISSION_DENIED"))
+        .andExpect(jsonPath("$.status").value("403 FORBIDDEN"));
+  }
+
+  @Test
+  void anUnsupportedMethodStaysMethodNotAllowedInThePlatformShape() throws Exception {
+    mockMvc()
+        .perform(post("/test-boom"))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(header().string(HttpHeaders.ALLOW, "GET"))
+        .andExpect(jsonPath("$.code").value(405))
+        .andExpect(jsonPath("$.reason").value("METHOD_NOT_ALLOWED"))
+        .andExpect(jsonPath("$.message").value("Method 'POST' is not supported."))
+        .andExpect(jsonPath("$.status").value("405 METHOD_NOT_ALLOWED"));
+  }
+
+  // The exception's own message stays in the server log.
+  @Test
+  void anUnhandledErrorIsAGenericServerError() throws Exception {
+    mockMvc()
+        .perform(get("/test-unhandled"))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.code").value(500))
+        .andExpect(jsonPath("$.reason").value("INTERNAL_SERVER_ERROR"))
+        .andExpect(jsonPath("$.status").value("500 INTERNAL_SERVER_ERROR"))
+        .andExpect(jsonPath("$.cause").doesNotExist())
+        .andExpect(content().string(not(containsString("db-password"))));
   }
 
   @Test
@@ -179,6 +223,16 @@ class RestExceptionHandlerRegistrationTest extends AbstractEngineIntegrationTest
     @GetMapping("/test-boom")
     String boom() {
       throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "status");
+    }
+
+    @GetMapping("/test-denied")
+    String denied() {
+      throw new AccessDeniedException("Access Denied");
+    }
+
+    @GetMapping("/test-unhandled")
+    String unhandled() {
+      throw new IllegalStateException("connection refused for db-password");
     }
 
     @GetMapping("/test-auth")

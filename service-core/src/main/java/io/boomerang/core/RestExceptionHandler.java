@@ -2,6 +2,8 @@ package io.boomerang.core;
 
 import java.lang.annotation.Annotation;
 import java.util.Locale;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
@@ -11,8 +13,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -34,6 +38,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice
 public class RestExceptionHandler extends ResponseEntityExceptionHandler {
+
+  private static final Logger LOGGER = LogManager.getLogger();
 
   @Value("${flow.error.include-cause:false}")
   public boolean includeCause;
@@ -99,7 +105,11 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
       if (cause instanceof InvalidFormatException invalid
           && ParamType.class.equals(invalid.getTargetType())) {
         return handleBoomerangException(
-            new BoomerangException(BoomerangError.PARAM_INVALID_TYPE, invalid.getValue()));
+            new BoomerangException(
+                BoomerangError.PARAM_INVALID_TYPE,
+                invalid.getValue(),
+                "string, array, object or secret",
+                ParamType.string.name()));
       }
     }
     return super.handleHttpMessageNotReadable(ex, headers, status, request);
@@ -158,5 +168,65 @@ public class RestExceptionHandler extends ResponseEntityExceptionHandler {
       headers.add(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
     }
     return new ResponseEntity<>(re, headers, error.getStatus());
+  }
+
+  /*
+   * A permission the caller does not hold, denied by method security at the endpoint, stays a 403
+   * and answers in the platform shape with PERMISSION_DENIED's code, reason and message.
+   */
+  @ExceptionHandler({AccessDeniedException.class})
+  public ResponseEntity<Object> handleAccessDeniedException(
+      AccessDeniedException ex, WebRequest request) {
+    RestErrorResponse re = errorResponse(BoomerangError.PERMISSION_DENIED, HttpStatus.FORBIDDEN);
+    return handleExceptionInternal(ex, re, new HttpHeaders(), HttpStatus.FORBIDDEN, request);
+  }
+
+  /*
+   * Anything no other handler maps is a 500 with a generic message: the exception is logged here
+   * and never sent, so its message and stack stay on the server.
+   */
+  @ExceptionHandler({Exception.class})
+  public ResponseEntity<Object> handleUnexpectedException(Exception ex, WebRequest request) {
+    LOGGER.error("Unhandled error answering {}", request.getDescription(false), ex);
+    RestErrorResponse re =
+        errorResponse(BoomerangError.INTERNAL_SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+    if (includeCause && ex.getCause() != null) {
+      re.setCause(ex.getCause().toString());
+    }
+    return handleExceptionInternal(
+        ex, re, new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR, request);
+  }
+
+  /*
+   * Every framework error the base class maps (an unsupported method or media type, a missing
+   * parameter, an unknown route) keeps its status and headers and answers in the platform shape:
+   * the HTTP status as code and reason, as the codes below 1000 do, and Spring's detail as the
+   * message.
+   */
+  @Override
+  protected ResponseEntity<Object> createResponseEntity(
+      Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+    if (body instanceof RestErrorResponse) {
+      return new ResponseEntity<>(body, headers, statusCode);
+    }
+    HttpStatus status = HttpStatus.resolve(statusCode.value());
+    RestErrorResponse re = new RestErrorResponse();
+    re.setCode(statusCode.value());
+    re.setReason((status != null) ? status.name() : String.valueOf(statusCode.value()));
+    String detail = (body instanceof ProblemDetail problem) ? problem.getDetail() : null;
+    re.setMessage(
+        (detail != null) ? detail : ((status != null) ? status.getReasonPhrase() : null));
+    re.setStatus(statusCode.toString());
+    return new ResponseEntity<>(re, headers, statusCode);
+  }
+
+  // The error's code, reason and message, answered at the given status.
+  private RestErrorResponse errorResponse(BoomerangError error, HttpStatus status) {
+    RestErrorResponse re = new RestErrorResponse();
+    re.setCode(error.getCode());
+    re.setReason(error.getReason());
+    re.setMessage(messageSource.getMessage(error.getReason(), null, Locale.ENGLISH));
+    re.setStatus(status.toString());
+    return re;
   }
 }

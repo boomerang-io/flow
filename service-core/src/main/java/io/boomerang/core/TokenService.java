@@ -549,10 +549,17 @@ public class TokenService {
     return pages;
   }
 
+  /**
+   * Resolve a raw token to the identity a request authenticates as, and stamp its last use
+   * (throttled, see {@link #touchLastUsed}) when it is still valid.
+   */
   public Token get(String token) {
     TokenEntity tokenEntity = lookup(token).orElse(null);
     if (tokenEntity == null) {
       return null;
+    }
+    if (isValid(tokenEntity.getExpirationDate())) {
+      touchLastUsed(tokenEntity);
     }
     Token response = new Token();
     response.setValid(isValid(tokenEntity.getExpirationDate()));

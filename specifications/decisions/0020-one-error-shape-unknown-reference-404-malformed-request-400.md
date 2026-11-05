@@ -19,18 +19,19 @@ and each layer had its own default body. One constant also served both "the addr
 
 ## Decision
 
-B and D. `core/RestExceptionHandler.java:43-65` renders every `BoomerangException` as `RestErrorResponse`
-(`timestamp`, `code`, `reason`, `message`, `status`, optional `cause`); `:72-84` maps a `@Valid` body failure and
-`:91-105` an unreadable parameter type onto it, and `:132-150` an `AuthenticationException`, so a 401 has the body of a
-400. Codes and statuses come from `common/error/BoomerangError.java`; messages from `messages.properties`, keyed by
+B and D. `core/RestExceptionHandler.java:50-72` renders every `BoomerangException` as `RestErrorResponse`
+(`timestamp`, `code`, `reason`, `message`, `status`, optional `cause`); `:79-91` maps a `@Valid` body failure,
+`:98-116` an unreadable parameter type, `:143-171` an `AuthenticationException`, `:177-182` a denied permission (403),
+`:188-198` any other exception (500, fixed message) and `:206-221` every framework error, at its own status, onto it. Codes and statuses come from `common/error/BoomerangError.java`; messages from `messages.properties`, keyed by
 `reason`. A `*_INVALID_REF*` code answers 404 and means the resource the request path addresses does not exist
-(`BoomerangError.java:47,52,74,81`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
+(`BoomerangError.java:51,56,78,86`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
 reference that does not resolve inside a body is 400, since the route exists and the payload is wrong:
-`WORKFLOW_INVALID_TASK_REF` (`:52`). What decided it: a client can act on the status alone and switch on `reason`.
+`WORKFLOW_INVALID_TASK_REF` (`:60`). What decided it: a client can act on the status alone and switch on `reason`.
 
 ## Consequences
 
 - A new error condition is added to `BoomerangError` and `messages.properties` together; a constant with no message
-  renders `No message available` (`RestExceptionHandler.java:53-54`).
-- A framework error outside these mappings, such as malformed JSON, still answers in Spring's default body
-  (`:104`); map it in the handler when a client trips on it.
+  renders `No message available` (`RestExceptionHandler.java:60-61`).
+- A framework error carries the HTTP status as `code` and `reason` and Spring's detail as `message`; map it to its
+  own constant when a client needs to tell it apart. A failure inside a servlet filter still answers Spring Boot's
+  default error body.

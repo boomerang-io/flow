@@ -18,7 +18,7 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 
 `TaskService` is the task handler and runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:118-180`);
 `WorkflowService` is the workflow handler and provisions each claimed run's volume
-(`dispatcher/WorkflowService.java:36-56`); both are wired in `config/DispatcherConfig.java:40-59`.
+(`dispatcher/WorkflowService.java:37-60`); both are wired in `config/DispatcherConfig.java:40-59`.
 
 - **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and waits
   until 5 s after the start of one that failed or was answered empty at once (`sdk/QueuePoller.java:23`,
@@ -219,7 +219,7 @@ Every task gets `/data`, a per-pod `emptyDir`, memory-backed when `kube.task.sto
 onto the run and each task run with its `mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher
 provisions one persistent volume claim keyed by the run id, labelled `boomerang.io/tier=workspace` and
 `boomerang.io/workspace-ref=<run id>` (`kube/KubeHelperService.java:345-355`), before the run starts
-(`dispatcher/WorkflowService.java:36-56`), and deletes it when its reconciliation finds the run completed
+(`dispatcher/WorkflowService.java:37-60`), and deletes it when its reconciliation finds the run completed
 (`dispatcher/WorkspaceReconciler.java:57-72`). No volume is shared between runs, a retry and its origin included:
 files that must survive a run are artifacts with scope `workflow` (`data-model.md`, "Artifacts"). Both executors mount
 that one claim at the task run's path (`kube/KubeJobsExecutor.java:322-345`; `kube/TektonServiceImpl.java:248-266`,
@@ -233,7 +233,7 @@ workspace enters the engine, because a Kubernetes quantity would read it as byte
 alike, a blank size takes the platform's `max.workspace.storage` value, lowered to the owning workspace's own storage
 quota when quotas are enforced and it is smaller (0 is unlimited), and a blank mount path becomes `/workspace`; a size
 above that workspace quota is refused with `QUOTA_EXCEEDED` when quotas are enforced
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:581-600`), and the same check runs
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:589-608`), and the same check runs
 when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:417-427`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
 `ReadWriteMany`; `dispatcher/WorkspaceService.java:51-58`); a blank class leaves `storageClassName` unset, because an
@@ -246,7 +246,7 @@ A workflow upgraded from v3 keeps its mount path, written as `/workspace/workflo
 (`service-core/src/main/java/io/boomerang/migration/_0010__V3MigrateWorkflows.java:226`), so its tasks need no
 change. One that declared v3's workflow storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on
 its revision and is refused at submit with `WORKFLOW_STORAGE_REMOVED` until it is saved again
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2092-2096`).
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2143-2147`).
 
 ## Isolation and placement
 

@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1472-1499,2490-2515`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1501-1528,2542-2567`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1611-1615,2493-2512`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1640-1644,2545-2564`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1604,2011,2163`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1271` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1633,2062,2215`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1300` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:766-772`, `workflow/WorkflowRunService.java:906-913`). The engine
+it dropped (`workflow/WorkflowService.java:793-799`, `workflow/WorkflowRunService.java:906-913`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -208,7 +208,7 @@ itself and `available` at once (`workflow/ArtifactService.java:406-445`). Two ke
 document govern it, apart from artifact retention: `logs.enabled` (on; off refuses uploads with
 `TASKRUN_LOGS_DISABLED` and keeps serving what is stored) and `logs.retention.days` (7); the same expiry sweep
 deletes the file when the date passes. It is read only through the task run's log route
-(`engine/TaskRunService.java:1325-1346`): the run's artifact list, the workspace storage total and the
+(`engine/TaskRunService.java:1331-1352`): the run's artifact list, the workspace storage total and the
 artifact download exclude it, and the workspace query returns it only when asked for by scope. An upload task
 may not set scope `log`. A second upload for the same task run replaces the first, file and record.
 
@@ -248,7 +248,8 @@ and its task refused; no existing artifact is deleted to make room.
 A download whose artifact does not exist fails the task with `ArtifactRefused`, unless the task set
 `optional: true`: then the engine ends it `succeeded` at hand-out with reason `ArtifactNotFound` and the result
 `found=false`, and nothing is dispatched (`dispatcher/DispatcherService.java:323-349`). A dispatched download
-that ends succeeded gets `found=true` appended by the engine (`engine/TaskRunService.java:1253-1265`), so a
+that ends succeeded gets `found=true` from the engine, over the declared result's empty value
+(`engine/TaskRunService.java:1248-1271`), so a
 decision after the task can branch on `found`. The store is any S3-compatible service
 (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*` and off unless `flow.artifacts.enabled`
 (`workflow/config/ArtifactStoreConfiguration.java:30`). Its client sends checksums only where S3 requires them

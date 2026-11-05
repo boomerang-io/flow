@@ -21,7 +21,7 @@ within a workspace, and every stored node and run already holds the task's id.
 C. `TaskService.slugsByRef` turns ids into slug forms in at most three queries per batch, cached for 30 seconds, and
 `refsBySlug` turns slug forms back into ids for a request scoped to a workspace (`workflow/TaskService.java:108-112,620-657,665-693`).
 Workflow reads and saves, run reads, Insights rows, status events and the dispatcher's poll, start and end answers go
-through them (`workflow/WorkflowService.java:1343,1421`, `workflow/WorkflowRunService.java:181-193`,
+through them (`workflow/WorkflowService.java:1372,1450`, `workflow/WorkflowRunService.java:181-193`,
 `workflow/WorkflowRunInsightService.java:341-347`, `event/EventSinkService.java:77`, `dispatcher/DispatcherService.java:132`),
 and the claim filter takes the same form (`dispatcher/ClaimFilterService.java:88-100`). A task is always found by id.
 Nothing stored changes, which decided it.
@@ -33,5 +33,5 @@ Nothing stored changes, which decided it.
   stable for the task's life. A renamed workspace changes its tasks' slug form, and a cached form follows within 30
   seconds.
 - A slug form naming another workspace's task, or no task, refuses the save with `WORKFLOW_INVALID_TASK_REF`
-  (`workflow/WorkflowService.java:1418-1440`).
+  (`workflow/WorkflowService.java:1447-1469`).
 - Revisit if task names become unique platform-wide: then the slug alone could be the stored key.

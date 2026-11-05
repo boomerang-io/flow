@@ -196,7 +196,7 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
   `400 TASKRUN_INVALID_END_STATUS` (`:1114-1120`).
 - A request naming a dispatcher that no longer holds the claim is `409 TASKRUN_CLAIM_SUPERSEDED` and changes nothing,
   including an end that arrives after the engine requeued the attempt, whether or not the claim has been released
-  for another attempt yet: a dispatcher holds a task only in `queued` or `running` (`:1301-1316`). A request without
+  for another attempt yet: a dispatcher holds a task only in `queued` or `running` (`:1307-1322`). A request without
   `dispatcherRef` is not fenced, so a dispatcher MUST send it.
 - `results` SHOULD carry only the result names the task declares; the engine merges what arrives by name, and the
   caps below bound its size.
@@ -248,16 +248,16 @@ for a poll still held at the timeout waits out its lease (`sdk/Dispatcher.java:1
 
 A task's log is read through core alone: `GET /api/v2/taskrun/{id}/log` authorizes the reader and scrubs the run's
 secrets (`workflow/WorkflowRunService.java:586-622`), and reads from one of three sources
-(`engine/TaskRunService.java:1325-1346`, `engine/LogClient.java:100-159`):
+(`engine/TaskRunService.java:1331-1352`, `engine/LogClient.java:100-159`):
 
 | Source | When |
 | --- | --- |
-| The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end (`engine/TaskRunService.java:1371-1388`). Core stores it as a log-scoped artifact of the run, kept for the "Task Log Retention" setting (7 days by default), and answers 204; a later upload for the same task run replaces it, and so does one that overlaps it - the upload refused by the run-and-name unique index takes over the record the other stored (`workflow/ArtifactService.java:406-455`; `data-model.md`, "Artifacts"). 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. |
+| The stored log | The dispatcher uploaded one: `PUT /taskrun/{id}/log?dispatcherRef=<id>`, the log as `text/plain`, fenced on the claim like start and end (`engine/TaskRunService.java:1377-1394`). Core stores it as a log-scoped artifact of the run, kept for the "Task Log Retention" setting (7 days by default), and answers 204; a later upload for the same task run replaces it, and so does one that overlaps it - the upload refused by the run-and-name unique index takes over the record the other stored (`workflow/ArtifactService.java:406-455`; `data-model.md`, "Artifacts"). 409 `TASKRUN_CLAIM_SUPERSEDED`: another dispatcher holds the claim. 413 `TASKRUN_LOG_TOO_LARGE`: over `flow.engine.task.log.max-bytes` (10 MiB), refused whole, never truncated. 503 `ARTIFACTS_NOT_CONFIGURED`: core has no artifact store, which a dispatcher SHOULD take as final for its life. 503 `TASKRUN_LOGS_DISABLED`: the "Store Task Logs" setting is off, which MAY be switched back on, so a dispatcher SHOULD keep offering. |
 | The dispatcher's live route | The claim's dispatcher registered `logsUrl`: core calls it with `workflowRef`, `workflowRunRef` and `taskRunRef` as query parameters and `Authorization: Bearer <logsToken>`, and relays the stream (`engine/LogClient.java:71-87`). What answers there (the pod, Loki) is the dispatcher's own. |
 | A message | Neither answers: a 200 whose body says no log is available (`engine/LogClient.java:43-45`), or that the dispatcher could not be reached or refused the read (`:51-53`, `:153-155`). Nothing on core names a dispatcher; a dispatcher that wants its running tasks followed registers a `logsUrl`. |
 
 While the task runs, the live route answers; a log stored during this attempt, after the current claim was made
-(`engine/TaskRunService.java:1350-1355`), answers instead when the claim's dispatcher registered no `logsUrl` or its
+(`engine/TaskRunService.java:1356-1361`), answers instead when the claim's dispatcher registered no `logsUrl` or its
 route fails before answering (`engine/LogClient.java:145-152`). So a mid-run snapshot never hides the live stream, a
 requeued task never serves its earlier attempt's log, and a stream that fails part way is not restarted from the
 stored copy. With no stored copy, an unreachable or refusing route answers 200 with a line saying so (`:51-53`,
@@ -296,7 +296,7 @@ carried on the wire; the SDK derives it, and gives none when either id is not 24
 `PUT /workflowrun/{id}/start`. A dispatcher that cannot provision SHOULD report it with
 `PUT /{id}/workflowrun/{workflowRunId}/provision-failed` and the cause in `message` (`dispatcher/DispatcherControllerV1.java:187`):
 the run shows the cause, the claim is released for the next attempt after `flow.watcher.provision-retry-ms` (60 s),
-and the third attempt fails the run (`engine/WorkflowExecutionService.java:462-498`). A report for a run the dispatcher
+and the third attempt fails the run (`engine/WorkflowExecutionService.java:467-503`). A report for a run the dispatcher
 does not hold is ignored. One that never reports, or dies holding the claim, is released after a 5-minute grace and the
 run failed after three attempts (`engine/WorkflowWatcher.java:451-482`). The SDK reports the innermost cause of a failed
 `WorkflowHandler.provision` (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:56-72`).
@@ -307,7 +307,7 @@ storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
-at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2110-2116`).
+at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2161-2167`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
 own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:371-383`).
 
@@ -322,7 +322,7 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:323-349`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and appends `found=true` to a dispatched download that succeeds (`engine/TaskRunService.java:1234-1265`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:323-349`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and sets `found=true` on a dispatched download that succeeds unless its end carried a value (`engine/TaskRunService.java:1234-1271`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
 | `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:570-573`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run with the node's params other than `workflowRef` and `wait` (`engine/TaskExecutionService.java:1420-1425`). Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (`execution-model.md`, "Child workflows") |
@@ -342,7 +342,7 @@ the seed later needs a change unit of its own to reach an existing database (`da
 revisions added with task-flow 3.3.0 pin that image themselves, so an install that pins an older default still runs them.
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1708-1709`), and the task run records it (`engine/DAGUtility.java:282`), so a new
+(`workflow/WorkflowService.java:1738-1739`), and the task run records it (`engine/DAGUtility.java:282`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks

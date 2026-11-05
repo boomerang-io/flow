@@ -174,8 +174,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
       res.sendError(ex.getStatusCode().value());
     } catch (AccessDeniedException ex) {
       // A backstop only. A permission mismatch raised by AuthCriteriaAuthorizationManager is
-      // answered with 403 by Spring Security's own exception translation, further down the
-      // chain, before it can reach this filter.
+      // answered with a structured 403 by RestExceptionHandler, inside the dispatcher, before it
+      // can reach this filter.
       LOGGER.error(ex);
       res.setStatus(HttpServletResponse.SC_FORBIDDEN);
     } catch (AuthenticationException ex) {
