@@ -33,7 +33,7 @@ express how a deployment is used. There is no separate engine image (`.github/wo
 | Property | Default | `true` | `false` |
 | --- | --- | --- | --- |
 | `flow.security.enabled` | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
-| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:167,351`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:169,353`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
 | `flow.dispatcher.auth.enabled` | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind (`DispatcherAuthFilter`), whatever `flow.security.enabled` says. | No dispatcher authentication; local development only. |
 | `flow.queue.enabled` | `true` | Dispatchers claim task runs. | Claiming stops (`dispatcher/DispatcherService.java:364-367`); the recovery sweeps keep running (`execution-model.md`). |
 
@@ -45,9 +45,9 @@ Two shapes are the worked examples:
 | An embedded engine | `flow.security.enabled=false`, `flow.workspace.single=true` | Headless execution inside another product that owns identity and tenancy. The webapp runs unchanged against it; it has no sign-in, so it MUST only run for local development or behind a protected route. |
 
 Quotas are not a deployment property: the stored `features.workspaceQuotas` setting is the only switch
-(`workflow/QuotaService.java:94-99`). The `system` workspace is seeded with four limits at `0`, which is
+(`workflow/QuotaService.java:100-105`). The `system` workspace is seeded with four limits at `0`, which is
 unlimited, and no run duration of its own, so its runs take the platform ceiling from the `quotas` settings
-(`service-core/src/main/resources/seed/workspace.json`, `workflow/QuotaService.java:195-206`). Deployment
+(`service-core/src/main/resources/seed/workspace.json`, `workflow/QuotaService.java:201-212`). Deployment
 shape is a `flow.<subsystem>.<switch>` property; a runtime product toggle is a `features.<name>` stored
 setting; a switch lives in exactly one of the two.
 

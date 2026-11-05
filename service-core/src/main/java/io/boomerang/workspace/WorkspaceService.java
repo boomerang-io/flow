@@ -30,6 +30,7 @@ import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.ApproverGroup;
 import io.boomerang.workspace.model.ApproverGroupRequest;
+import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceMember;
@@ -43,6 +44,7 @@ import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.QuotaService;
 import io.boomerang.workflow.TaskService;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -491,10 +493,7 @@ public class WorkspaceService {
     List<WorkspaceEntity> workspaceEntities = mongoTemplate.find(query, WorkspaceEntity.class);
 
     LOGGER.debug("Found " + workspaceEntities.size() + " teams.");
-    List<Workspace> teams = new LinkedList<>();
-    if (!workspaceEntities.isEmpty()) {
-      workspaceEntities.forEach(workspaceEntity -> teams.add(convertWorkspaceEntityToWorkspace(workspaceEntity)));
-    }
+    List<Workspace> teams = convertWorkspaceEntitiesToWorkspaces(workspaceEntities);
 
     Page<Workspace> pages =
         PagingUtil.page(teams, pageable, mongoTemplate, query, WorkspaceEntity.class);
@@ -816,28 +815,33 @@ public class WorkspaceService {
 
   /*
    * The membership summaries above, with the members counted across the workspaces in the same
-   * pass: a person in two of them is one member, not two.
+   * pass: a person in two of them is one member, not two. The workspaces are read together, in a
+   * fixed number of queries however many there are.
    */
   public MembershipOverview membershipOverview(Map<String, String> teamRefsAndRoles) {
     List<WorkspaceSummary> teamSummaries = new LinkedList<>();
     Set<String> members = new HashSet<>();
+    if (teamRefsAndRoles.isEmpty()) {
+      return new MembershipOverview(teamSummaries, 0);
+    }
+    Map<String, WorkspaceEntity> workspaceEntities = new HashMap<>();
+    workspaceRepository
+        .findAllById(teamRefsAndRoles.keySet())
+        .forEach(entity -> workspaceEntities.put(entity.getId(), entity));
+    Map<String, Map<String, String>> membersAndRoles =
+        relationshipService.membersAndRoles(workspaceEntities.keySet());
+    Map<String, List<String>> workflowRefs =
+        relationshipService.refsInWorkspaces(RelationshipType.WORKFLOW, workspaceEntities.keySet());
     teamRefsAndRoles.forEach(
         (k, v) -> {
-          Optional<WorkspaceEntity> workspaceEntity = workspaceRepository.findById(k);
-          if (workspaceEntity.isPresent()) {
+          if (workspaceEntities.containsKey(k)) {
             // Generate WorkspaceSummary + Insight
-            WorkspaceSummary ts = new WorkspaceSummary(workspaceEntity.get());
+            WorkspaceSummary ts = new WorkspaceSummary(workspaceEntities.get(k));
             WorkspaceSummaryInsights tsi = new WorkspaceSummaryInsights();
-            Map<String, String> membersAndRoles = relationshipService.membersAndRoles(k);
-            tsi.setMembers(Long.valueOf(membersAndRoles.size()));
-            members.addAll(membersAndRoles.keySet());
-            List<String> workflowRefs =
-                relationshipService.filter(
-                    RelationshipType.WORKFLOW,
-                    Optional.empty(),
-                    Optional.of(RelationshipType.WORKSPACE),
-                    Optional.of(List.of(k)));
-            tsi.setWorkflows(Long.valueOf(workflowRefs.size()));
+            Map<String, String> workspaceMembers = membersAndRoles.getOrDefault(k, Map.of());
+            tsi.setMembers(Long.valueOf(workspaceMembers.size()));
+            members.addAll(workspaceMembers.keySet());
+            tsi.setWorkflows(Long.valueOf(workflowRefs.getOrDefault(k, List.of()).size()));
             ts.setInsights(tsi);
             teamSummaries.add(ts);
           }
@@ -863,46 +867,89 @@ public class WorkspaceService {
    * Quotas
    */
   private Workspace convertWorkspaceEntityToWorkspace(WorkspaceEntity workspaceEntity) {
-    Workspace team = new Workspace(workspaceEntity);
+    return convertWorkspaceEntitiesToWorkspaces(List.of(workspaceEntity)).get(0);
+  }
 
-    // Get Members
-    team.setMembers(getUsersForWorkspace(workspaceEntity.getName()));
+  /*
+   * Converts a page of Workspace Entities to Models, reading the members, quotas and approver
+   * groups of the whole page together: a fixed number of queries however many workspaces it holds.
+   */
+  private List<Workspace> convertWorkspaceEntitiesToWorkspaces(
+      List<WorkspaceEntity> workspaceEntities) {
+    List<Workspace> teams = new LinkedList<>();
+    if (workspaceEntities.isEmpty()) {
+      return teams;
+    }
+    List<String> names = workspaceEntities.stream().map(WorkspaceEntity::getName).toList();
+    Map<String, Map<String, String>> membersAndRoles = relationshipService.membersAndRoles(names);
+    Map<String, CurrentQuotas> quotas = quotaService.current(workspaceEntities);
 
-    // The workspace's limits and current usage
-    team.setQuotas(quotaService.current(workspaceEntity));
-
-    // Get Approver Groups
-    List<ApproverGroupEntity> approverGroupEntities =
-        getApproverGroupsForWorkspace(workspaceEntity.getName());
-    List<ApproverGroup> approverGroups = new LinkedList<>();
-    approverGroupEntities.forEach(
-        age -> {
-          approverGroups.add(convertEntityToApproverGroup(age));
-        });
-    team.setApproverGroups(approverGroups);
-
-    // If the parameter is a password, do not return its value or default, for security reasons.
-    if (team.getParameters() != null) {
-      filterValueByFieldType(team.getParameters(), false, FieldType.PASSWORD.value());
-      filterValueByFieldType(team.getParameters(), true, FieldType.PASSWORD.value());
+    // Approver Groups are stored separately to the WorkspaceEntity and found by relationship. The
+    // relationship node's ref is the group id (its slug is the name).
+    Map<String, String> workspaceByApproverGroup = new HashMap<>();
+    relationshipService
+        .refsInWorkspaces(RelationshipType.APPROVERGROUP, names)
+        .forEach(
+            (workspace, refs) -> refs.forEach(ref -> workspaceByApproverGroup.put(ref, workspace)));
+    Map<String, List<ApproverGroupEntity>> approverGroupEntities = new HashMap<>();
+    if (!workspaceByApproverGroup.isEmpty()) {
+      approverGroupRepository
+          .findByIdIn(List.copyOf(workspaceByApproverGroup.keySet()))
+          .forEach(
+              age ->
+                  approverGroupEntities
+                      .computeIfAbsent(
+                          workspaceByApproverGroup.get(age.getId()), w -> new LinkedList<>())
+                      .add(age));
     }
 
-    return team;
+    Set<String> userRefs = new HashSet<>();
+    membersAndRoles.values().forEach(m -> userRefs.addAll(m.keySet()));
+    approverGroupEntities
+        .values()
+        .forEach(
+            groups ->
+                groups.stream()
+                    .filter(age -> age.getApprovers() != null)
+                    .forEach(age -> userRefs.addAll(age.getApprovers())));
+    Map<String, User> users = userRefs.isEmpty() ? Map.of() : userService.usersByIds(userRefs);
+
+    for (WorkspaceEntity workspaceEntity : workspaceEntities) {
+      String name = workspaceEntity.getName();
+      Workspace team = new Workspace(workspaceEntity);
+      team.setMembers(convertMembers(membersAndRoles.getOrDefault(name, Map.of()), users));
+
+      // The workspace's limits and current usage
+      team.setQuotas(quotas.get(name));
+
+      List<ApproverGroup> approverGroups = new LinkedList<>();
+      approverGroupEntities
+          .getOrDefault(name, List.of())
+          .forEach(age -> approverGroups.add(convertEntityToApproverGroup(age, users)));
+      team.setApproverGroups(approverGroups);
+
+      // If the parameter is a password, do not return its value or default, for security reasons.
+      if (team.getParameters() != null) {
+        filterValueByFieldType(team.getParameters(), false, FieldType.PASSWORD.value());
+        filterValueByFieldType(team.getParameters(), true, FieldType.PASSWORD.value());
+      }
+      teams.add(team);
+    }
+    return teams;
   }
 
   /*
    * Helper method to convert from ApproverGroup Entity to Model
    */
-  private ApproverGroup convertEntityToApproverGroup(ApproverGroupEntity age) {
+  private ApproverGroup convertEntityToApproverGroup(
+      ApproverGroupEntity age, Map<String, User> users) {
     ApproverGroup ag = new ApproverGroup(age);
-    if (!age.getApprovers().isEmpty()) {
+    if (age.getApprovers() != null) {
       age.getApprovers()
           .forEach(
               ref -> {
-                Optional<User> ue = userService.getUserByID(ref);
-                if (ue.isPresent()) {
-                  WorkspaceMember u = new WorkspaceMember(ue.get());
-                  ag.getApprovers().add(u);
+                if (users.containsKey(ref)) {
+                  ag.getApprovers().add(new WorkspaceMember(users.get(ref)));
                 }
               });
     }
@@ -910,25 +957,21 @@ public class WorkspaceService {
   }
 
   /*
-   * Returns the List of UserSummary for a team
+   * Returns the List of UserSummary for a team from its member -> role map
    */
-  private List<WorkspaceMember> getUsersForWorkspace(String workspace) {
-    Map<String, String> memberRoleMap = relationshipService.membersAndRoles(workspace);
+  private List<WorkspaceMember> convertMembers(
+      Map<String, String> memberRoleMap, Map<String, User> users) {
     List<WorkspaceMember> teamUsers = new LinkedList<>();
-    if (!memberRoleMap.isEmpty()) {
-      memberRoleMap.forEach(
-          (m, r) -> {
-            Optional<User> ue = userService.getUserByID(m);
-            if (ue.isPresent()) {
-              String role = RoleEnum.READER.getLabel();
-              if (!r.isEmpty()) {
-                role = r;
-              }
-              WorkspaceMember u = new WorkspaceMember(ue.get(), role);
-              teamUsers.add(u);
+    memberRoleMap.forEach(
+        (m, r) -> {
+          if (users.containsKey(m)) {
+            String role = RoleEnum.READER.getLabel();
+            if (!r.isEmpty()) {
+              role = r;
             }
-          });
-    }
+            teamUsers.add(new WorkspaceMember(users.get(m), role));
+          }
+        });
     return teamUsers;
   }
 

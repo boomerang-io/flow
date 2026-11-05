@@ -28,6 +28,14 @@ public interface RelationshipNodeRepository
 
   boolean existsById(String id);
 
+  /**
+   * Nodes of one type whose slug or ref is any of the values: {@link #findOneByTypeAndRefOrSlug}
+   * for several at once, served by the same {@code type_slug} and {@code type_ref} indexes.
+   */
+  @Query("{'type': ?0, '$or': [{'slug': {'$in': ?1}},{'ref': {'$in': ?1}}]}")
+  List<RelationshipNodeEntity> findByTypeAndRefOrSlugIn(
+      String type, Collection<String> refsOrSlugs);
+
   /** Nodes of one type carrying any of the slugs; served by the {@code type_slug} index. */
   List<RelationshipNodeEntity> findByTypeAndSlugIn(String type, Collection<String> slugs);
 

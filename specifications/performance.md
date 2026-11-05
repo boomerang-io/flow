@@ -37,7 +37,7 @@ features setting, the global parameters and the workspace: five reads. With it, 
 revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
-(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:235,333,646`,
+(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,645`,
 `core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1623,2040`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
@@ -237,36 +237,36 @@ equivalent behaviour. A run's timeout MUST be at least the transport timeout of 
 
 `workflow/QuotaService.java` holds every quota read and check. Quotas are enforced at workflow create and save,
 run submit and retry, and artifact upload; nothing in the engine path re-checks them. The workflow count is checked
-before the create, so a workspace at its limit takes no more (`QuotaService.java:297-312`). With quotas on, a submit
+before the create, so a workspace at its limit takes no more (`QuotaService.java:328-343`). With quotas on, a submit
 saves the run before queueing it, recounts, and removes a run that pushed a count over; one admitted is then queued and
 started as with quotas off (`workflow/WorkflowService.java:774-804`). The stored
-`features.workspaceQuotas` setting switches every check but one (`QuotaService.java:94-99`): the run-duration
+`features.workspaceQuotas` setting switches every check but one (`QuotaService.java:100-105`): the run-duration
 ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
-(`QuotaService.java:192-202`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
+(`QuotaService.java:198-208`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
 unlimited and the check is skipped (`workspace/model/Quotas.java:11`), an artifact retention of `0` keeping the
 artifact with no expiry (`workflow/ArtifactService.java:183-197`); an absent quota inherits the platform
-default from the `quotas` settings document (`QuotaService.java:102-114,184-188`). The `system` workspace an
+default from the `quotas` settings document (`QuotaService.java:108-120,190-194`). The `system` workspace an
 embedded engine serves is seeded with its workflow count, monthly runs, workspace storage and concurrent runs at
 `0` and no run duration or artifact storage of its own, so it inherits the platform defaults for those two
 (`service-core/src/main/resources/seed/workspace.json`).
 
 A check finds the workspace by id, else by name ignoring case (`workspace/repository/WorkspaceRepository.java:16-21`,
-`QuotaService.java:126-136,195-206,214-216`): an API path names it, while a schedule, a webhook or a GitHub trigger
+`QuotaService.java:132-142,201-212,220-222`): an API path names it, while a schedule, a webhook or a GitHub trigger
 passes the id its workflow's `hasWorkflow` edge yields. Usage is counted under the workspace's own name, the key its
-audit events carry, whatever form the caller used (`QuotaService.java:222-225`). A workflow no workspace owns has no
-workspace quota and passes the run checks (`QuotaService.java:322-350,357-378`).
+audit events carry, whatever form the caller used (`QuotaService.java:242-244`). A workflow no workspace owns has no
+workspace quota and passes the run checks (`QuotaService.java:353-381,388-409`).
 
-| Quota (settings key, `QuotaService.java:57-62`) | Enforced at | Code |
+| Quota (settings key, `QuotaService.java:63-68`) | Enforced at | Code |
 | --- | --- | --- |
-| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:484`, `QuotaService.java:297-315` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:755,782`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:322-350,357-378` |
-| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:581-600`, `QuotaService.java:126-136,386-396` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2120-2125`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:195-206` |
-| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:279-292` |
+| `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:484`, `QuotaService.java:328-346` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:755,782`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
+| `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:581-600`, `QuotaService.java:132-142,417-427` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2120-2125`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
+| `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:310-323` |
 
-The two run counters come from different sources, both counted in `QuotaService.current` (`:222-272`).
-Concurrent = the live count of non-terminal runs (`notstarted`/`ready`/`running`/`waiting`, `:65-66`) over the
-workspace's Workflows (`countRuns` `:411-424`, the `workflow_ref_status` index) plus the runs in their finally stage, which
+The two run counters come from different sources, both counted in `QuotaService.current` (`:228-303`).
+Concurrent = the live count of non-terminal runs (`notstarted`/`ready`/`running`/`waiting`, `:71-72`) over the
+workspace's Workflows (`countRuns` `:451-466`, the `workflow_ref_status` index) plus the runs in their finally stage, which
 carry a final status while their finally tasks still run (`countFinallyStage`) — what is running now, which deletion
 legitimately reduces. The finally stage's budget is the `workflowrun` setting `finally.timeout`, an operator's ceiling
 outside `max.workflowrun.duration` ("Finally tasks" in `execution-model.md`). Monthly = `max(audit count, live count)`: the month's
@@ -276,12 +276,34 @@ live run documents (the `workflow_ref_creation` index). The max is deliberate �
 async best-effort, so a just-admitted run may not be audited yet (the live count covers that
 race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
 Submit re-checks the same counters once the run is saved and before it is queued, so a burst cannot over-fill a
-limit (`QuotaService.assertAdmittedRunWithinQuotas` `:357-378`, called from `workflow/WorkflowService.java:777-789`,
+limit (`QuotaService.assertAdmittedRunWithinQuotas` `:388-409`, called from `workflow/WorkflowService.java:777-789`,
 which removes the run on any failure of the re-check, so no un-queued run is left without an owner). A removed run
 never left `notstarted`, so it published no transition and has no `CREATE` audit event: a refused submit uses no
 monthly quota. Racers that each count the others may all be refused, leaving the slot free for the next submit; the
 limit is never over-filled. A retry is checked only before it is created. Audit retention is floored at
 60 days so the month window always holds (`core/audit/AuditRetentionService.java:29`).
+
+## Workspace list and profile
+
+`GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
+commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
+(`workspace/WorkspaceService.java:876-955`, `:821-850`). A single workspace's get, create and patch run the same code
+with a page of one (`:869-871`).
+
+| Figure | Commands per page | Code |
+| --- | --- | --- |
+| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-140,717-736` |
+| Member and approver names | One users query | `core/UserService.java:243-251` |
+| Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
+| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:555-585` |
+
+`WorkspaceQueryDatabaseCommandsTest` pins it: a page of 10 and a page of 60 workspaces cost the same 32 commands
+for a member and 37 for a global caller, and each workspace on a page reads as it does alone. Before, each workspace
+cost 23 commands for a member and 25 for a global caller, one relationship walk among them: for the 60 on
+Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
+commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
+or a global token, which starts at the root and reads every node under every workspace, workflow runs included
+(`core/RelationshipService.java:874-952`) — now once per page rather than once per workspace.
 
 ## Payload caps
 
