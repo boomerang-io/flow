@@ -2,7 +2,7 @@ import React from "react";
 import { TextInput, TextArea, Creatable } from "@boomerang-io/carbon-addons-boomerang-react";
 import { json } from "d3";
 import { FormikProps, getIn } from "formik";
-import TextEditorModal from "Components/TextEditorModal";
+import TextEditorModal, { textEditorLanguage } from "Components/TextEditorModal";
 import { INPUT_TYPES, TEXT_AREA_TYPES } from "Constants/formInputTypes";
 import { isFlowReference } from "Utils/paramsHelper";
 import { DataDrivenInput } from "Types";
@@ -122,6 +122,7 @@ export const textEditorProps =
       ...itemConfig,
       ...textEditorProps,
       type,
+      language: textEditorLanguage(type),
       name: safeKey,
       id: safeKey,
     };

@@ -37,6 +37,7 @@ public class WorkspaceTaskRunControllerV2 {
       resource = PermissionResource.TASKRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "queryTaskRuns",
       summary = "Search for TaskRuns across WorkflowRuns",
       description =
           "Lists task runs by label or by WorkflowRun; one of the two is required. A row leaves out"

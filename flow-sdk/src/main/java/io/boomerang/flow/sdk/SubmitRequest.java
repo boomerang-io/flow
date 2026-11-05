@@ -93,7 +93,10 @@ public final class SubmitRequest {
     return this;
   }
 
-  /** What the run records as its trigger; absent, the server's default for an API submit. */
+  /**
+   * Leave it out: the server records the trigger from the caller, {@code api} for a token. Only
+   * {@code manual} or {@code api} may be sent, and neither changes what is recorded.
+   */
   public SubmitRequest trigger(Trigger trigger) {
     this.trigger = trigger;
     return this;

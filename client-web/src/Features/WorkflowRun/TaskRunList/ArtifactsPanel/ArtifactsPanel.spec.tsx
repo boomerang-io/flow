@@ -39,6 +39,7 @@ const workflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 300190,
   id: "run-1",

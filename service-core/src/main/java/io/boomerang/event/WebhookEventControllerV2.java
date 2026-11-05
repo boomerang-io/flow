@@ -157,7 +157,9 @@ public class WebhookEventControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
-  @Operation(summary = "Accept Wait for Event Callback with JSON Payload")
+  @Operation(
+      operationId = "acceptCallback",
+      summary = "Accept Wait for Event Callback with JSON Payload")
   public void acceptWaitForEvent(
       @Parameter(
               name = "ref",
@@ -203,7 +205,7 @@ public class WebhookEventControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WEBHOOK,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global, AuthScope.key})
-  @Operation(summary = "Accept Wait for Event Callbcak")
+  @Operation(operationId = "acceptCallbackQuery", summary = "Accept Wait for Event Callbcak")
   public void acceptWaitForEvent(
       @Parameter(
               name = "ref",

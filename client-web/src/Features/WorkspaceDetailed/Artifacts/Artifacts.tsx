@@ -3,7 +3,7 @@ import { Button, DataTable, InlineNotification, Pagination, Select, SelectItem }
 import { Archive, Time } from "@carbon/react/icons";
 import { ConfirmModal, ErrorMessage, notify, Toggle, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { formatErrorMessage } from "@boomerang-io/utils";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import { useFeature } from "flagged";
 import { Helmet } from "react-helmet";
 import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router-dom";
@@ -284,7 +284,7 @@ function Artifacts() {
                                 <>
                                   {isExpired ? "Expired " : "Expires "}
                                   {artifact.expirationDate
-                                    ? moment(artifact.expirationDate).format(DATE_DISPLAY_FORMAT)
+                                    ? <FormattedDate value={artifact.expirationDate} format={DATE_DISPLAY_FORMAT} />
                                     : "---"}
                                 </>
                               )}

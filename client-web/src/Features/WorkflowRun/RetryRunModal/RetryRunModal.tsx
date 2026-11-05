@@ -1,5 +1,4 @@
 import React from "react";
-import { useFetcher } from "react-router-dom";
 import {
   Button,
   FilterableMultiSelect,
@@ -9,11 +8,18 @@ import {
   RadioButton,
   RadioButtonGroup,
 } from "@carbon/react";
-import { ComposedModal, Loading, ModalFlowForm, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
-import { NodeType } from "Constants";
-import { RetryScope, RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import {
+  ComposedModal,
+  Loading,
+  ModalFlowForm,
+  notify,
+  ToastNotification,
+} from "@boomerang-io/carbon-addons-boomerang-react";
+import { useFetcher } from "react-router-dom";
 import { isActionError } from "Utils/actionResult";
 import { isForeachItem } from "Utils/taskRunHelper";
+import { NodeType } from "Constants";
+import { RetryScope, RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import type { ActionResult } from "../WorkflowRun";
 import styles from "./RetryRunModal.module.scss";
 
@@ -76,9 +82,16 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
           subtitle={fetcher.data.error.message ?? "Failed to retry this run"}
         />,
       );
+      // The new run exists but did not start: its page has the Start button.
+      if (fetcher.data.workflowRunRef) {
+        onClose();
+        executionViewRedirect({ workflowRunRef: fetcher.data.workflowRunRef });
+      }
       return;
     }
-    notify(<ToastNotification kind="success" title="Retry run" subtitle="Retry successful" />);
+    notify(
+      <ToastNotification kind="success" title="Retry started" subtitle="Back for another go. You’re on the new run." />,
+    );
     onClose();
     if (fetcher.data.workflowRunRef) {
       executionViewRedirect({ workflowRunRef: fetcher.data.workflowRunRef });
@@ -108,7 +121,8 @@ export default function RetryRunModal({ workflowRun, isOpen, initialNodes, onClo
       isOpen={isOpen}
       modalHeaderProps={{
         title: "Retry run",
-        subtitle: "A new run of this workflow. Tasks before the retry point keep their results instead of running again.",
+        subtitle:
+          "A new run of this workflow. Tasks before the retry point keep their results instead of running again.",
       }}
       modalTrigger={() => null}
       onCloseModal={onClose}

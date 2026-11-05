@@ -1,9 +1,9 @@
 import React, { Component } from "react";
 import { DataTable, Pagination, Search } from "@carbon/react";
 import { matchSorter } from "match-sorter";
-import moment from "moment";
 import PropTypes from "prop-types";
 import EmptyState from "Components/EmptyState";
+import FormattedDate from "Components/FormattedDate";
 import { ChangeLog } from "Types";
 import styles from "./changeLogTable.module.scss";
 import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
@@ -37,7 +37,7 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
     },
     {
       header: "User",
-      key: "userName",
+      key: "author",
     },
     {
       header: "Reason",
@@ -62,7 +62,7 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
     const changeLogList = changeLog.length !== 0 ? changeLog.map((log) => ({ ...log, id: String(log.version) })) : [];
 
     const newLogs = searchQuery
-      ? matchSorter(changeLogList, searchQuery, { keys: ["version", "userName", "reason"] })
+      ? matchSorter(changeLogList, searchQuery, { keys: ["version", "author", "reason"] })
       : changeLogList;
 
     this.resetTableWithNewLogs(newLogs);
@@ -77,7 +77,11 @@ class ChangeLogTable extends Component<ChangeLogTableProps> {
 
     switch (column.header) {
       case "Date":
-        return <p className={styles.tableText}>{moment(value).format(DATETIME_DISPLAY_FORMAT)}</p>;
+        return (
+          <p className={styles.tableText}>
+            <FormattedDate value={value} format={DATETIME_DISPLAY_FORMAT} />
+          </p>
+        );
       default:
         return <p className={styles.tableText}>{value || "---"}</p>;
     }

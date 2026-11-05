@@ -87,7 +87,9 @@ public class IntegrationControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.INTEGRATION,
       assignableScopes = {AuthScope.key, AuthScope.user, AuthScope.session, AuthScope.global})
-  @Operation(summary = "Retrieve the integrations and their status within a Workspace")
+  @Operation(
+      operationId = "getIntegrations",
+      summary = "Retrieve the integrations and their status within a Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

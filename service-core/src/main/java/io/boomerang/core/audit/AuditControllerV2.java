@@ -80,6 +80,7 @@ public class AuditControllerV2 {
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Operation(
+      operationId = "queryAuditEvents",
       summary = "Query the audit trail",
       description =
           "One event per audited attempt, newest first, including failed and denied ones. Without "
@@ -154,6 +155,7 @@ public class AuditControllerV2 {
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Operation(
+      operationId = "getAuditStats",
       summary = "Count the audit trail by outcome",
       description =
           "Counts the same filters and window as the listing, alongside the configured capture "

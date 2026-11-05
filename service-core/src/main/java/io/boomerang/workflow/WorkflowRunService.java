@@ -70,7 +70,6 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -891,45 +890,6 @@ public class WorkflowRunService {
       return this.start(wfRunEntity.getId(), Optional.empty());
     }
     return ConvertUtil.entityToModel(queued, WorkflowRun.class);
-  }
-
-  /**
-   * Release a run that was queued without a start, once its quota check has passed: what {@link
-   * #run} does for a started run, done after the fact. A run with a workspace takes its deadline
-   * from its creation (compare-and-set while it still waits ready, so a dispatcher that already
-   * started it keeps the deadline the start stamped) and the workflow polls held here look again;
-   * a run with no workspace starts. A run not admitted is returned as it stands.
-   */
-  public WorkflowRun release(String workflowRunId) {
-    WorkflowRunEntity wfRunEntity =
-        workflowRunRepository
-            .findById(workflowRunId)
-            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF));
-    if (!RunStatus.ready.equals(wfRunEntity.getStatus())) {
-      return ConvertUtil.entityToModel(wfRunEntity, WorkflowRun.class);
-    }
-    if (wfRunEntity.getWorkspace() == null) {
-      return this.start(workflowRunId, Optional.empty());
-    }
-    mongoTemplate.updateFirst(
-        Query.query(
-            Criteria.where("_id")
-                .is(workflowRunId)
-                .and("status")
-                .is(RunStatus.ready)
-                .and("timeoutAt")
-                .isNull()),
-        new Update()
-            .set(
-                "timeoutAt",
-                RunTimeouts.deadline(wfRunEntity.getCreationDate(), wfRunEntity.getTimeout())),
-        WorkflowRunEntity.class);
-    LOGGER.info(
-        "[{}] Run has a workspace - leaving ready/pending for the dispatcher to provision and start.",
-        workflowRunId);
-    pollWakeups.runProvisionable();
-    return ConvertUtil.entityToModel(
-        workflowRunRepository.findById(workflowRunId).get(), WorkflowRun.class);
   }
 
   public WorkflowRun start(String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {

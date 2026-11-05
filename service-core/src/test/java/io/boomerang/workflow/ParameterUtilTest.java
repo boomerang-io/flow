@@ -82,6 +82,23 @@ class ParameterUtilTest {
     assertEquals(ParamType.string, ParameterUtil.getTektonParamType("password"));
   }
 
+  // A field with no type, or one that names no field type, is text: a string, never an error.
+  @Test
+  void aMissingOrUnknownFieldTypeIsAString() {
+    AbstractParam untyped = new AbstractParam();
+    untyped.setName("region");
+    AbstractParam unknown = new AbstractParam();
+    unknown.setName("zone");
+    unknown.setType("string");
+
+    List<RunParam> params = ParameterUtil.abstractParamToRunParam(List.of(untyped, unknown));
+
+    assertEquals(ParamType.string, params.get(0).getType());
+    assertEquals(ParamType.string, params.get(1).getType());
+    assertEquals(ParamType.array, ParameterUtil.getTektonParamType("multiselect"));
+    assertEquals(ParamType.object, ParameterUtil.getTektonParamType("json"));
+  }
+
   // A value sent as a secret raises the declared type; nothing lowers a declared secret.
   @Test
   void addUniqueParamRaisesToSecretButNeverLowers() {

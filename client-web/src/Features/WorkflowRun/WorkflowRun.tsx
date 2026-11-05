@@ -8,10 +8,12 @@ import { Box } from "reflexbox";
 import ReactFlow from "Features/Reactflow";
 import { useWorkspaceContext, RunContextProvider } from "State/context";
 import { groupTasksByName } from "Utils";
+import { actionError, type ActionError } from "Utils/actionResult";
+import { foreachTaskNames } from "Utils/taskRunHelper";
 import { HttpMethod, NodeType, WorkflowEngineMode } from "Constants";
 import { appLink } from "Config/appConfig";
-import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
+import { serviceUrl } from "Config/servicesConfig";
 import {
   Action,
   Artifact,
@@ -25,8 +27,6 @@ import {
   WorkflowReactFlowInstance,
   WorkflowRun,
 } from "Types";
-import { actionError, type ActionError } from "Utils/actionResult";
-import { foreachTaskNames } from "Utils/taskRunHelper";
 import RetryRunModal from "./RetryRunModal";
 import RunHeader from "./RunHeader";
 import RunTaskLog from "./TaskRunList";
@@ -181,9 +181,7 @@ export async function loader({
 
   let artifacts: Array<Artifact> = [];
   try {
-    const artifactsResponse = await api.get(
-      serviceUrl.workspace.artifact.getRunArtifacts({ workspace, runId }),
-    );
+    const artifactsResponse = await api.get(serviceUrl.workspace.artifact.getRunArtifacts({ workspace, runId }));
     artifacts = artifactsResponse.data;
   } catch (error) {
     artifacts = [];
@@ -194,18 +192,21 @@ export async function loader({
 
 export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action" | "deleteArtifact";
 
-// A retry answers with the run it created, so the page can move to it.
+// A retry answers with the run it created, so the page can move to it - even when that run then
+// failed to start, since its page carries the Start button.
 export type ActionResult =
   | { intent: RunActionIntent; workflowRunRef?: string }
-  | ({ intent: RunActionIntent } & ActionError);
+  | ({ intent: RunActionIntent; workflowRunRef?: string } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
   Exclude<RunActionIntent, "action" | "deleteArtifact">,
-  { url: (args: { workspace: string; id: string }) => string; method: string }
+  { url: (args: { workspace: string; id: string }) => string; method: string; data?: object }
 > = {
   retry: { url: serviceUrl.workspace.workflowrun.putRetryWorkflow, method: HttpMethod.Put },
   cancel: { url: serviceUrl.workspace.workflowrun.deleteCancelWorkflow, method: HttpMethod.Delete },
-  start: { url: serviceUrl.workspace.workflowrun.putStartWorkflow, method: HttpMethod.Put },
+  // The start route takes an optional JSON body, and a bodiless PUT goes out as a form, which it
+  // refuses with 415, so the start sends an empty JSON object.
+  start: { url: serviceUrl.workspace.workflowrun.putStartWorkflow, method: HttpMethod.Put, data: {} },
   pause: { url: serviceUrl.workspace.workflowrun.putPauseWorkflow, method: HttpMethod.Put },
   resume: { url: serviceUrl.workspace.workflowrun.putResumeWorkflow, method: HttpMethod.Put },
 };
@@ -278,9 +279,23 @@ export async function action({
         method: requestConfig.method,
         data: { scope, nodes },
       });
-      return { intent, workflowRunRef: created?.data?.id };
+      const workflowRunRef: string | undefined = created?.data?.id;
+      // The retry only creates the new run; it is started the way the Start button starts a run.
+      if (workflowRunRef) {
+        const start = RUN_INTENT_REQUESTS.start;
+        try {
+          await api({ url: start.url({ workspace, id: workflowRunRef }), method: start.method, data: start.data });
+        } catch (error) {
+          return actionError({
+            intent,
+            workflowRunRef,
+            error: formatErrorMessage({ error, defaultMessage: "The retry was created but failed to start" }),
+          });
+        }
+      }
+      return { intent, workflowRunRef };
     }
-    await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method });
+    await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method, data: requestConfig.data });
     return { intent };
   } catch (error) {
     return actionError({

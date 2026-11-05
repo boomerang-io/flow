@@ -43,7 +43,8 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 /**
  * Every list route reads its filters the same way: a label is split once on its first {@code =},
  * so a value may hold one; a label without a value is a {@code 400 QUERY_INVALID_FILTERS}; the user
- * list's {@code ids} filter matches; the action counts exclude their end instant.
+ * list's {@code ids} filter matches; the action counts exclude their end instant; a workflow stored
+ * with no type matches the {@code workflow} type.
  */
 class ListQueryFilterTest extends AbstractEngineIntegrationTest {
 
@@ -182,6 +183,31 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty()));
+  }
+
+  // A workflow stored with no type is a workflow, to the type filter as to every read.
+  @Test
+  void workflowsWithNoStoredTypeMatchTheWorkflowType() {
+    WorkflowEntity untyped = workflow("b=c");
+    WorkflowEntity typed = workflow("b=c");
+    typed.setType(WorkflowType.workflow);
+    mongoTemplate.save(typed);
+    starter("b=c");
+
+    assertThat(
+            workflowService
+                .query(
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    valueWithAnEquals,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(List.of(WorkflowType.workflow.name())),
+                    Optional.empty())
+                .getContent())
+        .extracting(Workflow::getId)
+        .containsExactlyInAnyOrder(untyped.getId(), typed.getId());
   }
 
   @Test

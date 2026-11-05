@@ -15,6 +15,7 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { Navigate, Route, Routes, useLoaderData, useNavigate, useLocation, Link } from "react-router-dom";
+import { useFormatDate } from "Components/FormattedDate";
 import HeaderWidget from "Components/HeaderWidget";
 import { useWorkspaceContext } from "Hooks";
 import { ActionType, HttpMethod } from "Constants";
@@ -64,8 +65,9 @@ function resolveStatuses(statuses: unknown): Array<string> | undefined {
  * while the client-rendered date picker showed today, and a refresh would not help.
  * Features/WorkflowEditor/editorRoute.ts documents the same hazard.
  */
-const defaultFromDate = () => moment(new Date()).subtract("24", "hours").unix();
-const defaultToDate = () => moment(new Date()).unix();
+// The action query and summary read epoch milliseconds, like the run lists.
+const defaultFromDate = () => moment(new Date()).subtract("24", "hours").valueOf();
+const defaultToDate = () => moment(new Date()).valueOf();
 
 type ActionsSummary = { approvals: number; manual: number; approvalsRate: number };
 type ActionsTableData = { number: number; size: number; totalElements: number; content: Action[] };
@@ -202,6 +204,7 @@ function Actions() {
     workflowsData,
     errorLoadingWorkflows,
   } = useLoaderData() as LoaderData;
+  const formatDate = useFormatDate();
 
   const approvalsSummaryNumber = actionsSummary ? actionsSummary.approvals : 0;
   const manualTasksSummaryNumber = actionsSummary ? actionsSummary.manual : 0;
@@ -263,16 +266,16 @@ function Actions() {
 
   function handleSelectDate(dates) {
     let [fromDateObj, toDateObj] = dates;
-    const fromDate = moment(fromDateObj).unix();
-    const toDate = moment(toDateObj).unix();
+    const fromDate = moment(fromDateObj).valueOf();
+    const toDate = moment(toDateObj).valueOf();
     updateHistorySearch({ ...queryString.parse(location.search, queryStringOptions), fromDate, toDate, page: 0 });
     return;
   }
 
   const handleCloseSelectDate = (dates) => {
     let [fromDateObj, toDateObj] = dates;
-    const selectedFromDate = moment(fromDateObj).unix();
-    const selectedToDate = moment(toDateObj).unix();
+    const selectedFromDate = moment(fromDateObj).valueOf();
+    const selectedToDate = moment(toDateObj).valueOf();
     updateHistorySearch({
       ...queryString.parse(location.search, queryStringOptions),
       fromDate: selectedFromDate === selectedToDate ? fromDate : selectedFromDate,
@@ -434,14 +437,14 @@ function Actions() {
                   id="actions-date-picker-start"
                   labelText="Start date"
                   placeholder="mm/dd/yyyy"
-                  value={fromDate && moment.unix(fromDate).format(DATE_PICKER_FORMAT)}
+                  value={fromDate && formatDate(Number(fromDate), DATE_PICKER_FORMAT)}
                 />
                 <DatePickerInput
                   autoComplete="off"
                   id="actions-date-picker-end"
                   labelText="End date"
                   placeholder="mm/dd/yyyy"
-                  value={toDate && moment.unix(toDate).format(DATE_PICKER_FORMAT)}
+                  value={toDate && formatDate(Number(toDate), DATE_PICKER_FORMAT)}
                 />
               </DatePicker>
             </div>

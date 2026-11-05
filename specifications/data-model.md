@@ -44,9 +44,9 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 `maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxArtifactStorage`,
 `artifactRetentionDays`; `workspace/model/Quotas.java:15-23`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:102-114,183-188`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:108-120,189-194`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:220,316`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:222,318`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
 way back to absent (`workspace/WorkspaceControllerV2.java:316-327`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1480-1507,2489-2514`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1501-1528,2542-2567`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1619-1623,2492-2511`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1640-1644,2545-2564`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1612,2019,2162`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1279` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1633,2062,2215`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1300` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:767-773`, `workflow/WorkflowRunService.java:946-953`). The engine
+it dropped (`workflow/WorkflowService.java:793-799`, `workflow/WorkflowRunService.java:906-913`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -156,7 +156,7 @@ decrypt is kept as stored, on load and on the next save of its group, never writ
 | Collection | Document | Notes |
 | --- | --- | --- |
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`core/entity/RelationshipNodeEntity.java:32`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue) (`core/enums/RelationshipType.java:12-23`). |
-| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:289-342`). |
+| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:323-376`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
 `_0004__SeedSystemWorkspace`.
@@ -208,7 +208,7 @@ itself and `available` at once (`workflow/ArtifactService.java:406-445`). Two ke
 document govern it, apart from artifact retention: `logs.enabled` (on; off refuses uploads with
 `TASKRUN_LOGS_DISABLED` and keeps serving what is stored) and `logs.retention.days` (7); the same expiry sweep
 deletes the file when the date passes. It is read only through the task run's log route
-(`engine/TaskRunService.java:1325-1346`): the run's artifact list, the workspace storage total and the
+(`engine/TaskRunService.java:1331-1352`): the run's artifact list, the workspace storage total and the
 artifact download exclude it, and the workspace query returns it only when asked for by scope. An upload task
 may not set scope `log`. A second upload for the same task run replaces the first, file and record.
 
@@ -248,7 +248,8 @@ and its task refused; no existing artifact is deleted to make room.
 A download whose artifact does not exist fails the task with `ArtifactRefused`, unless the task set
 `optional: true`: then the engine ends it `succeeded` at hand-out with reason `ArtifactNotFound` and the result
 `found=false`, and nothing is dispatched (`dispatcher/DispatcherService.java:323-349`). A dispatched download
-that ends succeeded gets `found=true` appended by the engine (`engine/TaskRunService.java:1253-1265`), so a
+that ends succeeded gets `found=true` from the engine, over the declared result's empty value
+(`engine/TaskRunService.java:1248-1271`), so a
 decision after the task can branch on `found`. The store is any S3-compatible service
 (`workflow/S3ArtifactStore.java`), configured by `flow.artifacts.*` and off unless `flow.artifacts.enabled`
 (`workflow/config/ArtifactStoreConfiguration.java:30`). Its client sends checksums only where S3 requires them

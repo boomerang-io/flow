@@ -57,7 +57,7 @@ public class TokenControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.key, AuthScope.session},
       resource = PermissionResource.TOKEN,
       action = PermissionAction.READ)
-  @Operation(summary = "Search for Tokens")
+  @Operation(operationId = "queryTokens", summary = "Search for Tokens")
   public Page<Token> query(
       @Parameter(
               name = "types",

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, WarningAltFilled } from "@carbon/react/icons";
 import cx from "classnames";
 import moment from "moment";
+import { useFormatDate } from "Components/FormattedDate";
 import { appLink } from "Config/appConfig";
 import { count } from "./copy";
 import { HomeLoaderData } from "./homeLoader";
@@ -60,6 +61,7 @@ export default function PulseTiles(props: PulseTilesProps) {
   const { runsToday, attention, attentionTotal, attentionApprovals, attentionManual, nextSchedule, schedulesTotal, degraded } =
     data;
   const attentionWorkspace = attention[0]?.workspace ?? primaryWorkspace;
+  const formatDate = useFormatDate();
 
   return (
     <nav aria-label="Today" className={styles.grid}>
@@ -103,7 +105,7 @@ export default function PulseTiles(props: PulseTilesProps) {
           testId="home-pulse-schedule"
           detail={
             nextSchedule
-              ? `${nextSchedule.name} · ${nextSchedule.workspaceDisplayName} · ${moment(nextSchedule.nextScheduleDate).format("HH:mm")}`
+              ? `${nextSchedule.name} · ${nextSchedule.workspaceDisplayName} · ${formatDate(nextSchedule.nextScheduleDate, "HH:mm")}`
               : count(schedulesTotal, "active schedule")
           }
         />

@@ -437,17 +437,17 @@ export type PageEventOutboxEntity = {
 };
 
 export type PageTaskRun = {
-    content?: Array<TaskRun>;
-    empty?: boolean;
-    first?: boolean;
-    last?: boolean;
-    number?: number;
-    numberOfElements?: number;
+    content: Array<TaskRun>;
+    empty: boolean;
+    first: boolean;
+    last: boolean;
+    number: number;
+    numberOfElements: number;
     pageable?: PageableObject;
-    size?: number;
+    size: number;
     sort?: SortObject;
-    totalElements?: number;
-    totalPages?: number;
+    totalElements: number;
+    totalPages: number;
 };
 
 export type PageToken = {
@@ -479,17 +479,17 @@ export type PageUser = {
 };
 
 export type PageWorkflowRun = {
-    content?: Array<WorkflowRun>;
-    empty?: boolean;
-    first?: boolean;
-    last?: boolean;
-    number?: number;
-    numberOfElements?: number;
+    content: Array<WorkflowRun>;
+    empty: boolean;
+    first: boolean;
+    last: boolean;
+    number: number;
+    numberOfElements: number;
     pageable?: PageableObject;
-    size?: number;
+    size: number;
     sort?: SortObject;
-    totalElements?: number;
-    totalPages?: number;
+    totalElements: number;
+    totalPages: number;
 };
 
 export type PageWorkflowSchedule = {
@@ -611,24 +611,24 @@ export type Row = {
 export type RunAttempt = {
     claimedAt?: string;
     dispatcherRef?: string;
-    duration?: number;
-    endedAt?: string;
-    number?: number;
-    status?: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
+    duration: number;
+    endedAt: string;
+    number: number;
+    status: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
     statusMessage?: string;
     statusReason?: string;
 };
 
 export type RunParam = {
-    name?: string;
+    name: string;
     type?: 'string' | 'array' | 'object' | 'secret';
     value?: unknown;
 };
 
 export type RunResult = {
-    description?: string;
-    name?: string;
-    value?: unknown;
+    description: string | null;
+    name: string;
+    value: unknown;
 };
 
 export type RunRetry = {
@@ -760,23 +760,23 @@ export type TaskRun = {
     };
     attempt?: number;
     attempts?: Array<RunAttempt>;
-    creationDate?: string;
-    duration?: number;
+    creationDate: string;
+    duration: number;
     foreach?: boolean;
-    id?: string;
+    id: string;
     index?: number;
-    labels?: {
+    labels: {
         [key: string]: string;
     };
     name?: string;
     params?: Array<RunParam>;
     parentRef?: string;
-    phase?: 'queued' | 'pending' | 'running' | 'completed';
+    phase: 'queued' | 'pending' | 'running' | 'completed';
     results?: Array<RunResult>;
     reusedFromRef?: string;
     spec?: TaskRunSpec;
     startTime?: string;
-    status?: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
+    status: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
     statusMessage?: string;
     statusReason?: string;
     taskRef?: string;
@@ -784,9 +784,9 @@ export type TaskRun = {
     timeout?: number;
     type?: 'start' | 'end' | 'template' | 'custom' | 'generic' | 'decision' | 'approval' | 'setwfproperty' | 'manual' | 'eventwait' | 'acquirelock' | 'releaselock' | 'runworkflow' | 'runscheduledworkflow' | 'script' | 'ai' | 'setwfstatus' | 'sleep' | 'uploadartifact' | 'downloadartifact';
     workflowName?: string;
-    workflowRef?: string;
+    workflowRef: string;
     workflowRevisionRef?: string;
-    workflowRunRef?: string;
+    workflowRunRef: string;
     workspace?: WorkflowWorkspace;
 };
 
@@ -814,15 +814,16 @@ export type TaskRunRow = {
 };
 
 export type TaskRunSpec = {
-    arguments?: Array<string>;
-    command?: Array<string>;
-    debug?: boolean;
-    deletion?: 'Never' | 'OnSuccess' | 'Always';
-    envs?: Array<TaskEnvVar>;
-    image?: string;
-    script?: string;
+    arguments?: Array<string> | null;
+    command?: Array<string> | null;
+    debug?: boolean | null;
+    deletion?: 'Never' | 'OnSuccess' | 'Always' | null;
+    envs?: Array<TaskEnvVar> | null;
+    image?: string | null;
+    script?: string | null;
     timeout?: number;
-    workingDir?: string;
+    workingDir?: string | null;
+    [key: string]: unknown;
 };
 
 export type TaskSpec = {
@@ -1094,28 +1095,28 @@ export type WorkflowRow = {
 };
 
 export type WorkflowRun = {
-    annotations?: {
+    annotations: {
         [key: string]: unknown;
     };
-    awaitingApproval?: boolean;
-    creationDate?: string;
+    awaitingApproval: boolean;
+    creationDate: string;
     debug?: boolean;
-    duration?: number;
-    id?: string;
+    duration: number;
+    id: string;
     initiatedByName?: string;
     initiatedByRef?: string;
     initiatedByWorkflowRunRef?: string;
-    labels?: {
+    labels: {
         [key: string]: string;
     };
-    params?: Array<RunParam>;
-    paused?: boolean;
-    phase?: 'queued' | 'pending' | 'running' | 'completed';
-    results?: Array<RunResult>;
+    params: Array<RunParam>;
+    paused: boolean;
+    phase: 'queued' | 'pending' | 'running' | 'completed';
+    results: Array<RunResult>;
     retries?: number;
     retryFrom?: RetryFrom;
     startTime?: string;
-    status?: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
+    status: 'notstarted' | 'ready' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'invalid' | 'skipped' | 'cancelled' | 'timedout';
     statusMessage?: string;
     statusReason?: string;
     tasks?: Array<TaskRun>;
@@ -1123,8 +1124,8 @@ export type WorkflowRun = {
     trigger?: string;
     workflowDisplayName?: string;
     workflowName?: string;
-    workflowRef?: string;
-    workflowRevisionRef?: string;
+    workflowRef: string;
+    workflowRevisionRef: string;
     workflowVersion?: number;
     workspace?: WorkflowWorkspace;
 };
@@ -1258,7 +1259,7 @@ export type WorkflowSubmitRequest = {
     params?: Array<RunParam>;
     retries?: number;
     timeout?: number;
-    trigger?: 'manual' | 'schedule' | 'webhook' | 'event' | 'github' | 'engine' | 'task' | 'retry';
+    trigger?: 'manual' | 'api' | 'schedule' | 'webhook' | 'event' | 'github' | 'engine' | 'task' | 'retry';
     workflowVersion?: number;
     workspace?: WorkflowWorkspace;
 };
@@ -1395,32 +1396,32 @@ export type WorkspaceSummaryInsights = {
     workflows?: number;
 };
 
-export type RegisterData = {
+export type ActivateInstallationData = {
     body?: OneTimeCode;
     path?: never;
     query?: never;
     url: '/api/v2/activate';
 };
 
-export type RegisterErrors = {
+export type ActivateInstallationErrors = {
     /**
      * Bad Request
      */
     400: boolean;
 };
 
-export type RegisterError = RegisterErrors[keyof RegisterErrors];
+export type ActivateInstallationError = ActivateInstallationErrors[keyof ActivateInstallationErrors];
 
-export type RegisterResponses = {
+export type ActivateInstallationResponses = {
     /**
      * OK
      */
     200: boolean;
 };
 
-export type RegisterResponse = RegisterResponses[keyof RegisterResponses];
+export type ActivateInstallationResponse = ActivateInstallationResponses[keyof ActivateInstallationResponses];
 
-export type Query8Data = {
+export type QueryAuditEventsData = {
     body?: never;
     path?: never;
     query?: {
@@ -1476,25 +1477,25 @@ export type Query8Data = {
     url: '/api/v2/audit';
 };
 
-export type Query8Errors = {
+export type QueryAuditEventsErrors = {
     /**
      * Unauthorized
      */
     401: PageAuditEvent;
 };
 
-export type Query8Error = Query8Errors[keyof Query8Errors];
+export type QueryAuditEventsError = QueryAuditEventsErrors[keyof QueryAuditEventsErrors];
 
-export type Query8Responses = {
+export type QueryAuditEventsResponses = {
     /**
      * OK
      */
     200: PageAuditEvent;
 };
 
-export type Query8Response = Query8Responses[keyof Query8Responses];
+export type QueryAuditEventsResponse = QueryAuditEventsResponses[keyof QueryAuditEventsResponses];
 
-export type StatsData = {
+export type GetAuditStatsData = {
     body?: never;
     path?: never;
     query?: {
@@ -1511,25 +1512,25 @@ export type StatsData = {
     url: '/api/v2/audit/stats';
 };
 
-export type StatsErrors = {
+export type GetAuditStatsErrors = {
     /**
      * Unauthorized
      */
     401: AuditStats;
 };
 
-export type StatsError = StatsErrors[keyof StatsErrors];
+export type GetAuditStatsError = GetAuditStatsErrors[keyof GetAuditStatsErrors];
 
-export type StatsResponses = {
+export type GetAuditStatsResponses = {
     /**
      * OK
      */
     200: AuditStats;
 };
 
-export type StatsResponse = StatsResponses[keyof StatsResponses];
+export type GetAuditStatsResponse = GetAuditStatsResponses[keyof GetAuditStatsResponses];
 
-export type AcceptWaitForEventData = {
+export type AcceptCallbackQueryData = {
     body?: never;
     path?: never;
     query: {
@@ -1553,14 +1554,14 @@ export type AcceptWaitForEventData = {
     url: '/api/v2/callback';
 };
 
-export type AcceptWaitForEventResponses = {
+export type AcceptCallbackQueryResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type AcceptWaitForEvent1Data = {
+export type AcceptCallbackData = {
     body: JsonNode;
     path?: never;
     query: {
@@ -1584,7 +1585,7 @@ export type AcceptWaitForEvent1Data = {
     url: '/api/v2/callback';
 };
 
-export type AcceptWaitForEvent1Responses = {
+export type AcceptCallbackResponses = {
     /**
      * OK
      */
@@ -1659,7 +1660,7 @@ export type GetFlowFeaturesResponses = {
 
 export type GetFlowFeaturesResponse = GetFlowFeaturesResponses[keyof GetFlowFeaturesResponses];
 
-export type Summary2Data = {
+export type GetInsightsData = {
     body?: never;
     path?: never;
     query?: {
@@ -1680,25 +1681,25 @@ export type Summary2Data = {
     url: '/api/v2/insights';
 };
 
-export type Summary2Errors = {
+export type GetInsightsErrors = {
     /**
      * Forbidden
      */
     403: WorkflowRunInsightSummary;
 };
 
-export type Summary2Error = Summary2Errors[keyof Summary2Errors];
+export type GetInsightsError = GetInsightsErrors[keyof GetInsightsErrors];
 
-export type Summary2Responses = {
+export type GetInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightSummary;
 };
 
-export type Summary2Response = Summary2Responses[keyof Summary2Responses];
+export type GetInsightsResponse = GetInsightsResponses[keyof GetInsightsResponses];
 
-export type TaskRunsData = {
+export type GetTaskRunInsightsData = {
     body?: never;
     path?: never;
     query: {
@@ -1734,7 +1735,7 @@ export type TaskRunsData = {
     url: '/api/v2/insights/taskruns';
 };
 
-export type TaskRunsErrors = {
+export type GetTaskRunInsightsErrors = {
     /**
      * Bad Request
      */
@@ -1745,18 +1746,18 @@ export type TaskRunsErrors = {
     403: WorkflowRunInsightTaskRunPage;
 };
 
-export type TaskRunsError = TaskRunsErrors[keyof TaskRunsErrors];
+export type GetTaskRunInsightsError = GetTaskRunInsightsErrors[keyof GetTaskRunInsightsErrors];
 
-export type TaskRunsResponses = {
+export type GetTaskRunInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightTaskRunPage;
 };
 
-export type TaskRunsResponse = TaskRunsResponses[keyof TaskRunsResponses];
+export type GetTaskRunInsightsResponse = GetTaskRunInsightsResponses[keyof GetTaskRunInsightsResponses];
 
-export type Tasks1Data = {
+export type GetTaskInsightsData = {
     body?: never;
     path?: never;
     query?: {
@@ -1799,7 +1800,7 @@ export type Tasks1Data = {
     url: '/api/v2/insights/tasks';
 };
 
-export type Tasks1Errors = {
+export type GetTaskInsightsErrors = {
     /**
      * Bad Request
      */
@@ -1810,18 +1811,18 @@ export type Tasks1Errors = {
     403: WorkflowRunInsightTasks;
 };
 
-export type Tasks1Error = Tasks1Errors[keyof Tasks1Errors];
+export type GetTaskInsightsError = GetTaskInsightsErrors[keyof GetTaskInsightsErrors];
 
-export type Tasks1Responses = {
+export type GetTaskInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightTasks;
 };
 
-export type Tasks1Response = Tasks1Responses[keyof Tasks1Responses];
+export type GetTaskInsightsResponse = GetTaskInsightsResponses[keyof GetTaskInsightsResponses];
 
-export type Get5Data = {
+export type GetIntegrationsData = {
     body?: never;
     path?: never;
     query: {
@@ -1830,23 +1831,23 @@ export type Get5Data = {
     url: '/api/v2/integration';
 };
 
-export type Get5Errors = {
+export type GetIntegrationsErrors = {
     /**
      * Bad Request
      */
     400: Array<Integration>;
 };
 
-export type Get5Error = Get5Errors[keyof Get5Errors];
+export type GetIntegrationsError = GetIntegrationsErrors[keyof GetIntegrationsErrors];
 
-export type Get5Responses = {
+export type GetIntegrationsResponses = {
     /**
      * OK
      */
     200: Array<Integration>;
 };
 
-export type Get5Response = Get5Responses[keyof Get5Responses];
+export type GetIntegrationsResponse = GetIntegrationsResponses[keyof GetIntegrationsResponses];
 
 export type GithubCallbackData = {
     body?: never;
@@ -2117,57 +2118,57 @@ export type GetNavigationResponses = {
 
 export type GetNavigationResponse = GetNavigationResponses[keyof GetNavigationResponses];
 
-export type GetAllData = {
+export type GetGlobalParametersData = {
     body?: never;
     path?: never;
     query?: never;
     url: '/api/v2/parameters';
 };
 
-export type GetAllErrors = {
+export type GetGlobalParametersErrors = {
     /**
      * Bad Request
      */
     400: Array<AbstractParam>;
 };
 
-export type GetAllError = GetAllErrors[keyof GetAllErrors];
+export type GetGlobalParametersError = GetGlobalParametersErrors[keyof GetGlobalParametersErrors];
 
-export type GetAllResponses = {
+export type GetGlobalParametersResponses = {
     /**
      * OK
      */
     200: Array<AbstractParam>;
 };
 
-export type GetAllResponse = GetAllResponses[keyof GetAllResponses];
+export type GetGlobalParametersResponse = GetGlobalParametersResponses[keyof GetGlobalParametersResponses];
 
-export type Create2Data = {
+export type CreateGlobalParameterData = {
     body: AbstractParam;
     path?: never;
     query?: never;
     url: '/api/v2/parameters';
 };
 
-export type Create2Errors = {
+export type CreateGlobalParameterErrors = {
     /**
      * Bad Request
      */
     400: AbstractParam;
 };
 
-export type Create2Error = Create2Errors[keyof Create2Errors];
+export type CreateGlobalParameterError = CreateGlobalParameterErrors[keyof CreateGlobalParameterErrors];
 
-export type Create2Responses = {
+export type CreateGlobalParameterResponses = {
     /**
      * OK
      */
     200: AbstractParam;
 };
 
-export type Create2Response = Create2Responses[keyof Create2Responses];
+export type CreateGlobalParameterResponse = CreateGlobalParameterResponses[keyof CreateGlobalParameterResponses];
 
-export type Delete2Data = {
+export type DeleteGlobalParameterData = {
     body?: never;
     path: {
         name: string;
@@ -2176,21 +2177,21 @@ export type Delete2Data = {
     url: '/api/v2/parameters/{name}';
 };
 
-export type Delete2Errors = {
+export type DeleteGlobalParameterErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type Delete2Responses = {
+export type DeleteGlobalParameterResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type PatchData = {
+export type PatchGlobalParameterData = {
     body: JsonNode;
     path: {
         name: string;
@@ -2199,7 +2200,7 @@ export type PatchData = {
     url: '/api/v2/parameters/{name}';
 };
 
-export type PatchErrors = {
+export type PatchGlobalParameterErrors = {
     /**
      * Bad Request
      */
@@ -2210,16 +2211,16 @@ export type PatchErrors = {
     404: AbstractParam;
 };
 
-export type PatchError = PatchErrors[keyof PatchErrors];
+export type PatchGlobalParameterError = PatchGlobalParameterErrors[keyof PatchGlobalParameterErrors];
 
-export type PatchResponses = {
+export type PatchGlobalParameterResponses = {
     /**
      * OK
      */
     200: AbstractParam;
 };
 
-export type PatchResponse = PatchResponses[keyof PatchResponses];
+export type PatchGlobalParameterResponse = PatchGlobalParameterResponses[keyof PatchGlobalParameterResponses];
 
 export type GetProfileData = {
     body?: never;
@@ -2325,7 +2326,7 @@ export type PatchSettingsResponses = {
 
 export type PatchSettingsResponse = PatchSettingsResponses[keyof PatchSettingsResponses];
 
-export type Query7Data = {
+export type QueryOutboxData = {
     body?: never;
     path?: never;
     query?: {
@@ -2345,16 +2346,16 @@ export type Query7Data = {
     url: '/api/v2/system/outbox';
 };
 
-export type Query7Responses = {
+export type QueryOutboxResponses = {
     /**
      * OK
      */
     200: PageEventOutboxEntity;
 };
 
-export type Query7Response = Query7Responses[keyof Query7Responses];
+export type QueryOutboxResponse = QueryOutboxResponses[keyof QueryOutboxResponses];
 
-export type ReplayData = {
+export type ReplayOutboxData = {
     body?: never;
     path?: never;
     query?: {
@@ -2374,41 +2375,41 @@ export type ReplayData = {
     url: '/api/v2/system/outbox/replay';
 };
 
-export type ReplayResponses = {
+export type ReplayOutboxResponses = {
     /**
      * OK
      */
     200: OutboxReplayResponse;
 };
 
-export type ReplayResponse = ReplayResponses[keyof ReplayResponses];
+export type ReplayOutboxResponse = ReplayOutboxResponses[keyof ReplayOutboxResponses];
 
-export type Create1Data = {
+export type CreateTaskData = {
     body: Task;
     path?: never;
     query?: never;
     url: '/api/v2/task';
 };
 
-export type Create1Errors = {
+export type CreateTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type Create1Error = Create1Errors[keyof Create1Errors];
+export type CreateTaskError = CreateTaskErrors[keyof CreateTaskErrors];
 
-export type Create1Responses = {
+export type CreateTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type Create1Response = Create1Responses[keyof Create1Responses];
+export type CreateTaskResponse = CreateTaskResponses[keyof CreateTaskResponses];
 
-export type Query6Data = {
+export type QueryTasksData = {
     body?: never;
     path?: never;
     query: {
@@ -2440,46 +2441,46 @@ export type Query6Data = {
     url: '/api/v2/task/query';
 };
 
-export type Query6Errors = {
+export type QueryTasksErrors = {
     /**
      * Bad Request
      */
     400: TaskResponsePage;
 };
 
-export type Query6Error = Query6Errors[keyof Query6Errors];
+export type QueryTasksError = QueryTasksErrors[keyof QueryTasksErrors];
 
-export type Query6Responses = {
+export type QueryTasksResponses = {
     /**
      * OK
      */
     200: TaskResponsePage;
 };
 
-export type Query6Response = Query6Responses[keyof Query6Responses];
+export type QueryTasksResponse = QueryTasksResponses[keyof QueryTasksResponses];
 
-export type ValidateYaml1Data = {
+export type ValidateTaskYamlData = {
     body: TektonTask;
     path?: never;
     query?: never;
     url: '/api/v2/task/validate';
 };
 
-export type ValidateYaml1Errors = {
+export type ValidateTaskYamlErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type ValidateYaml1Responses = {
+export type ValidateTaskYamlResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type Delete1Data = {
+export type DeleteTaskData = {
     body?: never;
     path: {
         /**
@@ -2491,7 +2492,7 @@ export type Delete1Data = {
     url: '/api/v2/task/{name}';
 };
 
-export type Delete1Errors = {
+export type DeleteTaskErrors = {
     /**
      * Bad Request
      */
@@ -2502,16 +2503,16 @@ export type Delete1Errors = {
     409: unknown;
 };
 
-export type Delete1Responses = {
+export type DeleteTaskResponses = {
     /**
      * OK
      */
     204: void;
 };
 
-export type Delete1Response = Delete1Responses[keyof Delete1Responses];
+export type DeleteTaskResponse = DeleteTaskResponses[keyof DeleteTaskResponses];
 
-export type Get1Data = {
+export type GetTaskData = {
     body?: never;
     path: {
         /**
@@ -2528,25 +2529,25 @@ export type Get1Data = {
     url: '/api/v2/task/{name}';
 };
 
-export type Get1Errors = {
+export type GetTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type Get1Error = Get1Errors[keyof Get1Errors];
+export type GetTaskError = GetTaskErrors[keyof GetTaskErrors];
 
-export type Get1Responses = {
+export type GetTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type Get1Response = Get1Responses[keyof Get1Responses];
+export type GetTaskResponse = GetTaskResponses[keyof GetTaskResponses];
 
-export type Apply1Data = {
+export type ApplyTaskData = {
     body: Task;
     path: {
         /**
@@ -2563,25 +2564,25 @@ export type Apply1Data = {
     url: '/api/v2/task/{name}';
 };
 
-export type Apply1Errors = {
+export type ApplyTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type Apply1Error = Apply1Errors[keyof Apply1Errors];
+export type ApplyTaskError = ApplyTaskErrors[keyof ApplyTaskErrors];
 
-export type Apply1Responses = {
+export type ApplyTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type Apply1Response = Apply1Responses[keyof Apply1Responses];
+export type ApplyTaskResponse = ApplyTaskResponses[keyof ApplyTaskResponses];
 
-export type GetChangelog2Data = {
+export type GetTaskChangelogData = {
     body?: never;
     path: {
         /**
@@ -2593,23 +2594,23 @@ export type GetChangelog2Data = {
     url: '/api/v2/task/{name}/changelog';
 };
 
-export type GetChangelog2Errors = {
+export type GetTaskChangelogErrors = {
     /**
      * Bad Request
      */
     400: Array<ChangeLogVersion>;
 };
 
-export type GetChangelog2Error = GetChangelog2Errors[keyof GetChangelog2Errors];
+export type GetTaskChangelogError = GetTaskChangelogErrors[keyof GetTaskChangelogErrors];
 
-export type GetChangelog2Responses = {
+export type GetTaskChangelogResponses = {
     /**
      * OK
      */
     200: Array<ChangeLogVersion>;
 };
 
-export type GetChangelog2Response = GetChangelog2Responses[keyof GetChangelog2Responses];
+export type GetTaskChangelogResponse = GetTaskChangelogResponses[keyof GetTaskChangelogResponses];
 
 export type StreamTaskRunLogData = {
     body?: never;
@@ -2682,7 +2683,7 @@ export type GetPermissionCatalogResponses = {
 
 export type GetPermissionCatalogResponse = GetPermissionCatalogResponses[keyof GetPermissionCatalogResponses];
 
-export type Query5Data = {
+export type QueryTokensData = {
     body?: never;
     path?: never;
     query: {
@@ -2722,14 +2723,14 @@ export type Query5Data = {
     url: '/api/v2/token/query';
 };
 
-export type Query5Responses = {
+export type QueryTokensResponses = {
     /**
      * OK
      */
     200: PageToken;
 };
 
-export type Query5Response = Query5Responses[keyof Query5Responses];
+export type QueryTokensResponse = QueryTokensResponses[keyof QueryTokensResponses];
 
 export type DeleteTokenData = {
     body?: never;
@@ -2858,7 +2859,7 @@ export type GetUserByIdResponses = {
 
 export type GetUserByIdResponse = GetUserByIdResponses[keyof GetUserByIdResponses];
 
-export type Apply2Data = {
+export type PatchUserData = {
     body: UserRequest;
     path: {
         userId: string;
@@ -2867,14 +2868,14 @@ export type Apply2Data = {
     url: '/api/v2/user/{userId}';
 };
 
-export type Apply2Errors = {
+export type PatchUserErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type Apply2Responses = {
+export type PatchUserResponses = {
     /**
      * OK
      */
@@ -3113,7 +3114,7 @@ export type ValidateWorkspaceNameResponses = {
 
 export type ValidateWorkspaceNameResponse = ValidateWorkspaceNameResponses[keyof ValidateWorkspaceNameResponses];
 
-export type DeleteWorkflowData = {
+export type DeleteWorkspaceData = {
     body?: never;
     path: {
         /**
@@ -3125,21 +3126,21 @@ export type DeleteWorkflowData = {
     url: '/api/v2/workspace/{workspace}';
 };
 
-export type DeleteWorkflowErrors = {
+export type DeleteWorkspaceErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type DeleteWorkflowResponses = {
+export type DeleteWorkspaceResponses = {
     /**
      * OK
      */
     204: void;
 };
 
-export type DeleteWorkflowResponse = DeleteWorkflowResponses[keyof DeleteWorkflowResponses];
+export type DeleteWorkspaceResponse = DeleteWorkspaceResponses[keyof DeleteWorkspaceResponses];
 
 export type GetWorkspaceData = {
     body?: never;
@@ -3201,7 +3202,7 @@ export type UpdateWorkspaceResponses = {
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
 
-export type ActionData = {
+export type UpdateActionData = {
     body: Array<ActionRequest>;
     path: {
         /**
@@ -3213,21 +3214,21 @@ export type ActionData = {
     url: '/api/v2/workspace/{workspace}/action';
 };
 
-export type ActionErrors = {
+export type UpdateActionErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type ActionResponses = {
+export type UpdateActionResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type Query4Data = {
+export type QueryActionsData = {
     body?: never;
     path: {
         /**
@@ -3276,25 +3277,25 @@ export type Query4Data = {
     url: '/api/v2/workspace/{workspace}/action/query';
 };
 
-export type Query4Errors = {
+export type QueryActionsErrors = {
     /**
      * Bad Request
      */
     400: PageAction;
 };
 
-export type Query4Error = Query4Errors[keyof Query4Errors];
+export type QueryActionsError = QueryActionsErrors[keyof QueryActionsErrors];
 
-export type Query4Responses = {
+export type QueryActionsResponses = {
     /**
      * OK
      */
     200: PageAction;
 };
 
-export type Query4Response = Query4Responses[keyof Query4Responses];
+export type QueryActionsResponse = QueryActionsResponses[keyof QueryActionsResponses];
 
-export type Summary1Data = {
+export type GetActionSummaryData = {
     body?: never;
     path: {
         /**
@@ -3323,25 +3324,25 @@ export type Summary1Data = {
     url: '/api/v2/workspace/{workspace}/action/summary';
 };
 
-export type Summary1Errors = {
+export type GetActionSummaryErrors = {
     /**
      * Bad Request
      */
     400: ActionSummary;
 };
 
-export type Summary1Error = Summary1Errors[keyof Summary1Errors];
+export type GetActionSummaryError = GetActionSummaryErrors[keyof GetActionSummaryErrors];
 
-export type Summary1Responses = {
+export type GetActionSummaryResponses = {
     /**
      * OK
      */
     200: ActionSummary;
 };
 
-export type Summary1Response = Summary1Responses[keyof Summary1Responses];
+export type GetActionSummaryResponse = GetActionSummaryResponses[keyof GetActionSummaryResponses];
 
-export type Get4Data = {
+export type GetActionData = {
     body?: never;
     path: {
         /**
@@ -3357,23 +3358,23 @@ export type Get4Data = {
     url: '/api/v2/workspace/{workspace}/action/{actionId}';
 };
 
-export type Get4Errors = {
+export type GetActionErrors = {
     /**
      * Bad Request
      */
     400: Action;
 };
 
-export type Get4Error = Get4Errors[keyof Get4Errors];
+export type GetActionError = GetActionErrors[keyof GetActionErrors];
 
-export type Get4Responses = {
+export type GetActionResponses = {
     /**
      * OK
      */
     200: Action;
 };
 
-export type Get4Response = Get4Responses[keyof Get4Responses];
+export type GetActionResponse = GetActionResponses[keyof GetActionResponses];
 
 export type DeleteApproverGroupData = {
     body: Array<string>;
@@ -3401,7 +3402,7 @@ export type DeleteApproverGroupResponses = {
     200: unknown;
 };
 
-export type Query3Data = {
+export type QueryArtifactsData = {
     body?: never;
     path: {
         /**
@@ -3434,16 +3435,16 @@ export type Query3Data = {
     url: '/api/v2/workspace/{workspace}/artifacts';
 };
 
-export type Query3Responses = {
+export type QueryArtifactsResponses = {
     /**
      * OK
      */
     200: PageArtifact;
 };
 
-export type Query3Response = Query3Responses[keyof Query3Responses];
+export type QueryArtifactsResponse = QueryArtifactsResponses[keyof QueryArtifactsResponses];
 
-export type Delete3Data = {
+export type DeleteArtifactData = {
     body?: never;
     path: {
         /**
@@ -3459,21 +3460,21 @@ export type Delete3Data = {
     url: '/api/v2/workspace/{workspace}/artifacts/{artifactId}';
 };
 
-export type Delete3Errors = {
+export type DeleteArtifactErrors = {
     /**
      * Not Found
      */
     404: unknown;
 };
 
-export type Delete3Responses = {
+export type DeleteArtifactResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type SummaryData = {
+export type GetWorkspaceInsightsData = {
     body?: never;
     path: {
         /**
@@ -3495,25 +3496,25 @@ export type SummaryData = {
     url: '/api/v2/workspace/{workspace}/insights';
 };
 
-export type SummaryErrors = {
+export type GetWorkspaceInsightsErrors = {
     /**
      * Not Found
      */
     404: WorkflowRunInsightSummary;
 };
 
-export type SummaryError = SummaryErrors[keyof SummaryErrors];
+export type GetWorkspaceInsightsError = GetWorkspaceInsightsErrors[keyof GetWorkspaceInsightsErrors];
 
-export type SummaryResponses = {
+export type GetWorkspaceInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightSummary;
 };
 
-export type SummaryResponse = SummaryResponses[keyof SummaryResponses];
+export type GetWorkspaceInsightsResponse = GetWorkspaceInsightsResponses[keyof GetWorkspaceInsightsResponses];
 
-export type TasksData = {
+export type GetWorkspaceTaskInsightsData = {
     body?: never;
     path: {
         /**
@@ -3557,7 +3558,7 @@ export type TasksData = {
     url: '/api/v2/workspace/{workspace}/insights/tasks';
 };
 
-export type TasksErrors = {
+export type GetWorkspaceTaskInsightsErrors = {
     /**
      * Bad Request
      */
@@ -3568,18 +3569,18 @@ export type TasksErrors = {
     404: WorkflowRunInsightTasks;
 };
 
-export type TasksError = TasksErrors[keyof TasksErrors];
+export type GetWorkspaceTaskInsightsError = GetWorkspaceTaskInsightsErrors[keyof GetWorkspaceTaskInsightsErrors];
 
-export type TasksResponses = {
+export type GetWorkspaceTaskInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightTasks;
 };
 
-export type TasksResponse = TasksResponses[keyof TasksResponses];
+export type GetWorkspaceTaskInsightsResponse = GetWorkspaceTaskInsightsResponses[keyof GetWorkspaceTaskInsightsResponses];
 
-export type WorkflowData = {
+export type GetWorkflowInsightsData = {
     body?: never;
     path: {
         /**
@@ -3602,25 +3603,25 @@ export type WorkflowData = {
     url: '/api/v2/workspace/{workspace}/insights/workflow/{workflow}';
 };
 
-export type WorkflowErrors = {
+export type GetWorkflowInsightsErrors = {
     /**
      * Not Found
      */
     404: WorkflowRunInsightWorkflowDetail;
 };
 
-export type WorkflowError = WorkflowErrors[keyof WorkflowErrors];
+export type GetWorkflowInsightsError = GetWorkflowInsightsErrors[keyof GetWorkflowInsightsErrors];
 
-export type WorkflowResponses = {
+export type GetWorkflowInsightsResponses = {
     /**
      * OK
      */
     200: WorkflowRunInsightWorkflowDetail;
 };
 
-export type WorkflowResponse = WorkflowResponses[keyof WorkflowResponses];
+export type GetWorkflowInsightsResponse = GetWorkflowInsightsResponses[keyof GetWorkflowInsightsResponses];
 
-export type LeaveData = {
+export type LeaveWorkspaceData = {
     body?: never;
     path: {
         /**
@@ -3632,14 +3633,14 @@ export type LeaveData = {
     url: '/api/v2/workspace/{workspace}/leave';
 };
 
-export type LeaveErrors = {
+export type LeaveWorkspaceErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type LeaveResponses = {
+export type LeaveWorkspaceResponses = {
     /**
      * OK
      */
@@ -3792,7 +3793,7 @@ export type GetCalendarsForSchedulesResponses = {
 
 export type GetCalendarsForSchedulesResponse = GetCalendarsForSchedulesResponses[keyof GetCalendarsForSchedulesResponses];
 
-export type Query2Data = {
+export type QuerySchedulesData = {
     body?: never;
     path: {
         /**
@@ -3825,14 +3826,14 @@ export type Query2Data = {
     url: '/api/v2/workspace/{workspace}/schedule/query';
 };
 
-export type Query2Responses = {
+export type QuerySchedulesResponses = {
     /**
      * OK
      */
     200: PageWorkflowSchedule;
 };
 
-export type Query2Response = Query2Responses[keyof Query2Responses];
+export type QuerySchedulesResponse = QuerySchedulesResponses[keyof QuerySchedulesResponses];
 
 export type ValidateCronData = {
     body?: never;
@@ -3880,7 +3881,7 @@ export type DeleteScheduleResponses = {
     200: unknown;
 };
 
-export type Get3Data = {
+export type GetScheduleData = {
     body?: never;
     path: {
         /**
@@ -3893,16 +3894,16 @@ export type Get3Data = {
     url: '/api/v2/workspace/{workspace}/schedule/{scheduleId}';
 };
 
-export type Get3Responses = {
+export type GetScheduleResponses = {
     /**
      * OK
      */
     200: WorkflowSchedule;
 };
 
-export type Get3Response = Get3Responses[keyof Get3Responses];
+export type GetScheduleResponse = GetScheduleResponses[keyof GetScheduleResponses];
 
-export type CreateData = {
+export type CreateWorkspaceTaskData = {
     body: Task;
     path: {
         /**
@@ -3914,25 +3915,25 @@ export type CreateData = {
     url: '/api/v2/workspace/{workspace}/task';
 };
 
-export type CreateErrors = {
+export type CreateWorkspaceTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type CreateError = CreateErrors[keyof CreateErrors];
+export type CreateWorkspaceTaskError = CreateWorkspaceTaskErrors[keyof CreateWorkspaceTaskErrors];
 
-export type CreateResponses = {
+export type CreateWorkspaceTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type CreateResponse = CreateResponses[keyof CreateResponses];
+export type CreateWorkspaceTaskResponse = CreateWorkspaceTaskResponses[keyof CreateWorkspaceTaskResponses];
 
-export type QueryTaskTemplatesData = {
+export type QueryWorkspaceTasksData = {
     body?: never;
     path: {
         /**
@@ -3969,25 +3970,25 @@ export type QueryTaskTemplatesData = {
     url: '/api/v2/workspace/{workspace}/task/query';
 };
 
-export type QueryTaskTemplatesErrors = {
+export type QueryWorkspaceTasksErrors = {
     /**
      * Bad Request
      */
     400: TaskResponsePage;
 };
 
-export type QueryTaskTemplatesError = QueryTaskTemplatesErrors[keyof QueryTaskTemplatesErrors];
+export type QueryWorkspaceTasksError = QueryWorkspaceTasksErrors[keyof QueryWorkspaceTasksErrors];
 
-export type QueryTaskTemplatesResponses = {
+export type QueryWorkspaceTasksResponses = {
     /**
      * OK
      */
     200: TaskResponsePage;
 };
 
-export type QueryTaskTemplatesResponse = QueryTaskTemplatesResponses[keyof QueryTaskTemplatesResponses];
+export type QueryWorkspaceTasksResponse = QueryWorkspaceTasksResponses[keyof QueryWorkspaceTasksResponses];
 
-export type ValidateYamlData = {
+export type ValidateWorkspaceTaskYamlData = {
     body: TektonTask;
     path: {
         /**
@@ -3999,21 +4000,21 @@ export type ValidateYamlData = {
     url: '/api/v2/workspace/{workspace}/task/validate';
 };
 
-export type ValidateYamlErrors = {
+export type ValidateWorkspaceTaskYamlErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type ValidateYamlResponses = {
+export type ValidateWorkspaceTaskYamlResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type DeleteData = {
+export type DeleteWorkspaceTaskData = {
     body?: never;
     path: {
         /**
@@ -4029,23 +4030,23 @@ export type DeleteData = {
     url: '/api/v2/workspace/{workspace}/task/{name}';
 };
 
-export type DeleteErrors = {
+export type DeleteWorkspaceTaskErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type DeleteResponses = {
+export type DeleteWorkspaceTaskResponses = {
     /**
      * OK
      */
     204: void;
 };
 
-export type DeleteResponse = DeleteResponses[keyof DeleteResponses];
+export type DeleteWorkspaceTaskResponse = DeleteWorkspaceTaskResponses[keyof DeleteWorkspaceTaskResponses];
 
-export type GetData = {
+export type GetWorkspaceTaskData = {
     body?: never;
     path: {
         /**
@@ -4066,25 +4067,25 @@ export type GetData = {
     url: '/api/v2/workspace/{workspace}/task/{name}';
 };
 
-export type GetErrors = {
+export type GetWorkspaceTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type GetError = GetErrors[keyof GetErrors];
+export type GetWorkspaceTaskError = GetWorkspaceTaskErrors[keyof GetWorkspaceTaskErrors];
 
-export type GetResponses = {
+export type GetWorkspaceTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type GetResponse = GetResponses[keyof GetResponses];
+export type GetWorkspaceTaskResponse = GetWorkspaceTaskResponses[keyof GetWorkspaceTaskResponses];
 
-export type ApplyData = {
+export type ApplyWorkspaceTaskData = {
     body: Task;
     path: {
         /**
@@ -4105,25 +4106,25 @@ export type ApplyData = {
     url: '/api/v2/workspace/{workspace}/task/{name}';
 };
 
-export type ApplyErrors = {
+export type ApplyWorkspaceTaskErrors = {
     /**
      * Bad Request
      */
     400: Task;
 };
 
-export type ApplyError = ApplyErrors[keyof ApplyErrors];
+export type ApplyWorkspaceTaskError = ApplyWorkspaceTaskErrors[keyof ApplyWorkspaceTaskErrors];
 
-export type ApplyResponses = {
+export type ApplyWorkspaceTaskResponses = {
     /**
      * OK
      */
     200: Task;
 };
 
-export type ApplyResponse = ApplyResponses[keyof ApplyResponses];
+export type ApplyWorkspaceTaskResponse = ApplyWorkspaceTaskResponses[keyof ApplyWorkspaceTaskResponses];
 
-export type GetChangelog1Data = {
+export type GetWorkspaceTaskChangelogData = {
     body?: never;
     path: {
         /**
@@ -4139,7 +4140,7 @@ export type GetChangelog1Data = {
     url: '/api/v2/workspace/{workspace}/task/{name}/changelog';
 };
 
-export type GetChangelog1Errors = {
+export type GetWorkspaceTaskChangelogErrors = {
     /**
      * Bad Request
      */
@@ -4150,18 +4151,18 @@ export type GetChangelog1Errors = {
     401: Array<ChangeLogVersion>;
 };
 
-export type GetChangelog1Error = GetChangelog1Errors[keyof GetChangelog1Errors];
+export type GetWorkspaceTaskChangelogError = GetWorkspaceTaskChangelogErrors[keyof GetWorkspaceTaskChangelogErrors];
 
-export type GetChangelog1Responses = {
+export type GetWorkspaceTaskChangelogResponses = {
     /**
      * OK
      */
     200: Array<ChangeLogVersion>;
 };
 
-export type GetChangelog1Response = GetChangelog1Responses[keyof GetChangelog1Responses];
+export type GetWorkspaceTaskChangelogResponse = GetWorkspaceTaskChangelogResponses[keyof GetWorkspaceTaskChangelogResponses];
 
-export type Query1Data = {
+export type QueryTaskRunsData = {
     body?: never;
     path: {
         /**
@@ -4222,23 +4223,23 @@ export type Query1Data = {
     url: '/api/v2/workspace/{workspace}/taskrun/query';
 };
 
-export type Query1Errors = {
+export type QueryTaskRunsErrors = {
     /**
      * Bad Request
      */
     400: PageTaskRun;
 };
 
-export type Query1Error = Query1Errors[keyof Query1Errors];
+export type QueryTaskRunsError = QueryTaskRunsErrors[keyof QueryTaskRunsErrors];
 
-export type Query1Responses = {
+export type QueryTaskRunsResponses = {
     /**
      * OK
      */
     200: PageTaskRun;
 };
 
-export type Query1Response = Query1Responses[keyof Query1Responses];
+export type QueryTaskRunsResponse = QueryTaskRunsResponses[keyof QueryTaskRunsResponses];
 
 export type CreateWorkflowData = {
     body: Workflow;
@@ -4364,7 +4365,7 @@ export type QueryWorkflowsResponses = {
 
 export type QueryWorkflowsResponse = QueryWorkflowsResponses[keyof QueryWorkflowsResponses];
 
-export type DeleteWorkflow1Data = {
+export type DeleteWorkflowData = {
     body?: never;
     path: {
         /**
@@ -4380,21 +4381,21 @@ export type DeleteWorkflow1Data = {
     url: '/api/v2/workspace/{workspace}/workflow/{name}';
 };
 
-export type DeleteWorkflow1Errors = {
+export type DeleteWorkflowErrors = {
     /**
      * Bad Request
      */
     400: unknown;
 };
 
-export type DeleteWorkflow1Responses = {
+export type DeleteWorkflowResponses = {
     /**
      * OK
      */
     204: void;
 };
 
-export type DeleteWorkflow1Response = DeleteWorkflow1Responses[keyof DeleteWorkflow1Responses];
+export type DeleteWorkflowResponse = DeleteWorkflowResponses[keyof DeleteWorkflowResponses];
 
 export type GetWorkflowData = {
     body?: never;
@@ -4502,7 +4503,7 @@ export type GetAvailableParametersResponses = {
 
 export type GetAvailableParametersResponse = GetAvailableParametersResponses[keyof GetAvailableParametersResponses];
 
-export type GetChangelogData = {
+export type GetWorkflowChangelogData = {
     body?: never;
     path: {
         /**
@@ -4518,25 +4519,25 @@ export type GetChangelogData = {
     url: '/api/v2/workspace/{workspace}/workflow/{name}/changelog';
 };
 
-export type GetChangelogErrors = {
+export type GetWorkflowChangelogErrors = {
     /**
      * Bad Request
      */
     400: Array<ChangeLogVersion>;
 };
 
-export type GetChangelogError = GetChangelogErrors[keyof GetChangelogErrors];
+export type GetWorkflowChangelogError = GetWorkflowChangelogErrors[keyof GetWorkflowChangelogErrors];
 
-export type GetChangelogResponses = {
+export type GetWorkflowChangelogResponses = {
     /**
      * OK
      */
     200: Array<ChangeLogVersion>;
 };
 
-export type GetChangelogResponse = GetChangelogResponses[keyof GetChangelogResponses];
+export type GetWorkflowChangelogResponse = GetWorkflowChangelogResponses[keyof GetWorkflowChangelogResponses];
 
-export type ComposeData = {
+export type GetWorkflowCanvasData = {
     body?: never;
     path: {
         /**
@@ -4557,23 +4558,23 @@ export type ComposeData = {
     url: '/api/v2/workspace/{workspace}/workflow/{name}/compose';
 };
 
-export type ComposeErrors = {
+export type GetWorkflowCanvasErrors = {
     /**
      * Bad Request
      */
     400: WorkflowCanvas;
 };
 
-export type ComposeError = ComposeErrors[keyof ComposeErrors];
+export type GetWorkflowCanvasError = GetWorkflowCanvasErrors[keyof GetWorkflowCanvasErrors];
 
-export type ComposeResponses = {
+export type GetWorkflowCanvasResponses = {
     /**
      * OK
      */
     200: WorkflowCanvas;
 };
 
-export type ComposeResponse = ComposeResponses[keyof ComposeResponses];
+export type GetWorkflowCanvasResponse = GetWorkflowCanvasResponses[keyof GetWorkflowCanvasResponses];
 
 export type ApplyCanvasData = {
     body: WorkflowCanvas;
@@ -4639,7 +4640,7 @@ export type DuplicateWorkflowResponses = {
 
 export type DuplicateWorkflowResponse = DuplicateWorkflowResponses[keyof DuplicateWorkflowResponses];
 
-export type ExportData = {
+export type ExportWorkflowData = {
     body?: never;
     path: {
         /**
@@ -4655,14 +4656,14 @@ export type ExportData = {
     url: '/api/v2/workspace/{workspace}/workflow/{name}/export';
 };
 
-export type ExportResponses = {
+export type ExportWorkflowResponses = {
     /**
      * OK
      */
     200: Blob | File;
 };
 
-export type ExportResponse = ExportResponses[keyof ExportResponses];
+export type ExportWorkflowResponse = ExportWorkflowResponses[keyof ExportWorkflowResponses];
 
 export type SubmitWorkflowData = {
     body: WorkflowSubmitRequest;
@@ -4703,7 +4704,7 @@ export type SubmitWorkflowResponses = {
 
 export type SubmitWorkflowResponse = SubmitWorkflowResponses[keyof SubmitWorkflowResponses];
 
-export type PurgeByLabelsData = {
+export type PurgeWorkflowRunsByLabelsData = {
     body?: never;
     path: {
         /**
@@ -4720,25 +4721,25 @@ export type PurgeByLabelsData = {
     url: '/api/v2/workspace/{workspace}/workflowrun';
 };
 
-export type PurgeByLabelsErrors = {
+export type PurgeWorkflowRunsByLabelsErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRunPurge;
 };
 
-export type PurgeByLabelsError = PurgeByLabelsErrors[keyof PurgeByLabelsErrors];
+export type PurgeWorkflowRunsByLabelsError = PurgeWorkflowRunsByLabelsErrors[keyof PurgeWorkflowRunsByLabelsErrors];
 
-export type PurgeByLabelsResponses = {
+export type PurgeWorkflowRunsByLabelsResponses = {
     /**
      * OK
      */
     200: WorkflowRunPurge;
 };
 
-export type PurgeByLabelsResponse = PurgeByLabelsResponses[keyof PurgeByLabelsResponses];
+export type PurgeWorkflowRunsByLabelsResponse = PurgeWorkflowRunsByLabelsResponses[keyof PurgeWorkflowRunsByLabelsResponses];
 
-export type CountData = {
+export type CountWorkflowRunsData = {
     body?: never;
     path: {
         /**
@@ -4767,25 +4768,25 @@ export type CountData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/count';
 };
 
-export type CountErrors = {
+export type CountWorkflowRunsErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRunCount;
 };
 
-export type CountError = CountErrors[keyof CountErrors];
+export type CountWorkflowRunsError = CountWorkflowRunsErrors[keyof CountWorkflowRunsErrors];
 
-export type CountResponses = {
+export type CountWorkflowRunsResponses = {
     /**
      * OK
      */
     200: WorkflowRunCount;
 };
 
-export type CountResponse = CountResponses[keyof CountResponses];
+export type CountWorkflowRunsResponse = CountWorkflowRunsResponses[keyof CountWorkflowRunsResponses];
 
-export type QueryData = {
+export type QueryWorkflowRunsData = {
     body?: never;
     path: {
         /**
@@ -4842,25 +4843,25 @@ export type QueryData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/query';
 };
 
-export type QueryErrors = {
+export type QueryWorkflowRunsErrors = {
     /**
      * Bad Request
      */
     400: PageWorkflowRun;
 };
 
-export type QueryError = QueryErrors[keyof QueryErrors];
+export type QueryWorkflowRunsError = QueryWorkflowRunsErrors[keyof QueryWorkflowRunsErrors];
 
-export type QueryResponses = {
+export type QueryWorkflowRunsResponses = {
     /**
      * OK
      */
     200: PageWorkflowRun;
 };
 
-export type QueryResponse = QueryResponses[keyof QueryResponses];
+export type QueryWorkflowRunsResponse = QueryWorkflowRunsResponses[keyof QueryWorkflowRunsResponses];
 
-export type PurgeData = {
+export type PurgeWorkflowRunData = {
     body?: never;
     path: {
         /**
@@ -4876,25 +4877,25 @@ export type PurgeData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}';
 };
 
-export type PurgeErrors = {
+export type PurgeWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRunPurge;
 };
 
-export type PurgeError = PurgeErrors[keyof PurgeErrors];
+export type PurgeWorkflowRunError = PurgeWorkflowRunErrors[keyof PurgeWorkflowRunErrors];
 
-export type PurgeResponses = {
+export type PurgeWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRunPurge;
 };
 
-export type PurgeResponse = PurgeResponses[keyof PurgeResponses];
+export type PurgeWorkflowRunResponse = PurgeWorkflowRunResponses[keyof PurgeWorkflowRunResponses];
 
-export type Get2Data = {
+export type GetWorkflowRunData = {
     body?: never;
     path: {
         /**
@@ -4915,25 +4916,25 @@ export type Get2Data = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}';
 };
 
-export type Get2Errors = {
+export type GetWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type Get2Error = Get2Errors[keyof Get2Errors];
+export type GetWorkflowRunError = GetWorkflowRunErrors[keyof GetWorkflowRunErrors];
 
-export type Get2Responses = {
+export type GetWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type Get2Response = Get2Responses[keyof Get2Responses];
+export type GetWorkflowRunResponse = GetWorkflowRunResponses[keyof GetWorkflowRunResponses];
 
-export type ListForRunData = {
+export type ListWorkflowRunArtifactsData = {
     body?: never;
     path: {
         /**
@@ -4949,25 +4950,25 @@ export type ListForRunData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/artifacts';
 };
 
-export type ListForRunErrors = {
+export type ListWorkflowRunArtifactsErrors = {
     /**
      * Not Found
      */
     404: Array<Artifact>;
 };
 
-export type ListForRunError = ListForRunErrors[keyof ListForRunErrors];
+export type ListWorkflowRunArtifactsError = ListWorkflowRunArtifactsErrors[keyof ListWorkflowRunArtifactsErrors];
 
-export type ListForRunResponses = {
+export type ListWorkflowRunArtifactsResponses = {
     /**
      * OK
      */
     200: Array<Artifact>;
 };
 
-export type ListForRunResponse = ListForRunResponses[keyof ListForRunResponses];
+export type ListWorkflowRunArtifactsResponse = ListWorkflowRunArtifactsResponses[keyof ListWorkflowRunArtifactsResponses];
 
-export type DeleteFromRunData = {
+export type DeleteWorkflowRunArtifactData = {
     body?: never;
     path: {
         /**
@@ -4987,21 +4988,21 @@ export type DeleteFromRunData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/artifacts/{name}';
 };
 
-export type DeleteFromRunErrors = {
+export type DeleteWorkflowRunArtifactErrors = {
     /**
      * Not Found
      */
     404: unknown;
 };
 
-export type DeleteFromRunResponses = {
+export type DeleteWorkflowRunArtifactResponses = {
     /**
      * OK
      */
     200: unknown;
 };
 
-export type DownloadData = {
+export type DownloadWorkflowRunArtifactData = {
     body?: never;
     path: {
         /**
@@ -5021,7 +5022,7 @@ export type DownloadData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/artifacts/{name}';
 };
 
-export type DownloadErrors = {
+export type DownloadWorkflowRunArtifactErrors = {
     /**
      * Not Found
      */
@@ -5032,18 +5033,18 @@ export type DownloadErrors = {
     410: StreamingResponseBody;
 };
 
-export type DownloadError = DownloadErrors[keyof DownloadErrors];
+export type DownloadWorkflowRunArtifactError = DownloadWorkflowRunArtifactErrors[keyof DownloadWorkflowRunArtifactErrors];
 
-export type DownloadResponses = {
+export type DownloadWorkflowRunArtifactResponses = {
     /**
      * OK
      */
     200: StreamingResponseBody;
 };
 
-export type DownloadResponse = DownloadResponses[keyof DownloadResponses];
+export type DownloadWorkflowRunArtifactResponse = DownloadWorkflowRunArtifactResponses[keyof DownloadWorkflowRunArtifactResponses];
 
-export type CancelData = {
+export type CancelWorkflowRunData = {
     body?: never;
     path: {
         /**
@@ -5059,25 +5060,25 @@ export type CancelData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/cancel';
 };
 
-export type CancelErrors = {
+export type CancelWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type CancelError = CancelErrors[keyof CancelErrors];
+export type CancelWorkflowRunError = CancelWorkflowRunErrors[keyof CancelWorkflowRunErrors];
 
-export type CancelResponses = {
+export type CancelWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type CancelResponse = CancelResponses[keyof CancelResponses];
+export type CancelWorkflowRunResponse = CancelWorkflowRunResponses[keyof CancelWorkflowRunResponses];
 
-export type PauseData = {
+export type PauseWorkflowRunData = {
     body?: never;
     path: {
         /**
@@ -5093,25 +5094,25 @@ export type PauseData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/pause';
 };
 
-export type PauseErrors = {
+export type PauseWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type PauseError = PauseErrors[keyof PauseErrors];
+export type PauseWorkflowRunError = PauseWorkflowRunErrors[keyof PauseWorkflowRunErrors];
 
-export type PauseResponses = {
+export type PauseWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type PauseResponse = PauseResponses[keyof PauseResponses];
+export type PauseWorkflowRunResponse = PauseWorkflowRunResponses[keyof PauseWorkflowRunResponses];
 
-export type ResumeData = {
+export type ResumeWorkflowRunData = {
     body?: never;
     path: {
         /**
@@ -5127,25 +5128,25 @@ export type ResumeData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/resume';
 };
 
-export type ResumeErrors = {
+export type ResumeWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type ResumeError = ResumeErrors[keyof ResumeErrors];
+export type ResumeWorkflowRunError = ResumeWorkflowRunErrors[keyof ResumeWorkflowRunErrors];
 
-export type ResumeResponses = {
+export type ResumeWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type ResumeResponse = ResumeResponses[keyof ResumeResponses];
+export type ResumeWorkflowRunResponse = ResumeWorkflowRunResponses[keyof ResumeWorkflowRunResponses];
 
-export type RetryData = {
+export type RetryWorkflowRunData = {
     body?: WorkflowRunRetryRequest;
     path: {
         /**
@@ -5161,25 +5162,25 @@ export type RetryData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/retry';
 };
 
-export type RetryErrors = {
+export type RetryWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type RetryError = RetryErrors[keyof RetryErrors];
+export type RetryWorkflowRunError = RetryWorkflowRunErrors[keyof RetryWorkflowRunErrors];
 
-export type RetryResponses = {
+export type RetryWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type RetryResponse = RetryResponses[keyof RetryResponses];
+export type RetryWorkflowRunResponse = RetryWorkflowRunResponses[keyof RetryWorkflowRunResponses];
 
-export type StartData = {
+export type StartWorkflowRunData = {
     body?: WorkflowRunRequest;
     path: {
         /**
@@ -5195,20 +5196,20 @@ export type StartData = {
     url: '/api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/start';
 };
 
-export type StartErrors = {
+export type StartWorkflowRunErrors = {
     /**
      * Bad Request
      */
     400: WorkflowRun;
 };
 
-export type StartError = StartErrors[keyof StartErrors];
+export type StartWorkflowRunError = StartWorkflowRunErrors[keyof StartWorkflowRunErrors];
 
-export type StartResponses = {
+export type StartWorkflowRunResponses = {
     /**
      * OK
      */
     200: WorkflowRun;
 };
 
-export type StartResponse = StartResponses[keyof StartResponses];
+export type StartWorkflowRunResponse = StartWorkflowRunResponses[keyof StartWorkflowRunResponses];

@@ -976,10 +976,10 @@ function Configure(props: ConfigureProps) {
           * v7's <Navigate> does not, so an AppPath here navigates to the literal
           * "/:workspace/editor/:workflow/..." URL and the editor loader fetches a workflow by
           * that name. The editor header links to the bare `configure` path, so this redirect is
-          * the entry point to the whole Configure tab.
+          * the entry point to the whole Configure tab; a Configure path it does not know lands here too.
           */}
         <Route
-          path="configure"
+          path="configure/*"
           element={
             <Navigate
               to={appLink.editorConfigureGeneral({

@@ -1,8 +1,10 @@
 package io.boomerang.core.audit;
 
 import io.boomerang.common.util.QueryCriteria;
+import java.util.Collection;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -144,49 +146,64 @@ public class AuditQueryService {
   /** How many runs a workspace's run events cover in a window, and their total duration. */
   public record RunTotals(long runs, long duration) {}
 
-  /**
-   * Total a workspace's runs and their durations over a time window from the run events, so runs
-   * of since-deleted Workflows still count - the run-duration figures in {@code
-   * QuotaService.current}. Each run counts once, with the duration its latest event in
-   * the window carries. One aggregation over the {@code workspace_time} index.
-   */
+  /** {@link #runTotals(Collection, Date, Date)} for one workspace. */
   public RunTotals runTotals(String workspaceId, Date from, Date to) {
+    return runTotals(List.of(workspaceId), from, to)
+        .getOrDefault(workspaceId, new RunTotals(0L, 0L));
+  }
+
+  /**
+   * Total each workspace's runs and their durations over a time window from the run events, keyed
+   * by workspace id, so runs of since-deleted Workflows still count - the run-duration figures in
+   * {@code QuotaService.current}. Each run counts once, with the duration its latest event in the
+   * window carries; a workspace with no run events is absent. One aggregation over the {@code
+   * workspace_time} index, however many workspaces are asked for.
+   */
+  public Map<String, RunTotals> runTotals(Collection<String> workspaceIds, Date from, Date to) {
     Aggregation aggregation =
         Aggregation.newAggregation(
             Aggregation.match(
                 new Criteria()
                     .andOperator(
-                        Criteria.where("workspaceId").is(workspaceId),
+                        Criteria.where("workspaceId").in(workspaceIds),
                         Criteria.where("resourceType").is("workflowrun"),
                         Criteria.where("time").gte(from).lt(to))),
             Aggregation.sort(Sort.Direction.ASC, "time"),
-            Aggregation.group("resourceId").last("payload.duration").as("duration"),
-            Aggregation.group().count().as("runs").sum("duration").as("duration"));
-    Document totals =
-        mongoTemplate
-            .aggregate(aggregation, AuditEventEntity.class, Document.class)
-            .getUniqueMappedResult();
-    if (totals == null) {
-      return new RunTotals(0L, 0L);
+            Aggregation.group("workspaceId", "resourceId").last("payload.duration").as("duration"),
+            Aggregation.group("workspaceId").count().as("runs").sum("duration").as("duration"));
+    Map<String, RunTotals> totals = new HashMap<>();
+    for (Document workspace :
+        mongoTemplate.aggregate(aggregation, AuditEventEntity.class, Document.class)) {
+      totals.put(
+          workspace.getString("_id"),
+          new RunTotals(
+              ((Number) workspace.get("runs")).longValue(),
+              (workspace.get("duration") instanceof Number duration) ? duration.longValue() : 0L));
     }
-    return new RunTotals(
-        ((Number) totals.get("runs")).longValue(),
-        (totals.get("duration") instanceof Number duration) ? duration.longValue() : 0L);
+    return totals;
   }
 
   /**
-   * Count run-creation events for one workspace in a time window — the monthly quota counter in
-   * {@code QuotaService.current}. Served by the {@code workspace_time} index.
+   * Count each workspace's run-creation events in a time window, keyed by workspace id - the
+   * monthly quota counter in {@code QuotaService.current}. A workspace with none is absent. One
+   * aggregation over the {@code workspace_time} index.
    */
-  public long countRunsCreated(String workspaceId, Date from, Date to) {
-    Query query =
-        new Query(
-            new Criteria()
-                .andOperator(
-                    Criteria.where("workspaceId").is(workspaceId),
-                    Criteria.where("action").is(AuditAction.CREATE.name()),
-                    Criteria.where("resourceType").is("workflowrun"),
-                    Criteria.where("time").gte(from).lt(to)));
-    return mongoTemplate.count(query, AuditEventEntity.class);
+  public Map<String, Long> countRunsCreated(Collection<String> workspaceIds, Date from, Date to) {
+    Aggregation aggregation =
+        Aggregation.newAggregation(
+            Aggregation.match(
+                new Criteria()
+                    .andOperator(
+                        Criteria.where("workspaceId").in(workspaceIds),
+                        Criteria.where("action").is(AuditAction.CREATE.name()),
+                        Criteria.where("resourceType").is("workflowrun"),
+                        Criteria.where("time").gte(from).lt(to))),
+            Aggregation.group("workspaceId").count().as("runs"));
+    Map<String, Long> counts = new HashMap<>();
+    for (Document workspace :
+        mongoTemplate.aggregate(aggregation, AuditEventEntity.class, Document.class)) {
+      counts.put(workspace.getString("_id"), ((Number) workspace.get("runs")).longValue());
+    }
+    return counts;
   }
 }

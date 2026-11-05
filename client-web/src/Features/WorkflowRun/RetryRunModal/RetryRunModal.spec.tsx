@@ -1,9 +1,10 @@
 import React from "react";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
+import { actionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 import RetryRunModal from "./RetryRunModal";
 
@@ -47,6 +48,7 @@ const workflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 300190,
   id: runId,
@@ -158,5 +160,38 @@ describe("RetryRunModal", () => {
     renderModal({ status: RunStatus.Waiting, phase: RunPhase.Running });
 
     expect(await screen.findByText("This run is still active.")).toBeInTheDocument();
+  });
+});
+
+describe("RetryRunModal --- a retry that fails to start", () => {
+  // The run exists and waits on its page, whose Start button can start it again.
+  it("still opens the retried run", async () => {
+    const executionViewRedirect = vi.fn();
+    renderWithContext(
+      <Route
+        path={AppPath.Run}
+        action={() =>
+          actionError({
+            intent: "retry",
+            workflowRunRef: "retried-run",
+            error: { title: "Retry run", message: "The retry was created but failed to start" },
+          })
+        }
+        element={
+          <RetryRunModal
+            workflowRun={workflowRun}
+            isOpen
+            initialNodes={[]}
+            onClose={() => {}}
+            executionViewRedirect={executionViewRedirect}
+          />
+        }
+      />,
+      { route: appLink.execution({ workspace, runId }) },
+    );
+
+    await userEvent.click(await screen.findByText("Retry run", { selector: "button" }));
+
+    await waitFor(() => expect(executionViewRedirect).toHaveBeenCalledWith({ workflowRunRef: "retried-run" }));
   });
 });

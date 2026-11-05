@@ -299,7 +299,7 @@ export default function Home() {
     <div className={styles.page}>
       <HomeBanner
         eyebrow={`${data.dateLabel} · ${name}`}
-        title={hasWorkspaces ? `Welcome back, ${displayName}.` : `Hi ${displayName}. Let's get your first automation running.`}
+        title={hasWorkspaces ? `Welcome back, ${displayName}.` : `G’day, ${displayName}. Let’s get your first workflow running.`}
         message={
           hasWorkspaces
             ? daySummary({

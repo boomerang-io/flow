@@ -47,7 +47,7 @@ public class WorkspaceActionControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
-  @Operation(summary = "Retrieve a specific Action by Id")
+  @Operation(operationId = "getAction", summary = "Retrieve a specific Action by Id")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -71,7 +71,7 @@ public class WorkspaceActionControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.ACTION,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
-  @Operation(summary = "Provide an update for an Action")
+  @Operation(operationId = "updateAction", summary = "Provide an update for an Action")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -94,7 +94,7 @@ public class WorkspaceActionControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
-  @Operation(summary = "Search for Actions")
+  @Operation(operationId = "queryActions", summary = "Search for Actions")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -181,7 +181,7 @@ public class WorkspaceActionControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.ACTION,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.key, AuthScope.global})
-  @Operation(summary = "Get Actions Summary")
+  @Operation(operationId = "getActionSummary", summary = "Get Actions Summary")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

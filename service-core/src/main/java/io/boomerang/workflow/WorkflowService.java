@@ -13,10 +13,10 @@ import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
-import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
+import io.boomerang.common.enums.ConfigType;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
@@ -41,6 +41,9 @@ import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.schedule.ScheduleService;
@@ -174,6 +177,7 @@ public class WorkflowService {
   private final RunTimeoutPolicy runTimeoutPolicy;
   private final ObjectMapper objectMapper;
   private final ParamLayerCache paramLayerCache;
+  private final IdentityService identityService;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -204,7 +208,8 @@ public class WorkflowService {
       QuotaService quotaService,
       RunTimeoutPolicy runTimeoutPolicy,
       ObjectMapper objectMapper,
-      ParamLayerCache paramLayerCache) {
+      ParamLayerCache paramLayerCache,
+      IdentityService identityService) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -221,6 +226,7 @@ public class WorkflowService {
     this.runTimeoutPolicy = runTimeoutPolicy;
     this.objectMapper = objectMapper;
     this.paramLayerCache = paramLayerCache;
+    this.identityService = identityService;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -359,7 +365,8 @@ public class WorkflowService {
 
   /*
    * The workspace's workflows and, beside them, the templates and starters it has not made its
-   * own; `types` narrows to the stored type (workflow, template, starter).
+   * own; `types` narrows to the stored type (workflow, template, starter), and a workflow stored
+   * with none is a workflow.
    */
   public WorkflowResponsePage query(
       String queryTeam,
@@ -678,6 +685,25 @@ public class WorkflowService {
   }
 
   /*
+   * The public submit route: the caller, never the body, decides the trigger. A person signed in
+   * to the webapp (a session token) runs manual; any other caller, a token or the security-off
+   * synthetic admin, runs api. Both answer to the Manual switch, and a body may send only those two.
+   */
+  public WorkflowRun submitOnDemand(
+      String workspace, String name, WorkflowSubmitRequest request, boolean start) {
+    TriggerEnum sent = request.getTrigger();
+    if (sent != null && !TriggerEnum.manual.equals(sent) && !TriggerEnum.api.equals(sent)) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_TRIGGER, sent.getTrigger());
+    }
+    Token identity = identityService.getCurrentIdentity();
+    request.setTrigger(
+        (identity != null && AuthScope.session.equals(identity.getType()))
+            ? TriggerEnum.manual
+            : TriggerEnum.api);
+    return submit(workspace, name, request, start);
+  }
+
+  /*
    * Submit Workflow to Run, internally stamping lineage
    *
    * initiatedByRef is NOT sourced from the request - WorkflowSubmitRequest is a public API model
@@ -772,21 +798,23 @@ public class WorkflowService {
         .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
     request.setLabels(ServerLabel.withoutServerLabels(request.getLabels()));
 
-    // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
-    // are re-read (now including this run), and a run that pushed a count over its limit is
-    // discarded - simultaneous submits cannot each slip past the pre-admission count above.
-    boolean enforceQuotas = quotaService.enforced();
-    WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
-    if (enforceQuotas) {
+    // Admit-then-recheck: with quotas enforced the run is persisted before it is queued, the quota
+    // counts are re-read (now including this run), and a run that pushed a count over its limit is
+    // removed - simultaneous submits cannot each slip past the pre-admission count above. A removed
+    // run never left notstarted, so no transition was published and it is never audited as created.
+    WorkflowRunEntity newRun = newRun(workflowId, request, initiatedByRef);
+    if (quotaService.enforced()) {
+      mongoTemplate.insert(newRun);
       try {
         quotaService.assertAdmittedRunWithinQuotas(workspace);
       } catch (RuntimeException refused) {
         // The run pushed a count over its limit, or the recheck itself failed: it removes itself,
-        // so it uses no quota and no un-started run is left without an owner.
-        discardRun(wfRun.getId());
+        // so it uses no quota and no un-queued run is left without an owner.
+        discardRun(newRun.getId());
         throw refused;
       }
     }
+    WorkflowRun wfRun = workflowRunService.run(newRun, start);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -799,12 +827,6 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
-    // The run was queued without a start so the quota recheck could discard it; now it is released
-    // the way the un-enforced path starts: a run with a workspace takes its deadline and waits
-    // ready/pending for the dispatcher, one with none starts, one not admitted stays as it stands.
-    if (enforceQuotas && start) {
-      wfRun = workflowRunService.release(wfRun.getId());
-    }
     return wfRun;
   }
 
@@ -1052,13 +1074,10 @@ public class WorkflowService {
   }
 
   /*
-   * Removes a quota-rejected WorkflowRun and its materialised TaskRuns. The run was never
-   * started and no relationship edge exists yet, so removing the documents is the whole undo -
-   * and keeps a rejected submit from consuming quota itself.
+   * Removes a quota-rejected WorkflowRun. It was never queued, so it has no TaskRuns, no
+   * relationship edge and no audit event: removing the document is the whole undo.
    */
   private void discardRun(String workflowRunId) {
-    mongoTemplate.remove(
-        Query.query(Criteria.where("workflowRunRef").is(workflowRunId)), TaskRunEntity.class);
     mongoTemplate.remove(
         Query.query(Criteria.where("_id").is(workflowRunId)), WorkflowRunEntity.class);
   }
@@ -1075,7 +1094,9 @@ public class WorkflowService {
     // Check no further if trigger not provided
     if (!Objects.isNull(runTrigger)) {
       if (!Objects.isNull(triggers)) {
-        if (TriggerEnum.manual.equals(runTrigger) && triggers.getManual().getEnabled()) {
+        // A run on demand, by a person or by a token, answers to the Manual switch.
+        if ((TriggerEnum.manual.equals(runTrigger) || TriggerEnum.api.equals(runTrigger))
+            && triggers.getManual().getEnabled()) {
           return;
         } else if (TriggerEnum.schedule.equals(runTrigger) && triggers.getSchedule().getEnabled()) {
           return;
@@ -1522,7 +1543,7 @@ public class WorkflowService {
                 .labels(queryLabels)
                 .in("status", WorkflowStatus.class, queryStatus, "status")
                 .in("id", queryIds)
-                .in("type", WorkflowType.class, queryTypes, "type")
+                .in("type", WorkflowType.class, queryTypes, "type", WorkflowType.workflow)
                 .in("name", queryNames)
                 .build());
     Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
@@ -1614,7 +1635,7 @@ public class WorkflowService {
     wfEntity.setAnnotations(request.getAnnotations());
     wfEntity.setStatus(WorkflowStatus.active);
     wfEntity.setTriggers(request.getTriggers());
-    wfEntity.setType(request.getType());
+    wfEntity.setType(WorkflowType.of(request.getType()));
     wfEntity.setTemplateRef(request.getTemplateRef());
     // A link's tasks and params are the template's: its own revision holds none.
     if (request.getTemplateRef() != null) {
@@ -1657,6 +1678,7 @@ public class WorkflowService {
     }
     wfRevisionEntity.setChangelog(changelog);
     wfRevisionEntity.setMarkdown(request.getMarkdown());
+    validateParamTypes(request.getParams());
     wfRevisionEntity.setParams(request.getParams());
     // A save carries only the declared workspace; the legacy workflow-storage marker a v3 upgrade
     // left on an older revision is never copied forward, so saving the Workflow clears it.
@@ -1789,6 +1811,27 @@ public class WorkflowService {
               .filter(p -> !(ParamType.secret.equals(p.getType()) && p.getValue() == null))
               .collect(Collectors.toCollection(LinkedList::new)));
     }
+  }
+
+  // A workflow param's type is a field type; one that names none is refused, and no type is text.
+  private static void validateParamTypes(List<AbstractParam> params) {
+    if (params == null) {
+      return;
+    }
+    params.stream()
+        .map(AbstractParam::getType)
+        .filter(type -> type != null && ConfigType.getConfigType(type) == null)
+        .findFirst()
+        .ifPresent(
+            type -> {
+              throw new BoomerangException(
+                  BoomerangError.PARAM_INVALID_TYPE,
+                  type,
+                  Arrays.stream(ConfigType.values())
+                      .map(ConfigType::getLabel)
+                      .collect(Collectors.joining(", ")),
+                  ConfigType.TEXT.getLabel());
+            });
   }
 
   /*
@@ -2067,6 +2110,15 @@ public class WorkflowService {
    */
   public WorkflowRun submit(
       String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
+    return workflowRunService.run(newRun(workflowId, request, initiatedByRef), start);
+  }
+
+  /*
+   * Builds a new, unsaved WorkflowRun of the Workflow from the request: its revision, params,
+   * workspace, timeout, labels and lineage settled. Refuses a Workflow that cannot run.
+   */
+  private WorkflowRunEntity newRun(
+      String workflowId, WorkflowSubmitRequest request, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
@@ -2146,7 +2198,8 @@ public class WorkflowService {
     if (!Objects.isNull(request.getDebug())) {
       wfRunEntity.setDebug(request.getDebug());
     }
-    // Set Trigger
+    // The public route always names a trigger (submitOnDemand); an internal submit that names none
+    // records engine.
     if (Objects.isNull(request.getTrigger())) {
       wfRunEntity.setTrigger("engine");
     } else {
@@ -2162,7 +2215,7 @@ public class WorkflowService {
     annotations.put("boomerang.io/generation", "4");
     annotations.put("boomerang.io/kind", "WorkflowRun");
     wfRunEntity.getAnnotations().putAll(annotations);
-    return workflowRunService.run(wfRunEntity, start);
+    return wfRunEntity;
   }
 
   /*

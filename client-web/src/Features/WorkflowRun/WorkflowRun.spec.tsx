@@ -1,16 +1,16 @@
 import React from "react";
+import { screen } from "@testing-library/react";
+import { profile, workspaces } from "ApiServer/fixtures";
+import { server } from "ApiServer/msw/node";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
-import { server } from "ApiServer/msw/node";
-import { profile, workspaces } from "ApiServer/fixtures";
+import { isActionError } from "Utils/actionResult";
+import { renderWithContext } from "Utils/testing/render";
+import { HttpMethod } from "Constants";
 import { AppPath, appLink } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { RunPhase, RunStatus, TaskRun, WorkflowCanvas, WorkflowRun as WorkflowRunType, WorkflowStatus } from "Types";
-import { HttpMethod } from "Constants";
 import WorkflowExecutionContainer, { action, loader, type RunActionIntent } from "./WorkflowRun";
-import { isActionError } from "Utils/actionResult";
-import { renderWithContext } from "Utils/testing/render";
 
 const workspace = "tyson-workspace";
 const workflowName = "test-workflow";
@@ -58,6 +58,7 @@ const workflowRun: WorkflowRunType = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 300190,
   id: runId,
@@ -195,23 +196,39 @@ function submit(fields: Record<string, string>) {
 
 const runUrl = serviceUrl.workspace.workflowrun;
 
-const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: string }> = [
+// The start route takes an optional JSON body, so the start sends `{}`; the others send none.
+const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: string; body?: string }> = [
   { intent: "cancel", path: runUrl.deleteCancelWorkflow({ workspace, id: runId }), method: HttpMethod.Delete },
-  { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+  { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put, body: "{}" },
   { intent: "pause", path: runUrl.putPauseWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "resume", path: runUrl.putResumeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
 ];
 
 describe("WorkflowRun --- action", () => {
-  INTENT_CONTRACT.forEach(({ intent, path, method }) => {
+  INTENT_CONTRACT.forEach(({ intent, path, method, body = "" }) => {
     it(`issues a single ${method.toUpperCase()} ${intent} request to the run's ${intent} route`, async () => {
       const captured = captureRequests();
 
       const result = await submit({ intent });
 
       expect(result).toEqual({ intent });
-      expect(captured).toEqual([{ path, method, body: "" }]);
+      expect(captured).toEqual([{ path, method, body }]);
     });
+  });
+
+  // A bodiless PUT goes out as a form, which the start route answers with 415.
+  it("sends the start as JSON", async () => {
+    let contentType: string | null = null;
+    server.use(
+      http.all("*", ({ request }) => {
+        contentType = request.headers.get("content-type");
+        return HttpResponse.json({});
+      }),
+    );
+
+    await submit({ intent: "start" });
+
+    expect(contentType).toMatch(/^application\/json/);
   });
 
   // A retry carries its scope as the request body: no scope from the form is the whole graph,
@@ -229,6 +246,45 @@ describe("WorkflowRun --- action", () => {
         body: JSON.stringify({ scope: "all", nodes: [] }),
       },
     ]);
+  });
+
+  // The retry creates the new run unstarted; the page starts it the way its Start button does.
+  it("starts the run the retry created and answers with it", async () => {
+    const captured: Array<{ path: string; method: string }> = [];
+    server.use(
+      http.all("*", ({ request }) => {
+        const path = new URL(request.url).pathname;
+        captured.push({ path, method: request.method.toLowerCase() });
+        return HttpResponse.json(path.endsWith("/retry") ? { id: "retried-run" } : {});
+      }),
+    );
+
+    const result = await submit({ intent: "retry" });
+
+    expect(result).toEqual({ intent: "retry", workflowRunRef: "retried-run" });
+    expect(captured).toEqual([
+      { path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+      { path: runUrl.putStartWorkflow({ workspace, id: "retried-run" }), method: HttpMethod.Put },
+    ]);
+  });
+
+  it("still answers with the retried run when it fails to start, so the page can open it", async () => {
+    server.use(
+      http.put(runUrl.putRetryWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({ id: "retried-run" }),
+      ),
+      http.put(runUrl.putStartWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    const result = (await submit({ intent: "retry" })) as unknown as {
+      data: { intent: string; workflowRunRef: string; error: { message: string } };
+    };
+
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.workflowRunRef).toBe("retried-run");
+    expect(result.data.error.message).toEqual(expect.any(String));
   });
 
   it("sends the chosen scope and task names on a scoped retry", async () => {
@@ -253,9 +309,7 @@ describe("WorkflowRun --- action", () => {
     expect(captured).toHaveLength(1);
     expect(captured[0].path).toBe(serviceUrl.workspace.action.putAction({ workspace }));
     expect(captured[0].method).toBe(HttpMethod.Put);
-    expect(JSON.parse(captured[0].body)).toEqual([
-      { id: "action-abc", approved: true, comments: "Looks good to me" },
-    ]);
+    expect(JSON.parse(captured[0].body)).toEqual([{ id: "action-abc", approved: true, comments: "Looks good to me" }]);
   });
 
   it("derives approved from the submitted string and defaults an absent comment to an empty string", async () => {

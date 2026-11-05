@@ -21,7 +21,7 @@ secured install needs a first such credential before any person signs in, as whe
 ## Decision
 
 A global token passes `check` once its permissions cover the resource type, with no walk
-(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:419,470-472`); `filter` anchors it at `root` and
+(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:453,504-506`); `filter` anchors it at `root` and
 still walks, so list endpoints honour the workspace (`:576-580`). Ignoring the segment grants nothing: the same caller
 reaches the object through its true workspace URL. `BootstrapTokenService` registers `flow.security.bootstrap-token` at
 startup, whether or not security is on, as a global `**/**` service token under the fixed id `bootstrap-token`; a value
@@ -33,8 +33,8 @@ secrets; narrower tokens are declared as `flow.security.tokens.<name>.*`, keyed 
 
 - Admin tooling MAY address any object under any workspace path; `key` tokens still walk from their own node.
 - Ownership writes MUST NOT trust the path segment for a global caller: a submit finds the workflow inside the named
-  workspace (`workflow/WorkflowService.java:695-704`), and a retry takes the owner from the run's or its workflow's
-  edge (`workflow/WorkflowRunService.java:683-736,1085-1088`).
+  workspace (`workflow/WorkflowService.java:721-730`), and a retry takes the owner from the run's or its workflow's
+  edge (`workflow/WorkflowRunService.java:682-735,1045-1048`).
 - The bootstrap token is full admin and rotates by changing its value and restarting; the webapp cannot use it, as
   `/api/v2/profile` accepts only session and user tokens (`workspace/ProfileControllerV2.java:51-54`). Verifying
   host-issued tokens is not built.

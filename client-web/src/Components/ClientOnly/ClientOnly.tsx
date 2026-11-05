@@ -24,10 +24,15 @@ export default function ClientOnly({
   children: () => ReactNode;
   fallback?: ReactNode;
 }) {
-  const isClient = useSyncExternalStore(
+  const isClient = useHydrated();
+  return <>{isClient ? children() : fallback}</>;
+}
+
+/** False during SSR and the render that hydrates it, true on every browser render after that. */
+export function useHydrated() {
+  return useSyncExternalStore(
     emptySubscribe,
     () => true,
     () => false,
   );
-  return <>{isClient ? children() : fallback}</>;
 }

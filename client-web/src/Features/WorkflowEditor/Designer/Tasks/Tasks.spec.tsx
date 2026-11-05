@@ -79,3 +79,16 @@ describe("Editor task palette --- For each", () => {
     expect(screen.queryByRole("option", { name: "For each" })).not.toBeInTheDocument();
   });
 });
+
+describe("Editor task palette --- search", () => {
+  // The palette shows each task by its display name, so a search for those words has to find it,
+  // whatever their case. The slug ("execute-advanced-http-call") has no spaces to match them.
+  it.each(["Advanced HTTP", "advanced http"])("finds a task by its display name: %j", async (query) => {
+    renderWithContext(<Tasks tasks={paletteTasks} />);
+
+    fireEvent.change(await screen.findByRole("searchbox"), { target: { value: query } });
+
+    expect(screen.getByRole("option", { name: otherTask.displayName })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: aiTask.displayName })).not.toBeInTheDocument();
+  });
+});

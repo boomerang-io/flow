@@ -104,6 +104,7 @@ export const foreachWorkflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2026-09-26T10:00:00.000+0000",
   duration: 0,
   id: "651e4789ab1cb56bc8976f00",

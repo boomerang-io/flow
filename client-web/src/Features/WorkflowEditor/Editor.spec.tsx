@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { workspaces } from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
+import { Route, generatePath } from "react-router-dom";
 import { vi } from "vitest";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
@@ -85,6 +85,32 @@ describe("Editor --- Snapshot", () => {
       // exact-text query) pins the tree to the state the snapshot actually records.
       await screen.findByText("Hello world", undefined, LOADER_WAIT);
       expect(baseElement).toMatchSnapshot();
+    },
+    TEST_TIMEOUT,
+  );
+});
+
+describe("Editor --- unknown paths", () => {
+  // A path the editor has no tab for opened its tab bar over an empty body.
+  it.each([
+    ["an unknown tab", "workflow"],
+    ["the bare editor path", ""],
+  ])(
+    "opens the canvas for %s",
+    async (_label, subPath) => {
+      const { history } = renderEditor(`${generatePath(AppPath.Editor, { workspace, workflow })}/${subPath}`);
+      await screen.findByText("Editor", undefined, LOADER_WAIT);
+      expect(history.location.pathname).toBe(appLink.editorCanvas({ workspace, workflow }));
+    },
+    TEST_TIMEOUT,
+  );
+
+  it(
+    "opens Configure's first tab for a Configure path it does not know",
+    async () => {
+      const { history } = renderEditor(`${appLink.editorConfigure({ workspace, workflow })}/unknown`);
+      await screen.findByText("Editor", undefined, LOADER_WAIT);
+      expect(history.location.pathname).toBe(appLink.editorConfigureGeneral({ workspace, workflow }));
     },
     TEST_TIMEOUT,
   );

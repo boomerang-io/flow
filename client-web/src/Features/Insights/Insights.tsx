@@ -15,7 +15,7 @@ import { Link, useLoaderData, useLocation, useNavigate } from "react-router-dom"
 import ErrorDragon from "Components/ErrorDragon";
 import { useWorkspaceContext } from "Hooks";
 import { filterItemsByLabel, makeCompareItems, sortItemsBySelection } from "Utils/multiSelectHelper";
-import { statusOptions } from "Constants/filterOptions";
+import { statusOptions, triggerOptions } from "Constants/filterOptions";
 import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
@@ -65,17 +65,7 @@ type SelectableWorkflow = Workflow & { disabled?: boolean };
 type SelectableStatus = MultiSelectItem & { disabled?: boolean };
 type SelectableTrigger = MultiSelectItem & { disabled?: boolean };
 
-// The engine's TriggerEnum values, as stored on a run.
-const triggerOptions: Array<SelectableTrigger> = [
-  { label: "Manual", value: "manual" },
-  { label: "Schedule", value: "schedule" },
-  { label: "Webhook", value: "webhook" },
-  { label: "Event", value: "event" },
-  { label: "GitHub", value: "github" },
-  { label: "Engine", value: "engine" },
-  { label: "Task", value: "task" },
-  { label: "Retry", value: "retry" },
-];
+const selectableTriggerOptions: Array<SelectableTrigger> = triggerOptions;
 
 type LoaderData = {
   summary: InsightsSummary | null;
@@ -430,12 +420,12 @@ function Selects(props: SelectsProps) {
         placeholder="Any trigger"
         invalid={false}
         onChange={handleSelectTriggers}
-        items={triggerOptions}
+        items={selectableTriggerOptions}
         itemToString={itemToStringItem}
         filterItems={filterItemsByLabel}
         compareItems={makeCompareItems(itemToStringItem)}
         sortItems={sortItemsBySelection}
-        initialSelectedItems={triggerOptions.filter((option) =>
+        initialSelectedItems={selectableTriggerOptions.filter((option) =>
           Boolean(selectedTriggers?.find((trigger: string) => trigger === option.value)),
         )}
         titleText="Filter by trigger"

@@ -335,14 +335,12 @@ public class ParameterUtil {
     return reducedParamList;
   }
 
+  // A field with no type, or one stored before save refused unknown types, is text: a string.
   public static ParamType getTektonParamType(String type) {
-    switch (ConfigType.getConfigType(type)) {
-      case ConfigType.MULTISELECT:
-        return ParamType.array;
-      case ConfigType.JSON:
-        return ParamType.object;
-      default:
-        return ParamType.string;
-    }
+    return switch (ConfigType.getConfigType(type)) {
+      case MULTISELECT -> ParamType.array;
+      case JSON -> ParamType.object;
+      case null, default -> ParamType.string;
+    };
   }
 }

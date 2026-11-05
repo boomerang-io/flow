@@ -30,14 +30,20 @@ import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.repository.WorkspaceRepository;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
@@ -217,58 +223,83 @@ public class QuotaService {
 
   /**
    * A workspace's limits with its current usage filled in. Monthly figures cover the current UTC
-   * calendar month, and the workflows counted are the ones the caller may see in the workspace.
+   * calendar month, and the workflows counted are the ones the workspace owns.
    */
   public CurrentQuotas current(WorkspaceEntity entity) {
-    // Counted under the workspace's own name, the key its audit events and graph node carry,
+    return current(List.of(entity)).get(entity.getName());
+  }
+
+  /**
+   * {@link #current(WorkspaceEntity)} for several workspaces, keyed by workspace name, in a fixed
+   * number of queries however many there are: each count is one query grouped by workflow, summed
+   * per workspace here.
+   */
+  public Map<String, CurrentQuotas> current(Collection<WorkspaceEntity> entities) {
+    Map<String, CurrentQuotas> current = new LinkedHashMap<>();
+    if (entities.isEmpty()) {
+      return current;
+    }
+    // Counted under each workspace's own name, the key its audit events and graph node carry,
     // whatever form the caller named it in.
-    String workspace = entity.getName();
-    CurrentQuotas quotas = new CurrentQuotas(limits(entity));
+    List<String> workspaces = entities.stream().map(WorkspaceEntity::getName).toList();
+    Quotas defaults = defaults();
     MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
-    quotas.setMonthlyResetDate(month.to());
 
     // Milliseconds, like every run duration: this month's total and the mean per run, from the
     // audit trail so runs of since-deleted Workflows still count.
-    AuditQueryService.RunTotals runTotals =
-        auditQueryService.runTotals(workspace, month.from(), month.to());
-    quotas.setCurrentRunTotalDuration(runTotals.duration());
-    quotas.setCurrentRunAverageDuration(
-        (runTotals.runs() > 0) ? runTotals.duration() / runTotals.runs() : 0L);
+    Map<String, AuditQueryService.RunTotals> runTotals =
+        auditQueryService.runTotals(workspaces, month.from(), month.to());
+    Map<String, Long> auditMonthly =
+        auditQueryService.countRunsCreated(workspaces, month.from(), month.to());
 
-    // The workspace's workflows by its own edges: a quota is the workspace's whoever asks, and
+    // The workspaces' workflows by their own edges: a quota is the workspace's whoever asks, and
     // the engine asks with no identity when it adopts a template link for a child run.
-    List<String> workflowRefs =
-        relationshipService
-            .childrenByLabel(
-                RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW)
-            .stream()
-            .map(RelationshipNodeEntity::getRef)
-            .toList();
-    // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
-    // so a just-admitted run may not be audited yet (the live count covers that race), while a
-    // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
-    // events outlive both the run documents and the Workflow).
-    long liveMonthly =
+    Map<String, List<String>> workflowRefs = new HashMap<>();
+    relationshipService
+        .childrenByLabel(RelationshipType.WORKSPACE, workspaces, RelationshipLabel.HAS_WORKFLOW)
+        .forEach(
+            (workspace, nodes) ->
+                workflowRefs.put(
+                    workspace, nodes.stream().map(RelationshipNodeEntity::getRef).toList()));
+    List<String> allWorkflowRefs = workflowRefs.values().stream().flatMap(List::stream).toList();
+    Map<String, Long> liveMonthly =
         countRuns(
-            workflowRefs, Optional.of(month.from()), Optional.of(month.to()), Optional.empty());
-    long auditMonthly = auditQueryService.countRunsCreated(workspace, month.from(), month.to());
-    quotas.setCurrentRuns((int) Math.max(auditMonthly, liveMonthly));
-    // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
-    // work counts against the limit - it measures what is running now, which deletion
-    // legitimately reduces.
-    // A run in its finally stage carries its final status but still runs its finally tasks, so it
-    // holds its slot until it completes.
-    quotas.setCurrentConcurrentRuns(
-        (int)
-            (countRuns(
-                    workflowRefs,
-                    Optional.empty(),
-                    Optional.empty(),
-                    Optional.of(CONCURRENT_STATUSES))
-                + countFinallyStage(workflowRefs)));
-    quotas.setCurrentArtifactStorage(storedBytes(workflowRefs));
-    quotas.setCurrentWorkflowCount((int) countWorkflows(workflowRefs));
-    return quotas;
+            allWorkflowRefs, Optional.of(month.from()), Optional.of(month.to()), Optional.empty());
+    Map<String, Long> concurrent =
+        countRuns(
+            allWorkflowRefs, Optional.empty(), Optional.empty(), Optional.of(CONCURRENT_STATUSES));
+    Map<String, Long> finallyStage = countFinallyStage(allWorkflowRefs);
+    Map<String, Long> stored = storedBytes(allWorkflowRefs);
+    Set<String> liveWorkflows = liveWorkflows(allWorkflowRefs);
+
+    for (WorkspaceEntity entity : entities) {
+      String workspace = entity.getName();
+      List<String> refs = workflowRefs.getOrDefault(workspace, List.of());
+      CurrentQuotas quotas = new CurrentQuotas(defaults);
+      overlay(quotas, entity.getQuotas());
+      quotas.setMonthlyResetDate(month.to());
+      AuditQueryService.RunTotals totals =
+          runTotals.getOrDefault(workspace, new AuditQueryService.RunTotals(0L, 0L));
+      quotas.setCurrentRunTotalDuration(totals.duration());
+      quotas.setCurrentRunAverageDuration(
+          (totals.runs() > 0) ? totals.duration() / totals.runs() : 0L);
+      // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
+      // so a just-admitted run may not be audited yet (the live count covers that race), while a
+      // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
+      // events outlive both the run documents and the Workflow).
+      quotas.setCurrentRuns(
+          (int) Math.max(auditMonthly.getOrDefault(workspace, 0L), sum(liveMonthly, refs)));
+      // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
+      // work counts against the limit - it measures what is running now, which deletion
+      // legitimately reduces.
+      // A run in its finally stage carries its final status but still runs its finally tasks, so it
+      // holds its slot until it completes.
+      quotas.setCurrentConcurrentRuns((int) (sum(concurrent, refs) + sum(finallyStage, refs)));
+      quotas.setCurrentArtifactStorage(sum(stored, refs));
+      quotas.setCurrentWorkflowCount((int) refs.stream().filter(liveWorkflows::contains).count());
+      current.put(workspace, quotas);
+    }
+    return current;
   }
 
   /**
@@ -282,10 +313,10 @@ public class QuotaService {
         .map(
             workspace -> {
               CurrentQuotas quotas = new CurrentQuotas(limits(workspace));
-              quotas.setCurrentArtifactStorage(
-                  storedBytes(
-                      relationshipService.findNodeRefs(
-                          RelationshipType.WORKSPACE, workspaceRef, RelationshipType.WORKFLOW)));
+              List<String> workflowRefs =
+                  relationshipService.findNodeRefs(
+                      RelationshipType.WORKSPACE, workspaceRef, RelationshipType.WORKFLOW);
+              quotas.setCurrentArtifactStorage(sum(storedBytes(workflowRefs), workflowRefs));
               return quotas;
             })
         .orElse(null);
@@ -408,41 +439,65 @@ public class QuotaService {
     }
   }
 
-  /** Runs of the given Workflows created in the window and in the given statuses, counted. */
-  private long countRuns(
+  // The figure of each of the given workflows, added up.
+  private static long sum(Map<String, Long> byWorkflow, List<String> workflowRefs) {
+    return workflowRefs.stream().mapToLong(ref -> byWorkflow.getOrDefault(ref, 0L)).sum();
+  }
+
+  /**
+   * Runs of the given Workflows created in the window and in the given statuses, counted per
+   * Workflow; a Workflow with none is absent.
+   */
+  private Map<String, Long> countRuns(
       List<String> workflowRefs,
       Optional<Date> from,
       Optional<Date> to,
       Optional<Set<RunStatus>> statuses) {
-    Query query =
-        new Query(
-            new QueryCriteria()
-                .in("workflowRef", workflowRefs)
-                .between("creationDate", from, to)
-                .in("status", statuses)
-                .build());
-    return mongoTemplate.count(query, WorkflowRunEntity.class);
+    if (workflowRefs.isEmpty()) {
+      return Map.of();
+    }
+    return countByWorkflow(
+        WorkflowRunEntity.class,
+        new QueryCriteria()
+            .in("workflowRef", workflowRefs)
+            .between("creationDate", from, to)
+            .in("status", statuses.map(s -> s.stream().map(Enum::name).toList()))
+            .build());
   }
 
-  private long countFinallyStage(List<String> workflowRefs) {
+  private Map<String, Long> countFinallyStage(List<String> workflowRefs) {
     if (workflowRefs.isEmpty()) {
-      return 0;
+      return Map.of();
     }
-    return mongoTemplate.count(
-        Query.query(
-            where("workflowRef")
-                .in(workflowRefs)
-                .and("phase")
-                .is(RunPhase.running)
-                .and("graphEndedAt")
-                .exists(true)),
-        WorkflowRunEntity.class);
+    return countByWorkflow(
+        WorkflowRunEntity.class,
+        where("workflowRef")
+            .in(workflowRefs)
+            .and("phase")
+            .is(RunPhase.running.name())
+            .and("graphEndedAt")
+            .exists(true));
+  }
+
+  // The documents matching, counted per workflowRef in one aggregation.
+  private Map<String, Long> countByWorkflow(Class<?> collection, Criteria criteria) {
+    Map<String, Long> counts = new HashMap<>();
+    mongoTemplate
+        .aggregate(
+            newAggregation(match(criteria), group("workflowRef").count().as("count")),
+            collection,
+            Document.class)
+        .forEach(
+            workflow ->
+                counts.put(
+                    workflow.getString("_id"), ((Number) workflow.get("count")).longValue()));
+    return counts;
   }
 
   /** The active and inactive Workflows among the given refs; deleted ones no longer count. */
-  private long countWorkflows(List<String> workflowRefs) {
+  private Set<String> liveWorkflows(List<String> workflowRefs) {
     if (workflowRefs.isEmpty()) {
-      return 0;
+      return Set.of();
     }
     Query query =
         new Query(
@@ -450,30 +505,40 @@ public class QuotaService {
                 .in("id", workflowRefs)
                 .in("status", List.of(WorkflowStatus.active, WorkflowStatus.inactive))
                 .build());
-    return mongoTemplate.count(query, WorkflowEntity.class);
+    query.fields().include("id");
+    return mongoTemplate.find(query, WorkflowEntity.class).stream()
+        .map(WorkflowEntity::getId)
+        .collect(Collectors.toSet());
   }
 
-  /** Bytes held by the given workflows' available and uploading artifacts, task logs aside. */
-  private long storedBytes(List<String> workflowRefs) {
+  /**
+   * Bytes held by each of the given workflows' available and uploading artifacts, task logs aside;
+   * a workflow holding none is absent.
+   */
+  private Map<String, Long> storedBytes(List<String> workflowRefs) {
     if (workflowRefs.isEmpty()) {
-      return 0;
+      return Map.of();
     }
-    Document total =
-        mongoTemplate
-            .aggregate(
-                newAggregation(
-                    match(
-                        where("workflowRef")
-                            .in(workflowRefs)
-                            .and("status")
-                            .in(HOLDING_STORAGE.stream().map(Enum::name).toList())
-                            .and("scope")
-                            .ne(ArtifactScope.log.name())),
-                    group().sum("size").as("total")),
-                ArtifactEntity.class,
-                Document.class)
-            .getUniqueMappedResult();
-    return total == null ? 0 : ((Number) total.get("total")).longValue();
+    Map<String, Long> bytes = new HashMap<>();
+    mongoTemplate
+        .aggregate(
+            newAggregation(
+                match(
+                    where("workflowRef")
+                        .in(workflowRefs)
+                        .and("status")
+                        .in(HOLDING_STORAGE.stream().map(Enum::name).toList())
+                        .and("scope")
+                        .ne(ArtifactScope.log.name())),
+                group("workflowRef").sum("size").as("total")),
+            ArtifactEntity.class,
+            Document.class)
+        .forEach(
+            workflow ->
+                bytes.put(
+                    workflow.getString("_id"),
+                    (workflow.get("total") instanceof Number total) ? total.longValue() : 0L));
+    return bytes;
   }
 
   private String setting(String name) {

@@ -105,6 +105,40 @@ public class RelationshipService {
     return node;
   }
 
+  /**
+   * {@link #resolveNode} for several refs-or-slugs of one type, keyed by the value asked for; one
+   * that resolves to nothing is absent. The ones not already memoised are read in one query.
+   */
+  private Map<String, RelationshipNodeEntity> resolveNodes(
+      RelationshipType type, Collection<String> refsOrSlugs) {
+    Map<String, RelationshipNodeEntity> nodes = new HashMap<>();
+    Map<String, RelationshipNodeEntity> memo = requestMemo();
+    Set<String> missing = new HashSet<>();
+    for (String refOrSlug : new HashSet<>(refsOrSlugs)) {
+      String key = type.getLabel() + ":" + refOrSlug;
+      if (memo != null && memo.containsKey(key)) {
+        nodes.put(refOrSlug, memo.get(key));
+      } else {
+        missing.add(refOrSlug);
+      }
+    }
+    if (missing.isEmpty()) {
+      return nodes;
+    }
+    for (RelationshipNodeEntity node :
+        nodeRepository.findByTypeAndRefOrSlugIn(type.getLabel(), missing)) {
+      for (String refOrSlug : List.of(node.getSlug(), node.getRef())) {
+        if (missing.contains(refOrSlug)) {
+          nodes.putIfAbsent(refOrSlug, node);
+          if (memo != null) {
+            memo.putIfAbsent(type.getLabel() + ":" + refOrSlug, node);
+          }
+        }
+      }
+    }
+    return nodes;
+  }
+
   private RelationshipNodeEntity resolveNodeOrThrow(RelationshipType type, String refOrSlug) {
     return resolveNode(type, refOrSlug)
         .orElseThrow(
@@ -513,6 +547,43 @@ public class RelationshipService {
         false);
   }
 
+  /**
+   * {@link #refsInWorkspace} for several workspaces, keyed by the workspace as named: one walk from
+   * the current principal through any of them, then one query for the edges into the nodes found to
+   * place each under the workspace it hangs from. A workspace with none is absent.
+   */
+  public Map<String, List<String>> refsInWorkspaces(
+      RelationshipType type, Collection<String> workspaces) {
+    Map<String, List<String>> refs = new HashMap<>();
+    List<String> visible =
+        filter(
+            type,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.copyOf(workspaces)),
+            false);
+    if (visible.isEmpty()) {
+      return refs;
+    }
+    Map<String, String> workspaceByNodeId = new HashMap<>();
+    resolveNodes(RelationshipType.WORKSPACE, workspaces)
+        .forEach((workspace, node) -> workspaceByNodeId.put(node.getId(), workspace));
+    String prefix = type.getLabel() + ":";
+    for (RelationshipEdgeEntity edge :
+        edgeRepository.findByToIn(visible.stream().map(ref -> prefix + ref).toList())) {
+      if (workspaceByNodeId.containsKey(edge.getFrom())) {
+        // A node reached by two edges from one workspace is still one node.
+        List<String> placed =
+            refs.computeIfAbsent(workspaceByNodeId.get(edge.getFrom()), w -> new ArrayList<>());
+        String ref = edge.getTo().substring(prefix.length());
+        if (!placed.contains(ref)) {
+          placed.add(ref);
+        }
+      }
+    }
+    return refs;
+  }
+
   public List<String> filter(
       RelationshipType toType,
       Optional<List<String>> toRefsOrSlugs,
@@ -635,9 +706,38 @@ public class RelationshipService {
    */
   public Map<String, String> membersAndRoles(String workspace) {
     RelationshipNodeEntity teamNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, workspace);
-    return edgeRepository
-        .findByToAndLabel(teamNode.getId(), RelationshipLabel.MEMBER_OF.getLabel())
-        .stream()
+    return membersAndRoles(
+        edgeRepository.findByToAndLabel(teamNode.getId(), RelationshipLabel.MEMBER_OF.getLabel()));
+  }
+
+  /**
+   * {@link #membersAndRoles(String)} for several workspaces, keyed by the workspace as named: one
+   * edge query for all of them. A workspace with no node is absent.
+   */
+  public Map<String, Map<String, String>> membersAndRoles(Collection<String> workspaces) {
+    Map<String, RelationshipNodeEntity> nodes =
+        resolveNodes(RelationshipType.WORKSPACE, workspaces);
+    if (nodes.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, List<RelationshipEdgeEntity>> edgesByNode =
+        edgeRepository
+            .findByToInAndLabel(
+                nodes.values().stream().map(RelationshipNodeEntity::getId).toList(),
+                RelationshipLabel.MEMBER_OF.getLabel())
+            .stream()
+            .collect(Collectors.groupingBy(RelationshipEdgeEntity::getTo));
+    Map<String, Map<String, String>> members = new HashMap<>();
+    nodes.forEach(
+        (workspace, node) ->
+            members.put(
+                workspace, membersAndRoles(edgesByNode.getOrDefault(node.getId(), List.of()))));
+    return members;
+  }
+
+  // The user MEMBER_OF edges into a workspace as member id -> role.
+  private static Map<String, String> membersAndRoles(List<RelationshipEdgeEntity> edges) {
+    return edges.stream()
         .filter(e -> e.getFrom().startsWith(RelationshipType.USER.getLabel() + ":"))
         .collect(
             Collectors.toMap(
@@ -727,6 +827,38 @@ public class RelationshipService {
                         .map(RelationshipEdgeEntity::getTo)
                         .toList()))
         .orElse(List.of());
+  }
+
+  /**
+   * {@link #childrenByLabel(RelationshipType, String, RelationshipLabel)} for several nodes of one
+   * type, keyed by the node as named: one edge query and one node query for all of them. A node
+   * with no children, or none at all, is absent.
+   */
+  public Map<String, List<RelationshipNodeEntity>> childrenByLabel(
+      RelationshipType fromType, Collection<String> from, RelationshipLabel label) {
+    Map<String, String> nameByNodeId = new HashMap<>();
+    resolveNodes(fromType, from).forEach((name, node) -> nameByNodeId.put(node.getId(), name));
+    Map<String, List<RelationshipNodeEntity>> children = new HashMap<>();
+    if (nameByNodeId.isEmpty()) {
+      return children;
+    }
+    List<RelationshipEdgeEntity> edges =
+        edgeRepository.findByFromInAndLabel(nameByNodeId.keySet(), label.getLabel());
+    if (edges.isEmpty()) {
+      return children;
+    }
+    Map<String, RelationshipNodeEntity> childById = new HashMap<>();
+    nodeRepository
+        .findAllById(edges.stream().map(RelationshipEdgeEntity::getTo).toList())
+        .forEach(node -> childById.put(node.getId(), node));
+    for (RelationshipEdgeEntity edge : edges) {
+      if (childById.containsKey(edge.getTo())) {
+        children
+            .computeIfAbsent(nameByNodeId.get(edge.getFrom()), name -> new ArrayList<>())
+            .add(childById.get(edge.getTo()));
+      }
+    }
+    return children;
   }
 
   /**

@@ -9,15 +9,16 @@ import {
 } from "@carbon/react";
 import sortBy from "lodash/sortBy";
 import { matchSorter as ms } from "match-sorter";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { Link, useLoaderData } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
-import { appLink } from "Config/appConfig";
+import { appLink, queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
 import { PaginatedWorkflowResponse } from "Types";
+import { isSystemWorkspace } from "Utils/workflowTemplate";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 import styles from "./Workflows.module.scss";
 import { DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
@@ -39,10 +40,15 @@ export async function loader({
   params: { workspace?: string };
   request: Request;
 }): Promise<WorkflowsLoaderData> {
+  const workspace = String(params.workspace);
+  // The workspace's own workflows, the ones the Workflows page counts: not the shared templates and
+  // starters the list carries beside them, except in the system workspace, which owns those.
+  const query = queryString.stringify(
+    { statuses: ["active", "inactive"], types: isSystemWorkspace(workspace) ? undefined : "workflow" },
+    queryStringOptions,
+  );
   try {
-    const response = await serverFetch(request).get(
-      serviceUrl.workspace.workflow.getWorkflows({ workspace: String(params.workspace) }),
-    );
+    const response = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflows({ workspace, query }));
     return { workflows: response.data?.content ?? [], errorLoading: false };
   } catch (error) {
     // Preserves the previous behaviour exactly: the useQuery here had no error branch, so a
@@ -107,7 +113,9 @@ function Workflows() {
                     </div>
                   </StructuredListCell>
                   <StructuredListCell>
-                    <time>{moment(workflow.creationDate).format(DATETIME_DISPLAY_FORMAT)}</time>
+                    <time>
+                      <FormattedDate value={workflow.creationDate} format={DATETIME_DISPLAY_FORMAT} />
+                    </time>
                   </StructuredListCell>
                   <StructuredListCell>{workflow.description !== "" ? workflow.description : "---"}</StructuredListCell>
                   <StructuredListCell>{workflow.version}</StructuredListCell>

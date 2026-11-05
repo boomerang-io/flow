@@ -19,6 +19,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.LinkedList;
@@ -43,6 +44,7 @@ class WorkflowKindChangeTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private WorkflowRepository workflowRepository;
 
   private String workspace;
 
@@ -98,6 +100,20 @@ class WorkflowKindChangeTest extends AbstractEngineIntegrationTest {
     assertThat(workflowService.get(SYSTEM, created.getName(), Optional.empty(), true).getTasks())
         .extracting(WorkflowTask::getName)
         .containsExactly("start", "end");
+  }
+
+  // Stored, so the type filter matches it like any read does.
+  @Test
+  void aWorkflowCreatedWithNoTypeStoresWorkflow() {
+    Workflow created = workflowService.create(workspace, definition("untyped"));
+    String ref =
+        relationshipService
+            .refsInWorkspace(
+                RelationshipType.WORKFLOW, workspace, Optional.of(List.of(created.getName())))
+            .get(0);
+
+    assertThat(workflowRepository.findById(ref).orElseThrow().getType())
+        .isEqualTo(WorkflowType.workflow);
   }
 
   @Test

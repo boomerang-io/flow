@@ -57,6 +57,7 @@ public class InsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getInsights",
       summary = "Summarise runs across workspaces over a period",
       description =
           "The workspace summary computed over the union of the named workspaces' runs, or every"
@@ -90,6 +91,7 @@ public class InsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getTaskInsights",
       summary = "Group task runs across workspaces over a period",
       description =
           "The workspace task breakdown computed over the union of the named workspaces' runs, or"
@@ -143,6 +145,7 @@ public class InsightsControllerV2 {
       resource = PermissionResource.INSIGHTS,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getTaskRunInsights",
       summary = "List task runs across workspaces",
       description =
           "One page of task runs over the named workspaces, or every workspace, newest first, each"
