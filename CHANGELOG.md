@@ -9,7 +9,7 @@ tag's release notes.
 
 - **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
   `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
-  workflow a program starts this way. A body `trigger` other than `manual` or `api` is now `400`.
+  workflow a program starts this way. A body `trigger` other than `manual` or `api`, in any case, is now `400`.
 - **Clearing `flow.security.bootstrap-token` revokes the bootstrap token.** Before, a blank variable left the stored
   token valid; now the next start deletes it (logged at info), as for a removed declared token. Every instance
   must carry the same `flow.security.tokens` entries, because each revokes the declared tokens its own configuration
