@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.BeanUtils;
@@ -36,6 +37,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -410,15 +412,18 @@ public class UserService {
       Optional<Integer> queryLimit,
       Optional<Direction> queryOrder,
       Optional<String> querySort,
+      Optional<String> querySearch,
       Optional<List<String>> queryLabels,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryIds) {
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("name")));
 
+    QueryCriteria criteria = new QueryCriteria();
+    querySearch.filter(term -> !term.isBlank()).ifPresent(term -> criteria.add(searchMatch(term)));
     Query query =
         new Query(
-            new QueryCriteria()
+            criteria
                 .labels(queryLabels)
                 .in("status", UserStatus.class, queryStatus, "status")
                 .in("id", queryIds)
@@ -436,6 +441,19 @@ public class UserService {
         PagingUtil.page(users, pageable, mongoTemplate, query, UserEntity.class);
 
     return pages;
+  }
+
+  /**
+   * Match a user whose name, display name or email contains the term, ignoring case. The term is
+   * quoted, so a regex metacharacter in it (the {@code +} or {@code .} of an address) is literal.
+   */
+  private static Criteria searchMatch(String value) {
+    Pattern term = Pattern.compile(Pattern.quote(value.trim()), Pattern.CASE_INSENSITIVE);
+    return new Criteria()
+        .orOperator(
+            Criteria.where("name").regex(term),
+            Criteria.where("displayName").regex(term),
+            Criteria.where("email").regex(term));
   }
 
   /*
@@ -464,8 +482,10 @@ public class UserService {
         if (request.getName() != null && !request.getName().isBlank()) {
           user.setName(request.getName());
         }
-        if (request.getDisplayName() != null && !request.getDisplayName().isBlank()) {
-          user.setDisplayName(request.getDisplayName());
+        // Absent leaves the display name as it is; a blank one clears it, so the name shows.
+        if (request.getDisplayName() != null) {
+          user.setDisplayName(
+              (!request.getDisplayName().isBlank()) ? request.getDisplayName() : null);
         }
         // The type is the platform role a session's grants follow, so self-service never changes
         // it: only a global grant does, on the caller's own record too.
@@ -504,6 +524,23 @@ public class UserService {
     }
     if (user.isPresent()) {
       userRepository.deleteById(userId);
+      relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.USER, userId);
+    }
+  }
+
+  /**
+   * Delete the record of a person an admin added by email who has never signed in and now belongs
+   * to no workspace. Such a record stays inactive until its first sign-in activates it, and
+   * exists only to admit that person, so removing a mistyped address leaves nothing behind. The
+   * status is part of the delete, so a sign-in that lands first keeps the record.
+   */
+  public void deleteUnusedInvitation(String userId) {
+    if (!externalUserUrl.isBlank() || !relationshipService.roles(userId).isEmpty()) {
+      return;
+    }
+    Query invited =
+        new Query(Criteria.where("id").is(userId).and("status").is(UserStatus.inactive));
+    if (mongoTemplate.remove(invited, UserEntity.class).getDeletedCount() > 0) {
       relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.USER, userId);
     }
   }

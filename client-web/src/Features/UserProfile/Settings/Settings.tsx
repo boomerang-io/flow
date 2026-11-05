@@ -85,7 +85,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
               containerClassName: styles.workspaceNameModalContainer,
             }}
             modalHeaderProps={{
-              title: "Change workspace name",
+              title: "Change your display name",
               //   subtitle:
               //     "Try to keep it concise to avoid truncation in the sidebar. You must make sure the name is valid before it can be updated.",
             }}
@@ -184,7 +184,7 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
                 onClick={openModal}
                 renderIcon={Close}
                 size="md"
-                data-testid="close-workspace"
+                data-testid="delete-account"
               >
                 Delete Account
               </Button>
