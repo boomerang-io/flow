@@ -8,6 +8,7 @@ import { useParams, NavigateFunction } from "react-router-dom";
 import EmptyState from "Components/EmptyState";
 import FormattedDate from "Components/FormattedDate";
 import { ExecutionStatusCopy, executionStatusIcon } from "Constants";
+import { triggerLabel } from "Constants/filterOptions";
 import { appLink } from "Config/appConfig";
 import styles from "./activityTable.module.scss";
 import { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
@@ -129,9 +130,7 @@ function ActivityTable(props: ActivityTableProps) {
         return <p className={styles.tableTextarea}>{props.workflowNameMap[value] || value || "---"}</p>;
       case HeadersKey.Trigger:
         return (
-          <p className={styles.tableTextarea} style={{ textTransform: "capitalize" }}>
-            {value || "---"}
-          </p>
+          <p className={styles.tableTextarea}>{triggerLabel(value)}</p>
         );
       case HeadersKey.CreationDate:
         return startTime ? (

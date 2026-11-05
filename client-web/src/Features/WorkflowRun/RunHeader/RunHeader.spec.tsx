@@ -107,7 +107,7 @@ describe("RunHeader --- RTL", () => {
     renderRunHeader();
     expect(screen.getByText("Activity detail")).toBeInTheDocument();
     expect(screen.getByText("Tim Bula")).toBeInTheDocument();
-    expect(screen.getByText("manual")).toBeInTheDocument();
+    expect(screen.getByText("Manual")).toBeInTheDocument();
   });
 
   it("shows the paused indicator only while the run is paused", () => {

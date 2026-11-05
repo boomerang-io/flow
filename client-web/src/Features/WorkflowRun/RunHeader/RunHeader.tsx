@@ -22,6 +22,7 @@ import { appLink } from "Config/appConfig";
 import { hasPermission } from "Utils/permissionHelper";
 import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { ACTIVE_TIME_DESCRIPTION, ExecutionStatusCopy, executionStatusIcon } from "Constants";
+import { triggerLabel } from "Constants/filterOptions";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun } from "Types";
 import type { ActionResult, RunActionIntent } from "../WorkflowRun";
 import { isActionError } from "Utils/actionResult";
@@ -311,7 +312,7 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Trigger</dt>
-            <dd className={styles.dataValue}>{trigger}</dd>
+            <dd className={styles.dataValue}>{triggerLabel(trigger)}</dd>
           </dl>
           <dl className={styles.data}>
             <dt className={styles.dataTitle}>Start time</dt>
