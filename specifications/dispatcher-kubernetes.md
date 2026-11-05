@@ -234,7 +234,7 @@ alike, a blank size takes the platform's `max.workspace.storage` value, lowered 
 quota when quotas are enforced and it is smaller (0 is unlimited), and a blank mount path becomes `/workspace`; a size
 above that workspace quota is refused with `QUOTA_EXCEEDED` when quotas are enforced
 (`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:581-600`), and the same check runs
-when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:386-396`). A
+when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:417-427`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
 `ReadWriteMany`; `dispatcher/WorkspaceService.java:51-58`); a blank class leaves `storageClassName` unset, because an
 empty string disables dynamic provisioning (`kube/KubeServiceImpl.java:127-130`). After creating a claim the

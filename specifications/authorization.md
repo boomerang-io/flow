@@ -103,7 +103,7 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
 "Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
-(`workspace/WorkspaceService.java:955-960`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
+(`workspace/WorkspaceService.java:998-1003`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
 again, without activating, when they are added to a second workspace (`core/UserService.java:141-151`). A record in any
 other non-active status is not revived. There is no route that creates a user outside a workspace.
 
@@ -218,7 +218,7 @@ stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
 token of that principal (`workflow/WorkflowService.java:877`), and deleting a workspace revokes every token whose principal is the workspace's name,
-its reference everywhere (`workspace/WorkspaceService.java:375-376`). Only the SHA-256 hash of a raw token is stored
+its reference everywhere (`workspace/WorkspaceService.java:377-378`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:215-217,382-390`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_`
@@ -293,7 +293,7 @@ Layer 1 matches a permission string without looking at the **scope** the grant w
 workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
 re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
 (`core/audit/AuditControllerV2.java:217-232`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
-(`core/UserService.java:510-528`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
+(`core/UserService.java:520-538`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
 (HTTP 401) otherwise.
 
 ### Layer 2 — `RelationshipService` on the data
@@ -304,7 +304,7 @@ level-by-level walk anchored at the caller's own node — one edge query plus on
 with no in-memory graph and no cache beyond a per-HTTP-request memo (`core/RelationshipService.java:34-54`).
 The walk follows every outgoing edge whatever its label, so an edge widens access unless it joins nodes the graph
 already joins: the `linksTemplate` claim on a workspace's link to a template runs from the workspace to that link,
-beside its `hasWorkflow` edge (`core/RelationshipService.java:289-342`).
+beside its `hasWorkflow` edge (`core/RelationshipService.java:323-376`).
 
 | Token class | `check()` anchor (`:385-413`) | `filter()` anchor (`:478-513`) |
 | --- | --- | --- |
@@ -322,7 +322,7 @@ which serialises as HTTP 401 (`common/error/BoomerangError.java:25,47`). Workspa
 `workflow/WorkflowRunService.java:742-753`). Because `global` returns before the walk, a global token's requests
 ignore that path segment; the same caller could reach the object through its real workspace URL, so nothing extra
 is granted. `filter()` for `TASK` always anchors at `root` — the task catalogue is global
-(`core/RelationshipService.java:540-544`).
+(`core/RelationshipService.java:611-615`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
@@ -340,14 +340,14 @@ request that has no identity yet (`core/security/UnauthenticatedGlobalAuthentica
 `global`-class token, principal `system`, `actorKind=SERVICE`, one `**/**` grant, and an empty `GrantedAuthority`
 list (`core/security/UnauthenticatedGlobalToken.java:64-72`). `UserService.getCurrentUser()` maps it to
 `virtualUser()` — id `system`, type `admin`, active — so `/api/v2/profile` and `/api/v2/context` render
-(`core/UserService.java:311-312`, `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is
+(`core/UserService.java:321-322`, `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is
 ever written to MongoDB, and the user cannot be activated by an identity-provider email match. Audit records
 carry `actor.principal=system`.
 
 With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}`
 or `/api/v2/workspace/{workspace}/**` request whose segment is not `system`
 (`core/security/SingleWorkspaceInterceptor.java:32-45`, `SingleWorkspaceInterceptorConfiguration.java:22-27`), and
-`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:167,351`).
+`WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:169,353`).
 
 ## Dispatcher endpoints
 

@@ -237,17 +237,27 @@ public class UserService {
   }
 
   /**
+   * {@link #getUserByID} for several ids, keyed by user id. An id that is not a user is absent. One
+   * query for the local store; the external service has no batch read, so each id is looked up.
+   */
+  public Map<String, User> usersByIds(Collection<String> userIds) {
+    Map<String, User> users = new HashMap<>();
+    if (externalUserUrl.isBlank()) {
+      userRepository.findAllById(userIds).forEach(u -> users.put(u.getId(), new User(u)));
+    } else {
+      userIds.forEach(id -> getUserByID(id).ifPresent(u -> users.put(id, u)));
+    }
+    return users;
+  }
+
+  /**
    * Return each user's display name, or their name when they have none, keyed by user id. An id
-   * that is not a user is absent. One query for the local store; the external service has no batch
-   * read, so each id is looked up.
+   * that is not a user is absent.
    */
   public Map<String, String> displayNamesByIds(Collection<String> userIds) {
     Map<String, String> names = new HashMap<>();
-    if (externalUserUrl.isBlank()) {
-      userRepository.findAllById(userIds).forEach(u -> names.put(u.getId(), displayName(u.getDisplayName(), u.getName())));
-    } else {
-      userIds.forEach(id -> getUserByID(id).ifPresent(u -> names.put(id, displayName(u.getDisplayName(), u.getName()))));
-    }
+    usersByIds(userIds)
+        .forEach((id, u) -> names.put(id, displayName(u.getDisplayName(), u.getName())));
     return names;
   }
 
