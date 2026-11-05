@@ -134,7 +134,7 @@ describe("Home", () => {
   test("shows the getting-started steps and concepts, not the rollup, when the user has no workspace", async () => {
     renderHome(rollup({ totalRuns: 0 }), { workspaces: [] });
 
-    expect(await screen.findByRole("heading", { level: 1, name: /Let's get your first automation running/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: /G’day, .*\. Let’s get your first workflow running\./ })).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Get started" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Key concepts" })).toBeInTheDocument();
     expect(screen.queryByTestId("home-pulse-runs")).not.toBeInTheDocument();
