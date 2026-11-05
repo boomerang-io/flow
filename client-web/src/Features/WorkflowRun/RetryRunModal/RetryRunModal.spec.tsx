@@ -11,7 +11,7 @@ import RetryRunModal from "./RetryRunModal";
 const workspace = "tyson-workspace";
 const runId = "651e4789ab1cb56bc8976ae4";
 
-function taskRun(name: string, status: RunStatus, type = "template"): TaskRun {
+function taskRun(name: string, status: RunStatus, type: TaskRun["type"] = "template"): TaskRun {
   return {
     annotations: { "boomerang.io/position": { x: 0, y: 0 } },
     creationDate: "2019-09-03T15:00:00.230+0000",
@@ -22,17 +22,9 @@ function taskRun(name: string, status: RunStatus, type = "template"): TaskRun {
     params: [],
     phase: RunPhase.Completed,
     results: [],
-    retries: 0,
     spec: {
-      arguments: null,
-      command: null,
       debug: false,
-      deletion: null,
-      envs: null,
-      image: null,
       timeout: 0,
-      script: null,
-      workingDir: null,
     },
     startTime: "2019-09-03T15:00:00.230+0000",
     status,
@@ -56,6 +48,7 @@ const workflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 300190,
   id: runId,

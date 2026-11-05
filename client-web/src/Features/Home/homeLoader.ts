@@ -3,7 +3,7 @@ import queryString from "query-string";
 import { queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
 import { serverFetch } from "Config/serverFetch";
-import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatus, Schedule, WorkflowRun } from "Types";
+import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatusType, Schedule, WorkflowRun } from "Types";
 
 /*
  * Home's read. The landing page rolls up every workspace the caller belongs to: today's run
@@ -37,12 +37,12 @@ export interface HomeRunCounts {
 
 export interface HomeRun {
   id: string;
-  workflowName: string;
+  workflowName?: string;
   workflowRef: string;
   workspace: string;
   workspaceDisplayName: string;
-  status: RunStatus;
-  trigger: string;
+  status: RunStatusType;
+  trigger?: string;
   duration: number;
   creationDate: string;
 }

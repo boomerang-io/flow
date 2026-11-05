@@ -9,7 +9,7 @@ import cx from "classnames";
 import moment from "moment";
 import FormattedDate from "Components/FormattedDate";
 import { ExecutionStatusCopy } from "Constants";
-import { FlowWorkspaceSummary, RunStatus } from "Types";
+import { FlowWorkspaceSummary, RunStatus, RunStatusType } from "Types";
 import { isActionError } from "Utils/actionResult";
 import styles from "./workspaceCard.module.scss";
 import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
@@ -17,7 +17,7 @@ import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 /** Home's per-workspace rollup (Features/Home/homeLoader.ts). Absent when that read degraded. */
 export interface WorkspaceCardStats {
   runsToday: number;
-  lastRun: { workflowName: string; workflowRef: string; status: RunStatus; creationDate: string } | null;
+  lastRun: { workflowName?: string; workflowRef: string; status: RunStatusType; creationDate: string } | null;
 }
 
 interface WorkspaceCardProps {

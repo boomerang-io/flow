@@ -13,7 +13,7 @@ import { findTaskRunByName, foreachItemRuns, summarizeForeachItems } from "Utils
 import type { ForeachSummary } from "Utils/taskRunHelper";
 import { WorkflowEngineMode } from "Constants";
 import type { DataDrivenInput, Task, WorkflowEdge, WorkflowNode, WorkflowNodeProps } from "Types";
-import { RunStatus, WorkflowEngineModeType } from "Types";
+import { RunStatus, RunStatusType, WorkflowEngineModeType } from "Types";
 import { isFinallyNode, useIsValidConnection } from "../../shared/finally";
 import { splitForeachValues } from "../../shared/foreach";
 import { splitRetryValues } from "../../shared/retry";
@@ -206,7 +206,7 @@ function TaskTemplateNodeRun(props: TaskTemplateNodeRunProps) {
 // A for-each node's badge: its items' progress once it has items, "0 items" when it succeeded with
 // none, and plain "For each" otherwise - before it fans out, or when it failed without items (its
 // failed colour and the task log's reason say why).
-function foreachBadgeText(progress: ForeachSummary | undefined, status: RunStatus | undefined) {
+function foreachBadgeText(progress: ForeachSummary | undefined, status: RunStatusType | undefined) {
   if (progress && progress.total > 0) {
     return `For each · ${progress.succeeded} of ${progress.total} succeeded`;
   }
@@ -263,7 +263,7 @@ interface BaseNodeProps {
   onClick?: () => void;
   subtitle?: string;
   title?: string;
-  status?: RunStatus;
+  status?: RunStatusType;
 }
 
 function BaseNode(props: BaseNodeProps) {

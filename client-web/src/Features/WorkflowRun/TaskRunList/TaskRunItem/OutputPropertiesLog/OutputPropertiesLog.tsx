@@ -3,6 +3,7 @@ import { Button, ModalBody } from "@carbon/react";
 import React from "react";
 import PropertiesTable from "./PropertiesTable";
 import styles from "./outputPropertisLog.module.scss";
+import { formatRunValue } from "Utils/taskRunHelper";
 import { WorkflowRun } from "Types";
 
 type Props = {
@@ -16,13 +17,9 @@ function OutputPropertiesLog({ taskName, results, isOutput }: Props) {
   results.forEach((result, index) =>
     propertyList.push({
       id: `${result.name}-${index}`,
-      key: result.name,
+      key: result.name ?? "",
       description: result.description ? result.description : "---",
-      value: !result.value
-        ? "---"
-        : Array.isArray(result.value) || typeof result.value === "string"
-        ? result.value
-        : JSON.stringify(result.value),
+      value: formatRunValue(result.value),
     }),
   );
 

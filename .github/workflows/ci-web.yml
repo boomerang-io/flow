@@ -8,17 +8,20 @@ on:
       - main
     paths:
       - 'client-web/**'
+      - 'contracts/api-v2.yaml'
       - '.github/workflows/ci-web.yml'
   pull_request:
     paths:
       - 'client-web/**'
+      - 'contracts/api-v2.yaml'
       - '.github/workflows/ci-web.yml'
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  # Every job gates: a failing spec, a type error, a raw hex colour outside
-  # src/Styles/_variables.scss (stylelint.config.mjs) or a broken build fails the workflow.
+  # Every job gates: a failing spec, a type error, generated API types (src/Api) that differ from
+  # the contract, a raw hex colour outside src/Styles/_variables.scss (stylelint.config.mjs) or a
+  # broken build fails the workflow.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -66,6 +69,14 @@ jobs:
       - name: Install dependencies
         working-directory: client-web
         run: pnpm install
+      # src/Api is generated from contracts/api-v2.yaml, so a contract change lands with its
+      # regenerated types; intent-to-add makes a newly generated file show in the diff too.
+      - name: Check generated API types
+        working-directory: client-web
+        run: |
+          pnpm run gen:api
+          git add --intent-to-add src/Api
+          git diff --exit-code -- src/Api
       - name: Typecheck
         working-directory: client-web
         run: pnpm run typecheck

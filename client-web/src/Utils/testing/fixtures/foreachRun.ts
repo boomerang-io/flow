@@ -6,24 +6,16 @@ import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
  * parent, and its three items are one succeeded, one still running and one failed (OOMKilled).
  * The items are listed before their parent, as nothing guarantees the order of the `tasks` list.
  */
-const baseTaskRun = {
+const baseTaskRun: Omit<TaskRun, "id" | "name" | "creationDate"> = {
   annotations: { "boomerang.io/position": { x: 0, y: 0 } },
   duration: 0,
   labels: {},
   params: [],
   phase: RunPhase.Completed,
   results: [],
-  retries: 0,
   spec: {
-    arguments: null,
-    command: null,
     debug: false,
-    deletion: null,
-    envs: null,
-    image: null,
     timeout: 0,
-    script: null,
-    workingDir: null,
   },
   status: RunStatus.Succeeded,
   statusMessage: "",
@@ -112,6 +104,7 @@ export const foreachWorkflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2026-09-26T10:00:00.000+0000",
   duration: 0,
   id: "651e4789ab1cb56bc8976f00",

@@ -6,24 +6,16 @@ import { NodeType } from "Constants";
 import { RunPhase, RunStatus, TaskRun, WorkflowRun } from "Types";
 import ExecutionTaskLog from "./index";
 
-const baseTaskRun = {
+const baseTaskRun: Omit<TaskRun, "id" | "name" | "creationDate"> = {
   annotations: { "boomerang.io/position": { x: 0, y: 0 } },
   duration: 300190,
   labels: {},
   params: [],
   phase: RunPhase.Completed,
   results: [],
-  retries: 0,
   spec: {
-    arguments: null,
-    command: null,
     debug: false,
-    deletion: null,
-    envs: null,
-    image: null,
     timeout: 0,
-    script: null,
-    workingDir: null,
   },
   status: RunStatus.Succeeded,
   statusMessage: "",
@@ -83,6 +75,7 @@ const workflowRun: WorkflowRun = {
     "boomerang.io/generation": "1",
   },
   awaitingApproval: false,
+  paused: false,
   creationDate: "2019-09-03T15:00:00.230+0000",
   duration: 904934,
   id: "651e4789ab1cb56bc8976ae4",

@@ -55,7 +55,7 @@ function ArtifactsPanel({ artifacts, workflowRun, workspace }: Props) {
           <ArtifactItem
             key={artifact.id}
             artifact={artifact}
-            uploadedBy={uploaderName(artifact.taskRunRef, workflowRun.tasks)}
+            uploadedBy={uploaderName(artifact.taskRunRef, workflowRun.tasks ?? [])}
             workspace={workspace}
             runId={workflowRun.id}
           />

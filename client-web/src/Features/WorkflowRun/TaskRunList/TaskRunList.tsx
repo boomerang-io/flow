@@ -76,7 +76,7 @@ function TaskRunLog({
     );
   }
 
-  const { tasks } = workflowRun;
+  const { tasks = [] } = workflowRun;
 
   // START/END are synthetic graph markers the engine adds to every run, not executed tasks -
   // they always bookend the log (START first, END last) and never take part in the start-time

@@ -1,4 +1,4 @@
-import { RunStatus, TaskRun, WorkflowNode } from "Types";
+import { RunStatus, RunStatusType, TaskRun, WorkflowNode } from "Types";
 
 /**
  * A task with `foreach` runs as one parent task run - named after the task, carrying the combined
@@ -33,13 +33,13 @@ export function foreachItemRuns(tasks: Array<TaskRun> | undefined, parentId: str
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 }
 
-const FAILED_STATUSES: ReadonlyArray<RunStatus> = [
+const FAILED_STATUSES: ReadonlyArray<RunStatusType> = [
   RunStatus.Failed,
   RunStatus.Cancelled,
   RunStatus.TimedOut,
   RunStatus.Invalid,
 ];
-const RUNNING_STATUSES: ReadonlyArray<RunStatus> = [
+const RUNNING_STATUSES: ReadonlyArray<RunStatusType> = [
   RunStatus.NotStarted,
   RunStatus.Ready,
   RunStatus.Running,
@@ -90,4 +90,12 @@ export function foreachParentSummary(parent: TaskRun, items: Array<TaskRun>): st
 /** The item's own part of its name - `[1]` for `locate[1]`. */
 export function foreachItemSuffix(item: TaskRun, parentName: string): string {
   return item.name.startsWith(parentName) ? item.name.slice(parentName.length) : item.name;
+}
+
+/** A run param's or result's value as text: a string as it is, anything else as JSON, and "---" when empty. */
+export function formatRunValue(value: unknown): string {
+  if (!value) {
+    return "---";
+  }
+  return typeof value === "string" ? value : JSON.stringify(value);
 }
