@@ -13,7 +13,6 @@ import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.common.entity.TaskRevisionEntity;
-import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowEntity;
 import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
@@ -772,21 +771,23 @@ public class WorkflowService {
         .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
     request.setLabels(ServerLabel.withoutServerLabels(request.getLabels()));
 
-    // Admit-then-recheck: with quotas enforced the run is created un-started, the quota counts
-    // are re-read (now including this run), and a run that pushed a count over its limit is
-    // discarded - simultaneous submits cannot each slip past the pre-admission count above.
-    boolean enforceQuotas = quotaService.enforced();
-    WorkflowRun wfRun = submit(workflowId, request, start && !enforceQuotas, initiatedByRef);
-    if (enforceQuotas) {
+    // Admit-then-recheck: with quotas enforced the run is persisted before it is queued, the quota
+    // counts are re-read (now including this run), and a run that pushed a count over its limit is
+    // removed - simultaneous submits cannot each slip past the pre-admission count above. A removed
+    // run never left notstarted, so no transition was published and it is never audited as created.
+    WorkflowRunEntity newRun = newRun(workflowId, request, initiatedByRef);
+    if (quotaService.enforced()) {
+      mongoTemplate.insert(newRun);
       try {
         quotaService.assertAdmittedRunWithinQuotas(workspace);
       } catch (RuntimeException refused) {
         // The run pushed a count over its limit, or the recheck itself failed: it removes itself,
-        // so it uses no quota and no un-started run is left without an owner.
-        discardRun(wfRun.getId());
+        // so it uses no quota and no un-queued run is left without an owner.
+        discardRun(newRun.getId());
         throw refused;
       }
     }
+    WorkflowRun wfRun = workflowRunService.run(newRun, start);
 
     // Creates relationship with owning team
     // TODO: create this run relationship based on decision of team vs workflow
@@ -799,12 +800,6 @@ public class WorkflowService {
         wfRun.getId(),
         Optional.empty(),
         Optional.empty());
-    // The run was queued without a start so the quota recheck could discard it; now it is released
-    // the way the un-enforced path starts: a run with a workspace takes its deadline and waits
-    // ready/pending for the dispatcher, one with none starts, one not admitted stays as it stands.
-    if (enforceQuotas && start) {
-      wfRun = workflowRunService.release(wfRun.getId());
-    }
     return wfRun;
   }
 
@@ -1052,13 +1047,10 @@ public class WorkflowService {
   }
 
   /*
-   * Removes a quota-rejected WorkflowRun and its materialised TaskRuns. The run was never
-   * started and no relationship edge exists yet, so removing the documents is the whole undo -
-   * and keeps a rejected submit from consuming quota itself.
+   * Removes a quota-rejected WorkflowRun. It was never queued, so it has no TaskRuns, no
+   * relationship edge and no audit event: removing the document is the whole undo.
    */
   private void discardRun(String workflowRunId) {
-    mongoTemplate.remove(
-        Query.query(Criteria.where("workflowRunRef").is(workflowRunId)), TaskRunEntity.class);
     mongoTemplate.remove(
         Query.query(Criteria.where("_id").is(workflowRunId)), WorkflowRunEntity.class);
   }
@@ -2067,6 +2059,15 @@ public class WorkflowService {
    */
   public WorkflowRun submit(
       String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {
+    return workflowRunService.run(newRun(workflowId, request, initiatedByRef), start);
+  }
+
+  /*
+   * Builds a new, unsaved WorkflowRun of the Workflow from the request: its revision, params,
+   * workspace, timeout, labels and lineage settled. Refuses a Workflow that cannot run.
+   */
+  private WorkflowRunEntity newRun(
+      String workflowId, WorkflowSubmitRequest request, String initiatedByRef) {
     if (workflowId == null || workflowId.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REQ);
     }
@@ -2162,7 +2163,7 @@ public class WorkflowService {
     annotations.put("boomerang.io/generation", "4");
     annotations.put("boomerang.io/kind", "WorkflowRun");
     wfRunEntity.getAnnotations().putAll(annotations);
-    return workflowRunService.run(wfRunEntity, start);
+    return wfRunEntity;
   }
 
   /*

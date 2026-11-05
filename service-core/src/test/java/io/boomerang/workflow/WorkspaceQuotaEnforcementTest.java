@@ -223,9 +223,9 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     assertEquals("QUOTA_EXCEEDED", ex.getReason());
   }
 
-  // With quotas on, a run is queued un-started so the quota recheck can discard it; once admitted
-  // it is released like a started run: a run with a workspace takes its deadline from its creation
-  // and waits ready for the dispatcher, so the timeout sweep can end it when no dispatcher claims.
+  // With quotas on, a run passes the quota recheck before it is queued; once admitted it starts
+  // like any other: a run with a workspace takes its deadline from its creation and waits ready
+  // for the dispatcher, so the timeout sweep can end it when no dispatcher claims.
   @Test
   void aRunAdmittedUnderQuotasTakesItsDeadlineWhileItWaitsForADispatcher() {
     String workspace = createWorkspace("standalone-quota-deadline", quotasWithRunDuration(5));

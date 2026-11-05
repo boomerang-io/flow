@@ -217,7 +217,7 @@ instance's parameter-layer cache, as `PATCH` does. The compose stack sets both p
 stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR` (400): `global` takes none, `SERVICE` or `AGENT`, `key` any, `user`
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
-token of that principal (`workflow/WorkflowService.java:882`), and deleting a workspace revokes every token whose principal is the workspace's name,
+token of that principal (`workflow/WorkflowService.java:877`), and deleting a workspace revokes every token whose principal is the workspace's name,
 its reference everywhere (`workspace/WorkspaceService.java:377-378`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:215-217,382-390`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
@@ -319,16 +319,16 @@ with `layer=relationship` (`:362-384`). Most callers then answer with the object
 object reads like a missing one (for example `WORKSPACE_INVALID_REF`, HTTP 404); a few raise `PERMISSION_DENIED`,
 which serialises as HTTP 401 (`common/error/BoomerangError.java:25,47`). Workspace-scoped routes pass the
 `{workspace}` path segment as an intermediate containment (for example
-`workflow/WorkflowRunService.java:743-754`). Because `global` returns before the walk, a global token's requests
+`workflow/WorkflowRunService.java:742-753`). Because `global` returns before the walk, a global token's requests
 ignore that path segment; the same caller could reach the object through its real workspace URL, so nothing extra
 is granted. `filter()` for `TASK` always anchors at `root` — the task catalogue is global
 (`core/RelationshipService.java:611-615`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:695-704,791-801`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:694-703,792-802`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
-parent (`workflow/WorkflowRunService.java:683-736,1085-1088,1152-1162`); child runs get the edge from
+parent (`workflow/WorkflowRunService.java:682-735,1045-1048,1112-1122`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).
 
 ## Security off: the synthetic admin
