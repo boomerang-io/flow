@@ -27,7 +27,7 @@ deadline becomes the `workflowrun` setting `finally.timeout`, and the finally ta
 (`engine/TaskExecutionService.java:685-729`, `engine/WorkflowRunStateHelper.java:323-359`); the run completes when
 the last of them ends, a finally task that failed, timed out or was invalid turning a succeeded run into `failed`
 with the reason `FinallyFailed` (`:751-780`). In the stage a cancel does nothing more, while a purge and the
-stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:236-241,273-299,380-398`).
+stage's deadline both complete the run at once and end the finally tasks (`engine/WorkflowExecutionService.java:241-246,278-304,385-403`).
 A finally task reads `$(context.params.workflowrun-status)` and `workflowrun-status-reason`. The editor draws it
 as the switch and for-each pattern does: a purple border, a `Finally` badge, no output port, a purple link from End.
 

@@ -157,7 +157,7 @@ them: Boot's virtual-thread `applicationTaskExecutor` backs off whenever the con
 | Bean | Where | Carries |
 | --- | --- | --- |
 | `asyncTaskExecutor` | `engine/config/AsyncConfig.java:20-23` | Task-run transitions (`engine/TaskExecutionService.java:146`), audit writes (`core/audit/AuditEventWriter.java:27`) |
-| `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | The workflow-run timeout (`engine/WorkflowExecutionService.java:360-363`) |
+| `asyncWorkflowExecutor` | `engine/config/AsyncConfig.java:25-28` | The workflow-run timeout (`engine/WorkflowExecutionService.java:365-368`) |
 | `logStreamExecutor` | `core/config/AsyncConfiguration.java:24-30` | The default `@Async` executor, and Spring MVC's async dispatch — a log stream parks its thread for the life of the stream |
 | `applicationTaskExecutor` (dispatcher) | `service-dispatcher/src/main/java/io/boomerang/config/ThreadConfig.java:32-39` | The dispatcher's one `@Async` method, `TaskService.deleteTaskRun` |
 | Dispatcher SDK work | `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:85-86` | One virtual thread per claimed task (start, handler, end report) and per workflow run to provision; the polls and the heartbeat have virtual threads of their own (`QueuePoller.java:68`, `Dispatcher.java:378-380`) |
