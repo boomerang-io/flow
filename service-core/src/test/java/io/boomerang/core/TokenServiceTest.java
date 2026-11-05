@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.core.entity.RoleEntity;
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
@@ -168,6 +169,117 @@ class TokenServiceTest {
     assertThat(captor.getValue().getPermissions())
         .extracting(ResolvedPermissions::getScope)
         .containsOnly(PermissionScope.workspace);
+  }
+
+  // =====================================================================================
+  // A role preset alone is enough: the server expands it to the preset's permissions for the
+  // token's own scope, the same presets the permission catalog offers.
+  // =====================================================================================
+
+  @Test
+  void keyTokenFromAWorkspaceRolePresetCarriesThatRolesPermissions() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(roleRepository.findByTypeAndName("workspace", "reader"))
+        .thenReturn(role(PermissionScope.workspace, "reader", List.of("**/read")));
+
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.key);
+    request.setName("reader-key");
+    request.setPrincipal("workspace-a");
+    request.setRole("reader");
+
+    tokenService.create(request);
+
+    ArgumentCaptor<TokenEntity> captor = ArgumentCaptor.forClass(TokenEntity.class);
+    verify(tokenRepository).save(captor.capture());
+    assertThat(captor.getValue().getPermissions())
+        .singleElement()
+        .satisfies(
+            grant -> {
+              assertThat(grant.getScope()).isEqualTo(PermissionScope.workspace);
+              assertThat(grant.getPrincipal()).isEqualTo("workspace-a");
+              assertThat(grant.getActions()).containsExactly("**/read");
+            });
+  }
+
+  @Test
+  void globalTokenFromAGlobalRolePresetCarriesThatRolesPermissions() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(identityService.getCurrentIdentity()).thenReturn(globalScopedIdentity("admin"));
+    when(roleRepository.findByTypeAndName("global", "operator"))
+        .thenReturn(role(PermissionScope.global, "operator", List.of("**/read", "**/write", "**/action")));
+
+    TokenCreateRequest request = globalRequest();
+    request.setPermissions(null);
+    request.setRole("operator");
+
+    tokenService.create(request);
+
+    ArgumentCaptor<TokenEntity> captor = ArgumentCaptor.forClass(TokenEntity.class);
+    verify(tokenRepository).save(captor.capture());
+    assertThat(captor.getValue().getPermissions())
+        .singleElement()
+        .satisfies(
+            grant -> {
+              assertThat(grant.getScope()).isEqualTo(PermissionScope.global);
+              assertThat(grant.getActions()).containsExactly("**/read", "**/write", "**/action");
+            });
+  }
+
+  @Test
+  void anUnknownRolePresetIsRefused() {
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.key);
+    request.setName("ghost-key");
+    request.setPrincipal("workspace-a");
+    request.setRole("ghost");
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_INVALID_PERMISSION.getReason());
+    verify(tokenRepository, never()).save(any(TokenEntity.class));
+  }
+
+  @Test
+  void aRoleAndPermissionsTogetherAreRefused() {
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.key);
+    request.setName("both-key");
+    request.setPrincipal("workspace-a");
+    request.setRole("owner");
+    request.setPermissions(List.of("workflow/read"));
+
+    assertThatThrownBy(() -> tokenService.create(request))
+        .asInstanceOf(InstanceOfAssertFactories.type(BoomerangException.class))
+        .extracting(BoomerangException::getReason)
+        .isEqualTo(BoomerangError.TOKEN_INVALID_REQ.getReason());
+    verify(tokenRepository, never()).save(any(TokenEntity.class));
+  }
+
+  @Test
+  void aUserTokenTakesItsGrantsFromItsRolesAndIgnoresARole() {
+    when(tokenRepository.save(any(TokenEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    TokenCreateRequest request = new TokenCreateRequest();
+    request.setType(AuthScope.user);
+    request.setName("personal-token");
+    request.setPrincipal("user-a");
+    request.setRole("ghost");
+
+    assertThatCode(() -> tokenService.create(request)).doesNotThrowAnyException();
+    verify(roleRepository, never()).findByTypeAndName("workspace", "ghost");
+  }
+
+  private RoleEntity role(PermissionScope type, String name, List<String> permissions) {
+    RoleEntity role = new RoleEntity();
+    role.setType(type);
+    role.setName(name);
+    role.setPermissions(permissions);
+    return role;
   }
 
   // =====================================================================================

@@ -409,7 +409,64 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 dir="auto"
                 role="cell"
               >
-                Owner
+                <div
+                  class="cds--form-item _roleSelect_5053ab"
+                >
+                  <div
+                    class="cds--select"
+                  >
+                    <label
+                      class="cds--label cds--visually-hidden"
+                      dir="auto"
+                      for="member-role-61d5db083aa9034ded32cae7"
+                    >
+                      Role for Boomerang Joe
+                    </label>
+                    <div
+                      class="cds--select-input__wrapper"
+                    >
+                      <select
+                        class="cds--select-input cds--select-input--sm"
+                        id="member-role-61d5db083aa9034ded32cae7"
+                        title=""
+                      >
+                        <option
+                          class="cds--select-option"
+                          value="owner"
+                        >
+                          Owner
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="editor"
+                        >
+                          Editor
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="reader"
+                        >
+                          Reader
+                        </option>
+                      </select>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--select__arrow"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div
                 class="cds--structured-list-td"
@@ -488,7 +545,64 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 dir="auto"
                 role="cell"
               >
-                Editor
+                <div
+                  class="cds--form-item _roleSelect_5053ab"
+                >
+                  <div
+                    class="cds--select"
+                  >
+                    <label
+                      class="cds--label cds--visually-hidden"
+                      dir="auto"
+                      for="member-role-61d38d133aa9034ded32cae6"
+                    >
+                      Role for admin@flowabl.io
+                    </label>
+                    <div
+                      class="cds--select-input__wrapper"
+                    >
+                      <select
+                        class="cds--select-input cds--select-input--sm"
+                        id="member-role-61d38d133aa9034ded32cae6"
+                        title=""
+                      >
+                        <option
+                          class="cds--select-option"
+                          value="owner"
+                        >
+                          Owner
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="editor"
+                        >
+                          Editor
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="reader"
+                        >
+                          Reader
+                        </option>
+                      </select>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--select__arrow"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div
                 class="cds--structured-list-td"
@@ -567,7 +681,64 @@ exports[`WorkspaceDetailed --- Snapshot Test > Capturing Snapshot of WorkspaceDe
                 dir="auto"
                 role="cell"
               >
-                Owner
+                <div
+                  class="cds--form-item _roleSelect_5053ab"
+                >
+                  <div
+                    class="cds--select"
+                  >
+                    <label
+                      class="cds--label cds--visually-hidden"
+                      dir="auto"
+                      for="member-role-61ddfb07c5d30f5de052426b"
+                    >
+                      Role for marcus.d.roy@gmail.com
+                    </label>
+                    <div
+                      class="cds--select-input__wrapper"
+                    >
+                      <select
+                        class="cds--select-input cds--select-input--sm"
+                        id="member-role-61ddfb07c5d30f5de052426b"
+                        title=""
+                      >
+                        <option
+                          class="cds--select-option"
+                          value="owner"
+                        >
+                          Owner
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="editor"
+                        >
+                          Editor
+                        </option>
+                        <option
+                          class="cds--select-option"
+                          value="reader"
+                        >
+                          Reader
+                        </option>
+                      </select>
+                      <svg
+                        aria-hidden="true"
+                        class="cds--select__arrow"
+                        fill="currentColor"
+                        focusable="false"
+                        height="16"
+                        preserveAspectRatio="xMidYMid meet"
+                        viewBox="0 0 16 16"
+                        width="16"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div
                 class="cds--structured-list-td"

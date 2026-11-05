@@ -36,6 +36,7 @@ const profile = {
   workspaces: [
       {
           name: "tyson-workspace",
+          role: "owner",
           displayName: "Tyson Workspace",
           creationDate: "2023-07-20T06:31:56.322+00:00",
           status: "active",
@@ -48,6 +49,7 @@ const profile = {
       },
       {
           name: "admin-flowabl-io-personal-workspace",
+          role: "editor",
           displayName: "admin-flowabl-io Personal Workspace",
           creationDate: "2023-07-20T06:35:17.481+00:00",
           status: "active",
@@ -60,6 +62,7 @@ const profile = {
       },
       {
           name: "system",
+          role: "reader",
           displayName: "System and Administration",
           creationDate: "2023-07-20T06:37:47.889+00:00",
           status: "active",

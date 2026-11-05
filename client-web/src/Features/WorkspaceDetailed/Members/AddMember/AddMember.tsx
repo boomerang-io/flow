@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import * as Yup from "yup";
-import { Button, ModalBody, ModalFooter, InlineNotification, Dropdown, TextInput } from "@carbon/react";
+import { Button, ModalBody, ModalFooter, InlineNotification, Select, SelectItem, TextInput } from "@carbon/react";
 import { ComposedModal, ModalForm, Loading } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
+import capitalize from "lodash/capitalize";
 import { Add } from "@carbon/react/icons";
 import MemberCard from "Components/MemberCard";
 import { Member, MemberRole } from "Types";
@@ -99,17 +100,20 @@ function AddMember({ memberList, handleSubmit, isSubmitting, error }: AddMemberP
                         placeholder="mary.jackson@test.com"
                         value={values.email}
                       />
-                      <Dropdown
-                        className={styles.roleDropdown}
+                      {/* A native select: Carbon's Dropdown smooth-scrolls each option the pointer
+                          crosses into view, which inside this scrolling modal body moves the list
+                          under the pointer and never settles. */}
+                      <Select
+                        className={styles.roleSelect}
                         id="role"
-                        onChange={({ selectedItem }: any) => {
-                          setFieldValue("role", selectedItem);
-                        }}
-                        items={Object.values(MemberRole)}
-                        selectedItem={values.role}
-                        label="Role"
-                        titleText="Role"
-                      />
+                        labelText="Role"
+                        onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setFieldValue("role", event.target.value)}
+                        value={values.role}
+                      >
+                        {Object.values(MemberRole).map((role) => (
+                          <SelectItem key={role} text={capitalize(role)} value={role} />
+                        ))}
+                      </Select>
                       <Button
                         kind="tertiary"
                         disabled={!isValid}

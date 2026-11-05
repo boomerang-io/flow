@@ -287,8 +287,8 @@ limit is never over-filled. A retry is checked only before it is created. Audit 
 
 `GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
 commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
-(`workspace/WorkspaceService.java:876-955`, `:821-850`). A single workspace's get, create and patch run the same code
-with a page of one (`:869-871`).
+(`workspace/WorkspaceService.java:877-956`, `:821-851`). A single workspace's get, create and patch run the same code
+with a page of one (`:870-872`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |

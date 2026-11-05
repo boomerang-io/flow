@@ -2,11 +2,12 @@ import React from "react";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { appLink } from "Config/appConfig";
 import { workspace as workspaceFixture, profile as userFixture } from "ApiServer/fixtures";
 import { db } from "ApiServer/msw/db";
+import { Member, MemberRole } from "Types";
 import { serviceUrl } from "Config/servicesConfig";
 import WorkspaceLayoutRoute, {
   loader as workspaceLayoutLoader,
@@ -27,6 +28,19 @@ import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 
+// notify() hands its toast to react-toastify, which needs a container this tree has no reason to
+// mount; the mock records the toast each write raises instead.
+const { notify } = vi.hoisted(() => ({ notify: vi.fn() }));
+vi.mock("@boomerang-io/carbon-addons-boomerang-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@boomerang-io/carbon-addons-boomerang-react")>()),
+  notify,
+}));
+
+// The title of every toast raised so far.
+function toastTitles(): Array<string> {
+  return notify.mock.calls.map(([toast]) => toast.props.title);
+}
+
 // `workspace.js` is a standalone fixture, not one of the records in `workspaces.js`'s list (the
 // one `ApiServer/msw/db`'s `workspaces` collection seeds from) - Mirage's `resourceWorkspace` GET
 // handler ignored its `:workspace` param and always served this fixture regardless of what was
@@ -36,6 +50,7 @@ import { renderWithContext } from "Utils/testing/render";
 // makes (GET, and the PATCH the rename flow below depends on actually persisting).
 beforeEach(() => {
   db.workspaces.push(structuredClone(workspaceFixture));
+  notify.mockClear();
 });
 
 // The Manage Workspace tabs are real nested routes now (see app/routes.ts), so the spec builds
@@ -127,19 +142,100 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     ).toBeInTheDocument();
   });
 
-  // Proves the index route's fetcher targeting end to end: RemoveMember renders inside the index
+  // Proves the index route's fetcher targeting end to end: the Members tab renders inside the index
   // route and submits with no explicit action path, so the submission has to land on that index
   // route's action (index routes need the ?index disambiguation, which useFetcher applies for
   // us), and settling it has to revalidate the *parent* layout route's loader - the member list
-  // lives on that loader's workspace record, not on this route. Asserted on the rendered count
-  // rather than the success toast, because notify() needs a ToastContainer this tree has no
-  // reason to mount.
-  test("removes a member through the index route's action and re-renders from the parent loader", async () => {
+  // lives on that loader's workspace record, not on this route. The removed row unmounts as the
+  // list revalidates, so the toast is raised by the tab, not the row.
+  test("removes a member through the index route's action, re-renders from the parent loader and says so", async () => {
     renderWorkspaceDetailed();
     expect(await screen.findByText("Showing 3 members")).toBeInTheDocument();
     fireEvent.click(screen.getAllByText(/Remove from Workspace/)[0]);
     fireEvent.click(await screen.findByTestId("remove-member"));
     expect(await screen.findByText("Showing 2 members")).toBeInTheDocument();
+    await waitFor(() => expect(toastTitles()).toEqual(["Remove User Requested"]));
+    expect(notify.mock.calls[0][0].props.kind).toBe("success");
+  });
+
+  // Carbon's Dropdown smooth-scrolled every option the pointer crossed into view; inside the modal's
+  // scrolling body that moved the list under the pointer, and choosing a role with the mouse never
+  // settled. The role is a native select now.
+  test("adds a member with a role chosen by mouse, without scrolling anything into view", async () => {
+    let patchBody: unknown;
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), async ({ request }) => {
+        patchBody = await request.json();
+        return HttpResponse.json(workspaceFixture);
+      }),
+    );
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    // An editor: only an admin also gets the search-by-name add.
+    renderWorkspaceDetailed(undefined, workspaceEditor);
+    fireEvent.click(await screen.findByTestId("add-members-button"));
+    userEvent.type(await screen.findByLabelText("Email"), "new.member@example.com");
+    const role = screen.getByRole("combobox", { name: "Role", hidden: true });
+    userEvent.click(role);
+    userEvent.hover(screen.getByRole("option", { name: "Reader", hidden: true }));
+    userEvent.selectOptions(role, screen.getByRole("option", { name: "Owner", hidden: true }));
+    expect(role).toHaveValue("owner");
+    fireEvent.click(await screen.findByRole("button", { name: "Add", hidden: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add member", hidden: true }));
+
+    await waitFor(() => expect(patchBody).toEqual({ members: [{ email: "new.member@example.com", role: "owner" }] }));
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollIntoView.mockRestore();
+  });
+
+  test("an owner changes a member's role from the member's row", async () => {
+    renderWorkspaceDetailed();
+    await screen.findByText("Showing 3 members");
+    const role = screen.getByLabelText("Role for admin@flowabl.io");
+    expect(role).toHaveValue("editor");
+
+    userEvent.selectOptions(role, "reader");
+
+    await waitFor(() => expect(toastTitles()).toEqual(["Role changed"]));
+    expect(notify.mock.calls[0][0].props.subtitle).toBe(
+      `Too easy! admin@flowabl.io is now a reader of ${workspaceFixture.displayName}.`,
+    );
+    // Re-read from the parent loader: still three members, the one row with its new role.
+    expect(await screen.findByText("Showing 3 members")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Role for admin@flowabl.io")).toHaveValue("reader"));
+  });
+
+  test("your own row and the last owner's are locked", async () => {
+    const marcus = "61ddfb07c5d30f5de052426b";
+    // Marcus steps down to editor, leaving Boomerang Joe as the only owner, and signs in as an owner.
+    const record = db.workspaces.find((workspace) => workspace.name === workspaceFixture.name)!;
+    record.members = (record.members as Array<Member>).map((member) =>
+      member.id === marcus ? { ...member, role: MemberRole.Editor } : member,
+    );
+    const owner = {
+      ...userFixture,
+      id: marcus,
+      type: "user",
+      permissions: [{ scope: "workspace", principal: workspaceFixture.name, actions: ["**/**"] }],
+    };
+    renderWorkspaceDetailed(undefined, owner);
+    await screen.findByText("Showing 3 members");
+
+    const rowOf = (name: string) =>
+      screen.getAllByRole("row").find((row) => within(row).queryAllByText(name, { exact: false }).length > 0)!;
+    const removeIn = (name: string) => within(rowOf(name)).getByRole("button", { name: /Remove from Workspace/ });
+    expect(screen.queryByLabelText("Role for Boomerang Joe")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Role for marcus.d.roy@gmail.com")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Role for admin@flowabl.io")).toBeEnabled();
+    expect(removeIn("Boomerang Joe")).toBeDisabled();
+    expect(removeIn("(you!)")).toBeDisabled();
+    expect(removeIn("admin@flowabl.io")).toBeEnabled();
+  });
+
+  test("a workspace editor sees each role but cannot change it", async () => {
+    renderWorkspaceDetailed(undefined, workspaceEditor);
+    await screen.findByText("Showing 3 members");
+    expect(screen.queryByLabelText(/Role for/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("owner")).toHaveLength(2);
   });
 
   // The Approver Groups tab's delete is the same fetcher-settle -> parent-loader-revalidate chain
@@ -193,6 +289,22 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("release-notes.md")).toBeInTheDocument();
     // Expired, and "Show expired" starts off.
     expect(screen.queryByText("coverage-report.html")).not.toBeInTheDocument();
+  });
+
+  // An artifact names its workflow by id; the column shows that workflow's display name, and keeps
+  // the id of one that can't be read.
+  test("the Workflow column names each artifact's workflow by its display name", async () => {
+    const [workflow] = db.workflows;
+    db.artifacts = db.artifacts.map((artifact) =>
+      artifact.name === "build-output.tar.gz" ? { ...artifact, workflowRef: String(workflow.id) } : artifact,
+    );
+    renderWorkspaceDetailed(appLink.manageWorkspaceArtifacts({ workspace: workspaceFixture.name }));
+
+    const named = await screen.findByRole("row", { name: /build-output\.tar\.gz/ });
+    expect(within(named).getByText(String(workflow.displayName))).toBeInTheDocument();
+    expect(within(named).queryByText(String(workflow.id))).not.toBeInTheDocument();
+    const unknown = screen.getByRole("row", { name: /release-notes\.md/ });
+    expect(within(unknown).getByText("test-workflow-two")).toBeInTheDocument();
   });
 
   test("Show expired reveals the expired artifact too", async () => {
@@ -469,6 +581,19 @@ describe("WorkspaceDetailed --- members action", () => {
   test("removes a member", async () => {
     const result = await submit({ intent: "remove", memberId: "61d38d133aa9034ded32cae6" });
     expect(result).toEqual({ intent: "remove" });
+  });
+
+  test("changes a role by sending the member again with only its id and the new role", async () => {
+    let patchBody: unknown;
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), async ({ request }) => {
+        patchBody = await request.json();
+        return HttpResponse.json(workspaceFixture);
+      }),
+    );
+    const result = await submit({ intent: "role", memberId: "61d38d133aa9034ded32cae6", name: "admin@flowabl.io", role: "owner" });
+    expect(patchBody).toEqual({ members: [{ id: "61d38d133aa9034ded32cae6", role: "owner" }] });
+    expect(result).toEqual({ intent: "role", name: "admin@flowabl.io", role: "owner" });
   });
 });
 

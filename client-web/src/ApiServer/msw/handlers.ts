@@ -452,7 +452,23 @@ export const handlers: HttpHandler[] = [
   http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), async ({ params, request }) => {
     const workspace = findWorkspace(pathParam(params.workspace));
     if (!workspace) return HttpResponse.json({ errors: ["Workspace not found"] }, { status: 404 });
-    Object.assign(workspace, await jsonBody(request));
+    const { members, ...rest } = await jsonBody(request);
+    Object.assign(workspace, rest);
+    // As the API does: a member sent again, by id or email, takes the new role; anyone else joins.
+    if (Array.isArray(members)) {
+      const current = (workspace.members ?? []) as unknown as Array<{ id?: string; email?: string; role?: string }>;
+      for (const sent of members as Array<{ id?: string; email?: string; role?: string }>) {
+        const existing = current.find(
+          (member) => (sent.id && member.id === sent.id) || (sent.email && member.email === sent.email),
+        );
+        if (existing) {
+          existing.role = sent.role;
+        } else {
+          current.push(sent);
+        }
+      }
+      workspace.members = current as unknown as typeof workspace.members;
+    }
     return HttpResponse.json(workspace);
   }),
   /*
