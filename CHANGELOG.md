@@ -513,6 +513,16 @@ tag's release notes.
 
 ### Fixed
 
+- A user added to a workspace after signing in reads it at once. A session held the grants of its sign-in, so a
+  plain user who signed in while in no workspace was refused (`403`) every workflow, run, task run, schedule and
+  action list in a workspace they were then added to, even as its owner, and the webapp showed its error page. A
+  session's grants now follow the user's type and memberships on every request: a role changed or a membership
+  removed also applies to the next request, and a session whose user is deleted no longer authenticates.
+- Sending a workspace member again changes their role. It added a second membership that was never read, so the
+  member kept their first role.
+- A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs
+  an admin or operator, so a plain user cannot make themselves an admin.
+- The webapp no longer shows its error page when the starter templates cannot be read; it offers none.
 - A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
   `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every
   submit answer `500`; it now submits, and saving it again asks for a field type.

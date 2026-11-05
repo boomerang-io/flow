@@ -32,6 +32,10 @@ instance that took it.
 | `core/security/TokenLookupCache.java` | Validated tokens by hash | 60 s / 10,000 | A revoked token is honoured for up to 60 s |
 | `core/ParamLayerCache.java` | Global, workspace and context parameter layers by workflow and revision; revisions by id | 10 s / 1,000 | A parameter, setting or revision edit reaches its task admissions within 10 s |
 
+The token cache holds a session's token, not its grants: each request a session makes resolves them from the user's
+record, membership edges, the workspace roles and the `features` setting, four reads, or two for an admin or operator
+(`core/TokenService.java:552-580,795-840`), so a membership change applies on the next request on every instance.
+
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
 features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
 revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
@@ -303,7 +307,7 @@ cost 23 commands for a member and 25 for a global caller, one relationship walk 
 Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
 commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
 or a global token, which starts at the root and reads every node under every workspace, workflow runs included
-(`core/RelationshipService.java:874-952`) — now once per page rather than once per workspace.
+(`core/RelationshipService.java:897-975`) — now once per page rather than once per workspace.
 
 ## Payload caps
 
