@@ -102,11 +102,11 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
 "Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
-(`workspace/WorkspaceService.java:1003-1008`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
+(`workspace/WorkspaceService.java:1005-1010`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
 again, without activating, when they are added to a second workspace (`core/UserService.java:143-153`). Removing such a
 member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete
 matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind
-(`core/UserService.java:537-546`, `workspace/WorkspaceService.java:395-403,533-539`). A record in any other non-active status is not
+(`core/UserService.java:537-546`, `workspace/WorkspaceService.java:397-405,535-541`). A record in any other non-active status is not
 revived. There is no route that creates a user outside a workspace.
 
 **The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an
@@ -219,7 +219,7 @@ stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
 token of that principal (`workflow/WorkflowService.java:904`), and deleting a workspace revokes every token whose principal is the workspace's name,
-its reference everywhere (`workspace/WorkspaceService.java:377-378`). Only the SHA-256 hash of a raw token is stored
+its reference everywhere (`workspace/WorkspaceService.java:379-380`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:215-217,382-390`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_` bearer never reaches MongoDB.

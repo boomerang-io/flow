@@ -355,9 +355,11 @@ public class WorkspaceService {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
 
-    // If no relationship, user has no access or team doesn't exist
-    if (!relationshipService.check(
-        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+    // A workspace that does not exist, or that the caller cannot reach, is not there to delete; a
+    // global caller passes the reachability check, so existence is checked on its own.
+    if (workspaceRepository.findByNameIgnoreCase(workspace).isEmpty()
+        || !relationshipService.check(
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
 

@@ -1,7 +1,10 @@
 package io.boomerang.workspace;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.UserService;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipType;
@@ -84,6 +87,18 @@ class WorkspaceInvitedMemberCleanupTest extends AbstractEngineIntegrationTest {
     workspaceService.delete(workspace);
 
     assertThat(userRepository.findById(invited.getId())).isEmpty();
+  }
+
+  // Reading the members before the delete must not turn a missing workspace into a 500.
+  @Test
+  void deletingAWorkspaceThatIsGoneIsAnInvalidRef() {
+    String workspace = createWorkspace("twice");
+    workspaceService.delete(workspace);
+
+    assertThatThrownBy(() -> workspaceService.delete(workspace))
+        .isInstanceOfSatisfying(
+            BoomerangException.class,
+            e -> assertThat(e.getReason()).isEqualTo(BoomerangError.WORKSPACE_INVALID_REF.getReason()));
   }
 
   private String createWorkspace(String name) {
