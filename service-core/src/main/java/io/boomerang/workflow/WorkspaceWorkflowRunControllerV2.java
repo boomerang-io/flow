@@ -51,7 +51,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Search for WorkflowRuns")
+  @Operation(operationId = "queryWorkflowRuns", summary = "Search for WorkflowRuns")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -151,7 +151,9 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Retrieve a summary of WorkflowRuns by Status.")
+  @Operation(
+      operationId = "countWorkflowRuns",
+      summary = "Retrieve a summary of WorkflowRuns by Status.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -202,7 +204,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Retrieve a specific WorkflowRun.")
+  @Operation(operationId = "getWorkflowRun", summary = "Retrieve a specific WorkflowRun.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -234,6 +236,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "startWorkflowRun",
       summary = "Start WorkflowRun execution. The WorkflowRun has to already have been queued.")
   @ApiResponses(
       value = {
@@ -263,7 +266,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Cancel a WorkflowRun")
+  @Operation(operationId = "cancelWorkflowRun", summary = "Cancel a WorkflowRun")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -298,6 +301,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
   @Operation(
+      operationId = "purgeWorkflowRun",
       summary =
           "Purge a WorkflowRun with everything it owns and its lineage: its retries, its child"
               + " runs, their task runs, actions, artifacts and logs. A run in flight is"
@@ -336,6 +340,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
   @Operation(
+      operationId = "purgeWorkflowRunsByLabels",
       summary =
           "Purge the WorkflowRuns matching every label, oldest first, each with its lineage. One"
               + " call takes a page of matches and reports how many remain; repeat until none.")
@@ -369,7 +374,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Pause a running WorkflowRun")
+  @Operation(operationId = "pauseWorkflowRun", summary = "Pause a running WorkflowRun")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -397,7 +402,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Resume a paused WorkflowRun")
+  @Operation(operationId = "resumeWorkflowRun", summary = "Resume a paused WorkflowRun")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -425,7 +430,7 @@ public class WorkspaceWorkflowRunControllerV2 {
       action = PermissionAction.ACTION,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Retry WorkflowRun execution.")
+  @Operation(operationId = "retryWorkflowRun", summary = "Retry WorkflowRun execution.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

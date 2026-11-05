@@ -43,7 +43,7 @@ public class ParameterControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
-  @Operation(summary = "Get all global Params")
+  @Operation(operationId = "getGlobalParameters", summary = "Get all global Params")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -59,7 +59,7 @@ public class ParameterControllerV2 {
       resource = PermissionResource.SYSTEM,
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Audited(action = AuditAction.CREATE, resourceType = "parameter", resourceId = "#request?.getName()")
-  @Operation(summary = "Create a global Param")
+  @Operation(operationId = "createGlobalParameter", summary = "Create a global Param")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -78,6 +78,7 @@ public class ParameterControllerV2 {
       assignableScopes = {AuthScope.session, AuthScope.user, AuthScope.global})
   @Audited(action = AuditAction.UPDATE, resourceType = "parameter", resourceId = "#name")
   @Operation(
+      operationId = "patchGlobalParameter",
       summary = "Update a global Param",
       description =
           "A JSON Merge Patch (RFC 7396): an absent member is unchanged, null clears it, any other"
@@ -102,7 +103,7 @@ public class ParameterControllerV2 {
       resourceType = "parameter",
       resourceId = "#name",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete a global Param")
+  @Operation(operationId = "deleteGlobalParameter", summary = "Delete a global Param")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

@@ -265,6 +265,22 @@ class ApiContractTest {
     return names;
   }
 
+  // A schema's type, less the null a nullable property lists beside it.
+  private static String type(JsonNode schema) {
+    if (!schema.has("type")) {
+      return "";
+    }
+    JsonNode type = schema.get("type");
+    if (!type.isArray()) {
+      return type.asString();
+    }
+    return type.valueStream()
+        .map(JsonNode::asString)
+        .filter(name -> !"null".equals(name))
+        .findFirst()
+        .orElse("");
+  }
+
   // A value of every property the schema declares: one element per array, one entry per map,
   // the first enum value, a fixed instant for a date-time.
   private static JsonNode sample(JsonNode schema, Deque<String> open) {
@@ -281,8 +297,7 @@ class ApiContractTest {
     if (schema.has("enum")) {
       return schema.get("enum").get(0);
     }
-    String type = schema.has("type") ? schema.get("type").asString() : "";
-    switch (type) {
+    switch (type(schema)) {
       case "object" -> {
         ObjectNode object = WireFormat.JSON.createObjectNode();
         if (schema.has("properties")) {
@@ -378,6 +393,8 @@ class ApiContractTest {
                       entry
                           .getValue()
                           .get("enum")
+                          .valueStream()
+                          .filter(value -> !value.isNull())
                           .forEach(
                               value ->
                                   assertThat(known)

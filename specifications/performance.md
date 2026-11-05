@@ -222,7 +222,7 @@ trust-all templates use the HTTP client's default pool; keep-alive 5 min for all
 async request timeout two hours for a streamed response, so a running task's log is followed for that long, on
 both core (`:72`) and the dispatcher (`service-dispatcher/src/main/resources/application.properties:6`). It
 reaches only the three routes that answer asynchronously: core's task log and artifact download and the
-dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/WorkspaceArtifactControllerV2.java:85`,
+dispatcher's task log (`workflow/TaskRunControllerV2.java:49`, `workflow/WorkspaceArtifactControllerV2.java:87`,
 `service-dispatcher/src/main/java/io/boomerang/dispatcher/LogV1Controller.java:20`); the dispatcher queue's long
 polls are synchronous and keep their 30 s hold. A log the dispatcher has sent nothing on for 10 minutes ends at the
 streaming template's read timeout, with a closing line to the reader (`engine/LogClient.java:133-139`). A

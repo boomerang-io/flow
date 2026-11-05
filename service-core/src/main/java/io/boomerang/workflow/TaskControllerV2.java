@@ -46,6 +46,7 @@ public class TaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getTask",
       summary =
           "Retrieve a specific task. If no version specified, the latest version is returned.")
   @ApiResponses(
@@ -90,6 +91,7 @@ public class TaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "queryTasks",
       summary =
           "Search for Task. If workspaces are provided it will query the workspaces. If no workspaces are provided it will query Global Task Templates")
   @ApiResponses(
@@ -142,6 +144,7 @@ public class TaskControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Audited(action = AuditAction.CREATE, resourceType = "task", resourceId = "#task?.getName()")
   @Operation(
+      operationId = "createTask",
       summary = "Create a new Task",
       description =
           "The name needs to be unique and must only contain alphanumeric and - characeters.")
@@ -183,6 +186,7 @@ public class TaskControllerV2 {
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Audited(action = AuditAction.UPDATE, resourceType = "task", resourceId = "#name")
   @Operation(
+      operationId = "applyTask",
       summary = "Update, replace, or create new, Task",
       description =
           "The name must only contain alphanumeric and - characeters. If the name exists, apply will create a new version.")
@@ -232,6 +236,7 @@ public class TaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "getTaskChangelog",
       summary = "Retrieve a global task's changelog",
       description = "Retrieves each versions changelog and returns them all as a list.")
   @ApiResponses(
@@ -254,6 +259,7 @@ public class TaskControllerV2 {
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
   @Operation(
+      operationId = "validateTaskYaml",
       summary = "Validate a global task's Tekton Task YAML",
       description = "Validates the Task YAML as a Tekton Task")
   @ApiResponses(
@@ -270,7 +276,7 @@ public class TaskControllerV2 {
       action = PermissionAction.DELETE,
       resource = PermissionResource.TASK,
       assignableScopes = {AuthScope.global, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Delete a Task")
+  @Operation(operationId = "deleteTask", summary = "Delete a Task")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "OK"),

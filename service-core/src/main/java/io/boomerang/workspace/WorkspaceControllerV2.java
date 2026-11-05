@@ -214,7 +214,7 @@ public class WorkspaceControllerV2 {
       resourceId = "#workspace",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete Workspace")
+  @Operation(operationId = "deleteWorkspace", summary = "Delete Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "204", description = "OK"),
@@ -256,7 +256,7 @@ public class WorkspaceControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKSPACE,
       assignableScopes = {AuthScope.user, AuthScope.session})
-  @Operation(summary = "Leave Workspace")
+  @Operation(operationId = "leaveWorkspace", summary = "Leave Workspace")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

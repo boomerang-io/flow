@@ -54,7 +54,9 @@ public class WorkspaceArtifactControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "List a WorkflowRun's artifacts, expired ones included")
+  @Operation(
+      operationId = "listWorkflowRunArtifacts",
+      summary = "List a WorkflowRun's artifacts, expired ones included")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -75,7 +77,7 @@ public class WorkspaceArtifactControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "Download an artifact's file")
+  @Operation(operationId = "downloadWorkflowRunArtifact", summary = "Download an artifact's file")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -123,7 +125,9 @@ public class WorkspaceArtifactControllerV2 {
       resourceName = "#name",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete a run's artifact, by name, and its file")
+  @Operation(
+      operationId = "deleteWorkflowRunArtifact",
+      summary = "Delete a run's artifact, by name, and its file")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -146,7 +150,9 @@ public class WorkspaceArtifactControllerV2 {
       action = PermissionAction.READ,
       resource = PermissionResource.WORKFLOWRUN,
       assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(summary = "List the workspace's artifacts, largest first")
+  @Operation(
+      operationId = "queryArtifacts",
+      summary = "List the workspace's artifacts, largest first")
   @ApiResponses(value = {@ApiResponse(responseCode = "200", description = "OK")})
   public Page<Artifact> query(
       @Parameter(name = "workspace", description = "Owning workspace name.", required = true)
@@ -190,7 +196,9 @@ public class WorkspaceArtifactControllerV2 {
       resourceId = "#artifactId",
       workspaceId = "#workspace",
       level = AuditLevel.DESTRUCTIVE)
-  @Operation(summary = "Delete a workspace artifact, by id, and its file")
+  @Operation(
+      operationId = "deleteArtifact",
+      summary = "Delete a workspace artifact, by id, and its file")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),

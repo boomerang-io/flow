@@ -270,7 +270,7 @@ unannotated handler and both placements of `@AuthExempt`.
 | `global`, `key`, `user`, `session` | 77 | every route under `/api/v2/workspace/{workspace}/` (workflows, runs, task runs, tasks, schedules, actions, artifacts, Insights), the workspace routes other than create, name check and leave, tokens, users, webhooks and events, integrations, `GET /api/v2/taskrun/{id}/log` |
 | `global`, `user`, `session` | 28 | settings, context, features, navigation, audit, global parameters, the task catalogue, the platform-wide Insights, creating a workspace and checking its name |
 | `user`, `session` | 4 | the profile (`GET`, `PATCH`), `PUT /api/v2/activate`, leaving a workspace |
-| `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:48,73`) |
+| `global` | 2 | the event outbox, `GET /api/v2/system/outbox` and `PUT /api/v2/system/outbox/replay` (`event/OutboxControllerV2.java:48,74`) |
 
 A `key` token therefore reaches no system, audit or catalogue route, and only a `global` token reaches
 the outbox: a signed-in admin's `session` token is refused there.
@@ -284,7 +284,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 | --- | --- | --- |
 | `GET /internal/v1/auth/config`, `POST /internal/v1/auth/exchange` | No | Read or called before a session exists (`core/InternalAuthControllerV1.java:53,73`) |
 | `POST /internal/v1/auth/logout` | Yes | Ends the caller's own session, the one its cookie authenticated; takes no input and touches no other token, so a user outside every workspace role can sign out (`core/InternalAuthControllerV1.java:95`) |
-| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:340-346`) |
+| `GET /api/v2/integration/github/callback` | No | A browser redirect from GitHub, secured by its signed state (`integrations/IntegrationControllerV2.java:342-348`) |
 | `POST /api/v2/integration/slack/{commands,interactivity,events}`, `GET /api/v2/integration/slack/auth` | No | Reached by Slack, which cannot hold a Flow token. The three POST routes accept only a request signed with the configured Slack signing secret, within five minutes of its timestamp, and refuse everything when no secret is set (`integrations/SlackService.java:84,1005-1017`); the OAuth redirect accepts only a code Slack issued for the configured client, exchanged against Slack with the client secret, and links the installation to a workspace only under a valid signed state naming a member of it (`:521-576`) |
 | `GET /api/v2/integration/slack/install` | Yes | A redirect to Slack's authorize URL for the configured app, linked to no workspace, that takes no input and checks nothing of its own; while the app's client id or secret is unset it is `409 INTEGRATION_NOT_CONFIGURED` (`integrations/IntegrationControllerV2.java:66-71`, `integrations/SlackService.java:983-998`) |
 | The nine routes of `DispatcherControllerV1`, exempt at class level | By its own chain | A dispatcher token is checked by `DispatcherAuthFilter` (see "Dispatcher endpoints") and may do everything the protocol defines (`dispatcher/DispatcherControllerV1.java:55`) |
@@ -292,7 +292,7 @@ requires sign-in. The exempt handlers, each with its reason in the annotation:
 Layer 1 matches a permission string without looking at the **scope** the grant was made at, so a
 workspace `owner`'s `**/**` satisfies `system/read`. Routes whose data spans every workspace therefore
 re-check the scope themselves: `GET /api/v2/audit` and `/api/v2/audit/stats`
-(`core/audit/AuditControllerV2.java:217-232`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
+(`core/audit/AuditControllerV2.java:219-234`) and `PATCH`/`DELETE /api/v2/user/{userId}`'s non-self path
 (`core/UserService.java:520-538`) both require a `global`-scoped grant and raise `PERMISSION_DENIED`
 (HTTP 401) otherwise.
 
