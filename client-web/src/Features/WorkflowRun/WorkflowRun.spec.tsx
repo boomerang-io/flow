@@ -239,6 +239,45 @@ describe("WorkflowRun --- action", () => {
     ]);
   });
 
+  // The retry creates the new run unstarted; the page starts it the way its Start button does.
+  it("starts the run the retry created and answers with it", async () => {
+    const captured: Array<{ path: string; method: string }> = [];
+    server.use(
+      http.all("*", ({ request }) => {
+        const path = new URL(request.url).pathname;
+        captured.push({ path, method: request.method.toLowerCase() });
+        return HttpResponse.json(path.endsWith("/retry") ? { id: "retried-run" } : {});
+      }),
+    );
+
+    const result = await submit({ intent: "retry" });
+
+    expect(result).toEqual({ intent: "retry", workflowRunRef: "retried-run" });
+    expect(captured).toEqual([
+      { path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
+      { path: runUrl.putStartWorkflow({ workspace, id: "retried-run" }), method: HttpMethod.Put },
+    ]);
+  });
+
+  it("still answers with the retried run when it fails to start, so the page can open it", async () => {
+    server.use(
+      http.put(runUrl.putRetryWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({ id: "retried-run" }),
+      ),
+      http.put(runUrl.putStartWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({}, { status: 500 }),
+      ),
+    );
+
+    const result = (await submit({ intent: "retry" })) as unknown as {
+      data: { intent: string; workflowRunRef: string; error: { message: string } };
+    };
+
+    expect(isActionError(result.data)).toBe(true);
+    expect(result.data.workflowRunRef).toBe("retried-run");
+    expect(result.data.error.message).toEqual(expect.any(String));
+  });
+
   it("sends the chosen scope and task names on a scoped retry", async () => {
     const captured = captureRequests();
 

@@ -8,7 +8,7 @@ import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/uti
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
 import kebabcase from "lodash/kebabCase";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import queryString from "query-string";
 import EmptyState from "Components/EmptyState";
 import WorkspaceCreateContent from "Components/WorkspaceCardCreate/WorkspaceCreateContent";
@@ -379,7 +379,9 @@ function WorkspaceListTable(props: WorkspaceListTableProps) {
                       } else if (cell.info.header === "creationDate") {
                         return (
                           <TableCell key={cell.id}>
-                            <time>{moment(cell.value).format(DATETIME_DISPLAY_FORMAT)}</time>
+                            <time>
+                              <FormattedDate value={cell.value} format={DATETIME_DISPLAY_FORMAT} />
+                            </time>
                           </TableCell>
                         );
                       } else if (cell.info.header === "quotas") {

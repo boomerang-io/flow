@@ -117,6 +117,10 @@ function Tokens() {
   }
 
   const tokens = routeData.tokens;
+  // A token names its creator by user id; the workspace's members, already loaded, carry the names.
+  const memberNames = new Map(
+    (workspace.members ?? []).flatMap((member) => (member.id ? [[member.id, member.name || member.email || member.id]] : [])),
+  );
 
   const deleteToken = async (tokenId: string) => {
     fetcher.submit({ intent: "delete", tokenId }, { method: "post" });
@@ -130,6 +134,8 @@ function Tokens() {
         return <p className={styles.tableTextarea}>{value ? "Active" : "Inactive"}</p>;
       case "actorKind":
         return <p className={styles.tableTextarea}>{(value && TokenActorKindLabel[value]) || "---"}</p>;
+      case "createdBy":
+        return <p className={styles.tableTextarea}>{(value && (memberNames.get(value) ?? value)) || "---"}</p>;
       case "creationDate":
       case "expirationDate":
         return (

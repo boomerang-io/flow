@@ -130,7 +130,7 @@ export default class Tasks extends Component<TaskProps> {
   };
 
   handleSearchFilter = (searchQuery: string, tasksToDisplay) =>
-    matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name"] });
+    matchSorter(tasksToDisplay, searchQuery, { keys: ["category", "name", "displayName"] });
 
   // The "For each" entry follows the search box. It is verified, so the verified filter keeps it; it
   // has no task type, so any type filter hides it.

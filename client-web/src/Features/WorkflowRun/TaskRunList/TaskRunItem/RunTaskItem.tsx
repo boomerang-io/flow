@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Button, ModalBody, Tag } from "@carbon/react";
 import { ArrowRight, ChevronDown, ChevronUp, Redo } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
-import moment from "moment";
 import ReactMarkdown from "react-markdown";
+import FormattedDate from "Components/FormattedDate";
 import dateHelper, { formatDuration, DATETIME_DISPLAY_FORMAT } from "Utils/dateHelper";
 import { foreachItemSuffix, foreachParentSummary } from "Utils/taskRunHelper";
 import { ExecutionStatusCopy, NodeType, PASSWORD_CONSTANT, executionStatusIcon } from "Constants";
@@ -131,7 +131,9 @@ function RunTaskItem({
         <p className={styles.timeLine} data-testid="taskitem-time">
           {taskRun.startTime ? (
             <>
-              Started at <time className={styles.timeValue}>{moment(taskRun.startTime).format("hh:mm:ss A")}</time>
+              Started at <time className={styles.timeValue}>
+                <FormattedDate value={taskRun.startTime} format="hh:mm:ss A" />
+              </time>
               {calculatedDuration !== "---" && (
                 <>
                   {" "}
@@ -370,7 +372,7 @@ function ActionersList({ actioners, showVerdict }: { actioners: SimpleApprover[]
           <p className={styles.sectionDetail}>{approverLabel(actioner)}</p>
           <p className={styles.actionerMeta}>
             {showVerdict ? `${actioner.approved ? "Approved" : "Rejected"} · ` : ""}
-            {actioner.date ? moment(actioner.date).format(DATETIME_DISPLAY_FORMAT) : "---"}
+            {actioner.date ? <FormattedDate value={actioner.date} format={DATETIME_DISPLAY_FORMAT} /> : "---"}
           </p>
           {actioner.comments && <p className={styles.sectionDetail}>{actioner.comments}</p>}
         </li>
@@ -496,7 +498,7 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
     <ModalBody>
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Status</span>
-        <p className={styles.sectionDetail}>{taskRun.status}</p>
+        <p className={styles.sectionDetail}>{ExecutionStatusCopy[taskRun.status] ?? taskRun.status}</p>
       </section>
       <section className={styles.detailedSection}>
         <span className={styles.sectionHeader}>Message</span>
@@ -513,9 +515,10 @@ function TaskRunDetail({ taskRun }: TaskRunDetailModalProps) {
             {attempts.map((attempt) => (
               <li key={attempt.number} className={styles.attempt}>
                 <span className={styles.sectionDetail}>
-                  {`Attempt ${attempt.number} · ${attempt.status} · ${attempt.statusReason || "---"} · ${
+                  {`Attempt ${attempt.number} · ${ExecutionStatusCopy[attempt.status] ?? attempt.status} · ${attempt.statusReason || "---"} · ${
                     attempt.duration ? formatDuration(attempt.duration) : "---"
-                  } · ${attempt.endedAt ? moment(attempt.endedAt).format(DATETIME_DISPLAY_FORMAT) : "---"}`}
+                  } · `}
+                  {attempt.endedAt ? <FormattedDate value={attempt.endedAt} format={DATETIME_DISPLAY_FORMAT} /> : "---"}
                 </span>
                 {attempt.statusMessage ? <span className={styles.attemptMessage}>{attempt.statusMessage}</span> : null}
               </li>

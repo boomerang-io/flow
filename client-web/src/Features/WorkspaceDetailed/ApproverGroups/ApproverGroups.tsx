@@ -6,7 +6,7 @@ import sortBy from "lodash/sortBy";
 import { Button, DataTable, InlineNotification } from "@carbon/react";
 import { ConfirmModal, Error404, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import CreateEditGroupModal from "./CreateEditGroupModal";
-import moment from "moment";
+import FormattedDate from "Components/FormattedDate";
 import { formatErrorMessage } from "@boomerang-io/utils";
 import { sortKeyDirection } from "Utils/arrayHelper";
 import { ApproverGroup, Approver } from "Types";
@@ -173,7 +173,9 @@ function ApproverGroups() {
       case "name":
         return <p className={styles.text}>{value}</p>;
       case "creationDate":
-        return <time>{moment(value).format(DATE_DISPLAY_FORMAT)}</time>;
+        return <time>
+          <FormattedDate value={value} format={DATE_DISPLAY_FORMAT} />
+        </time>;
       case "approvers":
         return <p className={styles.text}>{value?.length ?? "0"}</p>;
       case "actions":

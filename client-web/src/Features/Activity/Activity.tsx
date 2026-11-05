@@ -7,6 +7,7 @@ import moment from "moment";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
 import { useLoaderData, useNavigate, useLocation } from "react-router-dom";
+import { useFormatDate } from "Components/FormattedDate";
 import { useWorkspaceContext } from "Hooks";
 import { executionOptions, statusOptions } from "Constants/filterOptions";
 import { queryStringOptions } from "Config/appConfig";
@@ -147,6 +148,7 @@ function WorkflowActivity() {
   const navigate = useNavigate();
   const location = useLocation();
   const { workflowOptions, errorLoadingWorkflows, runSummary, runs, errorLoadingRuns } = useLoaderData() as LoaderData;
+  const formatDate = useFormatDate();
 
   const {
     order = DEFAULT_ORDER,
@@ -335,13 +337,13 @@ function WorkflowActivity() {
               autoComplete="off"
               id="activity-date-picker-start"
               labelText="Start date"
-              value={moment(selectedFromDate).format(DATE_PICKER_FORMAT)}
+              value={formatDate(selectedFromDate, DATE_PICKER_FORMAT)}
             />
             <DatePickerInput
               autoComplete="off"
               id="activity-date-picker-end"
               labelText="End date"
-              value={moment(selectedToDate).format(DATE_PICKER_FORMAT)}
+              value={formatDate(selectedToDate, DATE_PICKER_FORMAT)}
             />
           </DatePicker>
         </div>
