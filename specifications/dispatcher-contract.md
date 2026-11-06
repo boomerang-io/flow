@@ -220,7 +220,7 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 **Caps.** The params cap is the engine's. The results limit is the dispatcher's (`dispatcher-kubernetes.md`, "Results
 on Kubernetes"); the engine's results setting only guards storage against MongoDB's 16 MB document limit.
 
-| Cap | Property (`service-core/src/main/resources/application.properties:231-232`) | Where checked | Effect |
+| Cap | Property (`service-core/src/main/resources/application.properties:224-225`) | Where checked | Effect |
 | --- | --- | --- | --- |
 | Params | `flow.engine.task.params.max-bytes=16384` | Before admission (`engine/TaskExecutionService.java:237-253`) | The task ends `invalid` with a `PARAMS_TOO_LARGE` message and never becomes claimable |
 | Results (storage guard) | `flow.engine.task.results.max-bytes=1048576` (1 MB) | In `TaskRunService.end` (`engine/TaskRunService.java:1123-1137`) | Status becomes `failed` with a `RESULTS_TOO_LARGE` message and `statusReason=ResultsTooLarge`; the oversize results are not persisted |

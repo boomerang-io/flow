@@ -2,7 +2,7 @@
 
 `service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
 `/dispatcher/v1`. This document states the rules every public route follows; route-level detail is the OpenAPI document springdoc serves at `/api/docs/spec`
-(`service-core/src/main/resources/application.properties:205-207`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
+(`service-core/src/main/resources/application.properties:198-200`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
 (`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is the `api-v2` group at `/api/docs/spec/api-v2`
 (`core/config/OpenApiConfiguration.java:139-157`), checked in as `contracts/api-v2.yaml` with every object's keys sorted; `ApiContractTest` fails when the served document and the file differ and
 rewrites the file under `-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`). `contracts/dispatcher-v1.yaml` and `DispatcherContractTest`
@@ -29,7 +29,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 The prefix says who the caller is, so whatever fronts `service-core` can route by it. A front door SHOULD route
 `/api/v2/**` only, and `/dispatcher/v1/**` as well when a dispatcher runs outside core's network. `/internal/v1/**`
 MUST NOT be routed from outside: only the webapp's server calls it, at `CORE_SERVICE_INTERNAL_ORIGIN`
-(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:207`). The prefix is a routing boundary, not a
+(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:200`). The prefix is a routing boundary, not a
 credential: a caller that reaches `service-core` directly reaches it too.
 
 `{workspace}` is the workspace's name; there is no `/api/v2/team/...` route. With `flow.workspace.single=true` a

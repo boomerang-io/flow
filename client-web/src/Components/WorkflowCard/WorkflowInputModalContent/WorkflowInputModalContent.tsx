@@ -28,7 +28,9 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
 
   // A secret with a stored default reads as the marker. The field starts empty rather than holding
   // the marker, and a blank is sent as no value, so the stored default applies.
-  const secureInputs = inputs.map((input: DataDrivenInput) => {
+  // A parameter with no label is labelled by its name.
+  const secureInputs = inputs.map((param: DataDrivenInput) => {
+    const input = { ...param, label: param.label || param.name };
     /* @ts-ignore-next-line */
     if (input.type === InputType.Password && (input?.hiddenValue || input.default === REDACTED)) {
       return {

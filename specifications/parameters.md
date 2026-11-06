@@ -265,7 +265,7 @@ never print a value (`ParameterUtil.runParamNames`, `common/util/ParameterUtil.j
 a `password` field's default and value as `*****`, an env var by name only, and leaves a run spec's script,
 command and arguments out (`common/model/RunParam.java:36-38`, `common/model/AbstractParam.java:49-57`,
 `common/model/TaskEnvVar.java:24`, `common/model/TaskRunSpec.java:18-22`). Boomerang loggers default to INFO;
-DEBUG is opt-in (`service-core/src/main/resources/application.properties:209-220`).
+DEBUG is opt-in (`service-core/src/main/resources/application.properties:202-213`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
 every task of the owning run (`common/util/FilterValuesOutputStream.java:23`). The dispatcher ends the stream

@@ -3,7 +3,7 @@ import { Button, Tab, TabList, Tabs } from "@carbon/react";
 import { SkeletonPlaceholder } from "@carbon/react";
 import { ArrowsVertical, ChevronLeft } from "@carbon/react/icons";
 import orderBy from "lodash/orderBy";
-import { foreachItemRuns, isForeachItem } from "Utils/taskRunHelper";
+import { endTaskRunStatus, foreachItemRuns, isForeachItem } from "Utils/taskRunHelper";
 import { NodeType } from "Constants";
 import { Action, Artifact, RunStatus, WorkflowRun } from "Types";
 import ArtifactsPanel from "./ArtifactsPanel";
@@ -150,7 +150,7 @@ function TaskRunLog({
           {endTask && (
             <TaskRunItem
               key={endTask.id}
-              taskRun={endTask}
+              taskRun={{ ...endTask, status: endTaskRunStatus(endTask, workflowRun) }}
               workflowRun={workflowRun}
               action={actions?.[endTask.id]}
               executionViewRedirect={executionViewRedirect}

@@ -248,7 +248,8 @@ the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:
 dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:656-681`, `:1676-1772`); a dependency with no task run never counts as satisfied
 (`:1746-1789`). When the end node is reached the run succeeds if some path from start to end held, and an `always`
 link holds whatever the task before it did, so a failed task followed by one does not fail the run
-(`engine/DAGUtility.java:125-140`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
+(`engine/DAGUtility.java:125-140`). The end node is completed `succeeded` before that check decides the run's status (`:1676-1700`), so a run that fails still holds a succeeded end; the webapp shows End with the run's status once the
+run ended without succeeding (`client-web/src/Utils/taskRunHelper.ts:95-101`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
 (`:790-820`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-153`).

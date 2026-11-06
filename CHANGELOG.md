@@ -177,6 +177,10 @@ tag's release notes.
   `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
   `WORKSPACE_NON_UNIQUE_NAME`, `WORKSPACE_INVALID_USER_ROLE` and `WORKFLOW_WORKSPACE_INACTIVE`, with the same codes. A
   client that matched a reason or read `teams` moves with them.
+- **A v3 workflow's Sleep step runs as a sleep.** The upgrade made v3's Sleep task the native `sleep` task but kept
+  the workflow steps using it typed `template`, so they failed with "missing required argument 'cmd'". Change unit
+  `_0047__SleepNodesRunAsSleep` types those steps `sleep` in every workflow revision; a step of any other type is
+  left as it is.
 
 ### Added
 
@@ -399,6 +403,10 @@ tag's release notes.
 
 ### Changed
 
+- **Unread quota and app properties are gone.** `max.workflow.duration`, `max.workflow.count`,
+  `max.workflow.execution.monthly`, `max.workflow.execution.time`, `max.concurrent.workflows` and `flow.apps.url`
+  were declared but never read: quotas are the `quotas` settings in Settings, and the webapp's path is
+  `flow.apps.flow.url`. Setting them had no effect, so a deployment that still sets them can drop them.
 - **The Auto-Create Users description says who can still sign in.** With the setting off, a person who is not a user
   yet signs in only if an admin has added them to a workspace or the admin claim admits them; existing users are
   unaffected. The text is seeded on a fresh install, and an install that already holds the old one keeps it.
@@ -537,6 +545,10 @@ tag's release notes.
   parameter value sits in line with the rest of its row.
 - The Quotas and Settings edit buttons, and the task manager's Version history, edit and delete buttons, have
   accessible names.
+- The run dialog labels a workflow parameter that has no label with its name, as the parameter dialog promises;
+  such a parameter showed as an unlabelled field.
+- A run that ends without succeeding no longer shows End as Succeeded on the run page. A rejected approval that skips
+  the next task through a success-only link fails the run, but End read Succeeded; it now shows the run's status.
 - A token created from a role preset alone is minted. `POST /api/v2/token` with a `role` and no `permissions` answered
   `400 TOKEN_INVALID_REQ`; the role now expands to that preset's permissions for the token's scope (the global roles
   for a global token, the workspace roles otherwise). An unknown role is `400 TOKEN_INVALID_PERMISSION`, and a request

@@ -311,7 +311,7 @@ or a global token, which starts at the root and reads every node under every wor
 
 ## Payload caps
 
-Two byte caps bound what the engine stores (`service-core/src/main/resources/application.properties:231-232`):
+Two byte caps bound what the engine stores (`service-core/src/main/resources/application.properties:224-225`):
 resolved params ≤ `flow.engine.task.params.max-bytes` (16384) at admission — oversize invalidates the task before
 it is claimable (`engine/TaskExecutionService.java:237-253`) — and results ≤ `flow.engine.task.results.max-bytes`
 (1 MB) at end, a storage guard behind each dispatcher's own limit (4096 bytes, Kubernetes' termination message) —
