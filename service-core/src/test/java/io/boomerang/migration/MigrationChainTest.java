@@ -81,7 +81,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(107);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(220);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(228);
     assertThat(collection(db, "workflows").countDocuments(Filters.eq("type", "starter"))).isEqualTo(3);
     assertThat(collection(db, "workflow_templates").countDocuments()).as("moved and dropped").isZero();
     assertThat(collection(db, "integration_templates").countDocuments()).isEqualTo(4);
@@ -99,7 +99,7 @@ class MigrationChainTest {
     assertThat(collection(db, "roles").countDocuments()).isEqualTo(5);
     assertThat(collection(db, "settings").countDocuments()).isEqualTo(9);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(107);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(220);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(228);
     assertThat(collection(db, "workspaces").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_nodes").countDocuments()).isEqualTo(nodes);
     assertThat(collection(db, "rel_edges").countDocuments()).isEqualTo(edges);
@@ -212,7 +212,7 @@ class MigrationChainTest {
     MongoCollection<Document> tasks = collection(db, "tasks");
     MongoCollection<Document> revisions = collection(db, "task_revisions");
     assertThat(tasks.countDocuments()).isEqualTo(109);
-    assertThat(revisions.countDocuments()).isEqualTo(221);
+    assertThat(revisions.countDocuments()).isEqualTo(229);
     assertThat(collection(db, "task_templates").countDocuments()).isZero();
     assertThat(tasks.find(Filters.eq("_id", minimalTaskId)).first().getString("name")).isEqualTo("legacy-task");
     Document customTask = tasks.find(Filters.eq("_id", customTaskId)).first();
@@ -271,7 +271,7 @@ class MigrationChainTest {
     migrate("v3");
     assertThat(settings.countDocuments()).isEqualTo(9);
     assertThat(tasks.countDocuments()).isEqualTo(109);
-    assertThat(revisions.countDocuments()).isEqualTo(221);
+    assertThat(revisions.countDocuments()).isEqualTo(229);
     assertThat(collection(db, "approver_groups").countDocuments()).isEqualTo(1);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasApproverGroup"))).isEqualTo(1);
     assertThat(collection(db, "task_runs").find(Filters.eq("_id", taskRunId)).first().getString("taskRef"))
@@ -481,7 +481,7 @@ class MigrationChainTest {
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(108);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(221);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(229);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(107);
     assertAiTaskFamilySeeded(db);
     assertThat(collection(db, "tasks").find(Filters.eq("_id", legacyAiId)).first()).isNotNull();
@@ -490,7 +490,7 @@ class MigrationChainTest {
 
     new _0023__SeedAiTaskFamily().execute(db, environment);
     assertThat(collection(db, "tasks").countDocuments()).isEqualTo(108);
-    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(221);
+    assertThat(collection(db, "task_revisions").countDocuments()).isEqualTo(229);
     assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "hasTask"))).isEqualTo(107);
   }
 
@@ -557,11 +557,11 @@ class MigrationChainTest {
         revisions
             .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 1)))
             .first();
-    assertThat(revisions.countDocuments()).isEqualTo(217);
+    assertThat(revisions.countDocuments()).isEqualTo(225);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0024__SeedAiImageInputRevisions().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(218);
+    assertThat(revisions.countDocuments()).isEqualTo(226);
     Document promptRevisionTwo =
         revisions
             .find(Filters.and(Filters.eq("parentRef", prompt.get("_id").toString()), Filters.eq("version", 2)))
@@ -581,7 +581,7 @@ class MigrationChainTest {
     assertThat(collection(db, "tasks").find(Filters.eq("name", "ai-agent")).first()).isNull();
 
     new _0024__SeedAiImageInputRevisions().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(218);
+    assertThat(revisions.countDocuments()).isEqualTo(226);
   }
 
   /**
@@ -606,12 +606,12 @@ class MigrationChainTest {
     String channelTaskId = tasks.find(Filters.eq("name", "create-slack-channel")).first().get("_id").toString();
     Document channelRevisionOne =
         revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 1))).first();
-    assertThat(revisions.countDocuments()).isEqualTo(194);
+    assertThat(revisions.countDocuments()).isEqualTo(199);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0030__SeedSlackCredentialRevisions().execute(db, environment);
     // The password revision lands as 2 although the seed's newest is the later sharing revision.
-    assertThat(revisions.countDocuments()).isEqualTo(217);
+    assertThat(revisions.countDocuments()).isEqualTo(225);
     Document channelRevisionTwo =
         revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 2))).first();
     assertThat(channelRevisionTwo.get("spec", Document.class).getList("params", Document.class))
@@ -633,7 +633,7 @@ class MigrationChainTest {
     assertThat(tasks.find(Filters.eq("name", "get-slack-channels")).first()).isNull();
 
     new _0030__SeedSlackCredentialRevisions().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(217);
+    assertThat(revisions.countDocuments()).isEqualTo(225);
   }
 
   /**
@@ -672,11 +672,11 @@ class MigrationChainTest {
     String channelTaskId = tasks.find(Filters.eq("name", "create-slack-channel")).first().get("_id").toString();
     Document channelRevisionTwo =
         revisions.find(Filters.and(Filters.eq("parentRef", channelTaskId), Filters.eq("version", 2))).first();
-    assertThat(revisions.countDocuments()).isEqualTo(208);
+    assertThat(revisions.countDocuments()).isEqualTo(216);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0032__SeedSlackIntegrationParameters().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(217);
+    assertThat(revisions.countDocuments()).isEqualTo(225);
     assertThat(templates.countDocuments(Filters.eq("type", "slack"))).isZero();
     Document slack = templates.find(Filters.eq("type", "slack_auth")).first();
     assertThat(slack.getString("status")).isEqualTo("active");
@@ -697,7 +697,7 @@ class MigrationChainTest {
     assertThat(tasks.find(Filters.eq("name", "get-slack-channels")).first()).isNull();
 
     new _0032__SeedSlackIntegrationParameters().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(217);
+    assertThat(revisions.countDocuments()).isEqualTo(225);
     assertThat(templates.countDocuments(Filters.eq("type", "slack_auth"))).isEqualTo(1);
   }
 
@@ -1120,11 +1120,11 @@ class MigrationChainTest {
         tasks.find(Filters.eq("name", "get-github-repository")).first().get("_id").toString();
     Document repositoryRevisionTwo =
         revisions.find(Filters.and(Filters.eq("parentRef", repositoryTaskId), Filters.eq("version", 2))).first();
-    assertThat(revisions.countDocuments()).isEqualTo(202);
+    assertThat(revisions.countDocuments()).isEqualTo(210);
 
     Environment environment = MigrationRunner.environment(PREFIX);
     new _0031__SeedGitHubIntegrationParameters().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(218);
+    assertThat(revisions.countDocuments()).isEqualTo(226);
     assertThat(templates.find(Filters.eq("type", "github_app")).first().getList("fields", Document.class))
         .extracting(field -> field.getString("name"), field -> field.getString("type"))
         .containsExactly(tuple("github-token", "password"), tuple("github-url", "text"));
@@ -1143,7 +1143,7 @@ class MigrationChainTest {
     assertThat(tasks.find(Filters.eq("name", "make-repositories-private")).first()).isNull();
 
     new _0031__SeedGitHubIntegrationParameters().execute(db, environment);
-    assertThat(revisions.countDocuments()).isEqualTo(218);
+    assertThat(revisions.countDocuments()).isEqualTo(226);
     assertThat(templates.find(Filters.eq("type", "github_app")).first().getList("fields", Document.class))
         .hasSize(2);
   }
@@ -1577,7 +1577,8 @@ class MigrationChainTest {
     MongoDatabase db = migrate("default-task-image");
     MongoCollection<Document> settings = collection(db, "settings");
     Environment environment = MigrationRunner.environment(PREFIX);
-    assertThat(defaultImage(settings)).isEqualTo(_0036__DefaultTaskImageTaskFlow33.IMAGE);
+    // The whole chain ends on the newest default; _0048 moved it on from _0036's.
+    assertThat(defaultImage(settings)).isEqualTo(_0048__DefaultTaskImageTaskFlow34.IMAGE);
 
     setDefaultImage(settings, _0036__DefaultTaskImageTaskFlow33.PREVIOUS_IMAGE);
     new _0036__DefaultTaskImageTaskFlow33().execute(db, environment);
@@ -1589,6 +1590,27 @@ class MigrationChainTest {
     new _0036__DefaultTaskImageTaskFlow33().execute(db, environment);
     assertThat(defaultImage(settings)).isEqualTo("registry.acme.internal/task-flow:3.1.0");
   }
+  /**
+   * An install whose default task image is still task-flow 3.3.0, the previous seed's, moves to
+   * 3.4.0 from its own unit; an image an operator chose is left as it is.
+   */
+  @Test
+  void aDefaultTaskImageStillOnTaskFlow33MovesToTaskFlow34() {
+    MongoDatabase db = migrate("default-task-image-3-4");
+    MongoCollection<Document> settings = collection(db, "settings");
+    Environment environment = MigrationRunner.environment(PREFIX);
+
+    setDefaultImage(settings, _0048__DefaultTaskImageTaskFlow34.PREVIOUS_IMAGE);
+    new _0048__DefaultTaskImageTaskFlow34().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo(_0048__DefaultTaskImageTaskFlow34.IMAGE);
+    new _0048__DefaultTaskImageTaskFlow34().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo(_0048__DefaultTaskImageTaskFlow34.IMAGE);
+
+    setDefaultImage(settings, "registry.acme.internal/task-flow:3.3.0");
+    new _0048__DefaultTaskImageTaskFlow34().execute(db, environment);
+    assertThat(defaultImage(settings)).isEqualTo("registry.acme.internal/task-flow:3.3.0");
+  }
+
 
   private static Object defaultImage(MongoCollection<Document> settings) {
     return settings.find(Filters.eq("key", "task")).first().getList("config", Document.class).stream()
