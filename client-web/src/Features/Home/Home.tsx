@@ -8,7 +8,8 @@ import { useFeature } from "flagged";
 import kebabcase from "lodash/kebabCase";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
-import { Link, useFetcher, useLoaderData, useLocation, useNavigate } from "react-router-dom";
+import { Link, useFetcher, useLoaderData, useLocation, useNavigate, useRevalidator } from "react-router-dom";
+import { useFormatDate } from "Components/FormattedDate";
 import HomeBanner from "Components/HomeBanner";
 import LearnCard from "Components/LearnCard";
 import WorkspaceCard from "Components/WorkspaceCard";
@@ -21,10 +22,11 @@ import { serverFetch } from "Config/serverFetch";
 import { HttpMethod } from "Constants";
 import { MemberRole, ModalTriggerProps } from "Types";
 import { actionError, isActionError, type ActionError } from "Utils/actionResult";
+import { isSystemWorkspace } from "Utils/workflowTemplate";
 import AttentionList from "./AttentionList";
 import { daySummary } from "./copy";
 import { GettingStartedSteps, KeyConcepts } from "./GettingStarted";
-import { HomeLoaderData } from "./homeLoader";
+import { HomeLoaderData, TIME_ZONE_COOKIE } from "./homeLoader";
 import PulseTiles from "./PulseTiles";
 import RecentActivity from "./RecentActivity";
 import styles from "./home.module.scss";
@@ -193,6 +195,19 @@ const learnItems = [
 export default function Home() {
   const { workspaces, name, user, workflowTemplates } = useAppContext();
   const data = useLoaderData() as HomeLoaderData;
+  // The day is the viewer's, not the server's: the server render shows UTC, the browser swaps in local.
+  const formatDate = useFormatDate();
+  // Today's run counts are the viewer's day too: the loader reads it from the time zone stored here,
+  // so a page read in another zone stores the browser's and loads once more.
+  const revalidator = useRevalidator();
+  useEffect(() => {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (zone && zone !== data.timeZone) {
+      document.cookie = `${TIME_ZONE_COOKIE}=${encodeURIComponent(zone)}; path=/; max-age=31536000; samesite=lax`;
+      revalidator.revalidate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.timeZone]);
   const singleWorkspaceEnabled = Boolean(useFeature(FeatureFlag.SingleWorkspaceEnabled));
   const activityEnabled = Boolean(useFeature(FeatureFlag.ActivityEnabled));
   // Admins always may; everyone else as the features setting allows.
@@ -278,10 +293,23 @@ export default function Home() {
   // workspace that ran most recently, else the first by name.
   const primaryWorkspace = data.recentRuns[0]?.workspace ?? sortedWorkspaces[0]?.name ?? "";
   const displayName = user.displayName || user.name;
+  // The System workspace holds the starters and templates the platform seeds, so its owner, the
+  // first admin, has made nothing yet; on a single-workspace install it is the user's own.
+  const ownWorkspaces = singleWorkspaceEnabled
+    ? sortedWorkspaces
+    : sortedWorkspaces.filter((workspace) => !isSystemWorkspace(workspace.name));
+  const ownWorkflowCount = ownWorkspaces.reduce((sum, workspace) => sum + (workspace.insights?.workflows ?? 0), 0);
+  const stepsWorkspace = ownWorkspaces.some((workspace) => workspace.name === primaryWorkspace)
+    ? primaryWorkspace
+    : ownWorkspaces[0]?.name;
   // Unread runs are not "no runs": the steps do not come back just because the runs read failed.
   const showSteps =
     !getStartedClosed &&
-    (!hasWorkspaces || workflowCount === 0 || (data.totalRuns === 0 && !data.degraded.recentRuns));
+    (ownWorkspaces.length === 0 || ownWorkflowCount === 0 || (data.totalRuns === 0 && !data.degraded.recentRuns));
+  // A first-run greeting while Get started shows; once it is finished or closed, a returning one.
+  const greeting = showSteps
+    ? `G’day, ${displayName}. Let’s get your first workflow running.`
+    : `Welcome back, ${displayName}.`;
 
   // The create-workspace modal, mounted behind whichever trigger a spot needs. A single
   // workspace deployment has no create affordance anywhere.
@@ -298,8 +326,8 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <HomeBanner
-        eyebrow={`${data.dateLabel} · ${name}`}
-        title={hasWorkspaces ? `Welcome back, ${displayName}.` : `G’day, ${displayName}. Let’s get your first workflow running.`}
+        eyebrow={`${formatDate(data.now, "dddd D MMMM")} · ${name}`}
+        title={greeting}
         message={
           hasWorkspaces
             ? daySummary({
@@ -369,10 +397,10 @@ export default function Home() {
               </IconButton>
             </div>
             <GettingStartedSteps
-              hasWorkspace={hasWorkspaces}
-              hasWorkflow={workflowCount > 0}
+              hasWorkspace={ownWorkspaces.length > 0}
+              hasWorkflow={ownWorkflowCount > 0}
               hasRun={data.totalRuns > 0}
-              primaryWorkspace={primaryWorkspace || undefined}
+              primaryWorkspace={stepsWorkspace}
               createWorkspaceTrigger={
                 canCreateWorkspace
                   ? createWorkspaceModal(({ openModal }) => (

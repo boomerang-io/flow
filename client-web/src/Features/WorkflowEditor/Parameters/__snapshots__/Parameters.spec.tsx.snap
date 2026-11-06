@@ -352,7 +352,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     class="_name_9d297e"
                   >
                     <span
-                      class="_name_9d297e"
+                      class="_reference_9d297e"
                     >
                       tim-parameter
                     </span>
@@ -361,7 +361,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     class="_label_9d297e"
                   >
                     <span
-                      class="_text_9d297e"
+                      class="_truncated_9d297e"
                     >
                       Tim parameter
                     </span>
@@ -375,7 +375,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     class="_default_9d297e"
                   >
                     <span
-                      class="_value_9d297e"
+                      class="_truncated_9d297e"
                     >
                       pandas
                     </span>
@@ -400,7 +400,7 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
                     class="_description_9d297e"
                   >
                     <span
-                      class="_text_9d297e"
+                      class="_truncated_9d297e"
                     >
                       Tim parameter
                     </span>

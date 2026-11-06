@@ -6,6 +6,7 @@ import moment from "moment";
 import { appLink } from "Config/appConfig";
 import { formatDuration } from "Utils/dateHelper";
 import type { InsightsTasks } from "Types";
+import { formatSucceededDuration } from "./format";
 import styles from "./Insights.module.scss";
 
 type Option = { id: string; label: string; groupBy?: string };
@@ -152,10 +153,10 @@ export default function TaskBreakdown({ workspace, view, tasks, error, update }:
                 </TableCell>
                 <TableCell className={styles.numeric}>{row.taskRuns}</TableCell>
                 <TableCell className={styles.numeric}>{row.failed}</TableCell>
-                <TableCell>{formatDuration(row.meanDuration)}</TableCell>
-                <TableCell>{formatDuration(row.p50Duration)}</TableCell>
-                <TableCell>{formatDuration(row.p95Duration)}</TableCell>
-                <TableCell>{formatDuration(row.maxDuration)}</TableCell>
+                <TableCell>{formatSucceededDuration(row.meanDuration, row.succeeded)}</TableCell>
+                <TableCell>{formatSucceededDuration(row.p50Duration, row.succeeded)}</TableCell>
+                <TableCell>{formatSucceededDuration(row.p95Duration, row.succeeded)}</TableCell>
+                <TableCell>{formatSucceededDuration(row.maxDuration, row.succeeded)}</TableCell>
                 {tasks.spanBy ? (
                   <>
                     <TableCell className={styles.numeric}>{row.spans ?? 0}</TableCell>

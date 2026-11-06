@@ -91,7 +91,7 @@ describe("WorkspaceTasks --- navigation from a loaded task", () => {
   test("unsaved edits still ask before changing version", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const { history } = renderWorkspaceTasks(TASK_ROUTE);
-    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+    await userEvent.click((await screen.findAllByRole("button", { name: "Delete field" }))[0]);
 
     await userEvent.click(screen.getByRole("button", { name: "back one version" }));
     await waitFor(() =>

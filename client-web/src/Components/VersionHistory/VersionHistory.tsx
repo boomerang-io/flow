@@ -35,8 +35,8 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ changelog }) => {
             </div>
           }
         >
-          <button className={styles.button} onClick={openModal}>
-            <Catalog fill="#0072C3" />
+          <button aria-label="Version history" className={styles.button} onClick={openModal} type="button">
+            <Catalog className={styles.icon} />
           </button>
         </TooltipHover>
       )}

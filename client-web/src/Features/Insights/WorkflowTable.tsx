@@ -5,8 +5,7 @@ import cx from "classnames";
 import moment from "moment";
 import { appLink } from "Config/appConfig";
 import { InsightsDay, InsightsWorkflow } from "Types";
-import { formatPercent } from "./format";
-import { formatDuration } from "Utils/dateHelper";
+import { formatPercent, formatSucceededDuration } from "./format";
 import styles from "./Insights.module.scss";
 
 interface WorkflowTableProps {
@@ -87,8 +86,8 @@ export default function WorkflowTable({ workspace, rows, selected, selectHref, d
                   {formatPercent(row.successRate)}
                 </span>
               </TableCell>
-              <TableCell>{formatDuration(row.p50Duration)}</TableCell>
-              <TableCell>{formatDuration(row.p95Duration)}</TableCell>
+              <TableCell>{formatSucceededDuration(row.p50Duration, row.succeeded)}</TableCell>
+              <TableCell>{formatSucceededDuration(row.p95Duration, row.succeeded)}</TableCell>
               <TableCell>
                 {row.lastFailureDate && row.lastFailureRunRef ? (
                   <Link to={appLink.execution({ workspace, runId: row.lastFailureRunRef })}>{moment(row.lastFailureDate).fromNow()}</Link>

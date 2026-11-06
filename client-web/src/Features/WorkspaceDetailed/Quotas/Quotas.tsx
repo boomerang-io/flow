@@ -1,5 +1,5 @@
 //@ts-nocheck
-import { TooltipHover, ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
+import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Tile, Button, InlineNotification } from "@carbon/react";
 import { Edit } from "@carbon/react/icons";
 import React from "react";
@@ -343,17 +343,17 @@ const QuotaCard: React.FC<QuotaCardProps> = ({
             subtitle: modalSubtitle,
           }}
           modalTrigger={({ openModal }: ModalTriggerProps) => (
-            <TooltipHover direction="top" content={"Edit"}>
-              <Button
-                className={styles.editButton}
-                iconDescription="Edit"
-                kind="ghost"
-                onClick={openModal}
-                renderIcon={Edit}
-                size="md"
-                disabled={disabled}
-              />
-            </TooltipHover>
+            <Button
+              className={styles.editButton}
+              hasIconOnly
+              iconDescription={`Edit ${title}`}
+              tooltipPosition="top"
+              kind="ghost"
+              onClick={openModal}
+              renderIcon={Edit}
+              size="md"
+              disabled={disabled}
+            />
           )}
         >
           {({ closeModal }) => (

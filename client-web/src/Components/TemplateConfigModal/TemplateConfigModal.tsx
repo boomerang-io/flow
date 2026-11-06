@@ -20,16 +20,16 @@ const TemplateConfigModal: React.FC<TemplateConfigModalProps> = (props) => {
   const { isEdit, isOldVersion, isActive, canEdit } = props;
   const editTrigger = ({ openModal }: ModalTriggerProps) => {
     return isEdit ? (
-      <TooltipHover direction="bottom" tooltipText={"Edit field"}>
-        <Button
-          disabled={isOldVersion || !isActive || !canEdit}
-          iconDescription="Edit field"
-          kind="ghost"
-          onClick={openModal}
-          renderIcon={Edit}
-          size="md"
-        />
-      </TooltipHover>
+      <Button
+        disabled={isOldVersion || !isActive || !canEdit}
+        hasIconOnly
+        iconDescription="Edit field"
+        tooltipPosition="bottom"
+        kind="ghost"
+        onClick={openModal}
+        renderIcon={Edit}
+        size="md"
+      />
     ) : (
       <TooltipHover direction="top" tooltipText={"Add a new field for this task"}>
         <Button
