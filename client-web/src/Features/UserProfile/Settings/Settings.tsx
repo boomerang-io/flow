@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { Tag, Button, InlineNotification } from "@carbon/react";
+import {
+  Tag,
+  Button,
+  InlineNotification,
+  StructuredListBody,
+  StructuredListCell,
+  StructuredListHead,
+  StructuredListRow,
+  StructuredListWrapper,
+} from "@carbon/react";
 import { Edit, CopyFile, Close } from "@carbon/react/icons";
 import {
   ConfirmModal,
@@ -9,9 +18,13 @@ import {
   TooltipHover,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import CopyToClipboard from "react-copy-to-clipboard";
+import capitalize from "lodash/capitalize";
+import sortBy from "lodash/sortBy";
 import { Helmet } from "react-helmet";
-import { useFetcher } from "react-router-dom";
+import { Link, useFetcher } from "react-router-dom";
+import EmptyState from "Components/EmptyState";
 import TokenSection from "Components/TokenSection";
+import { appLink } from "Config/appConfig";
 import { TokenType } from "Constants";
 import type { FlowUser } from "Types";
 import { isActionError } from "Utils/actionResult";
@@ -115,6 +128,40 @@ export default function Settings({ user, userManagementEnabled }: UserSettingsPr
             </div>
           </div>
         </dl>
+      </SettingSection>
+      <SettingSection title="Your workspaces">
+        <div className={styles.detailedListContainer}>
+          <p className={styles.detailedListParagraph}>The workspaces you belong to, and your role in each.</p>
+          {user.workspaces?.length ? (
+            <StructuredListWrapper aria-label="Your workspaces" className={styles.workspaceList}>
+              <StructuredListHead>
+                <StructuredListRow head>
+                  <StructuredListCell head>Workspace</StructuredListCell>
+                  <StructuredListCell head>Your role</StructuredListCell>
+                </StructuredListRow>
+              </StructuredListHead>
+              <StructuredListBody>
+                {sortBy(user.workspaces, (workspace) => (workspace.displayName || workspace.name).toLowerCase()).map(
+                  (workspace) => (
+                    <StructuredListRow key={workspace.name}>
+                      <StructuredListCell>
+                        <Link to={appLink.workflows({ workspace: workspace.name })}>
+                          {workspace.displayName || workspace.name}
+                        </Link>
+                      </StructuredListCell>
+                      <StructuredListCell>{workspace.role ? capitalize(workspace.role) : "---"}</StructuredListCell>
+                    </StructuredListRow>
+                  ),
+                )}
+              </StructuredListBody>
+            </StructuredListWrapper>
+          ) : (
+            <EmptyState
+              title="No workspaces yet"
+              message="Join one or create your own, and it'll show up here."
+            />
+          )}
+        </div>
       </SettingSection>
       <SettingSection title="Tokens">
         <dl className={styles.detailedListContainer}>

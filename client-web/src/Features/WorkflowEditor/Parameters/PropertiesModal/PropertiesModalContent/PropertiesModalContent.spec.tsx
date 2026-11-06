@@ -42,24 +42,37 @@ describe("Inputs --- RTL", () => {
 
     const typeSelect = screen.getByRole("combobox", { name: /type/i });
 
-    // Type is a Carbon Dropdown: open it with a click and pick the option.
-    userEvent.click(typeSelect);
-    userEvent.click(screen.getByText("Boolean"));
+    userEvent.selectOptions(typeSelect, "Boolean");
 
     expect(screen.queryByTestId("text-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("toggle")).toBeInTheDocument();
 
-    userEvent.click(typeSelect);
-    userEvent.click(screen.getByText("Text Area"));
+    userEvent.selectOptions(typeSelect, "Text Area");
 
     expect(screen.queryByTestId("toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-area")).toBeInTheDocument();
 
-    userEvent.click(typeSelect);
-    userEvent.click(screen.getByText("Select"));
+    userEvent.selectOptions(typeSelect, "Select");
 
     expect(screen.queryByTestId("text-area")).not.toBeInTheDocument();
     expect(screen.getByTestId("select")).toBeInTheDocument();
+  });
+
+  // Carbon's Dropdown smooth-scrolled every option the pointer crossed into view; inside the modal's
+  // scrolling body that moved the list under the pointer, and choosing with the mouse never settled.
+  it("chooses a type with the mouse without scrolling anything into view", () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    renderWithContext(<Inputs {...props} isEdit={false} property={undefined} />);
+    const typeSelect = screen.getByRole("combobox", { name: /type/i });
+
+    userEvent.click(typeSelect);
+    userEvent.hover(screen.getByRole("option", { name: "Number" }));
+    userEvent.selectOptions(typeSelect, screen.getByRole("option", { name: "Boolean" }));
+
+    expect(typeSelect).toHaveValue("boolean");
+    expect(screen.getByTestId("toggle")).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollIntoView.mockRestore();
   });
 
   it("enables Add once a name and type are given; the label is optional", async () => {
@@ -70,8 +83,7 @@ describe("Inputs --- RTL", () => {
 
     userEvent.type(nameInput, "test");
 
-    userEvent.click(typeSelect);
-    userEvent.click(screen.getByText("Boolean"));
+    userEvent.selectOptions(typeSelect, "Boolean");
 
     const createButton = await screen.findByRole("button", { name: "Add" });
     expect(createButton).toBeEnabled();

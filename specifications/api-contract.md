@@ -171,7 +171,7 @@ The task and workflow `/{name}/changelog` routes are not paged: they return ever
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,
 `workflow/WorkspaceWorkflowControllerV2.java:214`; sorted by `workflow/repository/TaskRevisionRepository.java:13` and
 `workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it, a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1675-1678`).
-`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once (`workspace/ProfileControllerV2.java:69`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
+`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:853`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
 
 ## Public run models
 
@@ -225,7 +225,7 @@ the last 90 days (`workflow/WorkspaceInsightsControllerV2.java:34`); `labels` is
 absent means every workspace, one that does not exist contributes nothing), and `GET /api/v2/insights/taskruns?workspaces&fromDate&toDate&labels&statuses&phases&tasks&foreach&limit&page` lists task
 runs newest first, each row with its `workspace`, identity and lifecycle, never params, results or spec; `labels` is required, as the workspace's task-run query requires a label or a run
 (`workflow/InsightsControllerV2.java:54,88,142`, `workflow/WorkflowRunInsightService.java:137,250,357-467`). The three admit `global`, `user` and `session` tokens and then insist the matching grant be `global`, as the audit
-routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/InsightsControllerV2.java:81`, `core/security/IdentityService.java:60-71`).
+routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/InsightsControllerV2.java:81`, `core/security/IdentityService.java:60-70`).
 
 | Read | Returns |
 | --- | --- |

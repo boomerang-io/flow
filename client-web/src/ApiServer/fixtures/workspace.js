@@ -31,19 +31,19 @@ const workspace = {
           id: "61d38d133aa9034ded32cae6",
           email: "admin@flowabl.io",
           name: "admin@flowabl.io",
-          role: "Editor"
+          role: "editor"
         },
         {
           id: "61d5db083aa9034ded32cae7",
           email: "boomrng@example.com",
           name: "Boomerang Joe",
-          role: "Owner"
+          role: "owner"
         },
         {
           id: "61ddfb07c5d30f5de052426b",
           email: "marcus.d.roy@gmail.com",
           name: "marcus.d.roy@gmail.com",
-          role: "Owner"
+          role: "owner"
         }],
       parameters: [
         {

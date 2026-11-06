@@ -850,6 +850,7 @@ public class WorkspaceService {
             members.addAll(workspaceMembers.keySet());
             tsi.setWorkflows(Long.valueOf(workflowRefs.getOrDefault(k, List.of()).size()));
             ts.setInsights(tsi);
+            ts.setRole(v);
             teamSummaries.add(ts);
           }
         });

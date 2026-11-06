@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { Component } from "react";
-import { Button, Dropdown, ModalBody, ModalFooter, TextInput as CarbonTextInput } from "@carbon/react";
+import { Button, ModalBody, ModalFooter, Select, SelectItem, TextInput as CarbonTextInput } from "@carbon/react";
 import {
   ComboBox,
   Creatable,
@@ -301,15 +301,24 @@ class PropertiesModalContent extends Component<PropertiesModalContentProps> {
                       value={values.description}
                     />
                   </div>
-                  <Dropdown
+                  {/* A native select: Carbon's Dropdown smooth-scrolls each option the pointer
+                      crosses into view, which inside this scrolling modal body moves the list
+                      under the pointer and never settles. */}
+                  <Select
                     id={InputProperty.Type}
-                    items={inputTypeItems}
-                    itemToString={(item: { label: string }) => (item ? item.label : "")}
-                    label="Type"
-                    onChange={({ selectedItem }: any) => this.handleOnTypeChange(selectedItem ?? textInputItem, setFieldValue)}
-                    selectedItem={values.type}
-                    titleText="Type"
-                  />
+                    labelText="Type"
+                    onChange={(event: React.ChangeEvent<HTMLSelectElement>) =>
+                      this.handleOnTypeChange(
+                        inputTypeItems.find((item) => item.value === event.target.value) ?? textInputItem,
+                        setFieldValue,
+                      )
+                    }
+                    value={values.type?.value ?? InputType.Text}
+                  >
+                    {inputTypeItems.map((item) => (
+                      <SelectItem key={item.value} text={item.label} value={item.value} />
+                    ))}
+                  </Select>
                   {this.renderDefaultValue(formikProps)}
                   <Toggle
                     data-testid="toggle-test-id"

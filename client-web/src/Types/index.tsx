@@ -533,6 +533,8 @@ export interface FlowWorkspaceSummary {
     workflows: number;
     members: number;
   };
+  // The signed-in user's own role in this workspace.
+  role?: MemberRole;
 }
 
 export interface FlowWorkspaceQuotas {

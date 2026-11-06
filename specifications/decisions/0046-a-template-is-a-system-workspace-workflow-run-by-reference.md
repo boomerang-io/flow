@@ -35,6 +35,6 @@ reference must create the run in the caller's unit from inputs alone (Argo's `wo
   (`workflow/WorkflowService.java:2357-2373`).
 - A workspace holds one link per template even when first uses are concurrent: each claims the pair with a `linksTemplate` edge from the workspace to the link,
   whose `_id` names the pair, so one wins and the rest wait for its link; deleting the link removes the claim (`workflow/WorkflowService.java:2375-2449`,
-  `core/RelationshipService.java:323-376`).
+  `core/RelationshipService.java:326-380`).
 - Not built, revisit when a workspace asks to publish its own templates: a link that re-points to another template, a template outside the system workspace, a
   starter that remembers its source.

@@ -129,14 +129,16 @@ public class TokenService {
     // Required field checks
     // - Type and name: required for all tokens
     // - Principal: required if type!=global
-    // - Permissions: required for type!=user
+    // - Exactly one of a role or permissions: required for type!=user, whose grants are its roles
+    boolean hasRole =
+        !AuthScope.user.equals(request.getType()) && request.getRole() != null && !request.getRole().isBlank();
+    boolean hasPermissions = request.getPermissions() != null && !request.getPermissions().isEmpty();
     if (request.getType() == null
         || request.getName() == null
         || request.getName().isEmpty()
         || (!AuthScope.global.equals(request.getType())
             && (request.getPrincipal() == null || request.getPrincipal().isBlank()))
-        || (!AuthScope.user.equals(request.getType())
-            && (request.getPermissions() == null || request.getPermissions().isEmpty()))) {
+        || (!AuthScope.user.equals(request.getType()) && hasRole == hasPermissions)) {
       throw new BoomerangException(BoomerangError.TOKEN_INVALID_REQ);
     }
 
@@ -155,23 +157,26 @@ public class TokenService {
       throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
     }
 
-    // Validate permissions matches the REGEX
-    if (!AuthScope.user.equals(request.getType()) && Objects.isNull(request.getRole())) {
-      assertValidPermissions(request.getPermissions());
+    // A role is a preset of the token's own scope, expanded here to that role's permissions.
+    List<String> permissions =
+        hasRole ? rolePresetPermissions(request.getType(), request.getRole()) : request.getPermissions();
+    if (!AuthScope.user.equals(request.getType())) {
+      assertValidPermissions(permissions);
     }
 
     if (!mayManage(
         request.getType(), request.getActorKind(), request.getPrincipal(), PermissionAction.WRITE)) {
       throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
     }
-    return mint(request, currentIdentity);
+    return mint(request, permissions, currentIdentity);
   }
 
   /*
-   * Store a token for the request, already validated and authorised, and return its raw value
-   * once.
+   * Store a token for the request with its permissions, already validated, expanded and
+   * authorised, and return its raw value once.
    */
-  private TokenCreateResponse mint(TokenCreateRequest request, Token currentIdentity) {
+  private TokenCreateResponse mint(
+      TokenCreateRequest request, List<String> permissions, Token currentIdentity) {
     // Create TokenEntity
     TokenEntity tokenEntity = new TokenEntity();
     tokenEntity.setType(request.getType());
@@ -215,7 +220,7 @@ public class TokenService {
                   request.getPrincipal() != null && !request.getPrincipal().isBlank()
                       ? request.getPrincipal()
                       : "**",
-                  request.getPermissions()));
+                  permissions));
     }
     LOGGER.debug(tokenEntity.getPermissions().toString());
 
@@ -238,6 +243,22 @@ public class TokenService {
     tokenResponse.setExpirationDate(request.getExpirationDate());
     tokenResponse.setActorKind(request.getActorKind());
     return tokenResponse;
+  }
+
+  /**
+   * Return the permissions of the role preset {@code role} for a token of class {@code type}: a
+   * {@code global} token reads the global roles, any other class the workspace roles, the same
+   * presets {@link #getPermissionCatalog} offers. An unknown role is refused.
+   */
+  private List<String> rolePresetPermissions(AuthScope type, String role) {
+    String roleType =
+        (AuthScope.global.equals(type) ? PermissionScope.global : PermissionScope.workspace)
+            .getLabel();
+    RoleEntity preset = roleRepository.findByTypeAndName(roleType, role);
+    if (preset == null || preset.getPermissions() == null || preset.getPermissions().isEmpty()) {
+      throw new BoomerangException(BoomerangError.TOKEN_INVALID_PERMISSION);
+    }
+    return preset.getPermissions();
   }
 
   /**
@@ -964,7 +985,7 @@ public class TokenService {
 
     // Minted by the platform for the schedule, not on behalf of whoever ran before on this thread.
     final TokenCreateResponse tokenResponse =
-        this.mint(tokenRequest, identityService.getCurrentIdentity());
+        this.mint(tokenRequest, tokenRequest.getPermissions(), identityService.getCurrentIdentity());
 
     return this.get(tokenResponse.getToken());
   }

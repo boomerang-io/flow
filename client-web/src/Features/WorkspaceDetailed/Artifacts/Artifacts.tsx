@@ -25,7 +25,7 @@ import { DATE_DISPLAY_FORMAT } from "Utils/dateHelper";
 // kept in component state - a link to a filtered/paginated view stays shareable and survives a
 // refresh. The storage summary reuses the workspace record already on the parent layout route's
 // <Outlet context> (its `quotas.currentArtifactStorage`/`maxArtifactStorage`) rather than a
-// separate read, and the Workflow column resolves off `workspace.workflows` for the same reason.
+// separate read. The Workflow column shows each workflow's display name, read by the loader.
 
 const DEFAULT_PAGE = 0;
 const DEFAULT_LIMIT = 10;
@@ -42,6 +42,8 @@ const SCOPE_OPTIONS = [
 
 export type ArtifactsLoaderData = {
   artifacts: PaginatedResponse<Artifact> | null;
+  // Each artifact's workflow display name, by the workflow id the artifact carries.
+  workflowNames: Record<string, string>;
   errorLoading: boolean;
 };
 
@@ -66,10 +68,35 @@ export async function loader({
     const response = await serverFetch(request).get(
       serviceUrl.workspace.artifact.getWorkspaceArtifacts({ workspace, query }),
     );
-    return { artifacts: response.data, errorLoading: false };
+    const workflowNames = await workflowDisplayNames(request, workspace, response.data?.content ?? []);
+    return { artifacts: response.data, workflowNames, errorLoading: false };
   } catch (error) {
-    return { artifacts: null, errorLoading: true };
+    return { artifacts: null, workflowNames: {}, errorLoading: true };
   }
+}
+
+// An artifact names its workflow by id, and the workspace's workflow list leaves ids out, so each
+// distinct workflow on this page is read by its id. One that can't be read, say a deleted
+// workflow, keeps its id.
+async function workflowDisplayNames(
+  request: Request,
+  workspace: string,
+  artifacts: Array<Artifact>,
+): Promise<Record<string, string>> {
+  const refs = [...new Set(artifacts.map((artifact) => artifact.workflowRef).filter(Boolean))];
+  const entries = await Promise.all(
+    refs.map(async (ref) => {
+      try {
+        const { data } = await serverFetch(request).get(serviceUrl.workspace.workflow.getWorkflow({ workspace, workflow: ref }), {
+          params: { withTasks: false },
+        });
+        return [ref, data?.displayName || data?.name || ref];
+      } catch (error) {
+        return [ref, ref];
+      }
+    }),
+  );
+  return Object.fromEntries(entries);
 }
 
 export type ArtifactsActionResult = { intent: "delete" } | ({ intent: "delete" } & ActionError);
@@ -105,7 +132,7 @@ const HEADERS = [
 function Artifacts() {
   const { workspace, canEdit } = useWorkspaceDetailedContext();
   const workspaceQuotasEnabled = Boolean(useFeature(FeatureFlag.WorkspaceQuotasEnabled));
-  const { artifacts, errorLoading } = useLoaderData() as ArtifactsLoaderData;
+  const { artifacts, workflowNames, errorLoading } = useLoaderData() as ArtifactsLoaderData;
   const navigate = useNavigate();
   const location = useLocation();
   const fetcher = useFetcher<ArtifactsActionResult>();
@@ -161,11 +188,6 @@ function Artifacts() {
       </section>
     );
   }
-
-  const workflowNameMap = (workspace.workflows ?? []).reduce((acc: Record<string, string>, workflow) => {
-    acc[workflow.name] = workflow.displayName;
-    return acc;
-  }, {});
 
   const { maxArtifactStorage = 0, currentArtifactStorage = 0 } = workspaceQuotasEnabled ? workspace.quotas : {};
   const maxArtifactStorageBytes = maxArtifactStorage * 1024 ** 3;
@@ -256,7 +278,7 @@ function Artifacts() {
                           </TableCell>
                           <TableCell>
                             <p className={styles.tableTextarea}>
-                              {workflowNameMap[artifact.workflowRef] ?? artifact.workflowRef}
+                              {workflowNames[artifact.workflowRef] ?? artifact.workflowRef}
                             </p>
                           </TableCell>
                           <TableCell>
