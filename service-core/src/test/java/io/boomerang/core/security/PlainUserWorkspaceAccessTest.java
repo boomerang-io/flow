@@ -185,11 +185,12 @@ class PlainUserWorkspaceAccessTest extends AbstractEngineIntegrationTest {
     String workspace = workspace();
     String email = email();
     String session = signIn(email);
-    addMember(workspace, email, "owner");
+    // An editor: the last owner stays until another member is made one.
+    addMember(workspace, email, "editor");
     as(session, get("/api/v2/workspace/" + workspace + "/workflow/query"))
         .andExpect(status().isOk());
 
-    WorkspaceMember removed = member(email, "owner");
+    WorkspaceMember removed = member(email, "editor");
     removed.setId(userRepository.findByEmail(email).getId());
     asAdmin(() -> workspaceService.removeMembers(workspace, List.of(removed)));
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.core.entity.TokenEntity;
 import io.boomerang.core.model.Token;
+import io.boomerang.core.model.User;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.AdminClaim;
@@ -64,6 +66,10 @@ class TokenServiceLookupCacheTest {
     stored.setType(AuthScope.user);
     stored.setPrincipal("user-1");
     stored.setExpirationDate(new Date(System.currentTimeMillis() + 60_000));
+    // A personal token stands for its user, who must still exist for it to authenticate.
+    User user = new User();
+    user.setId("user-1");
+    lenient().when(userService.getUserByID("user-1")).thenReturn(Optional.of(user));
   }
 
   private TokenService service(TokenLookupCache cache) {

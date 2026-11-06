@@ -73,6 +73,11 @@ const workspaceEditor = {
     { scope: "workspace", principal: workspaceFixture.name, actions: ["**/read", "**/write", "**/action"] },
   ],
 };
+const workspaceOwner = {
+  ...userFixture,
+  type: "user",
+  permissions: [{ scope: "workspace", principal: workspaceFixture.name, actions: ["**/**"] }],
+};
 const workspaceReader = {
   ...userFixture,
   type: "user",
@@ -170,14 +175,15 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
       }),
     );
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
-    // An editor: only an admin also gets the search-by-name add.
-    renderWorkspaceDetailed(undefined, workspaceEditor);
+    // An owner: only an admin also gets the search-by-name add.
+    renderWorkspaceDetailed(undefined, workspaceOwner);
     fireEvent.click(await screen.findByTestId("add-members-button"));
     userEvent.type(await screen.findByLabelText("Email"), "new.member@example.com");
     const role = screen.getByRole("combobox", { name: "Role", hidden: true });
     userEvent.click(role);
-    userEvent.hover(screen.getByRole("option", { name: "Reader", hidden: true }));
-    userEvent.selectOptions(role, screen.getByRole("option", { name: "Owner", hidden: true }));
+    // The modal's own options: an owner's member rows carry role selects of their own.
+    userEvent.hover(within(role).getByRole("option", { name: "Reader", hidden: true }));
+    userEvent.selectOptions(role, within(role).getByRole("option", { name: "Owner", hidden: true }));
     expect(role).toHaveValue("owner");
     fireEvent.click(await screen.findByRole("button", { name: "Add", hidden: true }));
     fireEvent.click(await screen.findByRole("button", { name: "Add member", hidden: true }));
@@ -231,11 +237,52 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(removeIn("admin@flowabl.io")).toBeEnabled();
   });
 
-  test("a workspace editor sees each role but cannot change it", async () => {
+  test("a workspace editor sees each member and role but changes neither", async () => {
     renderWorkspaceDetailed(undefined, workspaceEditor);
     await screen.findByText("Showing 3 members");
     expect(screen.queryByLabelText(/Role for/)).not.toBeInTheDocument();
     expect(screen.getAllByText("owner")).toHaveLength(2);
+    expect(screen.queryByTestId("add-members-button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Remove from Workspace/)).not.toBeInTheDocument();
+  });
+
+  const lastOwner = {
+    code: 1107,
+    reason: "WORKSPACE_LAST_OWNER",
+    message: "Hold up! A workspace always needs an owner. Make another member an owner first.",
+    status: "400 BAD_REQUEST",
+  };
+
+  test("a refused removal says why", async () => {
+    server.use(
+      http.delete(serviceUrl.workspace.deleteWorkspaceMembers({ workspace: ":workspace" }), () =>
+        HttpResponse.json(lastOwner, { status: 400 }),
+      ),
+    );
+    renderWorkspaceDetailed();
+    await screen.findByText("Showing 3 members");
+    fireEvent.click(screen.getAllByText(/Remove from Workspace/)[0]);
+    fireEvent.click(await screen.findByTestId("remove-member"));
+
+    await waitFor(() => expect(toastTitles()).toEqual(["Something's Wrong"]));
+    expect(notify.mock.calls[0][0].props.kind).toBe("error");
+    expect(notify.mock.calls[0][0].props.subtitle).toBe(lastOwner.message);
+    expect(screen.getByText("Showing 3 members")).toBeInTheDocument();
+  });
+
+  test("a refused role change says why", async () => {
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), () =>
+        HttpResponse.json(lastOwner, { status: 400 }),
+      ),
+    );
+    renderWorkspaceDetailed();
+    await screen.findByText("Showing 3 members");
+
+    userEvent.selectOptions(screen.getByLabelText("Role for admin@flowabl.io"), "reader");
+
+    await waitFor(() => expect(toastTitles()).toEqual(["Crikey, that didn’t work!"]));
+    expect(notify.mock.calls[0][0].props.subtitle).toBe(`admin@flowabl.io's role is unchanged. ${lastOwner.message}`);
   });
 
   // The Approver Groups tab's delete is the same fetcher-settle -> parent-loader-revalidate chain

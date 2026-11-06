@@ -46,7 +46,7 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
 (`workflow/QuotaService.java:108-120,189-194`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:222,318`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:224,335`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
 way back to absent (`workspace/WorkspaceControllerV2.java:316-327`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
@@ -218,21 +218,21 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 | `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:314-372`, called from `engine/TaskRunService.java:1234`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:375-384`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:569-578`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
-A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:257-290`) or its
+A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:278-311`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
 document (365; `service-core/src/main/resources/seed/settings.json:456`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
-(`workflow/WorkflowRetentionService.java:292-303`). An hourly pass (`flow.watcher.retention-interval-ms`,
+(`workflow/WorkflowRetentionService.java:313-324`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `engine/WorkflowWatcher.java:213-223`) pages runs in phase `completed` created before the cutoff, oldest first,
 on the `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first),
-actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:208-248,314-322`).
+actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:229-269,335-343`).
 A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'
-ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:305-312`, on the
+ids (a child's parent), is kept until that run is gone (`WorkflowRetentionService.java:326-333`, on the
 `initiated_by_phase` index), so a carried-over task run never outlives the one it stands for and a child's
 "started by" link never dangles. A purge request (`api-contract.md`, "Run purge") removes one run the same way with
-its lineage, deepest first, cancelling one in flight and stamping `purgeRequestedAt` on one whose tasks have not
+its lineage in the path workspace (a run another workspace owns stays, with all that points at it), deepest first, cancelling one in flight and stamping `purgeRequestedAt` on one whose tasks have not
 settled (still ending, or terminated and held by a dispatcher), which the `purgeRequestedRuns` sweep removes on the sparse `purge_sweep` index
-(`workflow/WorkflowRetentionService.java:116-175`). Workflow-scoped artifacts and audit
+(`workflow/WorkflowRetentionService.java:119-180`). Workflow-scoped artifacts and audit
 events are never purged. The first pass runs within a minute of startup, so an upgraded install purges its old
 runs before the setting can be changed, and no value turns the purge off; history worth keeping is exported
 before upgrading.

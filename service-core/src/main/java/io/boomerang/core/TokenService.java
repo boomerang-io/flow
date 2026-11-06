@@ -198,15 +198,7 @@ public class TokenService {
     // construction: `key` tokens only ever get `workspace`-scoped grants below.
     if (AuthScope.user.equals(request.getType())) {
       // TODO do i need to check if user is Admin or Operator
-      Map<String, String> teamsAndRoles = relationshipService.roles(request.getPrincipal());
-      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
-        ResolvedPermissions resolvedPermissions =
-            new ResolvedPermissions(
-                PermissionScope.workspace,
-                entry.getKey(),
-                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions());
-        tokenEntity.getPermissions().add(resolvedPermissions);
-      }
+      tokenEntity.getPermissions().addAll(workspaceGrants(request.getPrincipal()));
     } else {
       PermissionScope grantScope =
           AuthScope.global.equals(request.getType())
@@ -655,7 +647,9 @@ public class TokenService {
    * <p>A {@code session} stands for its user, so it carries what the user holds now, resolved from
    * the user's type and memberships on every request rather than copied at sign-in: a workspace
    * joined, a role changed or a membership removed since then applies to the next request. A
-   * session whose user no longer exists authenticates as nobody.
+   * personal ({@code user}) token keeps what it was minted with, narrowed on every request to what
+   * its user holds now (see {@link #personalGrants}). A session or personal token whose user no
+   * longer exists authenticates as nobody.
    */
   public Token get(String token) {
     TokenEntity tokenEntity = lookup(token).orElse(null);
@@ -668,14 +662,83 @@ public class TokenService {
     Token response = new Token();
     response.setValid(isValid(tokenEntity.getExpirationDate()));
     BeanUtils.copyProperties(tokenEntity, response);
-    if (AuthScope.session.equals(tokenEntity.getType())) {
+    boolean session = AuthScope.session.equals(tokenEntity.getType());
+    if (session || AuthScope.user.equals(tokenEntity.getType())) {
       UserEntity user = userService.getUserByID(tokenEntity.getPrincipal()).orElse(null);
       if (user == null) {
         return null;
       }
-      response.setPermissions(resolvePermissionsForUser(user));
+      response.setPermissions(
+          session
+              ? resolvePermissionsForUser(user)
+              : personalGrants(tokenEntity.getPermissions(), user.getId()));
     }
     return response;
+  }
+
+  /**
+   * Return whether {@code userId}, with the grants a session of theirs would carry now, holds
+   * {@code resource}/{@code action} counting in {@code workspace}: the check for a request made on
+   * a user's behalf that presents no token of theirs. False when no such user exists.
+   */
+  public boolean userGrantsIn(
+      String userId, String workspace, PermissionResource resource, PermissionAction action) {
+    UserEntity user = userService.getUserByID(userId).orElse(null);
+    if (user == null) {
+      return false;
+    }
+    Token identity = new Token(AuthScope.session);
+    identity.setPrincipal(user.getId());
+    identity.setPermissions(resolvePermissionsForUser(user));
+    return relationshipService.grantsIn(identity, workspace, resource, action);
+  }
+
+  /**
+   * A personal token's grants: each workspace grant it was minted with, narrowed to the role its
+   * user holds in that workspace now, and gone with the membership. It never widens past either.
+   */
+  private List<ResolvedPermissions> personalGrants(
+      List<ResolvedPermissions> minted, String userId) {
+    Map<String, List<String>> held =
+        workspaceGrants(userId).stream()
+            .collect(
+                Collectors.toMap(
+                    ResolvedPermissions::getPrincipal, ResolvedPermissions::getActions, (a, b) -> a));
+    List<ResolvedPermissions> grants = new LinkedList<>();
+    for (ResolvedPermissions grant : minted) {
+      List<String> actions =
+          PermissionScope.workspace.equals(grant.getScope()) && held.containsKey(grant.getPrincipal())
+              ? intersect(grant.getActions(), held.get(grant.getPrincipal()))
+              : List.of();
+      if (!actions.isEmpty()) {
+        grants.add(new ResolvedPermissions(PermissionScope.workspace, grant.getPrincipal(), actions));
+      }
+    }
+    return grants;
+  }
+
+  // The resource/action grants both lists allow, with ** on either side narrowed to the other's.
+  private static List<String> intersect(List<String> left, List<String> right) {
+    Set<String> both = new LinkedHashSet<>();
+    for (String a : left) {
+      for (String b : right) {
+        String[] x = a.split("/", 2);
+        String[] y = b.split("/", 2);
+        String resource = narrower(x[0], y[0]);
+        String action = x.length > 1 && y.length > 1 ? narrower(x[1], y[1]) : null;
+        if (resource != null && action != null) {
+          both.add(resource + "/" + action);
+        }
+      }
+    }
+    return List.copyOf(both);
+  }
+
+  private static String narrower(String a, String b) {
+    if ("**".equals(a)) {
+      return b;
+    }
+    return ("**".equals(b) || a.equals(b)) ? a : null;
   }
 
   /*
@@ -911,9 +974,16 @@ public class TokenService {
     }
     permissions.add(
         new ResolvedPermissions(PermissionScope.user, user.getId(), selfServicePermissions()));
-    Map<String, String> workspacesAndRoles = relationshipService.roles(user.getId());
+    permissions.addAll(workspaceGrants(user.getId()));
+    return permissions;
+  }
+
+  // One workspace grant per membership of the user, from its role; an unseeded role grants nothing.
+  private List<ResolvedPermissions> workspaceGrants(String userId) {
+    List<ResolvedPermissions> grants = new LinkedList<>();
+    Map<String, String> workspacesAndRoles = relationshipService.roles(userId);
     if (workspacesAndRoles.isEmpty()) {
-      return permissions;
+      return grants;
     }
     Map<String, List<String>> roleGrants =
         roleRepository.findByType("workspace").stream()
@@ -921,11 +991,11 @@ public class TokenService {
     workspacesAndRoles.forEach(
         (workspace, role) -> {
           if (roleGrants.containsKey(role)) {
-            permissions.add(
+            grants.add(
                 new ResolvedPermissions(PermissionScope.workspace, workspace, roleGrants.get(role)));
           }
         });
-    return permissions;
+    return grants;
   }
 
   // The baseline, plus creating a workspace when the features setting allows users to.

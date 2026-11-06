@@ -24,9 +24,9 @@ B and D. `core/RestExceptionHandler.java:50-72` renders every `BoomerangExceptio
 `:98-116` an unreadable parameter type, `:143-171` an `AuthenticationException`, `:177-182` a denied permission (403),
 `:188-198` any other exception (500, fixed message) and `:206-221` every framework error, at its own status, onto it. Codes and statuses come from `common/error/BoomerangError.java`; messages from `messages.properties`, keyed by
 `reason`. A `*_INVALID_REF*` code answers 404 and means the resource the request path addresses does not exist
-(`BoomerangError.java:51,56,79,87`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
+(`BoomerangError.java:51,58,80,88`); blank or unusable input answers 400 under the matching `*_INVALID_REQ` code. A
 reference that does not resolve inside a body is 400, since the route exists and the payload is wrong:
-`WORKFLOW_INVALID_TASK_REF` (`:60`). What decided it: a client can act on the status alone and switch on `reason`.
+`WORKFLOW_INVALID_TASK_REF` (`:62`). What decided it: a client can act on the status alone and switch on `reason`.
 
 ## Consequences
 

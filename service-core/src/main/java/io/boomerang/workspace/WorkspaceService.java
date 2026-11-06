@@ -26,6 +26,8 @@ import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.security.FlowWorkspaceProperties;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.entity.WorkspaceEntity;
 import io.boomerang.workspace.model.ApproverGroup;
@@ -287,9 +289,24 @@ public class WorkspaceService {
         throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
+      if (request.getMembers() != null && !request.getMembers().isEmpty()) {
+        requireMemberManager(workspace);
+        Map<String, String> before = relationshipService.membersAndRoles(workspace);
+        Map<String, String> after = new HashMap<>(before);
+        request.getMembers().forEach(
+            member ->
+                findMember(member)
+                    .filter(user -> before.containsKey(user.getId()))
+                    .ifPresent(user -> after.put(user.getId(), member.getRole())));
+        requireAnOwnerRemains(before, after);
+      }
       boolean updatedName = false;
       String originalName = workspaceEntity.getName();
       if (request.getName() != null && !request.getName().isBlank()) {
+        // A rename takes a name no other workspace holds, checked as create checks it.
+        if (!request.getName().equalsIgnoreCase(originalName)) {
+          validateName(new WorkspaceNameCheckRequest(request.getName()));
+        }
         workspaceEntity.setName(request.getName());
         updatedName = true;
       }
@@ -522,17 +539,11 @@ public class WorkspaceService {
         throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       List<String> userRefs = new LinkedList<>();
-      for (WorkspaceMember userSummary : request) {
-        Optional<User> userEntity = Optional.empty();
-        if (userSummary.getId() != null && !userSummary.getId().isEmpty()) {
-          userEntity = userService.getUserByID(userSummary.getId());
-        } else if (userSummary.getEmail() != null && !userSummary.getEmail().isEmpty()) {
-          userEntity = userService.getUserByEmail(userSummary.getEmail());
-        }
-        if (userEntity.isPresent()) {
-          userRefs.add(userEntity.get().getId());
-        }
-      }
+      request.forEach(member -> findMember(member).ifPresent(user -> userRefs.add(user.getId())));
+      Map<String, String> before = relationshipService.membersAndRoles(workspace);
+      Map<String, String> after = new HashMap<>(before);
+      userRefs.forEach(after::remove);
+      requireAnOwnerRemains(before, after);
       userRefs.forEach(
           userRef -> {
             relationshipService.removeEdge(
@@ -543,9 +554,8 @@ public class WorkspaceService {
   }
 
   /*
-   *  Allows only the requesting user to leave the team
-   *
-   *  TODO: ensure the remaining owner cannot leave the team
+   *  Allows only the requesting user to leave the team. The last owner stays until another
+   *  member is made an owner.
    */
   public void leave(String workspace) {
     if (workspace == null || workspace.isBlank()) {
@@ -559,7 +569,39 @@ public class WorkspaceService {
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
+    Map<String, String> before = relationshipService.membersAndRoles(workspace);
+    Map<String, String> after = new HashMap<>(before);
+    after.remove(identityService.getCurrentIdentity().getPrincipal());
+    requireAnOwnerRemains(before, after);
     relationshipService.removeEdge(RelationshipType.WORKSPACE, workspace);
+  }
+
+  // Members, and their roles, are changed by an owner of the workspace (its workspace/delete
+  // grant) or by a global grant.
+  private void requireMemberManager(String workspace) {
+    if (!relationshipService.grantsIn(
+        workspace, PermissionResource.WORKSPACE, PermissionAction.DELETE)) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_OWNER_REQUIRED);
+    }
+  }
+
+  // A workspace that has an owner keeps at least one: no change of members may leave it none.
+  private static void requireAnOwnerRemains(Map<String, String> before, Map<String, String> after) {
+    String owner = RoleEnum.OWNER.getLabel();
+    if (before.containsValue(owner) && !after.containsValue(owner)) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_LAST_OWNER);
+    }
+  }
+
+  // The user a member entry names, by id or else by email; empty when there is none.
+  private Optional<User> findMember(WorkspaceMember member) {
+    if (member.getId() != null && !member.getId().isEmpty()) {
+      return userService.getUserByID(member.getId());
+    }
+    if (member.getEmail() != null && !member.getEmail().isEmpty()) {
+      return userService.getUserByEmail(member.getEmail());
+    }
+    return Optional.empty();
   }
 
   /*
@@ -991,13 +1033,8 @@ public class WorkspaceService {
   private void createOrUpdateUserRelationships(String workspace, List<WorkspaceMember> users) {
     if (users != null && !users.isEmpty()) {
       for (WorkspaceMember userSummary : users) {
-        Optional<User> userEntity = Optional.empty();
         // Find user by ID or Email - UI allows adding from existing or new (email)
-        if (userSummary.getId() != null && !userSummary.getId().isEmpty()) {
-          userEntity = userService.getUserByID(userSummary.getId());
-        } else if (userSummary.getEmail() != null && !userSummary.getEmail().isEmpty()) {
-          userEntity = userService.getUserByEmail(userSummary.getEmail());
-        }
+        Optional<User> userEntity = findMember(userSummary);
         if (!userEntity.isPresent()) {
           // Create new user record & relationship
           // If user can't be created, will ignore and continue

@@ -31,6 +31,6 @@ replace rewrites the latest child in place (`WorkflowService.java:2090-2100`, `T
 - Versions are pageable and indexed on parent and version: `workflow_ref_version` and `parent_ref_version`
   (`migration/_0021__Indexes.java:100-110`).
 - Every definition read is two lookups, and deleting a parent MUST delete its revisions (`TaskService.java:994-995`,
-  `workflow/WorkflowRetentionService.java:277`).
+  `workflow/WorkflowRetentionService.java:298`).
 - `workflow_templates` is the one collection that keeps `version` on a single document
   (`common/entity/WorkflowTemplateEntity.java:30`).

@@ -8,6 +8,8 @@ import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.SweepRunner;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.entity.RelationshipNodeEntity;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.EngineConstants;
 import io.boomerang.engine.TaskExecutionService;
@@ -25,6 +27,7 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -114,17 +117,19 @@ public class WorkflowRetentionService {
   }
 
   /**
-   * Purge one run on request, with its lineage: the retries that point at it and the children its
-   * task runs started, found through {@code initiatedByRef} and removed deepest first so no run
-   * outlives one that points at it. A run still in flight is cancelled first. A run is removed now
-   * when its tasks have settled; otherwise it is stamped for the purge sweep, which removes it once
-   * every task has ended and the dispatcher's terminate poll has released the ones it held, or
-   * after the grace. A run that does not exist is nothing to do.
+   * Purge one run of {@code workspace} on request, with its lineage: the retries that point at it
+   * and the children its task runs started, found through {@code initiatedByRef} and removed
+   * deepest first so no run outlives one that points at it. The lineage stays in the workspace: a
+   * run another workspace owns is left as it is, and so is everything that points at it. A run
+   * still in flight is cancelled first. A run is removed now when its tasks have settled; otherwise
+   * it is stamped for the purge sweep, which removes it once every task has ended and the
+   * dispatcher's terminate poll has released the ones it held, or after the grace. A run that does
+   * not exist is nothing to do.
    */
-  public PurgeOutcome purge(String wfRunId) {
+  public PurgeOutcome purge(String workspace, String wfRunId) {
     List<String> purged = new ArrayList<>();
     List<String> scheduled = new ArrayList<>();
-    List<WorkflowRunEntity> lineage = lineageOf(wfRunId);
+    List<WorkflowRunEntity> lineage = lineageOf(workspace, wfRunId);
     for (int i = lineage.size() - 1; i >= 0; i--) {
       WorkflowRunEntity wfRun = lineage.get(i);
       if (RunPhase.completed != wfRun.getPhase()) {
@@ -174,9 +179,10 @@ public class WorkflowRetentionService {
     return purged;
   }
 
-  // The run and every run that points at it or at one of its task runs, transitively, in
-  // discovery order: a run before its retries and children. Empty when the run does not exist.
-  private List<WorkflowRunEntity> lineageOf(String wfRunId) {
+  // The run and every run of the workspace that points at it or at one of its task runs,
+  // transitively, in discovery order: a run before its retries and children. Empty when the run
+  // does not exist.
+  private List<WorkflowRunEntity> lineageOf(String workspace, String wfRunId) {
     Set<String> seen = new LinkedHashSet<>();
     List<WorkflowRunEntity> lineage = new ArrayList<>();
     Deque<String> pending = new ArrayDeque<>();
@@ -194,11 +200,26 @@ public class WorkflowRetentionService {
       List<String> refs = new ArrayList<>();
       refs.add(id);
       taskRunRepository.findIdsByWorkflowRunRef(id).forEach(task -> refs.add(task.getId()));
-      workflowRunRepository
-          .findByInitiatedByRefIn(refs)
-          .forEach(pointing -> pending.add(pointing.getId()));
+      List<WorkflowRunEntity> pointing = workflowRunRepository.findByInitiatedByRefIn(refs);
+      Map<String, RelationshipNodeEntity> owners =
+          relationshipService.parentsByLabel(
+              RelationshipLabel.HAS_WORKFLOWRUN,
+              pointing.stream().map(run -> nodeId(run.getId())).toList());
+      pointing.stream()
+          .filter(run -> owns(owners.get(nodeId(run.getId())), workspace))
+          .forEach(run -> pending.add(run.getId()));
     }
     return lineage;
+  }
+
+  private static String nodeId(String wfRunId) {
+    return RelationshipType.WORKFLOWRUN.getLabel() + ":" + wfRunId;
+  }
+
+  // Whether the workspace node is the one named, by id or by name.
+  private static boolean owns(RelationshipNodeEntity owner, String workspace) {
+    return owner != null
+        && (workspace.equals(owner.getRef()) || workspace.equalsIgnoreCase(owner.getSlug()));
   }
 
   private boolean unsettled(String wfRunId) {

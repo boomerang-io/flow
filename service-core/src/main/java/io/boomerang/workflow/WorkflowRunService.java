@@ -480,7 +480,7 @@ public class WorkflowRunService {
       return WorkflowRunPurge.NONE;
     }
     requireWorkspaceRelationship(workspace, workflowRunId);
-    WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(workflowRunId);
+    WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(workspace, workflowRunId);
     return new WorkflowRunPurge(outcome.purged().size(), outcome.scheduled().size(), 0);
   }
 
@@ -515,7 +515,7 @@ public class WorkflowRunService {
       if (purged.contains(wfRun.getId()) || scheduled.contains(wfRun.getId())) {
         continue;
       }
-      WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(wfRun.getId());
+      WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(workspace, wfRun.getId());
       purged.addAll(outcome.purged());
       scheduled.addAll(outcome.scheduled());
     }
