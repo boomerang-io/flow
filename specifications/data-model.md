@@ -330,6 +330,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0045__ClearPlaceholderDefaults` | all | Empties the placeholder default a few credential parameters carried (older GitHub revisions' `token`, the SendGrid template task's `apiKey` and `templateId`); the parameters stay |
 | `_0046__SeedAutoCreateUsersSetting` | all | Adds the `features` setting `autoCreateUsers` (whether a person's first sign-in creates their user) from the seed to an install built before it existed; an install that has the key is left as it is |
 | `_0047__SleepNodesRunAsSleep` | all | Types `sleep` each workflow revision node typed `template` whose `taskRef` is a task of type `sleep`: `_0006` makes v3's Sleep the native task, `_0010` keeps its nodes typed `template`, and a node runs as its type. Only a node of that pair is touched; a node of any other type is left as it is |
+| `_0048__DefaultTaskImageTaskFlow34` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.3.0` to `3.4.0` where an install still holds the earlier seed's value; a value an operator chose is left as it is |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed
