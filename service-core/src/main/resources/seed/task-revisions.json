@@ -5824,6 +5824,204 @@
    "parentRef": "execute-advanced-http-call"
   },
   {
+   "displayName": "Execute Advanced HTTP Call",
+   "description": "Makes one HTTP request with configurable success, error and retry status codes, and returns the status code and the response. Network failures before a response (refused, timed out, DNS) are retried three times, five seconds apart.",
+   "category": "Utilities",
+   "icon": "API/HTTP call",
+   "version": 5,
+   "changelog": {
+    "reason": "The http command runs again (it was disabled, so the task did nothing and reported success); helper text describes how codes, bodies and redirects behave",
+    "date": {
+     "$date": "2026-11-02T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "url",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "url",
+      "required": true,
+      "defaultValue": "",
+      "helpertext": "The request URL, http or https. Credentials or a query string in it are left out of the log"
+     },
+     {
+      "description": "",
+      "label": "Method",
+      "type": "select",
+      "options": [
+       {
+        "key": "GET",
+        "value": "GET"
+       },
+       {
+        "key": "HEAD",
+        "value": "HEAD"
+       },
+       {
+        "key": "PUT",
+        "value": "PUT"
+       },
+       {
+        "key": "POST",
+        "value": "POST"
+       },
+       {
+        "key": "PATCH",
+        "value": "PATCH"
+       },
+       {
+        "key": "OPTIONS",
+        "value": "OPTIONS"
+       },
+       {
+        "key": "DELETE",
+        "value": "DELETE"
+       }
+      ],
+      "placeholder": "",
+      "readOnly": false,
+      "name": "method",
+      "required": false,
+      "defaultValue": "",
+      "helpertext": "Blank is GET"
+     },
+     {
+      "description": "Start a new line for each header",
+      "label": "Headers",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "One header per line, as Name: value; quotes around a name or value are dropped. Values are never logged",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "header"
+     },
+     {
+      "description": "",
+      "label": "Content Type",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "contentType",
+      "required": false,
+      "defaultValue": "",
+      "helpertext": "Sets the Content-Type header. For a JSON type (application/json or +json) the body must be valid JSON"
+     },
+     {
+      "description": "",
+      "label": "Body",
+      "type": "texteditor",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "body",
+      "required": false,
+      "defaultValue": "",
+      "helpertext": "Sent exactly as written; a JSON body is checked, not reformatted"
+     },
+     {
+      "description": "",
+      "label": "Allow Untrusted SSL Certs",
+      "type": "boolean",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "allowUntrustedCerts",
+      "required": false,
+      "defaultValue": "",
+      "helpertext": "Skip verifying the server's TLS certificate, e.g. a self-signed one"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A workspace file, absolute or relative to /workspace, to write the response to as received; the Response result is then empty. Needed for a response over 3000 bytes",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "outputFilePath"
+     },
+     {
+      "description": "If left empty, success will be considered: 2xx",
+      "label": "HTTP response codes for successful execution",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Comma-separated codes or patterns with x for a digit, e.g. 2xx,404. Any 2xx always succeeds. Redirects are not followed, so add 3xx to accept one",
+      "defaultValue": "1xx,2xx",
+      "readOnly": false,
+      "name": "successcodes"
+     },
+     {
+      "description": "No retry calls are done for these HTTP status codes",
+      "label": "HTTP response codes for failure",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g. 5xx,404",
+      "helpertext": "Codes or patterns that fail the call at once, without a retry; checked before the success codes",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "errorcodes"
+     },
+     {
+      "description": "HTTP response codes for which the task will retry the call",
+      "label": "HTTP response codes for execution retry",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Codes or patterns to retry while retries remain, e.g. 502,503",
+      "defaultValue": "502,503",
+      "readOnly": false,
+      "name": "retrycodes"
+     },
+     {
+      "description": "",
+      "label": "Number of milliseconds to wait until the next retry",
+      "type": "number",
+      "required": false,
+      "placeholder": "e.g. 200",
+      "helpertext": "Milliseconds between retries, 100 to 300000. Blank is 200",
+      "readOnly": false,
+      "name": "retrydelay",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Number of retries",
+      "type": "number",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Retries after the first call, 0 to 9",
+      "defaultValue": "3",
+      "readOnly": false,
+      "name": "retrynumber"
+     }
+    ],
+    "arguments": [
+     "http",
+     "execute"
+    ],
+    "command": [],
+    "envs": [],
+    "results": [
+     {
+      "description": "The response body, when it fits in a result (3000 bytes) and Response File Path is blank; also set on a failed call when it fits",
+      "name": "response"
+     },
+     {
+      "description": "The HTTP status code received, also set on a failed call",
+      "name": "statusCode"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "execute-advanced-http-call"
+  },
+  {
    "displayName": "Execute Basic HTTP Call",
    "description": "Execute a Basic HTTP Call",
    "category": "Utilities",
@@ -5962,6 +6160,149 @@
    "parentRef": "execute-basic-http-call"
   },
   {
+   "displayName": "Execute Basic HTTP Call",
+   "description": "Makes one HTTP request and returns the status code and the response. Any 2xx succeeds; another status fails the task, with the status and response still set as results.",
+   "category": "Utilities",
+   "icon": "API/HTTP call",
+   "version": 2,
+   "changelog": {
+    "reason": "The http command runs again (it was disabled, so the task did nothing and reported success); helper text describes how codes, bodies and redirects behave",
+    "date": {
+     "$date": "2026-11-02T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "URL",
+      "type": "url",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The request URL, http or https. Credentials or a query string in it are left out of the log",
+      "readOnly": false,
+      "name": "url",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Method",
+      "type": "select",
+      "options": [
+       {
+        "key": "GET",
+        "value": "GET"
+       },
+       {
+        "key": "HEAD",
+        "value": "HEAD"
+       },
+       {
+        "key": "PUT",
+        "value": "PUT"
+       },
+       {
+        "key": "POST",
+        "value": "POST"
+       },
+       {
+        "key": "PATCH",
+        "value": "PATCH"
+       },
+       {
+        "key": "OPTIONS",
+        "value": "OPTIONS"
+       },
+       {
+        "key": "DELETE",
+        "value": "DELETE"
+       }
+      ],
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Blank is GET",
+      "readOnly": false,
+      "name": "method",
+      "defaultValue": ""
+     },
+     {
+      "description": "Start a new line for each header",
+      "label": "Headers",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "One header per line, as Name: value; quotes around a name or value are dropped. Values are never logged",
+      "readOnly": false,
+      "name": "header",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Content Type",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Sets the Content-Type header. For a JSON type (application/json or +json) the body must be valid JSON",
+      "readOnly": false,
+      "name": "contentType",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Body",
+      "type": "texteditor",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Sent exactly as written; a JSON body is checked, not reformatted",
+      "readOnly": false,
+      "name": "body",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Allow Untrusted SSL Certs",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Skip verifying the server's TLS certificate, e.g. a self-signed one",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "allowUntrustedCerts"
+     },
+     {
+      "description": "If provided, the result parameter is not filled",
+      "label": "Response File Path",
+      "type": "text",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "A workspace file, absolute or relative to /workspace, to write the response to as received; the Response result is then empty. Needed for a response over 3000 bytes",
+      "readOnly": false,
+      "name": "outputFilePath",
+      "defaultValue": ""
+     }
+    ],
+    "arguments": [
+     "http",
+     "execute"
+    ],
+    "command": [],
+    "envs": [],
+    "results": [
+     {
+      "description": "The response body, when it fits in a result (3000 bytes) and Response File Path is blank; also set on a failed call when it fits",
+      "name": "response"
+     },
+     {
+      "description": "The HTTP status code received, also set on a failed call",
+      "name": "statusCode"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "execute-basic-http-call"
+  },
+  {
    "displayName": "Execute Shell",
    "description": "Execute a shell script",
    "category": "Utilities",
@@ -6062,6 +6403,77 @@
     "command": [],
     "envs": null,
     "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "execute-shell"
+  },
+  {
+   "displayName": "Execute Shell",
+   "description": "Execute a shell script",
+   "category": "Utilities",
+   "icon": "Terminal",
+   "version": 3,
+   "changelog": {
+    "reason": "Fail On Error stops the script at its first failing command (set -e); Directory Path takes a trailing slash or a path relative to /workspace",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Directory Path",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "path",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "The directory to run in, absolute or relative to /workspace. Blank is /data, else /workspace"
+     },
+     {
+      "description": "",
+      "label": "Shell Interpreter",
+      "type": "text",
+      "placeholder": "",
+      "readOnly": false,
+      "name": "shell",
+      "defaultValue": "",
+      "required": false,
+      "helpertext": "The shell to run the script with, e.g. /bin/bash. Blank is /bin/sh"
+     },
+     {
+      "description": "",
+      "label": "Shell Script",
+      "type": "texteditor::shell",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The script to run",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "script"
+     },
+     {
+      "description": "",
+      "label": "Fail On Error",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Stop at the first command that fails (set -e). Off, only the last command's exit status counts",
+      "defaultValue": "true",
+      "readOnly": false,
+      "name": "failOnError"
+     }
+    ],
+    "arguments": [
+     "shell",
+     "execute"
+    ],
+    "command": [],
+    "envs": null,
     "results": null,
     "script": null,
     "workingDir": null
@@ -6170,6 +6582,60 @@
     "results": [
      {
       "description": "The value based on the applied expression",
+      "name": "evaluation"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "file-jsonpath-to-parameter"
+  },
+  {
+   "displayName": "File JSONPath To Parameter",
+   "description": "Takes the first value from the file content returned by a valid JSONPath expression and sets as an output property",
+   "category": "Utilities",
+   "icon": "Filter",
+   "version": 3,
+   "changelog": {
+    "reason": "Query is required, as the task always needed; File Path is absolute or relative to /workspace; a query that matches nothing sets an empty evaluation with a warning, and the value is no longer logged",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "File Path",
+      "type": "text",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "A workspace file holding JSON, absolute or relative to /workspace",
+      "readOnly": false,
+      "name": "filePath",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Query Expression",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. $.store.book",
+      "helpertext": "A JSONPath expression, e.g. $.items[0].id. One that matches nothing sets an empty evaluation",
+      "readOnly": false,
+      "name": "query",
+      "defaultValue": ""
+     }
+    ],
+    "arguments": [
+     "system",
+     "jsonFilePathToProperty"
+    ],
+    "command": [],
+    "envs": [],
+    "results": [
+     {
+      "description": "The value the query matched, JSON for an object or array; empty when nothing matched",
       "name": "evaluation"
      }
     ],
@@ -10913,6 +11379,60 @@
    "parentRef": "jsonpath-to-parameter"
   },
   {
+   "displayName": "JSONPath To Parameter",
+   "description": "Takes the first value returned by a valid JSONPath expression and sets as an output property",
+   "category": "Utilities",
+   "icon": "Filter",
+   "version": 4,
+   "changelog": {
+    "reason": "Json and Query are required, as the task always needed; a query that matches nothing sets an empty evaluation with a warning, and the value is no longer logged",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "",
+      "label": "Json",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "",
+      "helpertext": "The JSON to query, e.g. $(tasks.call.results.response)",
+      "readOnly": false,
+      "name": "json",
+      "defaultValue": ""
+     },
+     {
+      "description": "",
+      "label": "Query Expression",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g. $.store.book",
+      "helpertext": "A JSONPath expression, e.g. $.items[0].id. One that matches nothing sets an empty evaluation",
+      "readOnly": false,
+      "name": "query",
+      "defaultValue": ""
+     }
+    ],
+    "arguments": [
+     "system",
+     "jsonPathToProperty"
+    ],
+    "command": [],
+    "envs": [],
+    "results": [
+     {
+      "description": "The value the query matched, JSON for an object or array; empty when nothing matched",
+      "name": "evaluation"
+     }
+    ],
+    "script": "",
+    "workingDir": ""
+   },
+   "parentRef": "jsonpath-to-parameter"
+  },
+  {
    "displayName": "List Box Folders",
    "description": "Retrieves and lists an user's Box folders.",
    "category": "Box",
@@ -13512,6 +14032,55 @@
    "parentRef": "send-custom-slack-message"
   },
   {
+   "displayName": "Send Custom Slack Message",
+   "description": "Send custom JSON payload to a specified Slack webhook URL. For more information on the underlying Slack API and potential configurations: https://api.slack.com/messaging/webhooks",
+   "category": "Communication with Slack",
+   "icon": "Message",
+   "version": 3,
+   "changelog": {
+    "reason": "The task fails on any error from Slack, an unreachable webhook, or a Message that is not JSON; it reported success before",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "Found within your webhook integration settings",
+      "label": "URL",
+      "type": "password",
+      "required": true,
+      "placeholder": "https://hooks.slack.com/services/...",
+      "helpertext": "The incoming webhook URL. It is the credential, so it is never logged",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Message Payload",
+      "type": "texteditor",
+      "required": true,
+      "placeholder": "{ \"text\": \"My Slack message.\" }",
+      "helpertext": "The whole webhook payload as a JSON object, e.g. {\"text\": \"...\", \"blocks\": [...]}",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "message"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "sendCustomMessage"
+    ],
+    "command": [],
+    "envs": null,
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "send-custom-slack-message"
+  },
+  {
    "displayName": "Send Email with Postmark Template",
    "description": "Send an email from a template using a template ID and variables.",
    "category": "Communication",
@@ -14910,6 +15479,88 @@
    "parentRef": "send-simple-slack-message"
   },
   {
+   "displayName": "Send Simple Slack Message",
+   "description": "Easily configurable slack webhook message. To provide additional parameters, please see our Custom Slack Message task.",
+   "category": "Communication with Slack",
+   "icon": "Message",
+   "version": 3,
+   "changelog": {
+    "reason": "The task sends again (it failed on an undefined variable and still reported success) and fails on any error from Slack; Message is required",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "Found within your webhook integration settings",
+      "label": "Webhook URL",
+      "type": "password",
+      "required": true,
+      "placeholder": "https://hooks.slack.com/services/...",
+      "helpertext": "The incoming webhook URL. It is the credential, so it is never logged",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": false,
+      "placeholder": "#channel-name",
+      "helpertext": "A channel (#builds) or user to post to. Blank, or a webhook from a Slack app (which ignores it), posts to the webhook's own channel",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     },
+     {
+      "description": "If left blank, defaults to :boomerang:",
+      "label": "Icon",
+      "type": "text",
+      "required": false,
+      "placeholder": ":boomerang:",
+      "helpertext": "An emoji such as :rocket: shown as the sender's icon; only legacy custom-integration webhooks use it",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "icon"
+     },
+     {
+      "description": "",
+      "label": "Username",
+      "type": "text",
+      "required": false,
+      "placeholder": "Test-Bot",
+      "helpertext": "The name shown as the sender; only legacy custom-integration webhooks use it",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "username"
+     },
+     {
+      "description": "",
+      "label": "Message",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Your message here.",
+      "helpertext": "The message text, in Slack's mrkdwn",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "message"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "sendSimpleMessage"
+    ],
+    "command": [],
+    "envs": null,
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "send-simple-slack-message"
+  },
+  {
    "displayName": "Send Slack Message with File Contents",
    "description": "Send slack message with file contents via webhook\n",
    "category": "Communication with Slack",
@@ -15135,6 +15786,121 @@
     "command": [],
     "envs": null,
     "image": "",
+    "results": null,
+    "script": null,
+    "workingDir": null
+   },
+   "parentRef": "send-slack-message-with-file-contents"
+  },
+  {
+   "displayName": "Send Slack Message with File Contents",
+   "description": "Send slack message with file contents via webhook\n",
+   "category": "Communication with Slack",
+   "icon": "Message",
+   "version": 3,
+   "changelog": {
+    "reason": "The task sends again (it failed on an undefined variable and still reported success), decodes Encoded content, and fails on any error from Slack",
+    "date": {
+     "$date": "2026-11-06T00:00:00Z"
+    }
+   },
+   "spec": {
+    "params": [
+     {
+      "description": "Found within your webhook integration settings",
+      "label": "Webhook URL",
+      "type": "password",
+      "required": true,
+      "placeholder": "https://hooks.slack.com/services/...",
+      "helpertext": "The incoming webhook URL. It is the credential, so it is never logged",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "url"
+     },
+     {
+      "description": "",
+      "label": "Channel",
+      "type": "text",
+      "required": false,
+      "placeholder": "#channel-name",
+      "helpertext": "A channel (#builds) or user to post to. Blank, or a webhook from a Slack app (which ignores it), posts to the webhook's own channel",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "channel"
+     },
+     {
+      "description": "If left blank, defaults to :boomerang:",
+      "label": "Icon",
+      "type": "text",
+      "required": false,
+      "placeholder": ":boomerang:",
+      "helpertext": "An emoji such as :rocket: shown as the sender's icon; only legacy custom-integration webhooks use it",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "icon"
+     },
+     {
+      "description": "",
+      "label": "Username",
+      "type": "text",
+      "required": false,
+      "placeholder": "Test-Bot",
+      "helpertext": "The name shown as the sender; only legacy custom-integration webhooks use it",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "username"
+     },
+     {
+      "description": "",
+      "label": "Message",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Your message here.",
+      "helpertext": "A heading shown above the content",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "message"
+     },
+     {
+      "description": "File can be base64 encoded",
+      "label": "File Content",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "The text to post, split into blocks of up to 3000 characters; content past one message (50 blocks) is left out with a note",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "content"
+     },
+     {
+      "description": "Enable if File Content provided is base64 encoded ",
+      "label": "Decode File Content",
+      "type": "boolean",
+      "required": false,
+      "placeholder": "",
+      "helpertext": "Content is base64, e.g. a log passed from an earlier task",
+      "defaultValue": "false",
+      "readOnly": false,
+      "name": "encoded"
+     },
+     {
+      "description": "A helpful footer",
+      "label": "Context",
+      "type": "text",
+      "required": false,
+      "placeholder": "Context for use...",
+      "helpertext": "A footer line, in Slack's mrkdwn",
+      "defaultValue": "",
+      "readOnly": false,
+      "name": "context"
+     }
+    ],
+    "arguments": [
+     "slack",
+     "sendFileMessage"
+    ],
+    "command": [],
+    "envs": null,
     "results": null,
     "script": null,
     "workingDir": null
