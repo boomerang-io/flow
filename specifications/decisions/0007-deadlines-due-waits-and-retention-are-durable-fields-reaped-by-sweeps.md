@@ -29,7 +29,7 @@ claiming the wait by moving `waitUntil` 60 s ahead (`engine/DueWaitPoller.java:2
 `WorkflowService.delete` is one guarded update to `deleted` (`workflow/WorkflowService.java:2278-2290`); the sweep
 cancels the workflow's in-flight runs and then purges each run with its dependants, and `purgeExpiredRuns` runs hourly
 over `completed` runs older than the `workflowrun` setting `retention.days` (365, floored at 60), keeping any run
-another run names in `initiatedByRef`, 20 pages of 50 a pass (`workflow/WorkflowRetentionService.java:208-248,305-312`).
+another run names in `initiatedByRef`, 20 pages of 50 a pass (`workflow/WorkflowRetentionService.java:229-269,326-333`).
 
 ## Consequences
 

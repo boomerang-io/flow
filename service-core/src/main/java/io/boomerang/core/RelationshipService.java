@@ -544,7 +544,12 @@ public class RelationshipService {
    * self-service grants belong to no workspace, so they never count here.
    */
   public boolean grantsIn(String workspace, PermissionResource resource, PermissionAction action) {
-    Token identity = identityService.getCurrentIdentity();
+    return grantsIn(identityService.getCurrentIdentity(), workspace, resource, action);
+  }
+
+  /** {@link #grantsIn(String, PermissionResource, PermissionAction)} for an identity in hand. */
+  public boolean grantsIn(
+      Token identity, String workspace, PermissionResource resource, PermissionAction action) {
     if (identity == null || identity.getPermissions() == null) {
       return false;
     }

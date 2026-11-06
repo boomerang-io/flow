@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.TokenService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.integrations.repository.IntegrationsRepository;
@@ -52,7 +53,8 @@ class GitHubInstallationTokenTest {
           mock(RelationshipService.class),
           mock(IntegrationsRepository.class),
           mock(IntegrationParameterService.class),
-          restTemplate);
+          restTemplate,
+          mock(TokenService.class));
 
   private KeyPair keys;
 

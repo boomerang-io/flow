@@ -100,14 +100,15 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
     ArtifactEntity artifact = savedArtifact(workflow, origin, "report.txt", ArtifactScope.run);
     ArtifactEntity log = savedArtifact(workflow, child, childTaskId + ".log", ArtifactScope.log);
     ArtifactEntity kept = savedArtifact(workflow, origin, "state.json", ArtifactScope.workflow);
-    relationshipService.createNode(
-        RelationshipType.WORKFLOWRUN, origin.getId(), origin.getId(), Optional.empty());
+    String workspace = workspaceNode("purge-lineage-ws");
+    ownedBy(workspace, origin, retry, child, grandchild, unrelated);
     AuditEventEntity audit = new AuditEventEntity();
     audit.setResourceType("workflowrun");
     audit.setResourceId(origin.getId());
     audit = auditEventRepository.save(audit);
 
-    WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(origin.getId());
+    WorkflowRetentionService.PurgeOutcome outcome =
+        workflowRetentionService.purge(workspace, origin.getId());
 
     assertThat(outcome.purged())
         .containsExactlyInAnyOrder(
@@ -138,12 +139,46 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aPurgeLeavesAnotherWorkspacesRunsAndWhatPointsAtThem() {
+    WorkflowEntity workflow = savedWorkflow("purge-cross-workspace");
+    WorkflowRunEntity origin = finishedRun(workflow.getId());
+    String originTaskId = finishedTask(workflow, origin).getId();
+    WorkflowRunEntity child = finishedRun(workflow.getId());
+    child.setInitiatedByRef(originTaskId);
+    workflowRunRepository.save(child);
+    WorkflowRunEntity foreignChild = finishedRun(workflow.getId());
+    foreignChild.setInitiatedByRef(originTaskId);
+    workflowRunRepository.save(foreignChild);
+    String foreignTaskId = finishedTask(workflow, foreignChild).getId();
+    WorkflowRunEntity pastForeign = finishedRun(workflow.getId());
+    pastForeign.setInitiatedByRef(foreignTaskId);
+    workflowRunRepository.save(pastForeign);
+    String workspace = workspaceNode("purge-own-ws");
+    String other = workspaceNode("purge-other-ws");
+    ownedBy(workspace, origin, child, pastForeign);
+    ownedBy(other, foreignChild);
+
+    WorkflowRetentionService.PurgeOutcome outcome =
+        workflowRetentionService.purge(workspace, origin.getId());
+
+    assertThat(outcome.purged()).containsExactlyInAnyOrder(origin.getId(), child.getId());
+    assertThat(workflowRunRepository.existsById(foreignChild.getId()))
+        .as("a child run another workspace owns")
+        .isTrue();
+    assertThat(taskRunRepository.existsById(foreignTaskId)).isTrue();
+    assertThat(workflowRunRepository.existsById(pastForeign.getId()))
+        .as("a run reached only through the other workspace's run")
+        .isTrue();
+  }
+
+  @Test
   void aRunInFlightIsCancelledAndPurgedOnceTheDispatcherReleasesItsTasks() {
     WorkflowEntity workflow = savedWorkflow("purge-in-flight");
     WorkflowRunEntity run = runningRun(workflow.getId());
     String taskId = claimedTask(workflow, run).getId();
 
-    WorkflowRetentionService.PurgeOutcome outcome = workflowRetentionService.purge(run.getId());
+    WorkflowRetentionService.PurgeOutcome outcome =
+        workflowRetentionService.purge("purge-in-flight-ws", run.getId());
 
     assertThat(outcome.purged()).isEmpty();
     assertThat(outcome.scheduled()).containsExactly(run.getId());
@@ -178,7 +213,7 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
     WorkflowEntity workflow = savedWorkflow("purge-grace");
     WorkflowRunEntity run = runningRun(workflow.getId());
     String taskId = claimedTask(workflow, run).getId();
-    workflowRetentionService.purge(run.getId());
+    workflowRetentionService.purge("purge-grace-ws", run.getId());
     mongo.updateFirst(
         Query.query(Criteria.where("_id").is(run.getId())),
         new Update()
@@ -200,7 +235,8 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
   void aRunThatDoesNotExistIsNothingToDo() {
     assertThat(workflowRunService.purge("any-workspace", "000000000000000000000000"))
         .isEqualTo(WorkflowRunPurge.NONE);
-    assertThat(workflowRetentionService.purge("000000000000000000000000").purged()).isEmpty();
+    assertThat(workflowRetentionService.purge("any-workspace", "000000000000000000000000").purged())
+        .isEmpty();
   }
 
   @Test
@@ -248,6 +284,7 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
     WorkflowRunEntity retryOfFirst = finishedRun(workflow.getId());
     retryOfFirst.setInitiatedByRef(first.getId());
     workflowRunRepository.save(retryOfFirst);
+    ownedBy(workspace, retryOfFirst);
     WorkflowRunEntity other = labelledRun(workflow.getId(), Map.of(label, "no"));
     // Already scheduled for the sweep by an earlier call: the sweep's, not this call's.
     WorkflowRunEntity settling = labelledRun(workflow.getId(), Map.of(label, "yes"));
@@ -274,6 +311,35 @@ class WorkflowRunPurgeTest extends AbstractEngineIntegrationTest {
     assertThatThrownBy(() -> workflowRunService.purgeByLabels(workspace, Optional.empty()))
         .as("a purge of every run in the workspace is not a thing")
         .isInstanceOf(BoomerangException.class);
+  }
+
+  private String workspaceNode(String prefix) {
+    String workspace = prefix + "-" + System.nanoTime();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.ROOT,
+        "root",
+        RelationshipLabel.CONTAINS,
+        RelationshipType.WORKSPACE,
+        workspace,
+        workspace,
+        Optional.empty(),
+        Optional.empty());
+    return workspace;
+  }
+
+  // The edge a run is given when it is created: its workspace has it.
+  private void ownedBy(String workspace, WorkflowRunEntity... runs) {
+    for (WorkflowRunEntity run : runs) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.WORKSPACE,
+          workspace,
+          RelationshipLabel.HAS_WORKFLOWRUN,
+          RelationshipType.WORKFLOWRUN,
+          run.getId(),
+          run.getId(),
+          Optional.empty(),
+          Optional.empty());
+    }
   }
 
   private WorkflowEntity savedWorkflow(String name) {

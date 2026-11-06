@@ -59,13 +59,13 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:178-193,305-306,476-479`; unique sparse index `external_ref`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:180-195,322-323,493-496`; unique sparse index `external_ref`). A rename takes a name no other workspace holds and no reserved one, checked as create checks it: `422 WORKSPACE_NON_UNIQUE_NAME` (`:305-309`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:274`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
 
 **Run purge.** `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes a run with everything it owns and its
-lineage, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
+lineage in that workspace, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
 for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0045). `DELETE
 …/workflowrun?labels=k%3Dv` does the same for the workspace's runs carrying every label, oldest first, a page of 50 a
 call, runs the sweep already holds left out (`workflow/WorkflowRunService.java:487-524`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged,
@@ -81,11 +81,11 @@ parameter of a field's name is `409 INTEGRATION_PARAM_EXISTS` and workspace para
 `values` are `400` (1910-1912); GitHub issuing no token is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES`
 (`integrations/IntegrationService.java:137-187`). `GET /api/v2/integration?workspace=` gives each template's `kind`, `fields` (a linked form's with its
 values, a secret as `*****`), `shared` once linked, and Slack's signed authorize URL (`integrations/IntegrationService.java:86-109`,
-`integrations/SlackService.java:705-722`). Slack's redirect links its team to that workspace, one per workspace (`409 INTEGRATION_ALREADY_LINKED`);
-`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:521-649`, `integrations/IntegrationControllerV2.java:127-142`).
+`integrations/SlackService.java:709-726`). Slack's redirect links its team to that workspace, one per workspace (`409 INTEGRATION_ALREADY_LINKED`);
+`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:525-653`, `integrations/IntegrationControllerV2.java:127-142`).
 `POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s `ref`) or installation id: an unreachable workspace is `404
 WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown installation `404 INTEGRATION_INVALID_REF`; it is audited and removes
-the record, link and parameters (`integrations/IntegrationControllerV2.java:286-301`, `integrations/GitHubService.java:390-419`).
+the record, link and parameters (`integrations/IntegrationControllerV2.java:286-301`, `integrations/GitHubService.java:394-423`).
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status
@@ -132,7 +132,7 @@ for a framework error.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-144`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,119,133`). Codes 1405 and 1802 each carry two reasons (`:91-94,113-116`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-146`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,121,135`). Codes 1405 and 1802 each carry two reasons (`:93-96,115-118`), so a client keys on `reason` |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:14`); an explicit exception message wins (`core/RestExceptionHandler.java:56-65`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:44-45,67-69`) |
 
@@ -165,13 +165,13 @@ on every route that takes it, and no filter matches everything (`:118-123`):
 | `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`; a dot in a key matches its stored form, `#`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
 | `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:24-33`) |
 | `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:71-80,101-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:82-98`) |
-| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:480-490`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
+| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:497-507`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
 
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,
 `workflow/WorkspaceWorkflowControllerV2.java:214`; sorted by `workflow/repository/TaskRevisionRepository.java:13` and
 `workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it, a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1675-1678`).
-`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:853`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
+`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:895`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
 
 ## Public run models
 
@@ -323,7 +323,7 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 | --- | --- |
 | `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:614-621`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:2084-2098`). Not found: created (`:672-675`). Labels and annotations are merged (`:2038-2050`) |
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1798-1800`) and replaces labels and annotations. Runs already made from that version then show the new definition |
-| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`workflow/WorkflowService.java:887-909,2278-2290`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:250-290`). The monthly run quota still counts the old runs; Insights does not |
+| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`workflow/WorkflowService.java:887-909,2278-2290`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:271-311`). The monthly run quota still counts the old runs; Insights does not |
 
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the call when nothing changed, for example by storing a hash of the definition in its
 own annotation. A top-level field the workflow model does not carry is ignored, so the response shows exactly what was stored (`common/model/Workflow.java:23`).
@@ -351,7 +351,7 @@ keeps the stored value, because there a missing member and a `null` member canno
 `labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>` (`common/model/Workflow.java:52-53`,
 `common/model/WorkflowRun.java:42-43`). Keys under `boomerang.io/` are the server's; every other key is the
 client's, free-form, and MAY carry a `prefix/name` form. A dot in a label key is stored as `#`. Label updates differ
-by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:307-311`), while `PUT /workflow` merges unless `replace=true`.
+by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:324-328`), while `PUT /workflow` merges unless `replace=true`.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |

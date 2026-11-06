@@ -10,7 +10,9 @@ import static org.mockito.Mockito.verify;
 import com.slack.api.methods.response.oauth.OAuthV2AccessResponse;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
+import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipLabel;
+import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractSpiedEngineIntegrationTest;
 import io.boomerang.integrations.entity.IntegrationsEntity;
@@ -53,6 +55,7 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
   @Autowired private WorkspaceService workspaceService;
   @Autowired private WorkspaceRepository workspaceRepository;
   @Autowired private MongoTemplate mongoTemplate;
+  @Autowired private UserRepository userRepository;
 
   private String previousClientId;
   private String previousClientSecret;
@@ -217,6 +220,13 @@ class SlackIntegrationTest extends AbstractSpiedEngineIntegrationTest {
     request.setName(name);
     request.setDisplayName(name);
     workspaceService.create(request);
+    if (userRepository.findById(user).isEmpty()) {
+      UserEntity entity = new UserEntity();
+      entity.setId(user);
+      entity.setEmail(user + "@example.test");
+      entity.setName(user);
+      userRepository.save(entity);
+    }
     if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.USER, user)) {
       relationshipService.createNode(RelationshipType.USER, user, user, Optional.empty());
     }

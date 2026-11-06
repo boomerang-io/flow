@@ -59,7 +59,7 @@ const WorkspaceCard: React.FC<WorkspaceCardProps> = ({ workspace, stats }) => {
         <ToastNotification kind="success" title={`Leave Workspace`} subtitle={`${fetcher.data.displayName} successfully left`} />,
       );
     } else {
-      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={`Request to leave workspace failed`} />);
+      notify(<ToastNotification kind="error" title="Something's Wrong" subtitle={fetcher.data.error.message} />);
     }
   }, [fetcher.data]);
 

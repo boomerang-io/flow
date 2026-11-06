@@ -3,7 +3,10 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as fixtures from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
-import Home from "./Home";
+import { http, HttpResponse } from "msw";
+import { server } from "ApiServer/msw/node";
+import { serviceUrl } from "Config/servicesConfig";
+import Home, { action as homeAction } from "./Home";
 import { EMPTY_RUN_COUNTS, HomeLoaderData } from "./homeLoader";
 
 // Render spec: the loader is covered in Home.loader.spec.ts, so it is stubbed here with a
@@ -202,5 +205,23 @@ describe("Home", () => {
       "Older example",
     ]);
     expect(screen.queryByText("Blank workflow")).not.toBeInTheDocument();
+  });
+
+  test("leaving a workspace says why the server refused it", async () => {
+    const message = "Hold up! A workspace always needs an owner. Make another member an owner first.";
+    server.use(
+      http.delete(serviceUrl.workspace.leaveWorkspace({ workspace: ":workspace" }), () =>
+        HttpResponse.json({ code: 1107, reason: "WORKSPACE_LAST_OWNER", message, status: "400 BAD_REQUEST" }, { status: 400 }),
+      ),
+    );
+    // Called directly, the action hands back the wrapper the router unwraps into fetcher.data.
+    const result = (await homeAction({
+      request: new Request("http://localhost/home", {
+        method: "post",
+        body: new URLSearchParams({ intent: "leave-workspace", workspace: "tyson-workspace", displayName: "Tyson" }),
+      }),
+    })) as unknown as { data: { error: { message: string } } };
+
+    expect(result.data.error.message).toBe(message);
   });
 });

@@ -66,7 +66,8 @@ export async function action({ request }: { request: Request }) {
       return actionError({
         intent: "leave-workspace" as const,
         displayName,
-        error: { title: "Something's Wrong", message: "Request to leave workspace failed" },
+        // The server says why, for example that the last owner stays until another member is one.
+        error: formatErrorMessage({ error, defaultMessage: "Request to leave workspace failed" }),
       });
     }
   }

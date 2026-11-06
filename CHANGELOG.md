@@ -537,6 +537,20 @@ tag's release notes.
   however a request names it: in the path, as a token's principal, or through a workflow, run, action, schedule or
   approver group that belongs to it. A personal token is minted only by its own user or an admin, and changing the
   settings, the global parameters or the global task catalogue needs an admin or operator.
+- Adding a member or changing a member's role needs the owner role in that workspace, or an admin or global token,
+  as removing one already did; any other change to a workspace still needs only the editor role. The webapp offers
+  Add and Remove to owners and admins only.
+- A workspace always keeps an owner. Removing, demoting or leaving as its last owner is `400 WORKSPACE_LAST_OWNER`;
+  make another member an owner first. The webapp's Members tab and Leave say so. Deleting the workspace is unchanged.
+- A personal token follows its user's memberships. It keeps the grants it was minted with, narrowed on every request
+  to the role its user holds in each workspace now, so a membership removed or a role lowered applies to the next
+  request; a personal token whose user is deleted no longer authenticates.
+- Linking a GitHub or Slack installation to a workspace from its install redirect needs `integration/write` in that
+  workspace, as unlinking and sharing do.
+- Renaming a workspace to a name another workspace holds, or a reserved one, is `422 WORKSPACE_NON_UNIQUE_NAME`, as
+  creating one is.
+- A run purge stays in its workspace: a retry or child run another workspace owns, and anything reached only through
+  it, is left in place.
 - Sending a workspace member again changes their role. It added a second membership that was never read, so the
   member kept their first role.
 - A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs

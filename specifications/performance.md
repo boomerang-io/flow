@@ -34,14 +34,14 @@ instance that took it.
 
 The token cache holds a session's token, not its grants: each request a session makes resolves them from the user's
 record, membership edges, the workspace roles and the `features` setting, four reads, or two for an admin or operator
-(`core/TokenService.java:651-679,894-939`), so a membership change applies on the next request on every instance.
+(`core/TokenService.java:643-677,957-1009`), so a membership change applies on the next request on every instance.
 
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
 features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
 revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
-(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,652`,
+(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:239,352,694`,
 `core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2091`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
@@ -131,12 +131,12 @@ the rest (`engine/WorkflowWatcher.java:178-198`).
 | Sweeper | Property (default) | Start jitter | Page | Notes |
 | --- | --- | --- | --- | --- |
 | `DueWaitPoller` (`engine/DueWaitPoller.java:21`) | `flow.watcher.wait-interval-ms` (1000); same `flow.watcher.enabled` switch | none | 50 | `resumeDueWaitingTasks` on its own virtual thread, not the scheduler's: due sleeps and `acquirelock` retries end within about a second. One query on the sparse `wait_sweep` index a second per instance, usually empty; a resume holds the wait with a 60 s lease on `waitUntil` |
-| `WorkflowWatcher.sweep` (16 sweeps, `engine/WorkflowWatcher.java:172-198`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:168-171`) | 50 (`engine/EngineConstants.java:19`) | Stall grace 60 s (`WorkflowWatcher.java:59`); dispatcher declared gone after 60 s without a poll (`:87`) and its registration deleted after 7 days (`:93`, `:534`); a provisioning claim released after the grace, the run failed on its third (`:75,117-120`). The stalled-run, for-each and stray-action sweeps resume after the last row they read, so rows they leave alone do not hide the ones behind (`engine/SweepCursor.java:35-60`); the gone-dispatcher reap reads the live dispatchers once and pages only the other dispatchers' claims (`WorkflowWatcher.java:504-527`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finish (`workflow/WorkflowRetentionService.java:257-290`) |
-| `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`engine/WorkflowWatcher.java:218-223`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`workflow/WorkflowRetentionService.java:61`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60, `WorkflowRetentionService.java:53-57`) are purged with their task runs, actions, artifacts (stored logs included) and relationship node (`WorkflowRetentionService.java:208-248,314-322`); two lineage checks per candidate, `existsByInitiatedByRef` on the run id and `existsByInitiatedByRefIn` on its task-run ids (read by id only on `run_tasks`), both on the `initiated_by_phase` index |
+| `WorkflowWatcher.sweep` (16 sweeps, `engine/WorkflowWatcher.java:172-198`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:168-171`) | 50 (`engine/EngineConstants.java:19`) | Stall grace 60 s (`WorkflowWatcher.java:59`); dispatcher declared gone after 60 s without a poll (`:87`) and its registration deleted after 7 days (`:93`, `:534`); a provisioning claim released after the grace, the run failed on its third (`:75,117-120`). The stalled-run, for-each and stray-action sweeps resume after the last row they read, so rows they leave alone do not hide the ones behind (`engine/SweepCursor.java:35-60`); the gone-dispatcher reap reads the live dispatchers once and pages only the other dispatchers' claims (`WorkflowWatcher.java:504-527`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finish (`workflow/WorkflowRetentionService.java:278-311`) |
+| `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`engine/WorkflowWatcher.java:218-223`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`workflow/WorkflowRetentionService.java:64`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60, `WorkflowRetentionService.java:56-60`) are purged with their task runs, actions, artifacts (stored logs included) and relationship node (`WorkflowRetentionService.java:229-269,335-343`); two lineage checks per candidate, `existsByInitiatedByRef` on the run id and `existsByInitiatedByRefIn` on its task-run ids (read by id only on `run_tasks`), both on the `initiated_by_phase` index |
 | `AuditRetentionService.reapplyOnChange` (`core/audit/AuditRetentionService.java:56-65`) | `flow.audit.retention-interval-ms` (60000) | none | none | Reads the `audit` settings document and runs `collMod` on the `createdAt_ttl` index only when the floored `retentionDays` differs from what this instance last applied, so a change made through the settings API reaches every instance within one interval without a restart; a failed apply is retried on the next tick. One indexed read a minute per instance |
 | `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:65-67`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:37`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:34-37`) | up to 5 s (`:64-66`) | 50 | 3 delivery attempts, then the row is marked dead (`:43`) |
-| `GitHubService.refreshSharedTokens` (`integrations/GitHubService.java:191-228`) | none: every 45 minutes, inside the hour an installation token lives | up to 60 s | all GitHub installations | Each workspace sharing the token gets one GitHub call and one targeted write. Instances do not coordinate, so N instances mint N tokens per workspace per 45 minutes; any of them is valid |
+| `GitHubService.refreshSharedTokens` (`integrations/GitHubService.java:195-232`) | none: every 45 minutes, inside the hour an installation token lives | up to 60 s | all GitHub installations | Each workspace sharing the token gets one GitHub call and one targeted write. Instances do not coordinate, so N instances mint N tokens per workspace per 45 minutes; any of them is valid |
 
 No interval is set in `application.properties`; the defaults come from the `@Scheduled` fallbacks. Cost
 (assumed, not load-tested): one paged indexed query per sweep plus a batched or per-row check, so 20 instances add
@@ -291,15 +291,15 @@ limit is never over-filled. A retry is checked only before it is created. Audit 
 
 `GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
 commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
-(`workspace/WorkspaceService.java:885-965`, `:828-858`). A single workspace's get, create and patch run the same code
-with a page of one (`:877-879`).
+(`workspace/WorkspaceService.java:927-1007`, `:870-900`). A single workspace's get, create and patch run the same code
+with a page of one (`:919-921`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
-| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-144,770-793` |
+| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-144,775-798` |
 | Member and approver names | One users query | `core/UserService.java:245-253` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
-| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:607-642` |
+| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:612-647` |
 
 `WorkspaceQueryDatabaseCommandsTest` pins it: a page of 10 and a page of 60 workspaces cost the same 32 commands
 for a member and 37 for a global caller, and each workspace on a page reads as it does alone. Before, each workspace
@@ -307,7 +307,7 @@ cost 23 commands for a member and 25 for a global caller, one relationship walk 
 Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
 commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
 or a global token, which starts at the root and reads every node under every workspace, workflow runs included
-(`core/RelationshipService.java:954-1032`) — now once per page rather than once per workspace.
+(`core/RelationshipService.java:959-1037`) — now once per page rather than once per workspace.
 
 ## Payload caps
 

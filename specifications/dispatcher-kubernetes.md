@@ -236,11 +236,11 @@ above that workspace quota is refused with `QUOTA_EXCEEDED` when quotas are enfo
 (`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:589-608`), and the same check runs
 when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:417-427`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
-`ReadWriteMany`; `dispatcher/WorkspaceService.java:51-58`); a blank class leaves `storageClassName` unset, because an
+`ReadWriteMany`; `dispatcher/WorkspaceService.java:53-60`); a blank class leaves `storageClassName` unset, because an
 empty string disables dynamic provisioning (`kube/KubeServiceImpl.java:127-130`). After creating a claim the
 dispatcher waits up to `kube.timeout.waitUntil` (30 s) for it to reach `Pending` or `Bound`, treating a momentarily
 absent claim as not yet settled (`kube/KubeServiceImpl.java:155-172`); any error while creating it surfaces as one
-provisioning failure (`dispatcher/WorkspaceService.java:59-74`).
+provisioning failure (`dispatcher/WorkspaceService.java:61-76`).
 
 A workflow upgraded from v3 keeps its mount path, written as `/workspace/workflowrun` when v3 had none
 (`service-core/src/main/java/io/boomerang/migration/_0010__V3MigrateWorkflows.java:226`), so its tasks need no

@@ -3,6 +3,7 @@ package io.boomerang.integrations;
 import com.spotify.github.v3.clients.JwtTokenIssuer;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -71,18 +72,21 @@ public class GitHubService {
   private final IntegrationsRepository integrationsRepository;
   private final IntegrationParameterService integrationParameterService;
   private final RestTemplate restTemplate;
+  private final TokenService tokenService;
 
   public GitHubService(
       SettingsService settingsService,
       RelationshipService relationshipService,
       IntegrationsRepository integrationsRepository,
       IntegrationParameterService integrationParameterService,
-      @Qualifier("externalRestTemplate") RestTemplate restTemplate) {
+      @Qualifier("externalRestTemplate") RestTemplate restTemplate,
+      TokenService tokenService) {
     this.settingsService = settingsService;
     this.relationshipService = relationshipService;
     this.integrationsRepository = integrationsRepository;
     this.integrationParameterService = integrationParameterService;
     this.restTemplate = restTemplate;
+    this.tokenService = tokenService;
   }
 
   /*
@@ -263,22 +267,22 @@ public class GitHubService {
 
   /*
    * Handles the GitHub App setup callback: verifies the signed state, confirms the initiating
-   * user belongs to the claimed workspace, then confirms the installer's own GitHub account can
-   * see the installation before linking it - GitHub's docs warn the installation_id query
-   * parameter can be spoofed, so it is never trusted on its own.
+   * user may link integrations in the claimed workspace (integration/write counting there, as they
+   * are now), then confirms the installer's own GitHub account can see the installation before
+   * linking it - GitHub's docs warn the installation_id query parameter can be spoofed, so it is
+   * never trusted on its own.
    */
   public ResponseEntity<?> handleInstallCallback(Integer installationId, String code, String state) {
     InstallStateUtils.InstallState installState = InstallStateUtils.verify(state, appPrivateKey());
 
-    if (!relationshipService.hasNodes(
-        RelationshipType.USER,
-        installState.userId(),
-        RelationshipType.WORKSPACE,
-        Optional.of(List.of(installState.workspace())),
-        Optional.empty(),
-        Optional.empty())) {
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, installState.workspace())
+        || !tokenService.userGrantsIn(
+            installState.userId(),
+            installState.workspace(),
+            PermissionResource.INTEGRATION,
+            PermissionAction.WRITE)) {
       LOGGER.warn(
-          "GitHub callback - user {} is not a member of workspace {}",
+          "GitHub callback - user {} may not link integrations in workspace {}",
           installState.userId(),
           installState.workspace());
       throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);

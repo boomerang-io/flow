@@ -123,7 +123,7 @@ class TaskLockReleaseTest extends AbstractEngineIntegrationTest {
     awaitEngine("the run holds the lock")
         .untilAsserted(() -> assertThat(locksOf(holder)).hasSize(1));
 
-    workflowRetentionService.purge(holder);
+    workflowRetentionService.purge("lock-purged-ws", holder);
 
     awaitEngine("the purge released the lock")
         .untilAsserted(() -> assertThat(locksOf(holder)).isEmpty());

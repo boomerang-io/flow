@@ -33,6 +33,7 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.TokenService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -103,6 +104,7 @@ public class SlackService {
   private final ObjectMapper objectMapper;
   private final RelationshipService relationshipService;
   private final IntegrationParameterService integrationParameterService;
+  private final TokenService tokenService;
 
   public SlackService(
       SettingsService settingsService,
@@ -110,13 +112,15 @@ public class SlackService {
       IntegrationsRepository extensionsRepository,
       ObjectMapper objectMapper,
       RelationshipService relationshipService,
-      IntegrationParameterService integrationParameterService) {
+      IntegrationParameterService integrationParameterService,
+      TokenService tokenService) {
     this.settingsService = settingsService;
     this.objectMapper = objectMapper;
     this.workflowService = workflowService;
     this.extensionsRepository = extensionsRepository;
     this.relationshipService = relationshipService;
     this.integrationParameterService = integrationParameterService;
+    this.tokenService = tokenService;
   }
 
   /*
@@ -522,8 +526,8 @@ public class SlackService {
 
   /*
    * Handles the Slack OAuth2 redirect. An install started from a Flow workspace's Integrations page
-   * carries a signed state: it is verified, and the installing user's membership of the workspace
-   * checked, before the code is exchanged; the installation is then linked to that workspace and
+   * carries a signed state: it is verified, and the installing user's integration/write grant in the
+   * workspace checked, before the code is exchanged; the installation is then linked to that workspace and
    * the browser returned to it. An install started from Slack carries none: the installation is
    * saved unlinked and the browser sent to the app in Slack.
    */
@@ -531,15 +535,15 @@ public class SlackService {
     InstallStateUtils.InstallState installState = null;
     if (state != null && !state.isBlank()) {
       installState = InstallStateUtils.verify(state, setting("slack.clientSecret"));
-      if (!relationshipService.hasNodes(
-          RelationshipType.USER,
-          installState.userId(),
-          RelationshipType.WORKSPACE,
-          Optional.of(List.of(installState.workspace())),
-          Optional.empty(),
-          Optional.empty())) {
+      if (!relationshipService.doesSlugOrRefExistForType(
+              RelationshipType.WORKSPACE, installState.workspace())
+          || !tokenService.userGrantsIn(
+              installState.userId(),
+              installState.workspace(),
+              PermissionResource.INTEGRATION,
+              PermissionAction.WRITE)) {
         LOGGER.warn(
-            "Slack callback - user {} is not a member of workspace {}",
+            "Slack callback - user {} may not link integrations in workspace {}",
             installState.userId(),
             installState.workspace());
         throw new BoomerangException(BoomerangError.INTEGRATION_UNAUTHORIZED);

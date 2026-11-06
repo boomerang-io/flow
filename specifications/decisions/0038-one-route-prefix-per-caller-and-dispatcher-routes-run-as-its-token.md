@@ -27,7 +27,7 @@ document (`service-core/src/main/resources/application.properties:207`). The dis
 on its own filter chain (`dispatcher/DispatcherControllerV1.java:54`), not under `/internal/v1`, so a dispatcher in
 another network zone is routed without opening sign-in. `DispatcherAuthFilter` accepts only an unexpired `global`
 token with an actor kind and installs it as the request's identity, the one the same bearer carries on `/api/v2`, so
-it grants nothing new (`dispatcher/DispatcherAuthFilter.java:72-100`, `core/TokenService.java:524-560`); with
+it grants nothing new (`dispatcher/DispatcherAuthFilter.java:72-100`, `core/TokenService.java:516-552`); with
 `flow.dispatcher.auth.enabled=false` the request runs as the security-off synthetic admin (`:66-71`).
 
 ## Consequences

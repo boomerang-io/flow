@@ -63,7 +63,7 @@ export async function action({ params, request }: { params: { workspace?: string
         intent: "remove" as const,
         error: formatErrorMessage({
           error,
-          defaultMessage: "Request to remove user from workspace failed",
+          defaultMessage: "Request to remove user from workspace failed. Give it another go.",
         }),
       });
     }
@@ -81,7 +81,7 @@ export async function action({ params, request }: { params: { workspace?: string
         intent: "role" as const,
         name,
         role,
-        error: formatErrorMessage({ error, defaultMessage: "Request to change the member's role failed" }),
+        error: formatErrorMessage({ error, defaultMessage: "Give it another go or try again later." }),
       });
     }
   }
@@ -155,7 +155,7 @@ const Members: React.FC = () => {
       ) : (
         <ToastNotification
           title="Something's Wrong"
-          subtitle="Request to remove user from workspace failed"
+          subtitle={result.error.message}
           kind="error"
           data-cy="b-toast_remove_error"
         />
@@ -178,7 +178,7 @@ const Members: React.FC = () => {
       ) : (
         <ToastNotification
           title="Crikey, that didn’t work!"
-          subtitle={`${result.name}'s role is unchanged. Give it another go or try again later.`}
+          subtitle={`${result.name}'s role is unchanged. ${result.error.message}`}
           kind="error"
         />
       ),
@@ -202,8 +202,8 @@ const Members: React.FC = () => {
   const submitError =
     fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === "add" ? fetcher.data.error : null;
   const isAdmin = user?.type === "admin";
-  // Removing a member and changing a role need workspace/delete, which only an owner (or an admin)
-  // holds - the same check the API makes on removal.
+  // Adding or removing a member and changing a role need workspace/delete, which only an owner (or
+  // an admin) holds - the same check the API makes.
   const canManageMembers = canEdit && hasPermission(user, "workspace", "delete", workspace.name);
   const ownerCount = workspace.members.filter((member) => member.role === MemberRole.Owner).length;
   // Your own row is locked, and so is the last owner's, so a workspace always keeps an owner.
@@ -233,7 +233,7 @@ const Members: React.FC = () => {
             onChange={(e: { target: HTMLInputElement; type: "change" }) => setSearchQuery(e.target.value)}
           />
         </div>
-        {canEdit && (
+        {canManageMembers && (
           <div className={styles.rightActions}>
             {isAdmin && (
               <AddMemberSearch
@@ -306,7 +306,7 @@ const Members: React.FC = () => {
                     </Link>
                   </StructuredListCell>
                   <StructuredListCell>
-                    {canEdit && (
+                    {canManageMembers && (
                       <RemoveMember
                         member={member}
                         workspaceName={workspace.name}

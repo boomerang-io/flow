@@ -19,9 +19,9 @@ in flight when its owner is deleted, and a cancelled task's document is the term
 
 ## Decision
 
-C with the lineage walked server-side. `WorkflowRetentionService.purge` collects the run and every run whose
-`initiatedByRef` names it or one of its task runs, transitively, and removes them deepest first through the retention
-sweep's own per-run purge (`workflow/WorkflowRetentionService.java:116-146,177-202,314-322`). A member in flight is
+C with the lineage walked server-side. `WorkflowRetentionService.purge` collects the run and every run of the path
+workspace whose `initiatedByRef` names it or one of its task runs, transitively, and removes them deepest first through the retention
+sweep's own per-run purge (`workflow/WorkflowRetentionService.java:119-151,182-213,335-343`). A member in flight is
 cancelled through the ordinary cancel, which ends its tasks off the caller's thread; a member whose tasks have not
 settled (one still ending, or a cancelled or timed-out one a dispatcher still holds, `claim.by` set) is stamped
 `purgeRequestedAt` (`engine/WorkflowRunStateHelper.java:381-388`) and the `purgeRequestedRuns` sweep removes it once they
@@ -35,5 +35,5 @@ decided it: a dispatcher learns of a termination only from the task document, so
   `remaining` is 0 and needs no ledger of its own.
 - A purge on a run in flight answers `scheduled`, and the documents leave within a sweep of the dispatcher's
   terminate poll; a dispatcher that never polls again holds them for the grace, no longer.
-- The purge crosses no workspace: a child run in another workspace is reached through lineage, as retention is.
-  Revisit if a cross-workspace child must stay.
+- The purge stays in the path workspace: a child run another workspace owns, and everything reached only through it,
+  is left to that workspace's own purge or retention, its `initiatedByRef` then naming a run that is gone.
