@@ -81,6 +81,40 @@ describe("App --- root loader concurrency", () => {
   });
 });
 
+// The starters are read through the user's first workspace and are optional: a refused or failed
+// read leaves no starters to offer and must not put every route on the error page.
+describe("App --- root loader starters", () => {
+  function serve(templatesStatus: number) {
+    server.use(
+      http.get(serviceUrl.getUserProfile(), () =>
+        HttpResponse.json({ id: "user-1", workspaces: [{ name: "payments" }] }),
+      ),
+      http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json({ features: {} })),
+      http.get(serviceUrl.workspace.workflow.getWorkflows({ workspace: "payments" }), () =>
+        templatesStatus === 200
+          ? HttpResponse.json({ content: [{ name: "starter-1" }] })
+          : HttpResponse.json({ reason: "PERMISSION_DENIED" }, { status: templatesStatus }),
+      ),
+      http.get(serviceUrl.getContext(), () => HttpResponse.json({})),
+      http.get(serviceUrl.getNavigation({ query: "" }), () => HttpResponse.json([])),
+    );
+  }
+
+  test("lists the first workspace's starters", async () => {
+    serve(200);
+    const data = await loader({ request: new Request("http://localhost/home") });
+    expect(data.workflowTemplates).toEqual([{ name: "starter-1" }]);
+    expect(data.errorLoading).toBe(false);
+  });
+
+  test.each([403, 500])("treats a starters read answered %i as no starters, not a loading error", async (status) => {
+    serve(status);
+    const data = await loader({ request: new Request("http://localhost/home") });
+    expect(data.workflowTemplates).toEqual([]);
+    expect(data.errorLoading).toBe(false);
+  });
+});
+
 // GET /auth/config is the sign-in surface's own read; a deployment whose flags say it has none
 // (security off) is never asked for it.
 describe("App --- root loader sign-in config", () => {

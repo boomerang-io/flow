@@ -147,8 +147,8 @@ export default function Settings() {
           />
         ) : (
           <ToastNotification
-            title="Remove Workspace"
-            subtitle={`Request to close ${workspace.displayName} successful`}
+            title="Remove Label"
+            subtitle={`Removed label from ${workspace.displayName} successfully`}
             kind="success"
           />
         ),
@@ -319,7 +319,7 @@ export default function Settings() {
                                 renderIcon={TrashCan}
                                 size="sm"
                                 onClick={openModal}
-                                data-testid={`delete-token-button-${label}`}
+                                data-testid={`delete-label-button-${label.key}`}
                               />
                             )}
                             affirmativeAction={() => handleRemoveLabel(label)}

@@ -63,6 +63,23 @@ describe("UserProfile action --- Node SSR", () => {
     expect(seen.body).toEqual({ displayName: "Ada" });
   });
 
+  // An emptied Preferred Display Name is sent as a blank value, which the API reads as "clear it".
+  it("sends a blank display name when the field is emptied, so the API clears it", async () => {
+    const seen: { body: unknown } = { body: null };
+    server.use(
+      http.patch(`${INTERNAL_ORIGIN}/api/profile`, async ({ request }) => {
+        seen.body = await request.json();
+        return HttpResponse.json({});
+      }),
+    );
+
+    const { action } = await import("./UserProfile");
+    const result = await action({ request: actionRequest({ intent: "updateProfile", displayName: "" }) });
+
+    expect(result).toEqual({ intent: "updateProfile" });
+    expect(seen.body).toEqual({ displayName: "" });
+  });
+
   it("puts no user id on the wire for a profile update, so it cannot target another user", async () => {
     let requestedPath: string | null = null;
     server.use(

@@ -137,6 +137,49 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
         "Self Service", userRepository.findById(ownerId).orElseThrow().getDisplayName());
   }
 
+  // A user's type is their platform role, which a session's grants follow: only a global grant
+  // changes it, on the caller's own record too.
+  @Test
+  void aUserCannotChangeTheirOwnType() {
+    String selfId = plainUser("user-authz-self-type@test.local", UserType.user);
+    installSessionIdentity(selfId);
+    UserRequest request = new UserRequest();
+    request.setId(selfId);
+    request.setType(UserType.admin);
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> userService.apply(request));
+    assertEquals("PERMISSION_DENIED", ex.getReason());
+    assertEquals(UserType.user, userRepository.findById(selfId).orElseThrow().getType());
+  }
+
+  @Test
+  void aUserMaySendTheirOwnTypeUnchanged() {
+    String selfId = plainUser("user-authz-self-same-type@test.local", UserType.user);
+    installSessionIdentity(selfId);
+    UserRequest request = new UserRequest();
+    request.setId(selfId);
+    request.setType(UserType.user);
+    request.setDisplayName("Same Type");
+
+    userService.apply(request);
+
+    assertEquals("Same Type", userRepository.findById(selfId).orElseThrow().getDisplayName());
+  }
+
+  @Test
+  void anAdminChangesAnotherUsersType() {
+    String promotedId = plainUser("user-authz-promoted@test.local", UserType.user);
+    installSessionIdentity(adminId);
+    UserRequest request = new UserRequest();
+    request.setId(promotedId);
+    request.setType(UserType.operator);
+
+    userService.apply(request);
+
+    assertEquals(UserType.operator, userRepository.findById(promotedId).orElseThrow().getType());
+  }
+
   @Test
   void aUserCanDeleteTheirOwnAccount() {
     // Membership-free: delete() refuses any user who still holds workspace roles, so the

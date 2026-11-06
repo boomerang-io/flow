@@ -81,6 +81,7 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
+                    Optional.empty(),
                     valueWithAnEquals,
                     Optional.empty(),
                     Optional.empty())
@@ -94,9 +95,44 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 NO_LABEL_VALUE,
                 Optional.empty(),
                 Optional.empty()));
+  }
+
+  // The search reads name, display name and email, ignores case, and takes its term literally.
+  @Test
+  void usersBySearch() {
+    UserEntity byName = user("s");
+    UserEntity byDisplayName = user("s");
+    byDisplayName.setDisplayName("Searchable " + suffix);
+    mongoTemplate.save(byDisplayName);
+    UserEntity byEmail = user("s");
+    byEmail.setEmail("a+" + suffix + "@example.com");
+    mongoTemplate.save(byEmail);
+
+    assertThat(searchUsers(byName.getName().toUpperCase())).containsExactly(byName.getId());
+    assertThat(searchUsers("SEARCHABLE " + suffix)).containsExactly(byDisplayName.getId());
+    assertThat(searchUsers("a+" + suffix)).containsExactly(byEmail.getId());
+    assertThat(searchUsers(".*" + suffix)).isEmpty();
+  }
+
+  private List<String> searchUsers(String term) {
+    return userService
+        .query(
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(term),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty())
+        .getContent()
+        .stream()
+        .map(User::getId)
+        .toList();
   }
 
   @Test
@@ -108,6 +144,7 @@ class ListQueryFilterTest extends AbstractEngineIntegrationTest {
     assertThat(
             userService
                 .query(
+                    Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),
                     Optional.empty(),

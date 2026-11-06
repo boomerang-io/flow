@@ -70,6 +70,13 @@ public class UserControllerV2 {
       })
   public Page<User> getUsers(
       @Parameter(
+              name = "search",
+              description =
+                  "Free-text search on a User's name, displayName and email (contains, case-insensitive).",
+              required = false)
+          @RequestParam(required = false)
+          Optional<String> search,
+      @Parameter(
               name = "labels",
               description =
                   "List of url encoded labels. For example Organization=Boomerang,customKey=test would be encoded as Organization%3DBoomerang,customKey%3Dtest)",
@@ -106,7 +113,7 @@ public class UserControllerV2 {
               required = false)
           @RequestParam(defaultValue = "name")
           Optional<String> sort) {
-    return userService.query(page, limit, order, sort, labels, statuses, ids);
+    return userService.query(page, limit, order, sort, search, labels, statuses, ids);
   }
 
   @PatchMapping(value = "/{userId}")

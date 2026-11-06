@@ -2,7 +2,7 @@ import React from "react";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
 import { server } from "ApiServer/msw/node";
-import { screen, fireEvent, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { appLink } from "Config/appConfig";
 import { workspace as workspaceFixture, profile as userFixture } from "ApiServer/fixtures";
@@ -26,6 +26,13 @@ import { workspaceTokensLoader, tokenAction } from "Components/TokenSection/toke
 import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
+import { notify } from "@boomerang-io/carbon-addons-boomerang-react";
+
+// No toast container renders in a spec, so the toasts a tab raises are read off notify's calls.
+vi.mock("@boomerang-io/carbon-addons-boomerang-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@boomerang-io/carbon-addons-boomerang-react")>()),
+  notify: vi.fn(),
+}));
 
 // `workspace.js` is a standalone fixture, not one of the records in `workspaces.js`'s list (the
 // one `ApiServer/msw/db`'s `workspaces` collection seeds from) - Mirage's `resourceWorkspace` GET
@@ -355,6 +362,20 @@ describe("WorkspaceDetailed --- RTL", () => {
 // need to fabricate a full navigation to exercise the request/response contract.
 // Pins the intent names themselves, which is what keeps the two operations apart. Called
 // directly: shouldRevalidate is a plain function of the submission.
+describe("WorkspaceDetailed --- settings labels", () => {
+  test("removing a label says a label was removed, through a delete button named for its key", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name }));
+    fireEvent.click(await screen.findByTestId("delete-label-button-key1"));
+    fireEvent.click(screen.getByText("Yes"));
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    const toast = vi.mocked(notify).mock.calls.at(-1)?.[0] as React.ReactElement<{ title: string; subtitle: string }>;
+    expect(toast.props.title).toBe("Remove Label");
+    expect(toast.props.subtitle).toBe(`Removed label from ${workspaceFixture.displayName} successfully`);
+    expect(await screen.findByTestId("delete-label-button-key2")).toBeInTheDocument();
+    expect(screen.queryByTestId("delete-label-button-key1")).not.toBeInTheDocument();
+  });
+});
+
 describe("WorkspaceDetailed --- shouldRevalidate", () => {
   function revalidatesFor(intent: string) {
     const formData = new FormData();
