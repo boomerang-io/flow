@@ -18,7 +18,7 @@ embedding product with a workspace per tenant needs one definition every tenant 
 ## Decision
 
 C. `WorkflowEntity.type` is `workflow`, `template` or `starter`, typed because create, submit and the editor decide from it; a `template` or `starter` body is
-refused outside the system workspace (`workflow/WorkflowService.java:2475-2483`). A workflow with `templateRef` is a link: its own revision holds no tasks,
+refused outside the system workspace (`workflow/WorkflowService.java:2485-2493`). A workflow with `templateRef` is a link: its own revision holds no tasks,
 reads fill them from the template's pinned or latest revision (`:2517-2531,2544-2569`), and a submit runs that revision with the link as the run's workflow, so
 the run, its parameter layers, quotas and audit are the link's workspace's (`:2140-2143`). The template cannot be deleted while a link names it (`:904-907`).
 Starters stay a copy, as every compared product keeps the two apart, and `_0038__WorkflowTemplatesIntoSystem` moves the old collection into the system workspace
@@ -32,9 +32,9 @@ reference must create the run in the caller's unit from inputs alone (Argo's `wo
   stays on its pinned version.
 - A link is read-only in its tasks and params; its name, labels and triggers are the workspace's. A workflow of the workspace with a template's name hides the
   template there. A template's `runworkflow` task naming another template adopts the run's workspace's link the same way
-  (`workflow/WorkflowService.java:2357-2373`).
+  (`workflow/WorkflowService.java:2367-2383`).
 - A workspace holds one link per template even when first uses are concurrent: each claims the pair with a `linksTemplate` edge from the workspace to the link,
-  whose `_id` names the pair, so one wins and the rest wait for its link; deleting the link removes the claim (`workflow/WorkflowService.java:2375-2449`,
+  whose `_id` names the pair, so one wins and the rest wait for its link; deleting the link removes the claim (`workflow/WorkflowService.java:2385-2459`,
   `core/RelationshipService.java:323-376`).
 - Not built, revisit when a workspace asks to publish its own templates: a link that re-points to another template, a template outside the system workspace, a
   starter that remembers its source.

@@ -1,4 +1,4 @@
-import moment from "moment";
+import moment from "moment-timezone";
 import queryString from "query-string";
 import { queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
@@ -19,13 +19,22 @@ import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatus, S
  * part of the rollup in `degraded`, so that part renders as unavailable rather than as zero; it
  * never blanks the page. A failed profile read marks every part.
  *
- * "Today" is the server's calendar day (the same choice Activity's loader makes) - the request
- * carries no client time zone.
+ * "Today" is the viewer's calendar day: the page stores the browser's time zone in a cookie and
+ * reloads once when the loader read the day in another zone. Before that cookie exists it is the
+ * server's day.
  */
 
 export const RECENT_RUNS_LIMIT = 5;
 export const ATTENTION_LIMIT = 5;
 const SCHEDULES_LIMIT = 100;
+export const TIME_ZONE_COOKIE = "flow-tz";
+
+/** The viewer's IANA time zone from its cookie; null when none is stored or moment does not know it. */
+export function viewerTimeZone(request: Request): string | null {
+  const match = new RegExp(`(?:^|;\\s*)${TIME_ZONE_COOKIE}=([^;]+)`).exec(request.headers.get("Cookie") ?? "");
+  const zone = match ? decodeURIComponent(match[1]) : null;
+  return zone && moment.tz.zone(zone) ? zone : null;
+}
 
 export interface HomeRunCounts {
   all: number;
@@ -67,8 +76,10 @@ export interface HomeWorkspaceStats {
 }
 
 export interface HomeLoaderData {
-  /** The server's calendar day, e.g. "Tuesday 29 September". */
-  dateLabel: string;
+  /** When the loader ran, as an ISO instant; the page formats it in the viewer's timezone. */
+  now: string;
+  /** The time zone whose day `runsToday` counts; null for the server's. */
+  timeZone: string | null;
   runsToday: HomeRunCounts;
   /** Submitted actions across every workspace, newest first, capped at ATTENTION_LIMIT. */
   attention: Array<HomeAction>;
@@ -145,7 +156,8 @@ const newestFirst = (a: { creationDate: string }, b: { creationDate: string }) =
 
 export async function loader({ request }: { request: Request }): Promise<HomeLoaderData> {
   const api = serverFetch(request);
-  const now = moment();
+  const timeZone = viewerTimeZone(request);
+  const now = timeZone ? moment.tz(timeZone) : moment();
 
   const profile = await settle(api.get<FlowUser>(serviceUrl.getUserProfile()));
   const workspaces: Array<FlowWorkspaceSummary> = profile.ok ? profile.data.workspaces ?? [] : [];
@@ -247,7 +259,8 @@ export async function loader({ request }: { request: Request }): Promise<HomeLoa
   attention = attention.sort(newestFirst).slice(0, ATTENTION_LIMIT);
 
   return {
-    dateLabel: now.format("dddd D MMMM"),
+    now: now.toISOString(),
+    timeZone,
     runsToday,
     attention,
     attentionTotal,

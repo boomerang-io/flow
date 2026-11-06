@@ -30,7 +30,7 @@ retry, pause and the graph advance see nothing new, and the unique `{workflowRun
 
 - Dispatcher-run task types and `runworkflow` (one child per item, decision 0029) may run for each item. Saving refuses
   other types, a literal array over the `workflowrun` setting `max.foreach.items` (256), and a task that declares `item`
-  or `index` (`workflow/WorkflowService.java:144-155,1946-1982`); a resolved array over the cap fails the task.
+  or `index` (`workflow/WorkflowService.java:144-155,1956-1992`); a resolved array over the cap fails the task.
 - Any failed item fails the task, as in Tekton; an item that times out times out the run
   (`engine/TaskExecutionService.java:637-647`); combined results over 16 MB fail the task with `RESULTS_TOO_LARGE`.
 - A task name ending in `[<digits>]` is refused, so an item never collides with another task

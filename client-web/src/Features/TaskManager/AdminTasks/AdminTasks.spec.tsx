@@ -41,8 +41,19 @@ describe("AdminTasks --- loader", () => {
   test("keeps the newest version's date in the header across re-renders", async () => {
     renderAdminTasks("/admin/task-manager/execute-advanced-http-call/4");
     expect(await screen.findByText("Version updated Sep 11, 2023")).toBeInTheDocument();
-    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+    await userEvent.click((await screen.findAllByRole("button", { name: "Delete field" }))[0]);
     expect(screen.getByText("Version updated Sep 11, 2023")).toBeInTheDocument();
+  });
+});
+
+describe("AdminTasks --- icon-only buttons", () => {
+  test("each says what it does to a screen reader", async () => {
+    renderAdminTasks("/admin/task-manager/execute-advanced-http-call/4");
+
+    expect(await screen.findByRole("button", { name: "Version history" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit the basics" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Edit field" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Delete field" }).length).toBeGreaterThan(0);
   });
 });
 
@@ -73,7 +84,7 @@ describe("AdminTasks --- navigation from a loaded task", () => {
   test("unsaved edits still ask before leaving, naming a version change", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const { history } = renderAdminTasks(TASK_ROUTE);
-    await userEvent.click((await screen.findAllByLabelText("delete-field"))[0]);
+    await userEvent.click((await screen.findAllByRole("button", { name: "Delete field" }))[0]);
 
     await userEvent.click(screen.getByRole("link", { name: "Editor" }));
     await waitFor(() =>

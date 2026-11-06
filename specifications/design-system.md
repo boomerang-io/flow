@@ -77,7 +77,7 @@ New run-status UI MUST map to these accents or the Carbon support tokens, never 
 
 - IBM Plex Sans, loaded through Carbon's fonts module with `$use-akamai-cdn: true`
   (`src/Styles/_carbon-components.scss:5-7,20`). Code and parameter names use IBM Plex Mono through
-  `--cds-code-01-font-family` (`src/Features/Parameters/ParametersTable/parametersTable.module.scss:15-17`).
+  `--cds-code-01-font-family` (`src/Features/Parameters/ParametersTable/parametersTable.module.scss:21-23`).
 - New styles SHOULD take sizes from Carbon's type tokens (`type-style()` or the `--cds-<style>-font-size` properties,
   from `@carbon/react/scss/type`) rather than a literal `font-size`.
 
@@ -321,10 +321,10 @@ reduced-motion rule is global and lives in the base stylesheet, not per componen
 The landing page (`src/Features/Home/Home.tsx`) is a rollup of every workspace the caller belongs to: a hero band
 with the day's one-sentence summary, four "pulse" tiles that link into Activity, Actions, Schedules and the workspace
 list (`src/Features/Home/PulseTiles.tsx:66-115`), the actions waiting on the person with Approve and Reject inline,
-the workspace cards, the five newest runs, the templates and a short Learn list. A first run (no workspaces) shows a
-three-step checklist and four concept tiles instead. Its read fans out per workspace from a route loader
-(`src/Features/Home/homeLoader.ts:26-27,163-168`). The hero's eyebrow carries the platform's configured name from the
-app context (`src/Features/Home/Home.tsx:294`); the product name is never a literal in the page.
+the workspace cards, the five newest runs, the templates and a Learn list. Until Get started is done or closed the hero
+greets a first-time user; System's starters count toward no step but on a single-workspace install (`Home.tsx:298-313`).
+The loader fans out per workspace (`homeLoader.ts:175-190`); runs today are the viewer's day, by a time-zone cookie the page
+sets (`:30-37,158-159`, `Home.tsx:200-210`). The eyebrow is the viewer's date and platform name, never a literal (`:329`).
 
 ### Insights
 
@@ -333,12 +333,12 @@ slower, what fails and why, where does the time go. In `src/Features/Insights/`:
 
 | Part | Shape |
 | --- | --- |
-| Headline tiles | Four, each with a previous-period delta coloured by whether the change is welcome (`HeadlineTiles.tsx`) |
+| Headline tiles | Four, each with a previous-period delta coloured by whether the change is welcome; a duration over succeeded runs reads `n/a` when none succeeded, never `0 s` (`HeadlineTiles.tsx`, `format.ts:3-9`) |
 | Runs per day | Stacked bars by outcome, never a smoothed line, because counts are discrete (`RunsPerDayChart.tsx`) |
 | Model usage | When the period ran an `ai` task: total tokens, cost when any task reported one, one row per model (`UsagePanel.tsx`) |
 | Workflow table | One row per workflow, worst success rate first; the selected row's detail (where the time goes, why it fails, model usage) renders inside the panel under the table as tinted cards, and a line asks to select a row when none is (`WorkflowTable.tsx`, `WorkflowDetail.tsx`) |
 | Duration spread | A p5 to p95 bar with a p50 mark on a log scale, the run timeout marked, in place of a scatter of every run (`DurationSpread.tsx`) |
-| Task runs | The period's task runs grouped by task (the default), task type, workflow, model, for-each item or a run label, over the whole period or per hour, day or month: runs, failures, mean, p50, p95 and max duration, and tokens and cost where reported (`TaskBreakdown.tsx:17-39`) |
+| Task runs | The period's task runs grouped by task (the default), task type, workflow, model, for-each item or a run label, over the whole period or per hour, day or month: runs, failures, mean, p50, p95 and max duration, and tokens and cost where reported (`TaskBreakdown.tsx:18-40`) |
 
 The chart library takes literal colours, so the outcome colours are read off the status tokens at mount, with the
 theme's values as fallbacks (`statusColors.ts`); everything else is tokens, and outcomes with no runs stay out of
@@ -382,7 +382,7 @@ conventions the canvas editor follows and new UI MUST keep:
 
 - Every interactive element carries a role and a name. The palette entries are `role="option"` named by the task's
   display name (`src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:33`); icon-only buttons carry
-  `iconDescription` (the version buttons, `src/Features/WorkflowEditor/Header/Header.tsx:110,130`) or an `alt`
+  `hasIconOnly` with `iconDescription`, which names nothing without it (`src/Features/WorkspaceDetailed/Quotas/Quotas.tsx:346-356`), or an `alt`
   (`src/Components/WorkflowEditButton/WorkflowEditButton.tsx:14`: "Workflow edit button").
 - Form inputs are named by their parameter label, not their key: `textbox "Shell Interpreter"`, not `#shell`
   (`src/Features/Reactflow/components/shared/inputs.tsx:30`, `e2e/tests/foreach-ui.spec.ts:118`).

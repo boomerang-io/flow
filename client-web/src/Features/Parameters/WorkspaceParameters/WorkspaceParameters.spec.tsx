@@ -65,6 +65,14 @@ describe("WorkspaceParameters", () => {
     expect(await screen.findByText("test value")).toBeInTheDocument();
   });
 
+  test("names the workspace by its display name in the breadcrumb", async () => {
+    renderWorkspaceParameters();
+    const breadcrumb = await screen.findByRole("navigation", { name: "Breadcrumb" });
+
+    expect(within(breadcrumb).getByText("IBM Services Engineering")).toBeInTheDocument();
+    expect(within(breadcrumb).queryByText(WORKSPACE)).not.toBeInTheDocument();
+  });
+
   /*
    * The table used to read `useWorkspaceContext().workspace.parameters` - WorkspaceContainer's own
    * react-query cache - while the writes had moved to this route's action. A fetcher settle

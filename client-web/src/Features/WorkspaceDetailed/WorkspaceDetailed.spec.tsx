@@ -405,7 +405,14 @@ describe("WorkspaceDetailed --- per-workspace write grant", () => {
     renderWorkspaceDetailed(settingsRoute, workspaceEditor);
     expect(await screen.findByText("Basic details")).toBeInTheDocument();
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
-    expect(screen.getByTestId("open-change-name-modal")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Edit basic details" })).toBeEnabled();
+  });
+
+  test("each quota's edit button names the quota it edits", async () => {
+    // Quotas are an admin's to change.
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }), platformAdmin);
+    expect(await screen.findByRole("button", { name: "Edit Number of Workflows" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Edit Artifact Retention" })).toBeEnabled();
   });
 
   test("a grant on a DIFFERENT workspace does not unlock this one", async () => {

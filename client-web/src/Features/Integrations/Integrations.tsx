@@ -193,7 +193,7 @@ function Layout(props: LayoutProps) {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{props.workspace.name}</p>
+          <p>{props.workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );

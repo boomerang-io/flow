@@ -307,7 +307,7 @@ storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
-at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2161-2167`).
+at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2171-2177`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
 own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:371-383`).
 

@@ -42,7 +42,7 @@ revision admitted within 10 s share those five. A workflow's owning workspace is
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,652`,
-`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2091`); token writes do not, because the
+`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2101`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
@@ -265,7 +265,7 @@ workspace quota and passes the run checks (`QuotaService.java:353-381,388-409`).
 | `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:492`, `QuotaService.java:328-346` |
 | `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:782,809`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
 | `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:589-608`, `QuotaService.java:132-142,417-427` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2171-2176`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2181-2186`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
 | `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,691-702`, `QuotaService.java:310-323` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:228-303`).

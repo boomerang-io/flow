@@ -1,6 +1,7 @@
 import React from "react";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import moment from "moment-timezone";
 import * as fixtures from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
 import Home from "./Home";
@@ -11,7 +12,8 @@ import { EMPTY_RUN_COUNTS, HomeLoaderData } from "./homeLoader";
 // App.tsx feeds AppContext with (summaries carrying `insights`), not the paginated list.
 function rollup(overrides: Partial<HomeLoaderData> = {}): HomeLoaderData {
   return {
-    dateLabel: "Tuesday 29 September",
+    now: "2026-09-29T02:00:00.000Z",
+    timeZone: "UTC",
     runsToday: { ...EMPTY_RUN_COUNTS, all: 12, succeeded: 9, failed: 2, running: 1 },
     attention: [],
     attentionTotal: 0,
@@ -51,6 +53,37 @@ describe("Home", () => {
     expect(screen.getByText(/12 runs today across your 3 workspaces\. 1 approval is waiting for you\./)).toBeInTheDocument();
     expect(screen.getByTestId("home-pulse-runs")).toHaveTextContent("12");
     expect(screen.getAllByTestId("workspace-card")).toHaveLength(3);
+  });
+
+  test("dates the greeting in the viewer's timezone, not the server's", async () => {
+    // 22:30 UTC on Thursday 5 November is already Friday 6 November in Sydney.
+    moment.tz.setDefault("Australia/Sydney");
+    try {
+      renderHome(rollup({ now: "2026-11-05T22:30:00.000Z" }));
+
+      expect(await screen.findByText(/Friday 6 November · Acme Automation/)).toBeInTheDocument();
+      expect(screen.queryByText(/Thursday 5 November/)).not.toBeInTheDocument();
+    } finally {
+      moment.tz.setDefault();
+    }
+  });
+
+  test("stores the viewer's time zone and loads again when the page read the day in another", async () => {
+    const loads: Array<string | null> = [];
+    document.cookie = "flow-tz=; path=/; max-age=0";
+    renderWithContext(<Home />, {
+      path: "/home",
+      route: "/home",
+      loader: ({ request }: { request: Request }) => {
+        loads.push(request.url);
+        // The first read had no zone; once the page has stored one, the read is the viewer's.
+        return rollup({ timeZone: loads.length === 1 ? null : "UTC" });
+      },
+      contextValue: { name: "Acme Automation", workflowTemplates: [], workspaces: fixtures.profile.workspaces },
+    });
+
+    await waitFor(() => expect(loads).toHaveLength(2));
+    expect(document.cookie).toContain("flow-tz=UTC");
   });
 
   test("counts each person in your workspaces once, not once per membership", async () => {
@@ -179,6 +212,41 @@ describe("Home", () => {
     expect(await screen.findByTestId("home-pulse-runs")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Get started" })).not.toBeInTheDocument();
     expect(intents).toEqual(["hide-get-started"]);
+  });
+
+  // The first admin owns the System workspace and its seeded starters, none of which they made.
+  const systemOnly = [
+    { name: "system", displayName: "System", creationDate: "2026-11-01T00:00:00Z", status: "active", insights: { workflows: 3, members: 1 } },
+  ];
+  const steps = () => within(screen.getByRole("list", { name: "Get started" })).getAllByRole("listitem");
+
+  test("greets a new admin who holds only the System workspace as a first-time user", async () => {
+    renderHome(rollup({ totalRuns: 0 }), { workspaces: systemOnly });
+
+    expect(await screen.findByRole("heading", { level: 1, name: /G’day, .*\. Let’s get your first workflow running\./ })).toBeInTheDocument();
+    expect(steps()[0]).toHaveTextContent("Create a workspace");
+    expect(steps()[0]).not.toHaveTextContent("Done");
+    expect(steps()[1]).not.toHaveTextContent("Done");
+  });
+
+  test("welcomes the same admin back once Get started is closed", async () => {
+    renderHome(rollup({ totalRuns: 0 }), {
+      workspaces: systemOnly,
+      user: { ...fixtures.profile, settings: { isShowGetStarted: false } },
+    });
+
+    expect(await screen.findByRole("heading", { level: 1, name: /Welcome back, / })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Get started" })).not.toBeInTheDocument();
+  });
+
+  test("marks the workspace and workflow steps done for a user with their own of each", async () => {
+    // The fixture's own workspaces hold workflows; with no run yet, Get started still shows.
+    renderHome(rollup({ totalRuns: 0 }));
+
+    expect(await screen.findByRole("heading", { level: 1, name: /G’day, / })).toBeInTheDocument();
+    expect(steps()[0]).toHaveTextContent("Done");
+    expect(steps()[1]).toHaveTextContent("Done");
+    expect(steps()[2]).not.toHaveTextContent("Done");
   });
 
   test("keeps Get started closed for a user who closed it before", async () => {
