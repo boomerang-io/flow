@@ -89,7 +89,7 @@ declares a workspace stays `ready/pending` until a dispatcher claims it, provisi
 `dispatcher/DispatcherControllerV1.java:168`). `start=false` parks a run without a workspace for a later
 `PUT /{id}/start`; it does not park a run with a workspace, since the provisioning claim does not tell the two apart
 and the first dispatcher to poll provisions and starts it (`engine/WorkflowRunStateHelper.java:57-73`). A `runworkflow`
-task submits its child with `start=true` (`engine/TaskExecutionService.java:1388-1389`). The wait for a dispatcher is
+task submits its child with `start=true` (`engine/TaskExecutionService.java:1403-1404`). The wait for a dispatcher is
 bounded by the run's own budget: such a run takes `timeoutAt` = creation + timeout at submit
 (`workflow/WorkflowRunService.java:867-872`), the timeout sweep takes `pending` runs as well as `running` ones
 (`engine/WorkflowRunStateHelper.java:450-465`), and the start re-stamps the deadline from the start time. A run no
@@ -137,7 +137,7 @@ moving `waitUntil` 60 s ahead, so another instance takes over if it stops (`engi
 | `reapWorkflowTimeouts` (`WorkflowWatcher.java:260`) | `pending` and `running` runs past `timeoutAt`, neither paused nor waiting (`WorkflowRunStateHelper.java:450-465`) | `WorkflowRunService.timeout` (`workflow/WorkflowRunService.java:991`) |
 | `recoverStalledRuns` (`WorkflowWatcher.java:273`) | unpaused `running` runs started over 60 s ago (`WorkflowRunStateHelper.java:467-485`) with no task run in flight on two consecutive sweeps, checked for the page in one read (`TaskRunService.java:715-726`); one empty sighting is what a run between a task's end and the next admission looks like | re-drives the graph advance (`TaskExecutionService.java:790-820`) |
 | `recoverForeachTasks` (`WorkflowWatcher.java:312`) | for-each parents in the `running` phase for over 60 s, whatever their status (`TaskRunService.java:477-500`) | ends a parent whose outcome is recorded; re-runs the idempotent fan-out (`TaskExecutionService.java:863-902`) for one with no item in flight (`TaskRunService.java:524-534`) in an unpaused run. A paused run is skipped, since the pause gate would refuse every item; resume re-runs the fan-out |
-| `resumeDueWaitingTasks` (`WorkflowWatcher.java:350`), run by `DueWaitPoller` every second rather than in the sweep | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:891-898`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:941`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1289-1313`) |
+| `resumeDueWaitingTasks` (`WorkflowWatcher.java:350`), run by `DueWaitPoller` every second rather than in the sweep | `waiting` task runs whose `waitUntil` passed (`TaskRunService.java:891-898`) | wins each with `tryStartWaitingResume` (`TaskRunService.java:941`); a sleep completes, an `acquirelock` tries again (`TaskExecutionService.java:1304-1328`) |
 | `cancelDeletedWorkflowRuns` (`WorkflowWatcher.java:367`) | in-flight runs of workflows with `status=deleted` | cancels each through the normal cancel |
 | `pruneDeletedWorkflows` (`WorkflowWatcher.java:388`) | a page of deleted workflows with no run in flight (`WorkflowRetentionService.java:271-311`) | purges each run as retention does (`WorkflowRetentionService.java:335-343`), then deletes the workflow's artifacts, leftover task runs, revisions, schedules, actions and relationship node, then the workflow; audit records stay |
 | `purgeRequestedRuns` (`WorkflowWatcher.java:396`) | runs stamped `purgeRequestedAt` by a purge request (`api-contract.md`, "Run purge"), oldest request first, one page (`WorkflowRetentionService.java:153-180`) | purges each run as retention does once its tasks have settled (every task completed, and no cancelled or timed-out task still carrying `claim.by`), or once the request is 10 minutes old; one found in flight again is cancelled again |
@@ -263,8 +263,8 @@ run ended without succeeding (`client-web/src/Utils/taskRunHelper.ts:95-101`). `
 Results are keyed by name on every path: a `setwfproperty` result, an event delivery and a run-workflow task's `workflowRunRef` upsert the element with that name, a positional `$set` or else
 a `$push` guarded on the name being absent (`engine/ResultUtil.java:25-43`), so a key written twice stays one element. An event wait, and a run-workflow task with `wait=true`, arm with
 `tryArmWait`, a `status=waiting` write fenced on the `running` phase (`engine/TaskRunService.java:919-935`); the event wait then re-reads, so an event delivered between the entry read and
-the arm (`applyEventDelivery`, `:406-414`) is honoured (`engine/TaskExecutionService.java:1564-1586`). An approval or manual task arms with the same write carrying its `actionRef` result
-(`engine/TaskRunService.java:930-935`), and when the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1637-1644`).
+the arm (`applyEventDelivery`, `:406-414`) is honoured (`engine/TaskExecutionService.java:1579-1601`). An approval or manual task arms with the same write carrying its `actionRef` result
+(`engine/TaskRunService.java:930-935`), and when the fence fails because a cancel or a timeout won, the action just created is deleted (`engine/TaskExecutionService.java:1652-1659`).
 
 ## Finally tasks
 
@@ -320,13 +320,13 @@ five-field UNIX definition: `CronService.toUnix` reads any stored form, six- or 
 
 ## Child workflows
 
-A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1323-1413`) with the
+A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1338-1428`) with the
 task's own params minus `workflowRef` and `wait` (`:1420-1425`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
 saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1898-1938`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
-`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1534-1537`). A `workflowRef` naming a template
+`timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1549-1552`). A `workflowRef` naming a template
 runs as the parent's workspace's link to that template, created under the template's name on first use, so a template's
 children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace,
 and for any other reference, the reference is used as given (`:1359-1362`, `workflow/WorkflowService.java:2367-2383`).
@@ -336,12 +336,12 @@ typed pair the retry path uses (`workflow/WorkflowService.java:2218-2222`); a ru
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1367-1374`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
-stops at the cap (`engine/TaskExecutionService.java:1338-1347`, `:1449-1473`).
+stops at the cap (`engine/TaskExecutionService.java:1353-1362`, `:1449-1473`).
 
 **Wait.** `wait` defaults to `false`: the task records the child's id as its `workflowRunRef` result and ends
 `succeeded` at once. With `wait=true` it parks as `waiting` with no `waitUntil`, so only the child's completion or a
 timeout the task declared ends it, and the parent run's clock stops while nothing else of it executes. The arm happens
-before the submit, so a child that finishes at once finds its parent waiting (`engine/TaskExecutionService.java:1349-1357`).
+before the submit, so a child that finishes at once finds its parent waiting (`engine/TaskExecutionService.java:1364-1372`).
 
 **Ending the parent.** `ChildWorkflowRunListener` handles each `WorkflowRunTransition` into `completed`: when the run
 has `trigger=task` and the named task run is still `waiting`, it calls `TaskRunService.end`, so the completion
@@ -377,12 +377,12 @@ finds the parent, since the lookup is by exact name and items carry the brackete
 
 The `acquirelock` and `releaselock` types use the `task_locks` collection: one document per key, `_id` = `<workspace id>:<key>` with the id of the workspace that owns the run's workflow (for a template's run, the workspace whose link it was submitted through), holding
 `holder`, `workflowRunRef`, `acquiredAt` and `expiresAt`, with an expiry index on `expiresAt` (`engine/entity/TaskLockEntity.java:9-25`, `migration/_0021__Indexes.java:124-128`,
-`engine/TaskExecutionService.java:1274-1282`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1213-1243`); a task that
+`engine/TaskExecutionService.java:1289-1297`). Acquire is an upsert that matches only an unheld or expired key, a `DuplicateKeyException` meaning held (`tryAcquireLock`, `:1213-1243`); a task that
 cannot acquire parks as `waiting` for 5 s and the watcher tries again (`:81`, `:1190-1191`), its declared timeout bounding the wait. The lease is the `timeout` param in milliseconds from the acquire
 (`:1180`), as v3 read it; the Acquire Lock catalogue task says so from revision 2, which defaults it to `300000`, 5 minutes (`seed/task-revisions.json:81-83`). A `releaselock` deletes the key's lock
 when its run holds it, whichever of the run's tasks acquired it, and never a lock another run holds (`releaseLock`, `:1249-1253`); `holder` records which task acquired it. A run's locks go with the
 run: when it completes, by any status, and when it is purged, every lock it still holds is deleted by its run reference, so the next acquire on the key succeeds at once instead of waiting out the
-lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `engine/TaskExecutionService.java:1260-1270`, `engine/ChildWorkflowRunListener.java:87-93`,
+lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `engine/TaskExecutionService.java:1275-1285`, `engine/ChildWorkflowRunListener.java:87-93`,
 `workflow/WorkflowRetentionService.java:336`). With finally tasks a run completes after they end, so a finally `releaselock` still finds its lock.
 
 ## Not built

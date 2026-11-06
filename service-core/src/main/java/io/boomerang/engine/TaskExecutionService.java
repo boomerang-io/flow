@@ -437,7 +437,7 @@ public class TaskExecutionService {
       }
       case sleep -> {
         // Parks as waiting until its duration elapses; the watcher completes it, no held thread.
-        this.createSleepTask(taskExecution);
+        endTask = this.createSleepTask(taskExecution);
       }
       case end, start -> throw new UnsupportedOperationException("Unimplemented case: " + taskType);
       default -> throw new BoomerangException(BoomerangError.TASKRUN_INVALID_TYPE, taskType);
@@ -1139,13 +1139,28 @@ public class TaskExecutionService {
     }
   }
 
-  private void createSleepTask(TaskRunEntity taskExecution) {
-    String value = ParameterUtil.getValue(taskExecution.getParams(), "duration").toString();
-    long duration = Long.parseLong(value);
+  /*
+   * Returns true when the task should end now (a duration that is not a whole, non-negative number
+   * of milliseconds - fail); false when it parked as waiting for the watcher to complete it.
+   */
+  private boolean createSleepTask(TaskRunEntity taskExecution) {
+    Object value =
+        ParameterUtil.containsName(taskExecution.getParams(), "duration")
+            ? ParameterUtil.getValue(taskExecution.getParams(), "duration")
+            : null;
+    String text = value == null ? "" : value.toString().trim();
+    if (!NumberUtils.isDigits(text) || text.length() > 18) {
+      taskExecution.setStatus(RunStatus.failed);
+      taskExecution.setStatusMessage(
+          "sleep requires a duration in whole milliseconds, got '" + text + "'.");
+      return true;
+    }
+    long duration = Long.parseLong(text);
     // Durable wait: park as waiting and let the watcher complete it when waitUntil elapses. No
     // held thread survives a crash - the sweep resumes it.
     taskRunService.tryPark(
         taskExecution.getId(), new Date(System.currentTimeMillis() + duration));
+    return false;
   }
 
   private void processDecision(TaskRunEntity taskExecution) {

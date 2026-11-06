@@ -529,6 +529,9 @@ tag's release notes.
 
 ### Fixed
 
+- A sleep whose duration is missing, not a whole number of milliseconds, negative or too large fails with a message
+  saying so; it was left running.
+
 - Saving a workflow refuses a node whose `type` is not the type of the task it references, with
   `400 WORKFLOW_INVALID_TASK_TYPE` (1224) naming the node, both types and the task. A `sleep` task saved as a
   `template` node was accepted and then failed in its container with "missing required argument 'cmd'".
