@@ -50,6 +50,9 @@ tag's release notes.
 - **Migrations run inside `service-core` as it starts.** The `flow-service-loader` image and its pre-deploy
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
+- **A v3 workflow that uses the Sleep task needs its sleep node replaced.** The upgrade makes Sleep a native `sleep`
+  task but leaves the workflow's node typed `template`, so the node fails when it runs, and saving the workflow is
+  refused with `WORKFLOW_INVALID_TASK_TYPE` until the node is deleted and Sleep added again from the palette.
 - **You can upgrade from v3, although runs are dropped.**
 - **The v3 install must come from bmrg-flow 4.13.5 or later** (flow-loader 0.5.9 or later, whose changelog holds
   changeset `111`). An older v3 install is refused at startup: move it to that chart first.
@@ -512,6 +515,23 @@ tag's release notes.
   a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
 
 ### Fixed
+
+- Saving a workflow refuses a node whose `type` is not the type of the task it references, with
+  `400 WORKFLOW_INVALID_TASK_TYPE` (1224) naming the node, both types and the task. A `sleep` task saved as a
+  `template` node was accepted and then failed in its container with "missing required argument 'cmd'".
+- Insights shows `n/a` rather than `0 s` for p50, p95 and the task duration columns when no run or task run in the
+  period succeeded: those figures read succeeded runs only, while Longest reads every completed run.
+- Create workflow says why Create is disabled when the name is taken: the Name field, filled from the display name,
+  shows its message without being touched first. Import does the same for a name read from the file.
+- Home's date and its runs today read in the viewer's timezone. Both were the server's day, a day behind east of UTC
+  in the morning. The page keeps the browser's time zone in a `flow-tz` cookie, so the first visit loads twice.
+- Home greets a new admin, who owns only the System workspace and its starters, with the first-run greeting, and
+  Get started counts neither the workspace nor its starters towards its first two steps (except on a single-workspace
+  install). "Welcome back" shows once Get started is finished or closed.
+- Workspace Parameters and Integrations name the workspace by its display name in the breadcrumb, and a secured
+  parameter value sits in line with the rest of its row.
+- The Quotas and Settings edit buttons, and the task manager's Version history, edit and delete buttons, have
+  accessible names.
 
 - A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
   `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every

@@ -2,7 +2,7 @@
 import React from "react";
 import { Button, InlineNotification, Tag, Tile } from "@carbon/react";
 import { Draggable as DraggableIcon, TrashCan, Bee } from "@carbon/react/icons";
-import { Loading, notify, ToastNotification, TooltipHover } from "@boomerang-io/carbon-addons-boomerang-react";
+import { Loading, notify, ToastNotification } from "@boomerang-io/carbon-addons-boomerang-react";
 import { sentenceCase } from "change-case";
 import { Formik } from "formik";
 import fileDownload from "js-file-download";
@@ -122,17 +122,17 @@ const Field: React.FC<FieldProps> = ({
           templateFields={fields}
           canEdit={canEdit}
         />
-        <TooltipHover direction="bottom" tooltipText={"Delete field"}>
-          <Button
-            className={styles.delete}
-            disabled={isOldVersion || !isActive || !canEdit}
-            iconDescription="delete-field"
-            kind="ghost"
-            onClick={() => deleteConfiguration(field)}
-            renderIcon={TrashCan}
-            size="md"
-          />
-        </TooltipHover>
+        <Button
+          className={styles.delete}
+          disabled={isOldVersion || !isActive || !canEdit}
+          hasIconOnly
+          iconDescription="Delete field"
+          tooltipPosition="bottom"
+          kind="ghost"
+          onClick={() => deleteConfiguration(field)}
+          renderIcon={TrashCan}
+          size="md"
+        />
       </div>
     </section>
   );
@@ -183,17 +183,17 @@ const Result: React.FC<ResultProps> = ({
           isActive={isActive}
           canEdit={canEdit}
         />
-        <TooltipHover direction="bottom" tooltipText={"Delete result paramater"}>
-          <Button
-            className={styles.delete}
-            disabled={isOldVersion || !isActive || !canEdit}
-            iconDescription="delete-parameter"
-            kind="ghost"
-            onClick={() => DeleteResult(index)}
-            renderIcon={TrashCan}
-            size="md"
-          />
-        </TooltipHover>
+        <Button
+          className={styles.delete}
+          disabled={isOldVersion || !isActive || !canEdit}
+          hasIconOnly
+          iconDescription="Delete result parameter"
+          tooltipPosition="bottom"
+          kind="ghost"
+          onClick={() => DeleteResult(index)}
+          renderIcon={TrashCan}
+          size="md"
+        />
       </div>
     </section>
   );

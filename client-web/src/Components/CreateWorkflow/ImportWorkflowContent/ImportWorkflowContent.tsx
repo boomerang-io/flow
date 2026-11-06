@@ -127,7 +127,7 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
           })
           .notOneOf(
             existingWorkflowNames,
-            `There’s already a ${type} with that name in this workspace. Names must be unique.`,
+            `Crikey, there’s already a ${type} called that in this workspace. Names must be unique, so try another.`,
           ),
         displayName: Yup.string().optional(),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
@@ -217,7 +217,8 @@ const ImportWorkflowContent: React.FC<ImportWorkflowContentProps> = ({
                       value={values.name}
                       onBlur={handleBlur}
                       onChange={handleChange}
-                      invalid={Boolean(errors.name && touched.name)}
+                      // The name comes from the file, so a taken one shows before the field is touched.
+                      invalid={Boolean(errors.name && (touched.name || values.name))}
                       invalidText={errors.name}
                     />
                     <TextInput

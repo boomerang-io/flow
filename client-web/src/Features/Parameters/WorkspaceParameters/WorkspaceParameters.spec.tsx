@@ -1,5 +1,5 @@
 import { Route, useFetcher } from "react-router-dom";
-import { screen, fireEvent, waitForElementToBeRemoved } from "@testing-library/react";
+import { screen, fireEvent, waitForElementToBeRemoved, within } from "@testing-library/react";
 import { db } from "ApiServer/msw/db";
 import { workspace as workspaceFixture } from "ApiServer/fixtures";
 import { renderWithContext } from "Utils/testing/render";
@@ -54,6 +54,14 @@ describe("WorkspaceParameters", () => {
   test("renders the parameters resolved by the loader", async () => {
     renderWorkspaceParameters();
     expect(await screen.findByText("test value")).toBeInTheDocument();
+  });
+
+  test("names the workspace by its display name in the breadcrumb", async () => {
+    renderWorkspaceParameters();
+    const breadcrumb = await screen.findByRole("navigation", { name: "Breadcrumb" });
+
+    expect(within(breadcrumb).getByText("IBM Services Engineering")).toBeInTheDocument();
+    expect(within(breadcrumb).queryByText(WORKSPACE)).not.toBeInTheDocument();
   });
 
   /*

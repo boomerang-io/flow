@@ -81,8 +81,8 @@ export async function createWorkflow(
   // A minimal RUNNABLE graph, not tasks: [] - DAGUtility.validateWorkflow deliberately rejects a
   // workflow whose only tasks are start/end ("cant run"), and submit on such a workflow persists
   // an `invalid` run and then throws HTTP 500 (WorkflowExecutionService.queue) rather than
-  // returning that run. The `sleep` template task is seeded by service-core's migrations, and with
-  // ?start=false the run parks at `ready` without needing any agent.
+  // returning that run. The `sleep` task is seeded by service-core's migrations, and a node's type
+  // must be its task's type; with ?start=false the run parks at `ready` without needing any agent.
   const res = await request.post(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow`, {
     data: {
       name: displayName,
@@ -91,7 +91,7 @@ export async function createWorkflow(
         { name: "start", type: "start" },
         {
           name: "sleep-1",
-          type: "template",
+          type: "sleep",
           taskRef: "sleep",
           params: [{ name: "duration", value: "1" }],
           dependencies: [{ taskRef: "start" }],

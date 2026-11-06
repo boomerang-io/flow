@@ -183,6 +183,44 @@ describe("Insights --- page", () => {
     );
   });
 
+  // Percentiles read succeeded runs only, and the API sends 0 over none; the longest run reads
+  // every completed run. A workflow that only failed read "0 s" beside "Longest 9 s".
+  test("shows no duration percentiles for a period in which no run succeeded", async () => {
+    const failedOnly = {
+      runs: 2,
+      succeeded: 0,
+      failed: 2,
+      timedOut: 0,
+      cancelled: 0,
+      other: 0,
+      inFlight: 0,
+      successRate: 0,
+      p50Duration: 0,
+      p95Duration: 0,
+      maxDuration: 9000,
+      p50QueueWait: 0,
+      p95QueueWait: 0,
+      byTrigger: { manual: 2 },
+    };
+    server.use(
+      http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () =>
+        HttpResponse.json({
+          ...fixtures.insights,
+          totals: failedOnly,
+          workflows: [{ ...fixtures.insights.workflows[0], ...failedOnly, p5Duration: 0, workflowName: "sleepy" }],
+        }),
+      ),
+    );
+    renderInsights(`/${WORKSPACE}/insights?compare=on`);
+    await screen.findByTestId("completed-insights");
+
+    expect(screen.getByTestId("insights-tile-p50")).toHaveTextContent(/^Typical duration \(p50\)n\/a/);
+    expect(screen.getByTestId("insights-tile-p95")).toHaveTextContent(/^Slow tail \(p95\)n\/a/);
+    expect(screen.getByTestId("insights-tile-p95")).toHaveTextContent("Longest 9 s · sleepy");
+    const row = screen.getByTestId("insights-workflow-row");
+    expect(within(row).getAllByText("n/a")).toHaveLength(2);
+  });
+
   test("says so when the period holds no runs", async () => {
     server.use(
       http.get(serviceUrl.workspace.getInsights({ workspace: ":workspace" }), () =>

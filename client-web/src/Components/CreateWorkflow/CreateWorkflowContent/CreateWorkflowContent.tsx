@@ -77,7 +77,7 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
           })
           .notOneOf(
             existingWorkflowNames,
-            `There’s already a ${viewType} with that name in this workspace. Names must be unique.`,
+            `Crikey, there’s already a ${viewType} called that in this workspace. Names must be unique, so try another.`,
           ),
         displayName: Yup.string().required("Please provide a name for your Workflow"),
         description: Yup.string().max(250, "Description must not be greater than 250 characters"),
@@ -113,7 +113,9 @@ const CreateWorkflowContent: React.FC<CreateWorkflowContentProps> = ({
                 value={values.name}
                 onBlur={handleBlur}
                 onChange={handleChange}
-                invalid={Boolean(errors.name && touched.name)}
+                // The name fills in from the display name without the field being touched, so a
+                // filled name shows its error straight away, a taken name included.
+                invalid={Boolean(errors.name && (touched.name || values.name))}
                 invalidText={errors.name}
               />
               <TextArea

@@ -1,9 +1,9 @@
 import { vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { WorkflowView } from "Constants";
 import CreateWorkflowContent from ".";
 
-// import { screen, fireEvent } from "@testing-library/react";
 
 const mockfn = vi.fn();
 const props = {
@@ -20,6 +20,28 @@ describe("CreateWorkflowContent --- Snapshot Test", () => {
   test("Capturing Snapshot of CreateWorkflowContent", () => {
     const { baseElement } = render(<CreateWorkflowContent {...props} />);
     expect(baseElement).toMatchSnapshot();
+  });
+});
+
+describe("CreateWorkflowContent --- name check", () => {
+  test("says why Create is disabled when the name is already taken", async () => {
+    render(<CreateWorkflowContent {...props} existingWorkflowNames={["hello-world"]} />);
+
+    // The name fills in from the display name; the Name field itself is never touched.
+    await userEvent.type(screen.getByLabelText(/Display Name/), "Hello World");
+
+    expect(screen.getByLabelText("Name")).toHaveValue("hello-world");
+    expect(await screen.findByText(/there’s already a workflow called that in this workspace/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+  });
+
+  test("enables Create for a name that is free", async () => {
+    render(<CreateWorkflowContent {...props} existingWorkflowNames={["hello-world"]} />);
+
+    await userEvent.type(screen.getByLabelText(/Display Name/), "Hello There");
+
+    expect(await screen.findByRole("button", { name: "Create" })).toBeEnabled();
+    expect(screen.queryByText(/already a workflow/)).not.toBeInTheDocument();
   });
 });
 

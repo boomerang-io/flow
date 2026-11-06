@@ -221,10 +221,12 @@ export default function Settings() {
             }}
             modalTrigger={({ openModal }) => (
               <button
+                aria-label="Edit basic details"
                 disabled={!canEdit}
                 className={styles.workspaceEditIcon}
                 onClick={openModal}
                 data-testid="open-change-name-modal"
+                type="button"
               >
                 <Edit />
               </button>

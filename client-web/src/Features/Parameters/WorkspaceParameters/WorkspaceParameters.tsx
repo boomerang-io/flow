@@ -211,7 +211,7 @@ function WorkspaceParameters() {
           <Link to={appLink.home()}>Home</Link>
         </BreadcrumbItem>
         <BreadcrumbItem isCurrentPage>
-          <p>{workspace?.name}</p>
+          <p>{workspace.displayName}</p>
         </BreadcrumbItem>
       </Breadcrumb>
     );

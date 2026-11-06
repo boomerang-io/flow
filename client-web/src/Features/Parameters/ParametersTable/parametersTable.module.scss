@@ -14,14 +14,16 @@
   }
 }
 
+// A header and its cells take the class named by the column's key (.tag, .actions), so a class for
+// what sits inside a cell MUST NOT share a column's key: on the cell it would restyle the cell itself.
+
 // Name first, in the monospace tasks type it in; the free text columns take what's left.
-.name {
+.reference {
   font-family: var(--cds-code-01-font-family, "IBM Plex Mono", monospace);
   font-size: 0.8125rem;
 }
 
-.value,
-.text {
+.truncated {
   display: block;
   max-width: 24rem;
   overflow: hidden;
