@@ -10,6 +10,9 @@ tag's release notes.
 - **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.4.0`.** A change unit moves the `task`
   settings' `default.image` from `3.3.0` where it still holds that value; a value an operator chose is kept. 3.4.0 fixes
   HTTP Call, the Slack webhook tasks' exit codes, JSONPath with no match, and Execute Shell's paths.
+  A second change unit adds the 8 matching catalogue revisions an install lacks (HTTP Call basic 2 and advanced 5, the three
+  Slack webhook tasks 3, JSONPath to Parameter 4, File JSONPath to Parameter 3, Execute Shell 3 with `failOnError`);
+  revisions already held, which workflows may pin, are not changed.
 
 - **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
   `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
