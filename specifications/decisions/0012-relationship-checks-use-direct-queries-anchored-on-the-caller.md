@@ -19,7 +19,7 @@ from stale data until it is rebuilt, and a stale answer here is a wrong access d
 ## Decision
 
 B. `check` and `filter` read live MongoDB, one edge query and one node batch-load per level from the caller's node
-(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:446-510,600-665,874-952`); only node
+(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:446-510,600-665,897-975`); only node
 resolutions are memoised, for one HTTP request (`:94-134`). Any instance sees every committed write at once, which
 `RelationshipServiceTest` pins with two service instances on one database
 (`service-core/src/test/java/io/boomerang/core/RelationshipServiceTest.java:262-280`).

@@ -572,6 +572,11 @@ public class TokenService {
   /**
    * Resolve a raw token to the identity a request authenticates as, and stamp its last use
    * (throttled, see {@link #touchLastUsed}) when it is still valid.
+   *
+   * <p>A {@code session} stands for its user, so it carries what the user holds now, resolved from
+   * the user's type and memberships on every request rather than copied at sign-in: a workspace
+   * joined, a role changed or a membership removed since then applies to the next request. A
+   * session whose user no longer exists authenticates as nobody.
    */
   public Token get(String token) {
     TokenEntity tokenEntity = lookup(token).orElse(null);
@@ -584,6 +589,13 @@ public class TokenService {
     Token response = new Token();
     response.setValid(isValid(tokenEntity.getExpirationDate()));
     BeanUtils.copyProperties(tokenEntity, response);
+    if (AuthScope.session.equals(tokenEntity.getType())) {
+      UserEntity user = userService.getUserByID(tokenEntity.getPrincipal()).orElse(null);
+      if (user == null) {
+        return null;
+      }
+      response.setPermissions(resolvePermissionsForUser(user));
+    }
     return response;
   }
 
@@ -735,7 +747,7 @@ public class TokenService {
     if (claimAdmin != null && adminClaim.configured()) {
       UserEntity signedIn = user.get();
       if (userService.applyAdminClaim(signedIn, claimGrantsAdmin) && !claimGrantsAdmin) {
-        // A demoted admin's sessions still carry the global grant; end them.
+        // A demoted admin signs in again: end every session they hold.
         tokenRepository
             .findByPrincipalAndType(signedIn.getId(), AuthScope.session)
             .ifPresent(sessions -> sessions.forEach(session -> delete(session.getId())));
@@ -803,9 +815,10 @@ public class TokenService {
   /**
    * Resolves the full permission grant set for a user: a global platform grant for admin/operator
    * users, or the self-service baseline plus one workspace-scoped grant per workspace they are a
-   * member of. The single source of truth for a user's permissions - both {@link
-   * #createSessionToken} and the user profile composition (api layer) call this, so a
-   * platform-role grant can never be applied on one path and missed on the other.
+   * member of. The single source of truth for a user's permissions - a session's grants on every
+   * request ({@link #get}) and the user profile composition (api layer) call this, so a
+   * platform-role grant can never be applied on one path and missed on the other. A membership
+   * whose role is not a seeded workspace role grants nothing.
    */
   public List<ResolvedPermissions> resolvePermissionsForUser(UserEntity user) {
     List<ResolvedPermissions> permissions = new LinkedList<>();
@@ -815,19 +828,24 @@ public class TokenService {
               PermissionScope.global,
               "**",
               roleRepository.findByTypeAndName("global", user.getType().toString()).getPermissions()));
-    } else {
-      permissions.add(
-          new ResolvedPermissions(PermissionScope.user, user.getId(), selfServicePermissions()));
-      // Collect all workspace permissions the user has
-      Map<String, String> teamsAndRoles = relationshipService.roles(user.getId());
-      for (Map.Entry<String, String> entry : teamsAndRoles.entrySet()) {
-        permissions.add(
-            new ResolvedPermissions(
-                PermissionScope.workspace,
-                entry.getKey(),
-                roleRepository.findByTypeAndName("workspace", entry.getValue()).getPermissions()));
-      }
+      return permissions;
     }
+    permissions.add(
+        new ResolvedPermissions(PermissionScope.user, user.getId(), selfServicePermissions()));
+    Map<String, String> workspacesAndRoles = relationshipService.roles(user.getId());
+    if (workspacesAndRoles.isEmpty()) {
+      return permissions;
+    }
+    Map<String, List<String>> roleGrants =
+        roleRepository.findByType("workspace").stream()
+            .collect(Collectors.toMap(RoleEntity::getName, RoleEntity::getPermissions));
+    workspacesAndRoles.forEach(
+        (workspace, role) -> {
+          if (roleGrants.containsKey(role)) {
+            permissions.add(
+                new ResolvedPermissions(PermissionScope.workspace, workspace, roleGrants.get(role)));
+          }
+        });
     return permissions;
   }
 

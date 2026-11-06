@@ -32,12 +32,16 @@ instance that took it.
 | `core/security/TokenLookupCache.java` | Validated tokens by hash | 60 s / 10,000 | A revoked token is honoured for up to 60 s |
 | `core/ParamLayerCache.java` | Global, workspace and context parameter layers by workflow and revision; revisions by id | 10 s / 1,000 | A parameter, setting or revision edit reaches its task admissions within 10 s |
 
+The token cache holds a session's token, not its grants: each request a session makes resolves them from the user's
+record, membership edges, the workspace roles and the `features` setting, four reads, or two for an admin or operator
+(`core/TokenService.java:581-600,823-860`), so a membership change applies on the next request on every instance.
+
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
 features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
 revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
-(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,645`,
+(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,652`,
 `core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2091`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
@@ -287,13 +291,13 @@ limit is never over-filled. A retry is checked only before it is created. Audit 
 
 `GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
 commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
-(`workspace/WorkspaceService.java:877-956`, `:821-851`). A single workspace's get, create and patch run the same code
-with a page of one (`:870-872`).
+(`workspace/WorkspaceService.java:885-965`, `:828-858`). A single workspace's get, create and patch run the same code
+with a page of one (`:877-879`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
 | Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-140,717-736` |
-| Member and approver names | One users query | `core/UserService.java:243-251` |
+| Member and approver names | One users query | `core/UserService.java:245-253` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
 | Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:555-585` |
 
@@ -303,7 +307,7 @@ cost 23 commands for a member and 25 for a global caller, one relationship walk 
 Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
 commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
 or a global token, which starts at the root and reads every node under every workspace, workflow runs included
-(`core/RelationshipService.java:874-952`) — now once per page rather than once per workspace.
+(`core/RelationshipService.java:897-975`) — now once per page rather than once per workspace.
 
 ## Payload caps
 

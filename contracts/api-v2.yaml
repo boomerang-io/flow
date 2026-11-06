@@ -5425,6 +5425,13 @@ paths:
         \ global token."
       operationId: "getUsers"
       parameters:
+      - description: "Free-text search on a User's name, displayName and email (contains,\
+          \ case-insensitive)."
+        in: "query"
+        name: "search"
+        required: false
+        schema:
+          type: "string"
       - description: "List of url encoded labels. For example Organization=Boomerang,customKey=test\
           \ would be encoded as Organization%3DBoomerang,customKey%3Dtest)"
         in: "query"

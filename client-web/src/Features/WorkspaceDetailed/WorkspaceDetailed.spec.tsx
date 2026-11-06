@@ -28,8 +28,8 @@ import Workflows, { loader as workflowsLoader } from "./Workflows/Workflows";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 
-// notify() hands its toast to react-toastify, which needs a container this tree has no reason to
-// mount; the mock records the toast each write raises instead.
+// No toast container renders in a spec (react-toastify needs one), so the toasts a tab raises are
+// read off notify's calls.
 const { notify } = vi.hoisted(() => ({ notify: vi.fn() }));
 vi.mock("@boomerang-io/carbon-addons-boomerang-react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@boomerang-io/carbon-addons-boomerang-react")>()),
@@ -460,6 +460,20 @@ describe("WorkspaceDetailed --- RTL", () => {
 // need to fabricate a full navigation to exercise the request/response contract.
 // Pins the intent names themselves, which is what keeps the two operations apart. Called
 // directly: shouldRevalidate is a plain function of the submission.
+describe("WorkspaceDetailed --- settings labels", () => {
+  test("removing a label says a label was removed, through a delete button named for its key", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name }));
+    fireEvent.click(await screen.findByTestId("delete-label-button-key1"));
+    fireEvent.click(screen.getByText("Yes"));
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    const toast = vi.mocked(notify).mock.calls.at(-1)?.[0] as React.ReactElement<{ title: string; subtitle: string }>;
+    expect(toast.props.title).toBe("Remove Label");
+    expect(toast.props.subtitle).toBe(`Removed label from ${workspaceFixture.displayName} successfully`);
+    expect(await screen.findByTestId("delete-label-button-key2")).toBeInTheDocument();
+    expect(screen.queryByTestId("delete-label-button-key1")).not.toBeInTheDocument();
+  });
+});
+
 describe("WorkspaceDetailed --- shouldRevalidate", () => {
   function revalidatesFor(intent: string) {
     const formData = new FormData();

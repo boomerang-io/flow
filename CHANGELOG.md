@@ -528,6 +528,16 @@ tag's release notes.
   Both are native selects; the dropdown they replace smooth-scrolled each option the pointer crossed into view, which
   inside the dialog's scrolling body moved the list under the pointer.
 - Manage › Artifacts' Workflow column shows each workflow's display name instead of its id.
+- A user added to a workspace after signing in reads it at once. A session held the grants of its sign-in, so a
+  plain user who signed in while in no workspace was refused (`403`) every workflow, run, task run, schedule and
+  action list in a workspace they were then added to, even as its owner, and the webapp showed its error page. A
+  session's grants now follow the user's type and memberships on every request: a role changed or a membership
+  removed also applies to the next request, and a session whose user is deleted no longer authenticates.
+- Sending a workspace member again changes their role. It added a second membership that was never read, so the
+  member kept their first role.
+- A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs
+  an admin or operator, so a plain user cannot make themselves an admin.
+- The webapp no longer shows its error page when the starter templates cannot be read; it offers none.
 - A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
   `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every
   submit answer `500`; it now submits, and saving it again asks for a field type.
@@ -622,3 +632,12 @@ tag's release notes.
   `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
   Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
   the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- Admin > Users searches. `GET /api/v2/user/query` takes `search`, matching any part of a user's name, display name
+  or email, ignoring case, and the search box sends it. A page size chosen under the list is now the one it loads.
+- Removing a member who was added by email and never signed in, or deleting their only workspace, deletes that
+  person's inactive user record, so a mistyped address no longer leaves a user behind. Anyone who has signed in, or
+  still belongs to another workspace, is kept.
+- A Preferred Display Name can be cleared: an emptied field (a blank `displayName`) removes it, and the user reads by
+  their name again. A request that leaves `displayName` out still changes nothing.
+- The profile's display-name dialog is titled "Change your display name", not "Change workspace name". Removing a
+  workspace label says "Remove Label" instead of a workspace-closing message.

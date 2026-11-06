@@ -355,9 +355,11 @@ public class WorkspaceService {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
 
-    // If no relationship, user has no access or team doesn't exist
-    if (!relationshipService.check(
-        RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
+    // A workspace that does not exist, or that the caller cannot reach, is not there to delete; a
+    // global caller passes the reachability check, so existence is checked on its own.
+    if (workspaceRepository.findByNameIgnoreCase(workspace).isEmpty()
+        || !relationshipService.check(
+            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
 
@@ -391,11 +393,16 @@ public class WorkspaceService {
 
     // TODO - Delete Workspace Integration Installations
 
+    // Read before the node goes: removing it removes the members' edges too.
+    Set<String> memberRefs = relationshipService.membersAndRoles(workspace).keySet();
+
     // Delete Workspace
     workspaceRepository.deleteByName(workspace);
 
     // Delete Workspace relationship node
     relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, workspace);
+
+    memberRefs.forEach(userService::deleteUnusedInvitation);
   }
 
   /*
@@ -517,21 +524,21 @@ public class WorkspaceService {
       List<String> userRefs = new LinkedList<>();
       for (WorkspaceMember userSummary : request) {
         Optional<User> userEntity = Optional.empty();
-        if (!userSummary.getId().isEmpty()) {
+        if (userSummary.getId() != null && !userSummary.getId().isEmpty()) {
           userEntity = userService.getUserByID(userSummary.getId());
-        } else if (!userSummary.getEmail().isEmpty()) {
+        } else if (userSummary.getEmail() != null && !userSummary.getEmail().isEmpty()) {
           userEntity = userService.getUserByEmail(userSummary.getEmail());
         }
         if (userEntity.isPresent()) {
           userRefs.add(userEntity.get().getId());
         }
       }
-      if (!userRefs.isEmpty()) {
-        userRefs.forEach(
-            userRef ->
-                relationshipService.removeEdge(
-                    RelationshipType.USER, userRef, RelationshipType.WORKSPACE, workspace));
-      }
+      userRefs.forEach(
+          userRef -> {
+            relationshipService.removeEdge(
+                RelationshipType.USER, userRef, RelationshipType.WORKSPACE, workspace);
+            userService.deleteUnusedInvitation(userRef);
+          });
     }
   }
 
@@ -1016,13 +1023,8 @@ public class WorkspaceService {
         }
         // Check the provided role is valid in our system
         if (RoleEnum.hasLabel(userSummary.getRole())) {
-          relationshipService.createEdge(
-              RelationshipType.USER,
-              userEntity.get().getId(),
-              RelationshipLabel.MEMBER_OF,
-              RelationshipType.WORKSPACE,
-              workspace,
-              Optional.of(Map.of("role", userSummary.getRole())));
+          relationshipService.setMemberRole(
+              userEntity.get().getId(), workspace, userSummary.getRole());
         } else {
           throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_USER_ROLE);
         }

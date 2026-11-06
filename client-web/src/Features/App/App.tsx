@@ -206,6 +206,8 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   const featuresResult = await featuresPromise;
 
   const features = featuresResult.ok ? featuresResult.data : null;
+  // The starters are optional: one that cannot be read (a workspace query refused or failing) means
+  // no starters to offer, never the error page for every route.
   const workflowTemplates = templatesResult?.ok ? templatesResult.data.content : [];
   const context = contextResult?.ok ? contextResult.data : null;
   const navigation = navigationResult?.ok ? navigationResult.data : [];
@@ -213,7 +215,6 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
   const errorLoading =
     !user ||
     !featuresResult.ok ||
-    Boolean(templatesResult && !templatesResult.ok) ||
     Boolean(contextResult && !contextResult.ok) ||
     Boolean(navigationResult && !navigationResult.ok);
 
