@@ -34,7 +34,7 @@ instance that took it.
 
 The token cache holds a session's token, not its grants: each request a session makes resolves them from the user's
 record, membership edges, the workspace roles and the `features` setting, four reads, or two for an admin or operator
-(`core/TokenService.java:581-600,823-860`), so a membership change applies on the next request on every instance.
+(`core/TokenService.java:651-679,894-939`), so a membership change applies on the next request on every instance.
 
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
 features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
@@ -296,10 +296,10 @@ with a page of one (`:877-879`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
-| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-140,717-736` |
+| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-144,770-793` |
 | Member and approver names | One users query | `core/UserService.java:245-253` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
-| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:555-585` |
+| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:607-642` |
 
 `WorkspaceQueryDatabaseCommandsTest` pins it: a page of 10 and a page of 60 workspaces cost the same 32 commands
 for a member and 37 for a global caller, and each workspace on a page reads as it does alone. Before, each workspace
@@ -307,7 +307,7 @@ cost 23 commands for a member and 25 for a global caller, one relationship walk 
 Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
 commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
 or a global token, which starts at the root and reads every node under every workspace, workflow runs included
-(`core/RelationshipService.java:897-975`) — now once per page rather than once per workspace.
+(`core/RelationshipService.java:954-1032`) — now once per page rather than once per workspace.
 
 ## Payload caps
 

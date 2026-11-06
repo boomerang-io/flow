@@ -117,9 +117,8 @@ public class TokenService {
   /*
    * Creates an Access Token
    *
-   * Limited to creation by a User on behalf of a User, Workflow, Workspace, Global scope
-   *
-   * TODO: make sure requesting principal has access to create for the provided principal
+   * Limited to creation by a User on behalf of a User, Workflow, Workspace, Global scope. The
+   * caller must hold authority over the principal the token is minted for (see mayManage).
    */
   public TokenCreateResponse create(TokenCreateRequest request) {
     // Disallow creation of session tokens except via internal AuthenticationFilter
@@ -165,6 +164,19 @@ public class TokenService {
       assertValidPermissions(permissions);
     }
 
+    if (!mayManage(
+        request.getType(), request.getActorKind(), request.getPrincipal(), PermissionAction.WRITE)) {
+      throw new BoomerangException(BoomerangError.TOKEN_ADMIN_REQUIRED);
+    }
+    return mint(request, permissions, currentIdentity);
+  }
+
+  /*
+   * Store a token for the request with its permissions, already validated, expanded and
+   * authorised, and return its raw value once.
+   */
+  private TokenCreateResponse mint(
+      TokenCreateRequest request, List<String> permissions, Token currentIdentity) {
     // Create TokenEntity
     TokenEntity tokenEntity = new TokenEntity();
     tokenEntity.setType(request.getType());
@@ -406,6 +418,49 @@ public class TokenService {
   }
 
   /**
+   * Return whether the caller may mint or revoke a token of {@code type} for {@code principal}. A
+   * global grant may for any. Otherwise a key token needs the caller's grant for {@code action} on
+   * tokens to count in the token's workspace, and a user or session token belongs to its user.
+   */
+  private boolean mayManage(
+      AuthScope type, TokenActorKind actorKind, String principal, PermissionAction action) {
+    Token caller = identityService.getCurrentIdentity();
+    if (hasGlobalGrant(caller)) {
+      return true;
+    }
+    return switch (type) {
+      case key ->
+          relationshipService.grantsIn(
+              TokenActorKind.WORKFLOW.equals(actorKind) ? workflowWorkspace(principal) : principal,
+              PermissionResource.TOKEN,
+              action);
+      case user, session -> isCallersOwn(caller, principal);
+      default -> false;
+    };
+  }
+
+  // A principal's tokens the caller may list: its own, or a workspace's or a workflow's where the
+  // caller's grant to read tokens counts.
+  private boolean mayRead(Token caller, String principal) {
+    return isCallersOwn(caller, principal)
+        || relationshipService.grantsIn(principal, PermissionResource.TOKEN, PermissionAction.READ)
+        || relationshipService.grantsIn(
+            workflowWorkspace(principal), PermissionResource.TOKEN, PermissionAction.READ);
+  }
+
+  private static boolean isCallersOwn(Token caller, String principal) {
+    return caller != null
+        && (AuthScope.user.equals(caller.getType()) || AuthScope.session.equals(caller.getType()))
+        && Objects.equals(caller.getPrincipal(), principal);
+  }
+
+  // The workspace a workflow belongs to, or blank when the principal is no workflow.
+  private String workflowWorkspace(String workflowRef) {
+    return relationshipService.getParentByLabel(
+        RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+  }
+
+  /**
    * The first token invariant: a {@code key} token may never carry a {@code global}-scoped grant - its
    * ceiling is only the workspaces it was explicitly granted (Stripe {@code sk_}/{@code rk_}
    * privilege-ceiling pattern). Package-private (not {@code private}) specifically so it is
@@ -514,17 +569,31 @@ public class TokenService {
     }
   }
 
+  /*
+   * Revoke a token. One the caller may not manage is answered as a missing one, so the response
+   * does not disclose whether it exists.
+   */
   public boolean delete(String id) {
     if (id != null && id.startsWith(DeclaredTokenService.ID_PREFIX)) {
       throw new BoomerangException(BoomerangError.TOKEN_DECLARED);
     }
     TokenEntity tokenEntity = this.tokenRepository.findById(id).orElse(null);
-    if (tokenEntity == null) {
+    if (tokenEntity == null
+        || !mayManage(
+            tokenEntity.getType(),
+            tokenEntity.getActorKind(),
+            tokenEntity.getPrincipal(),
+            PermissionAction.DELETE)) {
       return false;
     }
+    revoke(tokenEntity);
+    return true;
+  }
+
+  // Remove a token and its cached lookup, whoever asks: the platform's own revocations call this.
+  private void revoke(TokenEntity tokenEntity) {
     this.tokenRepository.delete(tokenEntity);
     lookupCache.evict(tokenEntity.getToken());
-    return true;
   }
 
   /** Revoke every token of {@code principal}; the hashes are not in hand, so the whole cache goes. */
@@ -544,6 +613,16 @@ public class TokenService {
       Optional<List<String>> queryPrincipals) {
     final Sort sort =
         Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("creationDate")));
+    // Without a global grant the caller sees only tokens it may manage: its own by default, and
+    // of the principals asked for, those it holds authority over.
+    Token caller = identityService.getCurrentIdentity();
+    if (!hasGlobalGrant(caller)) {
+      queryPrincipals =
+          Optional.of(
+              queryPrincipals.orElse(List.of(caller == null ? "" : caller.getPrincipal())).stream()
+                  .filter(principal -> mayRead(caller, principal))
+                  .toList());
+    }
     Query query =
         new Query(
             new QueryCriteria()
@@ -750,7 +829,7 @@ public class TokenService {
         // A demoted admin signs in again: end every session they hold.
         tokenRepository
             .findByPrincipalAndType(signedIn.getId(), AuthScope.session)
-            .ifPresent(sessions -> sessions.forEach(session -> delete(session.getId())));
+            .ifPresent(sessions -> sessions.forEach(this::revoke));
       }
     }
     return mintSessionToken(user.get());
@@ -904,7 +983,9 @@ public class TokenService {
     Date expiryDate = cal.getTime();
     tokenRequest.setExpirationDate(expiryDate);
 
-    final TokenCreateResponse tokenResponse = this.create(tokenRequest);
+    // Minted by the platform for the schedule, not on behalf of whoever ran before on this thread.
+    final TokenCreateResponse tokenResponse =
+        this.mint(tokenRequest, tokenRequest.getPermissions(), identityService.getCurrentIdentity());
 
     return this.get(tokenResponse.getToken());
   }

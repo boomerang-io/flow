@@ -79,18 +79,22 @@ public class ScheduleService {
    */
   public WorkflowSchedule get(String workspace, String scheduleId) {
     final Optional<WorkflowScheduleEntity> scheduleEntity = scheduleRepository.findById(scheduleId);
-    if (scheduleEntity.isPresent()
-        && scheduleEntity.get().getWorkflowRef() != null
+    if (scheduleEntity.isPresent() && inWorkspace(workspace, scheduleEntity.get())) {
+      return masked(convertScheduleEntityToModel(scheduleEntity.get()));
+    }
+    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+  }
+
+  // The schedule's workflow belongs to the named workspace.
+  private boolean inWorkspace(String workspace, WorkflowScheduleEntity schedule) {
+    return schedule.getWorkflowRef() != null
         && relationshipService.hasNodes(
             RelationshipType.WORKSPACE,
             workspace,
             RelationshipType.WORKFLOW,
-            Optional.of(List.of(scheduleEntity.get().getWorkflowRef())),
+            Optional.of(List.of(schedule.getWorkflowRef())),
             Optional.empty(),
-            Optional.empty())) {
-      return masked(convertScheduleEntityToModel(scheduleEntity.get()));
-    }
-    throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+            Optional.empty());
   }
 
   /*
@@ -266,9 +270,7 @@ public class ScheduleService {
   /*
    * Retrieves the calendar dates between a start and end date period for the schedules provided.
    *
-   * @return list of Schedule Calendars
-   *
-   * TODO add relationship check
+   * @return list of Schedule Calendars, for the schedules of the workspace's workflows only
    */
   public List<WorkflowScheduleCalendar> calendars(
       String workspace, final List<String> scheduleIds, Date fromDate, Date toDate) {
@@ -276,8 +278,11 @@ public class ScheduleService {
     final Optional<List<WorkflowScheduleEntity>> scheduleEntities =
         scheduleRepository.findByIdInAndStatusIn(scheduleIds, getStatusesNotCompletedOrDeleted());
     if (scheduleEntities.isPresent()) {
-      scheduleEntities
-          .get()
+      List<String> workflows =
+          relationshipService.refsInWorkspace(
+              RelationshipType.WORKFLOW, workspace, Optional.empty());
+      scheduleEntities.get().stream()
+          .filter(e -> workflows.contains(e.getWorkflowRef()))
           .forEach(
               e -> {
                 WorkflowScheduleCalendar scheduleCalendar = new WorkflowScheduleCalendar();
@@ -332,6 +337,9 @@ public class ScheduleService {
           scheduleRepository.findById(request.getId());
       if (optScheduleEntity.isPresent()) {
         WorkflowScheduleEntity scheduleEntity = optScheduleEntity.get();
+        if (!inWorkspace(workspace, scheduleEntity)) {
+          throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);
+        }
         /*
          * The copy ignores ID, workflowRef and creationDate to ensure data integrity
          */
@@ -603,14 +611,7 @@ public class ScheduleService {
    */
   public void delete(String workspace, final String scheduleId) {
     final Optional<WorkflowScheduleEntity> schedule = scheduleRepository.findById(scheduleId);
-    if (schedule.isPresent()
-        && relationshipService.hasNodes(
-            RelationshipType.WORKSPACE,
-            workspace,
-            RelationshipType.WORKFLOW,
-            Optional.of(List.of(schedule.get().getWorkflowRef())),
-            Optional.empty(),
-            Optional.empty())) {
+    if (schedule.isPresent() && inWorkspace(workspace, schedule.get())) {
       this.internalDelete(schedule.get());
     } else {
       throw new BoomerangException(BoomerangError.SCHEDULE_INVALID_REF);

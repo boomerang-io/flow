@@ -1,5 +1,6 @@
 package io.boomerang.core.security;
 
+import io.boomerang.core.RelationshipService;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.lang.reflect.Method;
 import org.aopalliance.intercept.MethodInvocation;
@@ -8,6 +9,7 @@ import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.aop.support.StaticMethodMatcherPointcut;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -51,7 +53,9 @@ public class MethodSecurityConfiguration {
   @Bean
   @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
   static Advisor authCriteriaAuthorizationAdvisor(
-      IdentityService identityService, MeterRegistry meterRegistry) {
+      IdentityService identityService,
+      MeterRegistry meterRegistry,
+      ObjectProvider<RelationshipService> relationshipService) {
     // Every REST handler in this application is intercepted, not only the annotated ones: an
     // unannotated route is denied (see AuthCriteriaAuthorizationManager), so publishing a route
     // without an authorization decision is a startup-time test failure and a runtime 403, never a
@@ -65,7 +69,8 @@ public class MethodSecurityConfiguration {
                 AnnotationMatchingPointcut.forMethodAnnotation(AuthCriteria.class)),
             new RestHandlerPointcut());
     AuthorizationManager<MethodInvocation> manager =
-        new AuthCriteriaAuthorizationManager(identityService, meterRegistry);
+        new AuthCriteriaAuthorizationManager(
+            identityService, meterRegistry, relationshipService::getObject);
     return new AuthorizationManagerBeforeMethodInterceptor(pointcut, manager);
   }
 

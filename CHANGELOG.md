@@ -552,6 +552,10 @@ tag's release notes.
   action list in a workspace they were then added to, even as its owner, and the webapp showed its error page. A
   session's grants now follow the user's type and memberships on every request: a role changed or a membership
   removed also applies to the next request, and a session whose user is deleted no longer authenticates.
+- A workspace member's permissions apply only within that workspace. A role counts in the workspace it was given in,
+  however a request names it: in the path, as a token's principal, or through a workflow, run, action, schedule or
+  approver group that belongs to it. A personal token is minted only by its own user or an admin, and changing the
+  settings, the global parameters or the global task catalogue needs an admin or operator.
 - Sending a workspace member again changes their role. It added a second membership that was never read, so the
   member kept their first role.
 - A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs

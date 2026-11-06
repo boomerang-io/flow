@@ -35,6 +35,8 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.entity.IntegrationTemplateEntity;
@@ -654,7 +656,9 @@ public class SlackService {
    */
   public void unlink(GHLinkRequest request) {
     if (!relationshipService.check(
-        RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())) {
+            RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())
+        || !relationshipService.grantsIn(
+            request.getWorkspace(), PermissionResource.INTEGRATION, PermissionAction.WRITE)) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     // The Integrations page names the installation by its record id; the Slack team id works too.

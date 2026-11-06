@@ -48,7 +48,7 @@ The protocol carries its own version, `1`, apart from the product version.
 
 Every call carries `Authorization: Bearer <token>`: a global Flow token with an actor kind, a machine token that needs
 no permission grant, which becomes the identity the request runs as; anything else is a bare 401
-(`dispatcher/DispatcherAuthFilter.java:63-93`, `core/TokenService.java:448-482`). `flow.dispatcher.auth.enabled=false`
+(`dispatcher/DispatcherAuthFilter.java:63-93`, `core/TokenService.java:524-560`). `flow.dispatcher.auth.enabled=false`
 checks nothing and runs the request as the security-off synthetic identity (`authorization.md`, "Dispatcher endpoints").
 
 ## The lifecycle

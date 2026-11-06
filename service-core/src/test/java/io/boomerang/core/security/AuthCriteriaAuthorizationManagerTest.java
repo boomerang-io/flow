@@ -4,8 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -14,6 +17,7 @@ import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.aopalliance.intercept.MethodInvocation;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +27,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
 /**
  * Same enforcement {@code SecurityInterceptor} used to provide, now expressed as an {@code
@@ -62,7 +70,7 @@ class AuthCriteriaAuthorizationManagerTest {
   @BeforeEach
   void setUp() {
     meterRegistry = new SimpleMeterRegistry();
-    manager = new AuthCriteriaAuthorizationManager(identityService, meterRegistry);
+    manager = new AuthCriteriaAuthorizationManager(identityService, meterRegistry, () -> null);
   }
 
   @Test
@@ -143,5 +151,29 @@ class AuthCriteriaAuthorizationManagerTest {
         AuthenticationCredentialsNotFoundException.class,
         () -> manager.authorize(noAuthentication, invocation),
         "a class-level @AuthCriteria must still enforce assignableScopes on an unannotated method");
+  }
+
+  @Test
+  void aRouteUnderAWorkspaceCountsOnlyTheGrantsForThatWorkspace() throws Exception {
+    RelationshipService relationshipService = mock(RelationshipService.class);
+    AuthCriteriaAuthorizationManager scoped =
+        new AuthCriteriaAuthorizationManager(identityService, meterRegistry, () -> relationshipService);
+    when(invocation.getMethod())
+        .thenReturn(MethodLevelProtectedHandler.class.getMethod("protectedEndpoint"));
+    Token token = new Token(AuthScope.global);
+    token.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.workspace, "ws-a", List.of("**/**"))));
+    when(identityService.getCurrentIdentity()).thenReturn(token);
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setAttribute(
+        HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, Map.of("workspace", "ws-b"));
+    RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    try {
+      assertFalse(scoped.authorize(noAuthentication, invocation).isGranted());
+      verify(relationshipService)
+          .grantsIn("ws-b", PermissionResource.WORKFLOW, PermissionAction.READ);
+    } finally {
+      RequestContextHolder.resetRequestAttributes();
+    }
   }
 }

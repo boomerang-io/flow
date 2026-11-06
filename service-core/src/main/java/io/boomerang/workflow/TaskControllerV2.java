@@ -6,6 +6,7 @@ import io.boomerang.common.model.Task;
 import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -35,9 +36,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskControllerV2 {
 
   private final TaskService taskService;
+  private final IdentityService identityService;
 
-  public TaskControllerV2(TaskService taskService) {
+  public TaskControllerV2(TaskService taskService, IdentityService identityService) {
     this.taskService = taskService;
+    this.identityService = identityService;
   }
 
   @GetMapping(value = "/{name}")
@@ -154,6 +157,8 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public Task create(@Valid @RequestBody Task task) {
+    // The global catalogue belongs to no workspace: only a global grant changes it.
+    identityService.requireGlobalGrant(PermissionResource.TASK, PermissionAction.WRITE);
     return taskService.createGlobal(task);
   }
 
@@ -176,6 +181,8 @@ public class TaskControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public TektonTask createYAML(@RequestBody TektonTask tektonTask) {
+    // The global catalogue belongs to no workspace: only a global grant changes it.
+    identityService.requireGlobalGrant(PermissionResource.TASK, PermissionAction.WRITE);
     return taskService.createAsTektonGlobal(tektonTask);
   }
 
@@ -202,6 +209,8 @@ public class TaskControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
+    // The global catalogue belongs to no workspace: only a global grant changes it.
+    identityService.requireGlobalGrant(PermissionResource.TASK, PermissionAction.WRITE);
     return taskService.applyGlobal(name, task, replace);
   }
 
@@ -227,6 +236,8 @@ public class TaskControllerV2 {
       @Parameter(name = "replace", description = "Replace existing version", required = false)
           @RequestParam(required = false, defaultValue = "false")
           boolean replace) {
+    // The global catalogue belongs to no workspace: only a global grant changes it.
+    identityService.requireGlobalGrant(PermissionResource.TASK, PermissionAction.WRITE);
     return taskService.applyAsTektonGlobal(name, tektonTask, replace);
   }
 
@@ -286,6 +297,8 @@ public class TaskControllerV2 {
   public void delete(
       @Parameter(name = "name", description = "Name of Task", required = true) @PathVariable
           String name) {
+    // The global catalogue belongs to no workspace: only a global grant changes it.
+    identityService.requireGlobalGrant(PermissionResource.TASK, PermissionAction.DELETE);
     taskService.deleteGlobal(name);
   }
 }

@@ -8,6 +8,7 @@ import io.boomerang.core.model.Navigation;
 import io.boomerang.core.model.OneTimeCode;
 import io.boomerang.core.model.Setting;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.AuthenticationFilter;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -46,6 +47,8 @@ public class SystemControllerV2 {
   private static final String MERGE_PATCH_JSON = "application/merge-patch+json";
 
   @Autowired private SettingsService settingsService;
+
+  @Autowired private IdentityService identityService;
 
   @Autowired private UserService userService;
 
@@ -96,6 +99,8 @@ public class SystemControllerV2 {
         @ApiResponse(responseCode = "400", description = "Unknown group or key, or a non-scalar value")
       })
   public List<Setting> patchSettings(@RequestBody JsonNode patch) {
+    // The settings belong to no workspace: only a global grant changes them.
+    identityService.requireGlobalGrant(PermissionResource.SYSTEM, PermissionAction.WRITE);
     return settingsService.patchSettings(patch);
   }
 

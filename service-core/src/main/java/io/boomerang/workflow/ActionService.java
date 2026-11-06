@@ -116,11 +116,7 @@ public class ActionService {
       }
 
       // Check if requester has access to the Workflow the Action Entity belongs to
-      if (!relationshipService.check(
-          RelationshipType.WORKFLOW,
-          actionEntity.getWorkflowRef(),
-          Optional.empty(),
-          Optional.empty())) {
+      if (!reachableIn(workspace, actionEntity.getWorkflowRef())) {
         throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
       }
 
@@ -346,18 +342,28 @@ public class ActionService {
     if (actionEntity.isEmpty()) {
       throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
     }
-    // Same scoping as action(): the caller must reach the Action's Workflow. The refusal is the
-    // same error as not-found, so the response does not disclose whether the id exists.
+    // Same scoping as action(): the caller must reach the Action's Workflow, in the named
+    // workspace. The refusal is the same error as not-found, so the response does not disclose
+    // whether the id exists.
     // Ruled (2026-09-02): Actions stay OUTSIDE the relationship graph - they scope through
     // their parent by reference (workflowRef + this one check() hop), never by their own node.
-    if (!relationshipService.check(
-        RelationshipType.WORKFLOW,
-        actionEntity.get().getWorkflowRef(),
-        Optional.empty(),
-        Optional.empty())) {
+    if (!reachableIn(workspace, actionEntity.get().getWorkflowRef())) {
       throw new BoomerangException(BoomerangError.ACTION_INVALID_REF);
     }
     return this.convertToAction(actionEntity.get());
+  }
+
+  // The caller reaches the Action's Workflow, and the Workflow belongs to the named workspace.
+  private boolean reachableIn(String workspace, String workflowRef) {
+    return relationshipService.check(
+            RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty())
+        && relationshipService.hasNodes(
+            RelationshipType.WORKSPACE,
+            workspace,
+            RelationshipType.WORKFLOW,
+            Optional.of(List.of(workflowRef)),
+            Optional.empty(),
+            Optional.empty());
   }
 
   public Page<Action> query(

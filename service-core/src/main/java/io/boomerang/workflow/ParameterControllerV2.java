@@ -5,6 +5,7 @@ import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.audit.AuditLevel;
 import io.boomerang.core.audit.Audited;
 import io.boomerang.core.security.AuthCriteria;
+import io.boomerang.core.security.IdentityService;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
@@ -37,6 +38,7 @@ public class ParameterControllerV2 {
   private static final String MERGE_PATCH_JSON = "application/merge-patch+json";
 
   @Autowired private ParameterService paramService;
+  @Autowired private IdentityService identityService;
 
   @GetMapping(value = "")
   @AuthCriteria(
@@ -66,6 +68,8 @@ public class ParameterControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public AbstractParam create(@RequestBody AbstractParam request) {
+    // Global parameters belong to no workspace: only a global grant changes them.
+    identityService.requireGlobalGrant(PermissionResource.SYSTEM, PermissionAction.WRITE);
     return paramService.create(request);
   }
 
@@ -90,6 +94,8 @@ public class ParameterControllerV2 {
         @ApiResponse(responseCode = "404", description = "No global param of that name")
       })
   public AbstractParam patch(@PathVariable String name, @RequestBody JsonNode patch) {
+    // Global parameters belong to no workspace: only a global grant changes them.
+    identityService.requireGlobalGrant(PermissionResource.SYSTEM, PermissionAction.WRITE);
     return paramService.patch(name, patch);
   }
 
@@ -110,6 +116,8 @@ public class ParameterControllerV2 {
         @ApiResponse(responseCode = "400", description = "Bad Request")
       })
   public void delete(@PathVariable String name) {
+    // Global parameters belong to no workspace: only a global grant changes them.
+    identityService.requireGlobalGrant(PermissionResource.SYSTEM, PermissionAction.DELETE);
     paramService.delete(name);
   }
 }

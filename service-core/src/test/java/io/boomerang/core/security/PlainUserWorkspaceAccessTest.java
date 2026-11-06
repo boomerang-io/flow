@@ -166,14 +166,9 @@ class PlainUserWorkspaceAccessTest extends AbstractEngineIntegrationTest {
             .getStatus();
     assertThat(workspaceStatus).isIn(403, 404);
     assertThat(workflowStatus).isIn(403, 404);
-    // The query admits the caller's grant and then lists only what the walk reaches: nothing.
-    String listed =
-        as(session, get("/api/v2/workspace/" + theirs + "/workflow/query"))
-            .andExpect(status().isOk())
-            .andReturn()
-            .getResponse()
-            .getContentAsString();
-    assertThat(listed).doesNotContain("plain-user-theirs-wf");
+    // A grant for their own workspace does not count in another, so the query is refused.
+    as(session, get("/api/v2/workspace/" + theirs + "/workflow/query"))
+        .andExpect(status().isForbidden());
   }
 
   @Test

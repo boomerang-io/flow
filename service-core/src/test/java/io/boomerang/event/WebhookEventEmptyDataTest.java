@@ -16,6 +16,8 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
 import io.cloudevents.CloudEvent;
@@ -64,6 +66,9 @@ class WebhookEventEmptyDataTest {
     when(relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, WORKFLOW_REF))
         .thenReturn(WORKSPACE_REF);
+    when(relationshipService.grantsIn(
+            WORKSPACE_REF, PermissionResource.WEBHOOK, PermissionAction.ACTION))
+        .thenReturn(true);
   }
 
   @Test

@@ -225,7 +225,7 @@ the last 90 days (`workflow/WorkspaceInsightsControllerV2.java:34`); `labels` is
 absent means every workspace, one that does not exist contributes nothing), and `GET /api/v2/insights/taskruns?workspaces&fromDate&toDate&labels&statuses&phases&tasks&foreach&limit&page` lists task
 runs newest first, each row with its `workspace`, identity and lifecycle, never params, results or spec; `labels` is required, as the workspace's task-run query requires a label or a run
 (`workflow/InsightsControllerV2.java:54,88,142`, `workflow/WorkflowRunInsightService.java:137,250,357-467`). The three admit `global`, `user` and `session` tokens and then insist the matching grant be `global`, as the audit
-routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/InsightsControllerV2.java:81`, `core/security/IdentityService.java:60-71`).
+routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/InsightsControllerV2.java:81`, `core/security/IdentityService.java:60-70`).
 
 | Read | Returns |
 | --- | --- |
