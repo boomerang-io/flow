@@ -39,9 +39,9 @@ type LoaderData = {
 
 // Server loader (ssr:true). Mirrors the order/page/limit/sort parsing the component does off
 // `location.search` for its own display concerns (sort-header state, pagination controls) - kept
-// as parallel, not shared, logic since the loader only has `request.url` to work with. As with
-// Workspaces.tsx, `query` (the search box's debounced param) is parsed into the URL but was never
-// forwarded to the API by the pre-loader code either - preserved as-is.
+// as parallel, not shared, logic since the loader only has `request.url` to work with. The search
+// box's debounced `query` param is forwarded to the API as `search` (a case-insensitive contains
+// on name, display name and email).
 export async function loader({ request }: { request: Request }): Promise<LoaderData> {
   const url = new URL(request.url);
   const parsedQuery = queryString.parse(url.search, queryStringOptions);
@@ -49,8 +49,9 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
   const page = parsedQuery.page ?? DEFAULT_PAGE;
   const limit = parsedQuery.limit ?? DEFAULT_LIMIT;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+  const search = typeof parsedQuery.query === "string" ? parsedQuery.query : undefined;
 
-  const usersUrlQuery = queryString.stringify({ order, page, limit, sort });
+  const usersUrlQuery = queryString.stringify({ order, page, limit, sort, search }, { skipEmptyString: true });
 
   try {
     const response = await serverFetch(request).get(serviceUrl.getUsers({ query: usersUrlQuery }));
@@ -62,10 +63,11 @@ export async function loader({ request }: { request: Request }): Promise<LoaderD
 
 interface FeatureLayoutProps {
   children?: React.ReactNode;
+  defaultQuery?: string;
   handleSearchChange: (e: { target: HTMLInputElement; type: "change" }) => void;
 }
 
-const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchChange }) => {
+const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, defaultQuery, handleSearchChange }) => {
   return (
     <>
       <Helmet>
@@ -74,7 +76,13 @@ const FeatureLayout: React.FC<FeatureLayoutProps> = ({ children, handleSearchCha
       <div className={styles.content}>
         <div className={styles.toolbar}>
           <div className={styles.search}>
-            <Search id="flow-users" labelText="Search users" placeholder="Search users" onChange={handleSearchChange} />
+            <Search
+              id="flow-users"
+              labelText="Search users"
+              placeholder="Search users"
+              defaultValue={defaultQuery}
+              onChange={handleSearchChange}
+            />
             <p className={styles.hint}>
               Everyone who has signed in. People join by signing in; the first to sign in became an admin.
             </p>
@@ -94,6 +102,9 @@ function UserList() {
   const parsedQuery = queryString.parse(location.search, queryStringOptions);
   const order = typeof parsedQuery.order === "string" ? parsedQuery.order : DEFAULT_ORDER;
   const sort = typeof parsedQuery.sort === "string" ? parsedQuery.sort : DEFAULT_SORT;
+  // Seed the (uncontrolled) search box with the URL's term, so a direct load of `?query=` shows
+  // the term the list is already filtered by.
+  const query = typeof parsedQuery.query === "string" ? parsedQuery.query : undefined;
 
   function handleNavigateToUser(userId: string) {
     navigate(appLink.user({ userId }));
@@ -107,11 +118,11 @@ function UserList() {
   function updateHistorySearch({
     order = DEFAULT_ORDER,
     page = DEFAULT_PAGE,
-    size = DEFAULT_LIMIT,
+    limit = DEFAULT_LIMIT,
     sort = DEFAULT_SORT,
     ...props
   }) {
-    const queryStr = `?${queryString.stringify({ order, page, size, sort, ...props })}`;
+    const queryStr = `?${queryString.stringify({ order, page, limit, sort, ...props })}`;
     navigate({ search: queryStr });
   }
   // eslint-disable-next-line
@@ -129,13 +140,13 @@ function UserList() {
 
   if (errorLoading || !usersData) {
     return (
-      <FeatureLayout handleSearchChange={handleSearchChange}>
+      <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
         <ErrorMessage />
       </FeatureLayout>
     );
   }
   return (
-    <FeatureLayout handleSearchChange={handleSearchChange}>
+    <FeatureLayout defaultQuery={query} handleSearchChange={handleSearchChange}>
       <UsersTable
         handleNavigateToUser={handleNavigateToUser}
         location={location}

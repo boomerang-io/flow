@@ -41,7 +41,7 @@ features setting, the global parameters and the workspace: five reads. With it, 
 revision admitted within 10 s share those five. A workflow's owning workspace is cached apart
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
-(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,645`,
+(`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:237,335,652`,
 `core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2091`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
@@ -291,13 +291,13 @@ limit is never over-filled. A retry is checked only before it is created. Audit 
 
 `GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
 commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
-(`workspace/WorkspaceService.java:876-955`, `:821-850`). A single workspace's get, create and patch run the same code
+(`workspace/WorkspaceService.java:883-962`, `:826-855`). A single workspace's get, create and patch run the same code
 with a page of one (`:869-871`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
 | Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:112-140,717-736` |
-| Member and approver names | One users query | `core/UserService.java:243-251` |
+| Member and approver names | One users query | `core/UserService.java:245-253` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
 | Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:555-585` |
 

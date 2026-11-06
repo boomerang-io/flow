@@ -271,6 +271,47 @@ class UserServiceTest {
     verify(userRepository).findByEmailAndStatus("ada.lovelace@example.com", UserStatus.active);
   }
 
+  // A blank Preferred Display Name clears it, so the user reads by their name again.
+  @Test
+  void aBlankDisplayNameClearsIt() {
+    UserEntity stored = selfWithDisplayName("Ada");
+
+    UserRequest request = new UserRequest();
+    request.setId("u1");
+    request.setDisplayName("  ");
+
+    assertThat(userService.apply(request).getDisplayName()).isNull();
+    assertThat(stored.getDisplayName()).isNull();
+  }
+
+  // A request that does not carry a display name leaves the stored one alone.
+  @Test
+  void anAbsentDisplayNameLeavesItUnchanged() {
+    UserEntity stored = selfWithDisplayName("Ada");
+
+    UserRequest request = new UserRequest();
+    request.setId("u1");
+    request.setName("Ada Lovelace");
+
+    userService.apply(request);
+    assertThat(stored.getDisplayName()).isEqualTo("Ada");
+  }
+
+  private UserEntity selfWithDisplayName(String displayName) {
+    io.boomerang.core.model.Token self =
+        new io.boomerang.core.model.Token(io.boomerang.core.security.enums.AuthScope.session);
+    self.setPrincipal("u1");
+    when(identityService.getCurrentIdentity()).thenReturn(self);
+    UserEntity stored = new UserEntity();
+    stored.setId("u1");
+    stored.setName("Ada Lovelace");
+    stored.setDisplayName(displayName);
+    when(userRepository.findByIdAndStatus("u1", UserStatus.active)).thenReturn(Optional.of(stored));
+    when(userRepository.save(any(UserEntity.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    return stored;
+  }
+
   /**
    * Privilege is never asserted for a principal that is not a user: the security-off system
    * identity is global-scoped, but it maps to no user record, so the admin gate stays closed -

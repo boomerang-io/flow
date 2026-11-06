@@ -621,3 +621,12 @@ tag's release notes.
   `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
   Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
   the unused `/api/v2/extensions/slack/install` permit entry is gone.
+- Admin > Users searches. `GET /api/v2/user/query` takes `search`, matching any part of a user's name, display name
+  or email, ignoring case, and the search box sends it. A page size chosen under the list is now the one it loads.
+- Removing a member who was added by email and never signed in, or deleting their only workspace, deletes that
+  person's inactive user record, so a mistyped address no longer leaves a user behind. Anyone who has signed in, or
+  still belongs to another workspace, is kept.
+- A Preferred Display Name can be cleared: an emptied field (a blank `displayName`) removes it, and the user reads by
+  their name again. A request that leaves `displayName` out still changes nothing.
+- The profile's display-name dialog is titled "Change your display name", not "Change workspace name". Removing a
+  workspace label says "Remove Label" instead of a workspace-closing message.

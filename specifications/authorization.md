@@ -75,8 +75,7 @@ a caller that reaches `service-core` directly reaches them as well.
 | `POST /internal/v1/auth/logout` | `session` token | Deletes the token and clears the cookie (`core/InternalAuthControllerV1.java:96-107`, `AuthExchangeService.java:152-157`) |
 
 The cookie carries only the opaque token; the webapp runs the OIDC redirect and logout from its own server
-routes (`client-web/src/Features/Auth/oidc.server.ts`, `client-web/app/routes/authCallback.tsx`), so the
-id_token never reaches the browser.
+routes (`client-web/src/Features/Auth/oidc.server.ts`, `client-web/app/routes/authCallback.tsx`), so the id_token never reaches the browser.
 
 ## Who may sign in
 
@@ -102,9 +101,12 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
 "Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates
-(`workspace/WorkspaceService.java:998-1003`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
-again, without activating, when they are added to a second workspace (`core/UserService.java:141-151`). A record in any
-other non-active status is not revived. There is no route that creates a user outside a workspace.
+(`workspace/WorkspaceService.java:1005-1010`); `getAndRegisterUser` activates it on the person's first sign-in and finds it
+again, without activating, when they are added to a second workspace (`core/UserService.java:143-153`). Removing such a
+member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete
+matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind
+(`core/UserService.java:537-546`, `workspace/WorkspaceService.java:397-405,535-541`). A record in any other non-active status is not
+revived. There is no route that creates a user outside a workspace.
 
 **The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an
 empty install is made only by the code in `flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time
@@ -113,7 +115,7 @@ characters stops the start; unset, activation is off and the start logs one warn
 is read when the new name is unset, with a deprecation warning, and two different values stop the start
 (`ActivationCode.java:28-49`); the request field stays `otc`. "Empty" is `userRepository.count() == 0`, so a machine
 token, which is not a user, works from first start and never activates anything; once any user exists
-`PUT /api/v2/activate` refuses every code (`UserService.java:97-106`). No code is needed where no person must be the
+`PUT /api/v2/activate` refuses every code (`UserService.java:99-108`). No code is needed where no person must be the
 first admin or something else names them (the second table).
 
 | Path | What the code does |
@@ -128,7 +130,7 @@ first admin or something else names them (the second table).
 | Machine tokens only | Leave the code unset; the bootstrap and declared tokens work from first start | `ActivationTest` (the bootstrap token before activation) |
 | Admin claim | A sign-in whose claim is read: the webapp's own sign-in, or a proxy with `trust-forwarded-token` | `ActivationWithClaimTest` |
 | The bootstrap token names the admin | Create a workspace with the person as a member by email (a user now exists, so the install is activated); the person signs in, with no code, as a user; then `PATCH /api/v2/user/{id}` `{"type":"admin"}`. The record must be active first, which the first sign-in does | `ActivationTest.theBootstrapTokenCanNameTheFirstAdminWithNoActivationCode` |
-| External user directory | With one configured the install always counts as activated (`UserService.java:116-121`) | |
+| External user directory | With one configured the install always counts as activated (`UserService.java:118-123`) | |
 | Security off | `flow.security.enabled=false`: requests run as a synthetic admin ("Security off: the synthetic admin") | |
 
 The code is skipped only on a sign-in whose claim was read: the webapp's verified id_token, or a forwarded token with
@@ -218,8 +220,7 @@ token of that principal (`workflow/WorkflowService.java:904`), and deleting a wo
 its reference everywhere (`workspace/WorkspaceService.java:377-378`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:226-228,393-444`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
-(`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_`
-bearer never reaches MongoDB.
+(`core/security/AuthenticationFilter.java:324`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:79`) — so a retired `bft_`/`bfw_` bearer never reaches MongoDB.
 
 Seeded roles (`service-core/src/main/resources/seed/roles.json`): global `admin` (`**/**`) and `operator` (`**/read`,
 `**/write`, `**/action`); workspace `owner` (`**/**`), `editor` (`**/read`, `**/write`, `**/action`) and `reader`
@@ -295,7 +296,7 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 | `POST /api/v2/token`, `DELETE /api/v2/token/{id}`, `GET /api/v2/token/query` | a `global` grant; for a `key` token, a `token/<action>` grant counting in its workspace (its workflow's, for a workflow's token); a personal or session token is its own user's. A refused mint is `TOKEN_ADMIN_REQUIRED` (403), a refused revoke answers as a missing token, the query lists only what the caller may manage | `core/TokenService.java:163-166,399-440,555-570,595-604` |
 | `POST /api/v2/webhook`, `/event`, `GET`/`POST /api/v2/callback` | `webhook/action` counting in the workflow's or the run's workspace, else the not-found answer | `event/WebhookEventService.java:81-136,206-212` |
 | `POST /api/v2/integration/{github,slack}/unlink`, `/{integration}/share` | `integration/write` counting in the body's `workspace` | `integrations/GitHubService.java:394-400`, `SlackService.java:658-663`, `IntegrationService.java:150-155` |
-| `PATCH /api/v2/settings`, the global parameters' and task catalogue's writes, audit, the platform-wide Insights, another user's account or any user's `type` | a `global` grant (`IdentityService.requireGlobalGrant`, `core/security/IdentityService.java:60-70`), else `PERMISSION_DENIED` (HTTP 401) | `core/SystemControllerV2.java:103`, `workflow/ParameterControllerV2.java:72,98,120`, `workflow/TaskControllerV2.java:161-301`, `core/audit/AuditControllerV2.java:219-234`, `core/UserService.java:470-474,523-541` |
+| `PATCH /api/v2/settings`, the global parameters' and task catalogue's writes, audit, the platform-wide Insights, another user's account or any user's `type` | a `global` grant (`IdentityService.requireGlobalGrant`, `core/security/IdentityService.java:60-70`), else `PERMISSION_DENIED` (HTTP 401) | `core/SystemControllerV2.java:103`, `workflow/ParameterControllerV2.java:72,98,120`, `workflow/TaskControllerV2.java:161-301`, `core/audit/AuditControllerV2.java:219-234`, `core/UserService.java:490-494,560-578` |
 | Reads that span workspaces: `GET /api/v2/workspace/query`, the profile, `/api/v2/user/{userId}/workspaces`, `/api/v2/context`, `/features`, `/navigation`, the template and task catalogues, `GET /api/v2/taskrun/{id}/log` | any grant; layer 2 narrows what is returned, and every workspace role reads | |
 
 ### Layer 2 — `RelationshipService` on the data
@@ -338,7 +339,7 @@ With security off, `UnauthenticatedGlobalAuthenticationFilter` — a thin subcla
 that has no identity yet (`core/security/UnauthenticatedGlobalAuthenticationFilter.java:29,45-51`). It is a
 `global`-class token, principal `system`, `actorKind=SERVICE`, one `**/**` grant, and an empty `GrantedAuthority` list
 (`core/security/UnauthenticatedGlobalToken.java:64-72`). `UserService.getCurrentUser()` maps it to `virtualUser()` — id
-`system`, type `admin`, active — so `/api/v2/profile` and `/api/v2/context` render (`core/UserService.java:321-322`,
+`system`, type `admin`, active — so `/api/v2/profile` and `/api/v2/context` render (`core/UserService.java:323-324`,
 `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is ever written to MongoDB, and the user cannot
 be activated by an identity-provider email match. Audit records carry `actor.principal=system`.
 
@@ -390,8 +391,7 @@ place. A legacy value that does not decrypt stops the migration rather than leav
 unless `flow.migration.reset-unreadable-settings=true`, which blanks each such value and logs it by setting, to
 be entered again in Settings. Both pairs default to `FLOW_ENCRYPT_SECRET` and `FLOW_ENCRYPT_SALT`, the names v3's
 chart kept its pair under, so a v3 install upgrades with that Secret as it is; `MONGO_ENCRYPT_*` overrides the v3
-pair alone (`service-core/src/main/resources/application.properties:173-181`). The unit is idempotent on the
-label, so a second run changes nothing.
+pair alone (`service-core/src/main/resources/application.properties:173-181`). The unit is idempotent on the label, so a second run changes nothing.
 
 ## Known gaps
 
