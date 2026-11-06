@@ -34,7 +34,7 @@ instance that took it.
 
 The token cache holds a session's token, not its grants: each request a session makes resolves them from the user's
 record, membership edges, the workspace roles and the `features` setting, four reads, or two for an admin or operator
-(`core/TokenService.java:552-580,795-840`), so a membership change applies on the next request on every instance.
+(`core/TokenService.java:581-600,823-860`), so a membership change applies on the next request on every instance.
 
 Without the parameter cache each task admission and each for-each item reads the revision, the workflow, the
 features setting, the global parameters and the workspace: five reads. With it, the tasks of every run of one
@@ -291,8 +291,8 @@ limit is never over-filled. A retry is checked only before it is created. Audit 
 
 `GET /api/v2/workspace/query` and `GET /api/v2/profile`, which the home page reads, cost a fixed number of MongoDB
 commands whatever the number of workspaces: each figure is read for the whole page and put together in memory
-(`workspace/WorkspaceService.java:883-962`, `:826-855`). A single workspace's get, create and patch run the same code
-with a page of one (`:869-871`).
+(`workspace/WorkspaceService.java:885-965`, `:828-858`). A single workspace's get, create and patch run the same code
+with a page of one (`:877-879`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |

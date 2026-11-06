@@ -137,67 +137,91 @@ exports[`Inputs --- Snapshot Test > Capturing Snapshot of Inputs 1`] = `
             </div>
           </div>
           <div
-            class="cds--dropdown__wrapper cds--list-box__wrapper"
+            class="cds--form-item"
           >
-            <label
-              class="cds--label"
-              for="downshift-[generated-id]-toggle-button"
-              id="downshift-[generated-id]-label"
-            >
-              Type
-            </label>
             <div
-              class="cds--dropdown cds--list-box"
-              id="type"
+              class="cds--select"
             >
-              <button
-                aria-activedescendant=""
-                aria-controls="downshift-[generated-id]-menu"
-                aria-expanded="false"
-                aria-haspopup="listbox"
-                aria-labelledby="downshift-[generated-id]-label"
-                class="cds--list-box__field"
-                id="downshift-[generated-id]-toggle-button"
-                role="combobox"
-                tabindex="0"
-                title="Text"
-                type="button"
+              <label
+                class="cds--label"
+                dir="auto"
+                for="type"
               >
-                <span
-                  class="cds--list-box__label"
+                Type
+              </label>
+              <div
+                class="cds--select-input__wrapper"
+              >
+                <select
+                  class="cds--select-input"
+                  id="type"
+                  title=""
                 >
-                  Text
-                </span>
-                <div
-                  class="cds--list-box__menu-icon"
-                >
-                  <svg
-                    aria-label="Open menu"
-                    fill="currentColor"
-                    focusable="false"
-                    height="16"
-                    name="chevron--down"
-                    preserveAspectRatio="xMidYMid meet"
-                    role="img"
-                    viewBox="0 0 16 16"
-                    width="16"
-                    xmlns="http://www.w3.org/2000/svg"
+                  <option
+                    class="cds--select-option"
+                    value="boolean"
                   >
-                    <path
-                      d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
-                    />
-                    <title>
-                      Open menu
-                    </title>
-                  </svg>
-                </div>
-              </button>
-              <ul
-                aria-labelledby="downshift-[generated-id]-label"
-                class="cds--list-box__menu"
-                id="downshift-[generated-id]-menu"
-                role="listbox"
-              />
+                    Boolean
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="email"
+                  >
+                    Email
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="number"
+                  >
+                    Number
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="password"
+                  >
+                    Password
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="select"
+                  >
+                    Select
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="text"
+                  >
+                    Text
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="textarea"
+                  >
+                    Text Area
+                  </option>
+                  <option
+                    class="cds--select-option"
+                    value="url"
+                  >
+                    URL
+                  </option>
+                </select>
+                <svg
+                  aria-hidden="true"
+                  class="cds--select__arrow"
+                  fill="currentColor"
+                  focusable="false"
+                  height="16"
+                  preserveAspectRatio="xMidYMid meet"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M8 11 3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
           <div

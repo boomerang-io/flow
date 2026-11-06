@@ -15,6 +15,8 @@ public class WorkspaceSummary {
   private String externalRef;
   private Map<String, String> labels = new HashMap<>();
   private WorkspaceSummaryInsights insights;
+  // The caller's own role in this workspace: owner, editor or reader.
+  private String role;
   
   public WorkspaceSummary() {
     
@@ -83,5 +85,13 @@ public class WorkspaceSummary {
 
   public void setInsights(WorkspaceSummaryInsights insights) {
     this.insights = insights;
+  }
+
+  public String getRole() {
+    return role;
+  }
+
+  public void setRole(String role) {
+    this.role = role;
   }
 }
