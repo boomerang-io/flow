@@ -339,7 +339,7 @@
           "key": "default.image",
           "label": "Default Image Path",
           "type": "text",
-          "value": "boomerangio/task-flow:3.3.0",
+          "value": "boomerangio/task-flow:3.4.0",
           "readOnly": false
         },
         {
