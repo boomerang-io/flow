@@ -246,7 +246,8 @@ The run's directed acyclic graph is materialised in full when the run is queued,
 advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they depend on, never
 the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:182-218`), queues every dependant whose dependencies are all `completed`, and finishes the run when the end node's
 dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:656-681`, `:1676-1772`); a dependency with no task run never counts as satisfied
-(`:1746-1789`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
+(`:1746-1789`). The end node is completed `succeeded` before the path check decides the run's status (`:1676-1700`), so a run that fails it still holds a succeeded end; the webapp shows
+End with the run's status once the run ended without succeeding (`client-web/src/Utils/taskRunHelper.ts:95-101`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
 (`:790-820`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-153`).

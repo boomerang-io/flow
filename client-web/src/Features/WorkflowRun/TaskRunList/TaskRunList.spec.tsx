@@ -153,6 +153,31 @@ describe("ExecutionTaskLog --- RTL", () => {
   });
 });
 
+describe("ExecutionTaskLog --- End", () => {
+  // A rejected approval skips the next task through a success-only link: the run fails, while the
+  // engine records End succeeded once every task before it has ended.
+  it("shows the run's status on End when the run ended without succeeding", () => {
+    const failedRun: WorkflowRun = {
+      ...workflowRun,
+      status: RunStatus.Failed,
+      tasks: [startTask, { ...slackTask, status: RunStatus.Failed }, { ...emailTask, status: RunStatus.Skipped }, endTask],
+    };
+    renderWithRouter(<ExecutionTaskLog {...props} workflowRun={failedRun} />);
+
+    const endItem = screen.getAllByRole("listitem")[3];
+    expect(within(endItem).getByTestId("taskitem-name")).toHaveTextContent("end");
+    expect(within(endItem).getByText("Failed")).toBeInTheDocument();
+    expect(within(endItem).queryByText("Succeeded")).not.toBeInTheDocument();
+  });
+
+  it("shows End succeeded when the run succeeded", () => {
+    renderWithRouter(<ExecutionTaskLog {...props} />);
+
+    const endItem = screen.getAllByRole("listitem")[3];
+    expect(within(endItem).getByText("Succeeded")).toBeInTheDocument();
+  });
+});
+
 describe("ExecutionTaskLog --- task log and artifacts switch", () => {
   it("switches the panel between the task log and the run's artifacts", () => {
     renderWithRouter(<ExecutionTaskLog {...props} />);

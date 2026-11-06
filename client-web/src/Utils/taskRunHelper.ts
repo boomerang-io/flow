@@ -1,4 +1,4 @@
-import { RunStatus, TaskRun, WorkflowNode } from "Types";
+import { RunStatus, TaskRun, WorkflowNode, WorkflowRun } from "Types";
 
 /**
  * A task with `foreach` runs as one parent task run - named after the task, carrying the combined
@@ -90,4 +90,12 @@ export function foreachParentSummary(parent: TaskRun, items: Array<TaskRun>): st
 /** The item's own part of its name - `[1]` for `locate[1]`. */
 export function foreachItemSuffix(item: TaskRun, parentName: string): string {
   return item.name.startsWith(parentName) ? item.name.slice(parentName.length) : item.name;
+}
+
+/**
+ * The status End shows. End runs nothing, and the engine records it succeeded once every task
+ * before it has ended, so a run that ended without succeeding shows that outcome on End instead.
+ */
+export function endTaskRunStatus(endTask: TaskRun, workflowRun: WorkflowRun): RunStatus {
+  return FAILED_STATUSES.includes(workflowRun.status) ? workflowRun.status : endTask.status;
 }

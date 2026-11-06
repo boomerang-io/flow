@@ -327,6 +327,7 @@ class V3DumpMigrationTest {
     assertWorkspacesMigrated();
     assertUsersMigrated();
     assertWorkflowsMigrated(workflowsBefore);
+    assertSleepNodesTypedSleep();
     assertTemplatesExtracted();
     assertRunsMigrated();
     assertActionsMigrated();
@@ -375,6 +376,7 @@ class V3DumpMigrationTest {
     // second full run is itself the idempotency proof - a second run that duplicated or
     // re-deleted anything would push these counts off their real-dump values.
     assertWorkflowsMigrated(workflowsBefore);
+    assertSleepNodesTypedSleep();
     assertTemplatesExtracted();
     assertRunsMigrated();
     assertActionsMigrated();
@@ -1198,6 +1200,36 @@ class V3DumpMigrationTest {
     Document end = taskNamed(onboardingTasks, "end");
     assertThat(end.getString("type")).isEqualTo("end");
     assertThat((List<Document>) end.get("dependencies")).hasSize(3);
+  }
+
+  // =====================================================================================
+  // _0047__SleepNodesRunAsSleep invariants
+  // =====================================================================================
+
+  /**
+   * The dump's one workflow using v3's Sleep, "Security Checklist", holds a "Sleep 1" node in each of
+   * its 2 revisions; both run the native sleep task, and the unit run again changes nothing.
+   */
+  private void assertSleepNodesTypedSleep() {
+    String sleepTaskId = "5bd97bea5a5df954ad592c06";
+    Bson sleepNodes = Filters.elemMatch("tasks", Filters.eq("taskRef", sleepTaskId));
+    List<Document> revisions = collection("workflow_revisions").find(sleepNodes).into(new ArrayList<>());
+    assertThat(revisions).hasSize(2);
+    assertThat(revisions).extracting(revision -> revision.getString("workflowRef")).containsOnly("626a30d2d802b91f9be10c68");
+    assertThat(
+            revisions.stream()
+                .flatMap(revision -> revision.getList("tasks", Document.class).stream())
+                .filter(task -> sleepTaskId.equals(task.getString("taskRef"))))
+        .hasSize(2)
+        .allSatisfy(task -> assertThat(task.getString("type")).isEqualTo("sleep"));
+    assertThat(collection("workflow_revisions").countDocuments(
+            Filters.elemMatch("tasks", Filters.and(Filters.eq("taskRef", sleepTaskId), Filters.eq("type", "template")))))
+        .isZero();
+
+    new _0047__SleepNodesRunAsSleep().execute(db, migrationEnvironment());
+    assertThat(collection("workflow_revisions").find(sleepNodes).into(new ArrayList<>()))
+        .as("a second run of the unit changes nothing")
+        .isEqualTo(revisions);
   }
 
   @SuppressWarnings("unchecked")

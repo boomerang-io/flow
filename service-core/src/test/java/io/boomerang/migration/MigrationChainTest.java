@@ -995,6 +995,48 @@ class MigrationChainTest {
         .isEqualTo(1);
   }
 
+  // A node running the sleep task but typed template, as the v3 upgrade leaves it, is typed
+  // sleep; the other nodes and revisions are untouched, and a second run changes nothing.
+  @Test
+  void aSleepNodeTypedTemplateIsTypedSleep() {
+    MongoDatabase db = migrate("sleep-nodes");
+    String sleepTaskId = collection(db, "tasks").find(Filters.eq("type", "sleep")).first().get("_id").toString();
+    String emailTaskId = collection(db, "tasks").find(Filters.eq("type", "template")).first().get("_id").toString();
+    MongoCollection<Document> workflowRevisions = collection(db, "workflow_revisions");
+    Document mistyped =
+        new Document("workflowRef", "sleep-test-workflow")
+            .append("version", 1)
+            .append(
+                "tasks",
+                List.of(
+                    new Document("name", "start").append("type", "start"),
+                    new Document("name", "Sleep 1").append("type", "template").append("taskRef", sleepTaskId).append("taskVersion", 1),
+                    new Document("name", "Send Email").append("type", "template").append("taskRef", emailTaskId).append("taskVersion", 1),
+                    new Document("name", "end").append("type", "end")));
+    Document alreadyTyped =
+        new Document("workflowRef", "sleep-test-workflow")
+            .append("version", 2)
+            .append(
+                "tasks",
+                List.of(new Document("name", "Sleep 1").append("type", "sleep").append("taskRef", sleepTaskId).append("taskVersion", 1)));
+    workflowRevisions.insertMany(List.of(mistyped, alreadyTyped));
+    Document alreadyTypedBefore = workflowRevisions.find(Filters.eq("_id", alreadyTyped.get("_id"))).first();
+
+    new _0047__SleepNodesRunAsSleep().execute(db, MigrationRunner.environment(PREFIX));
+
+    Document retyped = workflowRevisions.find(Filters.eq("_id", mistyped.get("_id"))).first();
+    assertThat(retyped.getList("tasks", Document.class))
+        .extracting(task -> task.getString("name"), task -> task.getString("type"))
+        .containsExactly(
+            tuple("start", "start"), tuple("Sleep 1", "sleep"), tuple("Send Email", "template"), tuple("end", "end"));
+    assertThat(workflowRevisions.find(Filters.eq("_id", alreadyTyped.get("_id"))).first()).isEqualTo(alreadyTypedBefore);
+
+    new _0047__SleepNodesRunAsSleep().execute(db, MigrationRunner.environment(PREFIX));
+    assertThat(workflowRevisions.find(Filters.eq("_id", mistyped.get("_id"))).first())
+        .as("a second run changes nothing")
+        .isEqualTo(retyped);
+  }
+
   private static Document autoCreateUsersEntry(MongoCollection<Document> settings) {
     return settings.find(Filters.eq("key", "features")).first().getList("config", Document.class).stream()
         .filter(c -> "autoCreateUsers".equals(c.getString("key")))
