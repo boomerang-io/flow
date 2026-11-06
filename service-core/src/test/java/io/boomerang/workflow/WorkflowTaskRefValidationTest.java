@@ -91,6 +91,33 @@ class WorkflowTaskRefValidationTest extends AbstractEngineIntegrationTest {
   }
 
   /*
+   * The node's type decides how the engine runs it: a sleep task typed template went to a
+   * dispatcher as a container with no command and failed there. Save refuses the mismatch on
+   * create and on update, naming the node, both types and the task.
+   */
+  @Test
+  void aNodeWhoseTypeIsNotItsTasksTypeIsRejected() {
+    Workflow mismatched = workflowWithNodeTaskRef("task-ref-validation-type-wf", "sleep");
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> workflowService.create(WORKSPACE, mismatched));
+
+    assertEquals("WORKFLOW_INVALID_TASK_TYPE", ex.getReason());
+    assertEquals(400, ex.getStatus().value());
+    assertEquals(List.of("work", TaskType.template, "sleep", TaskType.sleep), List.of(ex.getArgs()));
+
+    Workflow matched = workflowWithNodeTaskRef("task-ref-validation-type-wf", "sleep");
+    matched.getTasks().get(1).setType(TaskType.sleep);
+    workflowService.create(WORKSPACE, matched);
+
+    Workflow update = workflowWithNodeTaskRef("task-ref-validation-type-wf", "sleep");
+    ex =
+        assertThrows(
+            BoomerangException.class, () -> workflowService.apply(WORKSPACE, update, false));
+    assertEquals("WORKFLOW_INVALID_TASK_TYPE", ex.getReason());
+  }
+
+  /*
    * A workflow saved before the save-time check can still carry a node with no reference, so the
    * submit re-checks the stored revision rather than trusting the save.
    */

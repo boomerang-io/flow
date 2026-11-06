@@ -125,12 +125,12 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
   const renderCell = (parameter: DataDrivenInput, key: string, value: any) => {
     switch (key) {
       case "name":
-        return <span className={styles.name}>{value}</span>;
+        return <span className={styles.reference}>{value}</span>;
       case "type":
         return InputTypeCopy[value as keyof typeof InputTypeCopy] ?? value ?? "—";
       case "default":
       case "value":
-        return <span className={styles.value}>{displayValue(parameter, value)}</span>;
+        return <span className={styles.truncated}>{displayValue(parameter, value)}</span>;
       case "tag":
         if (parameter.readOnly) {
           const integration = managedBy[parameter.name ?? ""];
@@ -172,7 +172,7 @@ const ParametersTable: React.FC<ParametersTableProps> = ({
           </div>
         );
       default:
-        return value ? <span className={styles.text}>{value}</span> : <span className={styles.none}>—</span>;
+        return value ? <span className={styles.truncated}>{value}</span> : <span className={styles.none}>—</span>;
     }
   };
 

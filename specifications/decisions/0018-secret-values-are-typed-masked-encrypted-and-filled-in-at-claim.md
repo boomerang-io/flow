@@ -22,7 +22,7 @@ must read and write them alike. The `password` field alone marks nothing sent on
 
 `ParamType.secret` (`service-core/src/main/java/io/boomerang/common/enums/ParamType.java:15`) comes from a `password`
 field (`common/util/ParameterUtil.java:86-90`), a run request (a non-string value is refused,
-`workflow/WorkflowService.java:2227-2239`), or a string that substitutes one in (`engine/ParameterManager.java:187-192`).
+`workflow/WorkflowService.java:2237-2249`), or a string that substitutes one in (`engine/ParameterManager.java:187-192`).
 Consumer reads redact by type and scrub resolved values from free text and the log stream
 (`workflow/WorkflowRunService.java:195-236,586-622`); engine and dispatcher reads stay plain. A Mongo hook encrypts
 typed secrets in the stored document and decrypts on load (`core/config/SecretValueMongoListener.java:62-131`).

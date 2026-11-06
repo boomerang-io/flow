@@ -44,7 +44,9 @@ function EditTaskTemplateModal({ isActive, isOldVersion, setFieldValue, taskTemp
       modalTrigger={({ openModal }) => (
         <Button
           renderIcon={Edit}
-          iconDescription="edit-template"
+          hasIconOnly
+          iconDescription="Edit the basics"
+          tooltipPosition="bottom"
           disabled={isOldVersion || !isActive || !canEdit}
           kind="ghost"
           size="md"

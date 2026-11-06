@@ -178,7 +178,7 @@ a gate nobody answers leaves the run active until cancelled.
 one it has no `timeoutAt`; with one it is reaped like any task and times out its run. That timeout is left out of the critical path that floors the run budget
 (`workflow/RunTimeoutPolicy.java:145-149`), so an hour-long gate does not make the run ask for an hour.
 
-A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2168-2176`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
+A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2178-2186`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
 timeout, else the revision's, else the run-duration quota itself, the workspace's own limit or else the platform `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the
 revision's critical path, the longest chain of declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's maximum run duration
 then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
@@ -246,7 +246,9 @@ The run's directed acyclic graph is materialised in full when the run is queued,
 advanced level-triggered from stored state. When a task completes, the completion winner reads the ended task's dependants, by the stored `dependencies.taskRef`, and the tasks they depend on, never
 the run's whole graph (`DAGUtility.retrieveDependants`, `engine/DAGUtility.java:182-218`), queues every dependant whose dependencies are all `completed`, and finishes the run when the end node's
 dependencies are all done, reading the whole graph once there for the path check (`engine/TaskExecutionService.java:656-681`, `:1676-1772`); a dependency with no task run never counts as satisfied
-(`:1746-1789`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
+(`:1746-1789`). When the end node is reached the run succeeds if some path from start to end held, and an `always`
+link holds whatever the task before it did, so a failed task followed by one does not fail the run
+(`engine/DAGUtility.java:125-140`). `advance` re-applies the same logic for every completed task over one whole-graph read and is safe to call at any time; the watcher, resume and a scoped retry's start use it
 (`:790-820`). Four rules hold:
 
 1. Callers pass ids only; the handler MUST re-read the document at entry (`engine/TaskExecutionService.java:141-153`).
@@ -321,15 +323,15 @@ A `runworkflow` task submits another workflow as a child run (`engine/TaskExecut
 task's own params minus `workflowRef` and `wait` (`:1420-1425`): the values its node passes and, under for-each,
 `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A
 node param the `runworkflow` task does not declare must be one the child workflow's latest revision declares, or
-saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1888-1928`). A
+saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:1898-1938`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`,
 `timezone` and `time` it reads itself (`engine/TaskExecutionService.java:1534-1537`). A `workflowRef` naming a template
 runs as the parent's workspace's link to that template, created under the template's name on first use, so a template's
 children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace,
-and for any other reference, the reference is used as given (`:1359-1362`, `workflow/WorkflowService.java:2357-2373`).
+and for any other reference, the reference is used as given (`:1359-1362`, `workflow/WorkflowService.java:2367-2383`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
-typed pair the retry path uses (`workflow/WorkflowService.java:2208-2212`); a run has no `parentRef`. The single-run
+typed pair the retry path uses (`workflow/WorkflowService.java:2218-2222`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1367-1374`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
@@ -354,7 +356,7 @@ the same way. When a run ends `cancelled` or `timedout`, the same listener cance
 A task with `foreach` set runs once per item of an array, in parallel, in the same run. Only the types a
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow`, which
 submits one child run per item, may carry it; saving refuses it anywhere else, `start` and `end` included
-(`workflow/WorkflowService.java:144-155`, `:1736-1743`, `:1947-1991`). The graph still sees one task run per node:
+(`workflow/WorkflowService.java:144-155`, `:1736-1753`, `:1957-2001`). The graph still sees one task run per node:
 `DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef` (`engine/DAGUtility.java:168-218`), so items are never vertices.
 
 | Step | What happens | Where |

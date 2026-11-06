@@ -246,7 +246,7 @@ A workflow upgraded from v3 keeps its mount path, written as `/workspace/workflo
 (`service-core/src/main/java/io/boomerang/migration/_0010__V3MigrateWorkflows.java:226`), so its tasks need no
 change. One that declared v3's workflow storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on
 its revision and is refused at submit with `WORKFLOW_STORAGE_REMOVED` until it is saved again
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2143-2147`).
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2153-2157`).
 
 ## Isolation and placement
 

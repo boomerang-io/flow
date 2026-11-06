@@ -1738,6 +1738,16 @@ public class WorkflowService {
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
         wfTask.setTaskVersion(taskTemplate.getVersion());
 
+        // The node's type decides how it runs, so it must be the type of the Task it references.
+        if (wfTask.getType() != taskTemplate.getType()) {
+          throw new BoomerangException(
+              BoomerangError.WORKFLOW_INVALID_TASK_TYPE,
+              wfTask.getName(),
+              wfTask.getType(),
+              taskTemplate.getName(),
+              taskTemplate.getType());
+        }
+
         // Reject node params the Task Template does not declare
         validateDeclaredParams(wfTask, taskTemplate);
         validateForeach(wfTask, taskTemplate);
