@@ -32,7 +32,7 @@ revokes the token, not just the cookie (`:137-142`). The routes sit under the we
 
 - One trusted issuer is configured; widening to an allowlist is a new decision.
 - Header, query-parameter and Basic paths are unchanged, so scripts and webhooks behind a proxy see no difference.
-- On the header paths the session mint is reused per identity for 60 seconds (`core/TokenService.java:74,636-679`),
+- On the header paths the session mint is reused per identity for 60 seconds (`core/TokenService.java:74,693-758`),
   which also bounds how long a deactivated user keeps authenticating there.
 - A session's grants are resolved from its user on every request, not copied at the mint, so a membership or role
-  change applies to the next request (`core/TokenService.java:581-600`).
+  change applies to the next request (`core/TokenService.java:651-679`).

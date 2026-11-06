@@ -1,3 +1,13 @@
+import { formatDuration } from "Utils/dateHelper";
+
+/**
+ * A duration statistic read over succeeded runs only: "n/a" when none succeeded. The API sends 0
+ * for a statistic over no runs, which would otherwise read as "0 s", an instant run.
+ */
+export function formatSucceededDuration(ms: number, succeeded: number): string {
+  return succeeded > 0 ? formatDuration(ms) : "n/a";
+}
+
 /** "a=b, c=d" typed in the label filter, as the list the API takes; blank entries dropped. */
 export function parseLabels(text: string): Array<string> {
   return text

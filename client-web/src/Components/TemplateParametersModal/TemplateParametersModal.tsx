@@ -21,16 +21,16 @@ const TemplateParametersModal: React.FC<TemplateParametersModalProps> = (props) 
   const { isEdit, isOldVersion, isActive, canEdit } = props;
   const editTrigger = ({ openModal }: ModalTriggerProps) => {
     return isEdit ? (
-      <TooltipHover direction="bottom" tooltipText={"Edit result parameter"}>
-        <Button
-          disabled={isOldVersion || !isActive || !canEdit}
-          iconDescription="Edit result parameter"
-          kind="ghost"
-          onClick={openModal}
-          renderIcon={Edit}
-          size="md"
-        />
-      </TooltipHover>
+      <Button
+        disabled={isOldVersion || !isActive || !canEdit}
+        hasIconOnly
+        iconDescription="Edit result parameter"
+        tooltipPosition="bottom"
+        kind="ghost"
+        onClick={openModal}
+        renderIcon={Edit}
+        size="md"
+      />
     ) : (
       <TooltipHover direction="top" tooltipText={"Add a new result parameter for this task"}>
         <Button

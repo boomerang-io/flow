@@ -30,6 +30,40 @@ function run(overrides: Partial<{ id: string; creationDate: string; status: stri
 }
 
 describe("Home --- loader", () => {
+  // 22:30 UTC on Thursday 5 November is Friday 6 November in Sydney (UTC+11). One run falls on the
+  // 5th there, two on the 6th; every one of them is on the 5th in UTC.
+  test("counts today's runs in the viewer's day, read from the time zone the page stored", async () => {
+    const runStarts = ["2026-11-05T12:00:00.000Z", "2026-11-05T14:00:00.000Z", "2026-11-05T22:00:00.000Z"];
+    server.use(
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRunCount({ workspace: ":workspace" }), ({ request }) => {
+        const url = new URL(request.url);
+        const from = Number(url.searchParams.get("fromDate"));
+        const to = Number(url.searchParams.get("toDate"));
+        const succeeded = runStarts.filter((start) => Date.parse(start) >= from && Date.parse(start) <= to).length;
+        return HttpResponse.json({ status: { all: succeeded, succeeded } });
+      }),
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRuns({ workspace: ":workspace" }), () => HttpResponse.json(emptyPage)),
+      http.get(serviceUrl.workspace.action.getActions({ workspace: ":workspace" }), () => HttpResponse.json(emptyPage)),
+      http.get(serviceUrl.workspace.schedule.getSchedules({ workspace: ":workspace" }), () => HttpResponse.json(emptyPage)),
+    );
+    const frozen = new Date();
+    vi.setSystemTime(new Date("2026-11-05T22:30:00.000Z"));
+    try {
+      const sydney = await loader({
+        request: new Request("http://localhost/home", { headers: { Cookie: "session=abc; flow-tz=Australia%2FSydney" } }),
+      });
+      expect(sydney.timeZone).toBe("Australia/Sydney");
+      expect(sydney.runsToday.all).toBe(2 * WORKSPACE_COUNT);
+
+      // No stored zone, or one moment does not know: the server's day, here UTC.
+      const serverDay = await loader({ request: new Request("http://localhost/home", { headers: { Cookie: "flow-tz=Nowhere%2FAtAll" } }) });
+      expect(serverDay.timeZone).toBeNull();
+      expect(serverDay.runsToday.all).toBe(3 * WORKSPACE_COUNT);
+    } finally {
+      vi.setSystemTime(frozen);
+    }
+  });
+
   test("fires every workspace's four reads in one wave, not as a waterfall", async () => {
     const trace = createRequestTrace();
     server.use(

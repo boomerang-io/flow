@@ -1,5 +1,6 @@
 package io.boomerang.core.security;
 
+import io.boomerang.core.RelationshipService;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -7,6 +8,7 @@ import io.boomerang.core.security.enums.PermissionResource;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.aopalliance.intercept.MethodInvocation;
 import org.apache.logging.log4j.LogManager;
@@ -16,6 +18,9 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.HandlerMapping;
 
 /**
  * Enforces {@link AuthCriteria} through Spring Security's native method security, replacing the
@@ -28,7 +33,9 @@ import org.springframework.security.core.Authentication;
  *       (deny by default; {@code @AuthExempt} is the explicit opt-out)
  *   <li>no identity - denied
  *   <li>the token's {@link AuthScope} is not one of {@code assignableScopes} - denied
- *   <li>no grant matches {@code (**|resource)/(**|action)} - denied
+ *   <li>no grant matches {@code (**|resource)/(**|action)} - denied. On a route under {@code
+ *       /workspace/{workspace}} only a grant that counts in that workspace is considered ({@link
+ *       RelationshipService#grantsIn}): a global grant, or the caller's grant for that workspace.
  * </ol>
  *
  * <p>The one behavioural fix: the annotation lookup tries the invoked {@link Method} FIRST, then
@@ -58,10 +65,17 @@ public class AuthCriteriaAuthorizationManager implements AuthorizationManager<Me
 
   private final IdentityService identityService;
   private final MeterRegistry meterRegistry;
+  // Resolved when a request first names a workspace: this manager is built before the
+  // application's other beans.
+  private final Supplier<RelationshipService> relationshipService;
 
-  public AuthCriteriaAuthorizationManager(IdentityService identityService, MeterRegistry meterRegistry) {
+  public AuthCriteriaAuthorizationManager(
+      IdentityService identityService,
+      MeterRegistry meterRegistry,
+      Supplier<RelationshipService> relationshipService) {
     this.identityService = identityService;
     this.meterRegistry = meterRegistry;
+    this.relationshipService = relationshipService;
   }
 
   /**
@@ -137,23 +151,40 @@ public class AuthCriteriaAuthorizationManager implements AuthorizationManager<Me
 
     PermissionResource requiredScope = authCriteria.resource();
     PermissionAction requiredAccess = authCriteria.action();
-    String requiredRegex =
-        "(\\*{2}|" + requiredScope.getLabel() + ")\\/(\\*{2}|" + requiredAccess.getLabel() + ")";
+    String requiredRegex = IdentityService.grantPattern(requiredScope, requiredAccess);
+    // A workspace grant counts only in its own workspace, so a route under one considers only
+    // the grants that count there.
+    String workspace = pathWorkspace();
     boolean permitted =
-        accessToken.getPermissions().stream()
-            .anyMatch(p -> p.getActions().stream().anyMatch(a -> a.matches(requiredRegex)));
+        (workspace != null)
+            ? relationshipService.get().grantsIn(workspace, requiredScope, requiredAccess)
+            : accessToken.getPermissions().stream()
+                .anyMatch(p -> p.getActions().stream().anyMatch(a -> a.matches(requiredRegex)));
     if (!permitted) {
       LOGGER.warn(
           "AuthCriteriaAuthorizationManager - denied principal: {}, token type: {}, required:"
-              + " {}/{}",
+              + " {}/{}, workspace: {}",
           accessToken.getPrincipal(),
           accessToken.getType(),
           requiredScope.getLabel(),
-          requiredAccess.getLabel());
+          requiredAccess.getLabel(),
+          workspace);
       count(authCriteria, accessToken);
       return new AuthorizationDecision(false);
     }
     return new AuthorizationDecision(true);
+  }
+
+  /** The {@code {workspace}} path variable of the request being handled, or null when it has none. */
+  private static String pathWorkspace() {
+    if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes request)) {
+      return null;
+    }
+    Object variables =
+        request.getRequest().getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+    return (variables instanceof Map<?, ?> map && map.get("workspace") instanceof String workspace)
+        ? workspace
+        : null;
   }
 
   private void count(AuthCriteria authCriteria, Token accessToken) {

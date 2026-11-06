@@ -8,6 +8,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Day;
 import io.boomerang.common.model.WorkflowRunInsightSummary.Totals;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,38 @@ class WorkflowRunInsightServiceTest {
     assertThat(totals.getP95Duration()).isEqualTo(3_000);
     assertThat(totals.getMaxDuration()).isEqualTo(60_000);
     assertThat(totals.getByTrigger()).containsEntry("manual", 6L);
+  }
+
+  @Test
+  void durationPercentilesReadTheSucceededRunsInMilliseconds() {
+    // Ten succeeded runs of 1 s to 10 s, given out of order, beside a slower failed run.
+    List<WorkflowRunEntity> runs = new ArrayList<>();
+    for (long seconds : List.of(7L, 2L, 9L, 4L, 1L, 10L, 3L, 8L, 6L, 5L)) {
+      runs.add(run(RunStatus.succeeded, RunPhase.completed, 0, seconds * 1_000));
+    }
+    runs.add(run(RunStatus.failed, RunPhase.completed, 0, 30_000));
+
+    Totals totals = WorkflowRunInsightService.totals(runs);
+
+    // Nearest rank: the 5th of 10 and the 10th of 10.
+    assertThat(totals.getP50Duration()).isEqualTo(5_000);
+    assertThat(totals.getP95Duration()).isEqualTo(10_000);
+    assertThat(totals.getMaxDuration()).isEqualTo(30_000);
+  }
+
+  @Test
+  void durationPercentilesAreZeroWhenNoRunSucceededWhileTheLongestRunStillCounts() {
+    // The shape behind "p50 0 s, Longest 9 s": every run of the period failed.
+    Totals totals =
+        WorkflowRunInsightService.totals(
+            List.of(
+                run(RunStatus.failed, RunPhase.completed, 0, 9_000),
+                run(RunStatus.failed, RunPhase.completed, 0, 4_000)));
+
+    assertThat(totals.getSucceeded()).isZero();
+    assertThat(totals.getP50Duration()).isZero();
+    assertThat(totals.getP95Duration()).isZero();
+    assertThat(totals.getMaxDuration()).isEqualTo(9_000);
   }
 
   @Test

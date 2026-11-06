@@ -5,6 +5,8 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.common.model.AbstractParam;
@@ -391,7 +393,9 @@ public class GitHubService {
     LOGGER.debug("unlinkAppInstallation() - " + request.toString());
     if (request.getWorkspace() == null
         || !relationshipService.check(
-            RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())) {
+            RelationshipType.WORKSPACE, request.getWorkspace(), Optional.empty(), Optional.empty())
+        || !relationshipService.grantsIn(
+            request.getWorkspace(), PermissionResource.INTEGRATION, PermissionAction.WRITE)) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
     String ref = request.getRef() == null ? "" : request.getRef();

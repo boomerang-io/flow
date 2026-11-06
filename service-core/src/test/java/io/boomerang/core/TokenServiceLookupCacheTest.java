@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.boomerang.core.entity.TokenEntity;
+import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RoleRepository;
 import io.boomerang.core.repository.TokenRepository;
 import io.boomerang.core.security.AdminClaim;
@@ -127,6 +128,10 @@ class TokenServiceLookupCacheTest {
   void deleteEvictsSoTheNextLookupMisses() {
     when(tokenRepository.findByToken(hash)).thenReturn(Optional.of(stored), Optional.empty());
     when(tokenRepository.findById("token-1")).thenReturn(Optional.of(stored));
+    // The token's own user revokes it.
+    Token owner = new Token(AuthScope.user);
+    owner.setPrincipal("user-1");
+    when(identityService.getCurrentIdentity()).thenReturn(owner);
 
     assertThat(tokenService.validate(RAW)).isTrue();
     assertThat(tokenService.delete("token-1")).isTrue();

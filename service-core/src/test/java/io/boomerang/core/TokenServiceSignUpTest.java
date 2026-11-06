@@ -284,7 +284,6 @@ class TokenServiceSignUpTest {
     session.setToken("hash-1");
     when(tokenRepository.findByPrincipalAndType("u8", AuthScope.session))
         .thenReturn(Optional.of(List.of(session)));
-    when(tokenRepository.findById("session-1")).thenReturn(Optional.of(session));
 
     service(claim).createSessionTokenWithRaw(EMAIL, "A", "B", false, true, Boolean.FALSE);
 

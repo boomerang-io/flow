@@ -9,3 +9,7 @@
     @include focus-outline();
   }
 }
+
+.icon {
+  fill: var(--cds-link-primary);
+}

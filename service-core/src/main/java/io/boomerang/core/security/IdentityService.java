@@ -59,8 +59,7 @@ public class IdentityService {
    */
   public void requireGlobalGrant(PermissionResource resource, PermissionAction action) {
     Token identity = getCurrentIdentity();
-    String required =
-        "(\\*{2}|" + resource.getLabel() + ")\\/(\\*{2}|" + action.getLabel() + ")";
+    String required = grantPattern(resource, action);
     if (identity == null
         || identity.getPermissions().stream()
             .filter(permission -> PermissionScope.global.equals(permission.getScope()))
@@ -68,6 +67,14 @@ public class IdentityService {
             .noneMatch(candidate -> candidate.matches(required))) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
+  }
+
+  /**
+   * Return the pattern a grant's action must match to permit {@code resource}/{@code action}:
+   * {@code (**|resource)/(**|action)}.
+   */
+  public static String grantPattern(PermissionResource resource, PermissionAction action) {
+    return "(\\*{2}|" + resource.getLabel() + ")\\/(\\*{2}|" + action.getLabel() + ")";
   }
 
   /**

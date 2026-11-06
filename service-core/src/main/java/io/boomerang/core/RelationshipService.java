@@ -10,6 +10,10 @@ import io.boomerang.core.model.Token;
 import io.boomerang.core.repository.RelationshipEdgeRepository;
 import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.security.IdentityService;
+import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -530,6 +534,59 @@ public class RelationshipService {
             .map(ResolvedPermissions::getPrincipal)
             .collect(Collectors.toList());
     return flattenedPermissionPrincipals.containsAll(toList);
+  }
+
+  /**
+   * Return whether the current identity holds a grant for {@code resource}/{@code action} that
+   * counts in {@code workspace}, named by id or name. A global grant, or one made to every
+   * principal ({@code **}), counts in every workspace. A workspace grant counts only in its own
+   * workspace; a workflow's key token holds its grant in its workflow's workspace. A user's
+   * self-service grants belong to no workspace, so they never count here.
+   */
+  public boolean grantsIn(String workspace, PermissionResource resource, PermissionAction action) {
+    Token identity = identityService.getCurrentIdentity();
+    if (identity == null || identity.getPermissions() == null) {
+      return false;
+    }
+    String required = IdentityService.grantPattern(resource, action);
+    List<ResolvedPermissions> matching =
+        identity.getPermissions().stream()
+            .filter(
+                grant ->
+                    grant.getActions() != null
+                        && grant.getActions().stream().anyMatch(a -> a.matches(required)))
+            .toList();
+    if (matching.stream()
+        .anyMatch(
+            grant ->
+                PermissionScope.global.equals(grant.getScope())
+                    || "**".equals(grant.getPrincipal()))) {
+      return true;
+    }
+    Set<String> principals =
+        matching.stream()
+            .filter(grant -> PermissionScope.workspace.equals(grant.getScope()))
+            .map(ResolvedPermissions::getPrincipal)
+            .collect(Collectors.toSet());
+    if (principals.isEmpty() || workspace == null || workspace.isBlank()) {
+      return false;
+    }
+    RelationshipNodeEntity node = resolveNode(RelationshipType.WORKSPACE, workspace).orElse(null);
+    if (node == null) {
+      return false;
+    }
+    if (principals.contains(node.getRef()) || principals.contains(node.getSlug())) {
+      return true;
+    }
+    return AuthScope.key.equals(identity.getType())
+        && TokenActorKind.WORKFLOW.equals(identity.getActorKind())
+        && principals.contains(identity.getPrincipal())
+        && node.getRef()
+            .equals(
+                getParentByLabel(
+                    RelationshipLabel.HAS_WORKFLOW,
+                    RelationshipType.WORKFLOW,
+                    identity.getPrincipal()));
   }
 
   /**

@@ -16,6 +16,8 @@ import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.security.enums.PermissionAction;
+import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.integrations.GitHubService;
@@ -78,13 +80,14 @@ public class WebhookEventService {
    */
   public WorkflowRun processEvent(CloudEvent event, Optional<String> workflow) {
     String workflowRef = workflow.filter(ref -> !ref.isBlank()).orElseGet(() -> subjectWorkflow(event));
-    if (!relationshipService.check(
-        RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
-    }
     String workspace =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+    if (!relationshipService.check(
+            RelationshipType.WORKFLOW, workflowRef, Optional.empty(), Optional.empty())
+        || !mayTrigger(workspace)) {
+      throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
+    }
     return workflowService.submit(workspace, workflowRef, eventSubmitRequest(event), autoStart);
   }
 
@@ -94,6 +97,9 @@ public class WebhookEventService {
    */
   public WorkflowRun processEvent(String workspace, CloudEvent event, Optional<String> workflow) {
     String name = workflow.filter(ref -> !ref.isBlank()).orElseGet(() -> subjectWorkflow(event));
+    if (!mayTrigger(workspace)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    }
     return workflowService.submit(workspace, name, eventSubmitRequest(event), autoStart);
   }
 
@@ -102,7 +108,7 @@ public class WebhookEventService {
     String teamRef =
         relationshipService.getParentByLabel(
             RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
-    if (teamRef.isEmpty()) {
+    if (teamRef.isEmpty() || !mayTrigger(teamRef)) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
 
@@ -117,7 +123,16 @@ public class WebhookEventService {
    * workspace is not found.
    */
   public WorkflowRun processWebhook(String workspace, String workflow, JsonNode payload) {
+    if (!mayTrigger(workspace)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
+    }
     return workflowService.submit(workspace, workflow, webhookSubmitRequest(payload), autoStart);
+  }
+
+  // The caller's grant to deliver webhooks and events counts in the workspace they act on.
+  private boolean mayTrigger(String workspace) {
+    return relationshipService.grantsIn(
+        workspace, PermissionResource.WEBHOOK, PermissionAction.ACTION);
   }
 
   private static WorkflowSubmitRequest webhookSubmitRequest(JsonNode payload) {
@@ -189,6 +204,12 @@ public class WebhookEventService {
       String status,
       Optional<JsonNode> payload,
       Optional<String> eventId) {
+    // The run's workspace decides, as for a webhook; a run the caller may not act on is not found.
+    if (!mayTrigger(
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOWRUN, RelationshipType.WORKFLOWRUN, workflowRunId))) {
+      throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
+    }
     WorkflowRunEventRequest request = new WorkflowRunEventRequest();
     eventId.ifPresent(request::setId);
     request.setTopic(topic);
