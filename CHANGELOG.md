@@ -180,6 +180,11 @@ tag's release notes.
 
 ### Added
 
+- **An owner changes a member's role in Manage › Members.** Each member's row has a role control, shown to anyone who
+  may remove members (a workspace owner or an admin). Your own row is locked, and so is the last owner's, so a
+  workspace keeps an owner; the change sends the member again with the new role. A toast says it's done.
+- **Profile lists your workspaces.** A Your workspaces section names each workspace you belong to, your role in it,
+  and links to it. `GET /api/v2/profile` carries the caller's `role` on each of its `workspaces`.
 - **Admin › Tokens sets a token's actor.** The create form for a platform (global) token chooses Service (the default, a
   system, script or dispatcher), Agent (an AI agent) or None (a person's token), so a token made there can run the
   dispatcher protocol, which needs one. The Actor column names the kind. `POST /api/v2/token` now refuses an actor that does not fit the token
@@ -532,6 +537,16 @@ tag's release notes.
   parameter value sits in line with the rest of its row.
 - The Quotas and Settings edit buttons, and the task manager's Version history, edit and delete buttons, have
   accessible names.
+- A token created from a role preset alone is minted. `POST /api/v2/token` with a `role` and no `permissions` answered
+  `400 TOKEN_INVALID_REQ`; the role now expands to that preset's permissions for the token's scope (the global roles
+  for a global token, the workspace roles otherwise). An unknown role is `400 TOKEN_INVALID_PERMISSION`, and a request
+  carrying both a role and permissions is `400 TOKEN_INVALID_REQ`. Admin › Tokens and the workspace and workflow token
+  forms create from a preset again.
+- Removing a member says so: the success toast is raised by the Members tab, which outlives the removed row.
+- Choosing a role in Add members, or a type in the editor's Add parameter, with the mouse no longer stalls the page.
+  Both are native selects; the dropdown they replace smooth-scrolled each option the pointer crossed into view, which
+  inside the dialog's scrolling body moved the list under the pointer.
+- Manage › Artifacts' Workflow column shows each workflow's display name instead of its id.
 - A user added to a workspace after signing in reads it at once. A session held the grants of its sign-in, so a
   plain user who signed in while in no workspace was refused (`403`) every workflow, run, task run, schedule and
   action list in a workspace they were then added to, even as its owner, and the webapp showed its error page. A

@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The profile's member count is people, not memberships: someone in two of the caller's
- * workspaces counts once, while each workspace's summary keeps its own count.
+ * workspaces counts once, while each workspace's summary keeps its own count and the caller's role.
  */
 class WorkspaceMembershipOverviewTest extends AbstractEngineIntegrationTest {
 
@@ -38,6 +38,21 @@ class WorkspaceMembershipOverviewTest extends AbstractEngineIntegrationTest {
         .extracting(WorkspaceSummary::getName, s -> s.getInsights().getMembers())
         .containsExactlyInAnyOrder(
             tuple("overview-a-" + suffix, 2L), tuple("overview-b-" + suffix, 1L));
+  }
+
+  @Test
+  void eachSummaryCarriesTheCallersRoleInIt() {
+    String suffix = UUID.randomUUID().toString().substring(0, 8);
+    String owned = workspace("overview-owned-" + suffix);
+    String read = workspace("overview-read-" + suffix);
+
+    WorkspaceService.MembershipOverview overview =
+        workspaceService.membershipOverview(Map.of(owned, "owner", read, "reader"));
+
+    assertThat(overview.summaries())
+        .extracting(WorkspaceSummary::getName, WorkspaceSummary::getRole)
+        .containsExactlyInAnyOrder(
+            tuple("overview-owned-" + suffix, "owner"), tuple("overview-read-" + suffix, "reader"));
   }
 
   private String workspace(String name) {
