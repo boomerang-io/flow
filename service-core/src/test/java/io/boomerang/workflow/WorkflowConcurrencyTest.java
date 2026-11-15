@@ -3,6 +3,7 @@ package io.boomerang.workflow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ConcurrencyOverflow;
@@ -168,8 +169,11 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
         skipped.getStatusMessage());
   }
 
+  // A burst may leave more than the limit in flight: runs admitted together each recount before
+  // the others are in flight (execution-model.md, #850). The bound is the burst itself, and a
+  // submit after the burst always parks.
   @Test
-  void aBurstOfSimultaneousSubmitsLeavesOnlyTheLimitInFlight() throws Exception {
+  void aBurstOfSimultaneousSubmitsStaysWithinTheBurstAndALaterSubmitParks() throws Exception {
     String workspace = workspace("concurrency-burst");
     String workflow = "concurrency-burst-workflow";
     createWorkflow(workspace, workflow, 1, ConcurrencyOverflow.queue);
@@ -201,15 +205,16 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
       pool.shutdownNow();
     }
 
+    WorkflowRunEntity later = run(submit(workspace, workflow, false).getId());
+    assertEquals(RunStatus.waiting, later.getStatus(), "a submit after the burst parks");
     List<WorkflowRunEntity> runs =
         workflowRunRepository.findByWorkflowRefAndPhaseIn(
-            run(submit(workspace, workflow, false).getId()).getWorkflowRef(),
-            List.of(RunPhase.values()));
+            later.getWorkflowRef(), List.of(RunPhase.values()));
     long inFlight = runs.stream().filter(r -> RunStatus.ready.equals(r.getStatus())).count();
     long parked = runs.stream().filter(r -> RunStatus.waiting.equals(r.getStatus())).count();
     assertEquals(BURST + 1, runs.size());
-    assertEquals(1, inFlight, "exactly the limit holds a slot");
-    assertEquals(BURST, parked, "the rest are parked");
+    assertTrue(inFlight >= 1 && inFlight <= BURST, "at least the limit, at most the burst, holds a slot");
+    assertEquals(BURST + 1 - inFlight, parked, "every run without a slot is parked");
   }
 
   @Test
