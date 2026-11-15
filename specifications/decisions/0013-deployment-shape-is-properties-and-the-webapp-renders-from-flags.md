@@ -23,9 +23,9 @@ B and D, and the webapp reads only server-computed flags. `flow.security.enabled
 `core/security/FlowSecurityProperties.java:19-21`) switches authentication and authorization together.
 `flow.workspace.single` (default `false`) confines `{workspace}` paths to the seeded `system` workspace and refuses
 workspace create and delete (`core/security/SingleWorkspaceInterceptorConfiguration.java:22-28`,
-`workspace/WorkspaceService.java:172-174,371-373`). With security off, every request carries an `UnauthenticatedGlobalToken`
+`workspace/WorkspaceService.java:177-179,376-378`). With security off, every request carries an `UnauthenticatedGlobalToken`
 (principal `system`, actor kind `SERVICE`, one `**/**` grant; `core/security/UnauthenticatedGlobalToken.java:64-72`)
-that `core/UserService.java:323-325` maps to an admin user built in memory: the token already holds every permission, so
+that `core/UserService.java:325-327` maps to an admin user built in memory: the token already holds every permission, so
 the profile adds no privilege, where a stored user would add risk. `core/FeatureService.java:31-87` turns the properties
 and stored `features.*` settings into the `/api/v2/features` flags.
 
@@ -33,8 +33,8 @@ and stored `features.*` settings into the `/api/v2/features` flags.
 
 - An embedder sets `flow.security.enabled=false` and `flow.workspace.single=true` and adds `client-web` with only
   `CORE_SERVICE_INTERNAL_ORIGIN`; with `authentication` false the webapp skips the sign-in config read
-  (`client-web/src/Features/App/App.tsx:143-147`), so that shape belongs on a laptop or behind a protected route.
+  (`client-web/src/Features/App/App.tsx:139-143`), so that shape belongs on a laptop or behind a protected route.
 - Audit records `actor.principal=system`; the synthetic user belongs to nothing and the profile lists every workspace as
-  its own (`core/UserService.java:376-390`). Both exist only per request.
+  its own (`core/UserService.java:378-392`). Both exist only per request.
 - Deployment shape is a `flow.<subsystem>.<switch>` property and a runtime toggle a stored `features.<name>` setting,
   never both. Revisit if an embedder needs a smaller classpath, or `workspace.single` must become a stored setting.

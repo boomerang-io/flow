@@ -1,6 +1,6 @@
 # Data Model
 
-Boomerang Flow stores everything in one MongoDB database: 26 application collections owned by `service-core`,
+Boomerang Flow stores everything in one MongoDB database: 25 application collections owned by `service-core`,
 plus 3 migration bookkeeping collections. Definitions use the subset pattern, runs carry typed control fields,
 and every index and schema change is applied by the change units in
 `service-core/src/main/java/io/boomerang/migration/`. Paths below are under
@@ -9,7 +9,7 @@ and every index and schema change is applied by the change units in
 ## Collection naming
 
 Every collection is named `<prefix>_<name>`; the prefix is `flow.mongo.collection.prefix` (default `flow`,
-`service-core/src/main/resources/application.properties:120`). Each entity declares
+`service-core/src/main/resources/application.properties:142`). Each entity declares
 `@Document(collection = "#{@mongoConfiguration.fullCollectionName('<name>')}")`, resolved by
 `core/config/MongoConfiguration.java:16-29` (a blank prefix gives the bare name); the change units apply the
 same rule through `migration/CollectionNames.java:15-32`, built from the same property (`:26-28`). Map keys
@@ -31,13 +31,13 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (the transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (at most 1024 characters, `event/OutboxDispatcher.java:46`) and `deadAt`; inbound event receipts with their processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
 | `dispatchers` | Registered dispatchers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent); removed after 7 days without a connection (`execution-model.md`, "The watcher sweeps") | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (`type` `personal`, `hobby`, `pro`, `enterprise` or `system`): status, labels, annotations, parameters, quotas | `WorkspaceEntity` (`workspace`) |
-| `approver_groups` | Named approver sets used by approval tasks | `ApproverGroupEntity` (`workspace`) |
+| `approver_groups` | Named approver sets used by approval tasks; deleted with their workspace, and a user leaves every group on deletion and a workspace's groups on leaving it (`workspace/WorkspaceService.java:420,599`, `core/UserService.java:530-533`) | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts, with per-user interface `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java:8-12`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions and expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
 | `audit` | One flat event per audited attempt: a CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`, `actorName`, `actorType`), `workspaceId`, `action`, resource (`resourceType`, `resourceId`, `resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged` and `secretsCleared` names, never values). Run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) come from the engine's transitions (`core/audit/WorkflowRunAuditBridge.java:59`). Expires by time to live | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
-| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
+| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`); deleting a workspace deletes each installation no other workspace links (`workspace/WorkspaceService.java:437`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `migration/LegacyGenerationMarker.java:27`) |
 
 A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`,
@@ -46,9 +46,9 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
 (`workflow/QuotaService.java:108-120,189-194`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:224,335`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:229,340`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
-way back to absent (`workspace/WorkspaceControllerV2.java:316-327`). The v3 migration drops a v3 `0`, which v3
+way back to absent (`workspace/WorkspaceControllerV2.java:311-322`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
 
 ## Versioned definitions: the subset pattern
@@ -87,9 +87,9 @@ carry control state.
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:83-92`, `common/entity/TaskRunEntity.java:69` |
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:63-64` |
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `common/entity/TaskRunEntity.java:72`, `common/model/WorkflowTaskForeach.java:19` |
-| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:45-49`, `common/model/StatusReason.java:34-36` |
+| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:46-50`, `common/model/StatusReason.java:34-36` |
 | Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `common/entity/TaskRunEntity.java:52`, `engine/TaskRunService.java:406-414` |
-| Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>` and queryable on every v2 list endpoint. A task run stacks its task's, its node's and its run's labels (`engine/DAGUtility.java:286-292`). Keys under `boomerang.io/` are the server's (`common/model/ServerLabel.java:12-18`): `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission, `engine/TaskExecutionService.java:254-264`) and `boomerang.io/item` on every item task run of a for-each and on a for-each Run workflow child (its text item, `engine/TaskExecutionService.java:904-913,1385-1396`), which the child's task runs inherit; a client's keys under that prefix are dropped. The engine decides from none of them | `common/entity/WorkflowRunEntity.java:30`, `common/entity/TaskRunEntity.java:35` |
+| Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>` and queryable on every v2 list endpoint. A task run stacks its task's, its node's and its run's labels (`engine/DAGUtility.java:286-292`). Keys under `boomerang.io/` are the server's (`common/model/ServerLabel.java:12-18`): `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission, `engine/TaskExecutionService.java:254-264`) and `boomerang.io/item` on every item task run of a for-each and on a for-each Run workflow child (its text item, `engine/TaskExecutionService.java:904-913,1385-1396`), which the child's task runs inherit; a client's keys under that prefix are dropped. The engine decides from none of them | `common/entity/WorkflowRunEntity.java:30`, `common/entity/TaskRunEntity.java:36` |
 | Annotations | `annotations: Map<String,Object>`: user metadata and the `boomerang.io/*` keys below; the engine decides from none of them | `common/entity/WorkflowRunEntity.java:31`, `common/entity/TaskRunEntity.java:37` |
 
 `claim.leaseExpiresAt` is written by the claim and renewed by the dispatcher heartbeat
@@ -97,7 +97,7 @@ carry control state.
 `lease_sweep` index holds only live claims. An abandon (a timeout included) keeps it until the completion lands
 (`:733-753`), so an end lost after the abandon is reaped again. Crash recovery keys on a lapsed lease,
 dispatcher staleness and `timeoutAt`. Two tests pin the split: `PublicRunModelSerialisationTest` (no control
-field serialises, `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:56-69`)
+field serialises, `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:60-75`)
 and `ControlStateFieldsTest` (`retry-of`, `retry-count` and `timeout-cause` are never written as annotations,
 `service-core/src/test/java/io/boomerang/engine/ControlStateFieldsTest.java:51-76`).
 
@@ -143,11 +143,11 @@ added; the stored value changes shape. A secret is recognised by the type stored
 A task run's stored `spec` holds the references it was written with, never resolved values: the spec is filled
 in on the claim payload only. An unlabelled stored value loads as it is and is encrypted on its next save; no
 migration encrypts it sooner, so a Slack integration with unlabelled tokens keeps them until it is next saved,
-which re-linking Slack does. Not encrypted: task `results`. A `secured` entry of a `settings` document is encrypted by `core/SettingsService.java`
-with the same cipher (`:169-172`); the settings API reads it by the one secret rule, `*****` when set and
-nothing when unset (`:183-189`), and engine and integration reads get plaintext. A stored value that will not
+which re-linking Slack does. Not encrypted: task `results`. A `secured` entry of a `settings` document is encrypted by `SettingsService`
+with the same cipher (`core/SettingsService.java:226-230`); the settings API reads it by the one secret rule, `*****` when set and
+nothing when unset (`:240-247`), and engine and integration reads get plaintext. A stored value that will not
 decrypt is kept as stored, on load and on the next save of its group, never written back as nothing
-(`:205-210`).
+(`:262-269`).
 
 ## Relationship graph
 
@@ -165,7 +165,7 @@ The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelati
 
 Indexes exist only because `_0021__Indexes` built them: its `INVENTORY` is the whole set, the same on an empty
 and an upgraded database (`migration/_0021__Indexes.java:53-197`).
-`spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:118`)
+`spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:140`)
 makes every entity `@Indexed` and `@CompoundIndex` inert; they have drifted and MUST NOT be read as the
 inventory. A new query that needs an index MUST add it to the inventory.
 
@@ -185,8 +185,8 @@ inventory. A new query that needs an index MUST add it to the inventory.
 Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:202-205`): task
 runs keep the finished one, else the earliest; actions keep the earliest per task run, after a null
 `taskRunRef` is unset; dispatchers keep the most recently connected. Users are never deleted: a shared email is
-logged (`:283-291`) and then fails the unique index, and startup with it. An existing index that holds an
-inventory index's keys under another name, or its name with another shape, is dropped first (`:298`); any other
+logged (`:289-297`) and then fails the unique index, and startup with it. An existing index that holds an
+inventory index's keys under another name, or its name with another shape, is dropped first (`:304`); any other
 index, such as one an operator added, is kept.
 
 ## Artifacts
@@ -204,7 +204,7 @@ replaces it.
 
 A task's finished log, when its dispatcher uploads it (`PUT /dispatcher/v1/taskrun/{id}/log`), is the third
 scope, `log`: named `<task run id>.log`, keyed `runs/<run>/logs/<task run id>`, written by `service-core`
-itself and `available` at once (`workflow/ArtifactService.java:406-445`). Two keys of the `artifacts` settings
+itself and `available` at once (`workflow/ArtifactService.java:406-455`). Two keys of the `artifacts` settings
 document govern it, apart from artifact retention: `logs.enabled` (on; off refuses uploads with
 `TASKRUN_LOGS_DISABLED` and keeps serving what is stored) and `logs.retention.days` (7); the same expiry sweep
 deletes the file when the date passes. It is read only through the task run's log route
@@ -216,11 +216,11 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 | --- | --- | --- |
 | `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java:214-240`, from `dispatcher/DispatcherService.java:328`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:284-291`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
 | `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:314-372`, called from `engine/TaskRunService.java:1234`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:375-384`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
-| `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:569-578`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
+| `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:572-581`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
 A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:278-311`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
-document (365; `service-core/src/main/resources/seed/settings.json:456`), read at each pass and floored at 60
+document (365; `service-core/src/main/resources/seed/settings.json:480`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
 (`workflow/WorkflowRetentionService.java:313-324`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `engine/WorkflowWatcher.java:213-223`) pages runs in phase `completed` created before the cutoff, oldest first,
@@ -259,8 +259,8 @@ decision after the task can branch on `found`. The store is any S3-compatible se
 
 `service-core` runs every pending change unit on Flamingock while its context starts, before the web server,
 the scheduler and the dispatcher API (`migration/MigrationConfiguration.java:20-21`;
-`flamingock.management-mode=INITIALIZING_BEAN`, `service-core/src/main/resources/application.properties:125`).
-Replicas that start together wait on `sys_migration_lock` for up to 30 minutes (`:84`), then skip what another
+`flamingock.management-mode=INITIALIZING_BEAN`, `service-core/src/main/resources/application.properties:147`).
+Replicas that start together wait on `sys_migration_lock` for up to 30 minutes (`:148`), then skip what another
 replica applied; a failed unit fails startup.
 
 The chain migrates exactly two starting points, an empty database and an in-place v3 install, to the shape the
@@ -273,9 +273,9 @@ migrated (it holds `sys_changelog_loader`); a refusal is retried on every start
 `src/main/resources/seed/` carry no ids: each unit matches on a natural key (a settings `key`, a role's `type`
 and `name`, a task's `name`, a template's `name` and `version`), a seeded document takes its id from MongoDB, and
 a seeded revision or template task names its catalogue task, resolved to the live id on insert. Before
-upgrading a v3 database, check for two users sharing one email: `_0021` never deletes an account, so a shared
-email fails startup; two emails that differ only by case are left as they are and logged
-(`migration/_0009__NormaliseUserEmails.java:109`). `_0001` records the generation once in
+upgrading a v3 database, check for two users sharing one email: `_0021` never deletes an account, so only an exact
+duplicate fails startup; two emails that differ only by case are left as they are and logged at ERROR, and only
+the mixed-case one stops resolving at sign-in (`migration/_0009__NormaliseUserEmails.java:109`). `_0001` records the generation once in
 `sys_migration_state` (`migration/LegacyGenerationMarker.java:40`); v3-only units read that marker.
 `V3DumpMigrationTest` runs the chain against a real v3 dump and pins what an upgraded install ends with;
 `MigrationChainTest` and `SettingsFromSeedTest` cover the empty path, a v3 fixture, the refusals and the
@@ -291,7 +291,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0006__V3MigrateTaskCatalogue` | v3 | `task_templates` with embedded revisions → `tasks` + `task_revisions`; task runs' template references |
 | `_0007__V3MigrateWorkspaces` | v3 | Reshapes v3 teams in `workspaces`; extracts `approver_groups` |
 | `_0008__V3MigrateUsers` | v3 | Reshapes `users`; one personal workspace per user |
-| `_0009__NormaliseUserEmails` | all | Lower-cases `users.email`, leaving case collisions as they are and logging them |
+| `_0009__NormaliseUserEmails` | all | Lower-cases `users.email`, leaving case collisions as they are and logging them at ERROR |
 | `_0010__V3MigrateWorkflows` | v3 | Reshapes `workflows`; `workflows_revisions` → `workflow_revisions`; v3 run storage becomes the revision's `workspace` (a blank mount path pinned to `/workspace/workflowrun`), v3 workflow storage becomes `legacyWorkflowStorage: true` |
 | `_0011__V3ExtractWorkflowTemplates` | v3 | Workflows with `scope=template` → `workflow_templates` |
 | `_0012__V3MigrateRuns` | v3 | `workflows_activity` → `workflow_runs`; approvals → `actions`; schedules → `workflow_schedules` |
@@ -299,7 +299,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0014__V3DropIntermediates` | v3 | Drops the consumed v3 collections |
 | `_0015__SeedRoles` | all | Seeds the five roles |
 | `_0016__BuildSettingsFromSeed` | all | Builds every settings document from `seed/settings.json`, carrying stored values (below) |
-| `_0017__SeedTaskCatalogue` | all | Seeds the 105 catalogue tasks, matched by name, and their revisions, matched by task and version; a v3 task an install renamed gets the seed's copy beside it |
+| `_0017__SeedTaskCatalogue` | all | Seeds the 105 catalogue tasks, matched by name, and their 226 revisions, matched by task and version, none pinning a `task-flow` image; a v3 task an install renamed gets the seed's copy beside it |
 | `_0018__SeedArtifactTasks` | all | Inserts `upload-artifact` and `download-artifact` (`scope` on both, `optional` and the `found` result on download), ids assigned on insert |
 | `_0019__V3UpgradeCatalogueRevisions` | v3 | Moves revisions off the retired `worker-flow` image onto `boomerangio/task-flow:3.3.0`; gives the child-run tasks every param their seeded revision declares |
 | `_0020__SeedTemplates` | all | Seeds the starter workflow templates (by name and version) and the integration templates (by name) |
@@ -318,7 +318,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0033__SeedSendGridTemplateRevision` | all | Inserts the SendGrid template task's revision 3, whose `apiKey` has no placeholder default and whose `templateId` is a `text` field, where an install holds the task but not that revision; an empty database has it from `_0017` |
 | `_0034__SeedFormIntegrations` | all | Sets each integration template's `kind` (`app` for GitHub and Slack) where it has none, and inserts the Google and Microsoft `form` templates where an install holds none of their type; an empty database has them from `_0020` |
 | `_0035__SeedTaskFlowIntegrationTasks` | all | Adds task-flow 3.3.0's catalogue: the 16 GitHub, Microsoft Teams, SharePoint and Google Drive tasks an install lacks, with their graph node and root edge, and every seed revision of those and of the Sheets, Drive and Artifactory tasks the install lacks; a seeded task an install dropped gets nothing, and the GitHub integration template's instructions gain the App permissions the GitHub tasks need. An empty database has all of it from `_0017` and `_0020` |
-| `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left, and an empty database or a v3 upgrade has `3.3.0` from the seed |
+| `_0036__DefaultTaskImageTaskFlow33` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.1.0` to `3.3.0` where an install still holds the earlier seed's value; an operator's own value is left |
 | `_0037__SeedGoogleKeyDefaultRevisions` | all | Inserts the revision of each of the 8 Google Sheets and 4 Drive tasks whose `serviceAccountKey` defaults to `$(workspace.params.google-service-account-key)`, where an install holds the task but not that revision; an empty database has them from `_0017` |
 | `_0038__WorkflowTemplatesIntoSystem` | all | Moves every `workflow_templates` document (the seeds of `_0020` and `_0026`, and a v3 install's own from `_0011`) into the system workspace as a `starter` workflow with a revision per version and its `hasWorkflow` edge, a name the workspace already holds left as it is, then drops the collection |
 | `_0039__SeedWorkspaceCreateSetting` | all | Adds the `features` setting `workspaceCreate` (whether a user who is not an admin may create a workspace) from the seed to an install built before it existed; an install that has the key is left as it is |
@@ -330,7 +330,7 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0045__ClearPlaceholderDefaults` | all | Empties the placeholder default a few credential parameters carried (older GitHub revisions' `token`, the SendGrid template task's `apiKey` and `templateId`); the parameters stay |
 | `_0046__SeedAutoCreateUsersSetting` | all | Adds the `features` setting `autoCreateUsers` (whether a person's first sign-in creates their user) from the seed to an install built before it existed; an install that has the key is left as it is |
 | `_0047__SleepNodesRunAsSleep` | all | Types `sleep` each workflow revision node typed `template` whose `taskRef` is a task of type `sleep`: `_0006` makes v3's Sleep the native task, `_0010` keeps its nodes typed `template`, and a node runs as its type. Only a node of that pair is touched; a node of any other type is left as it is |
-| `_0048__DefaultTaskImageTaskFlow34` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.3.0` to `3.4.0` where an install still holds the earlier seed's value; a value an operator chose is left as it is |
+| `_0048__DefaultTaskImageTaskFlow34` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.3.0` to `3.4.0` where an install still holds the earlier seed's value; a value an operator chose is left as it is, and an empty database or a v3 upgrade has `3.4.0` from the seed |
 | `_0049__SeedTaskFlow34Revisions` | all | Adds task-flow 3.4.0's revisions where an install holds the task and lacks the revision: HTTP Call (basic 2, advanced 5), the three Slack webhook tasks (3), JSONPath to Parameter (4), File JSONPath to Parameter (3) and Execute Shell (3, with `failOnError`); revisions the install holds are never touched and a task an install dropped gets nothing. An empty database has them from `_0017` |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →

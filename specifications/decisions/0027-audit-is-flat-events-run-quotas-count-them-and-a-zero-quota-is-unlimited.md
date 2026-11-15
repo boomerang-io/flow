@@ -29,7 +29,7 @@ B, D and F. `AuditAspect` records one event per `@Audited` attempt, SUCCESS, FAI
 one UPDATE at completion (`core/audit/WorkflowRunAuditBridge.java:58-110`); task runs are not audited, for volume.
 `QuotaService` counts the month's runs as the larger of CREATE events and live run documents, and concurrent runs live
 (`workflow/QuotaService.java:228-303`). A stored quota overlays the `quotas` group's default only where present
-(`:130-161`), and its checks enforce it only when positive (`workspace/model/Quotas.java:10-13`). What decided it:
+(`:156-187`), and its checks enforce it only when positive (`workspace/model/Quotas.java:10-13`). What decided it:
 counts written at event time survive deletion, and `0` already means "no limit" to Tekton and Temporal users.
 
 ## Consequences

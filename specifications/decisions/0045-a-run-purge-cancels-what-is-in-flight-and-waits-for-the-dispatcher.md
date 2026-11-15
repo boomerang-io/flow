@@ -25,7 +25,7 @@ sweep's own per-run purge (`workflow/WorkflowRetentionService.java:119-151,182-2
 cancelled through the ordinary cancel, which ends its tasks off the caller's thread; a member whose tasks have not
 settled (one still ending, or a cancelled or timed-out one a dispatcher still holds, `claim.by` set) is stamped
 `purgeRequestedAt` (`engine/WorkflowRunStateHelper.java:381-388`) and the `purgeRequestedRuns` sweep removes it once they
-have, or ten minutes after the stamp (`:149-172`). A label purge takes one
+have, or ten minutes after the stamp (`workflow/WorkflowRetentionService.java:153-180`). A label purge takes one
 sweep page of the workspace's matching runs and reports `remaining` (`workflow/WorkflowRunService.java:487-524`). What
 decided it: a dispatcher learns of a termination only from the task document, so the document outlives the order.
 

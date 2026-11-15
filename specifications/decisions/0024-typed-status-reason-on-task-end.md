@@ -32,9 +32,9 @@ rather than starting a second vocabulary, and policy derives from it.
 
 ## Consequences
 
-- The one policy built on it is the requeue of a task that did not run to an end: `StartTimeout`, `ExceededQuota`,
+- Two policies are built on it: the requeue of a task that did not run to an end, `StartTimeout`, `ExceededQuota`,
   `RateLimited`, `ClusterUnavailable` and `DispatcherStopping` (`common/model/StatusReason.java:53-59`,
-  `engine/TaskRunService.java:1189-1208`); any further retry policy derives from it without a wire change.
+  `engine/TaskRunService.java:1189-1208`), and a node retry's refusal of causes a retry cannot change (`:61-74`).
 - Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:542`,
   `event/model/RunStatusSummary.java:89-100`).
 - Cancel and delete carry no reason; add values only when something consumes them.

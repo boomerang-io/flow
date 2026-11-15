@@ -329,12 +329,12 @@ export const TokenActorKindLabel: Record<string, string> = {
 export const yamlInstructions = `  # Getting started
   Task Templates allow you to define what you want to happen at the execution of the task as well as parameters that are needed and the expected results.
   
-  They follow the [Tekton Task model](https://tekton.dev/docs/pipelines/tasks/#configuring-a-task) along with Kubernetes standards. For more information, see [Getting to know Tasks](https://www.useboomerang.io/docs/boomerang-flow/getting-to-know/tasks).
+  They follow the [Tekton Task model](https://tekton.dev/docs/pipelines/tasks/#configuring-a-task) along with Kubernetes standards. For more information, see [Getting to know Tasks](https://useboomerang.io/docs/flow/fundamentals/tasks).
   
   > Using this YAML editor is recommended for advanced users with experience writing yaml definitions and desire further customization.
   ## Creating in YAML
   The YAML specification has three important sections to be aware of: metadata, params, and steps. 
-  Its important to note that the full Tekton task specification is not yet fully supported. We cannot run multi step tasks, nor do we allow resources to be specified. For more information, see [Known Issues and Limitations](https://www.useboomerang.io/docs/boomerang-flow/introduction/known-issues-limitations).
+  Its important to note that the full Tekton task specification is not yet fully supported. We cannot run multi step tasks, nor do we allow resources to be specified. For more information, see [Known Issues and Limitations](https://useboomerang.io/docs/flow/introduction/known-issues).
   ### Metadata
   This is the area where we store a series of annotations related to the end user experience and are automatically populated when defining a task view the UI. See below section on understanding the Boomerang Flow specific metadata.
   ### Params
@@ -354,7 +354,7 @@ export const yamlInstructions = `  # Getting started
       - folderId
       - email
   \`\`\`
-  For more information on steps refer to [Boomerang Flow Tasks](https://www.useboomerang.io/docs/boomerang-flow/3.1.0/getting-to-know/tasks).
+  For more information on steps refer to [Boomerang Flow Tasks](https://useboomerang.io/docs/flow/fundamentals/tasks).
   ## Understanding the available metadata
   The metadata used by Boomerang Flow is over and above the standard Kubernetes or Tekton metadata and is a way for the information needed for the user experience to be stored.
   ### Icon
@@ -363,7 +363,7 @@ export const yamlInstructions = `  # Getting started
   boomerang.io/icon: Add
   \`\`\`
   ### Params
-  The following definition will match the \`name\` element with the \`name\` element in the params specification of the task. Additional parameter types are supported for the experience including texteditor, boolean, and options. For more detailed information on the available parameters please see [Boomerang Flow Tasks](https://www.useboomerang.io/docs/boomerang-flow/3.1.0/getting-to-know/tasks).
+  The following definition will match the \`name\` element with the \`name\` element in the params specification of the task. Additional parameter types are supported for the experience including texteditor, boolean, and options. For more detailed information on the available parameters please see [Boomerang Flow Tasks](https://useboomerang.io/docs/flow/fundamentals/tasks).
   \`\`\`
       boomerang.io/params:
       - required: true

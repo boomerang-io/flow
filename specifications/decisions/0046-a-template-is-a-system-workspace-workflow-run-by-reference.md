@@ -19,11 +19,11 @@ embedding product with a workspace per tenant needs one definition every tenant 
 
 C. `WorkflowEntity.type` is `workflow`, `template` or `starter`, typed because create, submit and the editor decide from it; a `template` or `starter` body is
 refused outside the system workspace (`workflow/WorkflowService.java:2485-2493`). A workflow with `templateRef` is a link: its own revision holds no tasks,
-reads fill them from the template's pinned or latest revision (`:2517-2531,2544-2569`), and a submit runs that revision with the link as the run's workflow, so
-the run, its parameter layers, quotas and audit are the link's workspace's (`:2140-2143`). The template cannot be deleted while a link names it (`:904-907`).
+reads fill them from the template's pinned or latest revision (`:2527-2541,2554-2579`), and a submit runs that revision with the link as the run's workflow, so
+the run, its parameter layers, quotas and audit are the link's workspace's (`:2150-2153`). The template cannot be deleted, or retyped, while a link names it (`:866-870,896-899`).
 Starters stay a copy, as every compared product keeps the two apart, and `_0038__WorkflowTemplatesIntoSystem` moves the old collection into the system workspace
 as starters. There are no template routes: a workspace's own workflow routes answer the system workspace's template when the workspace has no workflow of the
-name (`:295-306,2305-2314`), and the first use, a submit or a saved setting, creates the link (`:656-664,724-729`). What decided it: a definition shared by
+name (`:295-306,2315-2324`), and the first use, a submit or a saved setting, creates the link (`:656-664,724-729`). What decided it: a definition shared by
 reference must create the run in the caller's unit from inputs alone (Argo's `workflowTemplateRef`, GitHub's `uses:`, Kestra's subflows).
 
 ## Consequences

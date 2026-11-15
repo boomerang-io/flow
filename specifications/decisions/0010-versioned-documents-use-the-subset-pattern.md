@@ -24,13 +24,13 @@ Option C. `WorkflowEntity` in `workflows`
 (`common/entity/WorkflowRevisionEntity.java:21-37`); `TaskEntity` in `tasks` pairs with `TaskRevisionEntity{parentRef,
 version, spec, …}` in `task_revisions` (`common/entity/TaskRevisionEntity.java:23-34`). The domain services join them
 (`workflow/WorkflowService.java:1501-1528,2552-2577`, `workflow/TaskService.java:590-608`). A new version inserts a child; a
-replace rewrites the latest child in place (`WorkflowService.java:2090-2100`, `TaskService.java:812-837`).
+replace rewrites the latest child in place (`workflow/WorkflowService.java:2090-2100`, `workflow/TaskService.java:812-837`).
 
 ## Consequences
 
 - Versions are pageable and indexed on parent and version: `workflow_ref_version` and `parent_ref_version`
   (`migration/_0021__Indexes.java:100-110`).
-- Every definition read is two lookups, and deleting a parent MUST delete its revisions (`TaskService.java:994-995`,
+- Every definition read is two lookups, and deleting a parent MUST delete its revisions (`workflow/TaskService.java:994-995`,
   `workflow/WorkflowRetentionService.java:298`).
-- `workflow_templates` is the one collection that keeps `version` on a single document
-  (`common/entity/WorkflowTemplateEntity.java:30`).
+- Templates use the same pair: `_0038__WorkflowTemplatesIntoSystem` moved the single-document `workflow_templates`
+  into the system workspace as workflows with a revision per version (`migration/_0038__WorkflowTemplatesIntoSystem.java`).

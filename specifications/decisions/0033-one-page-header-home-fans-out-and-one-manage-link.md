@@ -22,9 +22,9 @@ returns, and seven admin screens need a side-nav place that does not crowd the w
 One header, a loader fan-out and one Manage link. Every route's header is at least 112px: breadcrumb, title, then a row
 for the tabs or a one-line description (`client-web/src/Styles/_carbon-components.scss:69-111`). A list page is titled
 with its route; a page inside one object is titled with its name and ends its breadcrumb with the route
-(`client-web/src/Features/WorkflowEditor/Header/Header.tsx:75-81`). Home's loader reads the profile, then fires
+(`client-web/src/Features/WorkflowEditor/Header/Header.tsx:71-90`). Home's loader reads the profile, then fires
 `workflowrun/count`, `workflowrun/query`, `action/query` and `schedule/query` for every workspace in one wave and merges
-them (`client-web/src/Features/Home/homeLoader.ts:150-182`), adding nothing to the data model or to other routes; a
+them (`client-web/src/Features/Home/homeLoader.ts:162-194`), adding nothing to the data model or to other routes; a
 failed read marks only its part as not loaded, never zero. Admins get one "Admin" link
 (`core/NavigationService.java:171-179`) to a layout route (`client-web/app/routes.ts:53-62`) whose seven tabs, Settings
 to Audit, each show only when the caller's grant and the feature flags allow
@@ -33,7 +33,7 @@ to Audit, each show only when the caller's grant and the feature flags allow
 ## Consequences
 
 - A new page gets its header from `FeatureHeader` with no page-level styles; the side nav has no indented level, and the
-  tab list is the one place that gates administration. Workflow templates have no admin page (decision 0030).
+  tab list is the one place that gates administration. Workflow templates have no admin page: they are the system workspace's workflows (decision 0046).
 - Home's numbers come from routes already secured per workspace. The approvals and manual-task split is counted from the
   five newest actions, so it is a lower bound past five; the total is exact.
 - Revisit the editor bar if users need the canvas taller still, and a summary endpoint if users with more than about ten

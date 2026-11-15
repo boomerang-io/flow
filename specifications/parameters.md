@@ -20,7 +20,7 @@ the run's workflow and the revision it runs, so a version saved mid-run does not
 The layers and the revision are served from a per-instance cache for 10 seconds (`core/ParamLayerCache.java:41-49`,
 `flow.parameters.layer-cache.ttl`; `0s` turns it off), so tasks admitted together share one read of each store.
 A global or workspace parameter, setting, workflow or revision write clears the cache on the instance that
-took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:239`,
+took it (`workflow/ParameterService.java:104`, `workspace/WorkspaceService.java:244`,
 `core/SettingsService.java:199`, `workflow/WorkflowService.java:1652`); other instances see it within the cache
 lifetime. A task admitted after an edit gets the new value; each task run keeps the param values it was
 admitted with.
@@ -90,12 +90,12 @@ itself, say) the value is passed through unchanged and the failure is logged wit
 
 Admission checks each Flow reference (`$(params.…)`, `$(<scope>.params.…)`, `$(tasks.<name>.results.…)`) in
 the task's params, `script`, `command`, `arguments` and env values (`engine/ParameterManager.java:144-238`);
-`$(date)` and the like are shell and stay text (`:844-846`).
+`$(date)` and the like are shell and stay text (`:859-861`).
 
 | Reference | Declared when | Declared, no value at run time | Not declared |
 | --- | --- | --- | --- |
 | `$(tasks.t.results.r)` | `t` is a task in the run's workflow revision and declares `r`: on its node for `script`, `custom` and `generic`, else on its catalogue revision (`TaskService.getSpecs`); a task declaring no results allows any `r`, and a result already emitted counts (`engine/ParameterManager.java:681-744`) | `""`: skipped, not yet run, failed and continued, or `r` not emitted | `task 't' is not in this workflow` / `task 't' declares no result 'r'` |
-| `$(params.x)`, `$(<scope>.params.x)` | A layer that reference reads holds `x`, with or without a value (`:737-755`) | `""` (`:855-859`) | `no such param 'x'` (`no such global param 'x'`, …) |
+| `$(params.x)`, `$(<scope>.params.x)` | A layer that reference reads holds `x`, with or without a value (`:752-770`) | `""` (`:870-874`) | `no such param 'x'` (`no such global param 'x'`, …) |
 | `$(params.cfg.path)` | `cfg` is declared | `""` when the path matches nothing | `no such param 'cfg'` |
 
 An undeclared reference fails the task before it is claimable: `failed`, reason `ParamUnresolved`, with a
@@ -116,7 +116,7 @@ fails here. It reads `$(workspace.params.x)` and `$(team.params.x)` anywhere in 
 defaults where the node leaves a param out (or leaves a `password` empty) and pins the task version the editor
 holds; names match in any case, and a parameter with no value, or any while workspace parameters are off, counts
 as missing. The save goes ahead (`client-web/src/Utils/workspaceParamReferences.ts:23-59`,
-`client-web/src/Features/WorkflowEditor/Editor.tsx:186-190,207-216`).
+`client-web/src/Features/WorkflowEditor/Editor.tsx:236-240,257-266`).
 
 ## Names
 
@@ -130,7 +130,7 @@ case-insensitive everywhere: `$(params.myparam)` resolves a param declared `MyPa
 emptiness can be meaningful, and a substitution can resolve to empty; a task that requires a value fails its
 own run with a message naming the parameter. Names that are case or separator variants of each other
 (`my-key`, `MY_KEY`) are rejected with `PARAM_NAME_COLLISION` (code 1209,
-`common/error/BoomerangError.java:63`) at workflow save (`workflow/WorkflowService.java:1874-1884`) and task
+`common/error/BoomerangError.java:66`) at workflow save (`workflow/WorkflowService.java:1874-1884`) and task
 save (`workflow/TaskService.java:362-372`); the dispatcher repeats the check at dispatch
 (`service-dispatcher/src/main/java/io/boomerang/kube/KubeHelperService.java:142-155`).
 
@@ -149,25 +149,25 @@ credential. Google (`google-service-account-key`, a service account's whole JSON
 (`microsoft-tenant-id`, `microsoft-client-id`, `microsoft-client-secret`, an Entra app's) are `form`: the
 workspace enters every field, and that is the link, with no install, record or relationship edge; the integration
 is linked while the workspace holds its fields (`integrations/enums/IntegrationKind.java:3-10`,
-`integrations/IntegrationService.java:86-96`).
+`integrations/IntegrationService.java:88-98`).
 
 | Rule | Where |
 | --- | --- |
-| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:130-187` |
-| A Slack bot token does not expire, so it is shared as stored and never refreshed; an installation with Slack's token rotation on, whose token expires with a refresh token, is refused with `400 INTEGRATION_TOKEN_ROTATES` (1909) | `integrations/SlackService.java:690-707` |
+| Sharing is a separate choice after linking: the token carries the App's permissions on the installation for every workflow author in the workspace | `integrations/IntegrationService.java:132-191` |
+| A Slack bot token does not expire, so it is shared as stored and never refreshed; an installation with Slack's token rotation on, whose token expires with a refresh token, is refused with `400 INTEGRATION_TOKEN_ROTATES` (1909) | `integrations/SlackService.java:694-711` |
 | Sharing needs `features.workspaceParameters` on and never overwrites a parameter the user made; both are checked before a token is minted | `integrations/IntegrationParameterService.java:91-105,165-180` |
-| A form integration's `values` are checked against its fields: an unknown name is `400 INTEGRATION_FIELD_UNKNOWN` (1911), a required field left without a value `400 INTEGRATION_FIELD_REQUIRED` (1910), and values sent to an `app` integration `400 INTEGRATION_VALUES_NOT_ACCEPTED` (1912). A secret sent as `*****`, or left out, keeps the stored one and any other field left out keeps its value, so sharing again edits them | `integrations/IntegrationParameterService.java:107-145`, `integrations/IntegrationService.java:137-187` |
+| A form integration's `values` are checked against its fields: an unknown name is `400 INTEGRATION_FIELD_UNKNOWN` (1911), a required field left without a value `400 INTEGRATION_FIELD_REQUIRED` (1910), and values sent to an `app` integration `400 INTEGRATION_VALUES_NOT_ACCEPTED` (1912). A secret sent as `*****`, or left out, keeps the stored one and any other field left out keeps its value, so sharing again edits them | `integrations/IntegrationParameterService.java:107-145`, `integrations/IntegrationService.java:139-191` |
 | The share's audit event names each secret it set, replaced or cleared, never a value | `integrations/IntegrationParameterService.java:148-163,182-203` |
-| A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:629-639,657-666,690` |
+| A managed parameter is stored read-only, and only its integration writes or removes it: a workspace write or delete of it is `409 PARAMS_MANAGED_BY_INTEGRATION` (1804), and a client's `readOnly` is ignored, so a parameter keeps the read-only it was stored with | `workspace/WorkspaceService.java:665-675,693-702,726` |
 | A read-only parameter no template declares, such as one carried from v3, is not managed | `integrations/IntegrationParameterService.java:67-81` |
-| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team. A form integration is disconnected by sharing off | `integrations/GitHubService.java:416-420`, `integrations/IntegrationService.java:230-250`, `integrations/SlackService.java:655-688,965-985`, `integrations/IntegrationParameterService.java:147-163` |
-| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:195-232`, `integrations/IntegrationParameterService.java:222-243` |
+| Unlinking or uninstalling removes the managed parameters; a user's stay. Disconnecting Slack removes one workspace's link and parameter; uninstalling the Slack app removes them from every workspace linking that team. A form integration is disconnected by sharing off. Deleting a workspace removes each installation it linked that no other workspace links (`integrations/IntegrationService.java:233-247`) | `integrations/GitHubService.java:420-424`, `integrations/IntegrationService.java:250-270`, `integrations/SlackService.java:655-688,965-985`, `integrations/IntegrationParameterService.java:147-163` |
+| A GitHub installation token lives an hour. Every instance replaces each shared token every 45 minutes and within a minute of starting, with one targeted write that encrypts the value, touches no other parameter, raises no audit event and clears the layer cache | `integrations/GitHubService.java:196-234`, `integrations/IntegrationParameterService.java:222-243` |
 
 A GitHub or Slack task left on its default in a workspace that shares nothing fails at admission with
 `no such workspace param 'github-token'` or `'slack-token'`, and the editor warns when the workflow is saved
 (Admission checks, above). The editor shows a `password` field holding
 exactly one reference as text, so the default reads as written; anything typed over it is masked
-(`client-web/src/Features/Reactflow/components/shared/inputs.tsx:137-146`).
+(`client-web/src/Features/Reactflow/components/shared/inputs.tsx:138-147`).
 
 ## Sensitive parameters
 
@@ -180,7 +180,7 @@ and the container see the real value.
 | --- | --- |
 | Declared with the `password` field type on a workflow or catalogue task (the field keeps its name) | `ParameterUtil.getRunParamType` (`common/util/ParameterUtil.java:86-90`), used when the run (`workflow/WorkflowService.java:2169`) and each task run (`engine/DAGUtility.java:315`) are built |
 | Sent as `type: secret` on a run request; this raises a declared type and nothing lowers it | `ParameterUtil.addUniqueParam` (`common/util/ParameterUtil.java:130-140`) |
-| A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:336,1754` and `schedule/ScheduleService.java:232-235` |
+| A workflow node or schedule value whose declared param is `password` (the task template's, or the workflow's latest revision when the schedule is saved) is stamped at save | `ParameterUtil.stampSecretParams` (`common/util/ParameterUtil.java:98-112`), from `workflow/WorkflowService.java:336,1754` and `schedule/ScheduleService.java:235-238` |
 | A `string` param whose resolution substitutes in a secret's value (taint) | `ParameterManager.resolveParamLayers` (`engine/ParameterManager.java:187-192`) |
 
 Taint follows the same layer precedence as the values (`ParameterManager.secretReferenceKeys`,
@@ -234,14 +234,14 @@ merge of node values over task specs is separate.
 | Workspace-scoped run `get` and `query` | Name join, value scrub, then type (`workflow/WorkflowRunService.java:195-236`) |
 | Submit, start, cancel, pause, resume and retry responses | Type (`workflow/WorkflowService.java:731-733`, `workflow/WorkflowRunService.java:238-245`) |
 | `full` status events | A value scrub of the run's own secret values from results, status message, annotations and spec, then type (`event/model/RunStatusSummary.java:53-71`) |
-| Task log stream; manual action instructions | Value scrub (`workflow/WorkflowRunService.java:586-622`; `workflow/ActionService.java:325-341`, which keeps the instructions' text and hides only the secret) |
+| Task log stream; manual action instructions | Value scrub (`workflow/WorkflowRunService.java:586-622`; `workflow/ActionService.java:326-342`, which keeps the instructions' text and hides only the secret) |
 | Task-run query rows | Nothing to filter: a row leaves out params, results, spec, annotations and status message (`workflow/WorkflowRunService.java:425-434`) |
 | Insights task view | No param is read; a row groups on labels and sums the usage results of `ai` task runs |
 | Server labels | Never written from a secret: `boomerang.io/model` is skipped when the `model` param is secret-typed, and `boomerang.io/item` when the item contains the value of any secret in the run's parameter layers (`engine/TaskExecutionService.java:254-264,904-913,1385-1396`, `engine/ParameterManager.java:345`) |
-| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:983-984`) |
+| Global and workspace parameters | The read shape, with `hiddenValue: true` on every `password` param (`workflow/ParameterService.java:178-183`, `workspace/WorkspaceService.java:1019-1020`) |
 | Catalogue task `get`, `query`, create and apply responses (global and workspace routes) | The read shape (`workflow/TaskService.java:206-216`). The Tekton YAML read carries each param's default and description under `spec.params`, a `password` default as `*****`, which a YAML apply keeps (`workflow/tekton/TektonConverter.java:33-44`). `get(ref)`, `getSpecs` and `retrieveAndValidateTask`, which the engine and workflow save use, are not filtered |
-| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:307-342`, canvas `:983-987`). Duplicate copies the unfiltered workflow (`:958-969`) |
-| Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:235-238`); `internalGet`, which fires the run, is not filtered |
+| Workflow `get`, `query`, export, create, apply and duplicate responses, and the canvas (`composeGet`, the `composeApply` response) the editor and the run page load | The read shape on `password` defaults and on node secret values, the node's type stamped from the task spec on read for revisions saved before stamping (`workflow/WorkflowService.java:307-342`, canvas `:973-982`). Duplicate copies the unfiltered workflow (`:953-964`) |
+| Schedule `get`, `query`, create and apply responses | The read shape (`schedule/ScheduleService.java:242-245`); `internalGet`, which fires the run, is not filtered |
 | Admin settings | The read shape on a `secured` entry (`core/SettingsService.java:238-247`) |
 
 The name join and value scrub cover runs stored before params carried a type, and secrets that land in free
@@ -265,11 +265,12 @@ never print a value (`ParameterUtil.runParamNames`, `common/util/ParameterUtil.j
 a `password` field's default and value as `*****`, an env var by name only, and leaves a run spec's script,
 command and arguments out (`common/model/RunParam.java:36-38`, `common/model/AbstractParam.java:49-57`,
 `common/model/TaskEnvVar.java:24`, `common/model/TaskRunSpec.java:18-22`). Boomerang loggers default to INFO;
-DEBUG is opt-in (`service-core/src/main/resources/application.properties:202-213`).
+DEBUG is opt-in (`service-core/src/main/resources/application.properties:223-233`).
 
 The task log stream is wrapped in `FilterValuesOutputStream`, a line-buffered scrub of the same union over
-every task of the owning run (`common/util/FilterValuesOutputStream.java:23`). The dispatcher ends the stream
-when the pod finishes (`service-dispatcher/src/main/java/io/boomerang/kube/KubeLogService.java:25-27`); its
+every task of the owning run (`common/util/FilterValuesOutputStream.java:23`), whatever the dispatcher reads it
+from, a pod or Loki (`dispatcher-kubernetes.md`). The dispatcher ends a pod's stream when the pod finishes
+(`service-dispatcher/src/main/java/io/boomerang/kube/KubeLogService.java:25-27`) and a Loki stream after its last page; its
 asynchronous completion skips a second authorization (`core/security/SecurityConfiguration.java:120-121`).
 
 Downward, the dispatcher reads `type`
@@ -285,7 +286,7 @@ and workflow run admissions (`engine/TaskRunService.java:390`, `engine/WorkflowR
 params a dispatcher's start request adds (`engine/TaskRunService.java:1049-1053`). The cipher is
 `core/SecretCipher.java`, shared with secured settings: AES-256-GCM under `flow.encrypt.secret` and
 `flow.encrypt.salt`, written as `crypt_v1{AESGCM|<ciphertext>}`. Only that whole label counts as encrypted
-(`isEncrypted`, `:38-43`): a value that merely starts with `crypt_v1` is plaintext and is encrypted, a labelled
+(`isEncrypted`, `core/SecretCipher.java:38-43`): a value that merely starts with `crypt_v1` is plaintext and is encrypted, a labelled
 value is never encrypted twice, and an encryption failure throws rather than storing nothing (`:50-60`). An
 unlabelled value is encrypted on its next save, and one that will not decrypt is kept as stored, by the
 listener on load (`core/config/SecretValueMongoListener.java:163-170`) and by settings on the next save of its

@@ -103,25 +103,25 @@ const concepts = [
   {
     title: "Workflows",
     body: "A graph of tasks that automates a process the same way every time.",
-    href: "https://useboomerang.io/docs/introduction/getting-started",
+    href: "https://useboomerang.io/docs/flow/introduction/getting-started",
     Icon: Workflows,
   },
   {
     title: "Tasks",
     body: "One unit of work, run as a container. Pick from the catalogue or add your own.",
-    href: "https://useboomerang.io/docs/fundamentals/tasks",
+    href: "https://useboomerang.io/docs/flow/fundamentals/tasks",
     Icon: Gear,
   },
   {
     title: "Actions",
     body: "Approvals and manual steps where a person has to decide.",
-    href: "https://useboomerang.io/docs/fundamentals/actions",
+    href: "https://useboomerang.io/docs/flow/fundamentals/actions",
     Icon: PlayerFlow,
   },
   {
     title: "Parameters",
     body: "Inputs and results that flow between tasks, workflows and workspaces.",
-    href: "https://useboomerang.io/docs/fundamentals/parameters",
+    href: "https://useboomerang.io/docs/flow/fundamentals/parameters",
     Icon: Parameter,
   },
 ];

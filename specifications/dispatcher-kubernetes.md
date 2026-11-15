@@ -18,7 +18,7 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 
 `TaskService` is the task handler and runs each task through a `TaskExecutor` (`dispatcher/TaskService.java:118-180`);
 `WorkflowService` is the workflow handler and provisions each claimed run's volume
-(`dispatcher/WorkflowService.java:37-60`); both are wired in `config/DispatcherConfig.java:40-59`.
+(`dispatcher/WorkflowService.java:37-56`); both are wired in `config/DispatcherConfig.java:40-59`.
 
 - **Reconnect.** Each queue polls again at once after a poll that brought runs or was held for its window, and waits
   until 5 s after the start of one that failed or was answered empty at once (`sdk/QueuePoller.java:23`,
@@ -58,16 +58,17 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
 - **Engine and token.** It calls `flow.engine.url` (`http://localhost:7700` by default) through `RestConfig`'s
   pooled client, whose 60 s read outlasts the 30 s long poll, and sends `flow.engine.dispatcher.token` as
   `Authorization: Bearer` on engine calls only (`config/DispatcherConfig.java:22-32`;
-  `service-dispatcher/src/main/resources/application.properties:89`, `:145`); what the engine accepts is in the
+  `service-dispatcher/src/main/resources/application.properties:89`, `:146`); what the engine accepts is in the
   contract.
 - **Logs.** It serves `/api/v1/logs/stream` (`dispatcher/LogV1Controller.java:13-31`) to the engine alone: the route
   accepts only the bearer generated at every start and registered as `logsToken` (`dispatcher/LogAuthFilter.java:52-64`,
   `config/DispatcherConfig.java:57`). `flow.dispatcher.logs.url` is the address the engine reads it at, registered as
   `logsUrl`; blank registers none, and a running task then has no log to follow. With `dispatcher.logging.type=default`
-  the route reads the task's pod; `loki` queries Loki at `dispatcher.logging.host` and `port` instead
-  (`dispatcher/LogService.java:46-67`), selecting the task's pod labels as a log shipper's labelmap names them
-  (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`) and its container, `task` or `step-task`, as `container`
-  (`dispatcher/LogService.java:157-168`). The pod is the one the executor's runtime object owns, selected by the label
+  the route reads the task's pod; `loki` pages Loki's `query_range` at `dispatcher.logging.host` and `port` instead,
+  5000 entries a page, through `RestConfig`'s `streamingRestTemplate` read with Jackson, so its trust-all TLS and
+  timeouts apply but not the proxy (`dispatcher/LogService.java:51-53,78-138`), selecting the task's pod labels as a
+  log shipper's labelmap names them (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`) and its container,
+  `task` or `step-task`, as `container` (`dispatcher/LogService.java:140-151`). The pod is the one the executor's runtime object owns, selected by the label
   that object stamps on it, which the executor keeps from `create` until the stored log has been read
   (`executor/TaskExecutor.java:29-40`, `dispatcher/TaskService.java:170-171`, `:209-214`); a task this instance is not running,
   or one that started before it last restarted, falls back to the first pod under the task labels
@@ -219,7 +220,7 @@ Every task gets `/data`, a per-pod `emptyDir`, memory-backed when `kube.task.sto
 onto the run and each task run with its `mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher
 provisions one persistent volume claim keyed by the run id, labelled `boomerang.io/tier=workspace` and
 `boomerang.io/workspace-ref=<run id>` (`kube/KubeHelperService.java:345-355`), before the run starts
-(`dispatcher/WorkflowService.java:37-60`), and deletes it when its reconciliation finds the run completed
+(`dispatcher/WorkflowService.java:37-56`), and deletes it when its reconciliation finds the run completed
 (`dispatcher/WorkspaceReconciler.java:57-72`). No volume is shared between runs, a retry and its origin included:
 files that must survive a run are artifacts with scope `workflow` (`data-model.md`, "Artifacts"). Both executors mount
 that one claim at the task run's path (`kube/KubeJobsExecutor.java:322-345`; `kube/TektonServiceImpl.java:248-266`,

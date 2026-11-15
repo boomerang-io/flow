@@ -23,7 +23,7 @@ Deploy; scoped values are needed at run time without copying secrets onto the ru
 
 Per-param variables with engine substitution and caps, v3 layering, stores read live, and case-insensitive names.
 `resolveParamLayers` resolves a task's params before admission from layers built without the task's own params
-(`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:144-238`, `:534-571`), the secret taint follows
+(`service-core/src/main/java/io/boomerang/engine/ParameterManager.java:144-238`, `:534-586`), the secret taint follows
 the same layers (`:459-490`), and `fillSpec` fills the spec's references, the task's params included, at claim
 (`:288-314`). The dispatcher exports `PARAM_<NAME>` and `PARAM_NAMES` (`kube/KubeHelperService.java:124-163`); params
 over `flow.engine.task.params.max-bytes` end the task `invalid` and results over `flow.engine.task.results.max-bytes`

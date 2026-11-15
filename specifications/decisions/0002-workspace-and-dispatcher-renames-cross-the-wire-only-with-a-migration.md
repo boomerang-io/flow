@@ -19,12 +19,12 @@ renaming the reader but not the stored value turns a feature off silently.
 
 ## Decision
 
-B and D. Routes are `/api/v2/workspace/{workspace}/...` only (`workflow/WorkspaceWorkflowControllerV2.java:39`) and
-error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:26,49-53`). The v3 units rename
+B and D. Routes are `/api/v2/workspace/{workspace}/...` only (`workflow/WorkspaceWorkflowControllerV2.java:40`) and
+error reasons `WORKSPACE_*` with codes unchanged (`common/error/BoomerangError.java:28,52-55`). The v3 units rename
 `teams` to `workspaces` and drop v3 tokens for re-issue (`migration/_0002__V3PrepareCollections.java:62,67-82`), build
 `workspace` graph nodes (`migration/_0013__V3BuildRelationshipGraph.java:246`) and map the `team*` settings keys to
 `quotas` and `workspace*` (`migration/_0016__BuildSettingsFromSeed.java:54,70-73`), the keys
-`core/FeatureService.java:44-78` and `client-web/src/Features/App/App.tsx:232-236` read. Workspace tokens use `bfk`;
+`core/FeatureService.java:44-78` and `client-web/src/Features/App/App.tsx:233-237` read. Workspace tokens use `bfk`;
 `bft` and `bfw` are rejected (`core/enums/TokenTypePrefix.java:22-35`). The worker is `service-dispatcher`, since it
 claims work and hands it to a runtime rather than hosting it: wire `/dispatcher/v1`
 (`dispatcher/DispatcherControllerV1.java:54`), registry `dispatchers`, claim field `claim.by`, runtime
@@ -37,4 +37,4 @@ claims work and hands it to a runtime rather than hosting it: wire `/dispatcher/
 - Every rename of a settings key, stored enum value or query parameter MUST ship with the change unit that moves the
   stored value, as `_0027__RenameWorkspaceTaskNodes` does for `teamtask` nodes.
 - Core names no dispatcher in its properties: a dispatcher registers its own log route (decision 0039). The `teamRef`
-  parameters in `event/WebhookEventService.java:102` and `schedule/ScheduleJob.java:51` are cosmetic leftovers.
+  parameters in `event/WebhookEventService.java:108` and `schedule/ScheduleJob.java:51` are cosmetic leftovers.

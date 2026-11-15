@@ -100,9 +100,9 @@ Kubernetes-only.
 task on BOTH executors — the Jobs executor puts it on the pod spec, the Tekton executor on the TaskRun `podTemplate`.
 One setting per dispatcher deployment; run a second dispatcher deployment for a different isolation tier.
 
-Both executors build the same volumes: `/data` (emptyDir) and the `workflow` / `workflowrun` workspace PVCs at
-`/workspace/<type>` (or the declared mount path). Params reach the task container two ways, both usable by any image,
-Flow-aware or not:
+Both executors build the same volumes: `/data` (emptyDir) and the run's one workspace, a persistent volume claim
+keyed by the run, mounted at the path the workflow declares (`/workspace` when it names none). No volume is shared
+between runs. Params reach the task container two ways, both usable by any image, Flow-aware or not:
 
 - `$(params.<name>)` references in `script`, `command`, `arguments` and `envs` are substituted by the engine before
   dispatch.

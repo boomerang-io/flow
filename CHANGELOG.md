@@ -7,13 +7,6 @@ tag's release notes.
 
 ### Upgrading
 
-- **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.4.0`.** A change unit moves the `task`
-  settings' `default.image` from `3.3.0` where it still holds that value; a value an operator chose is kept. 3.4.0 fixes
-  HTTP Call, the Slack webhook tasks' exit codes, JSONPath with no match, and Execute Shell's paths.
-  A second change unit adds the 8 matching catalogue revisions an install lacks (HTTP Call basic 2 and advanced 5, the three
-  Slack webhook tasks 3, JSONPath to Parameter 4, File JSONPath to Parameter 3, Execute Shell 3 with `failOnError`);
-  revisions already held, which workflows may pin, are not changed.
-
 - **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
   `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
   workflow a program starts this way. A body `trigger` other than `manual` or `api`, in any case, is now `400`.
@@ -27,12 +20,15 @@ tag's release notes.
 - **The dispatcher takes service-core's address as one URL.** `flow.engine.service.host` is gone: set
   `flow.engine.url` (`FLOW_ENGINE_URL`, for example `http://service-core:7700`). Its default is
   `http://localhost:7700`, service-core's port; the old default pointed at 7701, where nothing listens.
-- **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.3.0`** (the `task` settings'
-  `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change unit
-  `_0036__DefaultTaskImageTaskFlow33` moves an install whose setting still holds 3.1.0; an image an operator chose is
-  kept. No seeded revision pins a task-flow version any more: `_0043__UnpinTaskFlowImages` removes the pin from every
-  revision naming `boomerangio/task-flow`, so each follows the setting (the AI, Box and Python worker images stay).
-  What changes for those tasks:
+- **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.4.0`** (the `task` settings'
+  `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change units move an
+  install whose setting still holds 3.1.0 or 3.3.0 (`_0036__DefaultTaskImageTaskFlow33`, then
+  `_0048__DefaultTaskImageTaskFlow34`); an image an operator chose is kept. No seeded revision pins a task-flow version:
+  `_0043__UnpinTaskFlowImages` removes the pin from every revision naming `boomerangio/task-flow`, so each follows the
+  setting (the AI, Box and Python worker images stay). `_0049__SeedTaskFlow34Revisions` adds the 8 catalogue revisions
+  an install lacks (HTTP Call basic 2 and advanced 5, the three Slack webhook tasks 3, JSONPath to Parameter 4, File
+  JSONPath to Parameter 3, Execute Shell 3 with `failOnError`); revisions already held, which workflows may pin, are
+  not changed. What changes for those tasks:
   - Script tasks run on Alpine 3.24 with Node 24 (was 20), npm 11 at `/usr/local/bin/npm` (`/usr/bin/npm` is gone),
     GNU tar, OpenSSL 3.5, curl 8.23 and bash 5.3.
   - Tasks that exited successfully having done nothing now do their work, or fail visibly: Append Data (Sheets)
@@ -43,6 +39,7 @@ tag's release notes.
   - The mail, ServiceNow and Slack tasks work when `HTTP_PROXY` is set, and JSONPath To Parameter no longer
     crashes with `module is not defined`.
   - Task logs no longer print param values, and Google errors no longer include the request's bearer token.
+  - 3.4.0 fixes HTTP Call, the Slack webhook tasks' exit codes, JSONPath with no match, and Execute Shell's paths.
 - **The GitHub tasks need GitHub App permissions.** The GitHub catalogue tasks act with the GitHub App's
   installation token when a workspace shares it; between them they need Issues: write, Pull requests: write,
   Contents: read or write, Commit statuses: write and Actions: write on the App. Each task's description names its
@@ -54,13 +51,17 @@ tag's release notes.
   the `sh -c java …` command the v3 chart used no longer apply), and trust an internal CA by mounting a
   truststore and naming it there (`-Djavax.net.ssl.trustStore=…`) rather than importing a certificate at
   container start. The container runs as uid 10001 in group 0.
+- **The webapp image has no shell either.** `flow-client-web` runs on Google's distroless Node 24: no shell, package
+  manager or npm, as its nonroot user (uid 65532). A probe that runs inside the container uses node itself; the HTTP
+  probe is `GET /apps/flow/health`.
+- **The MongoDB address is `spring.mongodb.uri`.** v5 reads `spring.mongodb.uri` (`SPRING_MONGODB_URI`), not v3's
+  `spring.data.mongodb.uri` (`SPRING_DATA_MONGODB_URI`). A deployment that sets only the old name gets the packaged
+  `localhost` address and does not connect.
 - **Migrations run inside `service-core` as it starts.** The `flow-service-loader` image and its pre-deploy
   Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
   migration. One product tag builds three images.
-- **A v3 workflow that uses the Sleep task needs its sleep node replaced.** The upgrade makes Sleep a native `sleep`
-  task but leaves the workflow's node typed `template`, so the node fails when it runs, and saving the workflow is
-  refused with `WORKFLOW_INVALID_TASK_TYPE` until the node is deleted and Sleep added again from the palette.
-- **You can upgrade from v3, although runs are dropped.**
+- **You can upgrade from v3, and its runs carry over.** v3's workflow runs become completed runs; their task runs are
+  dropped. Runs older than the Activity retention (365 days) are purged within hours of the first start (see below).
 - **The v3 install must come from bmrg-flow 4.13.5 or later** (flow-loader 0.5.9 or later, whose changelog holds
   changeset `111`). An older v3 install is refused at startup: move it to that chart first.
 - **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
@@ -88,12 +89,15 @@ tag's release notes.
   (`?workspace=<workspace>&ref=<workflow name>`, on `POST /api/v2/webhook` too), which is the URL the editor now
   shows. Without `ref`, the subject's first segment names the workflow. v3 workflows that filled properties from
   a CloudEvent's data with a `jsonPath` need changing: see "Upgrading from v3" in the README.
-- **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so a
-  shared email stops startup until it is resolved. See "Upgrading from v3" in the README.
+- **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so an exact
+  duplicate email stops startup until it is resolved. Emails that differ only in case are left as they are and logged
+  at ERROR, and the mixed-case account in such a pair stops resolving at sign-in. See "Upgrading from v3" in the
+  README.
 - **`flow.mode` is gone; two properties express the deployment shape.** `flow.security.enabled` (default `true`)
   switches authentication and authorization together, and `flow.workspace.single` (default `false`) serves the
-  seeded `system` workspace alone. An embedded, headless engine sets `false` and `true`. Remove `FLOW_MODE` from
-  every deployment. A secured install with no person to sign in takes its first credential from
+  seeded `system` workspace alone. An embedded, headless engine sets `false` and `true`.
+  `flow.dispatcher.auth.enabled` and `flow.queue.enabled` are separate switches, not part of the shape. Remove
+  `FLOW_MODE` from every deployment. A secured install with no person to sign in takes its first credential from
   `flow.security.bootstrap-token`, registered as a global machine token at start.
 - **Finished runs are now purged after the Activity retention, 365 days by default.** The new "Activity
   Retention (days)" setting in the workflow-run group (floored at 60) deletes each finished run older than it,
@@ -179,6 +183,17 @@ tag's release notes.
   Manage edits them, a stored secret kept until it is retyped, and Disconnect removes them. The share route takes
   them as `values`. Change unit `_0034__SeedFormIntegrations` adds the two templates and marks GitHub and Slack as
   integrations Flow installs. No catalogue task defaults to them yet.
+- **Four error codes changed so that every code names one reason.** `USER_NOT_FOUND` is `102` (was `101`),
+  `TASK_DELETE_IN_USE` `1407` (was `1405`), `PARAMS_NON_UNIQUE_KEY` `1805` (was `1802`) and `DATA_CONVERSION_FAILED`
+  `1040` (was `500`); the unused `WORKFLOW_TRIGGER_DISABLED` is gone. A client that matched one of these codes moves
+  with it; matching on `reason` is unaffected.
+- **`PERMISSION_DENIED` answers `403`.** Where the API raised it directly (a refusal to a caller already signed in),
+  it answered `401`, which a client could take for a lapsed session. A missing or invalid credential is still `401`.
+- **Lists page one way.** Every list takes `page`, `limit` and `order=ASC|DESC`; the token, action, workspace and
+  user lists also take `sort=<field>`, and the workflow and task lists still accept the old `sort=ASC|DESC` through
+  5.x. Without `order`, runs, task runs, tokens and actions read newest first, audit events newest first by `time`,
+  workspaces and users by `name` A to Z, workflows, tasks and schedules oldest first, and artifacts largest first. A request without `limit` reads everything, except the audit
+  trail (25, at most 100); no paging parameter is required. The Schedules page now shows every schedule.
 - **The last "team" names on the API say "workspace".** `GET /api/v2/profile` returns the user's workspaces as
   `workspaces` (was `teams`), and the error reasons `TEAM_INVALID_REF`, `TEAM_INVALID_REQ`, `TEAM_NON_UNIQUE_NAME`,
   `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
@@ -265,7 +280,7 @@ tag's release notes.
   dispatcher awaiting its terminate poll, is removed by a new watcher sweep once they have settled, or after ten
   minutes. Both need `workflowrun/delete` (owner and admin) and are audited as destructive. Audit records stay. A new
   sparse index, `purge_sweep`, joins the inventory.
-- 16 catalogue tasks from `boomerangio/task-flow:3.3.0`: GitHub (create an issue, comment on an issue or pull
+- 16 catalogue tasks on the default task-flow image: GitHub (create an issue, comment on an issue or pull
   request, create a pull request, set a commit status, dispatch a workflow, create a release, get file contents),
   Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
   Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
@@ -449,7 +464,7 @@ tag's release notes.
   them as they stand then. A run's only `boomerang.io/*` annotations are `generation` and `kind`; a submit or start
   that sends one has it dropped.
 - Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
-  is still published to GitHub Packages.
+  and `flow-sdk` are published to GitHub Packages.
 - Spring Boot 4.1.1, with Tomcat 11.0.27, Jackson 2.21.8 and 3.1.8 and commons-io 2.22.0 ahead of it, and the
   latest chiseled JRE base image, for the critical and high CVEs fixed since 4.1.0. The webapp image has no npm or
   corepack: the server runs on node alone.
@@ -537,8 +552,13 @@ tag's release notes.
 ### Fixed
 
 - A sleep whose duration is missing, not a whole number of milliseconds, negative or too large fails with a message
-  saying so; it was left running.
-
+  naming the value; it was marked running and never ended.
+- Deleting a workspace that does not exist answers `404 WORKSPACE_INVALID_REF`, not `500`.
+- Deleting a workspace removes its approver groups, and any integration installation no other workspace links.
+  Deleting a user removes them from every approver group. Removing a member, or a member leaving, takes them out of
+  that workspace's approver groups, and a group approval counts only from a current member.
+- On a secured install, the probe groups `/health/liveness` and `/health/readiness` answer without a token, like
+  `/health`, so Kubernetes probes pass.
 - Saving a workflow refuses a node whose `type` is not the type of the task it references, with
   `400 WORKFLOW_INVALID_TASK_TYPE` (1224) naming the node, both types and the task. A `sleep` task saved as a
   `template` node was accepted and then failed in its container with "missing required argument 'cmd'".
@@ -595,7 +615,7 @@ tag's release notes.
 - Sending a workspace member again changes their role. It added a second membership that was never read, so the
   member kept their first role.
 - A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs
-  an admin or operator, so a plain user cannot make themselves an admin.
+  an admin or operator, so a plain user cannot make themselves an admin, as 5.0.0-beta.39 allowed.
 - The webapp no longer shows its error page when the starter templates cannot be read; it offers none.
 - A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
   `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every
@@ -641,6 +661,8 @@ tag's release notes.
   log shipper's labelmap names them (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`), and the task container
   of either executor (`container=~"task|step-task"`). The query asked for v3's `bmrg_*` labels and Tekton's container
   only, so it matched no v5 task. The log shipper must map pod labels and the container name under those names.
+  The dispatcher reads Loki through its streaming HTTP client (`RestConfig`) with that client's timeouts and TLS
+  handling, rather than a default client; the proxy setting does not reach Loki yet.
 - Slack's own install link (`GET /api/v2/integration/slack/install`) answers `409 INTEGRATION_NOT_CONFIGURED` while the
   Slack app's client ID or secret is unset, instead of `404 INTEGRATION_INVALID_REF`.
 - The API contract (`contracts/api-v2.yaml`) declares authentication: a bearer token or `x-access-token` on every
