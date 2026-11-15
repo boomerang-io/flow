@@ -21,7 +21,7 @@ class WorkspacesTest {
 
   private static final String WORKSPACES = StubServer.API + "/workspace";
   private static final String MIRROR =
-      "{\"id\":\"w1\",\"name\":\"archie-6ae2e9cc99b43262aa3e8e28\",\"displayName\":\"Acme\","
+      "{\"id\":\"w1\",\"name\":\"acme-6ae2e9cc99b43262aa3e8e28\",\"displayName\":\"Acme\","
           + "\"externalRef\":\"6ae2e9cc99b43262aa3e8e28\",\"status\":\"active\",\"type\":\"pro\","
           + "\"creationDate\":\"2026-10-01T10:00:00.000+00:00\",\"labels\":{\"tenant\":\"acme\"},"
           + "\"members\":[],\"quotas\":{\"maxWorkflowCount\":0}}";
@@ -42,17 +42,17 @@ class WorkspacesTest {
         .andExpect(header("Authorization", "Bearer secret"))
         .andExpect(
             StubServer.jsonBody(
-                "{\"name\":\"archie-6ae2e9cc99b43262aa3e8e28\",\"displayName\":\"Acme\","
+                "{\"name\":\"acme-6ae2e9cc99b43262aa3e8e28\",\"displayName\":\"Acme\","
                     + "\"externalRef\":\"6ae2e9cc99b43262aa3e8e28\",\"labels\":{\"tenant\":\"acme\"}}"))
         .andRespond(withSuccess(MIRROR, MediaType.APPLICATION_JSON));
 
     Workspace created =
         workspaces.create(
-            WorkspaceRequest.of("archie-6ae2e9cc99b43262aa3e8e28", "Acme")
+            WorkspaceRequest.of("acme-6ae2e9cc99b43262aa3e8e28", "Acme")
                 .externalRef("6ae2e9cc99b43262aa3e8e28")
                 .label("tenant", "acme"));
 
-    assertThat(created.name()).isEqualTo("archie-6ae2e9cc99b43262aa3e8e28");
+    assertThat(created.name()).isEqualTo("acme-6ae2e9cc99b43262aa3e8e28");
     assertThat(created.externalRef()).isEqualTo("6ae2e9cc99b43262aa3e8e28");
     assertThat(created.status()).isEqualTo(WorkspaceStatus.active);
     assertThat(created.labels()).containsEntry("tenant", "acme");
@@ -69,7 +69,7 @@ class WorkspacesTest {
                 .body(
                     "{\"code\":1105,\"reason\":\"WORKSPACE_EXTERNAL_REF_TAKEN\","
                         + "\"message\":\"A workspace already carries this external reference:"
-                        + " \\\"archie-6ae2e9cc99b43262aa3e8e28\\\".\",\"status\":\"409 CONFLICT\"}"));
+                        + " \\\"acme-6ae2e9cc99b43262aa3e8e28\\\".\",\"status\":\"409 CONFLICT\"}"));
     stub.server
         .expect(
             requestTo(WORKSPACES + "/query?externalRef=6ae2e9cc99b43262aa3e8e28&limit=1&page=0"))
@@ -78,7 +78,7 @@ class WorkspacesTest {
 
     Workspace ensured =
         workspaces.ensure(
-            WorkspaceRequest.of("archie-6ae2e9cc99b43262aa3e8e28", "Acme")
+            WorkspaceRequest.of("acme-6ae2e9cc99b43262aa3e8e28", "Acme")
                 .externalRef("6ae2e9cc99b43262aa3e8e28"));
 
     assertThat(ensured.id()).isEqualTo("w1");
@@ -107,23 +107,23 @@ class WorkspacesTest {
   @Test
   void getQueryAndDeleteUseTheirRoutes() {
     stub.server
-        .expect(requestTo(WORKSPACES + "/archie-6ae2e9cc99b43262aa3e8e28"))
+        .expect(requestTo(WORKSPACES + "/acme-6ae2e9cc99b43262aa3e8e28"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess(MIRROR, MediaType.APPLICATION_JSON));
     stub.server
         .expect(
             requestTo(
                 WORKSPACES
-                    + "/query?search=ac&labels=tenant%3Dacme&statuses=active&workspaces=archie-6ae2e9cc99b43262aa3e8e28"
+                    + "/query?search=ac&labels=tenant%3Dacme&statuses=active&workspaces=acme-6ae2e9cc99b43262aa3e8e28"
                     + "&externalRef=6ae2e9cc99b43262aa3e8e28&limit=20&page=0&order=ASC&sort=name"))
         .andExpect(method(HttpMethod.GET))
         .andRespond(withSuccess(StubServer.page(0, 20, 1, true, MIRROR), MediaType.APPLICATION_JSON));
     stub.server
-        .expect(requestTo(WORKSPACES + "/archie-6ae2e9cc99b43262aa3e8e28"))
+        .expect(requestTo(WORKSPACES + "/acme-6ae2e9cc99b43262aa3e8e28"))
         .andExpect(method(HttpMethod.DELETE))
         .andRespond(withSuccess());
 
-    assertThat(workspaces.get("archie-6ae2e9cc99b43262aa3e8e28").displayName()).isEqualTo("Acme");
+    assertThat(workspaces.get("acme-6ae2e9cc99b43262aa3e8e28").displayName()).isEqualTo("Acme");
     assertThat(
             workspaces
                 .query(
@@ -131,13 +131,13 @@ class WorkspacesTest {
                         .search("ac")
                         .labels("tenant=acme")
                         .statuses(WorkspaceStatus.active)
-                        .names("archie-6ae2e9cc99b43262aa3e8e28")
+                        .names("acme-6ae2e9cc99b43262aa3e8e28")
                         .externalRef("6ae2e9cc99b43262aa3e8e28")
                         .page(0, 20)
                         .sort("name", Order.ASC))
                 .content())
         .extracting(Workspace::id)
         .containsExactly("w1");
-    workspaces.delete("archie-6ae2e9cc99b43262aa3e8e28");
+    workspaces.delete("acme-6ae2e9cc99b43262aa3e8e28");
   }
 }

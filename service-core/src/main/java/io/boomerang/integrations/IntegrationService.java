@@ -232,6 +232,22 @@ public class IntegrationService {
   }
 
   /*
+   * After a workspace is deleted its links go with it: each installation it linked that no other
+   * workspace still links is removed, record and node. One another workspace links stays, as a
+   * Slack team several workspaces share does.
+   */
+  public void deleteUnlinked(List<String> refs) {
+    for (String ref : refs) {
+      if (relationshipService
+          .getParentsByLabel(RelationshipLabel.HAS_INTEGRATION, RelationshipType.INTEGRATION, ref)
+          .isEmpty()) {
+        integrationsRepository.deleteById(ref);
+        relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.INTEGRATION, ref);
+      }
+    }
+  }
+
+  /*
    * The installation is gone: its record, its node, and the parameters it managed in the workspace
    * it was linked to.
    */

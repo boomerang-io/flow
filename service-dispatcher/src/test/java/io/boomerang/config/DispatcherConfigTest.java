@@ -2,6 +2,7 @@ package io.boomerang.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.boomerang.dispatcher.LogService;
 import io.boomerang.dispatcher.TaskService;
 import io.boomerang.dispatcher.WorkflowService;
 import io.boomerang.dispatcher.sdk.Dispatcher;
@@ -10,10 +11,13 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestTemplate;
 
 /**
  * The application wires the SDK to its handlers: the async-proxied container handler is still
@@ -30,6 +34,12 @@ class DispatcherConfigTest {
 
   @Autowired private WorkflowService workflowService;
 
+  @Autowired private LogService logService;
+
+  @Autowired
+  @Qualifier("streamingRestTemplate")
+  private RestTemplate streamingRestTemplate;
+
   @Value("${flow.engine.url}")
   private String engineUrl;
 
@@ -39,6 +49,13 @@ class DispatcherConfigTest {
   @Test
   void theContainerHandlerIsAsyncProxiedAndStillInjectedByClass() {
     assertThat(AopUtils.isCglibProxy(taskService)).isTrue();
+  }
+
+  // Loki is read through RestConfig's streaming template, so its TLS and timeout settings apply.
+  @Test
+  void theLokiReaderUsesTheConfiguredStreamingTemplate() {
+    assertThat(ReflectionTestUtils.getField(logService, "lokiRestTemplate"))
+        .isSameAs(streamingRestTemplate);
   }
 
   @Test

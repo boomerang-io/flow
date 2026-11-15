@@ -7,6 +7,7 @@ import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.integrations.IntegrationParameterService;
+import io.boomerang.integrations.IntegrationService;
 import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
@@ -92,6 +93,7 @@ public class WorkspaceService {
   private final QuotaService quotaService;
   private final ParamLayerCache paramLayerCache;
   private final IntegrationParameterService integrationParameterService;
+  private final IntegrationService integrationService;
   // flow.workspace.single: the seeded system workspace is the only one, so none is created or deleted.
   private final boolean single;
 
@@ -110,6 +112,7 @@ public class WorkspaceService {
       QuotaService quotaService,
       ParamLayerCache paramLayerCache,
       IntegrationParameterService integrationParameterService,
+      IntegrationService integrationService,
       Environment environment) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
@@ -125,6 +128,7 @@ public class WorkspaceService {
     this.quotaService = quotaService;
     this.paramLayerCache = paramLayerCache;
     this.integrationParameterService = integrationParameterService;
+    this.integrationService = integrationService;
     this.single = FlowWorkspaceProperties.isSingle(environment);
   }
 
@@ -408,10 +412,19 @@ public class WorkspaceService {
       templateNames.forEach(name -> taskService.delete(workspace, name));
     }
 
-    // TODO - Delete Workspace Integration Installations
+    // The workspace's approver groups belong to it alone.
+    for (String ref :
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, workspace, Optional.empty())) {
+      approverGroupRepository.deleteById(ref);
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.APPROVERGROUP, ref);
+    }
 
-    // Read before the node goes: removing it removes the members' edges too.
+    // Read before the node goes: removing it removes the members' and installations' edges too.
     Set<String> memberRefs = relationshipService.membersAndRoles(workspace).keySet();
+    List<String> integrationRefs =
+        relationshipService.refsInWorkspace(
+            RelationshipType.INTEGRATION, workspace, Optional.empty());
 
     // Delete Workspace
     workspaceRepository.deleteByName(workspace);
@@ -420,6 +433,7 @@ public class WorkspaceService {
     relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, workspace);
 
     memberRefs.forEach(userService::deleteUnusedInvitation);
+    integrationService.deleteUnlinked(integrationRefs);
   }
 
   /*

@@ -4,28 +4,33 @@ import io.boomerang.executor.TaskExecutor;
 import io.boomerang.kube.KubeLogService;
 import io.boomerang.kube.exception.KubeRuntimeException;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.net.URLEncoder;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.context.support.MessageSourceAccessor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class LogService {
 
   private static final Logger LOGGER = LogManager.getLogger(LogService.class);
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  // The most entries Loki returns for one query_range call.
+  static final int LOKI_PAGE_LIMIT = 5000;
 
   @Value("${dispatcher.logging.type}")
   protected String loggingType;
@@ -42,6 +47,10 @@ public class LogService {
 
   @Value("${dispatcher.logging.port}")
   protected String lokiPort;
+
+  @Autowired
+  @Qualifier("streamingRestTemplate")
+  private RestTemplate lokiRestTemplate;
 
   public StreamingResponseBody streamLogForTask(
       HttpServletResponse response, String workflowRef, String workflowRunRef, String taskRunRef) {
@@ -66,92 +75,66 @@ public class LogService {
     }
   }
 
-  // TODO: reduce complexity, refactor method
+  /*
+   * Pages Loki's query_range forward from the epoch, 5000 entries a page (Loki's maximum), through
+   * the streaming template so RestConfig's TLS and timeout settings apply. A page that comes back
+   * full continues from its last entry's timestamp; Loki's start is inclusive, so the next page's
+   * first entry repeats it and is skipped.
+   */
   private StreamingResponseBody streamLogsFromLoki(String workflowRef, String taskRunRef) {
-
     LOGGER.info("Streaming logs from loki for TaskRun (" + taskRunRef + ")");
     return outputStream -> {
-      PrintWriter printWriter = new PrintWriter(outputStream);
-
-      final String filter = lokiSelector(workflowRef, taskRunRef);
-      LOGGER.info("Loki filter: " + filter);
-
-      final String encodedQuery = URLEncoder.encode(filter, StandardCharsets.UTF_8);
-      final int limit = 5000; // max chunk size supported by Loki
-      final String direction = "forward"; // default backward
-      final String lokiEndpoint = "http://" + lokiHost + ":" + lokiPort;
-      final String uri =
-          lokiEndpoint
-              + "/loki/api/v1/query_range?&limit="
-              + Integer.toString(limit)
-              + "&direction="
-              + direction
-              + "&query="
-              + encodedQuery;
-      // If no `end` argument is defined, it will be automatically set to `now()` by server
-
-      LOGGER.info("Loki endpoint: " + uri);
-
-      String start = "&start=0"; // Thursday, January 1, 1970 12:00:00 AM
-      Boolean moreLogsAvailable = Boolean.TRUE; // TODO: create a method instead
-      CloseableHttpClient httpClient = HttpClients.createDefault();
-
+      PrintWriter printWriter =
+          new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
       try {
-        while (moreLogsAvailable.equals(Boolean.TRUE)) {
-          HttpGet request = new HttpGet(uri + start);
-
-          // TODO check if result is in JSON format
-          JSONObject currentLogBatch =
-              httpClient.execute(
-                  request,
-                  response ->
-                      (response.getEntity() != null)
-                          ? new JSONObject(EntityUtils.toString(response.getEntity()))
-                          : null);
-
-          if (currentLogBatch == null) {
+        String start = "0";
+        boolean firstPage = true;
+        while (start != null) {
+          JsonNode values = lokiPage(workflowRef, taskRunRef, start);
+          if (values == null) {
             printWriter.println(getMessageUnableToAccessLogs());
-            printWriter.flush();
-            printWriter.close();
-            return;
+            break;
           }
-
-          JSONArray queryResults = currentLogBatch.getJSONObject("data").getJSONArray("result");
-          JSONArray logArray;
-          String logEntry;
-
-          if (queryResults.length() == 0) {
-            printWriter.println(getMessageUnableToAccessLogs());
-            printWriter.flush();
-            printWriter.close();
-            return;
+          for (int index = firstPage ? 0 : 1; index < values.size(); index++) {
+            printWriter.print(values.get(index).get(1).asString());
           }
-
-          logArray = queryResults.getJSONObject(0).optJSONArray("values");
-
-          int index = 1;
-          if (start.equals("&start=0")) index = 0; // no prior log line to overlap
-
-          for (; index < logArray.length(); index++) { // print line by line
-            logEntry = logArray.getJSONArray(index).get(1).toString();
-            printWriter.print(logEntry); // TODO: can I generate multiline payloads?
-          }
-
-          if (logArray.length() < limit) { // check if the current iteration is the last one
-            moreLogsAvailable = Boolean.FALSE;
-          } else {
-            JSONArray lastEntry = logArray.getJSONArray(logArray.length() - 1);
-            start = "&start=" + lastEntry.get(0).toString();
-          }
+          start =
+              values.size() < LOKI_PAGE_LIMIT
+                  ? null
+                  : values.get(values.size() - 1).get(0).asString();
+          firstPage = false;
         }
       } catch (Exception e) {
         LOGGER.error("Error while streaming logs from Loki: ", e);
-      } finally {
-        httpClient.close();
       }
       printWriter.flush();
       printWriter.close();
     };
+  }
+
+  // The first stream's [timestamp, line] pairs, or null when Loki has no stream for the task.
+  private JsonNode lokiPage(String workflowRef, String taskRunRef, String start) {
+    URI uri =
+        UriComponentsBuilder.fromUriString("http://" + lokiHost + ":" + lokiPort)
+            .path("/loki/api/v1/query_range")
+            .queryParam("limit", LOKI_PAGE_LIMIT)
+            .queryParam("direction", "forward")
+            .queryParam("start", start)
+            .queryParam("query", "{query}")
+            .encode()
+            .buildAndExpand(lokiSelector(workflowRef, taskRunRef))
+            .toUri();
+    LOGGER.debug("Loki query: " + uri);
+    String body = lokiRestTemplate.getForObject(uri, String.class);
+    if (body == null) {
+      return null;
+    }
+    JsonNode result = OBJECT_MAPPER.readTree(body).path("data").path("result");
+    if (!result.isArray() || result.isEmpty()) {
+      return null;
+    }
+    JsonNode values = result.get(0).path("values");
+    return values.isArray() ? values : null;
   }
 
   /*

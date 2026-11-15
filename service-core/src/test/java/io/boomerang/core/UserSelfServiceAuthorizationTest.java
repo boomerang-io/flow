@@ -18,7 +18,9 @@ import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workspace.WorkspaceService;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.model.WorkspaceRequest;
+import io.boomerang.workspace.repository.ApproverGroupRepository;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -57,6 +59,7 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
   @Autowired private RoleRepository roleRepository;
   @Autowired private TokenService tokenService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private ApproverGroupRepository approverGroupRepository;
 
   private String ownerId;
   private String targetId;
@@ -153,6 +156,20 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
     assertEquals(UserType.user, userRepository.findById(selfId).orElseThrow().getType());
   }
 
+  // PATCH /api/v2/profile names no id: the caller's own record, under the same guard.
+  @Test
+  void aUserCannotChangeTheirOwnTypeThroughTheirProfile() {
+    String selfId = plainUser("user-authz-profile-type@test.local", UserType.user);
+    installSessionIdentity(selfId);
+    UserRequest request = new UserRequest();
+    request.setType(UserType.admin);
+
+    BoomerangException ex =
+        assertThrows(BoomerangException.class, () -> userService.updateCurrentProfile(request));
+    assertEquals("PERMISSION_DENIED", ex.getReason());
+    assertEquals(UserType.user, userRepository.findById(selfId).orElseThrow().getType());
+  }
+
   @Test
   void aUserMaySendTheirOwnTypeUnchanged() {
     String selfId = plainUser("user-authz-self-same-type@test.local", UserType.user);
@@ -190,6 +207,24 @@ class UserSelfServiceAuthorizationTest extends AbstractEngineIntegrationTest {
     userService.delete(selfId);
 
     assertTrue(userRepository.findById(selfId).isEmpty(), "the self-delete must be served");
+  }
+
+  // Leaving a workspace keeps a user in its approver groups, so the delete takes them out.
+  @Test
+  void deletingAUserTakesThemOutOfEveryApproverGroup() {
+    String leaverId = plainUser("user-authz-approver-leaver@test.local", UserType.user);
+    ApproverGroupEntity group = new ApproverGroupEntity();
+    group.setName("user-authz-approvers-" + UUID.randomUUID().toString().substring(0, 8));
+    group.setApprovers(List.of(leaverId, ownerId));
+    group = approverGroupRepository.save(group);
+    installSessionIdentity(leaverId);
+
+    userService.delete(leaverId);
+
+    assertEquals(
+        List.of(ownerId),
+        approverGroupRepository.findById(group.getId()).orElseThrow().getApprovers(),
+        "the deleted user must leave the group and the other approver stay");
   }
 
   @Test
