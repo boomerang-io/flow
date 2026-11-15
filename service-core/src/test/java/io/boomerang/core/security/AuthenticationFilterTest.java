@@ -187,7 +187,7 @@ class AuthenticationFilterTest {
   @ParameterizedTest
   @ValueSource(strings = {"person@example.test:", "person@example.test"})
   void aBlankConfiguredBasicPasswordAuthenticatesNobody(String credentials) throws Exception {
-    // flow.authorization.basic.password is unset by default, and a header with no password
+    // flow.authorization.basic.password is blank by default, and a header with no password
     // supplies an empty one: the two must not match, or Basic would admit any email.
     AuthenticationFilter unconfigured =
         new AuthenticationFilter(

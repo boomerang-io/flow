@@ -1,16 +1,14 @@
 # Design system
 
 Boomerang Flow's design system is IBM Carbon v11 with the Boomerang theme and the Boomerang Carbon add-ons; no other
-design system's tokens or components belong here. Paths below are under `client-web/` unless they start with another
-module.
+design system's tokens or components belong here. Paths are under `client-web/` unless they name another module.
 
 ## Package stack
 
 The webapp uses `@carbon/react` 1.75.0 (Carbon v11 components, SCSS, tokens, grid and type),
 `@boomerang-io/carbon-addons-boomerang-react` 4.9.0-beta.15 (the Boomerang components, the `boomerang` theme and
 add-on SCSS), `@boomerang-io/styles` 1.1.0 (the brand palette), `@boomerang-io/utils`, `@carbon/charts` with
-`@carbon/charts-react`, `@carbon/pictograms-react`, `@xyflow/react` 12 for the canvas, and React 18
-(`package.json:28-34,61,98`).
+`@carbon/charts-react`, `@carbon/pictograms-react`, `@xyflow/react` 12 for the canvas, and React 18 (`package.json:28-34,61,98`).
 
 Styling is SCSS with CSS Modules (`*.module.scss`, imported by 175 components). Tailwind, CSS-in-JS, a second UI or
 charting framework, and another design system's assets do not belong in the webapp.
@@ -20,8 +18,7 @@ charting framework, and another design system's assets do not belong in the weba
 The Boomerang theme is Carbon's White theme with the Boomerang theme merged over it through Carbon's compat layer,
 emitted as CSS custom properties under `[data-carbon-theme="boomerang"]` together with Carbon's button (merged with
 Boomerang's v11 button tokens), notification and tag component tokens (`src/Styles/_carbon-components.scss:12-42`).
-The attribute sits on the document's `<html>` element (`app/root.tsx:64`). A new Carbon app copies that file rather
-than improvising a theme.
+The attribute sits on the document's `<html>` element (`app/root.tsx:64`). A new Carbon app copies that file.
 
 The global stylesheet imports, in order, `variables`, `animation`, `carbon-components`, `@boomerang-io/styles` and
 `base` (`src/Styles/styles.scss:1-5`).
@@ -99,8 +96,8 @@ then a 40px row holding the page's tabs or, when it has none, its one-line descr
 | Part | Rule |
 | --- | --- |
 | Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; the Manage area's layout carries `Home / Manage` once for every tab (`src/Features/Manage/Manage.tsx:56-77`). |
-| Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name (`src/Features/WorkflowEditor/Header/Header.tsx:64-81`), Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
-| Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`src/Features/WorkflowRun/RunHeader/RunHeader.tsx:199-213`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
+| Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name (`src/Features/WorkflowEditor/Header/Header.tsx:71-90`), Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
+| Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`src/Features/WorkflowRun/RunHeader/RunHeader.tsx:222-255`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
 | Tabs and description | A page with tabs carries no description line (Actions, Manage). |
 
 The workflow editor's task palette follows the same density: one 32px title row ("Add a task", Expand all, the
@@ -116,7 +113,7 @@ collapse control), one search row with the filter and the task count in the plac
    `Creatable`, `CheckboxList`, `RadioGroup`, `TextInput`, `TextArea`, `Toggle`, `Loading`, `TooltipHover`,
    `ToastNotification`, `notify`, and the error surfaces `Error`, `Error403`, `Error404`, `ErrorFullPage`,
    `ErrorMessage`, `ErrorPage` and `ErrorDragon`. The library has no `AutoSuggest`, so the editor's parameter inputs
-   are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:16-33`). `UIShell` provides the header
+   are plain fields (`src/Features/Reactflow/components/shared/inputs.tsx:17-34`). `UIShell` provides the header
    and side-nav chrome; navigation is never hand-rolled. Flow feeds the shell's Docs and Release Notes, turns off its
    launchpad About and profile row for its own (`src/Features/App/Navbar/Navbar.tsx:53-107`), and patches out its
    fixed-colour help-menu rule (`client-web/patches/`). The workspace switcher is the current workspace's name as a
@@ -132,11 +129,11 @@ collapse control), one search row with the filter and the task count in the plac
 
 List pages follow the Activity page, not Carbon's table toolbar and batch-action bar: labelled filters ("Filter by
 Workflow", "Filter by status", "Filter by trigger") in a row above the table, a date range on the right
-(`src/Features/Activity/Activity.tsx:276-330`), sortable headers, a row that opens the item, and status as an icon
+(`src/Features/Activity/Activity.tsx:278-332`), sortable headers, a row that opens the item, and status as an icon
 with coloured text rather than a tag (Activity, Actions, Users). A list under a tab row (the admin tabs, a workspace's
 Parameters) is a 2rem block holding one row with the search on the left and the single primary action on the right,
 then the table (`src/Features/Workspaces/Workspaces.tsx`, `src/Features/Parameters/ParametersTable/ParametersTable.tsx`).
-Actions opens on what is waiting (`src/Features/Actions/Actions.tsx:48,51-59`).
+Actions opens on what is waiting (`src/Features/Actions/Actions.tsx:49,52-60`).
 
 ### Switching views and choosing values
 
@@ -152,8 +149,7 @@ Content switchers are Boomerang blue, not the theme's inverse ink: one rule poin
 
 ### Parameters
 
-Workflow, workspace and global parameters share one table
-(`src/Features/Parameters/ParametersTable/ParametersTable.tsx:33-39,90-96`): Name first in monospace (what tasks type),
+Workflow, workspace and global parameters share one table (`src/Features/Parameters/ParametersTable/ParametersTable.tsx:30-37,90-97`): Name first in monospace (what tasks type),
 Label, then Type and Default value for a workflow or Value for the other two, a Required, Read-only or Secured tag,
 Description, and icon buttons rather than a menu: a pencil for Edit, a copy icon for Copy reference and a trash can in
 the error colour for Delete, each with a tooltip that opens left because the table clips above the row; a read-only
@@ -175,15 +171,14 @@ the three schedule types (`src/Utils/cronHelper.tsx:26-27,128`), with a line say
 ### Task parameter inputs
 
 A catalogue task's parameters are rendered generically: the editor's config modal hands `task.spec.params` to the
-add-ons' `DynamicFormik` (`src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:74,101-119`),
+add-ons' `DynamicFormik` (`src/Features/Reactflow/components/Template/TemplateNode/TaskForm/TaskForm.tsx:57,78-97`),
 whose `DataDrivenInput` dispatches on each parameter's `type`, with local wrappers for text inputs, text areas and
-editors (`TaskForm.tsx:111-115`). The vocabulary is `InputType` (`src/Constants/index.ts:91-109`); the Task Manager's
-field form offers it plus `time`
-(`src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:23-39`).
+editors (`TaskForm.tsx:89-93`). The vocabulary is `InputType` (`src/Constants/index.ts:95-113`); the Task Manager's
+field form offers it plus `time` (`src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:23-39`).
 
 | Input type | Renders as | Notes |
 | ---------- | ---------- | ----- |
-| `boolean` | add-ons `Toggle` | Vertical orientation (`src/Features/Reactflow/components/shared/inputs.tsx:159-161`). |
+| `boolean` | add-ons `Toggle` | Vertical orientation (`src/Features/Reactflow/components/shared/inputs.tsx:160-162`). |
 | `email`, `password`, `text`, `time`, `url` | add-ons `TextInput`, through the local `AutoSuggestInput` | `password` renders a masked field. |
 | `number` | the same, `type="number"` | `min`/`max` feed DynamicFormik's yup schema. |
 | `select` | add-ons `ComboBox` | Options are `{ key, value }` pairs. |
@@ -196,9 +191,9 @@ field form offers it plus `time`
 parameter (`src/Components/Slider/SliderInput.tsx:59`), clamped to `[min, max]` and snapped to `step` with the
 floating-point residue of fractional steps trimmed (`src/Components/Slider/Slider.tsx:23-27,82-95`).
 
-`min`, `max` and `step` are nullable numbers on the parameter model (`src/Types/index.tsx:151-156`), as on the backend;
+`min`, `max` and `step` are nullable numbers on the parameter model (`src/Types/index.tsx:156-158`), as on the backend;
 only `slider` uses all three, and the field form shows them for that type alone, seeding 0 to 100 in steps of 1
-(`TemplateConfigModalContent.tsx:42,85-89,177`).
+(`src/Components/TemplateConfigModal/TemplateConfigModalContent/TemplateConfigModalContent.tsx:42,83-89,177`).
 
 ### Task palette icons and categories
 
@@ -206,31 +201,31 @@ The editor palette groups tasks by the catalogue's free-text `category`, with `w
 alphabetical (`src/Features/WorkflowEditor/Designer/Tasks/Tasks.tsx:164-182`). The task's `icon` field is a key into
 one shared icon map (`src/Utils/taskIcons.tsx:27`), used by the palette tile
 (`src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:23`), the canvas node
-(`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:263-267`) and the palette's "Filter by
+(`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:272-276`) and the palette's "Filter by
 Task Type" list. A task whose `icon` is not in the map falls back to Carbon's `Bee`, so **an icon key must exist here
 before the backend seeds a task that uses it**.
 
 | Icon key (`task.icon`) | Carbon icon | Typical category |
 | ---------------------- | ----------- | ---------------- |
-| `AI` | `MachineLearningModel` (`src/Utils/taskIcons.tsx:38`) | `AI`: the `ai-prompt` and `ai-agent` tasks |
+| `AI` | `MachineLearningModel` (`src/Utils/taskIcons.tsx:38-41`) | `AI`: the `ai-prompt` and `ai-agent` tasks |
 | `API/HTTP call` | `Api` | `Utilities` |
 | `Automated task` | `Rocket` | any |
 | `Code`, `Terminal` | `Code`, `Terminal` | `Utilities` |
 | `Message` | `Chat` | `Communication with Slack` |
 | … | see `taskIcons` for the full list | |
 
-Node type and icon are separate: `ai` is its own node type (`src/Constants/index.ts:125`) mapped to a thin wrapper
-over the Template node (`src/Features/Reactflow/Reactflow.tsx:95`) that only re-tints the border with the purple
+Node type and icon are separate: `ai` is its own node type (`src/Constants/index.ts:129`) mapped to a thin wrapper
+over the Template node (`src/Features/Reactflow/Reactflow.tsx:96`) that only re-tints the border with the purple
 accent (`src/Features/Reactflow/components/Ai/AiNode.module.scss:6-8`). A new node type MUST be added to all three of
 `markerTypes`, `edgeTypes` and `nodeTypes`, which are keyed exhaustively off `NodeType`
-(`src/Features/Reactflow/Reactflow.tsx:36,66,93`).
+(`src/Features/Reactflow/Reactflow.tsx:37,67,94`).
 
 ### Task configuration modal
 
 The task edit modal is the add-ons `ComposedModal` at its default size, laid out like Carbon's tearsheet header so the
 fields get the height: the title `Edit <task>`, the description on one line (clipped, the full text as its `title`;
-`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:111-119`), then the header block every task
-form shares (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:38-60`): the always-editable **Task name** field
+`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:115-122`), then the header block every task
+form shares (`src/Features/Reactflow/components/shared/TaskFormTabs.tsx:118-136`): the always-editable **Task name** field
 and the tab list flush against the block's bottom border. The body has no padding above the block (each form's
 `.container` zeroes it) and the tab panel starts `$spacing-05` below the bar, so the first field starts about 212 px
 down (255 px before).
@@ -262,16 +257,16 @@ which path made it.
 
 - **Canvas node:** a task with `foreach` set is drawn as a stack of cards: two offset copies behind the node in
   `--flow-switch-primary`, and a badge at its top-left reusing `.badgeContainer`
-  (`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.module.scss:279-316`). In run mode the badge
+  (`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.module.scss:288-325`). In run mode the badge
   reports progress, "For each · 2 of 3 succeeded", or "For each · 0 items"
-  (`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:197-207`). The node's status is the
+  (`src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:206-216`). The node's status is the
   parent task run's, found by name while skipping items (`src/Utils/taskRunHelper.ts:22-27`).
 - **Task log:** item task runs are grouped under their task, never listed flat. The task's entry shows a purple "For
   each" `Tag` and a summary ("3 items · 1 succeeded · 1 running · 1 failed", or the failure message when it never
   fanned out), and a ghost "Show items" button with `aria-expanded` lists each item's index, value, status, the reason
   when it failed, duration and attempt, and its own "View Log"
-  (`src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:117-128,181-192,315-344`). The parent has no pod,
-  so it offers no log of its own (`RunTaskItem.tsx:170`). Whether a task fans out comes from the workflow's node
+  (`src/Features/WorkflowRun/TaskRunList/TaskRunItem/RunTaskItem.tsx:117-128,187-198,321-350`). The parent has no pod,
+  so it offers no log of its own (`RunTaskItem.tsx:176`). Whether a task fans out comes from the workflow's node
   definition, not from whether items exist (`src/Utils/taskRunHelper.ts:17-19`).
 - **Task log actions:** an entry's actions ("View Details", "View Log", "Show items") sit on one wrapping flex row
   with a gap, and every entry is as tall as its content
@@ -287,7 +282,7 @@ follow the same offset rather than re-adding the transform.
 ### Class-name conventions
 
 - Carbon component classes are prefixed **`cds--`** (v11). Overrides are scoped under `#app`, as `_base.scss` does for
-  a few Carbon internals (`src/Styles/_base.scss:58`); modals render in a portal outside `#app`.
+  a few Carbon internals (`src/Styles/_base.scss:78`); modals render in a portal outside `#app`.
 - New styles go in a co-located `*.module.scss`. A few older components still use global `c-` classes (the slider,
   `src/Components/Slider/Slider.tsx:124-142`).
 
@@ -309,7 +304,7 @@ literal durations (`src/Components/CreateWorkflow/CreateWorkflowContent/createWo
 | Hover on a tile, row or card changes background only | `motion.$duration-fast-02` (110 ms) with `motion.motion(standard, productive)` | `src/Features/Home/pulseTiles.module.scss:22`, and every Home card and row |
 | Nothing animates on mount | none | Home is server-rendered; text, cards and numbers appear at once |
 | Status never pulses, numbers never count up, nothing scales on hover, lists never stagger | none | |
-| Reduced motion is honoured everywhere | one global `prefers-reduced-motion: reduce` rule sets every animation and transition to 0.01 ms | `src/Styles/_base.scss:32-41` |
+| Reduced motion is honoured everywhere | one global `prefers-reduced-motion: reduce` rule sets every animation and transition to 0.01 ms | `src/Styles/_base.scss:40-49` |
 
 Carbon components carry their own transitions and do not check the preference themselves, which is why the
 reduced-motion rule is global and lives in the base stylesheet, not per component.
@@ -320,15 +315,15 @@ reduced-motion rule is global and lives in the base stylesheet, not per componen
 
 The landing page (`src/Features/Home/Home.tsx`) is a rollup of every workspace the caller belongs to: a hero band
 with the day's one-sentence summary, four "pulse" tiles that link into Activity, Actions, Schedules and the workspace
-list (`src/Features/Home/PulseTiles.tsx:66-115`), the actions waiting on the person with Approve and Reject inline,
+list (`src/Features/Home/PulseTiles.tsx:67-115`), the actions waiting on the person with Approve and Reject inline,
 the workspace cards, the five newest runs, the templates and a Learn list. Until Get started is done or closed the hero
-greets a first-time user; System's starters count toward no step but on a single-workspace install (`Home.tsx:298-313`).
+greets a first-time user; System's starters count toward no step but on a single-workspace install (`Home.tsx:299-314`).
 The loader fans out per workspace (`homeLoader.ts:175-190`); runs today are the viewer's day, by a time-zone cookie the page
-sets (`:30-37,158-159`, `Home.tsx:200-210`). The eyebrow is the viewer's date and platform name, never a literal (`:329`).
+sets (`:30-37,158-159`, `Home.tsx:201-211`). The eyebrow is the viewer's date and platform name, never a literal (`:330`).
 
 ### Insights
 
-The Insights page (`src/Features/Insights/Insights.tsx:213-237`) answers, in order: is it reliable, is it getting
+The Insights page (`src/Features/Insights/Insights.tsx:214-243`) answers, in order: is it reliable, is it getting
 slower, what fails and why, where does the time go. In `src/Features/Insights/`:
 
 | Part | Shape |
@@ -343,7 +338,7 @@ slower, what fails and why, where does the time go. In `src/Features/Insights/`:
 The chart library takes literal colours, so the outcome colours are read off the status tokens at mount, with the
 theme's values as fallbacks (`statusColors.ts`); everything else is tokens, and outcomes with no runs stay out of
 legends. Run labels are a typed `key=value` filter, applied on Enter or blur so typing does not reload the page
-(`Insights.tsx:420-436`).
+(`Insights.tsx:432-448`).
 
 ### Admin
 
@@ -371,7 +366,7 @@ Workflow templates have no page: they are seeded content, listed on Home, with t
 
 The production build targets every maintained browser above 0.2% of usage except Opera Mini, so current Chrome, Firefox,
 Edge and Safari are supported and Internet Explorer is not; development targets the latest Chrome, Firefox and Safari
-(`package.json:131-142`, `browserslist`).
+(`package.json:130-141`, `browserslist`).
 
 ## Accessibility and how tests locate things
 

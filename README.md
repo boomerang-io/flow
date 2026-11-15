@@ -18,7 +18,7 @@ Other top-level folders:
 
 | Folder | Holds |
 |---|---|
-| [`contracts`](./contracts) | `dispatcher-v1.yaml`, the OpenAPI contract between `service-core` and any dispatcher. |
+| [`contracts`](./contracts) | `api-v2.yaml`, the public API's OpenAPI contract, and `dispatcher-v1.yaml`, the contract between `service-core` and any dispatcher; tests hold both equal to what `service-core` serves. |
 | [`specifications`](./specifications) | Reference docs for each subsystem as it works today, and numbered decision records (`decisions/`). |
 | [`docker`](./docker) | Support files for the local stack and images: the IDPZero OIDC provider's config, Mongo seed scripts, SeaweedFS config, the kubeconfig for the dispatcher, and the shell-less container health probe (`health/Health.java`). |
 | [`load`](./load) | A dependency-free Node load harness that submits runs against `service-core` and reports latency and throughput. |
@@ -62,7 +62,7 @@ the build stage, and the release workflow builds nothing on the runner first.
 `docker compose down -v`), a local IDPZero OIDC provider for real sign-in, SeaweedFS as the S3-compatible
 artifact store, and a one-shot seed that points a setting at them (service-core takes the sign-in provider from `FLOW_AUTH_OIDC_ISSUER` and `FLOW_AUTH_OIDC_CLIENT_ID`). Every image builds from a clean
 checkout: the Java Dockerfiles run Maven in a build stage and `client-web`'s runs pnpm, so nothing is built
-on the host first. Published `boomerangio/*` images are the v4 line and will not match this branch.
+on the host first.
 
 `client-web`'s own SSR server is the single browser-facing origin and the only thing the browser talks
 to: it serves documents, `/res/*` resource routes and `.data` requests, and every service-core call
@@ -156,6 +156,17 @@ climbing. Semantic versioning compares pre-release labels alphabetically, so eve
 release candidate of the same version (`5.0.0-beta.34` < `5.0.0-rc.8`), even when the beta is newer.
 Deployments and dependants MUST pin an exact tag rather than resolve the highest version.
 
+Every product tag, beta and release candidate included, pushes `boomerangio/flow-service-core`,
+`boomerangio/flow-service-dispatcher` and `boomerangio/flow-client-web` to Docker Hub under that tag; `latest` moves
+only on a stable release (`.github/workflows/ci-release.yml`). The same tag publishes `io.boomerang:dispatcher-sdk`
+and `io.boomerang:flow-sdk` to GitHub Packages at the tag's version.
+
+To install on Kubernetes, the `bmrg-flow` Helm chart 6.0.x deploys v5 (it is not released yet; the 4.x line deploys
+v3). The install, quickstart and upgrade guides are in the docs:
+[Quickstart](https://useboomerang.io/docs/flow/hosting/quickstart),
+[Installing](https://useboomerang.io/docs/flow/hosting/installing) and
+[Upgrading](https://useboomerang.io/docs/flow/hosting/upgrading).
+
 Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 Operator-facing changes for the next release are collected in [`CHANGELOG.md`](./CHANGELOG.md) as they merge.
 
@@ -171,19 +182,21 @@ Before the first start against a v3 database:
 
 1. **Back up the database.** The migration is forward-only; the v3 source collections are dropped once
    migrated.
-2. **Check for two users sharing one email.** The migration refuses to delete an account, so a shared
-   email fails the unique index and startup with it. Two addresses that differ only by case are kept as they
-   are and logged; lower-case the survivor by hand afterwards.
+2. **Check for two users sharing one email.** The migration refuses to delete an account, so an exact
+   duplicate email fails the unique index and startup with it. Two addresses that differ only by case are left
+   as they are and logged at ERROR, and the account whose address is not all lower case stops resolving at
+   sign-in: remove or re-address the duplicate, then lower-case the survivor by hand.
 3. **Set the encryption keys.** v3 encrypted secured settings (Slack and GitHub credentials) with the pair in
    `mongo.encrypt.secret` and `mongo.encrypt.salt`, set on the v3 deployment; a v3 instance that never set
    them holds no encrypted values. Provide that same pair under the same names: it is read once, to decrypt
    those values during the migration. Provide the key v5 encrypts with as
    `flow.encrypt.secret` and `flow.encrypt.salt`; it can be a fresh pair, and it is required on every
    install. A wrong v3 pair stops startup rather than leaving a credential unreadable.
-4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database
-   migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
+4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database,
+   about 18 000 runs, migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
    one replica first. Replicas that start together wait on the migration lock for up to 30 minutes.
-5. **Export any run history you need to keep.** v5 deletes finished runs older than its Activity retention,
+5. **Export any run history you need to keep.** v3's runs carry over as completed runs, without their task
+   runs, which the upgrade drops. v5 deletes finished runs older than its Activity retention,
    365 days by default, with their task runs, approvals, logs and run artifacts. The purge starts within a
    minute of the first start and removes up to 1000 runs an hour, before the setting can be changed, and no
    value turns it off. This is by design: Activity is bounded from day one. Workflows, workflow-scoped
@@ -196,7 +209,9 @@ Before the first start against a v3 database:
    collection prefix) and, after the upgrade, change where each reads that property to `$(params.data.<path>)`.
 
 Remove the `flow-service-loader` Job and image from the deployment: one product tag now builds
-`flow-service-core`, `flow-service-dispatcher` and `flow-client-web`.
+`flow-service-core`, `flow-service-dispatcher` and `flow-client-web`. The operator's guide, with what changes in
+the chart and the environment, is [Upgrading](https://useboomerang.io/docs/flow/hosting/upgrading); the
+"Upgrading" section of [`CHANGELOG.md`](./CHANGELOG.md) lists every change an upgrade needs.
 
 ## Design details
 
@@ -254,6 +269,13 @@ There is one `service-core`; two properties express how it is deployed
 |---|---|---|
 | `flow.security.enabled` | `true` | The single switch for authentication and endpoint authorization. With it `false`, every request runs as a synthetic admin; set it only for a headless embedded engine or local development. |
 | `flow.workspace.single` | `false` | With it `true`, only the seeded `system` workspace is served and workspaces cannot be created or deleted. An embedding product sets it together with `flow.security.enabled=false`. |
+
+Two switches are separate from the shape, and either shape may set them:
+
+| Property | Default | Effect |
+|---|---|---|
+| `flow.dispatcher.auth.enabled` | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind, whatever `flow.security.enabled` says. Set it `false` only for local development. |
+| `flow.queue.enabled` | `true` | With it `false`, dispatchers stop claiming task runs; the watcher's recovery sweeps keep running. |
 
 **The first admin.** A secured install's first person to sign in becomes its admin by entering the activation code
 (`FLOW_ACTIVATION_CODE`, at least 32 characters). An install needs no code when:

@@ -21,7 +21,7 @@ closed `RunStatus` enum.
 
 ## Decision
 
-`start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:354-360`); a child run, a fired schedule and
+`start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:363-369`); a child run, a fired schedule and
 webhook and event triggers start too (`engine/TaskExecutionService.java:1403`, `schedule/ScheduleJob.java:76`,
 `flow.workflowrun.auto-start-on-submit`). A run without a workspace starts at once; one with a workspace stays pending
 until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:855-893`, decision 0025). A workflow
@@ -30,11 +30,11 @@ its runs in `ready` or `running` on `workflow_ref_status`, at the limit parks th
 or, with `overflow: skip`, completes it `cancelled` with `ConcurrencyLimit`, and after admitting recounts and steps back a
 run not among the oldest `limit` (`engine/WorkflowExecutionService.java:95-118`, `:138-177`,
 `engine/WorkflowRunStateHelper.java:168-225`). A run's completion re-admits the oldest parked run
-(`engine/ConcurrencyAdmissionListener.java:33-55`); the `readmitParkedRuns` sweep is the fallback.
+(`engine/ConcurrencyAdmissionListener.java:33-53`, `readmit` at `engine/WorkflowExecutionService.java:184-195`); the `readmitParkedRuns` sweep is the fallback.
 
 ## Consequences
 
 - Submitting from any client runs the workflow; staging a run is a deliberate `?start=false`.
-- A parked run counts against the workspace quota, which keeps precedence. The limit holds between two simultaneous
-  admissions only after the recount; an exact mutex reopens the slot document with a reproduced incident.
+- A parked run counts against the workspace quota, which keeps precedence. A newer run that recounts before an older one is admitted keeps its slot, so a
+  burst can overshoot the limit by its racers (`engine/WorkflowRunStateHelper.java:217-226`); an exact mutex, a slot document, reopens with an incident.
 - A per-value limit is the `acquirelock` task until a case shows its accounting is wrong for it.

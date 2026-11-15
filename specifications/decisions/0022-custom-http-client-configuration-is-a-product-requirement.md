@@ -27,6 +27,8 @@ healthy log stream is not cut. "The framework default is fine" is not an accepta
 ## Consequences
 
 - Proxy and private-certificate deployments keep working across framework upgrades with no operator change.
+- The dispatcher's Loki reader uses its own streaming template, so it gets the trust and timeouts but not the proxy
+  yet (`service-dispatcher/src/main/java/io/boomerang/dispatcher/LogService.java:51-53`).
 - Upgrade reviews MUST check proxy, trust, per-template timeouts and the streaming template explicitly; a move to
   `RestClient` is allowed only with the same settings exposed.
 - Trust-all is a deliberate weakening for internal endpoints, scoped to `insecureRestTemplate` and

@@ -2,14 +2,14 @@
 
 `service-core` serves three groups of routes, split by who calls them: the public API under `/api/v2`, the sign-in routes the webapp's server calls under `/internal/v1`, and the dispatcher wire under
 `/dispatcher/v1`. This document states the rules every public route follows; route-level detail is the OpenAPI document springdoc serves at `/api/docs/spec`
-(`service-core/src/main/resources/application.properties:198-200`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
+(`service-core/src/main/resources/application.properties:213,221`), which `OpenApiDocumentTest` pins to cover the public API and the dispatcher wire and leave out `/internal/`
 (`service-core/src/test/java/io/boomerang/core/config/OpenApiDocumentTest.java:49-56`). The public API alone is the `api-v2` group at `/api/docs/spec/api-v2`
 (`core/config/OpenApiConfiguration.java:139-157`), checked in as `contracts/api-v2.yaml` with every object's keys sorted; `ApiContractTest` fails when the served document and the file differ and
-rewrites the file under `-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:50-62,83-98`). `contracts/dispatcher-v1.yaml` and `DispatcherContractTest`
+rewrites the file under `-Dcontract.update=true` (`service-core/src/test/java/io/boomerang/core/config/ApiContractTest.java:52-64,85-100`). `contracts/dispatcher-v1.yaml` and `DispatcherContractTest`
 do the same for the dispatcher wire. The document requires a bearer token or the `x-access-token` header on every route; the GitHub callback and the four Slack routes, which verify the request
 themselves, declare none, and `/webhook`, `/event` and `/callback` also take the `access_token` query parameter (`core/config/OpenApiConfiguration.java:228-260`, "Authentication: how a caller becomes
 a `Token`" in `authorization.md`). Each operation states the permission its handler is checked against, read from its `@AuthCriteria` or `@AuthExempt` by the rule the authorization manager enforces:
-an `x-flow-permission` extension, `{permission, tokens}` or `{exempt}` with the reason, and a closing sentence in its description (`core/config/OpenApiConfiguration.java:161-185`, `core/security/AuthCriteriaAuthorizationManager.java:67-93`). Every operation has its own `operationId`, a verb and the resource (`queryWorkflowRuns`, `getWorkspace`), named on the handler where the method name does not say it; `ApiContractTest` fails on springdoc's numbered fallback such as `query_8` (`ApiContractTest.java:104-119`).
+an `x-flow-permission` extension, `{permission, tokens}` or `{exempt}` with the reason, and a closing sentence in its description (`core/config/OpenApiConfiguration.java:161-185`, `core/security/AuthCriteriaAuthorizationManager.java:81-107`). Every operation has its own `operationId`, a verb and the resource (`queryWorkflowRuns`, `getWorkspace`), named on the handler where the method name does not say it; `ApiContractTest` fails on springdoc's numbered fallback such as `query_8` (`ApiContractTest.java:104-119`).
 
 ## URL shape
 
@@ -18,18 +18,18 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 
 | Scope | Prefix | Controllers |
 | --- | --- | --- |
-| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:39`, `workflow/WorkspaceWorkflowRunControllerV2.java:35`, `workflow/WorkspaceTaskRunControllerV2.java:24`, `workflow/WorkspaceTaskControllerV2.java:33`, `workflow/WorkspaceActionControllerV2.java:35`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
-| Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:42` |
+| Workspace-scoped | `/api/v2/workspace/{workspace}/{workflow,workflowrun,taskrun,task,action,schedule,insights}` | `workflow/WorkspaceWorkflowControllerV2.java:40`, `workflow/WorkspaceWorkflowRunControllerV2.java:35`, `workflow/WorkspaceTaskRunControllerV2.java:24`, `workflow/WorkspaceTaskControllerV2.java:34`, `workflow/WorkspaceActionControllerV2.java:33`, `schedule/WorkspaceScheduleControllerV2.java:36`, `workflow/WorkspaceInsightsControllerV2.java:30` |
+| Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
-| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,insights,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:35`, `workflow/TaskControllerV2.java:33`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:29`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
-| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:38`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
+| Global | `/api/v2/{user,profile,token,task,taskrun,parameters,insights,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:35`, `workflow/TaskControllerV2.java:35`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:30`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:39`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:54` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:35` |
 
 The prefix says who the caller is, so whatever fronts `service-core` can route by it. A front door SHOULD route
 `/api/v2/**` only, and `/dispatcher/v1/**` as well when a dispatcher runs outside core's network. `/internal/v1/**`
 MUST NOT be routed from outside: only the webapp's server calls it, at `CORE_SERVICE_INTERNAL_ORIGIN`
-(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:200`). The prefix is a routing boundary, not a
+(`client-web/src/Config/serverFetch.ts:34-36`, `client-web/src/Config/servicesConfig.ts:27,63-65`), and springdoc leaves it out (`service-core/src/main/resources/application.properties:221`). The prefix is a routing boundary, not a
 credential: a caller that reaches `service-core` directly reaches it too.
 
 `{workspace}` is the workspace's name; there is no `/api/v2/team/...` route. With `flow.workspace.single=true` a
@@ -39,65 +39,34 @@ and is scrubbed of the run's secret values (`workflow/WorkflowRunService.java:58
 
 ## Routes with their own rules
 
-**Artifacts.** A run's list holds its artifacts, expired ones and the workflow-scoped ones it uploaded included, but no
-task log or unfinished upload (`workflow/ArtifactService.java:476-483`). A download streams through `service-core`; an
-expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:648-659`), and with no artifact store `503
-ARTIFACTS_NOT_CONFIGURED` (`:632-638`). The workspace list is largest first and takes `statuses` (default `available`),
-`scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:508-547`).
+**Artifacts.** A run's list holds its artifacts, expired ones and the workflow-scoped ones it uploaded included, but no task log or unfinished upload (`workflow/ArtifactService.java:476-483`). A download streams through `service-core`; an expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:651-662`), and with no artifact store `503 ARTIFACTS_NOT_CONFIGURED` (`:635-641`). The workspace list is largest first and takes `statuses` (default `available`), `scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:508-550`).
 
 **Workflow templates** are the system workspace's workflows of `type` `template` or `starter`, authored through its ordinary workflow routes; that `type` on a body to any other workspace is `400
 WORKFLOW_TEMPLATE_SYSTEM_ONLY` (`workflow/WorkflowService.java:2485-2493`). There are no template routes: a workspace sees them through its own workflow routes. `GET …/workflow/query` lists, beside
-its workflows, the active templates and starters whose name none of its workflows carries and that none links, each with its `type`; `types=workflow|template|starter` narrows, a workflow stored with no type counting as `workflow` (`:379-386,1546,2253-2278`); one created without a type stores `workflow` (`:1638`).
-The reads by name (get, compose, changelog, export, available parameters) answer the template or starter of a name the workspace has no workflow of (`:295-306,2224-2235`); a workflow of the same name
-hides it. A starter is copied, its body with `type` `workflow` posted to `POST …/workflow`; its submit is `400 WORKFLOW_TEMPLATE_INVALID_REF` (`:2237-2247`). A template runs through a link, a workflow
+its workflows, the active templates and starters whose name none of its workflows carries and that none links, each with its `type`; `types=workflow|template|starter` narrows, a workflow stored with no type counting as `workflow` (`:379-386,1546,2342-2365`); one created without a type stores `workflow` (`:1638`).
+The reads by name (get, compose, changelog, export, available parameters) answer the template or starter of a name the workspace has no workflow of (`:295-306,2313-2322`); a workflow of the same name
+hides it. A starter is copied, its body with `type` `workflow` posted to `POST …/workflow`; its submit is `400 WORKFLOW_TEMPLATE_INVALID_REF` (`:2326-2335`). A template runs through a link, a workflow
 of the workspace with `templateRef: {name, version}` that shows the template's tasks and params read-only under its own name, labels and triggers and runs the template's pinned or latest revision as
-its own run (`:2042-2056`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:724-729,2299-2324`); `PUT …/workflow` naming a
+its own run (`:2150-2151,2525-2539,2552`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:724-729,2393-2459`); `PUT …/workflow` naming a
 template creates it and applies display name, description, icon, labels and triggers, tasks and params ignored (`:655-667`). A missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`;
-deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:847-850`). `PATCH …/workflow/{name}` with `{type}` changes what a workflow is, its revision untouched: a shared kind is the system
-workspace's alone, a link is refused one, and a template that workspaces still link stays one, `409 WORKFLOW_TEMPLATE_IN_USE` (`:857-889`).
+deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:887-900`). `PATCH …/workflow/{name}` with `{type}` changes what a workflow is, its revision untouched: a shared kind is the system
+workspace's alone, a link is refused one, and a template that workspaces still link stays one, `409 WORKFLOW_TEMPLATE_IN_USE` (`:849-886`).
 
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:180-195,322-323,493-496`; unique sparse index `external_ref`). A rename takes a name no other workspace holds and no reserved one, checked as create checks it: `422 WORKSPACE_NON_UNIQUE_NAME` (`:305-309`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:185-200,327-328,508-511`; unique sparse index `external_ref`). A rename takes a name no other workspace holds and no reserved one, checked as create checks it: `422 WORKSPACE_NON_UNIQUE_NAME` (`:310-314`). `DELETE` on a workspace that does not exist or is out of reach is `404 WORKSPACE_INVALID_REF` (`:380-386`); a delete removes its workflows, tokens, approver groups and any integration installation no other workspace links (`:388-437`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
-(`workflow/TaskControllerV2.java:274`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
+(`workflow/TaskControllerV2.java:294`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
 
-**Run purge.** `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes a run with everything it owns and its
-lineage in that workspace, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:292`; what goes, and the wait
-for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0045). `DELETE
-…/workflowrun?labels=k%3Dv` does the same for the workspace's runs carrying every label, oldest first, a page of 50 a
-call, runs the sweep already holds left out (`workflow/WorkflowRunService.java:487-524`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged,
-scheduled, remaining}` (`common/model/WorkflowRunPurge.java`): runs removed now, runs left to the sweep, and matches
-left for the next call. A run that does not exist counts in neither, so a repeated call answers the same; one in
-another workspace is `404 WORKFLOWRUN_INVALID_REFERENCE`. Both need `workflowrun/delete` (the owner and admin roles;
-`editor` and `operator` have no delete, `seed/roles.json:16-28`) and are audited `DESTRUCTIVE` with the id or the labels, never a value.
+**Run purge.** `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes a run with everything it owns and its lineage in that workspace, cancelling one in flight first (`workflow/WorkspaceWorkflowRunControllerV2.java:291`; what goes, and the wait for a dispatcher's terminate poll, are in `data-model.md`, "Artifacts" and decision 0045). `DELETE …/workflowrun?labels=k%3Dv` does the same for the workspace's runs carrying every label, oldest first, a page of 50 a call, runs the sweep already holds left out (`workflow/WorkflowRunService.java:487-524`); no `labels` is `400 QUERY_INVALID_FILTERS`. Both answer `{purged, scheduled, remaining}` (`common/model/WorkflowRunPurge.java`): runs removed now, runs left to the sweep, and matches left for the next call. A run that does not exist counts in neither, so a repeated call answers the same; one in another workspace is `404 WORKFLOWRUN_INVALID_REFERENCE`. Both need `workflowrun/delete` (the owner and admin roles; `editor` and `operator` have no delete, `seed/roles.json:16-28`) and are audited `DESTRUCTIVE` with the id or the labels, never a value.
 
-**Integrations.** `POST /api/v2/integration/{github|slack|google|microsoft}/share` with `{workspace, shared}`, plus a form integration's `values` by field
-name, shares, or stops sharing, those credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration
-manages"); it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:303-332`). A user's
-parameter of a field's name is `409 INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`; unknown, missing or misplaced
-`values` are `400` (1910-1912); GitHub issuing no token is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES`
-(`integrations/IntegrationService.java:137-187`). `GET /api/v2/integration?workspace=` gives each template's `kind`, `fields` (a linked form's with its
-values, a secret as `*****`), `shared` once linked, and Slack's signed authorize URL (`integrations/IntegrationService.java:86-109`,
-`integrations/SlackService.java:709-726`). Slack's redirect links its team to that workspace, one per workspace (`409 INTEGRATION_ALREADY_LINKED`);
-`POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:525-653`, `integrations/IntegrationControllerV2.java:127-142`).
-`POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s `ref`) or installation id: an unreachable workspace is `404
-WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown installation `404 INTEGRATION_INVALID_REF`; it is audited and removes
-the record, link and parameters (`integrations/IntegrationControllerV2.java:286-301`, `integrations/GitHubService.java:394-423`).
+**Integrations.** `POST /api/v2/integration/{github|slack|google|microsoft}/share` with `{workspace, shared}`, plus a form integration's `values` by field name, shares, or stops sharing, those credentials with the workspace's tasks as read-only parameters (`parameters.md`, "Parameters an integration manages"); it needs `integration/write`, and another name is `404 INTEGRATION_INVALID_REF` (`integrations/IntegrationControllerV2.java:303-332`). A user's parameter of a field's name is `409 INTEGRATION_PARAM_EXISTS` and workspace parameters off `400 INTEGRATION_PARAMS_DISABLED`; unknown, missing or misplaced `values` are `400` (1910-1912); GitHub issuing no token is `502 INTEGRATION_TOKEN_FAILED` and an expiring Slack token `400 INTEGRATION_TOKEN_ROTATES` (`integrations/IntegrationService.java:139-191`). `GET /api/v2/integration?workspace=` gives each template's `kind`, `fields` (a linked form's with its values, a secret as `*****`), `shared` once linked, and Slack's signed authorize URL (`integrations/IntegrationService.java:88-111`, `integrations/SlackService.java:709-726`). Slack's redirect links its team to that workspace, one per workspace (`409 INTEGRATION_ALREADY_LINKED`); `POST /api/v2/integration/slack/unlink` disconnects one workspace (`integrations/SlackService.java:525-653`, `integrations/IntegrationControllerV2.java:127-142`). `POST /api/v2/integration/github/unlink` with `{workspace, ref}` takes the record id (`GET`'s `ref`) or installation id: an unreachable workspace is `404 WORKSPACE_INVALID_REF`, one not owning it `403 INTEGRATION_UNAUTHORIZED`, an unknown installation `404 INTEGRATION_INVALID_REF`; it is audited and removes the record, link and parameters (`integrations/IntegrationControllerV2.java:286-301`, `integrations/GitHubService.java:394-423`).
 
-**Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default
-100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status
-or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and answers
-`{"replayed": n}` (`event/OutboxControllerV2.java:44-97`, `event/OutboxService.java:58-82`). A row that failed delivery
-carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`; a replay clears both
-(`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system` permission.
+**Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and answers `{"replayed": n}` (`event/OutboxControllerV2.java:44-97`, `event/OutboxService.java:58-82`). A row that failed delivery carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`; a replay clears both (`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system` permission.
 
-**Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts
-the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays`
-(`core/audit/AuditControllerV2.java:93,168-202`). Both read every workspace, so they need a global `system/read`
-grant; a workspace-scoped one is `PERMISSION_DENIED` (`:213-231`).
+**Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays` (`core/audit/AuditControllerV2.java:93,168-202`). Both read every workspace, so they need a global `system/read` grant; a workspace-scoped one is `PERMISSION_DENIED` (`:215-233`).
 
 | Parameter | Accepts | Default |
 | --- | --- | --- |
@@ -108,22 +77,11 @@ grant; a workspace-scoped one is `PERMISSION_DENIED` (`:213-231`).
 | `from`, `to` | ISO-8601 instants, `to` exclusive | `from` = 30 days ago; `to` = no bound |
 | `page`, `limit`, `order` (listing only) | 0-based page; page size, at most 100; `ASC`/`DESC` on `time` | `0`, `25`, `DESC` |
 
-The default `from` keeps the page and its count on the `time` index (`core/audit/AuditControllerV2.java:52-59`).
-An event's `payload` holds request discriminators, never request or response content, and a write that changed a
-secret adds `payload.detail.secretsChanged` or `secretsCleared`, naming secrets, never values
-(`core/audit/AuditEvent.java:8-17`, `core/audit/SecretChangeHolder.java:15-24`). A write is level `WRITE` unless
-marked `DESTRUCTIVE` (`core/audit/Audited.java:45`), as deleting a workspace, a parameter, a workflow, a schedule, an
-artifact or a run and revoking a token are; deleting a catalogue task is not audited. The engine records each run's
-admission (`CREATE`) and completion (`UPDATE`) (`core/audit/WorkflowRunAuditBridge.java:64-72`); the monthly run quota counts the `CREATE` events (`core/audit/AuditQueryService.java:191-208`).
+The default `from` keeps the page and its count on the `time` index (`core/audit/AuditControllerV2.java:52-59`). An event's `payload` holds request discriminators, never request or response content, and a write that changed a secret adds `payload.detail.secretsChanged` or `secretsCleared`, naming secrets, never values (`core/audit/AuditEvent.java:8-17`, `core/audit/SecretChangeHolder.java:15-24`). A write is level `WRITE` unless marked `DESTRUCTIVE` (`core/audit/Audited.java:45`), as deleting a workspace, a parameter, a workflow, a schedule, an artifact or a run and revoking a token are; deleting a catalogue task is not audited. The engine records each run's admission (`CREATE`) and completion (`UPDATE`) (`core/audit/WorkflowRunAuditBridge.java:64-72`); the monthly run quota counts the `CREATE` events (`core/audit/AuditQueryService.java:191-208`).
 
 ## Error response
 
-An error the application raises is a `RestErrorResponse`
-(`service-core/src/main/java/io/boomerang/common/error/RestErrorResponse.java:7-12`), built by
-`core/RestExceptionHandler.java:50-72` for a `BoomerangException`, `:79-91` for a failed `@Valid` body (first field
-error only), `:98-116` for an unreadable parameter `type`, `:143-171` for an authentication failure, which also
-sends `WWW-Authenticate: Bearer`, `:177-182` for a missing permission, `:188-198` for any other exception, and `:206-221`
-for a framework error.
+An error the application raises is a `RestErrorResponse` (`service-core/src/main/java/io/boomerang/common/error/RestErrorResponse.java:7-12`), built by `core/RestExceptionHandler.java:50-72` for a `BoomerangException`, `:79-91` for a failed `@Valid` body (first field error only), `:98-116` for an unreadable parameter `type`, `:143-171` for an authentication failure, which also sends `WWW-Authenticate: Bearer`, `:177-182` for a missing permission, `:188-198` for any other exception, and `:206-221` for a framework error.
 
 ```json
 { "timestamp": "2026-09-01T10:00:00.000+00:00", "code": 1001, "reason": "QUERY_INVALID_FILTERS",
@@ -132,11 +90,11 @@ for a framework error.
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:22-147`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact (`:17-20,121,135`). Codes 1405 and 1802 each carry two reasons (`:93-96,115-118`), so a client keys on `reason` |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:24-144`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact, 21xx dispatcher (`:17-20,120,134,143`). Every code names one reason and a published code never moves, pinned by `BoomerangErrorTest` (`:21-22`) |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:14`); an explicit exception message wins (`core/RestExceptionHandler.java:56-65`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:44-45,67-69`) |
 
-The status never changes to fit the body. A missing permission at the endpoint is `403` with `PERMISSION_DENIED`'s code, reason and message (`authorization.md`, "Layer 1"); `PERMISSION_DENIED` raised by a service carries code 403 but answers HTTP 401 (`common/error/BoomerangError.java:25`).
+The status never changes to fit the body. `PERMISSION_DENIED` answers HTTP `403` with code 403, whether the endpoint check or a service refuses (`common/error/BoomerangError.java:27`; `authorization.md`, "Layer 1"); an unauthenticated request stays `401`.
 A framework error (an unsupported method or media type, a missing parameter, an unreadable body, an unknown route) keeps its status and headers, a `405` its `Allow`, with the HTTP status as `code` and `reason` (`405`, `METHOD_NOT_ALLOWED`) and Spring's detail as `message`. Anything else is `500 INTERNAL_SERVER_ERROR` (code 500) with a fixed message; the exception is logged, never sent. A failure inside a servlet filter, before the request reaches Spring MVC, still answers Spring Boot's default error body.
 
 A `*_INVALID_REF*` reason answers `404`: the resource the path addresses does not exist, or the caller cannot reach
@@ -148,23 +106,32 @@ changelog or delete naming a task that does not exist or is out of reach is `TAS
 
 ## Pagination and filters
 
-List routes take `page` (0-based), `limit`, `order` (`ASC`/`DESC`) and, where sortable, `sort` (a field name) as
-separate query parameters, and return a Spring Data `Page<T>`. On the run, task run, workflow, task, template,
-workspace, user and token lists `limit` is optional, and leaving it out returns every match in sort order
-(`common/util/PagingUtil.java:25-34`); the action and schedule lists default to 10
-(`workflow/WorkspaceActionControllerV2.java:132`, `schedule/WorkspaceScheduleControllerV2.java:123`). The run list
-sorts on `creationDate`, `ASC` by default (`workflow/WorkspaceWorkflowRunControllerV2.java:108-119`); the workspace
-list on `sort` (default `name`) and `order` (default `DESC`) (`workspace/WorkspaceControllerV2.java:140-152`). The
-run, task run, action and token lists take `fromDate`/`toDate` in epoch milliseconds.
+Every list takes `page` (0-based), `limit` and `order` (`ASC`/`DESC`) as query parameters, none required, and
+returns a Spring Data `Page<T>`. A missing `limit` returns every match in sort order (`common/util/PagingUtil.java:26-35`),
+except on the audit trail, which pages 25 by default and at most 100 (`core/audit/AuditControllerV2.java:58-59,136`), and the
+event outbox, 100 by default (`event/OutboxControllerV2.java:64-66`).
+
+| List | Sorted on | Default `order` |
+| --- | --- | --- |
+| Runs, task runs | `creationDate` (task runs then `_id`, so pages stay stable) | `DESC` (`workflow/WorkflowRunService.java:308,359-361`) |
+| Tokens, actions | `sort=<field>`, default `creationDate` | `DESC` (`core/TokenService.java:607`, `workflow/WorkspaceActionControllerV2.java:159`) |
+| Workspaces, users | `sort=<field>`, default `name` | `ASC` (`workspace/WorkspaceService.java:505`, `core/UserService.java:422`) |
+| Workflows, tasks, schedules | `creationDate` | `ASC` (`workflow/WorkflowService.java:1539`, `workflow/TaskService.java:864`, `schedule/WorkspaceScheduleControllerV2.java:134`) |
+| Workspace artifacts | `size` | `DESC` (`workflow/ArtifactService.java:542`) |
+| Audit trail | `time` | `DESC` (`core/audit/AuditControllerV2.java:136`) |
+
+The workflow and task lists also take the direction under its pre-5.0.0 name, `sort=ASC|DESC`, when `order` is absent;
+any other `sort` there is ignored (`common/util/PagingUtil.java:42-44`). The run, task run, action and token lists take
+`fromDate`/`toDate` in epoch milliseconds.
 
 List routes build their filters through one builder (`common/util/QueryCriteria.java`), so a filter means the same
-on every route that takes it, and no filter matches everything (`:118-123`):
+on every route that takes it, and no filter matches everything (`:119-123`):
 
 | Filter | Meaning |
 | --- | --- |
 | `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`; a dot in a key matches its stored form, `#`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
-| `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:24-33`) |
-| `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:71-80,101-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:82-98`) |
+| `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:25-33`) |
+| `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:75-79,99-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:86-97`) |
 | `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:497-507`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
 
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
@@ -213,8 +180,8 @@ needs `labels` or `workflowruns`, the two ways task runs are indexed (`migration
 `400 QUERY_INVALID_FILTERS` (`workflow/WorkflowRunService.java:354-358`). A task run carries its run's labels, and a
 run-workflow child its parent's (`engine/DAGUtility.java:286-292`, `engine/TaskExecutionService.java:1385-1396`), so one
 label finds a run's task runs and its children's. A row is the public `TaskRun` without `params`, `results`, `spec`,
-`annotations` or `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:380-382,425-434`);
-a for-each parent's row carries `foreach: true` and never the setting's items (`common/model/TaskRun.java:59`). Rows sort by creation, then id, so pages stay stable (`:353`).
+`annotations` or `statusMessage`, the parts that can carry a secret value (`workflow/WorkflowRunService.java:378-382,427-435`);
+a for-each parent's row carries `foreach: true` and never the setting's items (`common/model/TaskRun.java:59`). Rows sort by creation, then id, so pages stay stable (`workflow/WorkflowRunService.java:361`).
 
 ## Insights
 
@@ -229,8 +196,8 @@ routes do; a workspace-scoped grant is `403 PERMISSION_DENIED` (`workflow/Insigh
 
 | Read | Returns |
 | --- | --- |
-| `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`:116-178`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that ended succeeded, failed, timed out or invalid; `null` when none did), p50 and p95 duration over succeeded runs, `maxDuration` over completed runs, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC day, empty days included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's timeout, the last failure and its run, and the last seven days, worst success rate first; `usage`. `workflows` takes names or ids |
-| `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail` (`:179-221`): per task name (start and end excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on a row with `ai` usage; queue-wait percentiles; `retriedRuns`; up to ten `failures` grouped by terminal status, first unsuccessful task and its status message or reason, each with its count and newest run; `usage`. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold |
+| `GET …/insights?fromDate&toDate&workflows&labels&statuses&triggers` | `WorkflowRunInsightSummary` (`workflow/WorkflowRunInsightService.java:121-178`): `totals` and `previous` (the same-length period before `from`) with counts by outcome, `successRate` (succeeded over runs that ended succeeded, failed, timed out or invalid; `null` when none did), p50 and p95 duration over succeeded runs, `maxDuration` over completed runs, p50 and p95 queue wait (start minus creation), `byTrigger`; `daily`, one entry per UTC day, empty days included; `workflows`, one row per workflow with the same counts, p5/p50/p95, the newest run's timeout, the last failure and its run, and the last seven days, worst success rate first; `usage`. `workflows` takes names or ids |
+| `GET …/insights/workflow/{workflow}?fromDate&toDate&labels` | `WorkflowRunInsightWorkflowDetail` (`:184-221`): per task name (start and end excluded) run and failure counts and p50/p95 over succeeded task runs, with `totalTokens` and `cost` on a row with `ai` usage; queue-wait percentiles; `retriedRuns`; up to ten `failures` grouped by terminal status, first unsuccessful task and its status message or reason, each with its count and newest run; `usage`. `404 WORKFLOW_INVALID_REFERENCE` for a workflow the workspace does not hold |
 | `GET …/insights/tasks?fromDate&toDate&workflows&labels&tasks&types&groupBy&bucket&spanBy&slowest` | `WorkflowRunInsightTasks` (`:232-338`): the completed, not skipped task runs of the period's runs (a for-each task's items, under its name), one row per `groupBy` value (`task`, `type`, `workflow` or `label:<key>`, a task run label such as `boomerang.io/model`) and, with `bucket`, per UTC hour, day or month of the start. Each row: task runs, succeeded, failed (failed, timed out, invalid), cancelled, mean, p50, p95 and max duration over succeeded ones, and `usage`'s sums for its `ai` task runs. `spanBy=label:<key>` adds the count and p50/p95/max of each run-label value's first start to last end. `slowest` (up to 100) lists the slowest task runs. Rows are by bucket, then most task runs; past 1,000, `truncated`. An unknown `groupBy`, `bucket` or `spanBy`, or a `slowest` over 100, is `400 QUERY_INVALID_FILTERS` (`:281-283,1130-1146`) |
 
 `usage` (`common/model/WorkflowRunInsightUsage.java`) sums what the counted runs' `ai` task runs reported:
@@ -280,7 +247,7 @@ the repository's name, and any other field a JSON path into the payload; a field
 
 Every externally visible run status change is POSTed to each configured sink as a structured CloudEvent 1.0
 (`application/cloudevents+json`). Egress is off by default (`flow.events.sink.enabled=false`,
-`service-core/src/main/resources/application.properties:83`), and while it is off no outbox row is written
+`service-core/src/main/resources/application.properties:85`), and while it is off no outbox row is written
 (`event/CloudEventsBridge.java:24-27`). Delivery is at-least-once through the outbox, three attempts with backoff and
 then dead until replayed (`event/OutboxDispatcher.java:43,74-88`), so a consumer MUST treat duplicates as benign. An
 event describes the transition it was recorded for: its subject and `data.status`/`data.phase` are that

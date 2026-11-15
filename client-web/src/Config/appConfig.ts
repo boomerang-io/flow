@@ -19,7 +19,7 @@ export const CORE_ENV_URL =
     ? window._SERVER_DATA.CORE_ENV_URL
     : "";
 
-export const BASE_DOCUMENTATION_URL = "https://www.useboomerang.io/docs/boomerang-flow";
+export const BASE_DOCUMENTATION_URL = "https://useboomerang.io/docs/flow";
 
 //@ts-ignore
 export const isDevEnv = import.meta.env.MODE === Envs.Dev;

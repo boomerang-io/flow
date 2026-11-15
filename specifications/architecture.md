@@ -12,28 +12,34 @@ out by a dispatcher, which is any process that implements the published contract
 | Module | Owns | Depends on |
 | --- | --- | --- |
 | `service-core` | The product server: the v2 REST API, authentication and authorization, workspaces, workflow definitions, the DAG execution engine, the dispatcher-facing v1 API, schedules, webhooks and outbound events, the GitHub and Slack integrations, and the database migrations it runs as it starts (`io.boomerang.migration`; see `data-model.md`). One Spring Boot application, `service-core/src/main/java/io/boomerang/Application.java:37-45`. | — |
-| `dispatcher-sdk` | The dispatcher protocol as a software development kit (SDK): the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is published to GitHub Packages beside `flow-sdk`. | `spring-web` and Jackson only (`dispatcher-sdk/pom.xml:54-62`) |
+| `dispatcher-sdk` | The dispatcher protocol as a software development kit (SDK): the client for every `/dispatcher/v1` route, the runtime that registers, polls, starts, renews leases and reports ends, and the `TaskHandler` interface a dispatcher implements (`dispatcher-contract.md`, "SDK"). It owns its wire models and is published to GitHub Packages beside `flow-sdk`. | `spring-web` and Jackson; Micrometer's observation API comes with `spring-web`, and SLF4J and Logback are optional, for task log capture (`dispatcher-sdk/pom.xml:54-79`) |
 | `flow-sdk` | The public API as a library (`io.boomerang:flow-sdk`, package `io.boomerang.flow.sdk`): `Flow` (`flow-sdk/src/main/java/io/boomerang/flow/sdk/Flow.java`) built from a base URL and a bearer token, or the host's `RestClient`; `Runs` (submit, start, get, pause, resume, cancel, retry, query, count), `TaskRuns` (query, log), `Actions` (get, query, decide) and `Insights` (summary, tasks, workflow) with `RunQuery`, `TaskRunQuery`, `ActionQuery` and `InsightsQuery` builders mapped to the routes' parameters; `health()`, the actuator probe outside `/api/v2`; `Page<T>` with `content`, `total` and `next()`; its own wire models (records, no execution-state field) and `FlowApiException` carrying the server's `RestErrorResponse`. `ApiContractTest` (`flow-sdk/src/test/java/io/boomerang/flow/sdk/ApiContractTest.java`) round-trips every model it carries from `contracts/api-v2.yaml` and checks each builder sends exactly its route's parameters. Tested by `ci-sdk.yml`. | `spring-web` and Jackson only (`flow-sdk/pom.xml:46-53`) |
 | `service-dispatcher` | Flow's Kubernetes dispatcher, built on `dispatcher-sdk` (`service-dispatcher/src/main/java/io/boomerang/config/DispatcherConfig.java:40-59`). Its task handler runs each task through the `io.boomerang.executor.TaskExecutor` interface (`service-dispatcher/src/main/java/io/boomerang/executor/TaskExecutor.java:14-41`) and its workflow handler provisions workspace volumes. `dispatcher.executor` selects `tekton` (the default, `TektonServiceImpl.java:58-60`) or `kube-jobs` (`KubeJobsExecutor.java:72-73`). A deployment has one `dispatcher.tasks.runtimeClassName` (`service-dispatcher/README.md:99-101`). | `dispatcher-sdk` (`service-dispatcher/pom.xml:30-34`) |
 | `io.boomerang.common` (a package in `service-core`) | `service-core`'s storage and API model: 10 entities in `common/entity` (`WorkflowRunEntity`, `TaskRunEntity`, …), the public models (`WorkflowRun`, `TaskRun`, `Trigger`, …), enums (`RunStatus`, `RunPhase`, `TaskType`, …), `BoomerangError` and `RestErrorResponse`, and pure utilities (`Backoff`, `SweepRunner`, `ParameterUtil`, `DataAdapterUtil`). No beans, no repositories. The dispatcher wire has its own models in `dispatcher/model/`; `service-dispatcher` uses the SDK's. | — |
 | `client-web` | The React 18 + React Router 7 web app with IBM Carbon, served by React Router's own server, `react-router-serve` (`client-web/package.json:15`), with server rendering on and base path `/apps/flow/` (`client-web/react-router.config.ts:11-17`). The browser talks only to this server; it calls `service-core` server-side at `CORE_SERVICE_INTERNAL_ORIGIN` (`client-web/src/Config/serverFetch.ts:34-36`). The root loader writes the deployment's runtime values into the page as `window._SERVER_DATA` (`client-web/app/root.tsx:29,45-46`, `client-web/app/serverData.server.ts`); the probe is `GET /apps/flow/health` (`client-web/app/routes/health.tsx`). | `service-core` over HTTP |
 
 `service-core` and `service-dispatcher` inherit the root pom, whose parent is Spring Boot 4.1.1
-(`pom.xml:15-20`, `service-core/pom.xml:11-15`); `dispatcher-sdk` has no parent and imports the same Spring
-Boot version's dependency management for versions only (`dispatcher-sdk/pom.xml:28-50`). All three compile
-for Java 25 (`service-core/pom.xml:18`, `service-dispatcher/pom.xml:12`, `dispatcher-sdk/pom.xml:27`). Each
+(`pom.xml:16-21`, `service-core/pom.xml:11-16`); the two libraries have no parent and import a Spring Boot
+version's dependency management for versions only (`dispatcher-sdk/pom.xml:28-52`, `flow-sdk/pom.xml:27-42`).
+All four compile for Java 25 (`service-core/pom.xml:18`, `service-dispatcher/pom.xml:12`,
+`dispatcher-sdk/pom.xml:27`, `flow-sdk/pom.xml:26`). Each
 service reads its `application.properties`, overridden by environment variables (`docker-compose.yml:195-217`).
 
 ## Deployment shape of `service-core` by properties
 
-There is one shape of `service-core`: every bean loads in every deployment, and four properties in
-`service-core/src/main/resources/application.properties` (`:14`, `:18`, `:69`, `:107`, in the order below)
-express how a deployment is used. There is no separate engine image (`.github/workflows/ci-release.yml:31-36`).
+There is one shape of `service-core`: every bean loads in every deployment, and two properties in
+`service-core/src/main/resources/application.properties` (`:14`, `:18`) express how a deployment is used.
+There is no separate engine image (`.github/workflows/ci-release.yml:31-36`).
 
 | Property | Default | `true` | `false` |
 | --- | --- | --- | --- |
 | `flow.security.enabled` | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
-| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:172-174,371-373`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:177-179,376-378`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+
+Two switches are separate from the shape, and either shape may set them (`:71`, `:111`):
+
+| Switch | Default | `true` | `false` |
+| --- | --- | --- | --- |
 | `flow.dispatcher.auth.enabled` | `true` | `/dispatcher/**` requires a Flow token with a machine actor kind (`DispatcherAuthFilter`), whatever `flow.security.enabled` says. | No dispatcher authentication; local development only. |
 | `flow.queue.enabled` | `true` | Dispatchers claim task runs. | Claiming stops (`dispatcher/DispatcherService.java:364-367`); the recovery sweeps keep running (`execution-model.md`). |
 
@@ -66,7 +72,7 @@ only when its setting is on and the shape leaves a surface behind it (`core/Feat
 
 The server-built menu (`core/NavigationService.java`) reads the same flags. When `authentication` is `false`
 the webapp's startup loader never requests `GET /internal/v1/auth/config`
-(`client-web/src/Features/App/App.tsx:143-147`).
+(`client-web/src/Features/App/App.tsx:139-143`).
 
 ## Feature packages inside `service-core`
 
@@ -101,8 +107,8 @@ nothing (`engine/TaskRunService.java:972-1002`).
 
 | Step | Class → class | Where |
 | --- | --- | --- |
-| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submitOnDemand` (the caller decides the trigger) → `submit` → `internalSubmit` (the quota checks, around `newRun`, which builds the run) → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:321-363`, `workflow/WorkflowService.java:687-735,762-831,2121-2229`, `workflow/WorkflowRunService.java:867-893` |
-| 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`), a webhook or CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`), or a Run workflow task (`TaskExecutionService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:136`, `schedule/ScheduleJob.java:76`, `event/WebhookEventControllerV2.java:127,266`, `event/WebhookEventService.java:88,97,112,120`, `engine/TaskExecutionService.java:1403` |
+| 1. Submit | `POST /api/v2/workspace/{workspace}/workflow/{name}/submit` → `WorkspaceWorkflowControllerV2.submitWorkflow` → `WorkflowService.submitOnDemand` (the caller decides the trigger) → `submit` → `internalSubmit` (the quota checks, around `newRun`, which builds the run) → `WorkflowRunService.run` | `workflow/WorkspaceWorkflowControllerV2.java:330-372`, `workflow/WorkflowService.java:687-735,762-831,2121-2229`, `workflow/WorkflowRunService.java:867-893` |
+| 1a. Other entry points | A schedule firing (`ScheduleWatcher.sweep` → `ScheduleJob.execute` → `WorkflowService.submit`), a webhook or CloudEvent (`WebhookEventControllerV2` → `WebhookEventService` → `WorkflowService.submit`), or a Run workflow task (`TaskExecutionService` → `WorkflowService.submit`) | `schedule/ScheduleWatcher.java:136`, `schedule/ScheduleJob.java:76`, `event/WebhookEventControllerV2.java:127,270`, `event/WebhookEventService.java:91,103,118,129`, `engine/TaskExecutionService.java:1403-1404` |
 | 2. Queue the run | `WorkflowRunService.run` saves the `WorkflowRunEntity` and calls `WorkflowExecutionService.queue`, which resolves the run's params, builds the task runs from the revision (`DAGUtility.createTaskList`), validates the graph, and admits the run with `WorkflowRunStateHelper.tryAdmit` | `engine/WorkflowExecutionService.java:74-118`, `engine/WorkflowRunStateHelper.java:170-185` |
 | 3. Start the run | `WorkflowRunService.start` → `WorkflowExecutionService.start`, which requires phase `pending` or `queued` and executes the DAG on `asyncWorkflowExecutor`. A run with a workspace is left for its dispatcher to provision and start | `workflow/WorkflowRunService.java:895-936`, `engine/WorkflowExecutionService.java:197-230` |
 | 4. Admit each task | The DAG walk calls `TaskExecutionService.queue(taskRunId)`. This is the single pause gate: a run with `pauseRequestedAt` set admits nothing. Admission resolves the task's params, then `TaskRunService.tryAdmit` moves it to `ready`. Seven types wait for a dispatcher: `template`, `script`, `custom`, `generic`, `ai`, `uploadartifact` and `downloadartifact`; the engine runs every other type itself | `engine/TaskExecutionService.java:146,179,226,269-292`, `engine/TaskRunService.java:372-393` |
@@ -110,7 +116,7 @@ nothing (`engine/TaskRunService.java:972-1002`).
 | 6. Execute | The SDK's `TaskRunner` calls `PUT /dispatcher/v1/taskrun/{id}/start`, then the dispatcher's `TaskService.run` → `TaskExecutor.create` and `watch` (a Tekton `TaskRun` or a `batch/v1` `Job`), then `PUT …/taskrun/{id}/end` with the results (HTTP), retried until the engine takes it | `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/TaskRunner.java:255-299,394-443`, `service-dispatcher/src/main/java/io/boomerang/dispatcher/TaskService.java:90,138-139` |
 | 7. Results back | `DispatcherControllerV1.startTaskRun` and `endTaskRun` → `DispatcherService` → `TaskRunService.start` and `end` → `TaskExecutionService.start` and `end`. A request that names its dispatcher must match `claim.by` on a task in `queued` or `running`, or it is refused with `TASKRUN_CLAIM_SUPERSEDED`; `claim.seq` is not on the wire | `dispatcher/DispatcherControllerV1.java:223-251`, `engine/TaskRunService.java:1027,1079,1307-1322`, `engine/TaskExecutionService.java:304,524` |
 | 8. Advance the DAG | `TaskExecutionService.end` → `executeNextStep` → back to step 4 for each dependant, or `finishWorkflow` → `WorkflowRunStateHelper.tryComplete`. `completed` is terminal; a run's workspace storage is released separately, when the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which of the runs it holds volumes for are finished | `engine/TaskExecutionService.java:673,1723,1691`, `engine/WorkflowRunStateHelper.java:299`, `dispatcher/DispatcherService.java:596` |
-| 9. Events out | Each compare-and-set publishes a `TaskRunTransition` or `WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (5 s; the sink is off by default, `service-core/src/main/resources/application.properties:83`) | `engine/TaskRunService.java:1004-1014`, `event/CloudEventsBridge.java:39-76`, `event/OutboxDispatcher.java:64-67` |
+| 9. Events out | Each compare-and-set publishes a `TaskRunTransition` or `WorkflowRunTransition` `ApplicationEvent`; `CloudEventsBridge` inserts a row into `events_outbox`; `OutboxDispatcher.drain` delivers it as a CloudEvent through `EventSinkService` every `flow.events.outbox.interval-ms` (5 s; the sink is off by default, `service-core/src/main/resources/application.properties:85`) | `engine/TaskRunService.java:1004-1014`, `event/CloudEventsBridge.java:39-76`, `event/OutboxDispatcher.java:64-67` |
 | 10. Recovery | `WorkflowWatcher.sweep` runs sixteen isolated sweeps (timeouts, stalled runs, for-each recovery, claims from gone dispatchers, lapsed leases, deleted workflows, artifact expiry, …); retention runs on its own hourly schedule; any core instance may reap any run | `engine/WorkflowWatcher.java:172-198,213-223` |
 
 Core calls a dispatcher for one thing: a task's live log, read from the dispatcher holding the claim at the URL
@@ -141,7 +147,7 @@ local `docker compose build`, reports `dev`.
 | --- | --- | --- | --- |
 | `boomerangio/flow-service-core` | the checkout, with the repository root as context: a build stage on `maven:3.9-eclipse-temurin-25` runs `mvn --projects service-core --also-make package` and extracts the jar to `service.jar` plus `lib/` (`service-core/Dockerfile:11-32`); a train stage on the runtime JRE starts the application once, with no database, to record the JDK AOT cache (`service-core/Dockerfile:45-68`, `performance.md`, "Start-up") | `ubuntu/jre:25-26.04_edge`, Canonical's chiseled Java runtime pinned by digest (`service-core/Dockerfile:70`): no shell, so Java options go in `JDK_JAVA_OPTIONS` and an internal certificate authority is a mounted truststore named there; the command reads the recorded cache and turns compact object headers on (`service-core/Dockerfile:91-93`); runs as uid 10001 in group 0; port 7700 (`service-core/src/main/resources/application.properties:1`) | `deploy-core` (`ci-release.yml:33`) |
 | `boomerangio/flow-service-dispatcher` | the same shape for `service-dispatcher` and the SDK it is built on (`service-dispatcher/Dockerfile:7-27`), with a train stage that starts it against no cluster (`service-dispatcher/Dockerfile:34-46`) | the same base and command; port 7702 (`service-dispatcher/src/main/resources/application.properties:1`) | `deploy-dispatcher` (`ci-release.yml:37`) |
-| `boomerangio/flow-client-web` | the `client-web/` sources: a build stage runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs the `dependencies` alone (`pnpm install --prod`), which are the serving packages, since the server bundle is self-contained (`client-web/Dockerfile:14-48`) | `gcr.io/distroless/nodejs24-debian13:nonroot`, Google's distroless Node 24 pinned by digest, running `react-router-serve build/server/index.js` as the arguments of its node entrypoint: no shell, no npm, so the compose probe is node fetching the health route; runs as uid 65532 in group 0, the files made group-writable in the build stages; port 3000 (`client-web/Dockerfile:58-77`) | `deploy-webapp` (`ci-release.yml:41`) |
+| `boomerangio/flow-client-web` | the `client-web/` sources: a build stage runs `pnpm install --frozen-lockfile` and `pnpm run build`; a second stage installs the `dependencies` alone (`pnpm install --prod`), which are the serving packages, since the server bundle is self-contained (`client-web/Dockerfile:15-56`) | `gcr.io/distroless/nodejs24-debian13:nonroot`, Google's distroless Node 24 pinned by digest, running `react-router-serve build/server/index.js` as the arguments of its node entrypoint: no shell, no npm, so the compose probe is node fetching the health route; runs as uid 65532 in group 0, the files made group-writable in the build stages; port 3000 (`client-web/Dockerfile:58-77`) | `deploy-webapp` (`ci-release.yml:41`) |
 
 Every image is complete from a clean checkout; no job builds a jar first. Each build stage runs on the
 builder's own platform (`--platform=$BUILDPLATFORM`): a jar and a browser bundle are the same for every target,
@@ -158,7 +164,7 @@ allowed prefix (`dispatcher-kubernetes.md`).
 
 Two libraries are published beside the images, `io.boomerang:dispatcher-sdk` and `io.boomerang:flow-sdk`:
 the `publish-sdk` job runs once per library, sets its version from the same tag and deploys it to this
-repository's GitHub Packages Maven registry (`ci-release.yml:99-142`, `dispatcher-sdk/pom.xml:97-103`,
+repository's GitHub Packages Maven registry (`ci-release.yml:99-142`, `dispatcher-sdk/pom.xml:114-120`,
 `flow-sdk/pom.xml:87-93`). The two run independently, and a re-run skips a library whose version is already
 there, since the registry refuses to overwrite one (`ci-release.yml:128-142`). A library's version is therefore the server version it was built against; an
 application picks the `flow-sdk` of the server it runs against, and a newer server still serves an older
@@ -166,16 +172,16 @@ library because `/api/v2` only gains routes and fields within 5.x (`api-contract
 published.
 
 The dispatcher reaches core at `flow.engine.url`, `http://localhost:7700` by default, and
-authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:89,145`);
+authenticates with `flow.engine.dispatcher.token` (`service-dispatcher/src/main/resources/application.properties:89,146`);
 core runs the dispatcher's `/dispatcher/**` filter chain first (`dispatcher/DispatcherSecurityConfiguration.java:37-47`)
 and the product chain second (`core/security/SecurityConfiguration.java:99-100`).
 
 ## Local stack
 
 One compose file runs the stack two ways. `docker compose up -d` starts what a developer keeps in Docker:
-`mongo` in a named volume, published on `127.0.0.1:27017` (`docker-compose.yml:28-40`), a local IDPZero OpenID
-Connect provider at `idp.localhost:4380` (`:51-65`), SeaweedFS as the artifact store and a one-shot that
-creates its bucket (`:71-97`), and a one-shot seed that waits for core's migrations to create the settings
+`mongo` in a named volume, published on `127.0.0.1:27017` (`docker-compose.yml:29-41`), a local IDPZero OpenID
+Connect provider at `idp.localhost:4380` (`:58-73`), SeaweedFS as the artifact store and a one-shot that
+creates its bucket (`:79-111`), and a one-shot seed that waits for core's migrations to create the settings
 document it edits, wherever core runs: `task-deletion-seed` sets the task deletion policy to Always so a finished
 run's storage claim can be released (`docker/mongo/*.js`). Core points the `auth` settings at IDPZero itself, from
 `flow.auth.oidc.issuer` and `flow.auth.oidc.client-id` (`authorization.md`, "OpenID Connect seed"). `service-core` then runs on the host under the `local` Spring
@@ -184,11 +190,11 @@ dev server (`pnpm dev`), which calls core at `http://localhost:7700` by default
 (`client-web/src/Config/serverFetch.ts:31-35`).
 
 The `stack` profile adds both to Docker instead, secured, with core on `:7700` and `client-web` on `:3000`
-calling it at `http://service-core:7700` (`docker-compose.yml:188-274`); that is what the e2e job runs
+calling it at `http://service-core:7700` (`docker-compose.yml:183-284`); that is what the e2e job runs
 (`.github/workflows/ci-e2e.yml:35`). `service-dispatcher` sits behind the `dispatcher` profile, which naming
 the service on the command line enables, because it needs a Kubernetes cluster and the kubeconfig at
 `docker/kube/config`; it runs the `kube-jobs` executor and reaches a host-run core by default
-(`docker-compose.yml:140-184`). The browser-facing origin is `http://localhost:3000` either way; there is no
+(`docker-compose.yml:135-179`). The browser-facing origin is `http://localhost:3000` either way; there is no
 separate gateway. The Playwright suite in `e2e/` and the throughput harness in `load/` (`node load/run.mjs`,
 see `performance.md`) run against this stack.
 

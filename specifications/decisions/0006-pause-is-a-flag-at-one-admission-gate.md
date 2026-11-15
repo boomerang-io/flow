@@ -30,5 +30,5 @@ gate is enough because every path that creates new work passes through `queue`.
   (`engine/TaskRunService.java:647-658`).
 - The run clock stops while paused: the run-timeout sweep skips a paused run and resume extends its deadline
   (`WorkflowRunStateHelper.java:429-465`); the stalled-run and for-each recovery sweeps skip it too
-  (`:315-323`, `engine/WorkflowWatcher.java:319-323`).
+  (`:467-489`, `engine/WorkflowWatcher.java:319-323`).
 - `RunStatus` stays a closed ten-value enum (`common/enums/RunStatus.java:6-16`); `PAUSED` and `SUPERSEDED` MUST NOT be added.

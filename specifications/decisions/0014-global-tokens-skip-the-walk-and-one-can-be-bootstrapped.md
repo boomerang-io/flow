@@ -22,11 +22,11 @@ secured install needs a first such credential before any person signs in, as whe
 
 A global token passes `check` once its permissions cover the resource type, with no walk
 (`service-core/src/main/java/io/boomerang/core/RelationshipService.java:457,508-510`); `filter` anchors it at `root` and
-still walks, so list endpoints honour the workspace (`:581-585`). Ignoring the segment grants nothing: the same caller
+still walks, so list endpoints honour the workspace (`:709-712`). Ignoring the segment grants nothing: the same caller
 reaches the object through its true workspace URL. `BootstrapTokenService` registers `flow.security.bootstrap-token` at
 startup, whether or not security is on, as a global `**/**` service token under the fixed id `bootstrap-token`; a value
 that is not `bfg_` plus 32 or more characters stops the start, an unchanged value does nothing, and a new one replaces the
-stored hash and evicts the old one (`core/security/BootstrapTokenService.java:62-104`). The hosts that need it already carry
+stored hash and evicts the old one (`core/security/BootstrapTokenService.java:63-118`). The hosts that need it already carry
 secrets; narrower tokens are declared as `flow.security.tokens.<name>.*`, keyed by name (`authorization.md`).
 
 ## Consequences

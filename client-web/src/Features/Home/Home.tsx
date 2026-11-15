@@ -164,7 +164,7 @@ const learnItems = [
     icon: <Workflows style={{ height: "1.5rem", width: "1.5rem" }} />,
     title: "Build your first workflow",
     description: "Tasks, links and the drag-and-drop designer.",
-    link: "https://useboomerang.io/docs/introduction/getting-started",
+    link: "https://useboomerang.io/docs/flow/introduction/getting-started",
     tags: ["Getting started"],
   },
   {
@@ -172,7 +172,7 @@ const learnItems = [
     icon: <PlayerFlow style={{ height: "1.5rem", width: "1.5rem" }} />,
     title: "Approvals and manual actions",
     description: "Put a person in the loop where it matters.",
-    link: "https://useboomerang.io/docs/fundamentals/actions",
+    link: "https://useboomerang.io/docs/flow/fundamentals/actions",
     tags: ["Next steps"],
   },
   {
@@ -180,7 +180,7 @@ const learnItems = [
     icon: <Parameter style={{ height: "1.5rem", width: "1.5rem" }} />,
     title: "Parameters and results",
     description: "Make workflows dynamic and chain task outputs.",
-    link: "https://useboomerang.io/docs/fundamentals/parameters",
+    link: "https://useboomerang.io/docs/flow/fundamentals/parameters",
     tags: ["Advanced"],
   },
   {
@@ -188,7 +188,7 @@ const learnItems = [
     icon: <Api style={{ height: "1.5rem", width: "1.5rem" }} />,
     title: "Triggers, webhooks and the API",
     description: "Start runs from outside the product.",
-    link: "https://useboomerang.io/docs/architecture/eventing",
+    link: "https://useboomerang.io/docs/flow/architecture/eventing",
     tags: ["Advanced"],
   },
 ];
