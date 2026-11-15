@@ -2,6 +2,7 @@ package io.boomerang.workflow;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.entity.ArtifactEntity;
 import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.ArtifactScope;
@@ -50,7 +51,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -515,8 +515,9 @@ public class ArtifactService {
       Optional<List<ArtifactStatus>> statuses,
       Optional<ArtifactScope> scope,
       Optional<String> workflow,
-      int page,
-      int limit) {
+      Optional<Integer> page,
+      Optional<Integer> limit,
+      Sort.Direction order) {
     Query query =
         Query.query(
             where("workflowRef")
@@ -538,11 +539,13 @@ public class ArtifactService {
                       case run -> where("scope").nin(ArtifactScope.workflow, ArtifactScope.log);
                     })
             .orElse(where("scope").ne(ArtifactScope.log)));
-    Pageable pageable = PageRequest.of(page, limit, Sort.by(Sort.Direction.DESC, "size"));
-    return PageableExecutionUtils.getPage(
-            mongoTemplate.find(query.with(pageable), ArtifactEntity.class),
+    Pageable pageable = PagingUtil.apply(query, limit, page, Sort.by(order, "size"));
+    return PagingUtil.page(
+            mongoTemplate.find(query, ArtifactEntity.class),
             pageable,
-            () -> mongoTemplate.count(Query.of(query).skip(-1).limit(-1), ArtifactEntity.class))
+            mongoTemplate,
+            query,
+            ArtifactEntity.class)
         .map(Artifact::new);
   }
 

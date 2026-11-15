@@ -6,6 +6,7 @@ import com.cronutils.model.definition.CronDefinition;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.model.time.ExecutionTime;
 import com.cronutils.parser.CronParser;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
@@ -117,8 +118,8 @@ public class ScheduleService {
    */
   public Page<WorkflowSchedule> query(
       String queryTeam,
-      int page,
-      int limit,
+      Optional<Integer> queryPage,
+      Optional<Integer> queryLimit,
       Sort sort,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryTypes,
@@ -133,11 +134,10 @@ public class ScheduleService {
                   .in("status", WorkflowScheduleStatus.class, queryStatus, "status")
                   .in("type", queryTypes)
                   .build());
-      final Pageable pageable = PageRequest.of(page, limit, sort);
-      query.with(pageable);
+      final Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
       List<WorkflowScheduleEntity> scheduleEntities =
-          mongoTemplate.find(query.with(pageable), WorkflowScheduleEntity.class);
+          mongoTemplate.find(query, WorkflowScheduleEntity.class);
 
       List<WorkflowSchedule> workflowSchedules = new LinkedList<>();
       scheduleEntities.forEach(
@@ -160,7 +160,10 @@ public class ScheduleService {
         RelationshipType.WORKSPACE, queryTeam, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
-    return Page.empty(PageRequest.of(page, limit, sort));
+    return Page.empty(
+        queryLimit.isPresent()
+            ? PageRequest.of(queryPage.orElse(0), queryLimit.get(), sort)
+            : Pageable.unpaged(sort));
   }
 
   /*

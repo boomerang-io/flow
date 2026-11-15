@@ -10,7 +10,7 @@ import java.util.Map;
  * becomes the owner; members, quotas and parameters are set through their own routes.
  *
  * <pre>{@code
- * WorkspaceRequest.of("archie-6ae2e9cc99b43262aa3e8e28", "Acme").externalRef("6ae2e9cc99b43262aa3e8e28")
+ * WorkspaceRequest.of("acme-6ae2e9cc99b43262aa3e8e28", "Acme").externalRef("6ae2e9cc99b43262aa3e8e28")
  * }</pre>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

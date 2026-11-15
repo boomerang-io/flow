@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.support.PageableExecutionUtils;
@@ -31,6 +32,15 @@ public final class PagingUtil {
     Pageable pageable = PageRequest.of(page.orElse(0), limit.get(), sort);
     query.with(pageable);
     return pageable;
+  }
+
+  /**
+   * The direction a list was asked for: {@code order}, or else a {@code sort} of {@code ASC} or
+   * {@code DESC} in any case. Before 5.0.0 the workflow and task lists named the direction {@code
+   * sort}; they accept that name through 5.x. Any other {@code sort} is ignored.
+   */
+  public static Optional<Direction> direction(Optional<Direction> order, Optional<String> sort) {
+    return order.or(() -> sort.flatMap(Direction::fromOptionalString));
   }
 
   /** The page of {@code content} that {@code query} read, counting the total only when needed. */

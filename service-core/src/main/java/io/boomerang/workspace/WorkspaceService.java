@@ -7,6 +7,7 @@ import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.core.ParamLayerCache;
 import io.boomerang.integrations.IntegrationParameterService;
+import io.boomerang.integrations.IntegrationService;
 import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.workflow.WorkflowService;
 import io.boomerang.common.model.AbstractParam;
@@ -67,6 +68,7 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -92,6 +94,7 @@ public class WorkspaceService {
   private final QuotaService quotaService;
   private final ParamLayerCache paramLayerCache;
   private final IntegrationParameterService integrationParameterService;
+  private final IntegrationService integrationService;
   // flow.workspace.single: the seeded system workspace is the only one, so none is created or deleted.
   private final boolean single;
 
@@ -110,6 +113,7 @@ public class WorkspaceService {
       QuotaService quotaService,
       ParamLayerCache paramLayerCache,
       IntegrationParameterService integrationParameterService,
+      IntegrationService integrationService,
       Environment environment) {
     this.workspaceRepository = workspaceRepository;
     this.identityService = identityService;
@@ -125,6 +129,7 @@ public class WorkspaceService {
     this.quotaService = quotaService;
     this.paramLayerCache = paramLayerCache;
     this.integrationParameterService = integrationParameterService;
+    this.integrationService = integrationService;
     this.single = FlowWorkspaceProperties.isSingle(environment);
   }
 
@@ -408,10 +413,19 @@ public class WorkspaceService {
       templateNames.forEach(name -> taskService.delete(workspace, name));
     }
 
-    // TODO - Delete Workspace Integration Installations
+    // The workspace's approver groups belong to it alone.
+    for (String ref :
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, workspace, Optional.empty())) {
+      approverGroupRepository.deleteById(ref);
+      relationshipService.removeNodeAndEdgeByRef(RelationshipType.APPROVERGROUP, ref);
+    }
 
-    // Read before the node goes: removing it removes the members' edges too.
+    // Read before the node goes: removing it removes the members' and installations' edges too.
     Set<String> memberRefs = relationshipService.membersAndRoles(workspace).keySet();
+    List<String> integrationRefs =
+        relationshipService.refsInWorkspace(
+            RelationshipType.INTEGRATION, workspace, Optional.empty());
 
     // Delete Workspace
     workspaceRepository.deleteByName(workspace);
@@ -420,6 +434,7 @@ public class WorkspaceService {
     relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, workspace);
 
     memberRefs.forEach(userService::deleteUnusedInvitation);
+    integrationService.deleteUnlinked(integrationRefs);
   }
 
   /*
@@ -544,6 +559,7 @@ public class WorkspaceService {
       Map<String, String> after = new HashMap<>(before);
       userRefs.forEach(after::remove);
       requireAnOwnerRemains(before, after);
+      removeFromApproverGroups(workspace, userRefs);
       userRefs.forEach(
           userRef -> {
             relationshipService.removeEdge(
@@ -569,11 +585,31 @@ public class WorkspaceService {
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
+    String userRef = identityService.getCurrentIdentity().getPrincipal();
     Map<String, String> before = relationshipService.membersAndRoles(workspace);
     Map<String, String> after = new HashMap<>(before);
-    after.remove(identityService.getCurrentIdentity().getPrincipal());
+    after.remove(userRef);
     requireAnOwnerRemains(before, after);
+    removeFromApproverGroups(workspace, List.of(userRef));
     relationshipService.removeEdge(RelationshipType.WORKSPACE, workspace);
+  }
+
+  // A former member approves nothing in the workspace: they leave each of its approver groups.
+  // Called while the caller still reaches the workspace, before the membership edge goes.
+  private void removeFromApproverGroups(String workspace, List<String> userRefs) {
+    if (userRefs.isEmpty()) {
+      return;
+    }
+    List<String> groupRefs =
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, workspace, Optional.empty());
+    if (groupRefs.isEmpty()) {
+      return;
+    }
+    mongoTemplate.updateMulti(
+        new Query(Criteria.where("id").in(groupRefs).and("approvers").in(userRefs)),
+        new Update().pullAll("approvers", userRefs.toArray()),
+        ApproverGroupEntity.class);
   }
 
   // Members, and their roles, are changed by an owner of the workspace (its workspace/delete

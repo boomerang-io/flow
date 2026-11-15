@@ -604,7 +604,7 @@ public class TokenService {
       Optional<List<AuthScope>> queryTypes,
       Optional<List<String>> queryPrincipals) {
     final Sort sort =
-        Sort.by(new Order(queryOrder.orElse(Direction.ASC), querySort.orElse("creationDate")));
+        Sort.by(new Order(queryOrder.orElse(Direction.DESC), querySort.orElse("creationDate")));
     // Without a global grant the caller sees only tokens it may manage: its own by default, and
     // of the principals asked for, those it holds authority over.
     Token caller = identityService.getCurrentIdentity();

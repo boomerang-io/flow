@@ -93,8 +93,8 @@ class ScheduleSecretParamTest extends AbstractEngineIntegrationTest {
         scheduleService
             .query(
                 workspace,
-                0,
-                10,
+                Optional.of(0),
+                Optional.of(10),
                 Sort.by("creationDate"),
                 Optional.empty(),
                 Optional.empty(),

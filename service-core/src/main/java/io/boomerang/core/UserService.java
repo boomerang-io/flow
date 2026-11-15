@@ -18,6 +18,7 @@ import io.boomerang.core.security.UnauthenticatedGlobalToken;
 import io.boomerang.core.security.enums.PermissionAction;
 import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.security.enums.PermissionScope;
+import io.boomerang.workspace.entity.ApproverGroupEntity;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -39,6 +40,7 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -512,9 +514,9 @@ public class UserService {
   /*
    * Delete User
    *
-   * User must leave or delete teams prior to deleting account
+   * User must leave or delete teams prior to deleting account. Leaving a workspace takes the user
+   * out of its approver groups; the delete takes them out of any group still naming them.
    */
-  // TODO - determine if the user needs to be removed from ApproverGroups, and anything else
   public void delete(String userId) {
     requireSelfOrGlobalGrant(userId, PermissionAction.DELETE);
     Optional<UserEntity> user = userRepository.findById(userId);
@@ -525,6 +527,10 @@ public class UserService {
     if (user.isPresent()) {
       userRepository.deleteById(userId);
       relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.USER, userId);
+      mongoTemplate.updateMulti(
+          new Query(Criteria.where("approvers").is(userId)),
+          new Update().pull("approvers", userId),
+          ApproverGroupEntity.class);
     }
   }
 

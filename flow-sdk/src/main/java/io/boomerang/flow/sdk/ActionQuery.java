@@ -59,7 +59,7 @@ public final class ActionQuery {
     return this;
   }
 
-  /** The page to read, from 0, and its size; the server's default is the first 10. */
+  /** The page to read, from 0, and its size; without one the server returns every match. */
   public ActionQuery page(int page, int limit) {
     this.page = page;
     this.limit = limit;

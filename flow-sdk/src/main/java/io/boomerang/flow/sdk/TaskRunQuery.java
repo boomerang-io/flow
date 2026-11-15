@@ -100,6 +100,7 @@ public final class TaskRunQuery {
     return this;
   }
 
+  /** The sort order on creation date; the server's default is descending, newest first. */
   public TaskRunQuery order(Order order) {
     this.order = order;
     return this;

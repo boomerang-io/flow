@@ -192,6 +192,36 @@ class ActionWorkspaceAuthorizationTest extends AbstractEngineIntegrationTest {
     assertEquals(memberId, after.getActioners().get(0).getApproverId());
   }
 
+  // A platform admin reaches every workspace, so only the membership check stops one who is still
+  // named in a group of a workspace they no longer belong to.
+  @Test
+  void aUserNamedInTheGroupButNoLongerAMemberCannotApprove() {
+    ActionEntity action = actionRepository.findById(actionId).orElseThrow();
+    action.setType(ActionType.approval);
+    action.setApproverGroupRef(seedGroupWith(outsiderId));
+    action.setNumberOfApprovers(1);
+    actionRepository.save(action);
+    Token admin = new Token(AuthScope.session);
+    admin.setPrincipal(outsiderId);
+    admin.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.global, "**", List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(outsiderId, null);
+    authentication.setDetails(admin);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+    ActionRequest request = new ActionRequest();
+    request.setId(actionId);
+    request.setApproved(true);
+    actionService.action(OWNING_WORKSPACE, List.of(request));
+
+    ActionEntity after = actionRepository.findById(actionId).orElseThrow();
+    assertEquals(
+        0,
+        after.getActioners() == null ? 0 : after.getActioners().size(),
+        "a former member still named in the group must not approve");
+  }
+
   @Test
   void aMachineTokenActioningAManualTaskIsRecordedByTokenName() {
     // Manual tasks stay open to machines (a completion claim, not an accountability control) -

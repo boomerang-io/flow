@@ -119,13 +119,19 @@ public class WorkspaceScheduleControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> workflows,
-      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
-          @RequestParam(defaultValue = "10")
-          int limit,
-      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
+          @RequestParam(required = false)
+          Optional<Integer> limit,
+      @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
-          int page) {
-    final Sort sort = Sort.by(new Order(Direction.ASC, "creationDate"));
+          Optional<Integer> page,
+      @Parameter(
+              name = "order",
+              description = "Ascending (ASC, default) or Descending (DESC) order on creationDate",
+              example = "ASC")
+          @RequestParam(defaultValue = "ASC")
+          Optional<Direction> order) {
+    final Sort sort = Sort.by(new Order(order.orElse(Direction.ASC), "creationDate"));
     return workflowScheduleService.query(workspace, page, limit, sort, statuses, types, workflows);
   }
 

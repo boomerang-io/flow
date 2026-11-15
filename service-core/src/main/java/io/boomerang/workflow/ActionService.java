@@ -10,6 +10,7 @@ import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.TaskRunEndRequest;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.util.DataAdapterUtil;
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.core.RelationshipService;
@@ -39,6 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -148,9 +150,12 @@ public class ActionService {
           // branch: it resolves the synthetic admin user, which is non-null and simply not a
           // member. Manual tasks and group-less approvals are deliberately unchanged - they are
           // completion claims, not accountability controls.
+          // The group holds only members, and a member leaving is taken out of it; the
+          // membership is checked as well, so a group written before that still refuses them.
           boolean partOfGroup =
               userEntity != null
-                  && approverGroupEntity.get().getApprovers().contains(userEntity.getId());
+                  && approverGroupEntity.get().getApprovers().contains(userEntity.getId())
+                  && relationshipService.membersAndRoles(workspace).containsKey(userEntity.getId());
           if (partOfGroup) {
             canBeActioned = true;
           }
@@ -370,7 +375,9 @@ public class ActionService {
       String workspace,
       Optional<Date> from,
       Optional<Date> to,
-      Pageable pageable,
+      Optional<Integer> queryLimit,
+      Optional<Integer> queryPage,
+      Sort sort,
       Optional<List<ActionType>> queryTypes,
       Optional<List<ActionStatus>> queryStatus,
       Optional<List<String>> queryWorkflows) {
@@ -384,10 +391,10 @@ public class ActionService {
 
     Criteria criteria =
         buildCriteriaList(from, to, Optional.of(workflowRefs), queryTypes, queryStatus);
-    Query query = new Query(criteria).with(pageable);
+    Query query = new Query(criteria);
+    Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
-    List<ActionEntity> actionEntities =
-        mongoTemplate.find(query.with(pageable), ActionEntity.class);
+    List<ActionEntity> actionEntities = mongoTemplate.find(query, ActionEntity.class);
 
     List<Action> actions = new LinkedList<>();
     actionEntities.forEach(

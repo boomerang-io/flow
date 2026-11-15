@@ -331,17 +331,17 @@ class WorkspaceGrantScopeTest extends AbstractEngineIntegrationTest {
                     session,
                     patch("/api/v2/settings").contentType(MediaType.APPLICATION_JSON).content("{}"))))
         .as("the settings")
-        .isEqualTo(401);
+        .isEqualTo(403);
     assertThat(
             statusOf(
                 as(
                     session,
                     json(post("/api/v2/parameters"), Map.of("name", "grantScopeParam", "type", "string")))))
         .as("a global parameter")
-        .isEqualTo(401);
+        .isEqualTo(403);
     assertThat(statusOf(as(session, delete("/api/v2/task/" + TASK_SLUG))))
         .as("the global task catalogue")
-        .isEqualTo(401);
+        .isEqualTo(403);
     String global = mint(AuthScope.global, null, List.of("**/**"));
     assertThat(
             statusOf(
