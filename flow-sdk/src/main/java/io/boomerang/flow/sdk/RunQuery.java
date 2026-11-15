@@ -95,7 +95,7 @@ public final class RunQuery {
     return this;
   }
 
-  /** The sort order on creation date; the server's default is ascending. */
+  /** The sort order on creation date; the server's default is descending, newest first. */
   public RunQuery order(Order order) {
     this.order = order;
     return this;

@@ -56,6 +56,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.springframework.data.domain.Sort.Direction;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -664,17 +665,17 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
     assertThat(quotaService.current(workspace).getCurrentArtifactStorage()).isZero();
     assertThat(
             artifactService
-                .query(workspace, Optional.empty(), Optional.empty(), Optional.empty(), 0, 10)
+                .query(workspace, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(0), Optional.of(10), Direction.DESC)
                 .getTotalElements())
         .isZero();
     assertThat(
             artifactService
-                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.run), Optional.empty(), 0, 10)
+                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.run), Optional.empty(), Optional.of(0), Optional.of(10), Direction.DESC)
                 .getTotalElements())
         .isZero();
     assertThat(
             artifactService
-                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.log), Optional.empty(), 0, 10)
+                .query(workspace, Optional.empty(), Optional.of(ArtifactScope.log), Optional.empty(), Optional.of(0), Optional.of(10), Direction.DESC)
                 .getTotalElements())
         .isEqualTo(1);
     assertThatThrownBy(() -> artifactService.open(workspace, run, log.getName()))
@@ -871,7 +872,7 @@ public class ArtifactServiceTest extends AbstractEngineIntegrationTest {
 
   private List<String> query(Optional<ArtifactScope> scope, Optional<String> workflow) {
     return artifactService
-        .query(workspace, Optional.empty(), scope, workflow, 0, 10)
+        .query(workspace, Optional.empty(), scope, workflow, Optional.of(0), Optional.of(10), Direction.DESC)
         .map(Artifact::name)
         .getContent();
   }

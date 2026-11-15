@@ -18,8 +18,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.domain.Sort.Order;
@@ -128,24 +126,19 @@ public class WorkspaceActionControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> workflows,
-      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
-          @RequestParam(defaultValue = "10")
-          int limit,
-      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
+          @RequestParam(required = false)
+          Optional<Integer> limit,
+      @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
-          int page,
+          Optional<Integer> page,
       @Parameter(
               name = "order",
-              description = "Ascending or Descending (default) order",
-              example = "0",
-              required = false)
+              description = "Ascending (ASC) or Descending (DESC, default) order on sort",
+              example = "DESC")
           @RequestParam(defaultValue = "DESC")
           Optional<Direction> order,
-      @Parameter(
-              name = "sort",
-              description = "The element to sort on",
-              example = "0",
-              required = false)
+      @Parameter(name = "sort", description = "The field to sort on", example = "creationDate")
           @RequestParam(defaultValue = "creationDate")
           Optional<String> sort,
       @Parameter(
@@ -162,8 +155,8 @@ public class WorkspaceActionControllerV2 {
               required = false)
           @RequestParam
           Optional<Long> toDate) {
-    final Sort pageingSort = Sort.by(new Order(order.get(), sort.get()));
-    final Pageable pageable = PageRequest.of(page, limit, pageingSort);
+    final Sort pagingSort =
+        Sort.by(new Order(order.orElse(Direction.DESC), sort.orElse("creationDate")));
 
     Optional<Date> from = Optional.empty();
     Optional<Date> to = Optional.empty();
@@ -173,7 +166,8 @@ public class WorkspaceActionControllerV2 {
     if (toDate.isPresent()) {
       to = Optional.of(new Date(toDate.get()));
     }
-    return actionService.query(workspace, from, to, pageable, types, statuses, workflows);
+    return actionService.query(
+        workspace, from, to, limit, page, pagingSort, types, statuses, workflows);
   }
 
   @GetMapping(value = "/summary")

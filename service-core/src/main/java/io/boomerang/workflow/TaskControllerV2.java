@@ -1,5 +1,6 @@
 package io.boomerang.workflow;
 
+import io.boomerang.common.util.PagingUtil;
 import io.boomerang.common.model.TaskResponsePage;
 import io.boomerang.common.model.ChangeLogVersion;
 import io.boomerang.common.model.Task;
@@ -124,20 +125,28 @@ public class TaskControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> names,
-      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
           @RequestParam(required = false)
           Optional<Integer> limit,
-      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+      @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
           Optional<Integer> page,
       @Parameter(
+              name = "order",
+              description = "Ascending (ASC, default) or Descending (DESC) order on creationDate",
+              example = "ASC")
+          @RequestParam(required = false)
+          Optional<Direction> order,
+      @Parameter(
               name = "sort",
-              description = "Ascending (ASC) or Descending (DESC) sort on creationDate",
+              description =
+                  "Deprecated: the direction's name before 5.0.0, ASC or DESC; accepted through 5.x"
+                      + " when order is not given.",
               example = "ASC",
-              required = true)
-          @RequestParam(defaultValue = "ASC")
-          Optional<Direction> sort) {
-    return taskService.queryGlobal(limit, page, sort, labels, statuses, names);
+              deprecated = true)
+          @RequestParam(required = false)
+          Optional<String> sort) {
+    return taskService.queryGlobal(limit, page, PagingUtil.direction(order, sort), labels, statuses, names);
   }
 
   @PostMapping(value = "")

@@ -8,7 +8,8 @@ import java.util.List;
 /**
  * What {@link Workspaces#query} narrows by, mapped to the route's parameters: a prefix search on
  * name and display name, labels, statuses, names and {@code externalRef}. Paging is {@code page}
- * from 0 and {@code limit}; the sort is {@code sort} (default {@code name}) and {@code order}.
+ * from 0 and {@code limit}; the sort is {@code sort} (default {@code name}) and {@code order}
+ * (default ascending).
  */
 public final class WorkspaceQuery {
 
@@ -65,7 +66,10 @@ public final class WorkspaceQuery {
     return this;
   }
 
-  /** The sort field, {@code name} or {@code displayName}, and order. */
+  /**
+   * The sort field, {@code name} or {@code displayName}, and order; the server's default is
+   * {@code name} ascending.
+   */
   public WorkspaceQuery sort(String sort, Order order) {
     this.sort = sort;
     this.order = order;

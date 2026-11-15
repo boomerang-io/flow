@@ -305,7 +305,7 @@ public class WorkflowRunService {
 
     List<String> wfRefs = workflowsInWorkspace(queryTeam, queryWorkflows);
     if (wfRefs.isEmpty()) {
-      Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.ASC), "creationDate"));
+      Sort sort = Sort.by(new Order(queryOrder.orElse(Direction.DESC), "creationDate"));
       return new WorkflowRunResponsePage(
           List.of(), emptyPage(queryLimit, queryPage, sort), 0);
     }
@@ -356,7 +356,7 @@ public class WorkflowRunService {
         && queryWorkflowRuns.filter(runs -> !runs.isEmpty()).isEmpty()) {
       throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "labels,workflowruns");
     }
-    Direction direction = queryOrder.orElse(Direction.ASC);
+    Direction direction = queryOrder.orElse(Direction.DESC);
     // Task runs of one run share a creation time, so the id breaks the tie and pages stay stable.
     Sort sort = Sort.by(new Order(direction, "creationDate"), new Order(direction, "_id"));
     List<String> wfRefs = workflowsInWorkspace(workspace, queryWorkflows);
@@ -785,7 +785,7 @@ public class WorkflowRunService {
       Optional<List<String>> queryWorkflowRuns,
       Optional<List<String>> queryWorkflows,
       Optional<List<String>> queryTriggers) {
-    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.ASC), "creationDate"));
+    final Sort sort = Sort.by(new Order(querySort.orElse(Direction.DESC), "creationDate"));
     Query query =
         new Query(
             new QueryCriteria()

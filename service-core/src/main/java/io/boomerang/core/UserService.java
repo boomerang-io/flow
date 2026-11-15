@@ -514,8 +514,8 @@ public class UserService {
   /*
    * Delete User
    *
-   * User must leave or delete teams prior to deleting account. Leaving a workspace keeps the user
-   * in its approver groups, so the delete takes them out of every group too.
+   * User must leave or delete teams prior to deleting account. Leaving a workspace takes the user
+   * out of its approver groups; the delete takes them out of any group still naming them.
    */
   public void delete(String userId) {
     requireSelfOrGlobalGrant(userId, PermissionAction.DELETE);

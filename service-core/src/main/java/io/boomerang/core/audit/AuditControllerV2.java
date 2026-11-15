@@ -88,7 +88,7 @@ public class AuditControllerV2 {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
+        @ApiResponse(responseCode = "403", description = "Forbidden")
       })
   public Page<AuditEvent> query(
       @Parameter(name = "actor", description = "Actor id or name, any part of either, ignoring case")
@@ -163,7 +163,7 @@ public class AuditControllerV2 {
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized")
+        @ApiResponse(responseCode = "403", description = "Forbidden")
       })
   public AuditStats stats(
       @RequestParam(required = false) Optional<String> actor,

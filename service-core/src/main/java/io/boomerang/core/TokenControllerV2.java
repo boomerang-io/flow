@@ -72,24 +72,19 @@ public class TokenControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> principals,
-      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
           @RequestParam(required = false)
           Optional<Integer> limit,
-      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+      @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
           Optional<Integer> page,
       @Parameter(
               name = "order",
-              description = "Ascending (ASC) or Descending (DESC) sort order on creationDate",
-              example = "ASC",
-              required = true)
-          @RequestParam(defaultValue = "ASC")
+              description = "Ascending (ASC) or Descending (DESC, default) order on sort",
+              example = "DESC")
+          @RequestParam(defaultValue = "DESC")
           Optional<Direction> order,
-      @Parameter(
-              name = "sort",
-              description = "The element to sort onr",
-              example = "0",
-              required = false)
+      @Parameter(name = "sort", description = "The field to sort on", example = "creationDate")
           @RequestParam(defaultValue = "creationDate")
           Optional<String> sort,
       @Parameter(

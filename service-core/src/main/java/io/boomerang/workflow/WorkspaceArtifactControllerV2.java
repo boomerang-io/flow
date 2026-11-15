@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -178,11 +179,18 @@ public class WorkspaceArtifactControllerV2 {
           Optional<String> workflow,
       @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
-          int page,
-      @Parameter(name = "limit", description = "Result Size", example = "10")
-          @RequestParam(defaultValue = "10")
-          int limit) {
-    return artifactService.query(workspace, statuses, scope, workflow, page, limit);
+          Optional<Integer> page,
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
+          @RequestParam(required = false)
+          Optional<Integer> limit,
+      @Parameter(
+              name = "order",
+              description = "Ascending (ASC) or Descending (DESC, default) order on size",
+              example = "DESC")
+          @RequestParam(defaultValue = "DESC")
+          Optional<Direction> order) {
+    return artifactService.query(
+        workspace, statuses, scope, workflow, page, limit, order.orElse(Direction.DESC));
   }
 
   @DeleteMapping(value = "/artifacts/{artifactId}")

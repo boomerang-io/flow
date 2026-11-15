@@ -3446,12 +3446,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/PageAuditEvent"
           description: "OK"
-        "401":
+        "403":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PageAuditEvent"
-          description: "Unauthorized"
+          description: "Forbidden"
       summary: "Query the audit trail"
       tags:
       - "Audit"
@@ -3551,12 +3551,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditStats"
           description: "OK"
-        "401":
+        "403":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/AuditStats"
-          description: "Unauthorized"
+          description: "Forbidden"
       summary: "Count the audit trail by outcome"
       tags:
       - "Audit"
@@ -4953,11 +4953,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -4965,21 +4965,29 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort on creationDate"
+      - description: "Ascending (ASC, default) or Descending (DESC) order on creationDate"
         example: "ASC"
         in: "query"
-        name: "sort"
-        required: true
+        name: "order"
+        required: false
         schema:
-          default: "ASC"
           enum:
           - "ASC"
           - "DESC"
+          type: "string"
+      - deprecated: true
+        description: "Deprecated: the direction's name before 5.0.0, ASC or DESC;\
+          \ accepted through 5.x when order is not given."
+        example: "ASC"
+        in: "query"
+        name: "sort"
+        required: false
+        schema:
           type: "string"
       responses:
         "200":
@@ -5319,11 +5327,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -5331,24 +5339,24 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort order on creationDate"
-        example: "ASC"
+      - description: "Ascending (ASC) or Descending (DESC, default) order on sort"
+        example: "DESC"
         in: "query"
         name: "order"
-        required: true
+        required: false
         schema:
-          default: "ASC"
+          default: "DESC"
           enum:
           - "ASC"
           - "DESC"
           type: "string"
-      - description: "The element to sort onr"
-        example: 0
+      - description: "The field to sort on"
+        example: "creationDate"
         in: "query"
         name: "sort"
         required: false
@@ -5458,11 +5466,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -5470,24 +5478,24 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending or Descending (default) order"
-        example: 0
+      - description: "Ascending (ASC, default) or Descending (DESC) order on sort"
+        example: "ASC"
         in: "query"
         name: "order"
         required: false
         schema:
-          default: "DESC"
+          default: "ASC"
           enum:
           - "ASC"
           - "DESC"
           type: "string"
-      - description: "The element to sort on"
-        example: 0
+      - description: "The field to sort on"
+        example: "name"
         in: "query"
         name: "sort"
         required: false
@@ -5792,11 +5800,11 @@ paths:
         required: false
         schema:
           type: "string"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -5804,24 +5812,24 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending or Descending (default) order"
-        example: 0
+      - description: "Ascending (ASC, default) or Descending (DESC) order on sort"
+        example: "ASC"
         in: "query"
         name: "order"
         required: false
         schema:
-          default: "DESC"
+          default: "ASC"
           enum:
           - "ASC"
           - "DESC"
           type: "string"
-      - description: "The element to sort on"
-        example: 0
+      - description: "The field to sort on"
+        example: "name"
         in: "query"
         name: "sort"
         required: false
@@ -6135,26 +6143,25 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
-          default: 10
           format: "int32"
           type: "integer"
       - description: "Page Number"
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending or Descending (default) order"
-        example: 0
+      - description: "Ascending (ASC) or Descending (DESC, default) order on sort"
+        example: "DESC"
         in: "query"
         name: "order"
         required: false
@@ -6164,8 +6171,8 @@ paths:
           - "ASC"
           - "DESC"
           type: "string"
-      - description: "The element to sort on"
-        example: 0
+      - description: "The field to sort on"
+        example: "creationDate"
         in: "query"
         name: "sort"
         required: false
@@ -6417,15 +6424,25 @@ paths:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
         required: false
         schema:
-          default: 10
           format: "int32"
           type: "integer"
+      - description: "Ascending (ASC) or Descending (DESC, default) order on size"
+        example: "DESC"
+        in: "query"
+        name: "order"
+        required: false
+        schema:
+          default: "DESC"
+          enum:
+          - "ASC"
+          - "DESC"
+          type: "string"
       responses:
         "200":
           content:
@@ -7023,24 +7040,34 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
-          default: 10
           format: "int32"
           type: "integer"
       - description: "Page Number"
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
+      - description: "Ascending (ASC, default) or Descending (DESC) order on creationDate"
+        example: "ASC"
+        in: "query"
+        name: "order"
+        required: false
+        schema:
+          default: "ASC"
+          enum:
+          - "ASC"
+          - "DESC"
+          type: "string"
       responses:
         "200":
           content:
@@ -7247,11 +7274,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -7259,21 +7286,29 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort on creationDate"
+      - description: "Ascending (ASC, default) or Descending (DESC) order on creationDate"
         example: "ASC"
         in: "query"
-        name: "sort"
-        required: true
+        name: "order"
+        required: false
         schema:
-          default: "ASC"
           enum:
           - "ASC"
           - "DESC"
+          type: "string"
+      - deprecated: true
+        description: "Deprecated: the direction's name before 5.0.0, ASC or DESC;\
+          \ accepted through 5.x when order is not given."
+        example: "ASC"
+        in: "query"
+        name: "sort"
+        required: false
+        schema:
           type: "string"
       responses:
         "200":
@@ -7607,11 +7642,11 @@ paths:
         required: false
         schema:
           type: "boolean"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -7619,18 +7654,18 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort order on creationDate"
-        example: "ASC"
+      - description: "Ascending (ASC) or Descending (DESC, default) order on creationDate"
+        example: "DESC"
         in: "query"
         name: "order"
-        required: true
+        required: false
         schema:
-          default: "ASC"
+          default: "DESC"
           enum:
           - "ASC"
           - "DESC"
@@ -7816,11 +7851,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -7828,21 +7863,29 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort on creationDate"
+      - description: "Ascending (ASC, default) or Descending (DESC) order on creationDate"
         example: "ASC"
         in: "query"
-        name: "sort"
-        required: true
+        name: "order"
+        required: false
         schema:
-          default: "ASC"
           enum:
           - "ASC"
           - "DESC"
+          type: "string"
+      - deprecated: true
+        description: "Deprecated: the direction's name before 5.0.0, ASC or DESC;\
+          \ accepted through 5.x when order is not given."
+        example: "ASC"
+        in: "query"
+        name: "sort"
+        required: false
+        schema:
           type: "string"
       responses:
         "200":
@@ -8524,11 +8567,11 @@ paths:
           items:
             type: "string"
           type: "array"
-      - description: "Result Size"
+      - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
         name: "limit"
-        required: true
+        required: false
         schema:
           format: "int32"
           type: "integer"
@@ -8536,18 +8579,18 @@ paths:
         example: 0
         in: "query"
         name: "page"
-        required: true
+        required: false
         schema:
           default: 0
           format: "int32"
           type: "integer"
-      - description: "Ascending (ASC) or Descending (DESC) sort order on creationDate"
-        example: "ASC"
+      - description: "Ascending (ASC) or Descending (DESC, default) order on creationDate"
+        example: "DESC"
         in: "query"
         name: "order"
-        required: true
+        required: false
         schema:
-          default: "ASC"
+          default: "DESC"
           enum:
           - "ASC"
           - "DESC"

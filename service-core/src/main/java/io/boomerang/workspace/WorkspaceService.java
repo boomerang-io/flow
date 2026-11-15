@@ -68,6 +68,7 @@ import org.springframework.data.domain.Sort.Order;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -558,6 +559,7 @@ public class WorkspaceService {
       Map<String, String> after = new HashMap<>(before);
       userRefs.forEach(after::remove);
       requireAnOwnerRemains(before, after);
+      removeFromApproverGroups(workspace, userRefs);
       userRefs.forEach(
           userRef -> {
             relationshipService.removeEdge(
@@ -583,11 +585,31 @@ public class WorkspaceService {
     if (!optWorkspaceEntity.isPresent()) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
     }
+    String userRef = identityService.getCurrentIdentity().getPrincipal();
     Map<String, String> before = relationshipService.membersAndRoles(workspace);
     Map<String, String> after = new HashMap<>(before);
-    after.remove(identityService.getCurrentIdentity().getPrincipal());
+    after.remove(userRef);
     requireAnOwnerRemains(before, after);
+    removeFromApproverGroups(workspace, List.of(userRef));
     relationshipService.removeEdge(RelationshipType.WORKSPACE, workspace);
+  }
+
+  // A former member approves nothing in the workspace: they leave each of its approver groups.
+  // Called while the caller still reaches the workspace, before the membership edge goes.
+  private void removeFromApproverGroups(String workspace, List<String> userRefs) {
+    if (userRefs.isEmpty()) {
+      return;
+    }
+    List<String> groupRefs =
+        relationshipService.refsInWorkspace(
+            RelationshipType.APPROVERGROUP, workspace, Optional.empty());
+    if (groupRefs.isEmpty()) {
+      return;
+    }
+    mongoTemplate.updateMulti(
+        new Query(Criteria.where("id").in(groupRefs).and("approvers").in(userRefs)),
+        new Update().pullAll("approvers", userRefs.toArray()),
+        ApproverGroupEntity.class);
   }
 
   // Members, and their roles, are changed by an owner of the workspace (its workspace/delete

@@ -130,24 +130,19 @@ public class WorkspaceControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<String> externalRef,
-      @Parameter(name = "limit", description = "Result Size", example = "10", required = true)
+      @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
           @RequestParam(required = false)
           Optional<Integer> limit,
-      @Parameter(name = "page", description = "Page Number", example = "0", required = true)
+      @Parameter(name = "page", description = "Page Number", example = "0")
           @RequestParam(defaultValue = "0")
           Optional<Integer> page,
       @Parameter(
               name = "order",
-              description = "Ascending or Descending (default) order",
-              example = "0",
-              required = false)
-          @RequestParam(defaultValue = "DESC")
+              description = "Ascending (ASC, default) or Descending (DESC) order on sort",
+              example = "ASC")
+          @RequestParam(defaultValue = "ASC")
           Optional<Direction> order,
-      @Parameter(
-              name = "sort",
-              description = "The element to sort on",
-              example = "0",
-              required = false)
+      @Parameter(name = "sort", description = "The field to sort on", example = "name")
           @RequestParam(defaultValue = "name")
           Optional<String> sort) {
     return workspaceService.query(page, limit, order, sort, search, labels, statuses, names, externalRef);

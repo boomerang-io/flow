@@ -90,8 +90,8 @@ class ScheduleWorkspaceQueryTest extends AbstractEngineIntegrationTest {
   private Page<WorkflowSchedule> query(String workspace) {
     return scheduleService.query(
         workspace,
-        0,
-        50,
+        Optional.of(0),
+        Optional.of(50),
         Sort.by("creationDate"),
         Optional.of(List.of("active")),
         Optional.empty(),
