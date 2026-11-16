@@ -7,6 +7,8 @@ tag's release notes.
 
 ### Upgrading
 
+- **The SDKs' Maven groupId is now `io.useboomerang` (was `io.boomerang`).** Update dependencies on
+  `dispatcher-sdk` and `flow-sdk`. Java packages are unchanged.
 - **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
   `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
   workflow a program starts this way. A body `trigger` other than `manual` or `api`, in any case, is now `400`.

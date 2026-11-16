@@ -9,8 +9,11 @@ models are `contracts/dispatcher-v1.yaml`. This page is the how-to.
 
 ## Get it
 
-Published to this repository's GitHub Packages registry on every product tag, as `io.boomerang:dispatcher-sdk`
-with the product's version. Reading GitHub Packages needs a token with `read:packages`.
+Published to this repository's GitHub Packages registry on every product tag, as `io.useboomerang:dispatcher-sdk`
+with the product's version. Until the Maven Central namespace and signing secrets are in place, the library is on GitHub Packages
+only, and reading it needs a token with `read:packages`; once Central publishing is on, stable releases
+resolve from Central with no repository entry or token. See "Publishing to Maven Central" in the repository
+README.
 
 ```xml
 <repository>
@@ -19,7 +22,7 @@ with the product's version. Reading GitHub Packages needs a token with `read:pac
 </repository>
 
 <dependency>
-  <groupId>io.boomerang</groupId>
+  <groupId>io.useboomerang</groupId>
   <artifactId>dispatcher-sdk</artifactId>
   <version>5.0.0</version>
 </dependency>

@@ -394,6 +394,6 @@ fields ignored, an unknown enum value read as `unknown`), and its `DispatcherCon
 | `TaskLogCapture` | One buffer per task run, fed by the host's log framework through `append(taskRunId, line)` with the id each event carries in its MDC (`sdk/TaskLogCapture.java:52-57`); the first `headBytes` and the last `tailBytes` are kept, 64 KB each by default, with one line between them saying how many bytes were dropped (`:96-120`); `snapshot(taskRunId)` is the log so far, for a host that serves a live log route. `logback.TaskLogAppender` is the adapter for logback: `attach(capture)` adds it to the root logger (`sdk/logback/TaskLogAppender.java:35-42`); a log4j2 host writes the equivalent three-line appender. SLF4J and logback are optional dependencies of the SDK, so a dispatcher that captures nothing carries neither |
 | `ArtifactTransfer` | The `uploadartifact` / `downloadartifact` transfer for a dispatcher without the worker image: PUT or GET on the link params filled at claim, the download verified against `sha256` (`sdk/ArtifactTransfer.java:83-131,195-202`) |
 
-It is published to GitHub Packages as `io.boomerang:dispatcher-sdk`, beside the public API's `io.boomerang:flow-sdk`, each
-versioned with the product tag (`https://maven.pkg.github.com/boomerang-io/flow`; `.github/workflows/ci-release.yml:99-142`).
-Reading it needs a GitHub token with `read:packages`.
+It is published as `io.useboomerang:dispatcher-sdk`, beside the public API's `io.useboomerang:flow-sdk`, each
+versioned with the product tag, to GitHub Packages (`https://maven.pkg.github.com/boomerang-io/flow`; reading it needs a
+GitHub token with `read:packages`) and, for stable tags, to Maven Central (`.github/workflows/ci-release.yml:99-142`).
