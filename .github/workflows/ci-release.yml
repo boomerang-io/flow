@@ -102,10 +102,21 @@ jobs:
     # GitHub Packages Maven registry, each versioned by the product tag: a library's version is the
     # server version it was built against. A manual run publishes nothing. Each library publishes on
     # its own: one failing does not cancel the other, and a re-run skips a version already published.
+    #
+    # They are also published to Maven Central as io.useboomerang, but only when the repository has the
+    # four secrets below, and only for a stable tag (no -beta or -rc) unless the repository variable
+    # CENTRAL_PUBLISH_PRERELEASES is 'true': a Central version can never be removed.
+    #   CENTRAL_USERNAME, CENTRAL_TOKEN  the Central Portal user token (Account, Generate User Token)
+    #   GPG_PRIVATE_KEY                  the armored private key whose public half is on keys.openpgp.org
+    #   GPG_PASSPHRASE                   that key's passphrase
+    # Without them the Central steps are skipped and nothing else changes.
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     permissions:
       contents: read
       packages: write
+    # Secrets cannot be tested in a step's `if`, so the one that gates Central is copied to an env var.
+    env:
+      CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +143,7 @@ jobs:
         # are both there is already published and the step succeeds without deploying.
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          BASE="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/io/boomerang/${{ matrix.module }}/${VERSION}/${{ matrix.module }}-${VERSION}"
+          BASE="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/io/useboomerang/${{ matrix.module }}/${VERSION}/${{ matrix.module }}-${VERSION}"
           # The registry answers a stored file with a redirect to its storage (302), a missing one with 404.
           published() { case "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${GITHUB_TOKEN}" "$1")" in 200|302) true ;; *) false ;; esac; }
           if published "${BASE}.pom" && published "${BASE}.jar"; then
@@ -140,6 +151,45 @@ jobs:
             exit 0
           fi
           mvn --batch-mode -f ${{ matrix.module }}/pom.xml -P release deploy -s settings.xml
+      - name: Check whether to publish to Maven Central
+        id: central
+        env:
+          CENTRAL_PUBLISH_PRERELEASES: ${{ vars.CENTRAL_PUBLISH_PRERELEASES }}
+        # Runs only with the Central secrets. A pre-release tag (a hyphen in the version) is skipped unless
+        # CENTRAL_PUBLISH_PRERELEASES is 'true'. Central versions are permanent, so a version already there
+        # is skipped too.
+        if: ${{ env.CENTRAL_USERNAME != '' }}
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          if [[ "${VERSION}" == *-* && "${CENTRAL_PUBLISH_PRERELEASES}" != "true" ]]; then
+            echo "${VERSION} is a pre-release: not published to Maven Central."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          URL="https://repo1.maven.org/maven2/io/useboomerang/${{ matrix.module }}/${VERSION}/${{ matrix.module }}-${VERSION}.pom"
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' "${URL}")" = "200" ]; then
+            echo "${{ matrix.module }} ${VERSION} is already on Maven Central."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+      - name: Import the GPG key
+        if: ${{ steps.central.outputs.publish == 'true' }}
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Publish to Maven Central
+        if: ${{ steps.central.outputs.publish == 'true' }}
+        env:
+          CENTRAL_TOKEN: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        # The `central` server id is the one the pom's central profile names as publishingServerId.
+        run: |
+          printf '<settings><servers><server><id>central</id><username>%s</username><password>%s</password></server></servers></settings>\n' \
+            "${CENTRAL_USERNAME}" "${CENTRAL_TOKEN}" > central-settings.xml
+          mvn --batch-mode -f ${{ matrix.module }}/pom.xml -P release,central deploy -s central-settings.xml
+          rm -f central-settings.xml
       - name: Slack
         if: ${{ always() }}
         uses: ./.github/actions/slack

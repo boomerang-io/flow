@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>io.boomerang</groupId>
+    <groupId>io.useboomerang</groupId>
     <artifactId>dispatcher-sdk</artifactId>
     <!-- Set from the product tag when published (ci-release.yml). -->
     <version>5.0.0-SNAPSHOT</version>
@@ -20,7 +20,18 @@
     </licenses>
     <scm>
         <url>https://github.com/boomerang-io/flow</url>
+        <connection>scm:git:https://github.com/boomerang-io/flow.git</connection>
+        <developerConnection>scm:git:git@github.com:boomerang-io/flow.git</developerConnection>
+        <tag>HEAD</tag>
     </scm>
+    <developers>
+        <developer>
+            <name>Boomerang Flow maintainers</name>
+            <organization>Boomerang Flow</organization>
+            <organizationUrl>https://useboomerang.io</organizationUrl>
+            <url>https://useboomerang.io</url>
+        </developer>
+    </developers>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -186,9 +197,14 @@
     </build>
 
     <profiles>
-        <!-- Publishing (ci-release.yml): attach the sources jar beside the classes. -->
+        <!-- Publishing (ci-release.yml): attach the sources and javadoc jars beside the classes, and
+             sign them when asked (-Dgpg.skip=false, which -Pcentral sets). -->
         <profile>
             <id>release</id>
+            <properties>
+                <!-- Signing needs a key: off unless the central profile or -Dgpg.skip=false turns it on. -->
+                <gpg.skip>true</gpg.skip>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -202,6 +218,68 @@
                                 </goals>
                             </execution>
                         </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <configuration>
+                            <!-- CI imports the key into the agent; the passphrase comes from MAVEN_GPG_PASSPHRASE. -->
+                            <passphraseEnvName>MAVEN_GPG_PASSPHRASE</passphraseEnvName>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Maven Central (ci-release.yml, with -P release,central): signs and uploads through the
+             Central Portal; the server id `central` holds the Portal user token. -->
+        <profile>
+            <id>central</id>
+            <properties>
+                <gpg.skip>false</gpg.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.12.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>published</waitUntil>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>
