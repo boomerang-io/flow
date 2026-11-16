@@ -89,13 +89,13 @@ Both queue routes are long polls. The engine holds the request for up to 30 s, l
 task its filter can claim is admitted, or a run with a workspace is submitted to start, on the engine instance
 holding it and at least every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and
 answers as soon as it has claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:56-75`,
-`:262-311`, `:368-485`, `:581-603`, `dispatcher/PollWakeups.java:41-160`). Termination orders are looked for at once
-by the holder's polls on the engine instance where its task ended cancelled or timed out or was parked for retry
-(`engine/TaskRunService.java:619-634`, `:843`), else once per `flow.dispatcher.poll.residue-ms` (30 s, never under the
-re-check) per dispatcher and filter, by whichever poll looks first once due (`dispatcher/DispatcherService.java:77-79`,
-`:403-404`, `:427`, `:454-469`, `:493-518`): a cancel reaches the holder within the end round trip, or within that
-interval when another instance wrote it. A poll re-opened after a claim does not look again; a page of 20 orders keeps
-the turn due. A task is claimed about an end round trip, an admission and a claim round trip after its
+`:262-311`, `:368-485`, `:581-603`, `dispatcher/PollWakeups.java:36-251`). Termination orders are looked for at once
+by the holder's polls on the engine instance where its task ended cancelled or timed out or was parked for retry, held
+or the next one opened (`engine/TaskRunService.java:619-634`, `:843`, `dispatcher/PollWakeups.java:189-216`), else
+once per `flow.dispatcher.poll.residue-ms` (30 s, never under the re-check) per dispatcher and filter, by whichever
+poll looks first once due (`dispatcher/DispatcherService.java:77-78`, `:422-425`, `:452-467`, `:490-493`): a cancel, or
+a retry its own end report parks, reaches the holder within the end round trip, or within that interval when another
+instance wrote it. A poll re-opened after a claim does not look again; a page of 20 orders keeps the turn due. A task is claimed about an end round trip, an admission and a claim round trip after its
 predecessor ends; a poll held on another engine instance than the one that admitted it finds it within the re-check interval. One task answer claims at most 20 task runs to run and 40
 termination orders; one workflow answer at most 20 runs. A dispatcher's client read timeout MUST exceed 30 s. It
 SHOULD poll again at once after a poll that returned runs or was held for its window, and SHOULD wait about 5 s after
@@ -105,7 +105,7 @@ that matches nothing answer at once (`dispatcher/DispatcherService.java:370-373,
 
 A dispatcher with no free slot keeps a `limit=0` poll open so termination orders still reach it, and MAY open a work
 poll beside it the moment a slot frees: each termination order is claimed by its own compare-and-set, so two polls
-never receive the same one (`dispatcher/DispatcherService.java:454-469`). The SDK does this, with at most one work
+never receive the same one (`dispatcher/DispatcherService.java:452-467`). The SDK does this, with at most one work
 poll in flight per pool (`sdk/Dispatcher.java:342-365`).
 
 The task poll takes optional query parameters:

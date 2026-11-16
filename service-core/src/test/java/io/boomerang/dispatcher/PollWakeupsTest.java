@@ -144,6 +144,33 @@ class PollWakeupsTest {
     }
   }
 
+  // A dispatcher's own end report parks its task while none of its polls is held: the next poll
+  // it opens runs the termination pages on its first look, not at the next residue turn.
+  @Test
+  void aTerminationWithNoPollHeldMakesTheNextPollsPagesDue() {
+    long now = System.currentTimeMillis();
+    TaskWaiter first = wakeups.register(DISPATCHER, templates());
+    assertTrue(wakeups.takeResidueTurn(first, now, 30_000), "the first look takes the turn");
+    assertFalse(wakeups.takeResidueTurn(first, now, 30_000), "the turn is then 30 s away");
+    wakeups.unregister(first);
+
+    wakeups.terminationDue(DISPATCHER, TaskType.custom, TASK, WORKFLOW);
+    TaskWaiter next = wakeups.register(DISPATCHER, templates());
+    try {
+      assertFalse(
+          wakeups.takeResidueTurn(next, now, 30_000),
+          "a termination outside the filter leaves the turn where it was");
+      wakeups.terminationDue("dispatcher-2", TaskType.template, TASK, WORKFLOW);
+      assertFalse(
+          wakeups.takeResidueTurn(next, now, 30_000),
+          "another dispatcher's termination leaves the turn where it was");
+      wakeups.terminationDue(DISPATCHER, TaskType.template, TASK, WORKFLOW);
+      assertTrue(wakeups.takeResidueTurn(next, now, 30_000), "the termination made the pages due");
+    } finally {
+      wakeups.unregister(next);
+    }
+  }
+
   @Test
   void anUnregisteredPollIsNotWoken() throws Exception {
     TaskWaiter waiter = wakeups.register(DISPATCHER, templates());

@@ -19,8 +19,10 @@ import org.springframework.stereotype.Component;
  * registered under the task's type whose filter the task matches, so an admission costs one claim
  * page per poll that can claim it; a task a dispatcher holds that becomes termination residue
  * signals that dispatcher's waiters whose filter matches, so the termination order goes out on
- * the next look rather than at the next timed re-check. A run submitted with a workspace signals
- * the workflow polls alone. The timed wait stays, as a signal on another instance reaches only
+ * the next look rather than at the next timed re-check. The same termination also makes the
+ * termination pages due for that dispatcher's matching filters, so a poll it opens after the
+ * signal, when none was held to hear it, runs them on its first look rather than at the next
+ * residue turn. A run submitted with a workspace signals the workflow polls alone. The timed wait stays, as a signal on another instance reaches only
  * that instance's polls. A signal that lands while the poll is still looking is kept on the
  * waiter, so the wait that follows ends at once rather than losing it. The lock never pins a
  * virtual thread, which the polls run on.
@@ -33,6 +35,11 @@ public class PollWakeups {
   private long runGeneration;
   private final Map<TaskType, Set<TaskWaiter>> byType = new EnumMap<>(TaskType.class);
   private final Map<String, Set<TaskWaiter>> byDispatcher = new HashMap<>();
+  // When each dispatcher and filter's next timed residue turn is due; no entry means due now.
+  private final Map<ResidueKey, Long> residueDue = new HashMap<>();
+
+  // A dispatcher's polls under one filter, which share the termination-residue cadence.
+  private record ResidueKey(String dispatcherId, ClaimFilter filter) {}
 
   /**
    * A held task poll: its dispatcher, its filter, its own condition, and whether a matching
@@ -53,17 +60,25 @@ public class PollWakeups {
     // The in-memory twin of TaskRunService.narrowed: the type within the poll's types, and the
     // task and workflow within its lists when the poll filtered on them.
     private boolean matches(TaskType type, String taskRef, String workflowRef) {
-      return filter.types().contains(type)
-          && (filter.taskRefs() == null || filter.taskRefs().contains(taskRef))
-          && (filter.workflowRefs() == null || filter.workflowRefs().contains(workflowRef));
+      return PollWakeups.matches(filter, type, taskRef, workflowRef);
     }
+  }
+
+  private static boolean matches(
+      ClaimFilter filter, TaskType type, String taskRef, String workflowRef) {
+    return filter.types().contains(type)
+        && (filter.taskRefs() == null || filter.taskRefs().contains(taskRef))
+        && (filter.workflowRefs() == null || filter.workflowRefs().contains(workflowRef));
   }
 
   /** Register a dispatcher's task poll under each type of its filter, before its first look. */
   public TaskWaiter register(String dispatcherId, ClaimFilter filter) {
     TaskWaiter waiter = new TaskWaiter(dispatcherId, filter);
+    long now = System.currentTimeMillis();
     lock.lock();
     try {
+      // Turns already due are dropped, so the map holds only the filters polled within an interval.
+      residueDue.values().removeIf(due -> due <= now);
       for (TaskType type : filter.types()) {
         byType.computeIfAbsent(type, t -> new HashSet<>()).add(waiter);
       }
@@ -128,6 +143,36 @@ public class PollWakeups {
     }
   }
 
+  /**
+   * Whether this look runs the termination pages on the timed turn: true once per {@code interval}
+   * for the waiter's dispatcher and filter, whichever of its polls looks first, which then holds
+   * the next due time; and at once after a termination for that dispatcher under the filter.
+   */
+  public boolean takeResidueTurn(TaskWaiter waiter, long now, long interval) {
+    ResidueKey key = new ResidueKey(waiter.dispatcherId, waiter.filter);
+    lock.lock();
+    try {
+      Long due = residueDue.get(key);
+      if (due == null || now >= due) {
+        residueDue.put(key, now + interval);
+        return true;
+      }
+      return false;
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  /** A look found a full termination page: the next look takes the turn again. */
+  public void residueOwed(TaskWaiter waiter) {
+    lock.lock();
+    try {
+      residueDue.remove(new ResidueKey(waiter.dispatcherId, waiter.filter));
+    } finally {
+      lock.unlock();
+    }
+  }
+
   /** A task is claimable: wake the held task polls whose filter can claim it. */
   public void taskAdmitted(TaskType type, String taskRef, String workflowRef) {
     lock.lock();
@@ -145,11 +190,20 @@ public class PollWakeups {
 
   /**
    * A task the dispatcher holds has ended cancelled or timed out, or is parked for retry: wake
-   * that dispatcher's held polls whose filter covers it, so its termination order goes out now.
+   * that dispatcher's held polls whose filter covers it, so its termination order goes out now,
+   * and make the termination pages due for those filters, so a poll the dispatcher opens next -
+   * one not held when the task ended, as when its own end report parked it - carries the order
+   * on its first look.
    */
   public void terminationDue(String dispatcherId, TaskType type, String taskRef, String workflowRef) {
     lock.lock();
     try {
+      residueDue
+          .keySet()
+          .removeIf(
+              key ->
+                  key.dispatcherId().equals(dispatcherId)
+                      && matches(key.filter(), type, taskRef, workflowRef));
       for (TaskWaiter waiter : byDispatcher.getOrDefault(dispatcherId, Set.of())) {
         if (waiter.matches(type, taskRef, workflowRef)) {
           waiter.terminationDue = true;

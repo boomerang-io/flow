@@ -682,8 +682,9 @@ class V3DumpMigrationTest {
     // tasks and 14 new Sheets, Drive and Artifactory revisions, and the 12 Sheets and Drive revisions
     // defaulting their key to the Google integration's parameter, and the Acquire Lock task's
     // version 2 stating its timeout in milliseconds) and the two artifact tasks' version 1
-    // (_0018__SeedArtifactTasks).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(222);
+    // (_0018__SeedArtifactTasks), and task-flow 3.4.0's 8 catalogue revisions
+    // (_0049__SeedTaskFlow34Revisions).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(230);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();

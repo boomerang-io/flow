@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,7 +87,6 @@ public class DispatcherService {
   private final WorkflowRunRepository workflowRunRepository;
   private final TaskService taskService;
   private final PollWakeups pollWakeups;
-  private final ConcurrentHashMap<ResidueKey, Long> residueDue = new ConcurrentHashMap<>();
 
   public DispatcherService(
       DispatcherRepository dispatcherRepository,
@@ -396,18 +394,17 @@ public class DispatcherService {
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     // Residue - a task cancelled, timed out or parked while a dispatcher held it - changes rarely
-    // and is never fresh work. A termination on this instance wakes the holder's poll at once, so
-    // the timed pages only catch residue written by another engine replica or a missed wake: they
-    // are due once per residue interval for this dispatcher and filter, on the first look of a
-    // poll when due, not on every re-check or wake and not again on a poll re-opened after a claim.
-    ResidueKey residueKey = new ResidueKey(dispatcherId, filter);
-    residueDue.values().removeIf(due -> due <= System.currentTimeMillis());
+    // and is never fresh work. A termination on this instance wakes the holder's poll at once, or
+    // makes the pages due for the next poll it opens when none was held, so the timed pages only
+    // catch residue written by another engine replica: they are due once per residue interval for
+    // this dispatcher and filter, on the first look of a poll when due, not on every re-check or
+    // wake and not again on a poll re-opened after a claim.
     // Registered before the first look, so a signal that lands during a look is kept for the wait
     // that follows; only an admission this filter can claim, or a termination of a task this
     // dispatcher holds under it, wakes the poll.
     PollWakeups.TaskWaiter waiter = pollWakeups.register(dispatcherId, filter);
     try {
-      return taskPoll(dispatcherId, filter, executionPage, residueKey, waiter, endTime);
+      return taskPoll(dispatcherId, filter, executionPage, waiter, endTime);
     } finally {
       pollWakeups.unregister(waiter);
     }
@@ -417,14 +414,15 @@ public class DispatcherService {
       String dispatcherId,
       ClaimFilter filter,
       int executionPage,
-      ResidueKey residueKey,
       PollWakeups.TaskWaiter waiter,
       Instant endTime) {
     while (Instant.now().isBefore(endTime)) {
       long now = System.currentTimeMillis();
       // The termination pages run on their timed turn, or at once when a task this dispatcher
       // holds became residue since the last look.
-      boolean residue = takeResidueTurn(residueKey, now) | pollWakeups.takeTerminationDue(waiter);
+      boolean residue =
+          pollWakeups.takeResidueTurn(waiter, now, residueMillis())
+              | pollWakeups.takeTerminationDue(waiter);
       LOGGER.debug(
           "Checking queue for dispatcher: {} with task types: {}", dispatcherId, filter.types());
       // Page then claim: the Compare-And-Set re-checks eligibility per document, so a candidate
@@ -457,7 +455,7 @@ public class DispatcherService {
           // A full page may have more behind it: the next look takes the turn again rather than
           // leaving the rest for a whole residue interval.
           if (terminations.size() >= PAGE_SIZE) {
-            residueDue.remove(residueKey);
+            pollWakeups.residueOwed(waiter);
           }
           for (TaskRunEntity candidate : terminations) {
             TaskRunEntity claimed =
@@ -492,29 +490,6 @@ public class DispatcherService {
   // The residue interval, never under the re-check interval.
   private long residueMillis() {
     return Math.max(recheckMillis(), pollResidueMs);
-  }
-
-  // A dispatcher's polls under one filter, which share the termination-residue cadence.
-  private record ResidueKey(String dispatcherId, ClaimFilter filter) {}
-
-  /**
-   * Whether this look runs the termination pages: true once per residue interval for the key,
-   * whichever poll of that dispatcher and filter looks first, which then holds the next due time.
-   * Entries whose due time has passed are pruned at each poll's start - a key with no entry is
-   * simply due - so the map holds one entry per dispatcher and filter polling right now.
-   */
-  private boolean takeResidueTurn(ResidueKey key, long now) {
-    boolean[] taken = new boolean[1];
-    residueDue.compute(
-        key,
-        (k, due) -> {
-          if (due == null || now >= due) {
-            taken[0] = true;
-            return now + residueMillis();
-          }
-          return due;
-        });
-    return taken[0];
   }
 
   /**
