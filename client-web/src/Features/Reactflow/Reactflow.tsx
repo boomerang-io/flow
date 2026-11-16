@@ -140,7 +140,7 @@ function FlowDiagram(props: FlowDiagramProps) {
 
   React.useEffect(() => {
     if (shouldFitGraph.current) {
-      props.reactFlowInstance?.fitView();
+      props.reactFlowInstance?.fitView(FIT_VIEW_OPTIONS);
       shouldFitGraph.current = false;
     }
   });
@@ -247,7 +247,8 @@ function FlowDiagram(props: FlowDiagramProps) {
               edgeTypes={edgeTypes}
               elementsSelectable={isEnabled}
               fitView={true}
-              fitViewOptions={{ maxZoom: 1 }}
+              fitViewOptions={FIT_VIEW_OPTIONS}
+              minZoom={MIN_ZOOM}
               nodeTypes={nodeTypes}
               nodes={nodes}
               nodesConnectable={isEnabled}
@@ -360,6 +361,11 @@ export function MarkerDefinition({ children }: MarkerDefinitionsProps) {
   );
 }
 
+// React Flow stops zooming out at 0.5 by default, which leaves a long workflow wider than the
+// canvas with no way to see it whole; fitting the view uses the same floor.
+const MIN_ZOOM = 0.1;
+const FIT_VIEW_OPTIONS = { maxZoom: 1, minZoom: MIN_ZOOM };
+
 // Determine if we should use auto-layout or not
 function initElements(nodes: Array<WorkflowNode> = [], edges: Array<WorkflowEdge> = []) {
   let useAutoLayout = false;
@@ -398,40 +404,34 @@ function autoLayoutElements(nodes: Array<WorkflowNode> = [], edges: Array<Workfl
 
   dagre.layout(dagreGraph);
 
-  nodes.forEach((node: WorkflowNode) => {
+  // Each node comes back as a new object: React Flow tracks nodes by reference, so a node moved
+  // in place keeps its old position on the canvas and the layout appears to do nothing.
+  const positionedNodes = nodes.map((node: WorkflowNode): WorkflowNode => {
     const positionedNode = dagreGraph.node(node.id);
-    node.targetPosition = Position.Left;
-    node.sourcePosition = Position.Right;
+    const isStartOrEnd = node.type === NodeType.Start || node.type === NodeType.End;
 
     // We are shifting the dagre node position (anchor=center center) to the top left
     // so it matches the React Flow node anchor point (top left)
-    if (node.type === NodeType.Start || node.type === NodeType.End) {
-      node.position = {
-        x: positionedNode.x - START_END_WIDTH / 2,
-        y: positionedNode.y - NODE_HEIGHT / 2,
-      };
-    } else {
-      node.position = {
-        x: positionedNode.x - NODE_WIDTH / 2,
-        y: positionedNode.y - NODE_HEIGHT / 2,
-      };
-    }
+    const position = {
+      x: positionedNode.x - (isStartOrEnd ? START_END_WIDTH : NODE_WIDTH) / 2,
+      y: positionedNode.y - NODE_HEIGHT / 2,
+    };
 
     // Do some additional adjustment if there are just two nodes
     // so the start and end aren't so close together and look weird
     if (nodes.length === 2) {
       if (node.type === NodeType.Start) {
-        node.position.x = node.position.x - START_END_WIDTH * 2;
+        position.x = position.x - START_END_WIDTH * 2;
       }
       if (node.type === NodeType.End) {
-        node.position.x = node.position.x + START_END_WIDTH * 2;
+        position.x = position.x + START_END_WIDTH * 2;
       }
     }
 
-    return node;
+    return { ...node, position, targetPosition: Position.Left, sourcePosition: Position.Right };
   });
 
-  return { nodes, edges };
+  return { nodes: positionedNodes, edges };
 }
 
 function getEdgeType(connection: Connection, nodes: WorkflowNode[]): Pick<WorkflowEdge, "type" | "data"> {
@@ -450,5 +450,5 @@ function getEdgeType(connection: Connection, nodes: WorkflowNode[]): Pick<Workfl
   };
 }
 
-export { getEdgeType };
+export { autoLayoutElements, getEdgeType };
 export default FlowDiagram;
