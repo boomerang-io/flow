@@ -253,7 +253,6 @@ public class ScheduleService {
   private WorkflowSchedule convertScheduleEntityToModel(WorkflowScheduleEntity entity) {
     try {
       WorkflowSchedule schedule = new WorkflowSchedule(entity, getNextTriggerDate(entity));
-      relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, schedule.getWorkflowRef());
       schedule.setWorkflowRef(
           relationshipService.getSlugByRefForType(
               RelationshipType.WORKFLOW, schedule.getWorkflowRef()));
@@ -262,7 +261,6 @@ public class ScheduleService {
       // Trap exception as we still want to return the dates that we can
       LOGGER.warn("Unable to retrieve next schedule date for {}, skipping.", entity.getId());
       WorkflowSchedule schedule = new WorkflowSchedule(entity);
-      relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, schedule.getWorkflowRef());
       schedule.setWorkflowRef(
           relationshipService.getSlugByRefForType(
               RelationshipType.WORKFLOW, schedule.getWorkflowRef()));

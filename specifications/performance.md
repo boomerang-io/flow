@@ -301,13 +301,23 @@ with a page of one (`:955-957`).
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
 | Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:612-647` |
 
-`WorkspaceQueryDatabaseCommandsTest` pins it: a page of 10 and a page of 60 workspaces cost the same 32 commands
-for a member and 37 for a global caller, and each workspace on a page reads as it does alone. Before, each workspace
-cost 23 commands for a member and 25 for a global caller, one relationship walk among them: for the 60 on
-Testcontainers, 1 389 commands and 5.9 s for a member and 1 512 commands and 7.1 s for a global caller, against 32
-commands and 0.5 s and 37 commands and 0.8 s after. What still grows is the walk itself for an admin
-or a global token, which starts at the root and reads every node under every workspace, workflow runs included
-(`core/RelationshipService.java:959-1037`) — now once per page rather than once per workspace.
+`WorkspaceQueryDatabaseCommandsTest` pins it: a page of 10 or 60 workspaces costs 32 commands for a member and 33 for
+a global caller (per workspace before: 1 389 and 1 512 commands for 60). An admin's or global token's listing of every
+workspace still walks from the root (`core/RelationshipService.java:965-1061`).
+
+## Relationship reads per request and per tick
+
+Grants are read live per request (`core/TokenService.java:654-678`); `RelationshipReadsDatabaseCommandsTest` pins these.
+
+| Path | Node reads | Code |
+| --- | --- | --- |
+| Health probe `GET /health` | 0: no authentication runs | `core/security/AuthenticationFilter.java:428-436` |
+| Any route, global token | 0 to authorize: a `global` grant answers before the workspace is resolved | `core/RelationshipService.java:556-570` |
+| Workspace-scoped read, global token, admin session or scheduled run | 2: the workspace node, then its children; the walk starts at the named workspaces, not at the root (was 4 from the root, plus a batch per 101 nodes beyond the first: every user, workspace and run) | `core/RelationshipService.java:965-987` |
+| Dispatcher poll, filter resolved | 1 for any number of bare task slugs, 2 for workspace tasks (was one, or two, per value); a filter resolves once per poll and is cached 30 s per filter text, so the re-checks inside a poll and the polls after read none | `dispatcher/ClaimFilterService.java:60-73,91-199`, `dispatcher/DispatcherService.java:381-382` |
+| Schedule fire | 6: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from (was 10); no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-829` |
+| Run completion | 1: the audit event's workflow and workspace names in one read (was 2) | `core/audit/WorkflowRunAuditBridge.java:80-89` |
+| Watcher and schedule sweeps with nothing due | 0 | `engine/WorkflowWatcher.java:168-200` |
 
 ## Payload caps
 

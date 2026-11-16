@@ -425,6 +425,11 @@ tag's release notes.
 
 ### Changed
 
+- **Fewer relationship-graph reads on idle and machine traffic.** A global token's, an admin's or a scheduled
+  run's workspace-scoped read starts at the workspace instead of walking every user, workspace and run in the
+  graph (4 node reads and a growing batch, now 2); a dispatcher poll resolves a task filter's slugs in one read
+  however many it lists (was one each, every 30 s per pool); a schedule fire reads 6 nodes (was 10) and a run's
+  completion audit 1 (was 2). Grants and memberships are still read live on every request.
 - **Unread quota and app properties are gone.** `max.workflow.duration`, `max.workflow.count`,
   `max.workflow.execution.monthly`, `max.workflow.execution.time`, `max.concurrent.workflows` and `flow.apps.url`
   were declared but never read: quotas are the `quotas` settings in Settings, and the webapp's path is

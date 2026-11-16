@@ -15,7 +15,10 @@ import io.boomerang.workflow.TaskService;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -87,64 +90,112 @@ public class ClaimFilterService {
 
   // "deploy,ws-a/build*": a bare slug names a global task, `<workspace>/<slug>` that workspace's
   // task, read from the relationship graph where scope lives; the wildcard applies to the slug half.
+  // However many values the filter lists, the global slugs are one query and the workspace tasks
+  // three: the workspaces, their task edges and the task nodes.
   private List<String> taskRefs(List<String> values) {
-    List<String> refs = new ArrayList<>();
+    List<String> globalSlugs = new ArrayList<>();
+    Map<String, List<String>> slugsByWorkspace = new LinkedHashMap<>();
     for (String value : values) {
       int split = value.indexOf(TaskService.SLUG_SEPARATOR);
-      refs.addAll(
-          (split < 0)
-              ? nodeRefs(RelationshipType.TASK, null, value)
-              : workspaceTaskRefs(value.substring(0, split), value.substring(split + 1)));
+      if (split < 0) {
+        globalSlugs.add(value);
+      } else {
+        slugsByWorkspace
+            .computeIfAbsent(value.substring(0, split), w -> new ArrayList<>())
+            .add(value.substring(split + 1));
+      }
+    }
+    List<String> refs = new ArrayList<>();
+    if (!globalSlugs.isEmpty()) {
+      Query query =
+          Query.query(
+              Criteria.where("type")
+                  .is(RelationshipType.TASK.getLabel())
+                  .orOperator(globalSlugs.stream().map(ClaimFilterService::slugCriteria).toList()));
+      query.fields().include("ref");
+      nodes(query).forEach(node -> refs.add(node.getString("ref")));
+    }
+    if (!slugsByWorkspace.isEmpty()) {
+      refs.addAll(workspaceTaskRefs(slugsByWorkspace));
     }
     return refs;
   }
 
-  private List<String> workspaceTaskRefs(String workspace, String slug) {
-    Document node =
-        mongoTemplate.findOne(
-            Query.query(
-                Criteria.where("type")
-                    .is(RelationshipType.WORKSPACE.getLabel())
-                    .orOperator(
-                        Criteria.where("slug").is(workspace), Criteria.where("ref").is(workspace))),
-            Document.class,
-            mongoTemplate.getCollectionName(RelationshipNodeEntity.class));
-    if (node == null) {
+  private List<String> workspaceTaskRefs(Map<String, List<String>> slugsByWorkspace) {
+    // A workspace is named by its slug or its ref; a slug match wins, as it did one at a time.
+    Query workspaces =
+        Query.query(
+            Criteria.where("type")
+                .is(RelationshipType.WORKSPACE.getLabel())
+                .orOperator(
+                    Criteria.where("slug").in(slugsByWorkspace.keySet()),
+                    Criteria.where("ref").in(slugsByWorkspace.keySet())));
+    Map<String, String> nodeIdByWorkspace = new HashMap<>();
+    for (Document node : nodes(workspaces)) {
+      String id = node.get("_id").toString();
+      if (slugsByWorkspace.containsKey(node.getString("slug"))) {
+        nodeIdByWorkspace.put(node.getString("slug"), id);
+      }
+      if (slugsByWorkspace.containsKey(node.getString("ref"))) {
+        nodeIdByWorkspace.putIfAbsent(node.getString("ref"), id);
+      }
+    }
+    if (nodeIdByWorkspace.isEmpty()) {
       return List.of();
     }
-    List<String> children =
-        mongoTemplate
-            .find(
-                Query.query(
-                    Criteria.where("from")
-                        .is(node.get("_id").toString())
-                        .and("label")
-                        .is(RelationshipLabel.HAS_TASK.getLabel())),
-                Document.class,
-                mongoTemplate.getCollectionName(RelationshipEdgeEntity.class))
-            .stream()
-            .map(edge -> edge.getString("to"))
-            .toList();
-    return children.isEmpty() ? List.of() : nodeRefs(RelationshipType.WORKSPACETASK, children, slug);
+    Map<String, List<String>> childrenByNode = new HashMap<>();
+    mongoTemplate
+        .find(
+            Query.query(
+                Criteria.where("from")
+                    .in(nodeIdByWorkspace.values())
+                    .and("label")
+                    .is(RelationshipLabel.HAS_TASK.getLabel())),
+            Document.class,
+            mongoTemplate.getCollectionName(RelationshipEdgeEntity.class))
+        .forEach(
+            edge ->
+                childrenByNode
+                    .computeIfAbsent(edge.getString("from"), n -> new ArrayList<>())
+                    .add(edge.getString("to")));
+    if (childrenByNode.isEmpty()) {
+      return List.of();
+    }
+    Query tasks =
+        Query.query(
+            Criteria.where("type")
+                .is(RelationshipType.WORKSPACETASK.getLabel())
+                .and("_id")
+                .in(childrenByNode.values().stream().flatMap(List::stream).toList()));
+    tasks.fields().include("ref").include("slug");
+    Map<String, Document> taskById = new HashMap<>();
+    nodes(tasks).forEach(node -> taskById.put(node.get("_id").toString(), node));
+    List<String> refs = new ArrayList<>();
+    slugsByWorkspace.forEach(
+        (workspace, slugs) -> {
+          List<Pattern> patterns = slugs.stream().map(s -> Pattern.compile(anchored(s))).toList();
+          for (String child :
+              childrenByNode.getOrDefault(nodeIdByWorkspace.get(workspace), List.of())) {
+            Document task = taskById.get(child);
+            String slug = (task != null) ? task.getString("slug") : null;
+            if (slug != null && patterns.stream().anyMatch(p -> p.matcher(slug).matches())) {
+              refs.add(task.getString("ref"));
+            }
+          }
+        });
+    return refs;
   }
 
-  // The refs of the nodes of one type, among the given ids when any, whose slug matches.
-  private List<String> nodeRefs(RelationshipType type, List<String> ids, String slug) {
-    Criteria criteria = Criteria.where("type").is(type.getLabel());
-    if (ids != null) {
-      criteria = criteria.and("_id").in(ids);
-    }
-    criteria =
-        slug.contains("*")
-            ? criteria.and("slug").regex(anchored(slug))
-            : criteria.and("slug").is(slug);
-    Query query = Query.query(criteria);
-    query.fields().include("ref");
-    return mongoTemplate
-        .find(query, Document.class, mongoTemplate.getCollectionName(RelationshipNodeEntity.class))
-        .stream()
-        .map(document -> document.getString("ref"))
-        .toList();
+  // A slug value as a criterion: an exact match, or the anchored pattern when it has a wildcard.
+  private static Criteria slugCriteria(String slug) {
+    return slug.contains("*")
+        ? Criteria.where("slug").regex(anchored(slug))
+        : Criteria.where("slug").is(slug);
+  }
+
+  private List<Document> nodes(Query query) {
+    return mongoTemplate.find(
+        query, Document.class, mongoTemplate.getCollectionName(RelationshipNodeEntity.class));
   }
 
   // "example.io/workload=gpu,batch": one key, then the values. A dot in the key is matched in

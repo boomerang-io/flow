@@ -4,12 +4,16 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.security.IdentityService;
 import io.boomerang.common.model.WorkflowRunTransition;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.context.event.EventListener;
@@ -74,8 +78,18 @@ public class WorkflowRunAuditBridge {
         return;
       }
       AuditActor actor = currentActorOrSystem();
-      String workflowName = slugOrNull(RelationshipType.WORKFLOW, transition.workflowRef());
-      String workspace = owningWorkspace(transition);
+      // The workflow's name and its owning workspace's name: one edge read and one node read.
+      String workspaceRef = owningWorkspaceRef(transition);
+      Map<String, RelationshipNodeEntity> nodes =
+          names(Stream.of(transition.workflowRef(), workspaceRef).filter(Objects::nonNull).toList());
+      String workflowName = slugOrNull(nodes, RelationshipType.WORKFLOW, transition.workflowRef());
+      String workspace = slugOrNull(nodes, RelationshipType.WORKSPACE, workspaceRef);
+      if (workspace == null) {
+        LOGGER.warn(
+            "[{}] No owning Workspace resolves for Workflow {} - auditing without one.",
+            transition.id(),
+            transition.workflowRef());
+      }
       if (created) {
         emitter.emitAs(
             actor,
@@ -131,33 +145,36 @@ public class WorkflowRunAuditBridge {
   }
 
   /**
-   * Resolve the owning Workspace's name from the Workflow's parent edge, the way the Action
-   * rollup does. An unresolvable owner (already-deleted Workflow, a Workflow no workspace owns)
-   * audits with none rather than failing the transition.
+   * The owning Workspace's ref, from the Workflow's parent edge, the way the Action rollup reads
+   * it; null when none resolves (an already-deleted Workflow, a Workflow no workspace owns), which
+   * audits with no workspace rather than failing the transition.
    */
-  private String owningWorkspace(WorkflowRunTransition transition) {
+  private String owningWorkspaceRef(WorkflowRunTransition transition) {
     try {
       String parentRef =
           relationshipService.getParentByLabel(
               RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, transition.workflowRef());
-      if (parentRef != null && !parentRef.isBlank()) {
-        return relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, parentRef);
-      }
-    } catch (RuntimeException e) {
-      // Fall through to the unresolved log below.
-    }
-    LOGGER.warn(
-        "[{}] No owning Workspace resolves for Workflow {} - auditing without one.",
-        transition.id(),
-        transition.workflowRef());
-    return null;
-  }
-
-  private String slugOrNull(RelationshipType type, String ref) {
-    try {
-      return relationshipService.getSlugByRefForType(type, ref);
+      return (parentRef != null && !parentRef.isBlank()) ? parentRef : null;
     } catch (RuntimeException e) {
       return null;
     }
+  }
+
+  // The workflow and workspace nodes with these refs, keyed by ref; none when the read fails.
+  private Map<String, RelationshipNodeEntity> names(List<String> refs) {
+    try {
+      return refs.isEmpty()
+          ? Map.of()
+          : relationshipService.nodesByRef(refs, RelationshipType.WORKFLOW, RelationshipType.WORKSPACE);
+    } catch (RuntimeException e) {
+      return Map.of();
+    }
+  }
+
+  // The slug of the node of this type and ref among those read, or null.
+  private static String slugOrNull(
+      Map<String, RelationshipNodeEntity> nodes, RelationshipType type, String ref) {
+    RelationshipNodeEntity node = (ref != null) ? nodes.get(ref) : null;
+    return (node != null && type.getLabel().equals(node.getType())) ? node.getSlug() : null;
   }
 }

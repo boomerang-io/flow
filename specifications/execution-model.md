@@ -287,7 +287,7 @@ the stage, so a workflow author gains at most `finally.timeout` of extra executi
 
 Compare-and-set winners publish an in-process `TaskRunTransition` or `WorkflowRunTransition`. `WorkflowRunAuditBridge`
 records a CREATE audit event on a run's first status change and an UPDATE with the terminal status and duration at
-`completed`, the events the monthly run quota counts (`core/audit/WorkflowRunAuditBridge.java:58-103`); task-run
+`completed`, the events the monthly run quota counts (`core/audit/WorkflowRunAuditBridge.java:62-124`); task-run
 transitions are not audited, and auditing never fails the transition.
 
 When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:85`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
