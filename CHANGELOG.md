@@ -429,6 +429,10 @@ tag's release notes.
 
 ### Changed
 
+- **A JVM out of heap exits.** Both images start with `-XX:+ExitOnOutOfMemoryError`, so a platform restart policy
+  recovers it; before, an `OutOfMemoryError` could end Tomcat's connection acceptor and leave `service-core` running but
+  unreachable. `docker-compose.yml` gives `service-core` `restart: unless-stopped`. Run at least 1 GB at
+  `MaxRAMPercentage=50`.
 - **Fewer relationship-graph reads on idle and machine traffic.** A global token's, an admin's or a scheduled
   run's workspace-scoped read starts at the workspace instead of walking every user, workspace and run in the
   graph (4 node reads and a growing batch, now 2); a dispatcher poll resolves a task filter's slugs in one read

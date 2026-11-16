@@ -60,6 +60,9 @@ EXPOSE 7702
 # No shell, so no `java $JAVA_OPTS`: the launcher reads JDK_JAVA_OPTIONS from the environment
 # instead. An internal CA is a mounted truststore named there (-Djavax.net.ssl.trustStore), not a
 # keytool run at start. Compact object headers and the recorded AOT cache, as in service-core.
+# An OutOfMemoryError ends the JVM (exit 3) so the platform restarts it: left running, it can lose
+# the thread that accepts connections and sit up but unreachable. The flag does not shape the cache.
 ENTRYPOINT ["java", "-XX:+UseCompactObjectHeaders", "-XX:AOTCache=service.aot", \
+            "-XX:+ExitOnOutOfMemoryError", \
             "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "service.jar"]

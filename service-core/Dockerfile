@@ -88,6 +88,9 @@ EXPOSE 7700
 # No shell, so no `java $JAVA_OPTS`: the launcher reads JDK_JAVA_OPTIONS from the environment
 # instead, which is where a deployment puts heap and GC flags. Compact object headers (JEP 519)
 # take 4 bytes off every object; the AOT cache is the one the train stage recorded, without adapters.
+# An OutOfMemoryError ends the JVM (exit 3) so the platform restarts it: left running, it can lose
+# the thread that accepts connections and sit up but unreachable. The flag does not shape the cache.
 ENTRYPOINT ["java", "-XX:+UseCompactObjectHeaders", "-XX:AOTCache=service.aot", \
+            "-XX:+ExitOnOutOfMemoryError", \
             "-XX:+UnlockDiagnosticVMOptions", "-XX:-AOTAdapterCaching", \
             "-Djava.security.egd=file:/dev/./urandom", "-jar", "service.jar"]
