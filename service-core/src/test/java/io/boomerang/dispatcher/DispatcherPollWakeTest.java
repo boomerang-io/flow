@@ -280,7 +280,7 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
 
   /**
    * A task a dispatcher holds that is cancelled is termination residue for it: the dispatcher's
-   * held poll returns the termination order well inside the re-check interval, and another
+   * held poll returns the termination order at once - not on its 30 s residue turn - and another
    * dispatcher's held poll under the same type is not woken for it.
    */
   @Test
@@ -320,7 +320,7 @@ class DispatcherPollWakeTest extends AbstractSpiedEngineIntegrationTest {
       ResponseEntity<List<TaskRun>> response = holderPoll.get(5, TimeUnit.SECONDS);
       long waitedMs = Duration.ofNanos(System.nanoTime() - cancelledAt).toMillis();
       assertTrue(containsId(response, taskId), "the holder's poll carries the termination order");
-      // The wake and the termination claim; the one-second re-check alone would take about 800 ms.
+      // The wake and the termination claim; the residue turn alone would wait up to 30 s.
       assertTrue(waitedMs < 500, "terminated " + waitedMs + " ms after the cancel, expected < 500");
       assertFalse(otherPoll.isDone(), "another dispatcher's poll is not woken for it");
     } finally {

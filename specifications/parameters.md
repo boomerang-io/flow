@@ -48,7 +48,7 @@ admission (`engine/ParameterManager.java:144-238`, `engine/TaskExecutionService.
 the admission compare-and-set with secret values encrypted (`engine/TaskRunService.java:372-393`).
 `spec.script`, `spec.command`, `spec.arguments` and `spec.envs` are filled in when a dispatcher claims the task
 (`ParameterManager.fillSpec`, `engine/ParameterManager.java:288-314`, called from
-`dispatcher/DispatcherService.java:532-540`): the stored spec keeps its references and only the copy on the
+`dispatcher/DispatcherService.java:551-559`): the stored spec keeps its references and only the copy on the
 claim carries values, so no secret value is ever written into a stored spec.
 
 At claim, `$(params.x)` reads the task's params as frozen at admission, so a requeued task gets the same
@@ -56,7 +56,7 @@ values; `$(tasks.t.results.r)`, `$(workflow.params.x)` and `$(context.params.x)`
 `$(workspace.params.x)` and `$(global.params.x)` written straight into a spec field are read from their stores,
 so an edit since admission, or across a requeue, shows. Admission has checked every reference (below), so the
 fill-in fails only for a workspace or global parameter deleted since; the task then ends `failed` with reason
-`SpecFillFailed` (`dispatcher/DispatcherService.java:541-550`). The task run's params are the task's declared
+`SpecFillFailed` (`dispatcher/DispatcherService.java:560-569`). The task run's params are the task's declared
 params merged with the values authored on the workflow node (`engine/DAGUtility.java:313-316`).
 
 ## Substitution

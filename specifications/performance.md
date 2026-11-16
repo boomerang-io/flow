@@ -53,7 +53,7 @@ starve fresh work and a burst of one workflow's tasks cannot jump the queue.
 `claimableQuery` (`engine/TaskRunService.java:130-154`) selects `status=ready`, `phase=pending`, `type` in the
 dispatcher's registered types, `claim.by` absent, and `retry.after` absent or elapsed, narrowed by the poll's
 task and workflow filters, sorted by `creationDate`, projected to `_id` and `timeout`, then claims each candidate
-by CAS (page-then-CAS, `dispatcher/DispatcherService.java:428-440`). Backoff is one generic class: 10 s base,
+by CAS (page-then-CAS, `dispatcher/DispatcherService.java:436-448`). Backoff is one generic class: 10 s base,
 doubling per attempt, 5 min ceiling, up to 5 s jitter (`common/util/Backoff.java:15-34`), with a budget of 3
 requeues (`engine/EngineConstants.java:43`).
 
@@ -64,28 +64,29 @@ queues behind older work and ahead of newer work like any other burst. Each item
 (`engine/TaskRunService.java:504-519`).
 
 Dispatchers long-poll for 30 s, re-querying every `flow.dispatcher.poll.recheck-ms` (1000 by default, never under
-100) with a page of 20 (`dispatcher/DispatcherService.java:58-75`, `:380`), and reconnect as soon as a poll returns
-(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.java:114-122`). Each connected dispatcher
-therefore costs about 4 indexed queries per re-check when idle (the task claim page, the two termination pages and
-the run provision page), all on `claim_page`, and one request every 30 s per queue; a dispatcher's idle queries per
-second scale with its pools × 1000 / the interval. Admitting a task wakes the task polls held on that engine instance
+100) with a page of 20 (`dispatcher/DispatcherService.java:58-75`, `:386`), and reconnect as soon as a poll returns
+(`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.java:114-122`). When idle, each pool a
+dispatcher polls costs one indexed query per re-check (its task claim page; none for a full pool's `limit=0` poll),
+two per `flow.dispatcher.poll.residue-ms` (the termination pages, 30000 by default), and the workflow poll one
+provision page per re-check, all on `claim_page`, with one request every 30 s per queue. Admitting a task wakes the task polls held on that engine instance
 whose filter can claim it, by type and, when the poll filtered on them, task and workflow, and each re-runs its claim
 page at once; submitting a run with a workspace to start wakes the workflow polls alone
 (`dispatcher/PollWakeups.java:41-160`, `engine/TaskExecutionService.java:278-280`,
-`workflow/WorkflowRunService.java:885-888`, `dispatcher/DispatcherService.java:397-400`, `:562-584`): one indexed query
+`workflow/WorkflowRunService.java:885-888`, `dispatcher/DispatcherService.java:405-408`, `:581-603`): one indexed query
 per admission per poll that can claim the task, none for the others and none while nothing is admitted, so a
 dispatcher holding eight typed pools costs one find per admission, not eight
 (`DispatcherRequestDatabaseCommandsTest.anAdmissionWakesOnlyThePollsWhoseFilterMatches`). The two termination
-pages run once per re-check interval for a dispatcher and filter, never on an admission wake and not again on a poll
-re-opened within the interval: the due time lives in a map keyed by dispatcher and filter that successive polls
-share (`:395`, `:487-499`), so a held task poll's three looks - entry, a wake, the timed re-check - cost 3, 1 and 3
-claim-page finds, and a poll re-opened right after a claim costs 1 on its first look
-(`DispatcherRequestDatabaseCommandsTest`). They also run at once when a task the dispatcher holds ends cancelled or
-timed out or is parked for retry on this instance, which wakes that dispatcher's polls alone
-(`engine/TaskRunService.java:619-634`, `:843`, `DispatcherPollWakeTest.aCancelOfAHeldTaskWakesTheHoldersPollAtOnce`),
-so a cancel reaches the running task within the end round trip and the timed turn is the safety net for a holder
-polling another instance. Under load, where a poll returns on every claim and is re-opened at once, the shared
-cadence is the difference between one and three finds per claim. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
+pages run once per residue interval per dispatcher and filter, on the first look that finds the turn due - never on
+a re-check or an admission wake in between, nor on a poll re-opened within the interval - through a due-time map that
+successive polls share (`:403-404`, `:427`, `:493-518`). A held task poll's three looks - entry, a wake, the timed
+re-check - cost 3, 1 and 1 finds, a poll re-opened after a claim 1 (`DispatcherRequestDatabaseCommandsTest`,
+`DispatcherPollRecheckTest`), and a page of 20 orders keeps the turn due (`:454-469`). They also run at once when a
+task the dispatcher holds ends cancelled or timed out or is parked for retry on this instance, which wakes its polls
+alone (`engine/TaskRunService.java:619-634`, `:843`, `DispatcherPollWakeTest.aCancelOfAHeldTaskWakesTheHoldersPollAtOnce`),
+so the timed turn only catches an end written on another instance or a missed wake. An embedding product measured one
+dispatcher with 8 pools and a 5 s re-check at 359 `task_runs` queries a minute idle with the pages on every re-check;
+2 finds per pool per 30 s instead of per 5 s takes off 8 × (24 − 4) = 160, to about 200. Under load, where a poll
+returns on every claim and is re-opened at once, the shared cadence is one find per claim instead of three. A hop in a sequential chain costs the end round trip, the admission and the claim round trip, independent of
 the interval. Measured by an embedder on one engine and one in-process dispatcher, the same 41-hop scenario before
 and after: the hop from a task's end to the next task's start fell from 0.88 s median and 1.03 s p90 to 0.05–0.11 s
 median and 0.09–0.26 s p90, with the interval at its 1 s default. The interval bounds the wait for a task that becomes claimable without an admission
@@ -96,7 +97,7 @@ for that latency: one dispatcher with seven pools at 200 ms costs 35 queries/s i
 included, and each poll claims no more than its free slots, so under a backlog the work it cannot run stays
 claimable by other dispatchers (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/InFlightTasks.java:29-33`,
 `dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/Dispatcher.java:342-365`).
-`flow.queue.enabled=false` stops claiming only; sweeps keep running (`dispatcher/DispatcherService.java:69-71,259-262,364-367`).
+`flow.queue.enabled=false` stops claiming only; sweeps keep running (`dispatcher/DispatcherService.java:69-71,263-266,370-373`).
 While claiming is off the engine answers each poll at once with 204, and the dispatcher then waits 5 s between
 polls (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/QueuePoller.java:23`).
 
@@ -136,9 +137,10 @@ the rest (`engine/WorkflowWatcher.java:178-198`).
 | `AuditRetentionService.reapplyOnChange` (`core/audit/AuditRetentionService.java:56-65`) | `flow.audit.retention-interval-ms` (60000) | none | none | Reads the `audit` settings document and runs `collMod` on the `createdAt_ttl` index only when the floored `retentionDays` differs from what this instance last applied, so a change made through the settings API reaches every instance within one interval without a restart; a failed apply is retried on the next tick. One indexed read a minute per instance |
 | `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:65-67`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:37`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:34-37`) | up to 5 s (`:64-66`) | 50 | 3 delivery attempts, then the row is marked dead (`:43`) |
+| Dispatcher poll termination pages (`dispatcher/DispatcherService.java:493-518`) | `flow.dispatcher.poll.residue-ms` (30000), never under `flow.dispatcher.poll.recheck-ms` | none | 20 a page, two pages | Per dispatcher and poll filter, taken on the first look that finds the turn due; a termination on the same instance runs them at once. Two `claim_page` finds per pool per interval, independent of the re-check |
 | `GitHubService.refreshSharedTokens` (`integrations/GitHubService.java:195-232`) | none: every 45 minutes, inside the hour an installation token lives | up to 60 s | all GitHub installations | Each workspace sharing the token gets one GitHub call and one targeted write. Instances do not coordinate, so N instances mint N tokens per workspace per 45 minutes; any of them is valid |
 
-No interval is set in `application.properties`; the defaults come from the `@Scheduled` fallbacks. Cost
+No sweep interval is set in `application.properties` (the poll's termination turn is); the defaults come from the `@Scheduled` fallbacks. Cost
 (assumed, not load-tested): one paged indexed query per sweep plus a batched or per-row check, so 20 instances add
 well under 10 fixed queries per second; per-row checks grow with in-flight runs.
 
@@ -207,6 +209,14 @@ and the cache adds about 120 MB to each image (`flow-service-core` 287 MB to 405
 against its own build, the jar sizes and modification times and the heap-layout flags: a `JDK_JAVA_OPTIONS`
 that sets another garbage collector or turns compact headers off makes it skip the cache with one warning and
 start as before, never fail.
+
+**Memory in the local stack.** The images set no memory flags; a deployment passes them in `JDK_JAVA_OPTIONS`.
+`docker-compose.yml` (local and end-to-end only) gives `service-core` `mem_limit: 1g` and `service-dispatcher` `768m`,
+each with `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=128m -Xss512k`: half the limit
+is heap. Under about 1.8 GB the JVM picks the serial collector itself, and the cache still maps (`Using AOT-linked
+classes: true` at 1 GB on the 5.0.0-beta.41 image). The health probes inherit the variable and pass `-Xmx16m`;
+`service-core`'s probes every 2 s for up to 180 s of start, then every 30 s. Mongo's cache is uncapped. Override
+`mem_limit` and `JDK_JAVA_OPTIONS` in a `compose.override.yaml`, never with a collector or compact-header flag.
 
 ## HTTP client timeouts and the custom client requirement
 
@@ -328,7 +338,7 @@ with a 30 s wait for the claim to reach `Bound` or `Pending`
 same claim (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:321-345`); a completed run's
 claim is deleted by the dispatcher's reconciliation, which asks the engine which of the runs it holds volumes for
 are finished (`service-dispatcher/src/main/java/io/boomerang/dispatcher/WorkspaceReconciler.java:57-72`,
-`dispatcher/DispatcherService.java:596-619`). Nothing is shared between runs; files kept for later runs are
+`dispatcher/DispatcherService.java:615-638`). Nothing is shared between runs; files kept for later runs are
 workflow-scoped artifacts, held in the artifact store under the artifact quota.
 
 ## Throughput baseline
@@ -366,7 +376,7 @@ speculation. The laptop baseline above is not that test.
 | Partitioning or leader election | Every instance does every job; CAS absorbs duplicates | Never expected; the escalation is cooperative `_id`-hash sharding of the sweep page |
 | Per-class retry policies (a rate-limit backoff of the engine's own, a per-reason selector) | One `Backoff` shape, parameterised by a task node's `retry.backoff`; a node's `retry.max` retries every reported failure except the fixed `NOT_RETRIABLE` list, and the three could-not-start reasons keep the engine's budget (`common/model/StatusReason.java:52-74`, `engine/TaskRunService.java:1178-1228`) | A runtime whose rate-limit signal needs a different backoff from the shared one, or a dispatcher whose reasons separate transient from final failures |
 | A Kubernetes informer, shared across in-flight Tasks | One fabric8 `Watcher` plus a `CountDownLatch` per Task, on a virtual thread, with a listing reconcile every `kube.timeout.reconcileSeconds` (30 s) catching a dropped watch (`service-dispatcher/src/main/java/io/boomerang/kube/TektonServiceImpl.java:506-545`, `service-dispatcher/src/main/java/io/boomerang/executor/JobWatcher.java:23-35`) | A measured per-Task cost at the in-flight Task count a dispatcher actually carries — API-server watch connections or dispatcher memory, not thread count, which virtual threads already made cheap |
-| A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by the admissions on its own instance that its filter can claim (`dispatcher/PollWakeups.java:41-158`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:73-75`, `:562-584`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
+| A change stream on task runs entering `ready`, waking polls on every engine instance | A 30 s long poll woken by the admissions on its own instance that its filter can claim (`dispatcher/PollWakeups.java:41-158`) and re-checking every `flow.dispatcher.poll.recheck-ms`, 1 s by default, for the rest (`dispatcher/DispatcherService.java:73-75`, `:581-603`); the dispatcher reconnects at once | A measured hop latency on a multi-replica engine that the interval dominates, or an idle-query cost at the dispatcher count in use |
 | Indexes for filtered claims | A poll's `taskRef`/`workflowRef` filters apply after `claim_page` (type, status, phase, claim.by, creationDate) has picked the ready tasks, keeping oldest first (`engine/TaskRunService.java:228-237`); folding them into `claim_page` would cost the unfiltered claim its index sort | A load test or incident where one engine's queue is large enough that the filtered scan shows: then separate indexes led by `taskRef` and by `workflowRef` |
 | A capacity figure read from the cluster (namespace quota, node resources, or how long pods sit Pending) | A fixed slot count per dispatcher, `flow.dispatcher.task.max-in-flight`, sized by the operator; Kubernetes queues what the cluster cannot place, and a pod still Pending after `kube.timeout.startMinutes` (15, `service-dispatcher/src/main/resources/application.properties:40`) is handed back to the engine | A load test or incident where a fixed count both under-uses and overruns the same cluster |
 

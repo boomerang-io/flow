@@ -30,7 +30,7 @@ The contract covers registration, the two queues, start, heartbeat, end, termina
 two optional log pieces ("Logs"), and nothing else. How a task is run (image, command, volumes, resources,
 placement) and what sits behind a live log route are the dispatcher's own (`dispatcher-kubernetes.md` for Flow's).
 One thing a complete dispatcher needs sits outside it: a registration has no deregistration route, only the expiry below
-(`dispatcher/DispatcherService.java:146-153`).
+(`dispatcher/DispatcherService.java:150-157`).
 
 ## Versioning and compatibility
 
@@ -72,11 +72,11 @@ checks nothing and runs the request as the security-off synthetic identity (`aut
 
 `POST /register` takes `name`, `host`, `version` and `taskTypes`, and optionally `logsUrl` and `logsToken` ("Logs").
 The record is upserted on name and host, so a restarting dispatcher keeps its id, and the log source is replaced
-whole on every registration (`dispatcher/DispatcherService.java:158-190`). A task type the engine does not know is
+whole on every registration (`dispatcher/DispatcherService.java:162-194`). A task type the engine does not know is
 dropped (`common/enums/TaskType.java:55-60`). A dispatcher registered for no task types is answered 204 on every
-task poll (`dispatcher/DispatcherService.java:374-377`).
+task poll (`dispatcher/DispatcherService.java:380-383`).
 
-Register, heartbeat and every poll refresh `lastConnectedDate` (`dispatcher/DispatcherService.java:170,207,217`). A
+Register, heartbeat and every poll refresh `lastConnectedDate` (`dispatcher/DispatcherService.java:174,211,221`). A
 dispatcher silent for 60 s is gone and its claims are reaped (`execution-model.md`, "The watcher sweeps"); after 7 days
 its registration is deleted (`engine/WorkflowWatcher.java:93,534-546`), so replicas replaced on each deploy do not pile
 up. Nothing else needs the record: the dispatcher token is shared, claims and attempts only carry the id, and a gone
@@ -89,29 +89,30 @@ Both queue routes are long polls. The engine holds the request for up to 30 s, l
 task its filter can claim is admitted, or a run with a workspace is submitted to start, on the engine instance
 holding it and at least every `flow.dispatcher.poll.recheck-ms` (one second by default, never under 100 ms), and
 answers as soon as it has claimed something, or 204 when the window passes (`dispatcher/DispatcherService.java:56-75`,
-`:258-307`, `:362-471`, `:562-584`, `dispatcher/PollWakeups.java:41-160`). Termination orders are looked for once per
-re-check interval for a dispatcher and filter, whichever of its successive polls looks first (`dispatcher/DispatcherService.java:417-419,480-498`), and
-at once by the holding dispatcher's polls on the engine instance where its task ended cancelled or timed out or was
-parked for retry (`engine/TaskRunService.java:619-634`, `:843`), so a cancel reaches the dispatcher running the task
-within the end round trip, within the interval when it polls another instance, and a poll re-opened after a claim
-does not look again. A task is therefore claimed about an end round trip, an admission and a claim round trip after its
-predecessor ends; a poll held on another engine instance than the one that admitted it finds it within the interval. One task answer claims at most 20 task runs to run and 40
+`:262-311`, `:368-485`, `:581-603`, `dispatcher/PollWakeups.java:41-160`). Termination orders are looked for at once
+by the holder's polls on the engine instance where its task ended cancelled or timed out or was parked for retry
+(`engine/TaskRunService.java:619-634`, `:843`), else once per `flow.dispatcher.poll.residue-ms` (30 s, never under the
+re-check) per dispatcher and filter, by whichever poll looks first once due (`dispatcher/DispatcherService.java:77-79`,
+`:403-404`, `:427`, `:454-469`, `:493-518`): a cancel reaches the holder within the end round trip, or within that
+interval when another instance wrote it. A poll re-opened after a claim does not look again; a page of 20 orders keeps
+the turn due. A task is claimed about an end round trip, an admission and a claim round trip after its
+predecessor ends; a poll held on another engine instance than the one that admitted it finds it within the re-check interval. One task answer claims at most 20 task runs to run and 40
 termination orders; one workflow answer at most 20 runs. A dispatcher's client read timeout MUST exceed 30 s. It
 SHOULD poll again at once after a poll that returned runs or was held for its window, and SHOULD wait about 5 s after
 one that failed or was answered at once with nothing; claiming switched off (`flow.queue.enabled=false`) and a filter
-that matches nothing answer at once (`dispatcher/DispatcherService.java:364-367,383-386`). The SDK's poller does this
+that matches nothing answer at once (`dispatcher/DispatcherService.java:370-373,389-392`). The SDK's poller does this
 (`sdk/QueuePoller.java:146-165`).
 
 A dispatcher with no free slot keeps a `limit=0` poll open so termination orders still reach it, and MAY open a work
 poll beside it the moment a slot frees: each termination order is claimed by its own compare-and-set, so two polls
-never receive the same one (`dispatcher/DispatcherService.java:446-455`). The SDK does this, with at most one work
+never receive the same one (`dispatcher/DispatcherService.java:454-469`). The SDK does this, with at most one work
 poll in flight per pool (`sdk/Dispatcher.java:342-365`).
 
 The task poll takes optional query parameters:
 
 | Parameter | Meaning |
 | --- | --- |
-| `limit` | Most new task runs to claim for execution, at most 20; absent means 20 and `0` claims none (`dispatcher/DispatcherService.java:380`). Termination orders are never limited. A dispatcher SHOULD send its free capacity: a claimed task is committed to it. |
+| `limit` | Most new task runs to claim for execution, at most 20; absent means 20 and `0` claims none (`dispatcher/DispatcherService.java:386`). Termination orders are never limited. A dispatcher SHOULD send its free capacity: a claimed task is committed to it. |
 | `type` | Task types to claim, a subset of those registered; a value without `*` that is not registered is `400 QUERY_INVALID_FILTERS` (`dispatcher/ClaimFilterService.java:76-86`) |
 | `task` | Tasks in their slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task, where `<workspace>` is the workspace's slug or id; a bare slug never matches a workspace task of the same name, and `*` applies to the slug half (`dispatcher/ClaimFilterService.java:88-129`) |
 | `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels; a template's labels also match the workspaces' links to it (`dispatcher/ClaimFilterService.java:150-166`) |
@@ -131,7 +132,7 @@ Each claim is a compare-and-set on one document, so two dispatchers never receiv
 
 | Model | Answers | Fields |
 | --- | --- | --- |
-| `DispatchTaskRun` | The task poll, start and end | `id`, `type`, `name`, `labels`, `timeout` (minutes; null or 0 is unguarded), `params`, `results` (the task's declared results), `workspace`, `spec`, `status`, `phase`, `taskRef` (the task's slug form, as the `task` filter takes it, resolved from the stored id once per answer; a task the catalogue no longer holds keeps its id, `dispatcher/DispatcherService.java:136-144`), `workflowRef`, `workflowRunRef`, `index` (on a for-each item), `statusReason` (on a terminate order, why the task ended), `attempt` (which attempt the order is for: 1 plus one per requeue of any cause) and `attempts` (the attempts a requeue superseded, oldest first: `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage`, `dispatcherRef`; absent on a first attempt), so a dispatcher that applies its own retry budget can count the engine's, and `retry` (`max`, the node's `retry.max`, absent when the node asked for none; `failures`, the reported failures the engine has already retried, never its own requeues of an attempt that never ran), so a handler knows whether a failure it reports now will be retried: the engine retries while `failures < max` (`engine/TaskRunService.java:1209-1210`), so a node gets `max + 1` attempts and the SDK's `TaskRun.isLastAttempt()` reads `failures >= max`, true with no `retry`. The state rides on the hand-out form the dispatcher service builds, never the public model (`dispatcher/model/DispatchTaskRun.java:41-48`, `dispatcher/model/HandOutTaskRun.java`, `dispatcher/DispatcherService.java:123-144`) |
+| `DispatchTaskRun` | The task poll, start and end | `id`, `type`, `name`, `labels`, `timeout` (minutes; null or 0 is unguarded), `params`, `results` (the task's declared results), `workspace`, `spec`, `status`, `phase`, `taskRef` (the task's slug form, as the `task` filter takes it, resolved from the stored id once per answer; a task the catalogue no longer holds keeps its id, `dispatcher/DispatcherService.java:140-148`), `workflowRef`, `workflowRunRef`, `index` (on a for-each item), `statusReason` (on a terminate order, why the task ended), `attempt` (which attempt the order is for: 1 plus one per requeue of any cause) and `attempts` (the attempts a requeue superseded, oldest first: `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage`, `dispatcherRef`; absent on a first attempt), so a dispatcher that applies its own retry budget can count the engine's, and `retry` (`max`, the node's `retry.max`, absent when the node asked for none; `failures`, the reported failures the engine has already retried, never its own requeues of an attempt that never ran), so a handler knows whether a failure it reports now will be retried: the engine retries while `failures < max` (`engine/TaskRunService.java:1209-1210`), so a node gets `max + 1` attempts and the SDK's `TaskRun.isLastAttempt()` reads `failures >= max`, true with no `retry`. The state rides on the hand-out form the dispatcher service builds, never the public model (`dispatcher/model/DispatchTaskRun.java:41-48`, `dispatcher/model/HandOutTaskRun.java`, `dispatcher/DispatcherService.java:127-148`) |
 | `DispatchWorkflowRun` | The workflow poll and its start | `id`, `status`, `phase`, `workflowRef`, `labels`, `workspace`, `statusReason` (the typed cause the engine ended the run with, when it had one, `dispatcher/model/DispatchWorkflowRun.java:24`) |
 
 A task run in the answer is one of two orders (`sdk/model/TaskRun.java:44-55`):
@@ -158,12 +159,12 @@ The engine fills in `$(params.x)`, `$(tasks.x.results.y)` and the other referenc
 | What | When | Stored |
 | --- | --- | --- |
 | The task run's own parameter values | At admission (`engine/ParameterManager.java:144`, called at `engine/TaskExecutionService.java:226-227`) | Yes: frozen by the admission compare-and-set (`engine/TaskRunService.java:372-393`), secret values encrypted |
-| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`engine/ParameterManager.java:288`, called at `dispatcher/DispatcherService.java:532-552`) | No: the stored spec keeps its references; only the copy on the claim carries values |
+| `spec.script`, `spec.command`, `spec.arguments`, `spec.envs` | When a dispatcher claims the task (`engine/ParameterManager.java:288`, called at `dispatcher/DispatcherService.java:551-571`) | No: the stored spec keeps its references; only the copy on the claim carries values |
 
 So no secret value is written into a stored spec; the termination order, the start and end answers and every
 consumer read carry the stored spec. Admission has checked every reference, so the fill-in fails only for a workspace
 or global parameter deleted since, and the task then ends `failed` with reason `SpecFillFailed`
-(`dispatcher/DispatcherService.java:541-551`). Any other failure while a claimed task is prepared ends it `failed`
+(`dispatcher/DispatcherService.java:560-570`). Any other failure while a claimed task is prepared ends it `failed`
 with `DispatchPrepareFailed`, and the rest of the poll is still handed out, so no claim stays with a dispatcher that
 never hears of it (`:506-525`).
 
@@ -232,7 +233,7 @@ A for-each item is capped like any task; the parent collects the items' values i
 A claim carries a lease from the moment it is made: the claim sets it 90 s ahead (`flow.dispatcher.lease-ms`,
 `engine/TaskRunService.java:79-80`, `:343-350`). `PUT /{id}/heartbeat` lists the task run ids the dispatcher is still
 working on, and the engine moves the lease of each one it still holds in phase `queued` or `running` 90 s ahead again
-(`dispatcher/DispatcherService.java:223-244`, `engine/TaskRunService.java:662-674`). A dispatcher MUST heartbeat
+(`dispatcher/DispatcherService.java:227-248`, `engine/TaskRunService.java:662-674`). A dispatcher MUST heartbeat
 every task it holds, from its claim until the engine has taken its end, at least every 30 s. A lease that lapses, or a
 dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:87`), gets the task requeued or abandoned
 (`execution-model.md`, "Timeouts and crash recovery"); the lease catches a dispatcher that crashes and comes back under
@@ -301,7 +302,7 @@ run failed after three attempts (`engine/WorkflowWatcher.java:451-482`). The SDK
 `WorkflowHandler.provision` (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:56-72`).
 `POST /workspaces/releasable`
 takes the run ids the dispatcher holds volumes for (500 at most, else 400) and answers with those whose run is
-completed or gone (`dispatcher/DispatcherService.java:65-67`, `:596-629`). A dispatcher that runs nothing on shared
+completed or gone (`dispatcher/DispatcherService.java:65-67`, `:615-648`). A dispatcher that runs nothing on shared
 storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
@@ -321,7 +322,7 @@ Every other type runs inside the engine; `TaskType` (`common/enums/TaskType.java
 | --- | --- |
 | `start`, `end` | Structural nodes of the graph; never executed |
 | `template`, `custom`, `script`, `generic`, `ai` | Wait for a dispatcher |
-| `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:323-349`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and sets `found=true` on a dispatched download that succeeds unless its end carried a value (`engine/TaskRunService.java:1234-1271`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
+| `uploadartifact`, `downloadartifact` | Wait for a dispatcher. The engine fills the link params when it hands the task out (`dispatcher/DispatcherService.java:327-353`), verifies an upload when it ends, ends an optional download of a missing artifact `succeeded` with `found=false` without dispatching it, and sets `found=true` on a dispatched download that succeeds unless its end carried a value (`engine/TaskRunService.java:1234-1271`; `data-model.md`, "Artifacts"). Flow's Kubernetes dispatcher runs the default worker's `artifact upload` or `artifact download`; an SDK dispatcher can use `ArtifactTransfer` ("SDK") |
 | `decision` | Evaluates the branch and ends `succeeded`; a switch skipped or failed before it ran made no decision and takes no branch (`engine/DAGUtility.java:570-573`) |
 | `acquirelock`, `releaselock` | Take or release a row in the `task_locks` collection; acquire parks as waiting until the lock is free |
 | `runworkflow` | Submit a child workflow run with the node's params other than `workflowRef` and `wait` (`engine/TaskExecutionService.java:1435-1440`). Ends `succeeded` at once, or with `wait=true` parks as waiting and takes the child's terminal status and results; may run for each item, one child per item (`execution-model.md`, "Child workflows") |
@@ -371,7 +372,7 @@ environment variable on a Kubernetes pod, readable by anyone who can read the po
 ## Errors
 
 Every error is the engine's standard body (`CLAUDE.md`, "API errors") except one: the authentication filter's bare
-401. A registration without a host is `400 DISPATCHER_INVALID_REQ` (`dispatcher/DispatcherService.java:159-161`). A
+401. A registration without a host is `400 DISPATCHER_INVALID_REQ` (`dispatcher/DispatcherService.java:163-165`). A
 poll or heartbeat under an id the engine does not hold is `404 DISPATCHER_NOT_REGISTERED` (`:234-237`, `:264-267`,
 `:370-373`): the id goes unknown when the registration expired after 7 days without a connection, or when the database
 is reset under a running dispatcher. The SDK registers again on that 404 and makes the call once more under the new id, with the registration
