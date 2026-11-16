@@ -2,14 +2,17 @@ package io.boomerang.event.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.enums.ParamType;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.TaskRun;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.event.enums.EventPayload;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,6 +28,11 @@ import java.util.Map;
   "id",
   "workflowRef",
   "workflowRunRef",
+  "name",
+  "type",
+  "parentRef",
+  "index",
+  "count",
   "status",
   "statusReason",
   "phase",
@@ -37,6 +45,11 @@ public record RunStatusSummary(
     String id,
     String workflowRef,
     String workflowRunRef,
+    String name,
+    TaskType type,
+    String parentRef,
+    Integer index,
+    Integer count,
     RunStatus status,
     String statusReason,
     RunPhase phase,
@@ -60,9 +73,9 @@ public record RunStatusSummary(
     return run;
   }
 
-  public static Object project(TaskRun run, EventPayload payload) {
+  public static Object project(TaskRun run, Integer count, EventPayload payload) {
     if (EventPayload.full != payload) {
-      return of(run);
+      return of(run, count);
     }
     DataAdapterUtil.filterTaskRunValues(
         run, DataAdapterUtil.sensitiveValues(run.getParams(), ParamType.secret));
@@ -77,6 +90,11 @@ public record RunStatusSummary(
         run.getId(),
         run.getWorkflowRef(),
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
         run.getStatus(),
         run.getStatusReason(),
         run.getPhase(),
@@ -86,11 +104,31 @@ public record RunStatusSummary(
         run.getDuration());
   }
 
-  static RunStatusSummary of(TaskRun run) {
+  // The number of items a for-each parent fanned out, read from the entity in hand: the fan-out
+  // writes the resolved items and the start time in the one transition that moves the parent to
+  // running, so that is the first event to carry it. Before then the declaration is not yet
+  // resolved, and a parent that failed to resolve holds no items, so neither has a count.
+  public static Integer foreachCount(TaskRunEntity entity) {
+    if (entity.getForeach() == null
+        || entity.getStartTime() == null
+        || !(entity.getForeach().getItems() instanceof List<?> items)) {
+      return null;
+    }
+    return items.size();
+  }
+
+  // The count is set only on a for-each parent; the item's own parentRef and index are carried by
+  // the public model and absent on every other task run.
+  static RunStatusSummary of(TaskRun run, Integer count) {
     return new RunStatusSummary(
         run.getId(),
         run.getWorkflowRef(),
         run.getWorkflowRunRef(),
+        run.getName(),
+        run.getType(),
+        run.getParentRef(),
+        run.getIndex(),
+        count,
         run.getStatus(),
         run.getStatusReason(),
         run.getPhase(),

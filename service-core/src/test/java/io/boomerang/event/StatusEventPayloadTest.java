@@ -10,6 +10,7 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
+import io.boomerang.common.model.WorkflowTaskForeach;
 import io.boomerang.event.entity.EventOutboxEntity;
 import io.boomerang.event.enums.EventPayload;
 import java.nio.charset.StandardCharsets;
@@ -40,8 +41,8 @@ class StatusEventPayloadTest {
 
   private static final List<String> THIN_TASKRUN_KEYS =
       List.of(
-          "id", "workflowRef", "workflowRunRef", "status", "statusReason", "phase", "labels",
-          "creationDate", "startTime", "duration");
+          "id", "workflowRef", "workflowRunRef", "name", "type", "status", "statusReason", "phase",
+          "labels", "creationDate", "startTime", "duration");
 
   @Test
   void thinWorkflowRunEventCarriesIdentityAndLifecycleOnly() throws Exception {
@@ -63,6 +64,63 @@ class StatusEventPayloadTest {
     assertThat(data.propertyNames()).containsExactlyInAnyOrderElementsOf(THIN_TASKRUN_KEYS);
     assertThat(data.get("workflowRunRef").asString()).isEqualTo("wfr-1");
     assertThat(data.get("statusReason").asString()).isEqualTo("JobFailed");
+    assertThat(data.get("name").asString()).isEqualTo("deploy");
+    assertThat(data.get("type").asString()).isEqualTo("template");
+    assertThat(data.propertyNames()).doesNotContain("parentRef", "index", "count");
+  }
+
+  @Test
+  void thinForeachItemEventCarriesParentRefAndIndex() throws Exception {
+    TaskRunEntity item = taskRun();
+    item.setParentRef("tr-parent");
+    item.setIndex(2);
+    JsonNode data = payload(EventFactory.buildStatusUpdateEvent(item, ROW, EventPayload.thin));
+
+    assertThat(data.get("parentRef").asString()).isEqualTo("tr-parent");
+    assertThat(data.get("index").asInt()).isEqualTo(2);
+    assertThat(data.propertyNames()).doesNotContain("count");
+  }
+
+  // The fan-out writes the resolved items and the start time in one transition, so the running
+  // event is the first to carry the count; before it the declaration is unresolved.
+  @Test
+  void thinForeachParentEventCarriesCountOnceFannedOut() throws Exception {
+    WorkflowTaskForeach foreach = new WorkflowTaskForeach();
+    foreach.setItems("$(tasks.stage.results.batches)");
+    TaskRunEntity parent = taskRun();
+    parent.setForeach(foreach);
+    parent.setStartTime(null);
+    parent.setStatus(RunStatus.notstarted);
+    parent.setPhase(RunPhase.pending);
+    assertThat(
+            payload(EventFactory.buildStatusUpdateEvent(parent, ROW, EventPayload.thin))
+                .propertyNames())
+        .doesNotContain("count");
+
+    // A literal array is still the declaration until the parent starts.
+    foreach.setItems(List.of("a", "b"));
+    assertThat(
+            payload(EventFactory.buildStatusUpdateEvent(parent, ROW, EventPayload.thin))
+                .propertyNames())
+        .doesNotContain("count");
+
+    foreach.setItems(List.of("a", "b", "c"));
+    parent.setStartTime(new Date(1000));
+    parent.setStatus(RunStatus.running);
+    parent.setPhase(RunPhase.running);
+    assertThat(
+            payload(EventFactory.buildStatusUpdateEvent(parent, ROW, EventPayload.thin))
+                .get("count")
+                .asInt())
+        .isEqualTo(3);
+
+    // A parent that fanned out nothing still says so.
+    foreach.setItems(List.of());
+    assertThat(
+            payload(EventFactory.buildStatusUpdateEvent(parent, ROW, EventPayload.thin))
+                .get("count")
+                .asInt())
+        .isZero();
   }
 
   @Test
