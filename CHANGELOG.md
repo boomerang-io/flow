@@ -433,7 +433,7 @@ tag's release notes.
   per re-check: one dispatcher with 8 pools at a 5 s re-check drops from about 359 to about 200 a minute.
 - **The local stack sizes its JVMs.** `docker-compose.yml` gives `service-core` `mem_limit: 1g` and
   `service-dispatcher` `768m`, each with `JDK_JAVA_OPTIONS` `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m
-  -XX:ReservedCodeCacheSize=64m -Xss512k`; the health probes run with `-Xmx16m`, and `service-core`'s checks every
+  -XX:ReservedCodeCacheSize=128m -Xss512k`; the health probes run with `-Xmx16m`, and `service-core`'s checks every
   2 s while starting, then every 30 s. The images are unchanged; override both in a `compose.override.yaml`.
 - **Unread quota and app properties are gone.** `max.workflow.duration`, `max.workflow.count`,
   `max.workflow.execution.monthly`, `max.workflow.execution.time`, `max.concurrent.workflows` and `flow.apps.url`

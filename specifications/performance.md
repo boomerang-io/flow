@@ -212,7 +212,7 @@ start as before, never fail.
 
 **Memory in the local stack.** The images set no memory flags; a deployment passes them in `JDK_JAVA_OPTIONS`.
 `docker-compose.yml` (local and end-to-end only) gives `service-core` `mem_limit: 1g` and `service-dispatcher` `768m`,
-each with `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=64m -Xss512k`: half the limit
+each with `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=128m -Xss512k`: half the limit
 is heap. Under about 1.8 GB the JVM picks the serial collector itself, and the cache still maps (`Using AOT-linked
 classes: true` at 1 GB on the 5.0.0-beta.41 image). The health probes inherit the variable and pass `-Xmx16m`;
 `service-core`'s probes every 2 s for up to 180 s of start, then every 30 s. Mongo's cache is uncapped. Override
