@@ -955,6 +955,12 @@ public class RelationshipService {
    * node batch-load per level), anchored at the {@code from} node. Because it follows only edges
    * that exist, access control is enforced by the hierarchy: a walk from a user's node reaches
    * only teams they are a member of, and their descendants.
+   *
+   * <p>A walk from the root through named workspaces starts at those workspaces instead: every
+   * workspace hangs from the root, and nothing under a workspace is also a child of the root, so
+   * the nodes found are the same, without reading every user, workspace and run in the graph. It is
+   * the walk a global caller, an admin's session and a scheduled run make for each workspace-scoped
+   * lookup.
    */
   public List<RelationshipNodeEntity> findNodes(
       RelationshipType fromType,
@@ -965,22 +971,41 @@ public class RelationshipService {
       Optional<List<String>> intermediateList) {
     // A present-but-empty intermediate list is an intermediate filter that matches nothing.
     boolean hasIntermediate = intermediateType.isPresent() && intermediateList.isPresent();
-    String toTypeLabel = toType.getLabel();
 
-    Optional<RelationshipNodeEntity> fromOpt = resolveNode(fromType, from);
-    if (fromOpt.isEmpty()) {
+    List<RelationshipNodeEntity> starts;
+    if (RelationshipType.ROOT.equals(fromType)
+        && hasIntermediate
+        && RelationshipType.WORKSPACE.equals(intermediateType.get())) {
+      starts =
+          List.copyOf(resolveNodes(RelationshipType.WORKSPACE, intermediateList.get()).values());
+    } else {
+      starts = resolveNode(fromType, from).map(List::of).orElse(List.of());
+    }
+    if (starts.isEmpty()) {
       LOGGER.debug("findNodes() - anchor {}:{} not found", fromType.getLabel(), from);
       return new ArrayList<>();
     }
-    RelationshipNodeEntity fromNode = fromOpt.get();
+    return walk(starts, toType, toList, hasIntermediate, intermediateType, intermediateList);
+  }
 
+  // The level-by-level downward walk of findNodes, from one or more start nodes.
+  private List<RelationshipNodeEntity> walk(
+      List<RelationshipNodeEntity> starts,
+      RelationshipType toType,
+      Optional<List<String>> toList,
+      boolean hasIntermediate,
+      Optional<RelationshipType> intermediateType,
+      Optional<List<String>> intermediateList) {
+    String toTypeLabel = toType.getLabel();
     List<RelationshipNodeEntity> results = new ArrayList<>();
     Map<String, RelationshipNodeEntity> levelNodes = new HashMap<>();
     Map<String, Boolean> levelPassed = new HashMap<>();
-    levelNodes.put(fromNode.getId(), fromNode);
-    levelPassed.put(
-        fromNode.getId(),
-        matchesIntermediate(fromNode, hasIntermediate, intermediateType, intermediateList));
+    for (RelationshipNodeEntity start : starts) {
+      levelNodes.put(start.getId(), start);
+      levelPassed.put(
+          start.getId(),
+          matchesIntermediate(start, hasIntermediate, intermediateType, intermediateList));
+    }
     Set<String> seen = new HashSet<>(levelNodes.keySet());
 
     while (!levelNodes.isEmpty()) {

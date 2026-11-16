@@ -26,7 +26,7 @@ B, D and F. `AuditAspect` records one event per `@Audited` attempt, SUCCESS, FAI
 (`core/audit/AuditEventWriter.java:27-40`). Events are flat documents in `audit`, indexed by workspace and time
 (`migration/_0021__Indexes.java:167-171`), expiring after `retentionDays`, floored at 60 so a month always holds
 (`core/audit/AuditRetentionService.java:29,51-83,85-103`). The engine's transition event writes one CREATE per admitted run and
-one UPDATE at completion (`core/audit/WorkflowRunAuditBridge.java:58-110`); task runs are not audited, for volume.
+one UPDATE at completion (`core/audit/WorkflowRunAuditBridge.java:62-124`); task runs are not audited, for volume.
 `QuotaService` counts the month's runs as the larger of CREATE events and live run documents, and concurrent runs live
 (`workflow/QuotaService.java:228-303`). A stored quota overlays the `quotas` group's default only where present
 (`:156-187`), and its checks enforce it only when positive (`workspace/model/Quotas.java:10-13`). What decided it:

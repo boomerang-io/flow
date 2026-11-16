@@ -113,14 +113,14 @@ The task poll takes optional query parameters:
 | Parameter | Meaning |
 | --- | --- |
 | `limit` | Most new task runs to claim for execution, at most 20; absent means 20 and `0` claims none (`dispatcher/DispatcherService.java:386`). Termination orders are never limited. A dispatcher SHOULD send its free capacity: a claimed task is committed to it. |
-| `type` | Task types to claim, a subset of those registered; a value without `*` that is not registered is `400 QUERY_INVALID_FILTERS` (`dispatcher/ClaimFilterService.java:76-86`) |
-| `task` | Tasks in their slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task, where `<workspace>` is the workspace's slug or id; a bare slug never matches a workspace task of the same name, and `*` applies to the slug half (`dispatcher/ClaimFilterService.java:88-129`) |
-| `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels; a template's labels also match the workspaces' links to it (`dispatcher/ClaimFilterService.java:150-166`) |
+| `type` | Task types to claim, a subset of those registered; a value without `*` that is not registered is `400 QUERY_INVALID_FILTERS` (`dispatcher/ClaimFilterService.java:79-89`) |
+| `task` | Tasks in their slug form: `<slug>` for a global task, `<workspace>/<slug>` for a workspace task, where `<workspace>` is the workspace's slug or id; a bare slug never matches a workspace task of the same name, and `*` applies to the slug half (`dispatcher/ClaimFilterService.java:91-199`) |
+| `workflowLabel` | `key=value[,value]`, one key, matched on the workflow definition's labels; a template's labels also match the workspaces' links to it (`dispatcher/ClaimFilterService.java:201-217`) |
 
 `type`, `task` and the `workflowLabel` values are comma-separated lists in which `*` is the only wildcard, anchored at
-both ends (`dispatcher/ClaimFilterService.java:188-202`). Filters are ANDed and values ORed, and termination orders
+both ends (`dispatcher/ClaimFilterService.java:239-253`). Filters are ANDed and values ORed, and termination orders
 follow the same filters (`engine/TaskRunService.java:228-237`). Task slugs and labels resolve to ids cached for 30 s,
-so a new task or a newly labelled workflow is claimable within 30 s (`dispatcher/ClaimFilterService.java:41`). A
+so a new task or a newly labelled workflow is claimable within 30 s (`dispatcher/ClaimFilterService.java:44`). A
 poll without filters still claims work a filtered poll would; reserving work for a filtered dispatcher is not built.
 
 ## What a poll hands out

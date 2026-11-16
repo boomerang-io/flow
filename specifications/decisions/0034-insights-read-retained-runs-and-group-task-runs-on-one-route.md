@@ -6,7 +6,7 @@
 
 Insights must say why runs failed, which task took the time, how runs were triggered and how long they waited; an
 embedder needs task timings and usage per model, agent, task kind and time bucket over an hour to 90 days. The audit
-trail's run events carry only status, phase, duration and workflow (`core/audit/WorkflowRunAuditBridge.java:113-126`).
+trail's run events carry only status, phase, duration and workflow (`core/audit/WorkflowRunAuditBridge.java:127-140`).
 
 ## Options
 

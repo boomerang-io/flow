@@ -280,7 +280,10 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 Services then ask whether the caller's node can reach the target through `rel_nodes`/`rel_edges` (node id = `type:ref`,
 labelled edges such as `memberOf`, `hasWorkflow`, `hasWorkflowRun`). Every check is a live level-by-level walk anchored at
 the caller's own node — one edge query plus one node batch-load per level — with no in-memory graph and no cache beyond a
-per-HTTP-request memo (`core/RelationshipService.java:38-58`). The walk follows every outgoing edge whatever its label, so
+per-HTTP-request memo (`core/RelationshipService.java:38-58`). A walk anchored at `root` and confined to named
+workspaces starts at those workspaces: every workspace hangs from `root` and nothing under one is also a child of
+`root`, so it finds the same nodes without reading the whole graph (`findNodes`, `core/RelationshipService.java:965-987`;
+`RelationshipReadsDatabaseCommandsTest`). The walk follows every outgoing edge whatever its label, so
 an edge widens access unless it joins nodes the graph already joins: the `linksTemplate` claim on a workspace's link to a
 template runs from the workspace to that link, beside its `hasWorkflow` edge (`core/RelationshipService.java:326-376`).
 

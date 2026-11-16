@@ -23,7 +23,7 @@ C. `TaskService.slugsByRef` turns ids into slug forms in at most three queries p
 Workflow reads and saves, run reads, Insights rows, status events and the dispatcher's poll, start and end answers go
 through them (`workflow/WorkflowService.java:1372,1450`, `workflow/WorkflowRunService.java:181-193`,
 `workflow/WorkflowRunInsightService.java:341-347`, `event/EventSinkService.java:77`, `dispatcher/DispatcherService.java:132`),
-and the claim filter takes the same form (`dispatcher/ClaimFilterService.java:88-100`). A task is always found by id.
+and the claim filter takes the same form (`dispatcher/ClaimFilterService.java:91-122`). A task is always found by id.
 Nothing stored changes, which decided it.
 
 ## Consequences
