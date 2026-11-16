@@ -60,8 +60,7 @@ requeues (`engine/EngineConstants.java:43`).
 A for-each task adds up to `max.foreach.items` (default 256, `service-core/src/main/resources/seed/settings.json`)
 claimable items at once, each created at fan-out time (`engine/TaskExecutionService.java:888-890`), so a large fan-out
 queues behind older work and ahead of newer work like any other burst. Each item end checks its parent with an
-`exists` and a `count` and loads no item; only the last end loads the items, projected
-(`engine/TaskRunService.java:504-519`).
+`exists` and a `count` and loads no item; only the last end loads the items, projected (`engine/TaskRunService.java:504-519`).
 
 Dispatchers long-poll for 30 s, re-querying every `flow.dispatcher.poll.recheck-ms` (1000 by default, never under
 100) with a page of 20 (`dispatcher/DispatcherService.java:58-75`, `:386`), and reconnect as soon as a poll returns
@@ -152,8 +151,7 @@ thread for its 30 s poll; the dispatcher sets it too (`service-dispatcher/src/ma
 where a live log stream parks its request thread for up to two hours. **Measured**: `service-core/src/test/java/io/boomerang/dispatcher/DispatcherPollerVirtualThreadTest.java`
 drives 200 pollers through 10 cycles each under Java Flight Recorder and asserts carrier pinning stays under 1% of
 the poll cycles, so pins are one-time warm-up rather than per claim and dispatcher count is not bound by the
-platform-thread pool. **Not measured**: any before/after throughput comparison; the idle poll's database load
-(above) is the remaining known cost.
+platform-thread pool. **Not measured**: any before/after throughput comparison; the idle poll's database load (above) is the remaining known cost.
 
 `@Async` work runs on virtual threads too, one thread per hand-off, from three named
 `SimpleAsyncTaskExecutor` beans in `service-core` and one in the dispatcher. The property alone does not reach
@@ -174,8 +172,7 @@ the 2-thread `taskScheduler` (`service-dispatcher/src/main/java/io/boomerang/con
 behind the reconcilers. `AsyncExecutorResolutionTest` pins the resolution.
 
 Nothing caps how many tasks run at once on any of them. What shapes load is the admission gate in
-`TaskExecutionService.queue`, the dispatcher's claim limits (20 per poll, `flow.dispatcher.task.max-in-flight` in
-flight), and quotas.
+`TaskExecutionService.queue`, the dispatcher's claim limits (20 per poll, `flow.dispatcher.task.max-in-flight` in flight), and quotas.
 
 ## Start-up
 
@@ -207,8 +204,7 @@ dispatcher's start, memory after compact headers. **The costs**: the train stage
 each image build per platform (270 s on that loaded laptop; the arm64 leg of a release runs it under emulation),
 and the cache adds about 120 MB to each image (`flow-service-core` 287 MB to 405 MB). The JVM checks the cache
 against its own build, the jar sizes and modification times and the heap-layout flags: a `JDK_JAVA_OPTIONS`
-that sets another garbage collector or turns compact headers off makes it skip the cache with one warning and
-start as before, never fail.
+that sets another garbage collector or turns compact headers off makes it skip the cache with one warning and start as before, never fail.
 
 **Memory in the local stack.** The images set no memory flags; a deployment passes them in `JDK_JAVA_OPTIONS`.
 `docker-compose.yml` (local and end-to-end only) gives `service-core` `mem_limit: 1g` and `service-dispatcher` `768m`,
@@ -305,27 +301,31 @@ workspace's get, create and patch use a page of one (`:955-957`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
-| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:116-144,779-798` |
+| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:118-146,781-800` |
 | Member and approver names | One users query | `core/UserService.java:247-255` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
-| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:612-647` |
+| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:614-649` |
 
 `WorkspaceQueryDatabaseCommandsTest` pins 32 commands for a member and 33 for a global caller, for 10 or 60 workspaces;
-an admin's or global token's listing of every workspace still walks from the root (`core/RelationshipService.java:965-1061`).
+an admin's or global token's listing of every workspace still walks from the root (`core/RelationshipService.java:975-1197`).
 
 ## Relationship reads per request and per tick
 
-Grants are read live per request (`core/TokenService.java:654-678`); `RelationshipReadsDatabaseCommandsTest` pins these.
+Grants and memberships are read live per request (`core/TokenService.java:654-678`); `RelationshipReadsDatabaseCommandsTest`
+pins these, counting the `rel_edges` and `rel_nodes` documents returned with 10 and with 1,000 runs in the workspace. No
+lookup's cost depends on the run count: a run is found from its own incoming edge, and every other walk leaves the
+`hasWorkflowRun` edges out on `from_label` (`core/RelationshipService.java:1006-1011,1036-1084,1118-1124`).
 
-| Path | Node reads | Code |
+| Path | Reads | Code |
 | --- | --- | --- |
-| Health probe `GET /health` | 0: no authentication runs | `core/security/AuthenticationFilter.java:428-436` |
-| Any route, global token | 0 to authorize: a `global` grant answers before the workspace is resolved | `core/RelationshipService.java:556-570` |
-| Workspace-scoped read, global token, admin session or scheduled run | 2: the workspace node, then its children; the walk starts at the named workspaces, not at the root (was 4 from the root, plus a batch per 101 nodes beyond the first: every user, workspace and run) | `core/RelationshipService.java:965-987` |
-| Dispatcher poll, filter resolved | 1 for any number of bare task slugs, 2 for workspace tasks (was one, or two, per value); a filter resolves once per poll and is cached 30 s per filter text, so the re-checks inside a poll and the polls after read none | `dispatcher/ClaimFilterService.java:60-73,91-199`, `dispatcher/DispatcherService.java:381-382` |
-| Schedule fire | 6: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from (was 10); no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-829` |
-| Run completion | 1: the audit event's workflow and workspace names in one read (was 2) | `core/audit/WorkflowRunAuditBridge.java:80-89` |
-| Watcher and schedule sweeps with nothing due | 0 | `engine/WorkflowWatcher.java:168-200` |
+| Health probe; any route with a global token | 0: the probe runs no authentication, and a `global` grant answers before the workspace is resolved | `core/security/AuthenticationFilter.java:428-436`, `core/RelationshipService.java:558-572` |
+| Workspace-scoped read, global token, admin session or scheduled run | 2 node reads: the workspace node, then its children; the walk starts at the named workspaces, not at the root | `core/RelationshipService.java:987-995` |
+| A member's workflow lookup in a workspace (also a schedule query and get) | 7 documents for a member of 3 workspaces with 1 workflow (8 for the schedule query, 4 for a get), whatever the run count: the member's node and memberships, the named workspace's node, its non-run children and their nodes | `core/RelationshipService.java:1013-1034` |
+| A run check, `check(WORKFLOWRUN, …)` from a member or workspace token | 5 documents in 5 queries: the caller's node, the run node, the edge into it, the caller's edge to that run's workspace and that workspace's node | `core/RelationshipService.java:1036-1084` |
+| A global task lookup by name | 3 documents: the task nodes of the name and their edge from the root, not every user, workspace and run in the install | `core/RelationshipService.java:1086-1116` |
+| Dispatcher poll, filter resolved | 1 node read for any number of bare task slugs, 2 for workspace tasks; a filter resolves once per poll and is cached 30 s per filter text, so the re-checks inside a poll and the polls after read none | `dispatcher/ClaimFilterService.java:60-73,91-199`, `dispatcher/DispatcherService.java:381-382` |
+| Schedule fire | 6 node reads: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from; no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-829` |
+| Run completion; watcher and schedule sweeps with nothing due | 1 node read, the audit event's workflow and workspace names in one read; 0 | `core/audit/WorkflowRunAuditBridge.java:80-89`, `engine/WorkflowWatcher.java:168-200` |
 
 ## Payload caps
 

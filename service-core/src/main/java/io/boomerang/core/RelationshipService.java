@@ -49,7 +49,9 @@ import org.springframework.web.context.request.RequestContextHolder;
  *   <li>1-hop parents / membership -> incoming edges ({@code findByTo*}, {@code to_label_idx})
  *   <li>principal-scoped {@code check}/{@code filter} -> a level-by-level downward walk anchored
  *       at the principal's node (one edge query + one node batch-load per level), following only
- *       edges that exist - access is enforced by the hierarchy itself
+ *       edges that exist - access is enforced by the hierarchy itself; a check on named runs reads
+ *       the runs' own incoming edges instead, so no lookup reads a workspace's runs unless it asks
+ *       for them ({@link #findNodes})
  * </ul>
  *
  * <p>Reading live Mongo on every call means there is no per-instance cache to go stale across
@@ -956,11 +958,19 @@ public class RelationshipService {
    * that exist, access control is enforced by the hierarchy: a walk from a user's node reaches
    * only teams they are a member of, and their descendants.
    *
-   * <p>A walk from the root through named workspaces starts at those workspaces instead: every
-   * workspace hangs from the root, and nothing under a workspace is also a child of the root, so
-   * the nodes found are the same, without reading every user, workspace and run in the graph. It is
-   * the walk a global caller, an admin's session and a scheduled run make for each workspace-scoped
-   * lookup.
+   * <p>The graph is {@code root -> user|workspace|task}, {@code user -> workspace} and {@code
+   * workspace -> workflow|workflowrun|workspacetask|approvergroup|integration}, and nothing hangs
+   * below a run or a workflow, so these lookups read only the edges that can lead to the target and
+   * find exactly the nodes the full walk finds:
+   *
+   * <ul>
+   *   <li>A walk confined to named workspaces starts at those workspaces: from the root, every one
+   *       that exists; from a user, those of the user's own workspaces it names.
+   *   <li>Named runs are found from their own incoming edges: a run counts when its workspace is
+   *       the anchor, or one the anchoring user reaches by an edge read now.
+   *   <li>The global task catalogue is the root's {@code hasTask} children.
+   *   <li>A walk for anything but a run leaves the {@code hasWorkflowRun} edges unread.
+   * </ul>
    */
   public List<RelationshipNodeEntity> findNodes(
       RelationshipType fromType,
@@ -971,21 +981,146 @@ public class RelationshipService {
       Optional<List<String>> intermediateList) {
     // A present-but-empty intermediate list is an intermediate filter that matches nothing.
     boolean hasIntermediate = intermediateType.isPresent() && intermediateList.isPresent();
+    boolean inWorkspaces =
+        hasIntermediate && RelationshipType.WORKSPACE.equals(intermediateType.get());
 
-    List<RelationshipNodeEntity> starts;
-    if (RelationshipType.ROOT.equals(fromType)
-        && hasIntermediate
-        && RelationshipType.WORKSPACE.equals(intermediateType.get())) {
-      starts =
-          List.copyOf(resolveNodes(RelationshipType.WORKSPACE, intermediateList.get()).values());
-    } else {
-      starts = resolveNode(fromType, from).map(List::of).orElse(List.of());
+    if (RelationshipType.ROOT.equals(fromType) && inWorkspaces) {
+      return walk(
+          List.copyOf(resolveNodes(RelationshipType.WORKSPACE, intermediateList.get()).values()),
+          toType,
+          toList,
+          hasIntermediate,
+          intermediateType,
+          intermediateList);
     }
-    if (starts.isEmpty()) {
+    RelationshipNodeEntity anchor = resolveNode(fromType, from).orElse(null);
+    if (anchor == null) {
       LOGGER.debug("findNodes() - anchor {}:{} not found", fromType.getLabel(), from);
       return new ArrayList<>();
     }
+    if (RelationshipType.ROOT.equals(fromType)
+        && RelationshipType.TASK.equals(toType)
+        && !hasIntermediate) {
+      return globalTasks(anchor, toList);
+    }
+    if (RelationshipType.WORKFLOWRUN.equals(toType)
+        && toList.isPresent()
+        && (!hasIntermediate || inWorkspaces)
+        && (RelationshipType.USER.equals(fromType)
+            || RelationshipType.WORKSPACE.equals(fromType))) {
+      return runsReached(anchor, toList.get(), hasIntermediate, intermediateList);
+    }
+    List<RelationshipNodeEntity> starts =
+        (RelationshipType.USER.equals(fromType) && inWorkspaces)
+            ? namedChildWorkspaces(anchor, intermediateList.get(), toType)
+            : List.of(anchor);
     return walk(starts, toType, toList, hasIntermediate, intermediateType, intermediateList);
+  }
+
+  // The workspaces a user's node has an edge to that the names match: where a walk from the user,
+  // confined to those workspaces, passes the confinement. The others lead to no node it finds.
+  private List<RelationshipNodeEntity> namedChildWorkspaces(
+      RelationshipNodeEntity user, List<String> workspaces, RelationshipType toType) {
+    List<String> children =
+        edgesFrom(List.of(user.getId()), toType).stream()
+            .map(RelationshipEdgeEntity::getTo)
+            .filter(id -> !id.equals(user.getId()))
+            .distinct()
+            .toList();
+    return children.isEmpty()
+        ? List.of()
+        : nodeRepository.findByIdInAndTypeAndRefOrSlugIn(
+            children, RelationshipType.WORKSPACE.getLabel(), workspaces);
+  }
+
+  /*
+   * The named runs a walk from the anchor - a workspace, or a user - finds. A run is a leaf hanging
+   * from its workspace, so it is found when an edge into it starts at the anchor, or at a node the
+   * anchoring user has an edge to; confined to named workspaces, that node must be one of them.
+   */
+  private List<RelationshipNodeEntity> runsReached(
+      RelationshipNodeEntity anchor,
+      List<String> runs,
+      boolean hasIntermediate,
+      Optional<List<String>> workspaces) {
+    Map<String, RelationshipNodeEntity> runById = new HashMap<>();
+    resolveNodes(RelationshipType.WORKFLOWRUN, runs)
+        .values()
+        .forEach(run -> runById.put(run.getId(), run));
+    if (runById.isEmpty()) {
+      return new ArrayList<>();
+    }
+    List<RelationshipEdgeEntity> into = edgeRepository.findByToIn(runById.keySet());
+    Optional<RelationshipType> workspaceType = Optional.of(RelationshipType.WORKSPACE);
+    Set<String> through;
+    if (RelationshipType.WORKSPACE.getLabel().equals(anchor.getType())) {
+      through =
+          (!hasIntermediate || matchesIntermediate(anchor, true, workspaceType, workspaces))
+              ? Set.of(anchor.getId())
+              : Set.of();
+    } else {
+      Set<String> parents =
+          into.stream().map(RelationshipEdgeEntity::getFrom).collect(Collectors.toSet());
+      List<String> reached =
+          edgeRepository.findByFromAndToIn(anchor.getId(), parents).stream()
+              .map(RelationshipEdgeEntity::getTo)
+              .toList();
+      // A run is a leaf: the walk never goes on from one, so none leads to another.
+      through =
+          nodeRepository.findAllById(reached).stream()
+              .filter(node -> !RelationshipType.WORKFLOWRUN.getLabel().equals(node.getType()))
+              .filter(
+                  node ->
+                      !hasIntermediate
+                          || matchesIntermediate(node, true, workspaceType, workspaces))
+              .map(RelationshipNodeEntity::getId)
+              .collect(Collectors.toSet());
+    }
+    return into.stream()
+        .filter(edge -> through.contains(edge.getFrom()))
+        .map(edge -> runById.get(edge.getTo()))
+        .distinct()
+        .collect(Collectors.toList());
+  }
+
+  // The global task catalogue under the root, optionally the tasks of these refs or names: every
+  // task node the root has an edge to, and no workspace's own tasks, which are another type.
+  private List<RelationshipNodeEntity> globalTasks(
+      RelationshipNodeEntity root, Optional<List<String>> toList) {
+    String label = RelationshipLabel.HAS_TASK.getLabel();
+    if (toList.isEmpty()) {
+      return nodeRepository
+          .findAllById(
+              edgeRepository.findByFromAndLabel(root.getId(), label).stream()
+                  .map(RelationshipEdgeEntity::getTo)
+                  .toList())
+          .stream()
+          .filter(node -> RelationshipType.TASK.getLabel().equals(node.getType()))
+          .collect(Collectors.toList());
+    }
+    List<RelationshipNodeEntity> named =
+        nodeRepository.findByTypeAndRefOrSlugIn(RelationshipType.TASK.getLabel(), toList.get());
+    if (named.isEmpty()) {
+      return new ArrayList<>();
+    }
+    Set<String> underRoot =
+        edgeRepository
+            .findByToInAndLabel(named.stream().map(RelationshipNodeEntity::getId).toList(), label)
+            .stream()
+            .filter(edge -> root.getId().equals(edge.getFrom()))
+            .map(RelationshipEdgeEntity::getTo)
+            .collect(Collectors.toSet());
+    return named.stream()
+        .filter(node -> underRoot.contains(node.getId()))
+        .collect(Collectors.toList());
+  }
+
+  // A walk level's outgoing edges. Runs are leaves under their workspace, so a walk for anything
+  // else leaves their edges unread; the from_label index skips them.
+  private List<RelationshipEdgeEntity> edgesFrom(List<String> ids, RelationshipType toType) {
+    return RelationshipType.WORKFLOWRUN.equals(toType)
+        ? edgeRepository.findByFromIn(ids)
+        : edgeRepository.findByFromInAndLabelNot(ids, RelationshipLabel.HAS_WORKFLOWRUN.getLabel());
   }
 
   // The level-by-level downward walk of findNodes, from one or more start nodes.
@@ -1026,7 +1161,7 @@ public class RelationshipService {
         break;
       }
 
-      List<RelationshipEdgeEntity> edges = edgeRepository.findByFromIn(expandIds);
+      List<RelationshipEdgeEntity> edges = edgesFrom(expandIds, toType);
       if (edges.isEmpty()) {
         break;
       }
