@@ -202,6 +202,7 @@ public class RelationshipService {
       Optional<Map<String, String>> data) {
     RelationshipNodeEntity fromResult = resolveNodeOrThrow(fromType, from);
     RelationshipNodeEntity toResult = resolveNodeOrThrow(toType, to);
+    requireEdgeShape(fromResult.getType(), label, toResult.getType());
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toResult.getId(), data));
   }
@@ -259,6 +260,7 @@ public class RelationshipService {
       Optional<Map<String, String>> nodeData,
       Optional<Map<String, String>> edgeData) {
     RelationshipNodeEntity fromResult = resolveNodeOrThrow(fromType, from);
+    requireEdgeShape(fromResult.getType(), label, toType.getLabel());
     RelationshipNodeEntity toNode = this.createNode(toType, toRef, toSlug, nodeData);
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toNode.getId(), edgeData));
@@ -341,6 +343,7 @@ public class RelationshipService {
       String toRef,
       Map<String, String> data) {
     RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
+    requireEdgeShape(fromNode.getType(), label, toType.getLabel());
     RelationshipEdgeEntity edge =
         new RelationshipEdgeEntity(
             fromNode.getId(), label, toType.getLabel() + ":" + toRef, Optional.of(data));
@@ -820,6 +823,35 @@ public class RelationshipService {
    * one membership and takes the new role, on every copy of the edge an earlier write duplicated;
    * a second edge would never be read, since a user's roles take the first per workspace.
    */
+  /*
+   * The edges the graph is made of, as from type, label and to type. The lookups take shortcuts
+   * that hold only for this shape (runsReached, namedChildWorkspaces, globalTasks, and the walk
+   * skipping run edges): a user reaches only workspaces, only a workspace reaches a run, nothing
+   * starts at a run or a workflow, and the root reaches tasks through hasTask. A new kind of edge
+   * is refused here until those lookups are checked against it; add it with
+   * RelationshipLookupEquivalenceTest covering it.
+   */
+  private static final Set<String> EDGE_SHAPES =
+      Set.of(
+          "root|contains|user",
+          "root|contains|workspace",
+          "root|hasTask|task",
+          "user|memberOf|workspace",
+          "workspace|hasWorkflow|workflow",
+          "workspace|hasWorkflowRun|workflowrun",
+          "workspace|hasTask|workspacetask",
+          "workspace|hasApproverGroup|approvergroup",
+          "workspace|hasIntegration|integration",
+          "workspace|linksTemplate|workflow");
+
+  private static void requireEdgeShape(String fromType, RelationshipLabel label, String toType) {
+    if (!EDGE_SHAPES.contains(fromType + "|" + label.getLabel() + "|" + toType)) {
+      throw new IllegalStateException(
+          "Relationship edge " + fromType + " -" + label.getLabel() + "-> " + toType
+              + " is not a shape the lookups are built for");
+    }
+  }
+
   public void setMemberRole(String userId, String workspace, String role) {
     RelationshipNodeEntity userNode = resolveNodeOrThrow(RelationshipType.USER, userId);
     RelationshipNodeEntity workspaceNode = resolveNodeOrThrow(RelationshipType.WORKSPACE, workspace);

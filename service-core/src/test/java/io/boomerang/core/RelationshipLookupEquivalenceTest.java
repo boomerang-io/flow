@@ -1,6 +1,7 @@
 package io.boomerang.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -236,6 +237,25 @@ class RelationshipLookupEquivalenceTest {
   }
 
   // ── Named cases ────────────────────────────────────────────────────────────
+
+  // The lookups' shortcuts hold for the graph's shape only, so an edge of another shape is refused
+  // where it would be written: a user with an edge straight to a run would be reached by a walk
+  // the run check no longer makes.
+  @Test
+  void anEdgeOfAShapeTheLookupsAreNotBuiltForIsRefused() {
+    assertThatThrownBy(
+            () ->
+                service.createEdge(
+                    RelationshipType.USER,
+                    "u3",
+                    RelationshipLabel.MEMBER_OF,
+                    RelationshipType.WORKFLOWRUN,
+                    "r4a",
+                    Optional.empty()))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(edgeRepository.findByFromAndLabel("user:u3", "memberOf"))
+        .noneMatch(edge -> edge.getTo().startsWith("workflowrun:"));
+  }
 
   @Test
   void aUserInThreeWorkspacesReachesEachOnlyThroughItsOwnWorkspace() {
