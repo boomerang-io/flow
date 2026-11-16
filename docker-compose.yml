@@ -197,6 +197,8 @@ services:
     # Memory for the local stack, not the image: as for service-dispatcher above, half the limit
     # is heap; the garbage collector and compact headers stay as the AOT cache was recorded.
     mem_limit: 1g
+    # The image exits on OutOfMemoryError; this brings it back.
+    restart: unless-stopped
     environment:
       JDK_JAVA_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=128m -Xss512k"
       SPRING_MONGODB_URI: mongodb://mongo:27017/boomerang
