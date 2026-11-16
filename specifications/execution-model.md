@@ -43,11 +43,11 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   and an admission (`engine/TaskExecutionService.java:278-280`; a run submitted with a workspace once it is
   `ready/pending`, `workflow/WorkflowRunService.java:885-888`) signals only the waiters whose filter can claim the
   task, the in-memory twin of the claim query's narrowing; a run signal reaches the workflow polls alone
-  (`dispatcher/PollWakeups.java:41-160`, `dispatcher/DispatcherService.java:405-408`, `:581-603`). A signal that lands
+  (`dispatcher/PollWakeups.java:36-251`, `dispatcher/DispatcherService.java:405-408`, `:581-603`). A signal that lands
   during a look is kept, so the wait that follows ends at once; the woken poll re-runs its claim page, and its
-  termination pages run once per `flow.dispatcher.poll.residue-ms` (30 s) per dispatcher and filter (`:403`, `:427`),
-  or at once when a task the dispatcher holds ends cancelled or timed out or is parked for retry
-  (`engine/TaskRunService.java:619-634`).
+  termination pages run once per `flow.dispatcher.poll.residue-ms` (30 s) per dispatcher and filter (`:422-425`),
+  or at once when a task the dispatcher holds ends cancelled or timed out or is parked for retry - on its held poll,
+  or on the next it opens when none is held (`engine/TaskRunService.java:619-634`, `PollWakeups.java:189-216`).
   Work claimable without an admission on that instance (an elapsed `retry.after`, a write elsewhere) waits for the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`

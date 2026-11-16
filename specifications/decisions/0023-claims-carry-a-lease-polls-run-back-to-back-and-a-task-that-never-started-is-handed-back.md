@@ -27,7 +27,7 @@ once after one that brought work or was held 30 s, asks for `limit` = its free s
 definition label, and the engine claims at most a page of 20 (`QueuePoller.java:114-122`, `InFlightTasks.java:8-33`,
 `dispatcher/ClaimFilterService.java:44-73`, `dispatcher/DispatcherService.java:362-406`). A held poll registers its
 filter under each type on its own `Condition`, and an admission signals the matching waiters
-(`dispatcher/PollWakeups.java:41-160`). The Kubernetes dispatcher fails a stuck image pull `ImagePull` after a grace and a pod not running by the deadline
+(`dispatcher/PollWakeups.java:36-251`). The Kubernetes dispatcher fails a stuck image pull `ImagePull` after a grace and a pod not running by the deadline
 `StartTimeout` (`executor/PodStartWatch.java:43-70`). The engine requeues on the shared budget only reasons meaning the task never ran: `ExceededQuota`,
 `StartTimeout`, `RateLimited`, `ClusterUnavailable`, `DispatcherStopping` (`common/model/StatusReason.java:53-59`, `TaskRunService.java:1189-1208`). A failed
 provisioning is reported with its cause, retried a minute later and failed on the third attempt (`engine/WorkflowExecutionService.java:467-503`).

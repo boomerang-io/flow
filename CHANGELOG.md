@@ -437,8 +437,9 @@ tag's release notes.
 - **Termination residue has its own poll cadence.** A held dispatcher poll looks for tasks it holds that were
   cancelled, timed out or parked once per `flow.dispatcher.poll.residue-ms` (default 30000, never under the
   re-check interval) for each dispatcher and filter, instead of on every `flow.dispatcher.poll.recheck-ms`
-  re-check. A termination on the same engine instance still reaches the holder at once; the interval bounds only
-  residue written on another replica. Idle, each pool costs two `task_runs` queries per interval instead of two
+  re-check. A termination on the same engine instance still reaches the holder at once, on its held poll or on the
+  next one it opens, as for a retry its own end report parks; the interval bounds only residue written on another
+  replica. Idle, each pool costs two `task_runs` queries per interval instead of two
   per re-check: one dispatcher with 8 pools at a 5 s re-check drops from about 359 to about 200 a minute.
 - **The local stack sizes its JVMs.** `docker-compose.yml` gives `service-core` `mem_limit: 1g` and
   `service-dispatcher` `768m`, each with `JDK_JAVA_OPTIONS` `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m
