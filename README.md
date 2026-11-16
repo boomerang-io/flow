@@ -8,8 +8,8 @@ This repository holds the whole product — services, migrations, and the web ap
 | Module | Role |
 |---|---|
 | [`service-core`](./service-core) | The deployable: v2 REST API, auth/authz, workspaces, workflows, **and** the DAG execution engine. One shape; properties express the deployment (see [Deployment shape](#deployment-shape)). Migrates and seeds its database as it starts (Flamingock change units in `io.boomerang.migration`). |
-| [`dispatcher-sdk`](./dispatcher-sdk) | The dispatcher protocol as a Java library, published to GitHub Packages as `io.boomerang:dispatcher-sdk`: write a dispatcher by implementing `TaskHandler`; the SDK registers, polls, starts, renews leases and reports ends. |
-| [`flow-sdk`](./flow-sdk) | The public API as a Java library, published to GitHub Packages as `io.boomerang:flow-sdk`: `Flow.connect(url, token)`, then typed calls to submit, read, cancel and retry workflow runs, query runs and task runs by label, and read Insights. Its version is the server version it was built against; `/api/v2` is additive within 5.x. |
+| [`dispatcher-sdk`](./dispatcher-sdk) | The dispatcher protocol as a Java library, published as `io.useboomerang:dispatcher-sdk`: write a dispatcher by implementing `TaskHandler`; the SDK registers, polls, starts, renews leases and reports ends. |
+| [`flow-sdk`](./flow-sdk) | The public API as a Java library, published as `io.useboomerang:flow-sdk`: `Flow.connect(url, token)`, then typed calls to submit, read, cancel and retry workflow runs, query runs and task runs by label, and read Insights. Its version is the server version it was built against; `/api/v2` is additive within 5.x. |
 | [`service-dispatcher`](./service-dispatcher) | Flow's Kubernetes dispatcher, built on `dispatcher-sdk`: one implementation of the published dispatcher contract (`contracts/dispatcher-v1.yaml`, `specifications/dispatcher-contract.md`). Per-task runtime behind the `io.boomerang.executor.TaskExecutor` SPI, selected by `dispatcher.executor`: `tekton` (default) or `kube-jobs`. Any process that implements the contract is a dispatcher; it runs as its own deployable only where a boundary (credentials, network zone, trust, placement) separates it from core. |
 | [`client-web`](./client-web) | The web application — React 18 + React Router 7 (framework mode, SSR) + IBM Carbon v11. BFF model: the browser talks only to its SSR server (documents, `/res/*` resource routes, `.data` requests — never `/api/*`); all service-core calls happen server-side. No react-query — data flows through route loaders/actions. Its own image; renders from the `/api/v2/features` flags, so it runs against any deployment shape. |
 | [`e2e`](./e2e) | Playwright end-to-end suite. Drives the real UI against a real backend, so it lives at the repo root rather than under `client-web`. |
@@ -158,8 +158,9 @@ Deployments and dependants MUST pin an exact tag rather than resolve the highest
 
 Every product tag, beta and release candidate included, pushes `boomerangio/flow-service-core`,
 `boomerangio/flow-service-dispatcher` and `boomerangio/flow-client-web` to Docker Hub under that tag; `latest` moves
-only on a stable release (`.github/workflows/ci-release.yml`). The same tag publishes `io.boomerang:dispatcher-sdk`
-and `io.boomerang:flow-sdk` to GitHub Packages at the tag's version.
+only on a stable release (`.github/workflows/ci-release.yml`). The same tag publishes `io.useboomerang:dispatcher-sdk`
+and `io.useboomerang:flow-sdk` to GitHub Packages at the tag's version, and to Maven Central too once the
+namespace and secrets are in place (stable tags only unless `CENTRAL_PUBLISH_PRERELEASES` is `true`).
 
 To install on Kubernetes, the `bmrg-flow` Helm chart 6.0.x deploys v5 (it is not released yet; the 4.x line deploys
 v3). The install, quickstart and upgrade guides are in the docs:
@@ -315,3 +316,18 @@ The v3 → v4 rewrite of the engine is documented in:
 
 The former central tracker, [`boomerang-io/community`](https://github.com/boomerang-io/community), is archived; its
 open issues were triaged into this repository on 2026-09-01 and its old URLs redirect.
+
+## Publishing to Maven Central
+
+`dispatcher-sdk` and `flow-sdk` publish to Maven Central as `io.useboomerang` from the `publish-sdk` job in
+`.github/workflows/ci-release.yml`, in addition to GitHub Packages. The Central step runs only when the secrets
+below exist, and only for stable tags unless the repository variable `CENTRAL_PUBLISH_PRERELEASES` is `true`.
+A Central version is permanent, so the job skips one already there. Owner checklist:
+
+1. Verify the `useboomerang.io` namespace in the Central Portal (it asks for a DNS TXT record on the domain).
+2. Generate a Portal user token (Account, Generate User Token).
+3. Create a GPG key and publish its public half to `keys.openpgp.org` and `keyserver.ubuntu.com`.
+4. Add the repository secrets `CENTRAL_USERNAME` and `CENTRAL_TOKEN` (the Portal token pair), `GPG_PRIVATE_KEY`
+   (the armored private key) and `GPG_PASSPHRASE`.
+5. Decide the prerelease policy: betas and release candidates stay off Central by default; set the repository
+   variable `CENTRAL_PUBLISH_PRERELEASES` to `true` to publish them too (they can never be removed).

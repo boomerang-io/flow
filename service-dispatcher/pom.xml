@@ -28,7 +28,7 @@
     </parent>
     <dependencies>
         <dependency>
-            <groupId>io.boomerang</groupId>
+            <groupId>io.useboomerang</groupId>
             <artifactId>dispatcher-sdk</artifactId>
             <version>5.0.0-SNAPSHOT</version>
         </dependency>

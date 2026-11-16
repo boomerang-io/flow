@@ -139,7 +139,13 @@ services:
       dockerfile: service-dispatcher/Dockerfile
     ports:
       - "7702:7702"
+    # Memory for the local stack, not the image: half the limit is heap and the rest covers
+    # metaspace, code cache, thread stacks and direct buffers. The image's launcher reads
+    # JDK_JAVA_OPTIONS; it leaves the garbage collector and compact headers alone, which the AOT
+    # cache was recorded with. Override both in a compose.override.yaml or with `docker compose run -e`.
+    mem_limit: 768m
     environment:
+      JDK_JAVA_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=128m -Xss512k"
       DISPATCHER_EXECUTOR: kube-jobs
       FLOW_DISPATCHER_NAME: orbstack-kube-jobs
       FLOW_ENGINE_URL: ${FLOW_ENGINE_URL:-http://host.docker.internal:7700}
@@ -170,8 +176,9 @@ services:
     # and a restart covers a start before service-core is up.
     restart: unless-stopped
     healthcheck:
-      # The image has no shell or wget; the probe is the compiled docker/health/Health.java.
-      test: ["CMD", "java", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7702/health"]
+      # The image has no shell or wget; the probe is the compiled docker/health/Health.java. It
+      # inherits JDK_JAVA_OPTIONS, so its own -Xmx keeps the probe's heap at 16 MB.
+      test: ["CMD", "java", "-Xmx16m", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7702/health"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -187,7 +194,11 @@ services:
       dockerfile: service-core/Dockerfile
     ports:
       - "7700:7700"
+    # Memory for the local stack, not the image: as for service-dispatcher above, half the limit
+    # is heap; the garbage collector and compact headers stay as the AOT cache was recorded.
+    mem_limit: 1g
     environment:
+      JDK_JAVA_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m -XX:ReservedCodeCacheSize=128m -Xss512k"
       SPRING_MONGODB_URI: mongodb://mongo:27017/boomerang
       FLOW_MONGO_COLLECTION_PREFIX: flow
       # Secured - see the security posture note above. /health stays permitAll
@@ -223,12 +234,16 @@ services:
       seaweedfs-init:
         condition: service_completed_successfully
     healthcheck:
-      # The image has no shell or wget; the probe is the compiled docker/health/Health.java.
-      test: ["CMD", "java", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7700/health"]
-      interval: 5s
+      # The image has no shell or wget; the probe is the compiled docker/health/Health.java. It
+      # inherits JDK_JAVA_OPTIONS, so its own -Xmx keeps the probe's heap at 16 MB. Every 2 s while
+      # the service starts (up to 3 minutes on a loaded laptop), then every 30 s, so a running
+      # stack does not start a JVM every few seconds.
+      test: ["CMD", "java", "-Xmx16m", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/opt/boomerang", "Health", "http://localhost:7700/health"]
+      interval: 30s
       timeout: 5s
-      retries: 30
-      start_period: 30s
+      retries: 3
+      start_period: 180s
+      start_interval: 2s
     networks: [flow]
 
   # client-web's own SSR server is the single browser-facing origin and the only thing the browser

@@ -33,7 +33,7 @@ task another caller moved meanwhile is left alone; a timeout already recorded wh
 ## The claim-based queue
 
 Dispatchers pull work; the engine never pushes. A dispatcher long-polls `DispatcherService`, which pages candidates with `findClaimable` and claims each one individually
-(`dispatcher/DispatcherService.java:428-440`); the poll window, filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polling".
+(`dispatcher/DispatcherService.java:436-448`); the poll window, filters, slot limit and reconnect timing are in `dispatcher-contract.md`, "Polling".
 
 - `findClaimable` selects `status=ready`, `phase=pending`, `type` among the dispatcher's types, no `claim.by` and
   `retry.after` absent or elapsed, oldest `creationDate` first, narrowed by any task or workflow filter the poll
@@ -43,10 +43,11 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   and an admission (`engine/TaskExecutionService.java:278-280`; a run submitted with a workspace once it is
   `ready/pending`, `workflow/WorkflowRunService.java:885-888`) signals only the waiters whose filter can claim the
   task, the in-memory twin of the claim query's narrowing; a run signal reaches the workflow polls alone
-  (`dispatcher/PollWakeups.java:41-160`, `dispatcher/DispatcherService.java:397-400`, `:562-584`). A signal that lands
+  (`dispatcher/PollWakeups.java:41-160`, `dispatcher/DispatcherService.java:405-408`, `:581-603`). A signal that lands
   during a look is kept, so the wait that follows ends at once; the woken poll re-runs its claim page, and its
-  termination pages run once per re-check interval per dispatcher and filter (`:395`, `:419`), or at once when a
-  task the dispatcher holds ends cancelled or timed out or is parked for retry (`engine/TaskRunService.java:619-634`).
+  termination pages run once per `flow.dispatcher.poll.residue-ms` (30 s) per dispatcher and filter (`:403`, `:427`),
+  or at once when a task the dispatcher holds ends cancelled or timed out or is parked for retry
+  (`engine/TaskRunService.java:619-634`).
   Work claimable without an admission on that instance (an elapsed `retry.after`, a write elsewhere) waits for the timed re-check.
 - `tryClaim` is one `findAndModify` that re-checks eligibility and in the same write sets `phase=queued`, `claim.by`,
   `claim.at` and `claim.leaseExpiresAt`, increments `claim.seq`, clears `retry.after` and bakes `timeoutAt`
@@ -68,9 +69,9 @@ Dispatchers pull work; the engine never pushes. A dispatcher long-polls `Dispatc
   termination claim and a completion unset it; an abandon keeps it until the completion lands, so a lost end is
   reaped again (`:751`), and so is a claim its dispatcher stops listing after a crash or a restart under the same id.
 - The claim answer carries the task's spec with its references filled in; the stored spec keeps them
-  (`dispatcher/DispatcherService.java:506-552`). Params are frozen at admission, so a requeued task gets the same
+  (`dispatcher/DispatcherService.java:525-571`). Params are frozen at admission, so a requeued task gets the same
   values; a workspace or global reference in the spec is read at claim (`parameters.md`, "When a value resolves").
-- `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`dispatcher/DispatcherService.java:69-71`, `:259`, `:364`).
+- `flow.queue.enabled=false` stops claiming only; the sweeps keep running (`dispatcher/DispatcherService.java:69-71`, `:263`, `:370`).
 
 ## Compare-and-set transitions instead of locks
 
@@ -391,7 +392,7 @@ lease, and a lock another run holds is never touched (`releaseLocksHeldBy`, `eng
 | Engine-side retry classes, a per-reason selector on a node | one `Backoff` shape parameterised per node; `retry.max` retries every reported failure but a fixed list and the ones the dispatcher marks final with `retryable: false` ("Retry") | a task family that needs a different policy |
 | Supersede generations and a separate reconciler | a retry creates a new workflow run; reconciling is the level-triggered `advance` | an in-place partial re-run of one workflow run becomes a requirement |
 | For-each batching, a failure-tolerance rule, a per-task parallel limit, or repeating a group of tasks per item | one task repeated per item; any failed item fails it, and an `always` connection carries on; items run as fast as dispatchers claim them | real workflows that need one of them |
-| A post-terminal phase, or any teardown field on the run | the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which runs it holds volumes for are finished; the run records nothing (`dispatcher/DispatcherService.java:596-619`) | a cleanup outcome has to be shown to a user or read back by the engine |
+| A post-terminal phase, or any teardown field on the run | the dispatcher asks `POST /dispatcher/v1/workspaces/releasable` which runs it holds volumes for are finished; the run records nothing (`dispatcher/DispatcherService.java:615-638`) | a cleanup outcome has to be shown to a user or read back by the engine |
 | A transaction across the compare-and-set and the outbox insert | the accepted loss window above | a missing terminal-status event is reported, or a consumer depends on delivery |
 
 Size caps on params and results: `dispatcher-contract.md`, "Ending"; sweep switches and cadences: `performance.md`.

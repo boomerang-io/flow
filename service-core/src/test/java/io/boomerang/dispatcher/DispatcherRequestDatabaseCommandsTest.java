@@ -112,10 +112,9 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
 
   /**
    * A held poll that finds nothing runs the claimable page and the two termination pages on its
-   * first look and on each timed re-check, and the claimable page alone on a look an admission
-   * woke: an admission costs one query per held poll it concerns, and a termination still reaches
-   * the dispatcher within one re-check interval (1 s here). Three looks are recorded: the first,
-   * the one a matching admission 0.2 s later wakes, and the timed re-check 1 s after that.
+   * first look, and the claimable page alone on a look an admission woke and on a timed re-check:
+   * the termination pages wait for their own 30 s residue interval. Three looks are recorded: the
+   * first, the one a matching admission 0.2 s later wakes, and the timed re-check 1 s after that.
    */
   @Test
   void aHeldPollWokenByAnAdmissionRunsTheClaimablePageAlone() throws Exception {
@@ -142,9 +141,9 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
       System.out.printf("DB COMMANDS | held poll, 3 looks | %s%n", names);
       assertEquals(HttpStatus.NO_CONTENT, recorded.result().getStatusCode());
       assertEquals(
-          7,
+          5,
           Collections.frequency(names, "find task_runs"),
-          "3 pages on the first look, 1 on the woken look, 3 on the timed re-check: " + names);
+          "3 pages on the first look, 1 on the woken look, 1 on the timed re-check: " + names);
     } finally {
       executor.shutdownNow();
     }
@@ -227,7 +226,7 @@ class DispatcherRequestDatabaseCommandsTest extends AbstractEngineIntegrationTes
 
   /**
    * The termination-residue cadence belongs to the dispatcher and filter, not to one poll request:
-   * a poll re-opened within the re-check interval after a claim runs the claimable page alone on
+   * a poll re-opened within the residue interval after a claim runs the claimable page alone on
    * its first look, where a fresh poll runs it and the two termination pages, and a second
    * dispatcher under the same filter keeps its own cadence. Under load a poll returns on every
    * claim and the SDK re-opens it at once, so this is the cost of each claim.

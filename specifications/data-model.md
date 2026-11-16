@@ -214,7 +214,7 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 
 | Status | Written when | File |
 | --- | --- | --- |
-| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java:214-240`, from `dispatcher/DispatcherService.java:328`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:284-291`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
+| `uploading` | the engine hands the upload task to a dispatcher and fills its link params (`workflow/ArtifactService.java:214-240`, from `dispatcher/DispatcherService.java:332`). The key is `runs/<run>/<name>` for run scope and `workflows/<workflow>/<name>/<artifact id>` for workflow scope, so a replacement never overwrites a file before it is verified (`workflow/ArtifactService.java:284-291`) | may be partly written; reaped after `flow.artifacts.upload-grace-minutes` (60) |
 | `available` | the dispatcher ends the upload task succeeded: `service-core` reads the stored file for its size and SHA-256 and checks the limits (`workflow/ArtifactService.java:314-372`, called from `engine/TaskRunService.java:1234`); a refusal ends the task failed with `ArtifactRefused`. For workflow scope the previously available record of that name is expired first, then this one is marked available (`workflow/ArtifactService.java:375-384`), so the partial unique index `workflow_name_available_idx` always holds and the later verified completion wins | in the store |
 | `expired` | the watcher passes `expirationDate` (`workflow/ArtifactService.java:572-581`), or, for workflow scope, a replacement completes | deleted; the record stays so the run still shows what it produced |
 
@@ -247,7 +247,7 @@ and its task refused; no existing artifact is deleted to make room.
 
 A download whose artifact does not exist fails the task with `ArtifactRefused`, unless the task set
 `optional: true`: then the engine ends it `succeeded` at hand-out with reason `ArtifactNotFound` and the result
-`found=false`, and nothing is dispatched (`dispatcher/DispatcherService.java:323-349`). A dispatched download
+`found=false`, and nothing is dispatched (`dispatcher/DispatcherService.java:327-353`). A dispatched download
 that ends succeeded gets `found=true` from the engine, over the declared result's empty value
 (`engine/TaskRunService.java:1248-1271`), so a
 decision after the task can branch on `found`. The store is any S3-compatible service

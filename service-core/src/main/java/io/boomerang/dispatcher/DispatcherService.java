@@ -74,6 +74,10 @@ public class DispatcherService {
   @Value("${flow.dispatcher.poll.recheck-ms:1000}")
   private long pollRecheckMs;
 
+  // How often a dispatcher's polls under one filter look at the termination pages without a wake.
+  @Value("${flow.dispatcher.poll.residue-ms:30000}")
+  private long pollResidueMs;
+
   private final DispatcherRepository dispatcherRepository;
   private final WorkflowRunStateHelper workflowRunStateHelper;
   private final TaskRunService taskRunService;
@@ -354,10 +358,12 @@ public class DispatcherService {
    * termination orders, which free slots rather than take them; no limit means a full page. The
    * poll is narrowed by optional filters: task types, task slugs, and a label on the workflow
    * definition (see {@link ClaimFilterService}). Termination orders follow the same filters, and
-   * their pages run at most once per re-check interval for a dispatcher and filter, across the
-   * polls it opens one after another - never on a look an admission woke, and not again on a poll
-   * re-opened right after a claim, which cost the claimable page alone. A filter that matches
-   * nothing answers at once with no content.
+   * their pages run at once when a task this dispatcher holds under the filter is cancelled, times
+   * out or is parked on this instance, and otherwise at most once per residue interval ({@code
+   * flow.dispatcher.poll.residue-ms}) for a dispatcher and filter, across the polls it opens one
+   * after another - on the first look of a poll when the turn is due, never on a look an admission
+   * woke, and not again on a poll re-opened right after a claim, which costs the claimable page
+   * alone. A filter that matches nothing answers at once with no content.
    */
   public ResponseEntity<List<TaskRun>> getTaskQueue(
       String dispatcherId, Integer limit, String type, String task, String workflowLabel) {
@@ -390,8 +396,10 @@ public class DispatcherService {
         Instant.now().plusMillis(MAX_POLL_INTERVAL); // Keep connection open for 30 seconds
     LOGGER.debug("Starting long poll queue for dispatcher: {}", dispatcherId);
     // Residue - a task cancelled, timed out or parked while a dispatcher held it - changes rarely
-    // and is never fresh work, so its pages are due once per re-check interval for this dispatcher
-    // and filter, not on every wake and not again on a poll re-opened right after a claim.
+    // and is never fresh work. A termination on this instance wakes the holder's poll at once, so
+    // the timed pages only catch residue written by another engine replica or a missed wake: they
+    // are due once per residue interval for this dispatcher and filter, on the first look of a
+    // poll when due, not on every re-check or wake and not again on a poll re-opened after a claim.
     ResidueKey residueKey = new ResidueKey(dispatcherId, filter);
     residueDue.values().removeIf(due -> due <= System.currentTimeMillis());
     // Registered before the first look, so a signal that lands during a look is kept for the wait
@@ -444,8 +452,14 @@ public class DispatcherService {
         // claim release is what makes it one dispatcher's job, stops the run being redelivered on the
         // next poll, and (for a retry) is what re-arms the node for its next attempt.
         if (residue) {
-          for (TaskRunEntity candidate :
-              taskRunService.findClaimableForTermination(filter, PAGE_SIZE)) {
+          List<TaskRunEntity> terminations =
+              taskRunService.findClaimableForTermination(filter, PAGE_SIZE);
+          // A full page may have more behind it: the next look takes the turn again rather than
+          // leaving the rest for a whole residue interval.
+          if (terminations.size() >= PAGE_SIZE) {
+            residueDue.remove(residueKey);
+          }
+          for (TaskRunEntity candidate : terminations) {
             TaskRunEntity claimed =
                 taskRunService.tryClaimForTermination(candidate.getId(), dispatcherId);
             if (claimed != null) {
@@ -475,11 +489,16 @@ public class DispatcherService {
     return Math.max(MIN_POLL_RECHECK_MS, pollRecheckMs);
   }
 
+  // The residue interval, never under the re-check interval.
+  private long residueMillis() {
+    return Math.max(recheckMillis(), pollResidueMs);
+  }
+
   // A dispatcher's polls under one filter, which share the termination-residue cadence.
   private record ResidueKey(String dispatcherId, ClaimFilter filter) {}
 
   /**
-   * Whether this look runs the termination pages: true once per re-check interval for the key,
+   * Whether this look runs the termination pages: true once per residue interval for the key,
    * whichever poll of that dispatcher and filter looks first, which then holds the next due time.
    * Entries whose due time has passed are pruned at each poll's start - a key with no entry is
    * simply due - so the map holds one entry per dispatcher and filter polling right now.
@@ -491,7 +510,7 @@ public class DispatcherService {
         (k, due) -> {
           if (due == null || now >= due) {
             taken[0] = true;
-            return now + recheckMillis();
+            return now + residueMillis();
           }
           return due;
         });
