@@ -71,7 +71,8 @@ public class EventFactory {
     statusUpdateEvent.setSubject(eventSubject);
     statusUpdateEvent.setDate(row.getOccurredAt());
     statusUpdateEvent.setType(EventType.TASKRUN_STATUS_UPDATE);
-    statusUpdateEvent.setData(RunStatusSummary.project(new TaskRun(taskRunEntity), payload));
+    statusUpdateEvent.setData(RunStatusSummary.project(
+            new TaskRun(taskRunEntity), RunStatusSummary.foreachCount(taskRunEntity), payload));
 
     return statusUpdateEvent;
   }

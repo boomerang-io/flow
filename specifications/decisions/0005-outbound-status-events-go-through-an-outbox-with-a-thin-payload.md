@@ -26,7 +26,7 @@ while the sink is enabled (`service-core/src/main/java/io/boomerang/event/CloudE
 marks the row `sent` by CAS, retries with the shared backoff and marks it `dead` after three attempts
 (`event/OutboxDispatcher.java:64-115`, `:133-163`); `/api/v2/system/outbox` lists and replays rows
 (`event/OutboxControllerV2.java:31`, `:70`). `flow.events.sink.payload` defaults to `thin`: `data` holds `id`, `workflowRef`,
-`workflowRunRef`, `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime` and `duration`; `full` sends
+`workflowRunRef`, a task run's `name`, `type`, a for-each item's `parentRef` and `index`, a for-each parent's item `count`, `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime` and `duration`; `full` sends
 the public model with secret parameters redacted and their values scrubbed (`event/model/RunStatusSummary.java:23-71`).
 The engine never reads the outbox to decide anything, so a lost row cannot stall a run, and a broker adds no correctness.
 

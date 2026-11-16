@@ -208,6 +208,8 @@ tag's release notes.
 
 ### Added
 
+- Thin task-run status events carry the task's `name` and `type`, a for-each item's `parentRef` and `index`, and a
+  for-each parent's item `count`.
 - **An owner changes a member's role in Manage › Members.** Each member's row has a role control, shown to anyone who
   may remove members (a workspace owner or an admin). Your own row is locked, and so is the last owner's, so a
   workspace keeps an owner; the change sends the member again with the new role. A toast says it's done.

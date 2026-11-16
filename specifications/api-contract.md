@@ -270,7 +270,7 @@ sends one event, as does a run timeout (`engine/TaskExecutionService.java:169-17
 
 | `payload` | `data` | Use |
 | --- | --- | --- |
-| `thin` (default) | Identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime`, `duration`; never `params`, `results` or `annotations`. Absent fields are omitted | A consumer triggers on the event and reads the run back over the API |
+| `thin` (default) | Identity and lifecycle only: `id`, `workflowRef`, `workflowRunRef` (task events), `name` and `type` (task events: the node name and task type), `parentRef` and `index` (a for-each item only), `count` (a for-each parent only: the items it fanned out, first on the `running` event the fan-out writes, so absent before it and when the items did not resolve), `status`, `statusReason`, `phase`, `labels`, `creationDate`, `startTime`, `duration`; never `params`, `results` or `annotations`. Absent fields are omitted | A consumer triggers on the event and reads the run back over the API |
 | `full` | The whole public `WorkflowRun` / `TaskRun`; a `secret` param's value is `*****`, and scrubbed from results, the status message and annotations | A consumer processes result values without calling back |
 
 A sink is a bare URL in `flow.events.sink.urls` (comma-separated; any secret rides in the query string) or an entry
