@@ -3,755 +3,254 @@
 Operator-facing changes, collected as they merge. The `/release` skill turns the unreleased section into the
 tag's release notes.
 
-## Unreleased: 5.0.0
+## Unreleased
+
+## 5.0.0 (2026-11-17)
+
+5.0.0 is the first release since 3.5 (last 3.5.54): 4.x was never released for general use, so every entry below
+compares 5.0.0 with 3.5.
 
 ### Upgrading
 
-- **The SDKs' Maven groupId is now `io.useboomerang` (was `io.boomerang`).** Update dependencies on
-  `dispatcher-sdk` and `flow-sdk`. Java packages are unchanged.
-- **A token's submit obeys the workflow's Manual switch and records `api`.** A program submitting through
-  `POST …/workflow/{name}/submit` with a token used to skip the switch and record `engine`; turn Manual on for any
-  workflow a program starts this way. A body `trigger` other than `manual` or `api`, in any case, is now `400`.
-- **Clearing `flow.security.bootstrap-token` revokes the bootstrap token.** Before, a blank variable left the stored
-  token valid; now the next start deletes it (logged at info), as for a removed declared token. Every instance
-  must carry the same `flow.security.tokens` entries, because each revokes the declared tokens its own configuration
-  does not name.
-- **Users of type `auditor` and `author` are plain users.** They were counted as admins for the navigation and
-  for creating a workspace when users may not, though they never held the global grant; only `admin` and
-  `operator` are admins. Stored users are not changed, and the webapp shows both as User.
-- **The dispatcher takes service-core's address as one URL.** `flow.engine.service.host` is gone: set
-  `flow.engine.url` (`FLOW_ENGINE_URL`, for example `http://service-core:7700`). Its default is
-  `http://localhost:7700`, service-core's port; the old default pointed at 7701, where nothing listens.
-- **Catalogue tasks without an image of their own run on `boomerangio/task-flow:3.4.0`** (the `task` settings'
-  `default.image`, was 3.1.0), as do the v3 revisions the upgrade moves off `worker-flow`. Change units move an
-  install whose setting still holds 3.1.0 or 3.3.0 (`_0036__DefaultTaskImageTaskFlow33`, then
-  `_0048__DefaultTaskImageTaskFlow34`); an image an operator chose is kept. No seeded revision pins a task-flow version:
-  `_0043__UnpinTaskFlowImages` removes the pin from every revision naming `boomerangio/task-flow`, so each follows the
-  setting (the AI, Box and Python worker images stay). `_0049__SeedTaskFlow34Revisions` adds the 8 catalogue revisions
-  an install lacks (HTTP Call basic 2 and advanced 5, the three Slack webhook tasks 3, JSONPath to Parameter 4, File
-  JSONPath to Parameter 3, Execute Shell 3 with `failOnError`); revisions already held, which workflows may pin, are
-  not changed. What changes for those tasks:
-  - Script tasks run on Alpine 3.24 with Node 24 (was 20), npm 11 at `/usr/local/bin/npm` (`/usr/bin/npm` is gone),
-    GNU tar, OpenSSL 3.5, curl 8.23 and bash 5.3.
-  - Tasks that exited successfully having done nothing now do their work, or fail visibly: Append Data (Sheets)
-    appends its rows, Copy File (Drive) copies, and the Artifactory download and upload tasks run at all. The
-    download needs a destination path, relative paths resolve against `/workspace`, Basic auth is sent encoded, and
-    the upload verifies TLS, so a self-signed Artifactory fails until its CA is trusted.
-  - The Drive tasks reach shared drives, and List Files honours its corpora and drive ID.
-  - The mail, ServiceNow and Slack tasks work when `HTTP_PROXY` is set, and JSONPath To Parameter no longer
-    crashes with `module is not defined`.
-  - Task logs no longer print param values, and Google errors no longer include the request's bearer token.
-  - 3.4.0 fixes HTTP Call, the Slack webhook tasks' exit codes, JSONPath with no match, and Execute Shell's paths.
-- **The GitHub tasks need GitHub App permissions.** The GitHub catalogue tasks act with the GitHub App's
-  installation token when a workspace shares it; between them they need Issues: write, Pull requests: write,
-  Contents: read or write, Commit statuses: write and Actions: write on the App. Each task's description names its
-  own, and an organisation approves the App again when its permissions change. The Teams and SharePoint tasks
-  default to the Microsoft integration's parameters, and the new Google Drive tasks to the Google integration's;
-  in a workspace that has not connected the integration, enter the credentials in the task instead.
-- **The Java images have no shell.** `flow-service-core` and `flow-service-dispatcher` run on Ubuntu's chiseled
-  JRE: no shell, package manager or `keytool`. Set JVM flags in `JDK_JAVA_OPTIONS` (the `JAVA_OPTS` variable and
-  the `sh -c java …` command the v3 chart used no longer apply), and trust an internal CA by mounting a
-  truststore and naming it there (`-Djavax.net.ssl.trustStore=…`) rather than importing a certificate at
-  container start. The container runs as uid 10001 in group 0.
-- **The webapp image has no shell either.** `flow-client-web` runs on Google's distroless Node 24: no shell, package
-  manager or npm, as its nonroot user (uid 65532). A probe that runs inside the container uses node itself; the HTTP
-  probe is `GET /apps/flow/health`.
-- **The MongoDB address is `spring.mongodb.uri`.** v5 reads `spring.mongodb.uri` (`SPRING_MONGODB_URI`), not v3's
-  `spring.data.mongodb.uri` (`SPRING_DATA_MONGODB_URI`). A deployment that sets only the old name gets the packaged
-  `localhost` address and does not connect.
-- **Migrations run inside `service-core` as it starts.** The `flow-service-loader` image and its pre-deploy
-  Job are gone; remove them from the deployment and give `service-core` a startup probe that covers the
-  migration. One product tag builds three images.
-- **You can upgrade from v3, and its runs carry over.** v3's workflow runs become completed runs; their task runs are
-  dropped. Runs older than the Activity retention (365 days) are purged within hours of the first start (see below).
-- **The v3 install must come from bmrg-flow 4.13.5 or later** (flow-loader 0.5.9 or later, whose changelog holds
-  changeset `111`). An older v3 install is refused at startup: move it to that chart first.
-- **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean the v3 pair, read
-  once to decrypt v3's secured settings during the upgrade. `flow.encrypt.secret`/`flow.encrypt.salt` is the
-  key v5 encrypts with and is required on every install. Set both before the first start against a v3
-  database. Secured settings are encrypted with AES-GCM; v3's values are re-encrypted on the first start.
-- **Workflow storage is removed.** A workflow has one shared workspace per run, declared as a single
-  `workspace` (size, mount path, class, access mode) instead of a `workspaces` list of two types; the volume
-  keyed by the workflow is gone. A v3 workflow that had Workflow storage is marked on upgrade and refused at run
-  with `WORKFLOW_STORAGE_REMOVED` until it is saved again. To keep files between runs, add a Download Artifact
-  task with *Scope: Workflow* and *Optional* at the start of the workflow and an Upload Artifact task with
-  *Scope: Workflow* at the end, both with the same name and the path you mounted before; kept artifacts appear
-  under Configure › Artifacts. Upgraded workflows keep their mount path (`/workspace/workflowrun` when none was
-  set); new workflows mount at `/workspace`. Flow no longer manages the old Workflow storage volumes: copy out
-  anything you need, then delete them with
+- **Upgrade from a 3.5 install built by bmrg-flow 4.13.5 or later.** That is flow-loader 0.5.9 or later, whose
+  changelog holds changeset `111`. 5.0.0 refuses an older 3.5 database, a 4.x database or one a 5.0.0 beta migrated,
+  on every start and before it writes anything: move an older 3.5 install to that chart first. Back up the database
+  before the first start; the migration is forward-only and drops each 3.5 collection once it has migrated it.
+- **Stop every 3.5 service before 5.0.0 starts.** 3.5 and 5.0.0 never run together: the upgrade renames `teams` to
+  `workspaces` and drops collections 3.5 still uses. Let runs finish or cancel them, since 3.5's task runs are not
+  carried over and a run cut off part way cannot resume.
+- **Export the run history you need before upgrading.** 3.5's workflow runs become completed runs; their task runs
+  are dropped. 5.0.0 deletes each finished run older than the Activity retention ("Activity Retention (days)" in the
+  workflow-run settings, 365 by default, at least 60) with its task runs, approvals, logs and run artifacts, once an
+  hour. The purge is on from the first start: its first pass runs within a minute and each pass removes up to 1000
+  runs, so an upgraded install loses its runs older than a year within hours, before the setting can be changed, and
+  no value keeps every run. This is by design. Keep the backup, or export `flow_workflows_activity` with
+  `mongoexport`. Workflows, workflow-scoped artifacts and the audit trail are kept.
+- **Check for users sharing one email.** The migration never deletes an account, so an exact duplicate email stops
+  startup until it is resolved. Emails that differ only in case are left as they are and logged at ERROR, and the
+  mixed-case account in such a pair stops resolving at sign-in. See "Upgrading from 3.5" in the README.
+- **Three images replace 3.5's five.** `flow-service-core` (port 7700), `flow-service-dispatcher` (7702) and
+  `flow-client-web` (3000), all at one product tag, replace `flow-service-workflow`, `flow-service-controller`,
+  `flow-service-listener`, the 3.5 `flow-client-web` and the `flow-loader` Job. `service-core` migrates the database
+  as it starts and serves nothing until it has finished: remove the loader Job and its pre-upgrade hook, start one
+  replica first, and give it a startup probe that covers the migration. A 16 MB 3.5 database, about 18 000 runs,
+  migrates in under a minute; replicas that start together wait on the migration lock for up to 30 minutes. The
+  probes are `/health/liveness` and `/health/readiness`, which answer without a token.
+- **Every task runs through a dispatcher.** 3.5's controller service ran tasks itself; in 5.0.0 the Kubernetes
+  dispatcher claims them from `service-core`. Set `flow.engine.url` (`FLOW_ENGINE_URL`, for example
+  `http://service-core:7700`) and `flow.engine.dispatcher.token` (a global machine token, such as the bootstrap
+  token) on it, and bind its Kubernetes Role. It runs each task as a Tekton TaskRun (the default) or a plain
+  Kubernetes Job.
+- **Encryption keys are two pairs.** `mongo.encrypt.secret`/`mongo.encrypt.salt` now mean 3.5's pair, read once to
+  decrypt 3.5's secured settings (the Slack and GitHub credentials) during the upgrade. `flow.encrypt.secret`/
+  `flow.encrypt.salt` is the key 5.0.0 encrypts with, required on every install. Both default to `FLOW_ENCRYPT_SECRET`
+  and `FLOW_ENCRYPT_SALT`, the names the 3.5 chart kept its pair under, so the 3.5 release's Secret works unchanged;
+  back it up before uninstalling 3.5. A wrong 3.5 pair stops startup; `flow.migration.reset-unreadable-settings=true`
+  blanks each value that does not decrypt instead. Secured settings are re-encrypted with AES-GCM on the first start.
+- **The MongoDB address is `spring.mongodb.uri`.** 5.0.0 reads `spring.mongodb.uri` (`SPRING_MONGODB_URI`), not 3.5's
+  `spring.data.mongodb.uri`. A deployment that sets only the old name gets the packaged `localhost` address and does
+  not connect. Keep 3.5's `flow.mongo.collection.prefix` (the 3.5 chart's `bmrg-flow` prefix gives `flow`).
+- **The Java images have no shell and run Java 25.** `flow-service-core` and `flow-service-dispatcher` run on
+  Ubuntu's chiseled JRE: no shell, package manager or `keytool`. Set JVM flags in `JDK_JAVA_OPTIONS` (the
+  `JAVA_OPTS` variable and the `sh -c java …` command the 3.5 chart used no longer apply), and trust an internal CA
+  by mounting a truststore and naming it there (`-Djavax.net.ssl.trustStore=…`) rather than importing a certificate
+  at container start. The container runs as uid 10001 in group 0. Give `service-core` at least 1 GB.
+- **The webapp image has no shell either.** `flow-client-web` runs on Google's distroless Node 24 as its nonroot user
+  (uid 65532). A probe that runs inside the container uses node itself; the HTTP probe is `GET /apps/flow/health`.
+- **The activation code is `FLOW_ACTIVATION_CODE` (`flow.activation-code`), with no default.** 3.5's
+  `boomerang.otc` default `test` is gone. An upgraded install already has users, so the code is never asked for.
+  `FLOW_OTC` is still read when the new name is unset, with a deprecation warning; both set to different values
+  stops the start, and a code under 32 characters stops it too.
+- **Issue new tokens.** 3.5's tokens do not carry over: the upgrade drops the `tokens` collection. Every caller that
+  used one, such as a CI job, a script or a webhook sender, needs a 5.0.0 token.
+- **API clients and ingress move to `/api/v2`.** 3.5's `/workflow/**`, `/apis/v1/**` and listener routes are gone.
+  Webhooks are `POST /api/v2/webhook`, CloudEvents `POST /api/v2/event`, and the wait-for-event callback
+  `/api/v2/callback`, which the `wfe-url` context param now names. Route `/api/v2/**` from outside, route
+  `/dispatcher/v1/**` only for a dispatcher outside the cluster network, and leave `/internal/v1/**` unrouted.
+  Teams are workspaces throughout: `GET /api/v2/profile` returns `workspaces`, and error reasons say `WORKSPACE_`.
+  Settings and global parameters are changed with `PATCH` and a JSON Merge Patch; an unknown settings key is
+  `400 SETTINGS_INVALID_KEY`.
+- **A submit through the API obeys the workflow's Manual switch and records `api`.** 3.5 skipped the switch for an
+  execute request without a `trigger`. Now `POST …/workflow/{name}/submit` records `manual` for a person signed in
+  to the webapp and `api` for any token, and both are refused with `WORKFLOWRUN_TRIGGER_DISABLED` while Manual is
+  off: turn Manual on for any workflow a program starts. A body `trigger` other than `manual` or `api` is `400`.
+- **Users of type `auditor` and `author` are plain users.** 3.5 gave them the admin navigation; only `admin` and
+  `operator` are admins. Stored users are not changed, and Admin › Users shows both as User.
+- **Teams become workspaces.** Each 3.5 team, with its members, parameters, quotas and approver groups, becomes a
+  workspace; a user's own workflows move to their personal workspace and 3.5's system workflows to the `system`
+  workspace. 3.5's workflow templates become starters in the `system` workspace. Each user owns their personal
+  workspace (role `owner`) and edits their teams' workspaces (role `editor`), as a 3.5 team member could; 3.5 admins
+  own the `system` workspace. Change a member's role on the workspace's Members tab.
+- **Workflow storage is removed.** A workflow has one shared workspace per run, declared as a single `workspace`
+  (size, mount path, class, access mode) instead of a `workspaces` list of two types; the volume keyed by the
+  workflow is gone. A 3.5 workflow that had Workflow storage is marked on upgrade and refused at run with
+  `WORKFLOW_STORAGE_REMOVED` until it is saved again. To keep files between runs, add a Download Artifact task with
+  *Scope: Workflow* and *Optional* at the start of the workflow and an Upload Artifact task with *Scope: Workflow* at
+  the end, both with the same name and the path you mounted before. Upgraded workflows keep their mount path
+  (`/workspace/workflowrun` when none was set); new workflows mount at `/workspace`. Flow no longer manages the old
+  volumes: copy out anything you need, then delete them with
   `kubectl delete pvc -n <namespace> -l boomerang.io/workspace-type=workflow`.
-- **One storage quota.** `max.workspace.storage` (the run workspace size cap, carried from
-  `max.workflowrun.storage`) replaces `max.workflow.storage` and `max.workflowrun.storage` in the `quotas`
-  settings group; the per-workspace quota field is `maxWorkspaceStorage`. Kept artifacts count toward
-  `max.artifact.storage` until replaced or deleted. The dispatcher's `kube.workflow.storage.*` properties are gone.
-- **The CloudEvent trigger works, with a new run shape.** `POST /api/v2/event` used to fail before a run
-  was saved. A run now gets `event`, the event's attributes, and `data`, its data, and no longer one param per
-  top-level data member: read `$(params.data.<field>)`. The trigger's filters read the event as sent (`type`,
-  `data.tag`). `ref` still takes a workflow id; add `workspace` to name the workflow instead
-  (`?workspace=<workspace>&ref=<workflow name>`, on `POST /api/v2/webhook` too), which is the URL the editor now
-  shows. Without `ref`, the subject's first segment names the workflow. v3 workflows that filled properties from
-  a CloudEvent's data with a `jsonPath` need changing: see "Upgrading from v3" in the README.
-- **Before a v3 upgrade, check for users sharing one email.** The migration never deletes an account, so an exact
-  duplicate email stops startup until it is resolved. Emails that differ only in case are left as they are and logged
-  at ERROR, and the mixed-case account in such a pair stops resolving at sign-in. See "Upgrading from v3" in the
-  README.
-- **`flow.mode` is gone; two properties express the deployment shape.** `flow.security.enabled` (default `true`)
-  switches authentication and authorization together, and `flow.workspace.single` (default `false`) serves the
-  seeded `system` workspace alone. An embedded, headless engine sets `false` and `true`.
-  `flow.dispatcher.auth.enabled` and `flow.queue.enabled` are separate switches, not part of the shape. Remove
-  `FLOW_MODE` from every deployment. A secured install with no person to sign in takes its first credential from
-  `flow.security.bootstrap-token`, registered as a global machine token at start.
-- **Finished runs are now purged after the Activity retention, 365 days by default.** The new "Activity
-  Retention (days)" setting in the workflow-run group (floored at 60) deletes each finished run older than it,
-  with its task runs, actions and run-scoped artifacts and logs, once an hour. A run that a retry or a child run
-  still points at is kept until that run goes. Workflow-scoped artifacts and audit events are never touched.
-  The purge is on from the first start: its first pass runs within a minute and each hourly pass removes up to
-  1000 runs, so an upgraded install loses its runs older than a year within hours, before the setting can be
-  changed, and no value keeps every run. This is by design: export any history you need before upgrading
-  (README, "Upgrading from v3").
-- **The seeded `ai` task is removed; the AI tasks are `ai-prompt` and `ai-agent` on `boomerangio/task-ai:2.0.0`.**
-  An upgraded database keeps any `ai` definition it already holds, so its workflows still resolve, but nothing
-  maintains it: move nodes to `ai-prompt`, whose param names are the same. `temperature` and `maxTokens` now have
-  no default and are sent only when set. On `service-dispatcher`, `flow.dispatcher.ai.image` is gone: every `ai`
-  revision declares its image, which must start with one of `flow.dispatcher.ai.image-prefixes` (default
-  `boomerangio/task-ai`) or the task is refused with `ImageNotAllowed`. `flow.dispatcher.ai.endpoint` and
-  `flow.dispatcher.ai.token` (blank) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`.
-- **`flow.uniquenames.enabled` is gone.** A task run's `taskRef` on the API, the status events and the dispatcher
-  protocol is the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task, as
-  workflow nodes already showed; storage keeps the id, so nothing is migrated. A dispatcher's `task` poll filter
-  takes the same form: a bare slug now matches only a global task.
-- **A workspace quota of 0 is unlimited, and an absent quota inherits the platform default.** A workspace PATCH
-  merges quotas field by field instead of replacing the stored set.
-- **Settings and global parameters are updated by `PATCH`; their `PUT` routes are gone.** Send a JSON Merge Patch
-  (`application/merge-patch+json` or `application/json`): `PATCH /api/v2/settings` with
-  `{"<group>": {"<key>": value}}`, for example `{"artifacts": {"retention.default.days": "30"}}`, and
-  `PATCH /api/v2/parameters/{name}` with only the members to change. An absent member is unchanged, `null` clears
-  it, and a secured value sent as `*****` is kept. An unknown settings group or key is now a `400
-  SETTINGS_INVALID_KEY` rather than ignored.
-- **One rule for secret values on every layer, and blank now clears.** A set secret reads `*****` and an unset one
-  reads `null` on parameters, workflow defaults and node values, task defaults, schedules, settings and runs
-  (workflow defaults used to read blank; node, schedule and run values used to read `*****` even when unset). On a
-  write, `*****`, `null` or a missing value keeps the stored secret, `""` clears it, and any other value sets it.
-  Before, a blank kept the secret: a client that sends `""` to mean "unchanged" must send `*****` or leave the
-  value out. On a run request, a param sent as `null` or `*****`, or left out, keeps the declared default for every
-  param type. A value that is only a reference, such as `$(workspace.params.token)`, reads as written.
-- **A workflow body's unknown top-level fields are ignored and no longer echoed back** in the save response, so the
-  response shows exactly what was stored.
-- **The workflow canvas read masks secrets like every other workflow read.** A Slack integration's tokens are now
-  encrypted at rest; one stored before this release keeps its plaintext token until Slack is next linked, with no
-  migration.
-- **A dispatcher must heartbeat every task it holds.** A claim now carries a lease from the moment it is made, 90 s
-  ahead (`flow.dispatcher.lease-ms`), and each heartbeat renews it, so a claim its dispatcher stops reporting is
-  requeued even when the dispatcher restarts under the same id. Flow's Kubernetes dispatcher and the dispatcher SDK
-  heartbeat every 30 s from the claim; a dispatcher written against the protocol directly that sends no heartbeat has
-  every claim requeued 90 s after it was made.
-- **The inbound Slack routes require Slack's request signature.** Set the Slack app's signing secret in the
-  integration settings (`slack.signingSecret`); with none set, the commands, interactivity and events routes
-  refuse every request.
-- **Every GitHub App delivery requires GitHub's signature, and the GitHub trigger now works.** Set the App's
-  webhook secret in the integration settings (`github.webhookSecret`); with none set, every GitHub event is
-  refused with `401`, where before only `installation` events were. A GitHub event now starts the workflows whose
-  GitHub trigger is on (it used to read the webhook trigger's switch), its Events and Repository filters apply,
-  and one workflow refusing no longer stops the rest of the workspace. The run gains an `event` param,
-  `{type, id}`, beside `data`.
-- **The Slack tasks take their bot token and webhook URL as password fields.** Change unit
-  `_0030__SeedSlackCredentialRevisions` adds a new revision of each of the 13 Slack tasks, so a token typed into a
-  node is stored encrypted and read back as `*****`. Workflows keep the revision they pin until upgraded in the
-  editor; upgrading keeps the value, which is encrypted on the next save.
-- **The GitHub integration can share its installation token with tasks.** Once GitHub is connected, the workspace's
-  integration page offers "Share the installation token with tasks", which writes two read-only workspace parameters,
-  `github-token` (refreshed every 45 minutes) and `github-url`; workspace parameters must be on. Change unit
-  `_0031__SeedGitHubIntegrationParameters` gives the GitHub integration template those fields and adds a revision of
-  each of the 17 GitHub tasks whose `token` and `url` default to them; a token typed into a node still wins. A task
-  upgraded to the new revision and left on its default fails at admission in a workspace that does not share the
-  token; the editor warns at save. A read-only workspace parameter an integration manages can no longer be changed or
-  deleted through the workspace (`409 PARAMS_MANAGED_BY_INTEGRATION`), and `readOnly` sent on a workspace update is
-  ignored.
-- **Slack is a workspace integration and can share its bot token with tasks.** The Integrations page now lists
-  Slack once `slack.clientId` and `slack.clientSecret` are set: Connect installs the Flow Slack app and links that
-  Slack team to the workspace, and "Share the installation token with tasks" writes a read-only `slack-token`
-  workspace parameter. In the Slack app's settings, set the OAuth redirect URL to
-  `<Flow API URL>/api/v2/integration/slack/auth`, add the bot scopes `channels:manage`, `channels:read`,
-  `chat:write`, `commands`, `files:write`, `groups:read`, `groups:write`, `users:read` and `users:read.email`, and
-  leave token rotation off, since a rotating token cannot be shared. The `slack.installURL` setting is no longer
-  read: `GET /api/v2/integration/slack/install` builds Slack's authorize URL itself. Change unit
-  `_0032__SeedSlackIntegrationParameters` makes the Slack template active and adds a revision of each of the 10
-  Slack tasks that call the Slack API whose `token` defaults to `$(workspace.params.slack-token)`. The share
-  route is now `POST /api/v2/integration/{github|slack}/share`; the GitHub URL is unchanged.
-- **Google and Microsoft can be connected by entering their credentials.** The Integrations page lists them with
-  no platform setting needed: Connect asks for a Google Cloud service account's JSON key, or a Microsoft Entra
-  app's tenant ID, client ID and client secret, and writes them as read-only workspace parameters
-  (`google-service-account-key`; `microsoft-tenant-id`, `microsoft-client-id`, `microsoft-client-secret`).
-  Manage edits them, a stored secret kept until it is retyped, and Disconnect removes them. The share route takes
-  them as `values`. Change unit `_0034__SeedFormIntegrations` adds the two templates and marks GitHub and Slack as
-  integrations Flow installs. No catalogue task defaults to them yet.
-- **Four error codes changed so that every code names one reason.** `USER_NOT_FOUND` is `102` (was `101`),
-  `TASK_DELETE_IN_USE` `1407` (was `1405`), `PARAMS_NON_UNIQUE_KEY` `1805` (was `1802`) and `DATA_CONVERSION_FAILED`
-  `1040` (was `500`); the unused `WORKFLOW_TRIGGER_DISABLED` is gone. A client that matched one of these codes moves
-  with it; matching on `reason` is unaffected.
-- **`PERMISSION_DENIED` answers `403`.** Where the API raised it directly (a refusal to a caller already signed in),
-  it answered `401`, which a client could take for a lapsed session. A missing or invalid credential is still `401`.
-- **Lists page one way.** Every list takes `page`, `limit` and `order=ASC|DESC`; the token, action, workspace and
-  user lists also take `sort=<field>`, and the workflow and task lists still accept the old `sort=ASC|DESC` through
-  5.x. Without `order`, runs, task runs, tokens and actions read newest first, audit events newest first by `time`,
-  workspaces and users by `name` A to Z, workflows, tasks and schedules oldest first, and artifacts largest first. A request without `limit` reads everything, except the audit
-  trail (25, at most 100); no paging parameter is required. The Schedules page now shows every schedule.
-- **The last "team" names on the API say "workspace".** `GET /api/v2/profile` returns the user's workspaces as
-  `workspaces` (was `teams`), and the error reasons `TEAM_INVALID_REF`, `TEAM_INVALID_REQ`, `TEAM_NON_UNIQUE_NAME`,
-  `TEAM_INVALID_USER_ROLE` and `WORKFLOW_TEAM_INACTIVE` are now `WORKSPACE_INVALID_REF`, `WORKSPACE_INVALID_REQ`,
-  `WORKSPACE_NON_UNIQUE_NAME`, `WORKSPACE_INVALID_USER_ROLE` and `WORKFLOW_WORKSPACE_INACTIVE`, with the same codes. A
-  client that matched a reason or read `teams` moves with them.
-- **A v3 workflow's Sleep step runs as a sleep.** The upgrade made v3's Sleep task the native `sleep` task but kept
-  the workflow steps using it typed `template`, so they failed with "missing required argument 'cmd'". Change unit
-  `_0047__SleepNodesRunAsSleep` types those steps `sleep` in every workflow revision; a step of any other type is
-  left as it is.
+- **Quotas: one storage quota, and 0 is unlimited.** `max.workspace.storage` (carried from `max.workflowrun.storage`)
+  replaces `max.workflow.storage` and `max.workflowrun.storage`; the per-workspace field is `maxWorkspaceStorage`.
+  Kept artifacts count toward `max.artifact.storage`. 3.5 enforced a quota of 0 as a limit of zero; in 5.0.0 0 is
+  unlimited and an absent quota inherits the platform default, so the upgrade drops each 3.5 `0` and that workspace
+  inherits the default. 3.5's per-user quota defaults are removed.
+- **Settings are rebuilt from 5.0.0's defaults, keeping 3.5's values.** 3.5's user defaults and Workflow storage
+  settings are removed.
+- **A CloudEvent run has a new shape.** 3.5 filled a workflow property from a CloudEvent with the property's
+  `jsonPath`, or from a `properties` object in the event's data. 5.0.0 does neither: the run gets `event`, the event's
+  attributes, and `data`, its data; read `$(params.data.<field>)`. Such a workflow upgrades and runs with its
+  properties' defaults and no error: list them before upgrading (README, "Upgrading from 3.5") and change each. The
+  trigger's filters read the event as sent (`type`, `data.tag`). `ref` still takes a workflow id; add `workspace`
+  to name the workflow instead (`?workspace=<workspace>&ref=<workflow name>`, on `POST /api/v2/webhook` too).
+- **`$(team.params.x)` is deprecated.** It still resolves, logs a warning, and is removed in the next major version;
+  change it to `$(workspace.params.x)`.
+- **Acquire Lock's `timeout` is in milliseconds.** 3.5 read it in seconds. Revision 2 of the task says so and
+  defaults to `300000` (5 minutes); a workflow pinned to revision 1, or holding 3.5's default `300`, now waits 300 ms
+  until the value is edited.
+- **Integration secrets are required.** Set the Slack app's signing secret (`slack.signingSecret`): without it the
+  Slack commands, interactivity and events routes refuse every request. Set the GitHub App's webhook secret
+  (`github.webhookSecret`): without it every GitHub event is refused with `401`. Slack is now a workspace
+  integration: set the Slack app's OAuth redirect URL to `<Flow API URL>/api/v2/integration/slack/auth`, add the bot
+  scopes `channels:manage`, `channels:read`, `chat:write`, `commands`, `files:write`, `groups:read`, `groups:write`,
+  `users:read` and `users:read.email`, and leave token rotation off. A Slack token stored by 3.5 stays plaintext
+  until Slack is next linked, so link it again.
+- **Catalogue tasks move off `worker-flow` to `boomerangio/task-flow:3.4.0`** (the `task` settings'
+  `default.image`), as does every 3.5 revision that named `worker-flow`; an image an operator chose is kept. What
+  changes for those tasks:
+  - Script tasks run on Alpine 3.24 with Node 24 (3.5: Alpine 3.20, Node 20), npm 11 at `/usr/local/bin/npm`
+    (`/usr/bin/npm` is gone), GNU tar, OpenSSL 3.5, curl 8.23 and bash 5.3.
+  - The Artifactory download needs a destination path, relative paths resolve against `/workspace`, and the upload
+    verifies TLS, so a self-signed Artifactory fails until its CA is trusted.
+- **New catalogue revisions; workflows keep the revision they pin.** The upgrade adds revisions in which the Slack
+  tasks take their bot token and webhook URL as password fields; the GitHub and Slack API tasks default their token
+  to the integration's shared workspace parameter; the Google Sheets and Drive tasks default their key to the Google
+  integration's; and SendGrid Template drops its placeholder API key. A workflow moves when its node is upgraded in
+  the editor, and an upgraded node left on its default fails at admission in a workspace that has not connected the
+  integration (the editor warns at save). Between them the GitHub tasks need Issues: write, Pull requests: write,
+  Contents: read or write, Commit statuses: write and Actions: write on the GitHub App. The Box tasks' `privateKey`
+  is a secret, and the value a workflow holds is encrypted in place.
+- **Loki task logs read 5.0.0's labels.** Change the log shipper to map the task pod's labels as
+  `boomerang_io_taskrun_ref` and `boomerang_io_workflow_ref` and its container as `task` or `step-task`; 3.5's
+  `bmrg_*` labels match no 5.0.0 task.
 
 ### Added
 
-- Thin task-run status events carry the task's `name` and `type`, a for-each item's `parentRef` and `index`, and a
-  for-each parent's item `count`.
-- **An owner changes a member's role in Manage › Members.** Each member's row has a role control, shown to anyone who
-  may remove members (a workspace owner or an admin). Your own row is locked, and so is the last owner's, so a
-  workspace keeps an owner; the change sends the member again with the new role. A toast says it's done.
-- **Profile lists your workspaces.** A Your workspaces section names each workspace you belong to, your role in it,
-  and links to it. `GET /api/v2/profile` carries the caller's `role` on each of its `workspaces`.
-- **Admin › Tokens sets a token's actor.** The create form for a platform (global) token chooses Service (the default, a
-  system, script or dispatcher), Agent (an AI agent) or None (a person's token), so a token made there can run the
-  dispatcher protocol, which needs one. The Actor column names the kind. `POST /api/v2/token` now refuses an actor that does not fit the token
-  (`TOKEN_INVALID_ACTOR`, 400): a global token takes none, `SERVICE` or `AGENT`, a user token none.
-- Machine tokens declared in configuration. `flow.security.tokens.<name>.*` registers a global token at start, named by
-  the key: `FLOW_SECURITY_TOKENS_DISPATCHER_HASH`, `_PERMISSIONS=workspace/read` and `_ACTORKIND` declare `dispatcher`.
-  A name is lowercase letters and digits only (an underscore in a variable name becomes a dot), and `bootstrap` is not
-  usable. Give a `hash` (the SHA-256 of the raw token, so the environment never holds it) or a `value`, optional
-  `permissions` such as `workspace/read` (none for a dispatcher-only token), and optionally `actor-kind` (default
-  `SERVICE`) and `expiry`. Removing an entry revokes its token, and two entries are valid at once so a token rotates
-  without a gap. A declared token cannot be deleted through `DELETE /api/v2/token/{id}`: it answers `409`. With none
-  declared nothing changes.
-- Sign-in with OpenID Connect can be configured at install time. `flow.auth.oidc.issuer` and
-  `flow.auth.oidc.client-id` (`FLOW_AUTH_OIDC_ISSUER`, `FLOW_AUTH_OIDC_CLIENT_ID`) fill the `auth` settings'
-  `oidc.issuer` and `oidc.clientId` at startup, only while they are empty; a value set in Settings is never
-  overwritten, and a later change to the property does not replace it. The issuer must be an absolute `https` URL
-  (`http` only for localhost), or the start fails. Without them sign-in stays in proxy mode.
-- CloudEvents sink filters. `flow.events.sink.types`, `statuses` (any run status, or `terminal`) and `phases` narrow
-  what is sent, and each destination takes the same keys plus `labels` (`key=value`). A transition no sink wants is
-  never stored, so a filtered event is not counted as dead; labels filter at delivery. `phases=completed` is the true
-  end of a run with finally tasks. With no filter keys nothing changes.
-- A run's locks go with the run. A run that completes with any status, or is purged, holding an `acquirelock` lock it
-  never released frees it at once, so the next `acquirelock` on the key succeeds on its first attempt instead of waiting
-  out the lease; a lock another run holds is never touched.
-- Finally tasks. A task linked from End with the execution condition `finally` runs once the run has ended, any way:
-  succeeded, failed, cancelled or timed out. The run takes its final status when its graph ends and stays in the
-  `running` phase while its finally tasks run in parallel, each with its own timeout under the `workflowrun` setting
-  `finally.timeout` (5 minutes), an operator's ceiling outside the run's own timeout that no workflow can raise; the stage
-  counts in the run's duration and holds its concurrency slots; the run completes when the last of them ends, and a finally task that fails turns a
-  succeeded run into `failed` with the reason `FinallyFailed`. A finally task reads the run's outcome as
-  `$(context.params.workflowrun-status)` and `$(context.params.workflowrun-status-reason)`; a cancel during the finally
-  tasks does nothing more, a purge still stops them. Finally tasks never chain: saving refuses a `finally` dependency
-  on anything but End and any dependency on a finally task (`400 WORKFLOW_INVALID_FINALLY`). In the editor End gains
-  an output port; a task linked from it shows a Finally badge and no output port, and its link a fixed finally
-  condition.
-- A workspace can be found by `externalRef`, an embedding product's own id for the record it mirrors:
-  `GET /api/v2/workspace/query?externalRef=` answers the one workspace carrying it, within the caller's access, and a
-  create naming a reference a workspace already carries is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's
-  name, so a retried create is idempotent. The reference is set once at create and never patched; every reader of the
-  workspace sees it, and the webapp shows it on Settings. A unique sparse index, `external_ref`, joins the inventory.
-- Templates are workflows of the system workspace. A workflow carries a `type`: `workflow` (the default), `template`
-  or `starter`, and the last two can be created, versioned and edited only in the system workspace, through its
-  ordinary workflow routes. A workspace runs a template by reference: a workflow created with `templateRef: {name,
-  version}` shows the template's tasks and params read-only under its own name, labels and triggers, accepts
-  run-time values only for the params the template declares, and each submit runs the template's pinned or latest
-  revision in the workspace, so the run, its quotas and its audit are the workspace's. A template with such
-  workflows cannot be deleted. A starter is copied, as the Home page has always done. Change unit
-  `_0038__WorkflowTemplatesIntoSystem` moves the seeded templates and a v3 install's own into the system workspace as
-  starters and drops the `workflow_templates` collection.
-- Templates and starters appear in every workspace through its own workflow routes; there are no `/workflowtemplate`
-  routes. `GET /api/v2/workspace/{workspace}/workflow/query` lists, beside the workspace's workflows, the templates and
-  starters it has not made its own, each with its `type`, and `types=` narrows; the get, compose, changelog, export and
-  available-parameters routes answer a template by name when the workspace has no workflow of that name. The first
-  use makes it the workspace's own: `POST …/workflow/{template}/submit` creates the link under the template's name
-  and runs it, and `PUT …/workflow` naming a template creates the link and saves the display name, description, icon,
-  labels and triggers. A template's `runworkflow` task that names another template runs it the same way, as the run's
-  workspace's link, so a template's children never run in the system workspace on a workspace's behalf. The webapp's
-  Workflows page shows templates beside the workspace's workflows, tagged and read-only, dashed until first use; the
-  editor puts the task palette away for one; Home's starters come from the workspace query with `types=starter`.
-  The system workspace changes what a workflow is with `PATCH /api/v2/workspace/system/workflow/{name}` and `{type}`:
-  the card's overflow menu offers Make a template, Make a starter or Make a workflow, the system list shows its
-  starters and tags both kinds, and its templates stay fully editable there; a template other workspaces link stays one.
-- A run can be purged on request: `DELETE /api/v2/workspace/{workspace}/workflowrun/{id}` removes the run with its
-  task runs, actions, artifacts and stored logs, and its lineage (the retries that reuse it and the child runs its
-  tasks started); `DELETE …/workflowrun?labels=k%3Dv` does the same for every run carrying the labels, a page of 50 a
-  call, reporting how many remain. A run in flight is cancelled first; one whose tasks are still ending, or held by a
-  dispatcher awaiting its terminate poll, is removed by a new watcher sweep once they have settled, or after ten
-  minutes. Both need `workflowrun/delete` (owner and admin) and are audited as destructive. Audit records stay. A new
-  sparse index, `purge_sweep`, joins the inventory.
-- 16 catalogue tasks on the default task-flow image: GitHub (create an issue, comment on an issue or pull
-  request, create a pull request, set a commit status, dispatch a workflow, create a release, get file contents),
-  Microsoft Teams (send a message, create a channel, add a member), SharePoint (upload, download and list files) and
-  Google Drive (upload, download and share a file). The Google Sheets and Drive tasks gain a revision that takes the
-  whole service-account key file. Change unit `_0035__SeedTaskFlowIntegrationTasks` adds them to existing installs.
-- The SDK's `Runs.purge(id)` and `Runs.purge(labels)` call the two run purge routes and read `{purged, scheduled,
-  remaining}`.
-- The thin workflow-run status event (`flow.events.sink.payload=thin`) carries `statusReason`, as the task event
-  already did, so a consumer acting on a terminal event reads why the run ended without calling back.
-- The dispatcher wire carries the retry story: a task order has `attempt`, `attempts` (how the superseded attempts
-  ended, with their dispatcher) and, on a terminate order, `statusReason`; a workflow run order has `statusReason`;
-  and the end request takes `retryable: false` to mark a failure final, which the engine never requeues whatever
-  the node's `retry` setting. The SDK's `TaskFailure.terminal` sends it. A task order also carries `retry: {max,
-  failures}`, the node's budget and how much of it the engine has spent, so a handler that acts differently on a
-  failure Flow will not retry needs no count of its own; the SDK's `TaskRun.isLastAttempt()` reads it. Additive,
-  protocol version 1.
-- A task node can retry a failure its dispatcher reports: `retry: {max, backoff: {type, initial, max}}` on the
-  node, edited on the task's Configure tab. The engine requeues the task on that budget with that backoff, never
-  for a cause a retry cannot change (`ImageNotAllowed`, `AdmissionDenied`, `ResultsTooLarge` or an engine-written
-  cause), and records every superseded attempt on the task run as `attempts`, which the run's task view lists. A
-  task without the setting runs once, as before; the engine's own requeues of an attempt that never ran keep their
-  separate budget.
-- A workflow can limit its runs in flight: `concurrency: {limit, overflow}` on the workflow, edited under
-  Configure → Execution. A run over the limit is parked as `waiting` until a run of the workflow ends (`queue`, the
-  default) or ends at once as `cancelled` with reason `ConcurrencyLimit` (`skip`). The workspace quota keeps
-  precedence. A workflow run now carries `statusReason` beside `statusMessage`, as a task run does.
-- Work reaches a dispatcher as soon as it is ready: admitting a task, or submitting a run with a workspace, wakes the
-  dispatcher polls on that engine instance that can claim it, and a cancel, timeout or retry reaches the holding
-  dispatcher within the end round trip, so a hop in a sequential chain is about 100–200 ms. A dispatcher whose slots
-  are all taken claims new work the moment one frees. The timed re-check still covers work admitted on another
-  replica.
-- `flow.dispatcher.poll.recheck-ms` sets how often a held dispatcher poll looks at the claimable page again
-  (default 1000, floor 100). A lower value shortens every hop of a sequential chain at the cost of more indexed
-  queries per dispatcher: its idle queries per second are its pools × 1000 / the value.
-- The dispatcher SDK captures a task's log and opens its trace for an in-process dispatcher: with
-  `captureTaskLogs(new TaskLogCapture())` on the builder, the lines a handler logs (tagged `taskRunId` in the MDC,
-  the first and last 64 KB kept) are uploaded as the task log when it ends and every 30 s while it runs; with
-  `observationRegistry(registry)`, each handler runs under a `flow.task` observation carrying the task's
-  `traceparent`. Both are off by default; a logback appender is included, SLF4J and logback stay optional.
-- Insights group task runs: `GET /api/v2/workspace/{workspace}/insights/tasks` counts the period's task runs per task,
-  type, workflow or label, optionally per hour, day or month, with mean, p50, p95 and max duration, the tokens and
-  cost of its AI task runs, the wall clock of the runs sharing a label, and the slowest task runs. The Insights page
-  shows it under Task runs, grouped by task unless another grouping, Model and For-each item included, is chosen.
-- Task runs can be queried across runs: `GET /api/v2/workspace/{workspace}/taskrun/query` pages them by label or
-  run (one of the two is required), workflow, task name, status and date, as the run query pages runs. A row
-  leaves out params, results, spec, annotations and status message; read the run for those.
-- A task run shows `attempt` once a dispatcher has claimed it: 1, plus one per requeue. The run view shows it when a
-  task was requeued.
-- Server labels: an AI task run carries `boomerang.io/model`, the model its `model` param asked for, and every
-  item task run of a for-each, and a child run a for-each run-workflow task started (on the run and its task runs),
-  carries `boomerang.io/item`, its item.
-  Labels under `boomerang.io/` are now reserved for the server, as annotations already were: a client's are
-  dropped on submit, start and retry.
-- The wait-for-event callback (`POST`/`GET /api/v2/callback`) takes an optional `eventId`. A repeat of the same
-  callback for the same run is acknowledged and not applied again for 7 days; without one, each delivery is
-  applied as before.
-- A run's timeout bounds execution only: while every in-flight task waits on an approval, a manual task, an
-  event, a child run, a sleep or a lock, the deadline is parked and moved forward by the time waited, and the
-  same applies after a pause. A wait is indefinite unless its task declares a timeout. A run's reported duration
-  is execution time. Gated workflows no longer need a budget sized for their approvers.
-- A retry can start from the tasks that did not succeed, or from named tasks: `PUT …/workflowrun/{id}/retry` takes
-  an optional `{scope: all | failed | nodes, nodes, params, labels}`. The rest is carried over as copies marked
-  `reusedFromRef`, and the run records `retryFrom`. The run page's Retry run and each task's Retry from here open
-  the same choice. The new run starts with an empty run workspace, so files the carried-over tasks wrote there are
-  not carried over; pass them as workflow-scoped artifacts, or re-run everything. The dialog says so.
-- `secret` is a parameter type. Secret values are encrypted at rest under `flow.encrypt.*`, masked on every read,
-  and never written to a log. The Box tasks' `privateKey` is one: `_0044__BoxPrivateKeyIsASecret` types it as a
-  password and seals the value a workflow already holds for it. The placeholder default a few older GitHub revisions
-  and the SendGrid template task carried on a credential parameter is cleared (`_0045__ClearPlaceholderDefaults`).
-- The audit trail records global parameter, settings, catalogue task and schedule writes, and every write that
-  changes or clears a secret names it in the event's `detail`, never its value.
-- A run-workflow task may run for each item, one child run per item, and a waited child's results become the
-  task's results.
-- A run-workflow node may carry params its child workflow declares, such as an upstream task's result; the child
-  run receives them resolved. A param the child does not declare is refused at save with
-  `WORKFLOW_INVALID_CHILD_PARAM` (1218). A child run receives only the params its node passes, plus `item` and
-  `index` under for-each; the parent run's params are not handed down, as in v3.
-- Revision 2 of `ai-prompt` and `ai-agent`, on `boomerangio/task-ai:2.1.0`, takes images: `images` lists
-  run-workspace paths or https URLs, with `imageDetail` and `maxImageBytes` (5 MiB). The image also exports
-  OpenTelemetry spans when an OTLP endpoint is configured. Revision 1 stays on 2.0.0 for workflows pinned to it.
-- Every task gets a `TRACEPARENT` derived from its run and task run ids, so one run's tasks share one trace, and
-  `TaskRun.traceparent()` in the dispatcher SDK computes the same value. On `service-dispatcher`,
-  `flow.dispatcher.ai.otel.endpoint`, `.headers` and `.protocol` (blank by default) give `ai` pods the OTLP
-  exporter settings. Flow stores no traces; point them at Langfuse, Phoenix, LangSmith or Tempo.
-- Insights filter by run `labels` and roll up AI usage: tokens, cost and a breakdown by model for the period, and
-  tokens and cost per task.
-- A dispatcher may end a task with `RateLimited`, which requeues it with backoff like `ExceededQuota`.
-- A task whose Kubernetes API could not be reached, on a create or a watch (a timeout, a refused connection or a 5xx),
-  ends `ClusterUnavailable` instead of `DispatchError`, and the engine requeues it with backoff like `ExceededQuota`;
-  other 4xx answers keep their reasons. Before the next attempt runs the task's Job or TaskRun is removed, so it never
-  runs twice at once.
-- A stopping dispatcher hands back the claims it never started, ending each `DispatcherStopping`, which the engine
-  requeues at once instead of after the 90 s lease. `Dispatcher.stop()` in `dispatcher-sdk` now waits for the poll in
-  progress within its 10 s drain timeout rather than abandoning it; a host that embeds the SDK can set `drainTimeout`
-  to 30 s or more to cover a poll the engine holds for its full window.
-- A failed task's status message carries the container's exit code and the tail of its log.
-- `$(workspace.params.x)` replaces `$(team.params.x)`, which still resolves, logs a warning, and is removed in the
-  next major version.
-- `dispatcher-sdk` adds `StatusReason`, naming every reason a dispatcher sends; `TaskFailure`'s four reason
-  constants are the same values.
-- The public API has a checked-in OpenAPI contract, `contracts/api-v2.yaml`, generated from the document
-  `service-core` serves at `/api/docs/spec/api-v2` and held equal to it by a test; an integrator reads the routes
-  and models from the file at the tag they run.
-- `flow-sdk`, a Java library for the public API: `Flow.connect(url, token)` then typed calls to submit, start,
-  read, pause, resume, cancel and retry workflow runs, query runs and task runs by label, read a task run's
-  stored log, read, query and decide manual and approval actions, read Insights and probe the server's health,
-  with the server's error carried as `FlowApiException`. It depends on `spring-web` and Jackson only, and is
-  published to GitHub Packages by every product tag beside `dispatcher-sdk`, at the tag's version
-  (`flow-sdk/README.md`).
-- A for-each parent's task run carries `foreach: true` in the public `TaskRun`, and the task-run query takes
-  `foreach=true|false` to list parents only or leave them out; absent lists both as before. A parent stands for its
-  items in the graph and never runs, so a running or waiting count over a run's task runs can now exclude it without
-  reading the workflow. `flow-sdk` adds `TaskRunQuery.foreach(boolean)` and `TaskRun.foreach()`.
-- A `features` setting, Workspace creation by users (`workspaceCreate`, on by default), says whether a user who is not
-  an admin may create a workspace; Home and Workspaces offer the button only to those who may.
-- Insights across workspaces for a global grant: `GET /api/v2/insights` and `GET /api/v2/insights/tasks` compute the
-  workspace summary and task breakdown over the workspaces named by `workspaces`, or every workspace, and
-  `GET /api/v2/insights/taskruns` lists task runs newest first with their workspace, by label. A workspace-scoped
-  grant is refused. The SDK gains `Flow.insights()` with `InsightsQuery.workspaces(...)` and `taskRuns(...)`.
-- Invite-only sign-up: the `features` setting Auto-Create Users (`autoCreateUsers`, on by default, which is how
-  sign-in has always worked), switched off, refuses a person who is not a user yet, unless an admin has added them to a
-  workspace or the admin claim below makes them an admin. A person added to a workspace by email is activated by their
-  first sign-in (it was refused before). `_0046__SeedAutoCreateUsersSetting` adds the setting to an upgraded install.
-- Admins from the identity provider: `flow.security.admin-claim.name` and `flow.security.admin-claim.values`
-  (`FLOW_SECURITY_ADMIN_CLAIM_NAME`, `FLOW_SECURITY_ADMIN_CLAIM_VALUES`, comma-separated) name a claim, a string or an
-  array such as `roles` or `groups`, and the values that make its holder an admin. With a claim set, the provider
-  decides admin on every sign-in that carries the token: a holder is made an admin, one who no longer matches is made
-  a user and their sessions end, and the first sign-in on an empty install is not an admin by being first. Unset,
-  nothing changes. The signature-checked id_token of the webapp's sign-in is always read; the unverified JWT an
-  OAuth2 Proxy forwards is read only with `flow.security.admin-claim.trust-forwarded-token=true` (default `false`).
-- The first admin of an empty install is made only by the activation code, on every sign-in path. The webapp's
-  sign-in no longer makes its first user an admin: it asks for the code on the activation screen, and a wrong or
-  missing code creates nobody (behind a proxy, `PUT /api/v2/activate` checks the code before it registers the
-  caller). With an admin claim set, a sign-in whose claim is read (the webapp's, or a trusted forwarded token) is decided by the claim and the code is not used; one that cannot read it (a forwarded email, an untrusted forwarded token) still needs the code on an empty install. The bootstrap token and other machine tokens are not
-  users: they work from first start and never activate the install. Once the install has users the activation
-  endpoint refuses every code.
-- **The activation code is `FLOW_ACTIVATION_CODE` (`flow.activation-code`), and it has no default.** The old
-  `FLOW_OTC` / `flow.otc` is still read when the new name is unset and logs a deprecation warning; both set to
-  different values stops the start. The code must be at least 32 characters or the start fails, and with none set
-  nobody can create the first admin and the start warns: set it before a fresh install is first signed in to. The
-  built-in default `test` is gone. The compose stack and the `local` Spring profile set a fixed development value;
-  the e2e setup types it. The `otc` field of `PUT /api/v2/activate` is unchanged.
+- **Run control.** Pause and resume a run (`PUT …/workflowrun/{id}/pause`, `…/resume`). Retry a run in full, from
+  the tasks that did not succeed, or from named tasks (`PUT …/workflowrun/{id}/retry` with `{scope: all | failed |
+  nodes}`); carried-over tasks are marked Reused. Purge a run, or every run with given labels, with its task runs,
+  actions, artifacts and logs (`DELETE …/workflowrun/{id}`, `workflowrun/delete` permission).
+- **Task retries.** A task node can retry a failure its dispatcher reports: `retry: {max, backoff}` on its Configure
+  tab, at most 10. Each superseded attempt is recorded on the task run and shown in the run's task view.
+- **Finally tasks.** A task linked from End with the `finally` condition runs once the run has ended, however it
+  ended, and reads the outcome as `$(context.params.workflowrun-status)`. Each has its own timeout under the
+  `workflowrun` setting `finally.timeout` (5 minutes); one that fails turns a succeeded run into `failed`.
+- **For-each tasks.** A task runs once per item of an array, up to 256 items, in parallel within the run; a
+  run-workflow task can start one child run per item.
+- **Child workflows pass values both ways.** A run-workflow node passes the params its child declares, such as an
+  upstream task's result, and a waited child's results become the task's results. The parent run's params are not
+  handed down, as in 3.5.
+- **Concurrency limits per workflow.** `concurrency: {limit, overflow}` under Configure › Run Options parks a run
+  over the limit as `waiting` until one ends (`queue`) or cancels it with reason `ConcurrencyLimit` (`skip`). The
+  workspace quota keeps precedence.
+- **Templates and starters.** A workflow in the `system` workspace can be a `template`, which every workspace runs
+  by reference under its own name, quotas and audit, or a `starter`, which Home copies. Templates show beside a
+  workspace's own workflows, read-only, through its ordinary workflow routes.
+- **Secret parameters.** `secret` is a parameter type: encrypted at rest under `flow.encrypt.*`, masked on every
+  read and never written to a log. On every layer a set secret reads `*****` and an unset one `null`; a write of
+  `*****`, `null` or nothing keeps it, and `""` clears it.
+- **Approval results.** An approval task ends with `approvalStatus`, `approvalDate`, `approvalUserName`,
+  `approvalUserEmail` and `approvalComments`, read with `$(tasks.<name>.results.approvalStatus)`.
+- **Locks and callbacks.** A run that ends holding an `acquirelock` lock frees it at once. A wait-for-event callback
+  may carry an `eventId`, and a repeat for the same run within 7 days is acknowledged and not applied again.
+- **Workspace integrations.** A workspace connects GitHub (an App installation) and Slack (the Flow Slack app), and
+  Google and Microsoft by entering their credentials, on its Integrations page. GitHub and Slack can share their
+  installation token with tasks as read-only workspace parameters (`github-token`, refreshed every 45 minutes,
+  `github-url` and `slack-token`). A GitHub event starts the workflows whose GitHub trigger is on, filtered by event
+  and repository.
+- **16 catalogue tasks** on the default image: GitHub (create an issue, comment on an issue or pull request, create
+  a pull request, set a commit status, dispatch a workflow, create a release, get file contents), Microsoft Teams
+  (send a message, create a channel, add a member), SharePoint (upload, download and list files) and Google Drive
+  (upload, download and share a file).
+- **AI tasks.** `ai-prompt` sends a prompt, files or images to an OpenAI-compatible model and returns the reply;
+  `ai-agent` lets the model call tools until it reaches an answer. Both run on `boomerangio/task-ai`. On the
+  dispatcher, `flow.dispatcher.ai.endpoint`, `.token` and `.image-prefixes` configure them, and
+  `flow.dispatcher.ai.otel.*` exports their traces.
+- **Dispatchers.** A dispatcher is anything that implements the dispatcher protocol (`/dispatcher/v1`,
+  `contracts/dispatcher-v1.yaml`): it claims ready tasks, heartbeats them and reports their end. Flow's Kubernetes
+  dispatcher runs tasks as Tekton TaskRuns or Kubernetes Jobs, and can run in another cluster or network zone.
+  `dispatcher-sdk` (`io.useboomerang:dispatcher-sdk`) builds one in Java. A ready task reaches a waiting dispatcher
+  at once, about 100 to 200 ms a hop.
+- **Task logs that outlive the pod.** With an artifact store, the dispatcher uploads a finished task's log (capped by
+  `flow.engine.task.log.max-bytes`, 10 MiB) and `service-core` serves that copy. The Artifacts settings "Store Task
+  Logs" (on) and "Task Log Retention (days)" (7) govern it. A failed task's status message carries the container's
+  exit code and the tail of its log.
+- **Sign-in with OpenID Connect,** beside an authenticating proxy as in 3.5. `flow.auth.oidc.issuer` and
+  `flow.auth.oidc.client-id` set it at install time. `flow.security.admin-claim.name` and `.values` make the holders
+  of an identity-provider claim admins on every sign-in. The `features` settings Auto-Create Users
+  (`autoCreateUsers`, on) and Workspace creation by users (`workspaceCreate`, on) allow invite-only sign-up and
+  admin-only workspace creation.
+- **Workspace roles.** Each member is an `owner`, `editor` or `reader`. Owners add members and change roles in
+  Manage › Members, and a workspace always keeps an owner (`400 WORKSPACE_LAST_OWNER`). A session's and a personal
+  token's grants follow the user's current memberships on every request.
+- **Machine tokens.** Global tokens, workspace-bound tokens (for a service, an agent or a workflow) and personal
+  tokens, each with permissions or a role preset. `flow.security.bootstrap-token` registers a first global token at
+  start, and `flow.security.tokens.<name>.*` declares more in configuration, rotating without a gap.
+- **Audit trail.** Admin › Audit records who changed what, including settings, global parameters, catalogue tasks
+  and schedules; a change to a secret names it, never its value. Audit retention is the `audit` setting
+  `retentionDays` (at least 60).
+- **Insights.** Beside 3.5's run summary: task-run breakdowns by task, type, workflow or label with mean, p50, p95
+  and longest durations (`…/insights/tasks`), AI token use and cost by model, filters by run label, and the same
+  across workspaces for a global grant (`GET /api/v2/insights`).
+- **Status events.** `service-core` sends run and task status as CloudEvents over HTTP to the sinks in
+  `flow.events.sink.*`, filtered by type, status, phase or label. Every task gets a
+  `TRACEPARENT` derived from its run, so one run's tasks share one trace.
+- **A versioned public API.** `/api/v2`, with its OpenAPI contract checked in as `contracts/api-v2.yaml`, task runs
+  queried across runs by label (`…/taskrun/query`), and `flow-sdk` (`io.useboomerang:flow-sdk`), a Java library to
+  submit, control and query runs, decide actions and read Insights. A workspace can be found by an external system's
+  id (`GET /api/v2/workspace/query?externalRef=`). Labels under `boomerang.io/` are reserved for the server.
+- **The webapp is rebuilt** on React 18, React Router 7 and Carbon v11, with Home (today's runs, waiting approvals,
+  Get started), one Admin area (Settings, Workspaces, Users, Parameters, Tokens, Tasks, Audit) and a profile that
+  lists your workspaces and roles.
 
 ### Changed
 
-- **A JVM out of heap exits.** Both images start with `-XX:+ExitOnOutOfMemoryError`, so a platform restart policy
-  recovers it; before, an `OutOfMemoryError` could end Tomcat's connection acceptor and leave `service-core` running but
-  unreachable. `docker-compose.yml` gives `service-core` `restart: unless-stopped`. Run at least 1 GB at
-  `MaxRAMPercentage=50`.
-- **Fewer relationship-graph reads on idle and machine traffic.** A global token's, an admin's or a scheduled
-  run's workspace-scoped read starts at the workspace instead of walking every user, workspace and run in the
-  graph (4 node reads and a growing batch, now 2); a dispatcher poll resolves a task filter's slugs in one read
-  however many it lists (was one each, every 30 s per pool); a schedule fire reads 6 nodes (was 10) and a run's
-  completion audit 1 (was 2). Grants and memberships are still read live on every request.
-- **Access checks no longer read a workspace's runs.** A member's workflow lookup, schedule query or approver,
-  integration or task lookup used to load every run edge and run node in each workspace they belong to, about
-  6.8 KB per run per call (18 MB at 2,607 runs); a check on one run did the same. Now a run check reads the run's
-  own edge and the caller's membership of its workspace, a member's workspace-scoped lookup starts at the workspaces
-  it names, the global task catalogue reads the root's tasks, and every other walk leaves run edges out on the
-  `from_label` index. With 1,000 runs a workflow lookup reads 7 relationship documents (was 2,009), a run check 5
-  (was 2,009) and a task lookup 3 (was 2,243); none grows with the number of runs. Who may see what is unchanged.
-- **Termination residue has its own poll cadence.** A held dispatcher poll looks for tasks it holds that were
-  cancelled, timed out or parked once per `flow.dispatcher.poll.residue-ms` (default 30000, never under the
-  re-check interval) for each dispatcher and filter, instead of on every `flow.dispatcher.poll.recheck-ms`
-  re-check. A termination on the same engine instance still reaches the holder at once, on its held poll or on the
-  next one it opens, as for a retry its own end report parks; the interval bounds only residue written on another
-  replica. Idle, each pool costs two `task_runs` queries per interval instead of two
-  per re-check: one dispatcher with 8 pools at a 5 s re-check drops from about 359 to about 200 a minute.
-- **The local stack sizes its JVMs.** `docker-compose.yml` gives `service-core` `mem_limit: 1g` and
-  `service-dispatcher` `768m`, each with `JDK_JAVA_OPTIONS` `-XX:MaxRAMPercentage=50 -XX:MaxMetaspaceSize=192m
-  -XX:ReservedCodeCacheSize=128m -Xss512k`; the health probes run with `-Xmx16m`, and `service-core`'s checks every
-  2 s while starting, then every 30 s. The images are unchanged; override both in a `compose.override.yaml`.
-- **Unread quota and app properties are gone.** `max.workflow.duration`, `max.workflow.count`,
-  `max.workflow.execution.monthly`, `max.workflow.execution.time`, `max.concurrent.workflows` and `flow.apps.url`
-  were declared but never read: quotas are the `quotas` settings in Settings, and the webapp's path is
-  `flow.apps.flow.url`. Setting them had no effect, so a deployment that still sets them can drop them.
-- **The Auto-Create Users description says who can still sign in.** With the setting off, a person who is not a user
-  yet signs in only if an admin has added them to a workspace or the admin claim admits them; existing users are
-  unaffected. The text is seeded on a fresh install, and an install that already holds the old one keeps it.
-- **Dispatcher registrations expire.** A registration whose dispatcher has not connected for 7 days is removed by
-  the watcher, so the replicas a platform replaces on every deploy no longer pile up. A dispatcher that comes back
-  registers again on its next call and is given a new id; the dispatcher SDK and Flow's Kubernetes dispatcher already
-  do.
-- The Google Sheets (revision 4) and Drive (revision 3) tasks default their service-account key to
-  `$(workspace.params.google-service-account-key)`, the Google integration's parameter, as the Drive file tasks
-  do. A workflow moves when it is upgraded in the editor. Upgraded, a node that still signs in with Client Email
-  and Private Key in a workspace without the Google integration fails at admission with no such workspace
-  parameter, and the editor warns at save; type the key into Service Account Key, or connect Google. Where the
-  workspace has the parameter, its key is used ahead of Client Email and Private Key. Change unit
-  `_0037__SeedGoogleKeyDefaultRevisions` adds the revisions to existing installs.
-- The dispatcher runs the upload and download artifact tasks on `boomerangio/task-flow:3.3.0` (was 3.2.1), whose
-  runtime base moved from an end-of-life Alpine 3.20 to 3.24; the artifact commands are unchanged. An operator who
-  pins `flow.dispatcher.artifact.image` keeps their own value.
-- Outside a workspace (Home, Admin, Profile) the side navigation points at the last workspace opened in this browser,
-  while you can still open it.
-- A dispatcher that cannot provision a run's workspace reports the cause: the run shows it and retries after a minute
-  (`flow.watcher.provision-retry-ms`, 60000), failing on the third attempt. A dispatcher built on an older SDK keeps
-  the sweep's release.
-- A run a person or a token starts records who started it in `initiatedByRef`, and reads name them in the new
-  `initiatedByName`; the run page and Activity's Initiated By column show the name.
-- A run's duration is shown as active time on the run page and in Activity: it excludes waits for approvals, manual
-  tasks and sleeps, and pauses.
-- Home counts each member of your workspaces once (the profile's `workspaceMemberCount`).
-- The task edit modal keeps its description to one line, carries the task name and the tabs in its header, and lists a
-  task's declared results on a Results tab, so the fields get the height.
-- A run's workspace is its workflow's owner, looked up by id, so a run in flight keeps its workspace's parameters,
-  secret redaction and lock scope when the workspace is renamed. A task run takes the `task` settings (timeout
-  ceiling, default image, deletion policy) when the run is queued, so a retry, a run migrated from v3 included, takes
-  them as they stand then. A run's only `boomerang.io/*` annotations are `generation` and `kind`; a submit or start
-  that sends one has it dropped.
-- Building from source needs no GitHub token: Maven resolves every dependency from Maven Central. The dispatcher SDK
-  and `flow-sdk` are published to GitHub Packages.
-- Spring Boot 4.1.1, with Tomcat 11.0.27, Jackson 2.21.8 and 3.1.8 and commons-io 2.22.0 ahead of it, and the
-  latest chiseled JRE base image, for the critical and high CVEs fixed since 4.1.0. The webapp image has no npm or
-  corepack: the server runs on node alone.
-- The Java images start from a JDK AOT cache (JEP 514/515) and run with compact object headers (JEP 519). Each
-  image build starts the application once on the runtime JRE, with no database or cluster, and records the loaded
-  and linked classes; a container start then reads them instead of redoing that work, which takes roughly 40 % off
-  the time to a healthy `service-core` and `service-dispatcher`. Compact object headers take 4 bytes off every
-  object on the heap. Both are set in the image's command, under any `JDK_JAVA_OPTIONS` a deployment adds; an
-  option there that changes the heap layout (another garbage collector, headers off) makes the JVM skip the cache
-  with a warning and start as before. The images ship the application extracted (`service.jar` plus `lib/`),
-  which the cache requires, and each is about 120 MB larger for the cache; the health probe and ports are
-  unchanged. The dispatcher handles requests on virtual threads, as `service-core` already did.
-- The chiseled JRE base image is refreshed to Canonical's current build (OpenJDK 25.0.4.1), which scans clean,
-  and the shipped dependencies with an open advisory are moved past it: `nimbus-jose-jwt` 10.3, the Slack client
-  1.45.3 (for its `okio` 3.4), `body-parser` 1.20.9, `axios` 1.20.0 and `dompurify` 3.4.17.
-- `GET /api/v2/context` no longer carries `platform.privateTeams`, which was always `false`.
-- A run-scheduled-workflow task passes the scheduled run only its node's other params, not its own `futureIn`,
-  `futurePeriod`, `timezone` and `time`, matching the run-workflow task.
-- The `wfe-url` context param points to the wait-for-event route, `/api/v2/callback`.
-- A workspace's monthly run-duration figures (`currentRunTotalDuration`, `currentRunAverageDuration`) cover the
-  whole UTC calendar month. They used to stop at midnight before the month's last day, so that day's runs were
-  never counted.
-- A workflow's Insights `retriedRuns` counts the runs that are a retry of an earlier run, by hand or automatic. It
-  counted the runs whose workflow allowed retries, whether or not any happened.
-- A switch that never ran, because the path into it was not taken or the run ended first, takes none of its
-  branches, so the tasks after it are skipped and the run carries on. It used to fail the run with a null-value
-  error when the next task was queued.
-- An approval task ends with the five results it declares: `approvalStatus` (`approved` or `rejected`),
-  `approvalDate` (ISO 8601, UTC), `approvalUserName`, `approvalUserEmail` and `approvalComments`, taken from the
-  approver whose action decided it, so `$(tasks.<name>.results.approvalStatus)` reads a value instead of an empty
-  string. Its "Number of Approvals" setting (`numberOfApprovals`) is honoured; the engine read a different name,
-  so every approval completed with one approver. `numberOfApprovers` is still read where a definition sets it.
-  Each approval is kept as it is given, so one that needs several approvers completes when the last of them acts.
-- Each status event describes the transition it was recorded for: its CloudEvent `id` is the outbox row's id, the same
-  on every delivery of that transition, and `time` is when the transition occurred. The graph's end node sends no task
-  event; the run's own event reports the end, and a skipped or refused task and a workflow timeout send one event
-  each.
-- A dispatcher call runs as the dispatcher's own token, so code on the dispatcher wire reads its caller the way
-  code on `/api/v2` does. An audit record of a run that a dispatcher's end call completes names that token as the
-  actor, where it named `system`.
-- While a task runs, its log is read live from its dispatcher even when a copy is stored; a copy stored during this
-  attempt answers only when the dispatcher has no live route or its route is unavailable, and once the task ends the
-  stored copy is served first.
-- A followed task log that has written nothing for 10 minutes ends with a line saying the view stopped following,
-  instead of the connection dropping mid-log; open the log again to keep following. No new property: the two-hour
-  async request timeout applies only to the streamed routes, both task logs and artifact downloads.
-- Task logs and artifacts store reliably on S3-compatible stores such as SeaweedFS: the store's client sends
-  checksums only where S3 requires them, so a log is no longer refused now and then with "The Content-Md5 you
-  specified is not valid".
-- Settings are built from the shipped seed on first start, carrying an upgraded install's own values, so an
-  upgraded and a new install have the same settings documents.
-- The same indexes are built on every install; the token lookup index is now built on a new install.
-- Migrated v3 approver groups are reachable from their workspace again.
-- The sign-in routes the webapp's server calls are `/internal/v1/auth/{config,exchange,logout}`, outside the public
-  `/api/v2`. Route `/api/v2/**` from outside and leave `/internal/v1/**` unrouted.
-- The dispatcher wire is `/dispatcher/v1`. `service-core` and `service-dispatcher` move together under one tag. Route
-  `/dispatcher/v1/**` to `service-core` only for a dispatcher that runs outside its network.
-- **Task logs are stored by `service-core` when it has an artifact store.** The dispatcher uploads a finished task's
-  log (`PUT /dispatcher/v1/taskrun/{id}/log`, capped by `flow.engine.task.log.max-bytes`, 10 MiB) and core serves that
-  copy once the task has ended, so a log outlives the pod and needs no dispatcher up. Otherwise core reads the live
-  log from the dispatcher that holds the claim, at the URL it registered: set `flow.dispatcher.logs.url` on
-  `service-dispatcher` (for example `http://service-dispatcher:7702/api/v1/logs/stream`). Core's
-  `flow.agent.service.host` and `flow.agent.logstream.url` are gone: nothing on core names a dispatcher, and a
-  dispatcher that registers no URL has no live log to follow. The dispatcher's live log route, `/api/v1/logs/stream`,
-  accepts only the bearer it generates at start and registers; nothing but core can read it. Its v3 `GET /api/v1/logs`
-  read is gone, and it serves no OpenAPI page. Two new keys in the Artifacts settings group govern storage: "Store
-  Task Logs" (on) and "Task Log Retention (days)" (7), apart from artifact retention; stored logs never count toward
-  artifact storage. Set `flow.dispatcher.logs.upload=false` on a dispatcher to keep its logs in the pod only.
-- List filters behave the same on every route. A `labels` entry without a value, such as `labels=team`, is a `400
-  QUERY_INVALID_FILTERS` everywhere instead of a server error on most lists. A label is split once on its first `=`,
-  so `labels=a%3Db%3Dc` matches the value `b=c` (it was read as `b`). The user list's `ids` filter now matches. The
-  action list's and action counts' `toDate` is exclusive, like every other query. `statuses` and `phase` are read
-  ignoring case on the run, task, workflow, user, workspace and schedule lists.
-- A running task's log streams as it is written, through `service-core` and the Kubernetes dispatcher, instead of
-  arriving whole when the task ends. Read before its container starts, it shows one waiting line and then the live
-  log.
-- A catalogue task's Tekton YAML carries each param's default and description; a `password` default reads `*****`
-  and is kept when the YAML is applied back unchanged.
-- An upload- or download-artifact task is handed out to its dispatcher and completes with workspace quotas enforced,
-  whatever the security setting. A task the dispatcher poll cannot prepare ends `failed` with reason
-  `DispatchPrepareFailed`, and the rest of the poll is still handed out.
-- The `tokens.<name>` context parameters are gone. They held a token's stored hash, which cannot authenticate, under
-  a name no reference could reach. A task that needs a credential takes it from a `secret` parameter.
+- **Runs time out on execution time.** A run's timeout is the request's, else the workflow's, else the run-duration
+  quota (`max.workflowrun.duration`, 30 minutes by default, carried from 3.5's Total Workflow Duration). While every
+  task in flight waits on an approval, a manual task, an event, a child run, a sleep or a lock, or the run is paused,
+  the deadline moves forward; a wait is indefinite unless its task declares a timeout. A run's duration is shown as
+  active time in Activity and on the run page.
+- **Task logs.** A running task's log streams through `service-core` from the dispatcher that holds it (set
+  `flow.dispatcher.logs.url` on the dispatcher), and the stored copy is served once the task ends.
+- **Status events leave over HTTP.** 3.5 published CloudEvents to NATS JetStream (`eventing.*`); 5.0.0 posts them to
+  `flow.events.sink.*` destinations.
+- **Every API error is a `RestErrorResponse`** (`timestamp`, `code`, `reason`, `message`, `status`), including a
+  missing permission (`403 PERMISSION_DENIED`), a framework error such as `405`, and an unhandled `500`, whose
+  message is fixed and whose exception stays in the server log.
+- **Task references are slugs.** A task run's `taskRef` on the API and the status events is `<slug>` for a global
+  task and `<workspace>/<slug>` for a workspace task.
+- **The JVM exits when it runs out of heap.** Both Java images start with `-XX:+ExitOnOutOfMemoryError`, so a
+  platform restart policy recovers the process instead of leaving `service-core` running but unreachable.
+
+### Removed
+
+- **3.5 images:** `flow-service-workflow`, `flow-service-controller`, `flow-service-listener`, `flow-loader` and the
+  `worker-flow` task image.
+- **3.5 properties no longer read:** `spring.data.mongodb.uri`, `JAVA_OPTS`, `boomerang.*` (including
+  `boomerang.otc`, still read as `FLOW_OTC`, and `boomerang.authorization.*`), `controller.*`, `core.*`,
+  `kube.worker.*`, `eventing.*`, `opentracing.jaeger.*`, `flow.externalUrl.*`, `flow.services.*`,
+  `swagger.enable`, `flow.apps.url`, and the quota properties `max.workflow.duration`, `max.workflow.count`,
+  `max.workflow.execution.monthly`, `max.workflow.execution.time` and `max.concurrent.workflows`: quotas are the
+  `quotas` settings.
+- **3.5 routes:** `/workflow/**`, `/apis/v1/**`, `/internal/**` and the listener's `/listener/**`. The API
+  documentation moves from `/apis/docs` to `/api/docs`.
+- **Workflow storage,** its quota (`max.workflow.storage`) and per-user quota defaults.
+- **3.5 tokens,** which are not migrated.
 
 ### Fixed
 
-- The workflow editor's canvas zooms out to a tenth of full size, and fit view uses the same floor, so a long workflow
-  can be seen whole; it stopped at half size and cut the graph off. The auto-layout button moves the nodes again.
-- A sleep whose duration is missing, not a whole number of milliseconds, negative or too large fails with a message
-  naming the value; it was marked running and never ended.
-- Deleting a workspace that does not exist answers `404 WORKSPACE_INVALID_REF`, not `500`.
-- Deleting a workspace removes its approver groups, and any integration installation no other workspace links.
-  Deleting a user removes them from every approver group. Removing a member, or a member leaving, takes them out of
-  that workspace's approver groups, and a group approval counts only from a current member.
-- On a secured install, the probe groups `/health/liveness` and `/health/readiness` answer without a token, like
-  `/health`, so Kubernetes probes pass.
-- Saving a workflow refuses a node whose `type` is not the type of the task it references, with
-  `400 WORKFLOW_INVALID_TASK_TYPE` (1224) naming the node, both types and the task. A `sleep` task saved as a
-  `template` node was accepted and then failed in its container with "missing required argument 'cmd'".
-- Insights shows `n/a` rather than `0 s` for p50, p95 and the task duration columns when no run or task run in the
-  period succeeded: those figures read succeeded runs only, while Longest reads every completed run.
-- Create workflow says why Create is disabled when the name is taken: the Name field, filled from the display name,
-  shows its message without being touched first. Import does the same for a name read from the file.
-- Home's date and its runs today read in the viewer's timezone. Both were the server's day, a day behind east of UTC
-  in the morning. The page keeps the browser's time zone in a `flow-tz` cookie, so the first visit loads twice.
-- Home greets a new admin, who owns only the System workspace and its starters, with the first-run greeting, and
-  Get started counts neither the workspace nor its starters towards its first two steps (except on a single-workspace
-  install). "Welcome back" shows once Get started is finished or closed.
-- Workspace Parameters and Integrations name the workspace by its display name in the breadcrumb, and a secured
-  parameter value sits in line with the rest of its row.
-- The Quotas and Settings edit buttons, and the task manager's Version history, edit and delete buttons, have
-  accessible names.
-- The run dialog labels a workflow parameter that has no label with its name, as the parameter dialog promises;
-  such a parameter showed as an unlabelled field.
-- A run that ends without succeeding no longer shows End as Succeeded on the run page. A rejected approval that skips
-  the next task through a success-only link fails the run, but End read Succeeded; it now shows the run's status.
-- A token created from a role preset alone is minted. `POST /api/v2/token` with a `role` and no `permissions` answered
-  `400 TOKEN_INVALID_REQ`; the role now expands to that preset's permissions for the token's scope (the global roles
-  for a global token, the workspace roles otherwise). An unknown role is `400 TOKEN_INVALID_PERMISSION`, and a request
-  carrying both a role and permissions is `400 TOKEN_INVALID_REQ`. Admin › Tokens and the workspace and workflow token
-  forms create from a preset again.
-- Removing a member says so: the success toast is raised by the Members tab, which outlives the removed row.
-- Choosing a role in Add members, or a type in the editor's Add parameter, with the mouse no longer stalls the page.
-  Both are native selects; the dropdown they replace smooth-scrolled each option the pointer crossed into view, which
-  inside the dialog's scrolling body moved the list under the pointer.
-- Manage › Artifacts' Workflow column shows each workflow's display name instead of its id.
-- A user added to a workspace after signing in reads it at once. A session held the grants of its sign-in, so a
-  plain user who signed in while in no workspace was refused (`403`) every workflow, run, task run, schedule and
-  action list in a workspace they were then added to, even as its owner, and the webapp showed its error page. A
-  session's grants now follow the user's type and memberships on every request: a role changed or a membership
-  removed also applies to the next request, and a session whose user is deleted no longer authenticates.
-- A workspace member's permissions apply only within that workspace. A role counts in the workspace it was given in,
-  however a request names it: in the path, as a token's principal, or through a workflow, run, action, schedule or
-  approver group that belongs to it. A personal token is minted only by its own user or an admin, and changing the
-  settings, the global parameters or the global task catalogue needs an admin or operator.
-- Adding a member or changing a member's role needs the owner role in that workspace, or an admin or global token,
-  as removing one already did; any other change to a workspace still needs only the editor role. The webapp offers
-  Add and Remove to owners and admins only.
-- A workspace always keeps an owner. Removing, demoting or leaving as its last owner is `400 WORKSPACE_LAST_OWNER`;
-  make another member an owner first. The webapp's Members tab and Leave say so. Deleting the workspace is unchanged.
-- A personal token follows its user's memberships. It keeps the grants it was minted with, narrowed on every request
-  to the role its user holds in each workspace now, so a membership removed or a role lowered applies to the next
-  request; a personal token whose user is deleted no longer authenticates.
-- Linking a GitHub or Slack installation to a workspace from its install redirect needs `integration/write` in that
-  workspace, as unlinking and sharing do.
-- Renaming a workspace to a name another workspace holds, or a reserved one, is `422 WORKSPACE_NON_UNIQUE_NAME`, as
-  creating one is.
-- A run purge stays in its workspace: a retry or child run another workspace owns, and anything reached only through
-  it, is left in place.
-- Sending a workspace member again changes their role. It added a second membership that was never read, so the
-  member kept their first role.
-- A user can no longer change their own type: `PATCH /api/v2/profile` or `/api/v2/user/{id}` with a new `type` needs
-  an admin or operator, so a plain user cannot make themselves an admin, as 5.0.0-beta.39 allowed.
-- The webapp no longer shows its error page when the starter templates cannot be read; it offers none.
-- A workflow param whose `type` names no field type (for example `"string"`) is refused at save with
-  `400 PARAM_INVALID_TYPE`, and a param with no type runs as text. A workflow saved with such a param made every
-  submit answer `500`; it now submits, and saving it again asks for a field type.
-- A `download-artifact` task that finds its artifact reports `found=true`. It reported an empty value, because the
-  task run already held the catalogue's declared `found` result without one.
-- User, workspace and session tokens record `lastUsedAt` when they authenticate a request, at most every 5 minutes
-  as dispatcher tokens already did, so Manage > Tokens no longer shows "Never" for a token in use.
-- `GET …/workflow/query?types=workflow` lists workflows created without a type, and a workflow created without one
-  stores `workflow`. Stored workflows are not changed.
-- `POST …/workflow/{name}/submit` records the trigger from the caller, not the body: `manual` for a person signed in
-  to the webapp, and the new `api` for any token (and for every request with security off). Both are refused with
-  `WORKFLOWRUN_TRIGGER_DISABLED` while the workflow's Manual switch is off; a submit without a trigger used to skip
-  the switch and record `engine`. A body naming any trigger other than `manual` or `api` is
-  `400 WORKFLOWRUN_INVALID_TRIGGER`; schedules, webhooks, events, GitHub, child runs and retries keep their own.
-  `flow-sdk` gains `Trigger.api`.
-- Every error body is a `RestErrorResponse`, with the status unchanged: a missing permission (`403`) carries
-  `PERMISSION_DENIED`, a framework error such as an unsupported method (`405`) carries the HTTP status as its code
-  and reason, and an unhandled error answers `500 INTERNAL_SERVER_ERROR` with a fixed message, keeping the
-  exception in the server log.
-- A declared or bootstrap token whose value a minted token already held made every request with it answer `500`.
-  The configured token now takes the value over and the minted one is deleted (logged at warn); two configured tokens
-  sharing a value stop the start, and a value two stored tokens hold is refused (`401`), never a `500`.
-- The webapp's sign-in answers `403 AUTH_USER_NOT_ADMITTED`, not a `500`, when Auto-Create Users is off and the
-  person is not a user yet. The sign-in page now shows that refusal's own message ("Ask an admin to add you to a
-  workspace") instead of blaming the identity provider.
-- `PUT /api/v2/activate` behind a proxy answers a wrong, missing or oversized activation code with
-  `400 AUTH_ACTIVATION_CODE_INVALID` and its message, as the OpenID Connect sign-in already did, instead of a bare
-  `400`. An error response whose status is not `401` no longer carries `WWW-Authenticate`.
-- A declared token's `permissions` are optional. With none, the token holds no grant and can call only routes that
-  need no permission, which is the dispatcher protocol; any permission given is still validated. A dispatcher-only
-  token no longer has to name a grant it never uses.
-- A change to the audit retention setting (`audit` `retentionDays`) through `PATCH /api/v2/settings` now reaches the
-  audit expiry index on every instance within a minute (`flow.audit.retention-interval-ms`), instead of at the next
-  restart. The 60-day floor is unchanged. The run (`workflowrun` `retention.days`) and task log retention settings
-  already took effect without a restart.
-- A task's live log answers with a line saying what happened, instead of a bare `500`, when the dispatcher holding
-  the task cannot be reached (and no stored log counts) or its stream breaks part way.
-- `service-core` and `service-dispatcher` no longer crash at start with `SIGILL` on some machines. The JVM cached
-  call adapters in the image's AOT cache, and an adapter recorded on the build machine could fail to link on another
-  CPU; both images now record and start with adapter caching off. Class loading and linking stay cached.
-- Loki live task logs (`dispatcher.logging.type=loki`) select the labels the dispatcher sets on the task's pod, as a
-  log shipper's labelmap names them (`boomerang_io_taskrun_ref`, `boomerang_io_workflow_ref`), and the task container
-  of either executor (`container=~"task|step-task"`). The query asked for v3's `bmrg_*` labels and Tekton's container
-  only, so it matched no v5 task. The log shipper must map pod labels and the container name under those names.
-  The dispatcher reads Loki through its streaming HTTP client (`RestConfig`) with that client's timeouts and TLS
-  handling, rather than a default client; the proxy setting does not reach Loki yet.
-- Slack's own install link (`GET /api/v2/integration/slack/install`) answers `409 INTEGRATION_NOT_CONFIGURED` while the
-  Slack app's client ID or secret is unset, instead of `404 INTEGRATION_INVALID_REF`.
-- The API contract (`contracts/api-v2.yaml`) declares authentication: a bearer token or `x-access-token` on every
-  route, none on the GitHub callback and Slack routes, and the `access_token` query parameter beside them on `/webhook`,
-  `/event` and `/callback`. It no longer declares the `System` tag twice, reuses an operation summary, omits a path
-  parameter or lists Spring's `HttpHeaders` as a request header.
-- Save refuses a node that asks for retries (`retry.max` above 0) of a type the engine never requeues, with
-  `WORKFLOW_INVALID_TASK_RETRY` (1223) naming the task. Such a retry, on a `runworkflow` or `sleep` node for example,
-  was stored and never applied; a run-workflow task's retries belong on the tasks of the workflow it runs. The editor
-  already offered retry only on the requeueable types; a definition saved through the API with such a retry must drop it.
-- A for-each item takes its node's `retry`, with its own budget: a failed item is requeued with the node's backoff
-  while its siblings' budgets are untouched, and the dispatcher's order states the budget, so an item's first attempt
-  is no longer reported as its last. Items used to carry no retry and ended on their first failure.
-- Scheduled runs are admitted under workspace quota enforcement. A schedule names its workspace by id, and the quota
-  lookups matched names only, so every fire failed before the run was created; scheduled runs also fell back to the
-  platform's run-duration and workspace-size limits instead of the workspace's own. Quotas now find the workspace by
-  id or name.
-- Concurrent first runs of a template in a workspace make one link, not one each: the children of a for-each
-  `runworkflow` task all run as the same link. A `linksTemplate` relationship edge claims the workspace's link to the
-  template. Workspaces that already hold duplicate links keep them; reads take the first, and each delete by name
-  removes one.
-- A `releaselock` task frees the key an `acquirelock` in the same run took. It used to match only the acquiring task
-  itself, so it succeeded without releasing anything, and the key stayed held until the run ended or the lease expired.
-  A lock another run holds is still never touched.
-- The Acquire Lock task states its `timeout` in milliseconds, the unit the engine has always read it in, and defaults
-  it to `300000` (5 minutes): revision 1 said seconds and defaulted to `300`, a 300 ms lease. Change unit
-  `_0040__SeedAcquireLockMillisecondsRevision` adds revision 2 to an install holding the task; a workflow pinned to
-  revision 1, or one that stored the old default, keeps its value until it is edited.
-- A for-each item's params read `$(params.item)` and `$(params.index)` again: the item and index the engine
-  sets at fan-out are context params, so the rule that a task param never reads the task's own params
-  (2026-10-29) no longer fails every item with `ParamUnresolved`.
-- The Send Email with SendGrid Template task's revision 3 has no placeholder default for its API key, and takes the
-  template ID as plain text; revision 2 defaulted both to a placeholder and masked the template ID. Change unit
-  `_0033__SeedSendGridTemplateRevision` adds it to existing installs; a workflow moves when it is upgraded in the
-  editor.
-- Disconnecting GitHub on the Integrations page disconnects it. `POST /api/v2/integration/github/unlink` takes the
-  integration's record id or the installation id, refuses a caller who cannot reach the workspace (integration write
-  permission in any workspace could unlink another workspace's GitHub by its installation id), answers `404` for an
-  unknown installation, and is audited.
-- The GitHub integration dialog reads the installation and its repositories through the external HTTP client, so
-  the proxy, trust and timeout settings apply, and it lists every repository the installation can reach.
-- An approval or manual task that a run cancel or a task timeout completed while its action was being created
-  stays completed; it used to flip back to waiting with its action left open for nobody to answer.
-- A workflow token's principal is the workflow id everywhere: the editor issued it under the workflow name and the
-  delete revoked by name, so deleting a workflow revoked the tokens of every workflow with that name in every
-  workspace and left its own scheduler token in place.
-- Slack reaches its routes on a secured install. `POST /api/v2/integration/slack/{commands,interactivity,events}` and
-  `GET /api/v2/integration/slack/auth` no longer require a Flow credential; each checks the request itself (the
-  Slack signature, or the OAuth code exchange). `GET /api/v2/integration/slack/install` still requires sign-in, and
-  the unused `/api/v2/extensions/slack/install` permit entry is gone.
-- Admin > Users searches. `GET /api/v2/user/query` takes `search`, matching any part of a user's name, display name
-  or email, ignoring case, and the search box sends it. A page size chosen under the list is now the one it loads.
-- Removing a member who was added by email and never signed in, or deleting their only workspace, deletes that
-  person's inactive user record, so a mistyped address no longer leaves a user behind. Anyone who has signed in, or
-  still belongs to another workspace, is kept.
-- A Preferred Display Name can be cleared: an emptied field (a blank `displayName`) removes it, and the user reads by
-  their name again. A request that leaves `displayName` out still changes nothing.
-- The profile's display-name dialog is titled "Change your display name", not "Change workspace name". Removing a
-  workspace label says "Remove Label" instead of a workspace-closing message.
+- **The Artifactory tasks sign in with a username and password.** They sent Basic auth as `user:password` without
+  encoding it, which Artifactory refuses; the header is now Base64-encoded.
+- **A workflow started through the API without a `trigger` obeys its Manual switch** (see Upgrading).
+- **The Slack routes check Slack's request signature,** so only Slack can call the commands, interactivity and
+  events routes (see Upgrading).
