@@ -582,6 +582,8 @@ tag's release notes.
 
 ### Fixed
 
+- The workflow editor's canvas zooms out to a tenth of full size, and fit view uses the same floor, so a long workflow
+  can be seen whole; it stopped at half size and cut the graph off. The auto-layout button moves the nodes again.
 - A sleep whose duration is missing, not a whole number of milliseconds, negative or too large fails with a message
   naming the value; it was marked running and never ended.
 - Deleting a workspace that does not exist answers `404 WORKSPACE_INVALID_REF`, not `500`.
