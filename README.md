@@ -34,7 +34,7 @@ graph LR
     D1 --> K[Kubernetes / Tekton]
 ```
 
-`service-flow` and `service-engine` were separate deployables in v4 and are now merged into `service-core`.
+`service-flow` and `service-engine` were separate deployables in 4.x and are now merged into `service-core`.
 The dispatchers pull work from `service-core` and report back over `/dispatcher/v1/**`. The one call in the
 other direction is a task's live log, read from the dispatcher holding the claim at the URL it registered; a
 finished log a dispatcher stored is served from the artifact store instead.
@@ -162,8 +162,8 @@ only on a stable release (`.github/workflows/ci-release.yml`). The same tag publ
 and `io.useboomerang:flow-sdk` to GitHub Packages at the tag's version, and to Maven Central too once the
 namespace and secrets are in place (stable tags only unless `CENTRAL_PUBLISH_PRERELEASES` is `true`).
 
-To install on Kubernetes, the `bmrg-flow` Helm chart 6.0.x deploys v5 (it is not released yet; the 4.x line deploys
-v3). The install, quickstart and upgrade guides are in the docs:
+To install on Kubernetes, the `bmrg-flow` Helm chart 6.0.x deploys 5.0.0 (it is not released yet; the 4.x line deploys
+3.5). The install, quickstart and upgrade guides are in the docs:
 [Quickstart](https://useboomerang.io/docs/flow/hosting/quickstart),
 [Installing](https://useboomerang.io/docs/flow/hosting/installing) and
 [Upgrading](https://useboomerang.io/docs/flow/hosting/upgrading).
@@ -171,39 +171,39 @@ v3). The install, quickstart and upgrade guides are in the docs:
 Use the `/release` skill. An SBOM/CVE pipeline exists (`.github/workflows/sbom.yml`, `/cve-review` skill).
 Operator-facing changes for the next release are collected in [`CHANGELOG.md`](./CHANGELOG.md) as they merge.
 
-## Upgrading from v3
+## Upgrading from 3.5
 
 `service-core` migrates its database as it starts, before it serves anything: there is no separate loader
 Job. The migrations take exactly two starting points to the current shape, an **empty database** and a
-**v3 database** built by bmrg-flow 4.13.5 or later (flow-loader 0.5.9 or later; an older v3 install moves to
-that chart first). A v4 database, or one a 5.0 beta already migrated, is refused at startup with a message
-saying why; reset it, or restore the v3 database it came from.
+**3.5 database** built by bmrg-flow 4.13.5 or later (flow-loader 0.5.9 or later; an older 3.5 install moves to
+that chart first). A 4.x database, or one a 5.0.0 beta already migrated, is refused at startup with a message
+saying why; reset it, or restore the 3.5 database it came from.
 
-Before the first start against a v3 database:
+Before the first start against a 3.5 database:
 
-1. **Back up the database.** The migration is forward-only; the v3 source collections are dropped once
+1. **Back up the database.** The migration is forward-only; the 3.5 source collections are dropped once
    migrated.
 2. **Check for two users sharing one email.** The migration refuses to delete an account, so an exact
    duplicate email fails the unique index and startup with it. Two addresses that differ only by case are left
    as they are and logged at ERROR, and the account whose address is not all lower case stops resolving at
    sign-in: remove or re-address the duplicate, then lower-case the survivor by hand.
-3. **Set the encryption keys.** v3 encrypted secured settings (Slack and GitHub credentials) with the pair in
-   `mongo.encrypt.secret` and `mongo.encrypt.salt`, set on the v3 deployment; a v3 instance that never set
+3. **Set the encryption keys.** 3.5 encrypted secured settings (Slack and GitHub credentials) with the pair in
+   `mongo.encrypt.secret` and `mongo.encrypt.salt`, set on the 3.5 deployment; a 3.5 instance that never set
    them holds no encrypted values. Provide that same pair under the same names: it is read once, to decrypt
-   those values during the migration. Provide the key v5 encrypts with as
+   those values during the migration. Provide the key 5.0.0 encrypts with as
    `flow.encrypt.secret` and `flow.encrypt.salt`; it can be a fresh pair, and it is required on every
-   install. A wrong v3 pair stops startup rather than leaving a credential unreadable.
-4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB v3 database,
+   install. A wrong 3.5 pair stops startup rather than leaving a credential unreadable.
+4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB 3.5 database,
    about 18 000 runs, migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
    one replica first. Replicas that start together wait on the migration lock for up to 30 minutes.
-5. **Export any run history you need to keep.** v3's runs carry over as completed runs, without their task
-   runs, which the upgrade drops. v5 deletes finished runs older than its Activity retention,
+5. **Export any run history you need to keep.** 3.5's runs carry over as completed runs, without their task
+   runs, which the upgrade drops. 5.0.0 deletes finished runs older than its Activity retention,
    365 days by default, with their task runs, approvals, logs and run artifacts. The purge starts within a
    minute of the first start and removes up to 1000 runs an hour, before the setting can be changed, and no
    value turns it off. This is by design: Activity is bounded from day one. Workflows, workflow-scoped
    artifacts and the audit trail are kept.
-6. **Find the workflows that read CloudEvent inputs.** v3 filled a workflow property from a CloudEvent with the
-   property's `jsonPath`, or from a `properties` object in the event's data. v5 does neither: the run receives
+6. **Find the workflows that read CloudEvent inputs.** 3.5 filled a workflow property from a CloudEvent with the
+   property's `jsonPath`, or from a `properties` object in the event's data. 5.0.0 does neither: the run receives
    the event's attributes as its `event` param and its data as `data`, and a workflow reads a value as
    `$(params.data.<path>)`. Upgraded, such a workflow runs with its properties' defaults and no error. List them
    with `db.flow_workflows.find({"properties.jsonPath": {$nin: [null, ""]}}, {name: 1})` (`flow` is the default
@@ -303,7 +303,7 @@ Runtime limits such as quotas, retention and the audit switch are admin settings
 
 ## History
 
-The v3 → v4 rewrite of the engine is documented in:
+The 3.5 → 4.x rewrite of the engine is documented in:
 
 - [Model changes and v3 to v4 model comparison](https://github.com/boomerang-io/roadmap/issues/368)
 - [Distributed async architecture change](https://github.com/boomerang-io/architecture/tree/feat-v4)
