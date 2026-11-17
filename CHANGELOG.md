@@ -3,7 +3,9 @@
 Operator-facing changes, collected as they merge. The `/release` skill turns the unreleased section into the
 tag's release notes.
 
-## Unreleased: 5.0.0
+## Unreleased
+
+## 5.0.0 (2026-11-17)
 
 ### Upgrading
 
