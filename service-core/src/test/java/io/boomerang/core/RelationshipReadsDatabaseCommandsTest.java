@@ -13,20 +13,29 @@ import io.boomerang.common.model.DispatcherRegistrationRequest;
 import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowTrigger;
+import io.boomerang.core.entity.RelationshipEdgeEntity;
+import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.enums.UserStatus;
 import io.boomerang.core.enums.UserType;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.model.TokenCreateRequest;
+import io.boomerang.core.model.Token;
+import io.boomerang.core.repository.RelationshipEdgeRepository;
+import io.boomerang.core.repository.RelationshipNodeRepository;
 import io.boomerang.core.repository.UserRepository;
 import io.boomerang.core.security.enums.AuthScope;
+import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
+import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.dispatcher.DispatcherService;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.engine.DatabaseCommands;
 import io.boomerang.engine.DatabaseCommands.Recorded;
+import io.boomerang.schedule.ScheduleService;
 import io.boomerang.schedule.ScheduleWatcher;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.WorkflowRunService;
@@ -34,22 +43,33 @@ import io.boomerang.workflow.WorkflowService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import jakarta.servlet.Filter;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
+import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * The relationship-graph reads ({@code rel_nodes}) each hot path costs, recorded on the calling
@@ -72,6 +92,10 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
   @Autowired private ScheduleWatcher scheduleWatcher;
   @Autowired private WorkflowScheduleRepository scheduleRepository;
   @Autowired private UserRepository userRepository;
+  @Autowired private ScheduleService scheduleService;
+  @Autowired private RelationshipNodeRepository nodeRepository;
+  @Autowired private RelationshipEdgeRepository edgeRepository;
+  @Autowired private MongoTemplate database;
 
   @Autowired
   @Qualifier("springSecurityFilterChain")
@@ -275,6 +299,213 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
       assertThat(viaWorkspace).as(type.getLabel()).containsExactlyInAnyOrderElementsOf(member);
       assertThat(global).as(type.getLabel()).containsAll(viaWorkspace);
     }
+  }
+
+  /**
+   * A member's lookups read the same documents whatever the number of runs in the workspace: a
+   * workflow lookup, a run check, a schedule query and get, and a global task lookup read no run
+   * edge and no run node. Before, each read every run's edge and node, and the workflow and
+   * schedule paths sent a third query naming every run.
+   */
+  @Test
+  void aMembersLookupsReadTheSameDocumentsAtTenAndAThousandRuns() {
+    String member = memberOfThreeWorkspaces();
+    WorkflowScheduleEntity schedule = new WorkflowScheduleEntity();
+    schedule.setName("rel-reads-runs-" + nonce);
+    schedule.setType(WorkflowScheduleType.cron);
+    schedule.setCronSchedule("0 0 * * * ?");
+    schedule.setTimezone("UTC");
+    schedule.setStatus(WorkflowScheduleStatus.active);
+    schedule.setWorkflowRef(workflowRef);
+    String scheduleId = scheduleRepository.save(schedule).getId();
+    String run = seedRuns(10).get(0);
+
+    Map<String, Recorded<?>> atTen = memberLookups(member, run, scheduleId);
+    seedRuns(990);
+    Map<String, Recorded<?>> atAThousand = memberLookups(member, run, scheduleId);
+
+    atTen.forEach(
+        (path, recorded) -> {
+          Recorded<?> large = atAThousand.get(path);
+          System.out.printf(
+              "REL DOCS | %-24s | 10 runs: %d edges %d nodes | 1000 runs: %d edges %d nodes%n",
+              path,
+              recorded.documentsRead("rel_edges"),
+              recorded.documentsRead("rel_nodes"),
+              large.documentsRead("rel_edges"),
+              large.documentsRead("rel_nodes"));
+        });
+    atTen.forEach(
+        (path, recorded) -> {
+          Recorded<?> large = atAThousand.get(path);
+          assertThat(large.documentsRead("rel_edges"))
+              .as(path)
+              .isEqualTo(recorded.documentsRead("rel_edges"));
+          assertThat(large.documentsRead("rel_nodes"))
+              .as(path)
+              .isEqualTo(recorded.documentsRead("rel_nodes"));
+          assertThat(large.names()).as(path).isEqualTo(recorded.names());
+        });
+    assertThat(atAThousand.get("run check").result()).isEqualTo(true);
+    assertThat(atAThousand.get("workflow lookup").result()).isEqualTo(List.of(workflowRef));
+  }
+
+  /**
+   * A walk level for anything but a run asks for its edges with the run label left out, which the
+   * from_label index answers without reading a run edge.
+   */
+  @Test
+  void aWalkLevelLeavesTheRunEdgesUnreadOnTheFromLabelIndex() {
+    seedRuns(200);
+    String workspaceNode =
+        relationshipService
+            .nodesBySlug(RelationshipType.WORKSPACE, List.of(workspace))
+            .get(workspace)
+            .getId();
+    Document explain =
+        database
+            .getDb()
+            .runCommand(
+                new Document(
+                        "explain",
+                        new Document(
+                                "find", database.getCollectionName(RelationshipEdgeEntity.class))
+                            .append(
+                                "filter",
+                                new Document("from", new Document("$in", List.of(workspaceNode)))
+                                    .append(
+                                        "label",
+                                        new Document(
+                                            "$ne", RelationshipLabel.HAS_WORKFLOWRUN.getLabel()))))
+                    .append("verbosity", "executionStats"));
+    Document stats = explain.get("executionStats", Document.class);
+    System.out.printf(
+        "REL EXPLAIN | keys %s docs %s returned %s%n",
+        stats.get("totalKeysExamined"), stats.get("totalDocsExamined"), stats.get("nReturned"));
+    assertThat(explain.get("queryPlanner", Document.class).toJson()).contains("\"from_label\"");
+    assertThat(stats.get("totalDocsExamined")).isEqualTo(stats.get("nReturned"));
+    assertThat(((Number) stats.get("totalKeysExamined")).intValue()).isLessThan(20);
+  }
+
+  // Each lookup in a request of its own, as the member: what each costs on the database.
+  private Map<String, Recorded<?>> memberLookups(String member, String run, String scheduleId) {
+    Map<String, Recorded<?>> recorded = new LinkedHashMap<>();
+    recorded.put(
+        "workflow lookup",
+        asMember(
+            member,
+            () ->
+                relationshipService.refsInWorkspace(
+                    RelationshipType.WORKFLOW,
+                    workspace,
+                    Optional.of(List.of("rel-reads-wf-" + nonce)))));
+    recorded.put(
+        "run check",
+        asMember(
+            member,
+            () ->
+                relationshipService.check(
+                    RelationshipType.WORKFLOWRUN,
+                    run,
+                    Optional.of(RelationshipType.WORKSPACE),
+                    Optional.of(List.of(workspace)))));
+    recorded.put(
+        "schedule query",
+        asMember(
+            member,
+            () ->
+                scheduleService
+                    .query(
+                        workspace,
+                        Optional.of(0),
+                        Optional.of(10),
+                        Sort.by("creationDate"),
+                        Optional.empty(),
+                        Optional.empty(),
+                        Optional.empty())
+                    .getTotalElements()));
+    recorded.put(
+        "schedule get",
+        asMember(member, () -> scheduleService.get(workspace, scheduleId).getId()));
+    recorded.put(
+        "global task lookup",
+        asMember(
+            member,
+            () ->
+                relationshipService.filter(
+                    RelationshipType.TASK,
+                    Optional.of(List.of(TASK_SLUG)),
+                    Optional.empty(),
+                    Optional.empty())));
+    return recorded;
+  }
+
+  private <T> Recorded<T> asMember(String member, Supplier<T> lookup) {
+    Token token = new Token(AuthScope.session);
+    token.setPrincipal(member);
+    token.setPermissions(
+        List.of(new ResolvedPermissions(PermissionScope.workspace, workspace, List.of("**/**"))));
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(member, null);
+    authentication.setDetails(token);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+    RequestContextHolder.setRequestAttributes(
+        new ServletRequestAttributes(new MockHttpServletRequest()));
+    try {
+      return DatabaseCommands.record(lookup);
+    } finally {
+      RequestContextHolder.resetRequestAttributes();
+      SecurityContextHolder.clearContext();
+    }
+  }
+
+  // A user who belongs to the workspace and two others, so a walk from them could fan out.
+  private String memberOfThreeWorkspaces() {
+    UserEntity user = new UserEntity();
+    user.setEmail("rel-reads-member-" + nonce + "@test.local");
+    user.setName("Relationship Reads Member " + nonce);
+    user.setType(UserType.user);
+    user.setStatus(UserStatus.active);
+    String userId = userRepository.save(user).getId();
+    relationshipService.createNode(
+        RelationshipType.USER, userId, user.getEmail(), Optional.empty());
+    relationshipService.setMemberRole(userId, workspace, "owner");
+    for (String other : List.of("a", "b")) {
+      WorkspaceRequest request = new WorkspaceRequest();
+      request.setName("rel-reads-" + other + "-" + nonce);
+      request.setDisplayName(request.getName());
+      relationshipService.setMemberRole(
+          userId, workspaceService.create(request).getName(), "owner");
+    }
+    return userId;
+  }
+
+  // Runs under the workspace, as their relationship nodes and ownership edges; their ids.
+  private List<String> seedRuns(int count) {
+    String workspaceNode =
+        relationshipService
+            .nodesBySlug(RelationshipType.WORKSPACE, List.of(workspace))
+            .get(workspace)
+            .getId();
+    List<String> ids = new ArrayList<>();
+    List<RelationshipNodeEntity> nodes = new ArrayList<>();
+    List<RelationshipEdgeEntity> edges = new ArrayList<>();
+    for (int i = 0; i < count; i++) {
+      String id = new ObjectId().toHexString();
+      ids.add(id);
+      nodes.add(
+          new RelationshipNodeEntity(
+              RelationshipType.WORKFLOWRUN.getLabel(), id, id, Optional.empty()));
+      edges.add(
+          new RelationshipEdgeEntity(
+              workspaceNode,
+              RelationshipLabel.HAS_WORKFLOWRUN,
+              RelationshipType.WORKFLOWRUN.getLabel() + ":" + id,
+              Optional.empty()));
+    }
+    nodeRepository.saveAll(nodes);
+    edgeRepository.saveAll(edges);
+    return ids;
   }
 
   private static io.boomerang.common.model.WorkflowSubmitRequest manualSubmit() {

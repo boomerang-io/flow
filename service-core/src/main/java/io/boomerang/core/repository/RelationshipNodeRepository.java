@@ -36,6 +36,14 @@ public interface RelationshipNodeRepository
   List<RelationshipNodeEntity> findByTypeAndRefOrSlugIn(
       String type, Collection<String> refsOrSlugs);
 
+  /**
+   * The nodes among the ids that are of the type and whose slug or ref is any of the values - which
+   * of a set of nodes a name list matches, served by the {@code _id} index.
+   */
+  @Query("{'_id': {'$in': ?0}, 'type': ?1, '$or': [{'slug': {'$in': ?2}},{'ref': {'$in': ?2}}]}")
+  List<RelationshipNodeEntity> findByIdInAndTypeAndRefOrSlugIn(
+      Collection<String> ids, String type, Collection<String> refsOrSlugs);
+
   /** Nodes of one type carrying any of the slugs; served by the {@code type_slug} index. */
   List<RelationshipNodeEntity> findByTypeAndSlugIn(String type, Collection<String> slugs);
 

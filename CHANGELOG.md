@@ -438,6 +438,13 @@ tag's release notes.
   graph (4 node reads and a growing batch, now 2); a dispatcher poll resolves a task filter's slugs in one read
   however many it lists (was one each, every 30 s per pool); a schedule fire reads 6 nodes (was 10) and a run's
   completion audit 1 (was 2). Grants and memberships are still read live on every request.
+- **Access checks no longer read a workspace's runs.** A member's workflow lookup, schedule query or approver,
+  integration or task lookup used to load every run edge and run node in each workspace they belong to, about
+  6.8 KB per run per call (18 MB at 2,607 runs); a check on one run did the same. Now a run check reads the run's
+  own edge and the caller's membership of its workspace, a member's workspace-scoped lookup starts at the workspaces
+  it names, the global task catalogue reads the root's tasks, and every other walk leaves run edges out on the
+  `from_label` index. With 1,000 runs a workflow lookup reads 7 relationship documents (was 2,009), a run check 5
+  (was 2,009) and a task lookup 3 (was 2,243); none grows with the number of runs. Who may see what is unchanged.
 - **Termination residue has its own poll cadence.** A held dispatcher poll looks for tasks it holds that were
   cancelled, timed out or parked once per `flow.dispatcher.poll.residue-ms` (default 30000, never under the
   re-check interval) for each dispatcher and filter, instead of on every `flow.dispatcher.poll.recheck-ms`
