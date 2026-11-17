@@ -5,6 +5,16 @@ tag's release notes.
 
 ## Unreleased
 
+### Changed
+
+- **Listing a member's workflows across many workspaces takes half the memory.** The profile and the workspace
+  list place each workflow and approver group under its workspace from the edges the access check already
+  followed, instead of reading all of those edges a second time, and every access check reads relationship nodes
+  and edges without their data; a lookup of a workflow by name reads only that workflow's node, not every
+  workflow's in the workspace. For a member of 100 workspaces of 200 workflows, the profile's listing takes 137 ms
+  instead of 238 ms, returns 4.99 MB instead of 13.9 MB and allocates 117 MB instead of 245 MB per request. Who
+  can see what is unchanged, and memberships and grants are still read on every request.
+
 ## 5.0.0 (2026-11-17)
 
 5.0.0 is the first release since 3.5 (last 3.5.54): 4.x was never released for general use, so every entry below
