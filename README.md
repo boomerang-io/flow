@@ -173,46 +173,13 @@ Operator-facing changes for the next release are collected in [`CHANGELOG.md`](.
 
 ## Upgrading from 3.5
 
-`service-core` migrates its database as it starts, before it serves anything: there is no separate loader
-Job. The migrations take exactly two starting points to the current shape, an **empty database** and a
-**3.5 database** built by bmrg-flow 4.13.5 or later (flow-loader 0.5.9 or later; an older 3.5 install moves to
-that chart first). A 4.x database, or one a 5.0.0 beta already migrated, is refused at startup with a message
-saying why; reset it, or restore the 3.5 database it came from.
+`service-core` migrates its database as it starts, before it serves anything: there is no loader Job. It takes
+an empty database or a **3.5 database built by bmrg-flow 4.13.5 or later** to the current shape, and refuses
+anything else at startup. Back up the database first: the migration is forward-only.
 
-Before the first start against a 3.5 database:
-
-1. **Back up the database.** The migration is forward-only; the 3.5 source collections are dropped once
-   migrated.
-2. **Check for two users sharing one email.** The migration refuses to delete an account, so an exact
-   duplicate email fails the unique index and startup with it. Two addresses that differ only by case are left
-   as they are and logged at ERROR, and the account whose address is not all lower case stops resolving at
-   sign-in: remove or re-address the duplicate, then lower-case the survivor by hand.
-3. **Set the encryption keys.** 3.5 encrypted secured settings (Slack and GitHub credentials) with the pair in
-   `mongo.encrypt.secret` and `mongo.encrypt.salt`, set on the 3.5 deployment; a 3.5 instance that never set
-   them holds no encrypted values. Provide that same pair under the same names: it is read once, to decrypt
-   those values during the migration. Provide the key 5.0.0 encrypts with as
-   `flow.encrypt.secret` and `flow.encrypt.salt`; it can be a fresh pair, and it is required on every
-   install. A wrong 3.5 pair stops startup rather than leaving a credential unreadable.
-4. **Give the pod time to migrate.** No HTTP is served until the migrations finish. A 16 MB 3.5 database,
-   about 18 000 runs, migrates in under a minute; set the startup probe for the largest instance's run history, and roll out
-   one replica first. Replicas that start together wait on the migration lock for up to 30 minutes.
-5. **Export any run history you need to keep.** 3.5's runs carry over as completed runs, without their task
-   runs, which the upgrade drops. 5.0.0 deletes finished runs older than its Activity retention,
-   365 days by default, with their task runs, approvals, logs and run artifacts. The purge starts within a
-   minute of the first start and removes up to 1000 runs an hour, before the setting can be changed, and no
-   value turns it off. This is by design: Activity is bounded from day one. Workflows, workflow-scoped
-   artifacts and the audit trail are kept.
-6. **Find the workflows that read CloudEvent inputs.** 3.5 filled a workflow property from a CloudEvent with the
-   property's `jsonPath`, or from a `properties` object in the event's data. 5.0.0 does neither: the run receives
-   the event's attributes as its `event` param and its data as `data`, and a workflow reads a value as
-   `$(params.data.<path>)`. Upgraded, such a workflow runs with its properties' defaults and no error. List them
-   with `db.flow_workflows.find({"properties.jsonPath": {$nin: [null, ""]}}, {name: 1})` (`flow` is the default
-   collection prefix) and, after the upgrade, change where each reads that property to `$(params.data.<path>)`.
-
-Remove the `flow-service-loader` Job and image from the deployment: one product tag now builds
-`flow-service-core`, `flow-service-dispatcher` and `flow-client-web`. The operator's guide, with what changes in
-the chart and the environment, is [Upgrading](https://useboomerang.io/docs/flow/hosting/upgrading); the
-"Upgrading" section of [`CHANGELOG.md`](./CHANGELOG.md) lists every change an upgrade needs.
+The operator's guide, with every step and what changes in the chart and the environment, is
+[Upgrading](https://useboomerang.io/docs/flow/hosting/upgrading). The "Upgrading" section of
+[`CHANGELOG.md`](./CHANGELOG.md) lists every change between 3.5 and 5.0.0 that an upgrade needs.
 
 ## Design details
 
