@@ -16,14 +16,22 @@ public interface RelationshipEdgeRepository
 
   List<RelationshipEdgeEntity> findByToAndLabel(String to, String label);
 
-  /** Outgoing edges for a set of nodes - one query per downward walk level. */
+  /** Outgoing edges for a set of nodes. */
   List<RelationshipEdgeEntity> findByFromIn(Collection<String> from);
 
+  /** Outgoing edges for a set of nodes as their ends only - one query per downward walk level. */
+  @Query(value = "{'from': {'$in': ?0}}", fields = "{'from': 1, 'to': 1}")
+  List<RelationshipEdgeEntity> findEndsByFromIn(Collection<String> from);
+
   /**
-   * Outgoing edges for a set of nodes, but for those with one label - a walk level that leaves out
-   * a workspace's runs. Served by the from_label index, so the edges left out are never read.
+   * {@link #findEndsByFromIn}, but for the edges with one label - a walk level that leaves out a
+   * workspace's runs. Served by the from_label index, so the edges left out are never read.
    */
-  List<RelationshipEdgeEntity> findByFromInAndLabelNot(Collection<String> from, String label);
+  @Query(value = "{'from': {'$in': ?0}, 'label': {'$ne': ?1}}", fields = "{'from': 1, 'to': 1}")
+  List<RelationshipEdgeEntity> findEndsByFromInAndLabelNot(Collection<String> from, String label);
+
+  /** The edges from any of a set of nodes to any of another - served by the from_label index. */
+  List<RelationshipEdgeEntity> findByFromInAndToIn(Collection<String> from, Collection<String> to);
 
   /** The edges from one node to any of a set of nodes - served by the from_label index. */
   List<RelationshipEdgeEntity> findByFromAndToIn(String from, Collection<String> to);

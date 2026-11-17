@@ -301,28 +301,28 @@ workspace's get, create and patch use a page of one (`:955-957`).
 
 | Figure | Commands per page | Code |
 | --- | --- | --- |
-| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:118-146,781-800` |
+| Members and roles | One workspace-node query, skipped when the request has already resolved the nodes, and one `memberOf` edge query on `to_label` | `core/RelationshipService.java:117-145,821-840` |
 | Member and approver names | One users query | `core/UserService.java:247-255` |
 | Quotas | The platform defaults once (eight settings reads), two audit aggregations grouped by workspace on `workspace_time`, one `hasWorkflow` edge query on `from_label` and one node query, then three run aggregations, one artifact aggregation and one workflows read over every workflow on the page, grouped by workflow | `workflow/QuotaService.java:237-303,447-542` |
-| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses, then one query for the edges into the nodes found, on `to_label`, to place each under its workspace | `core/RelationshipService.java:614-649` |
+| Approver groups, and on the profile each workspace's workflows | One relationship walk from the caller through any of the page's workspaces, the walk and access rule a single workspace's read uses; each node found goes under the named workspaces whose edges into it the walk followed, so no edge is read twice. A named workspace the walk did not reach costs one more edge query, for its edges into the nodes found. The walk reads every workflow the caller sees: a member of 100 workspaces of 200 workflows (1.12 million nodes) costs 137 ms, 41,501 documents, 4.99 MB returned and 117 MB allocated, mostly Spring Data mapping at about 2.6 KB a document; `RelationshipRefsInWorkspacesCostTest` pins the documents and about 6.7 KB per workflow | `core/RelationshipService.java:616-687,1260-1274` |
 
-`WorkspaceQueryDatabaseCommandsTest` pins 32 commands for a member and 33 for a global caller, for 10 or 60 workspaces;
-an admin's or global token's listing of every workspace still walks from the root (`core/RelationshipService.java:975-1197`).
+`WorkspaceQueryDatabaseCommandsTest` pins 31 commands for a member and 32 for a global caller, for 10 or 60 workspaces;
+an admin's or global token's listing of every workspace still walks from the root (`core/RelationshipService.java:1047-1300`).
 
 ## Relationship reads per request and per tick
 
 Grants and memberships are read live per request (`core/TokenService.java:654-678`); `RelationshipReadsDatabaseCommandsTest`
-pins these, counting the `rel_edges` and `rel_nodes` documents returned with 10 and with 1,000 runs in the workspace. No
-lookup's cost depends on the run count: a run is found from its own incoming edge, and every other walk leaves the
-`hasWorkflowRun` edges out on `from_label` (`core/RelationshipService.java:1006-1011,1036-1084,1118-1124`).
+pins the documents returned with 10 and with 1,000 runs. No lookup's cost depends on the run count: a run is found from
+its own incoming edge, and every other walk leaves the `hasWorkflowRun` edges out on `from_label`, reading edges as their
+ends and nodes as type, ref and slug, and by name only the target nodes named (`core/RelationshipService.java:1091-1097,1127-1170,1206-1220`).
 
 | Path | Reads | Code |
 | --- | --- | --- |
-| Health probe; any route with a global token | 0: the probe runs no authentication, and a `global` grant answers before the workspace is resolved | `core/security/AuthenticationFilter.java:428-436`, `core/RelationshipService.java:558-572` |
-| Workspace-scoped read, global token, admin session or scheduled run | 2 node reads: the workspace node, then its children; the walk starts at the named workspaces, not at the root | `core/RelationshipService.java:987-995` |
-| A member's workflow lookup in a workspace (also a schedule query and get) | 7 documents for a member of 3 workspaces with 1 workflow (8 for the schedule query, 4 for a get), whatever the run count: the member's node and memberships, the named workspace's node, its non-run children and their nodes | `core/RelationshipService.java:1013-1034` |
-| A run check, `check(WORKFLOWRUN, …)` from a member or workspace token | 5 documents in 5 queries: the caller's node, the run node, the edge into it, the caller's edge to that run's workspace and that workspace's node | `core/RelationshipService.java:1036-1084` |
-| A global task lookup by name | 3 documents: the task nodes of the name and their edge from the root, not every user, workspace and run in the install | `core/RelationshipService.java:1086-1116` |
+| Health probe; any route with a global token | 0: the probe runs no authentication, and a `global` grant answers before the workspace is resolved | `core/security/AuthenticationFilter.java:428-436`, `core/RelationshipService.java:557-571` |
+| Workspace-scoped read, global token, admin session or scheduled run | 2 node reads: the workspace node, then its children; the walk starts at the named workspaces, not at the root | `core/RelationshipService.java:1071-1080` |
+| A member's workflow lookup in a workspace (also a schedule query and get) | 7 documents for a member of 3 workspaces with 1 workflow (8 for the schedule query, 4 for a get), whatever the run count: the member's node and memberships, the named workspace's node, its non-run edges, and the nodes of the workflow named and of the workspace's other kinds of child. With 50 workflows, a lookup by name reads 9 nodes, not 58 | `core/RelationshipService.java:1098-1120,1215-1220` |
+| A run check, `check(WORKFLOWRUN, …)` from a member or workspace token | 5 documents in 5 queries: the caller's node, the run node, the edge into it, the caller's edge to that run's workspace and that workspace's node | `core/RelationshipService.java:1091-1097,1127-1170` |
+| A global task lookup by name | 3 documents: the task nodes of the name and their edge from the root, not every user, workspace and run in the install | `core/RelationshipService.java:1086-1090,1174-1202` |
 | Dispatcher poll, filter resolved | 1 node read for any number of bare task slugs, 2 for workspace tasks; a filter resolves once per poll and is cached 30 s per filter text, so the re-checks inside a poll and the polls after read none | `dispatcher/ClaimFilterService.java:60-73,91-199`, `dispatcher/DispatcherService.java:381-382` |
 | Schedule fire | 6 node reads: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from; no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-829` |
 | Run completion; watcher and schedule sweeps with nothing due | 1 node read, the audit event's workflow and workspace names in one read; 0 | `core/audit/WorkflowRunAuditBridge.java:80-89`, `engine/WorkflowWatcher.java:168-200` |

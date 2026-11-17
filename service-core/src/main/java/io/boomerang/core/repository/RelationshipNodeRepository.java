@@ -38,10 +38,30 @@ public interface RelationshipNodeRepository
 
   /**
    * The nodes among the ids that are of the type and whose slug or ref is any of the values - which
-   * of a set of nodes a name list matches, served by the {@code _id} index.
+   * of a set of nodes a name list matches, served by the {@code _id} index - as type, ref and slug.
    */
-  @Query("{'_id': {'$in': ?0}, 'type': ?1, '$or': [{'slug': {'$in': ?2}},{'ref': {'$in': ?2}}]}")
+  @Query(
+      value = "{'_id': {'$in': ?0}, 'type': ?1, '$or': [{'slug': {'$in': ?2}},{'ref': {'$in': ?2}}]}",
+      fields = "{'type': 1, 'ref': 1, 'slug': 1}")
   List<RelationshipNodeEntity> findByIdInAndTypeAndRefOrSlugIn(
+      Collection<String> ids, String type, Collection<String> refsOrSlugs);
+
+  /**
+   * The nodes of these ids as type, ref and slug only, without their data - a walk level's nodes.
+   */
+  @Query(value = "{'_id': {'$in': ?0}}", fields = "{'type': 1, 'ref': 1, 'slug': 1}")
+  List<RelationshipNodeEntity> findRefsByIdIn(Collection<String> ids);
+
+  /**
+   * {@link #findRefsByIdIn}, leaving out the nodes of the type whose ref and slug are none of the
+   * values: a walk level that looks for named nodes reads only those of the type it names.
+   */
+  @Query(
+      value =
+          "{'_id': {'$in': ?0}, '$or': [{'type': {'$ne': ?1}}, {'slug': {'$in': ?2}},"
+              + " {'ref': {'$in': ?2}}]}",
+      fields = "{'type': 1, 'ref': 1, 'slug': 1}")
+  List<RelationshipNodeEntity> findRefsByIdInUnlessTypeAndUnnamed(
       Collection<String> ids, String type, Collection<String> refsOrSlugs);
 
   /** Nodes of one type carrying any of the slugs; served by the {@code type_slug} index. */

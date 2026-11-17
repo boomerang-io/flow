@@ -236,6 +236,45 @@ class RelationshipLookupEquivalenceTest {
     assertThat(compared).isGreaterThan(2000);
   }
 
+  /**
+   * {@code refsInWorkspaces} places what it placed when it re-read every edge into the nodes the
+   * walk found, for every token class, target type and list of workspaces: a node shared by two
+   * workspaces, a workspace named by ref and by name at once, one the caller is not in, and none.
+   */
+  @Test
+  void refsInWorkspacesPlacesWhatTheEdgesIntoTheFoundNodesPlacedForEveryTokenClass() {
+    List<List<String>> workspaceLists =
+        List.of(
+            List.of("alpha", "beta", "gamma"),
+            List.of("ws1", "ws3"),
+            List.of("ws1", "ws4"),
+            List.of("alpha", "ws1"),
+            List.of("system"),
+            List.of("nope", "beta"),
+            List.of("ws1", "ws2", "ws3", "ws4", "sys"),
+            List.of());
+    int compared = 0;
+    for (boolean memo : List.of(false, true)) {
+      for (Token identity : identities()) {
+        when(identityService.getCurrentIdentity()).thenReturn(identity);
+        for (RelationshipType type : targetTypes()) {
+          for (List<String> workspaces : workspaceLists) {
+            request(memo);
+            Map<String, List<String>> found = sorted(service.refsInWorkspaces(type, workspaces));
+            request(memo);
+            assertThat(found)
+                .as(
+                    "%s:%s %s in %s (memo %s)",
+                    identity.getType(), identity.getPrincipal(), type, workspaces, memo)
+                .isEqualTo(sorted(refsInWorkspacesOracle(identity, type, workspaces)));
+            compared++;
+          }
+        }
+      }
+    }
+    assertThat(compared).isGreaterThan(1500);
+  }
+
   // ── Named cases ────────────────────────────────────────────────────────────
 
   // The lookups' shortcuts hold for the graph's shape only, so an edge of another shape is refused
@@ -437,6 +476,55 @@ class RelationshipLookupEquivalenceTest {
         : walkOracle(fromType, from, toType, toList, intermediateType, intermediateList).stream()
             .map(RelationshipNodeEntity::getRef)
             .toList();
+  }
+
+  // refsInWorkspaces as it stood: the filter's refs, then every edge into them, kept where it starts
+  // at a named workspace and placed under that workspace as named.
+  private Map<String, List<String>> refsInWorkspacesOracle(
+      Token identity, RelationshipType type, List<String> workspaces) {
+    Map<String, List<String>> refs = new HashMap<>();
+    List<String> visible =
+        filterOracle(
+            identity,
+            type,
+            Optional.empty(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.copyOf(workspaces)));
+    if (visible.isEmpty()) {
+      return refs;
+    }
+    Map<String, RelationshipNodeEntity> named = new HashMap<>();
+    for (RelationshipNodeEntity node :
+        nodeRepository.findByTypeAndRefOrSlugIn(
+            RelationshipType.WORKSPACE.getLabel(), new HashSet<>(workspaces))) {
+      for (String name : List.of(node.getSlug(), node.getRef())) {
+        if (workspaces.contains(name)) {
+          named.putIfAbsent(name, node);
+        }
+      }
+    }
+    Map<String, String> workspaceByNodeId = new HashMap<>();
+    named.forEach((workspace, node) -> workspaceByNodeId.put(node.getId(), workspace));
+    String prefix = type.getLabel() + ":";
+    for (RelationshipEdgeEntity edge :
+        edgeRepository.findByToIn(visible.stream().map(ref -> prefix + ref).toList())) {
+      if (workspaceByNodeId.containsKey(edge.getFrom())) {
+        List<String> placed =
+            refs.computeIfAbsent(workspaceByNodeId.get(edge.getFrom()), w -> new ArrayList<>());
+        String ref = edge.getTo().substring(prefix.length());
+        if (!placed.contains(ref)) {
+          placed.add(ref);
+        }
+      }
+    }
+    return refs;
+  }
+
+  // The refs per workspace in a fixed order, duplicates kept so that a repeat still fails.
+  private static Map<String, List<String>> sorted(Map<String, List<String>> refs) {
+    Map<String, List<String>> sorted = new HashMap<>();
+    refs.forEach((workspace, list) -> sorted.put(workspace, list.stream().sorted().toList()));
+    return sorted;
   }
 
   private List<RelationshipNodeEntity> walkOracle(
