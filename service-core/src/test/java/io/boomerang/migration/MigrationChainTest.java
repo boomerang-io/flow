@@ -313,6 +313,128 @@ class MigrationChainTest {
     assertThat(users.countDocuments()).isEqualTo(5);
   }
 
+  /**
+   * A v3 user owned their personal team and worked on their teams' workflows: after the upgrade,
+   * a plain user's personal workspace membership is {@code owner}, a team membership {@code
+   * editor}, and an admin's system workspace membership stays {@code owner}.
+   */
+  @Test
+  void aV3UsersMembershipsCarryTheRolesV3Gave() {
+    MongoDatabase db = database("v3-roles");
+    markV3(db);
+    ObjectId teamId = new ObjectId();
+    collection(db, "teams")
+        .insertOne(
+            new Document("_id", teamId)
+                .append("_class", "net.boomerangplatform.mongo.entity.TeamEntity")
+                .append("name", "Platform Team")
+                .append("isActive", true));
+    ObjectId plainId = new ObjectId();
+    collection(db, "users")
+        .insertOne(
+            new Document("_id", plainId)
+                .append("_class", "net.boomerangplatform.mongo.entity.FlowUserEntity")
+                .append("email", "plain@example.com")
+                .append("name", "Plain User")
+                .append("type", "user")
+                .append("flowTeams", List.of(teamId.toString())));
+    ObjectId adminId = new ObjectId();
+    collection(db, "users")
+        .insertOne(
+            new Document("_id", adminId)
+                .append("_class", "net.boomerangplatform.mongo.entity.FlowUserEntity")
+                .append("email", "admin@example.com")
+                .append("name", "Admin User")
+                .append("type", "admin"));
+
+    migrate("v3-roles");
+
+    String plainPersonal = personalWorkspaceOf(db, plainId);
+    String adminPersonal = personalWorkspaceOf(db, adminId);
+    String system = collection(db, "workspaces").find(Filters.eq("name", "system")).first().get("_id").toString();
+    assertThat(membershipRoles(db, plainId))
+        .containsOnly(Map.entry(plainPersonal, "owner"), Map.entry(teamId.toString(), "editor"));
+    assertThat(membershipRoles(db, adminId))
+        .containsOnly(Map.entry(adminPersonal, "owner"), Map.entry(system, "owner"));
+
+    forgetHistory(db);
+    migrate("v3-roles");
+    assertThat(membershipRoles(db, plainId))
+        .containsOnly(Map.entry(plainPersonal, "owner"), Map.entry(teamId.toString(), "editor"));
+    assertThat(collection(db, "rel_edges").countDocuments(Filters.eq("label", "memberOf"))).isEqualTo(4);
+  }
+
+  /**
+   * An install that ran the chain before the membership roles existed: each user's membership
+   * without a role takes owner on their own personal workspace and editor anywhere else; a
+   * membership with a role, and an edge that is not a user's membership, are left as they are.
+   */
+  @Test
+  void membershipsWithoutARoleOnAMigratedInstallTakeTheRolesV3Gave() {
+    MongoDatabase db = migrate("membership-roles");
+    MongoCollection<Document> workspaces = collection(db, "workspaces");
+    MongoCollection<Document> edges = collection(db, "rel_edges");
+    String user = new ObjectId().toString();
+    String other = new ObjectId().toString();
+    ObjectId personal = new ObjectId();
+    ObjectId othersPersonal = new ObjectId();
+    ObjectId team = new ObjectId();
+    ObjectId kept = new ObjectId();
+    workspaces.insertMany(
+        List.of(
+            new Document("_id", personal).append("name", "user-personal").append("type", "personal").append("externalRef", user),
+            new Document("_id", othersPersonal).append("name", "other-personal").append("type", "personal").append("externalRef", other),
+            new Document("_id", team).append("name", "team").append("type", "hobby"),
+            new Document("_id", kept).append("name", "kept").append("type", "hobby")));
+    edges.insertMany(
+        List.of(
+            SeedResources.edge("user:" + user, "memberOf", "workspace:" + personal, new Document()),
+            SeedResources.edge("user:" + user, "memberOf", "workspace:" + team, new Document("role", "")),
+            // A personal workspace that is not this user's own is a membership like any other.
+            SeedResources.edge("user:" + user, "memberOf", "workspace:" + othersPersonal, new Document()),
+            SeedResources.edge("user:" + user, "memberOf", "workspace:" + kept, new Document("role", "reader")),
+            SeedResources.edge("user:" + other, "memberOf", "workspace:" + othersPersonal, new Document()).append("data", null),
+            SeedResources.edge("workspace:" + team, "hasWorkflow", "workflow:w1", new Document())));
+    Document keptBefore = edges.find(Filters.eq("to", "workspace:" + kept)).first();
+
+    new _0050__V3MembershipRoles().execute(db, MigrationRunner.environment(PREFIX));
+
+    assertThat(membershipRoles(db, user))
+        .containsOnly(
+            Map.entry(personal.toString(), "owner"),
+            Map.entry(team.toString(), "editor"),
+            Map.entry(othersPersonal.toString(), "editor"),
+            Map.entry(kept.toString(), "reader"));
+    assertThat(membershipRoles(db, other)).containsOnly(Map.entry(othersPersonal.toString(), "owner"));
+    assertThat(edges.find(Filters.eq("to", "workspace:" + kept)).first()).isEqualTo(keptBefore);
+    assertThat(edges.find(Filters.eq("label", "hasWorkflow")).first().get("data", Document.class)).isEmpty();
+
+    List<Document> after = edges.find(Filters.eq("label", "memberOf")).into(new ArrayList<>());
+    new _0050__V3MembershipRoles().execute(db, MigrationRunner.environment(PREFIX));
+    assertThat(edges.find(Filters.eq("label", "memberOf")).into(new ArrayList<>()))
+        .as("a second run changes nothing")
+        .isEqualTo(after);
+  }
+
+  private static String personalWorkspaceOf(MongoDatabase db, ObjectId userId) {
+    return collection(db, "workspaces")
+        .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", userId.toString())))
+        .first()
+        .get("_id")
+        .toString();
+  }
+
+  // The user's memberships as workspace id -> role (null when the edge has none).
+  private static Map<String, String> membershipRoles(MongoDatabase db, Object userId) {
+    Map<String, String> roles = new HashMap<>();
+    for (Document edge :
+        collection(db, "rel_edges").find(Filters.and(Filters.eq("from", "user:" + userId), Filters.eq("label", "memberOf")))) {
+      Document data = edge.get("data", Document.class);
+      roles.put(edge.getString("to").substring("workspace:".length()), data == null ? null : data.getString("role"));
+    }
+    return roles;
+  }
+
   // ===================================================================================
   // Databases the chain refuses
   // ===================================================================================
