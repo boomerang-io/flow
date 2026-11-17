@@ -36,6 +36,15 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 - One tag releases EVERYTHING — there is no partial release. If only one module changed, the
   whole set still rebuilds and ships at the new version.
 - The annotated tag MESSAGE is the human-facing release note — write it before tagging.
+- **A stable tag carries its final changelog.** The `CHANGELOG.md` section for `5.x.y` is written,
+  reviewed by the user and merged to `main` BEFORE the tag, and the tag is cut on that commit. The
+  images are built from the tag, so a changelog fixed afterwards means repointing a released tag
+  (see Failure notes). Pre-release tags (`-beta.N`, `-rc.N`) leave the section as `Unreleased`.
+- **A stable section records what changed since the previous stable release**, not between
+  pre-releases. For 5.0.0 that is v3 (3.5.x): a change that only differs from an earlier beta, the
+  tuning of something new in this version, and a fix to a problem introduced during this version's
+  own development are left out. Git history and closed issues keep those.
+- A stable tag needs the user's explicit approval of both the changelog section and the tag message.
 
 ## Steps
 
@@ -55,17 +64,27 @@ same tag fires `sbom.yml` for the CVE report. There are **no per-service tags** 
 - Ask the user: bump packages first or accept and proceed. Any bump happens BEFORE the tag;
   re-run this step after.
 
-### 3. Release notes
-- Start from the unreleased section of `CHANGELOG.md`: every operator-facing change and upgrade step
-  listed there MUST appear in the notes. Then derive the rest of the story from
-  `git log <previous-5.x-tag>..HEAD` (the most recently created `5.*` tag, by date, not by
-  version). For a release candidate on a beta's commit, reuse that beta's notes. After tagging, move that section
-  under the released version in `CHANGELOG.md`.
-- Write 2–4 plain, confident sentences: lead with what changed for the user/operator; keep the
-  framework/dependency detail as background. No marketing, no exclamation marks.
+### 3. Changelog (stable tags only)
+- Rewrite the `Unreleased` section of `CHANGELOG.md` against the previous stable release (see Rules):
+  check each bullet against that release's code (its tag, e.g. `3.5.54-fix.35` for v3) and drop
+  pre-release history. Keep `Upgrading` complete: every step an operator of the previous stable
+  release must take.
+- Rename the heading to `## 5.x.y (YYYY-MM-DD)` and open an empty `## Unreleased` above it.
+- Show the user the result and the list of dropped bullets; on approval, open a pull request, have it
+  merged, wait for CI on `main`, and tag THAT commit in step 5.
+
+### 4. Release notes
+- Start from the changelog section (stable) or the `Unreleased` section (pre-release): every
+  operator-facing change and upgrade step listed there MUST appear in the notes. Then derive the rest
+  of the story from `git log <previous-5.x-tag>..HEAD` (the most recently created `5.*` tag, by date,
+  not by version). For a release candidate on a beta's commit, reuse that beta's notes.
+- A stable release opens with one upbeat sentence for a business reader or end user (what they can do
+  now), then the technical change, then upgrading. A pre-release is 2–4 plain sentences on what
+  changed for the user or operator. Keep framework and dependency detail as background. No
+  exclamation marks.
 - Show the draft to the user for approval/edit **before** tagging.
 
-### 4. Tag and hand over
+### 5. Tag and hand over
 ```bash
 git tag -a '<semver>' -m "<approved release notes>"
 git push origin '<semver>'
@@ -81,3 +100,9 @@ git push origin '<semver>'
   `ci-release.yml` exactly (a `v5.0.0` prefix or a `4.x` version won't match).
 - Docker Hub push failures are usually the `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets —
   surface the job log, don't retry blindly.
+- Repointing a released tag is a last resort and needs the user's decision. Delete it on the remote
+  and locally (`git push origin :refs/tags/<semver>`, `git tag -d <semver>`), recreate it on the new
+  commit with the approved message, and push. The release runs again: the images get new digests
+  under `:<semver>` (and `:latest`), while the SDK publish skips a version already published, so the
+  jars stay as first built. Tell every consumer to re-pull, and generators that read the tag to fetch
+  it again.
