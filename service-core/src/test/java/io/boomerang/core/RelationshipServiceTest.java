@@ -272,11 +272,20 @@ class RelationshipServiceTest {
         RelationshipLabel.MEMBER_OF,
         RelationshipType.WORKSPACE,
         "t1",
-        Optional.of(Map.of("role", "viewer")));
+        Optional.of(Map.of("role", "reader")));
 
     assertTrue(
         secondService.check(RelationshipType.WORKFLOW, "w1", Optional.empty(), Optional.empty()));
-    assertEquals(Map.of("u1", "owner", "u2", "viewer"), secondService.membersAndRoles("t1"));
+    assertEquals(Map.of("u1", "owner", "u2", "reader"), secondService.membersAndRoles("t1"));
+  }
+
+  @Test
+  @DisplayName("A membership without a role reads as reader, a seeded workspace role")
+  void aMembershipWithoutARoleReadsAsReader() {
+    edge("user:u1", RelationshipLabel.MEMBER_OF, "workspace:t2", Map.of());
+
+    assertEquals(Map.of("t1", "owner", "t2", "reader"), service.roles("u1"));
+    assertEquals(Map.of("u1", "reader", "u2", "editor"), service.membersAndRoles("t2"));
   }
 
   @Test

@@ -203,8 +203,10 @@ preset's permissions; an unknown role is `400 TOKEN_INVALID_PERMISSION` (`core/T
 cover, one in no workspace, holds only the self-service baseline (`TokenService.SELF_SERVICE_PERMISSIONS`), anchored to their own id, so the checks
 that key on a `global` grant never count it; `WorkspaceService.create` refuses a non-admin when the setting is off, since a workspace editor's
 `**/write` would pass the route's check. A member added again takes the new role on their one membership edge
-(`core/RelationshipService.java:823-844`). Members and their roles are changed by an owner of the workspace (`workspace/delete` counting there), an
-admin or a `global` token, else `403 WORKSPACE_OWNER_REQUIRED`; a `PATCH` without `members` keeps `workspace/write`
+(`core/RelationshipService.java:823-844`); a membership edge without a role reads as `reader` (`:816-819`), and the
+upgrade from v3 gives each user `owner` on their personal workspace and `editor` on their teams
+(`migration/_0050__V3MembershipRoles.java:59-115`). Members and their roles are changed by an owner of the workspace
+(`workspace/delete` counting there), an admin or a `global` token, else `403 WORKSPACE_OWNER_REQUIRED`; a `PATCH` without `members` keeps `workspace/write`
 (`workspace/WorkspaceService.java:297-306,615-622`). A workspace that has an owner keeps one: a removal, a demotion or the last owner leaving is `400
 WORKSPACE_LAST_OWNER` (`:624-630`); deleting the workspace is unaffected. A member removed or leaving is taken out of the
 workspace's approver groups (`:562,593,597-613`), and a group approval also needs a current membership

@@ -334,6 +334,7 @@ class V3DumpMigrationTest {
     assertSchedulesMigrated();
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
+    assertMembershipRoles();
     assertAuditStartsEmpty();
     assertIndexInventoryBuilt();
     assertV3IntermediatesDropped();
@@ -386,6 +387,7 @@ class V3DumpMigrationTest {
     // push these counts (or the graph invariants) off their real-dump values.
     assertRelationshipGraphBuilt();
     assertSystemWorkspaceMembersAttached();
+    assertMembershipRoles();
     assertAuditStartsEmpty();
     // Re-asserting index presence/counts here after this second full run is itself the
     // idempotency proof - ensureIndex is a no-op on an identically named/keyed index, and the
@@ -1697,6 +1699,42 @@ class V3DumpMigrationTest {
         .as("all 4 real v3 admin users are attached by _0013__V3BuildRelationshipGraph once its"
             + " user graph exists; _0004__SeedSystemWorkspace runs too early to attach them")
         .isEqualTo(4);
+  }
+
+  // =====================================================================================
+  // _0050__V3MembershipRoles: a user owns their personal workspace and edits their teams'
+  // =====================================================================================
+
+  private void assertMembershipRoles() {
+    // A plain v3 user with one team (SRC Innovations), the team Tyson also belongs to.
+    String plainUser = "615429db7162702bd3ee7606";
+    assertThat(collection("users").find(Filters.eq("_id", new ObjectId(plainUser))).first().getString("type"))
+        .isEqualTo("user");
+    String personal =
+        collection("workspaces")
+            .find(Filters.and(Filters.eq("type", "personal"), Filters.eq("externalRef", plainUser)))
+            .first()
+            .get("_id")
+            .toString();
+    Map<String, String> roles = new HashMap<>();
+    for (Document edge :
+        collection("rel_edges")
+            .find(Filters.and(Filters.eq("from", "user:" + plainUser), Filters.eq("label", "memberOf")))) {
+      roles.put(edge.getString("to"), ((Document) edge.get("data")).getString("role"));
+    }
+    assertThat(roles)
+        .as("a plain v3 user owns their personal workspace and edits their team's workflows")
+        .containsOnly(
+            Map.entry("workspace:" + personal, "owner"),
+            Map.entry("workspace:615428b57162702bd3ee7605", "editor"));
+
+    // Every membership carries a seeded role: 57 personal owners, 27 team editors, 4 system owners.
+    Map<String, Long> byRole = new TreeMap<>();
+    for (Document edge : collection("rel_edges").find(Filters.eq("label", "memberOf"))) {
+      Document data = (Document) edge.get("data");
+      byRole.merge(data == null ? "none" : String.valueOf(data.getString("role")), 1L, Long::sum);
+    }
+    assertThat(byRole).containsOnly(Map.entry("owner", 61L), Map.entry("editor", 27L));
   }
 
   // =====================================================================================

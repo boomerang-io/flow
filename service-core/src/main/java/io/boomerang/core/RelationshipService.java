@@ -815,7 +815,7 @@ public class RelationshipService {
 
   private static String roleOrDefault(RelationshipEdgeEntity edge) {
     String role = edge.getData() != null ? edge.getData().get("role") : null;
-    return (role == null || role.isEmpty()) ? "viewer" : role;
+    return (role == null || role.isEmpty()) ? "reader" : role;
   }
 
   /**
