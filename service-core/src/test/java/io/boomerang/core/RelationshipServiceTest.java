@@ -121,6 +121,7 @@ class RelationshipServiceTest {
 
   @Autowired private RelationshipNodeRepository nodeRepository;
   @Autowired private RelationshipEdgeRepository edgeRepository;
+  @Autowired private MongoTemplate template;
 
   private IdentityService identityService;
   private RelationshipService service;
@@ -134,10 +135,10 @@ class RelationshipServiceTest {
     identityService = mock(IdentityService.class);
     service =
         new RelationshipService(
-            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry());
+            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry(), template);
     secondService =
         new RelationshipService(
-            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry());
+            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry(), template);
 
     node("root", "root", "root");
     node("workspace", "t1", "acme");

@@ -85,7 +85,7 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | empty | on | yes, with a verdict | first sign-in | the claim decides, no code is used: admin on `true`, otherwise a user (being first grants nothing) |
 | empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
-"Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates (`workspace/WorkspaceService.java:1079-1084`); `getAndRegisterUser` activates it on the person's first sign-in and finds it again, without activating, when they are added to a second workspace (`core/UserService.java:145-155`). Removing such a member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind (`core/UserService.java:543-552`, `workspace/WorkspaceService.java:436,563-568`). A record in any other non-active status is not revived. There is no route that creates a user outside a workspace.
+"Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates (`workspace/WorkspaceService.java:1074-1079`); `getAndRegisterUser` activates it on the person's first sign-in and finds it again, without activating, when they are added to a second workspace (`core/UserService.java:145-155`). Removing such a member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind (`core/UserService.java:543-552`, `workspace/WorkspaceService.java:431,558-563`). A record in any other non-active status is not revived. There is no route that creates a user outside a workspace.
 
 **The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an
 empty install is made only by the code in `flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time
@@ -189,8 +189,8 @@ IDPZero (`docker-compose.yml`, `application-local.properties`).
 stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR` (400): `global` takes none, `SERVICE` or `AGENT`, `key` any, `user`
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
-token of that principal (`workflow/WorkflowService.java:904`), and deleting a workspace revokes every token whose principal is the workspace's name,
-its reference everywhere (`workspace/WorkspaceService.java:402`). Only the SHA-256 hash of a raw token is stored
+token of that principal (`workflow/WorkflowService.java:925`), and deleting a workspace revokes every token whose principal is the workspace's name,
+its reference everywhere (`workspace/WorkspaceService.java:397`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:226-227,472-480`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:325`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:80`) — so a retired `bft_`/`bfw_` bearer never reaches MongoDB.
@@ -203,13 +203,13 @@ preset's permissions; an unknown role is `400 TOKEN_INVALID_PERMISSION` (`core/T
 cover, one in no workspace, holds only the self-service baseline (`TokenService.SELF_SERVICE_PERMISSIONS`), anchored to their own id, so the checks
 that key on a `global` grant never count it; `WorkspaceService.create` refuses a non-admin when the setting is off, since a workspace editor's
 `**/write` would pass the route's check. A member added again takes the new role on their one membership edge
-(`core/RelationshipService.java:892-908`); a membership edge without a role reads as `reader` (`:853-856`), and the
+(`core/RelationshipService.java:1073-1090`); a membership edge without a role reads as `reader` (`:997-1000`), and the
 upgrade from v3 gives each user `owner` on their personal workspace and `editor` on their teams
 (`migration/_0050__V3MembershipRoles.java:59-115`). Members and their roles are changed by an owner of the workspace
 (`workspace/delete` counting there), an admin or a `global` token, else `403 WORKSPACE_OWNER_REQUIRED`; a `PATCH` without `members` keeps `workspace/write`
-(`workspace/WorkspaceService.java:297-306,615-622`). A workspace that has an owner keeps one: a removal, a demotion or the last owner leaving is `400
-WORKSPACE_LAST_OWNER` (`:624-630`); deleting the workspace is unaffected. A member removed or leaving is taken out of the
-workspace's approver groups (`:562,593,597-613`), and a group approval also needs a current membership
+(`workspace/WorkspaceService.java:297-306,610-617`). A workspace that has an owner keeps one: a removal, a demotion or the last owner leaving is `400
+WORKSPACE_LAST_OWNER` (`:619-625`); deleting the workspace is unaffected. A member removed or leaving is taken out of the
+workspace's approver groups (`:557,588,592-608`), and a group approval also needs a current membership
 (`workflow/ActionService.java:155-158`); deleting a user takes them out of every group (`core/UserService.java:530-533`).
 
 ## Authorization: two layers
@@ -270,7 +270,7 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 
 | Routes | Whose grant counts | Where |
 | --- | --- | --- |
-| Every route under `/api/v2/workspace/{workspace}` | a `global` grant, one made to every principal (`**`), or a `workspace` grant for that workspace by id or name, which for a workflow's `key` token is its workflow's; never a self-service grant. Without one the answer is `403`, whether the workspace exists or not | `core/security/AuthCriteriaAuthorizationManager.java:155-162,179-188`, `RelationshipService.grantsIn` (`core/RelationshipService.java:540-601`) |
+| Every route under `/api/v2/workspace/{workspace}` | a `global` grant, one made to every principal (`**`), or a `workspace` grant for that workspace by id or name, which for a workflow's `key` token is its workflow's; never a self-service grant. Without one the answer is `403`, whether the workspace exists or not | `core/security/AuthCriteriaAuthorizationManager.java:155-162,179-188`, `RelationshipService.grantsIn` (`core/RelationshipService.java:601-662`) |
 | `POST /api/v2/token`, `DELETE /api/v2/token/{id}`, `GET /api/v2/token/query` | a `global` grant; for a `key` token, a `token/<action>` grant counting in its workspace (its workflow's, for a workflow's token); a personal or session token is its own user's. A refused mint is `TOKEN_ADMIN_REQUIRED` (403), a refused revoke answers as a missing token, the query lists only what the caller may manage | `core/TokenService.java:167-170,417-453,568-589,608-617` |
 | `POST /api/v2/webhook`, `/event`, `GET`/`POST /api/v2/callback` | `webhook/action` counting in the workflow's or the run's workspace, else the not-found answer | `event/WebhookEventService.java:81-136,206-212` |
 | `POST /api/v2/integration/{github,slack}/unlink`, `/{integration}/share`; the GitHub and Slack install callbacks | `integration/write` counting in the body's `workspace`; for a callback, held by the user its signed state names, resolved from their memberships now (`TokenService.userGrantsIn`, `core/TokenService.java:684-694`) | `integrations/GitHubService.java:398-404`, `SlackService.java:662-667`, `IntegrationService.java:150-155` |
@@ -279,51 +279,60 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 
 ### Layer 2 — `RelationshipService` on the data
 
-Services then ask whether the caller's node can reach the target through `rel_nodes`/`rel_edges` (node id = `type:ref`,
-labelled edges such as `memberOf`, `hasWorkflow`, `hasWorkflowRun`). Every answer reads live MongoDB, anchored at the
-caller's own node, with no in-memory graph and no cache beyond a per-HTTP-request memo of node resolutions
-(`core/RelationshipService.java:37-68`); memberships and edges are read again on every request, so a removed member
-is refused on the next one. The graph is `root → user|workspace|task`, `user → memberOf → workspace` and
-`workspace → workflow|workflowrun|workspacetask|approvergroup|integration`; no edge starts at a run or a workflow.
-`findNodes` (`core/RelationshipService.java:1047-1104`) answers these shapes directly and walks the rest level by
-level, one edge query and one node batch-load per level, following every edge whatever its label. A level reads edges
-as their two ends and nodes as type, ref and slug, never their data; when the lookup names its targets, the node read
-leaves out the target-type nodes it does not name, which the walk would neither return nor go past (`:1206-1220`):
+Services then ask whether the caller's node can reach the target through `rel_nodes`/`rel_edges` (node id =
+`type:ref`, labelled edges such as `memberOf`, `hasWorkflow`, `hasWorkflowRun`). Every answer reads live MongoDB,
+anchored at the caller's own node, with no in-memory graph and nothing kept from one request to the next
+(`core/RelationshipService.java:40-72`). One HTTP request memoises, in request attributes, the nodes it resolves and
+its caller's `memberOf` edges (`:169-237`): authentication reads the caller's memberships to resolve a session's grants
+(`core/TokenService.java:981-984`) and the walk, the run check and the profile use that one read, so a request sees
+one snapshot of them and a removed member is refused on the next request. `RelationshipService` is the only runtime
+writer of `rel_edges`, and each write of its that can touch a membership forgets the memoised ones, so a request that
+changes a membership sees its own change. Only the caller's own memberships are kept; another user's are read
+each time, and scheduler and engine threads have no request and read every time. The graph is `root →
+user|workspace|task`, `user → memberOf → workspace` and `workspace → workflow|workflowrun|workspacetask|approvergroup|integration`; every workspace hangs from `root` and no edge starts at
+a run or a workflow. `findNodes` (`core/RelationshipService.java:1249-1352`) answers the shapes below directly and walks the rest level by level,
+one edge query and one node batch-load per level. A level follows only the edges whose label lies on a path to the
+target type, computed from the allowed edge shapes (`labelsToward`, `:1017-1063`): a walk for approver groups follows
+`memberOf` then `hasApproverGroup` and reads no workflow edge, only a walk for runs reads a `hasWorkflowRun` edge, a
+walk for a type no shape reaches reads nothing, and a shape added to `EDGE_SHAPES` is followed without another change.
+Both reads are plain documents through `MongoTemplate`, never mapped to entities: edges as `from` and `to`, nodes as
+`_id`, type, ref and slug, and by name only the target nodes named (`:1266-1293,1477-1541`). `findNodes` builds
+entities without data only for the nodes it returns:
 
 | Lookup | What is read | Code |
 | --- | --- | --- |
-| Named runs, from a user or a workspace token (`check(WORKFLOWRUN, …)`), optionally confined to named workspaces | the run nodes, the edges into them, then the caller's edges to those runs' workspaces (none for a workspace token: its own node must be the parent) and those workspace nodes, matched against the confinement | `:1091-1097,1127-1170` |
-| Anything confined to named workspaces, from `root` | the walk starts at those workspaces: every workspace hangs from `root` and nothing under one is also a child of `root` | `:1071-1080` |
-| Anything confined to named workspaces, from a user | the walk starts at the user's own workspaces the confinement names, read from the user's edges now; the others lead to nothing it could return | `:1098-1120` |
-| The global task catalogue (`TASK` from `root`) | the root's `hasTask` edges and those task nodes; a workspace's own tasks are `workspacetask` nodes and never in it | `:1086-1090,1174-1202` |
-| Any other walk for something other than a run | the `hasWorkflowRun` edges are left out by the `from_label` index, so a workspace's runs are never read | `:1206-1211,1264` |
+| Named runs, from a user or a workspace token (`check(WORKFLOWRUN, …)`), optionally confined to named workspaces | the run nodes, the edges into them, then the caller's memberships (the request's one read; none for a workspace token: its own node must be the parent) and those runs' workspace nodes, matched against the confinement | `:1337-1345,1396-1443` |
+| Anything confined to named workspaces, from `root` | the walk starts at those workspaces | `:1310-1321` |
+| Anything confined to named workspaces, from a user | the walk starts at the user's own workspaces the confinement names, from the request's memberships; the others lead to nothing it could return | `:1346-1371` |
+| The global task catalogue (`TASK` from `root`) | the root's `hasTask` edges and those task nodes; a workspace's own tasks are `workspacetask` nodes and never in it | `:1327-1331,1447-1475` |
+| Every workspace, from `root` (an admin's or global token's list) | the root's `contains` edges and the workspace nodes among their ends; the users beside them are not read, nor their memberships | `:1332-1336,1375-1392` |
+| The number of workflows per workspace (the profile) | the workspaces the walk would descend from, then one aggregation counting their `hasWorkflow` edges on `from_label`; no workflow node | `:723-787` |
 
-`RelationshipLookupEquivalenceTest` holds the full walk as an oracle and pins that every lookup returns what it
-returned, for every token class and confinement; `RelationshipReadsDatabaseCommandsTest` pins that none depends on
-the number of runs. Because the walk follows any label, an edge widens access unless it joins nodes the graph
-already joins: the `linksTemplate` claim on a workspace's link to a template runs from the workspace to that link,
-beside its `hasWorkflow` edge (`core/RelationshipService.java:327-377`).
+`RelationshipLookupEquivalenceTest` holds the walk over every edge as an oracle and pins that every lookup returns what
+it returned, for every token class, type and confinement, with and without a request; `RelationshipReadsDatabaseCommandsTest`
+pins that none depends on the number of runs. An edge widens access unless it joins nodes the graph already joins: the
+`linksTemplate` claim runs from a workspace to its link to a template, beside its `hasWorkflow` edge (`:388-438`).
 
-| Token class | `check()` anchor (`:454-518`) | `filter()` anchor (`:729-769`) |
+| Token class | `check()` anchor (`:515-579`) | `filter()` anchor (`:876-916`) |
 | --- | --- | --- |
 | `session`, `user` | the `user:<principal>` node; one holding a `global` grant (an admin's or operator's session) **returns `true`** like a global token | same; a `global` grant anchors at `root`, so an admin lists every workspace |
 | `key` with `actorKind=WORKFLOW` | the `workflow:<principal>` node, which has no outgoing edge: it passes a check on its own workflow only, never on a run | same; anchors at `root` when reading its own workflow |
 | `key` (any other) | the `workspace:<principal>` node | same |
-| `global` | **returns `true` without walking** (`:509-511`) | anchors at `root`, so it sees every node of the type |
+| `global` | **returns `true` without walking** (`:573-575`) | anchors at `root`, so it sees every node of the type |
 
-`check()` first confirms some grant covers the resource type at all (`checkPermissions`, `:517-538`) — action
+`check()` first confirms some grant covers the resource type at all (`checkPermissions`, `:581-602`) — action
 granularity is layer 1's job. A failed `check()` returns `false` and counts `flow.security.denied` with
-`layer=relationship` (`:458-479`). Most callers answer with the object's not-found error, so a hidden object reads as a
+`layer=relationship` (`:522-544`). Most callers answer with the object's not-found error, so a hidden object reads as a
 missing one (for example `WORKSPACE_INVALID_REF`, HTTP 404); a few raise `PERMISSION_DENIED`, HTTP 403
 (`common/error/BoomerangError.java:27`). Workspace-scoped routes confine the object to the `{workspace}` path
 segment, as an intermediate containment (for example `workflow/WorkflowRunService.java:742-753`) or a walk from the
 workspace itself (`schedule/ScheduleService.java:89-99`, `workflow/ActionService.java:361-372`); a run purge follows the
 run's lineage only through runs the path workspace owns (`workflow/WorkflowRetentionService.java:182-221`). `filter()`
-for `TASK` always anchors at `root` — the task catalogue is global (`core/RelationshipService.java:736-740`).
+for `TASK` always anchors at `root` — the task catalogue is global (`core/RelationshipService.java:883-887`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:721-730,819-829`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:731-740,829-839`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
 parent (`workflow/WorkflowRunService.java:682-735,1045-1048,1112-1122`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).

@@ -19,7 +19,10 @@ import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -27,12 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -54,6 +59,7 @@ class RelationshipLookupEquivalenceTest {
 
   @Autowired private RelationshipNodeRepository nodeRepository;
   @Autowired private RelationshipEdgeRepository edgeRepository;
+  @Autowired private MongoTemplate template;
 
   private IdentityService identityService;
   private RelationshipService service;
@@ -65,7 +71,7 @@ class RelationshipLookupEquivalenceTest {
     identityService = mock(IdentityService.class);
     service =
         new RelationshipService(
-            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry());
+            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry(), template);
 
     node("root", "root", "root");
     for (String[] workspace :
@@ -243,16 +249,7 @@ class RelationshipLookupEquivalenceTest {
    */
   @Test
   void refsInWorkspacesPlacesWhatTheEdgesIntoTheFoundNodesPlacedForEveryTokenClass() {
-    List<List<String>> workspaceLists =
-        List.of(
-            List.of("alpha", "beta", "gamma"),
-            List.of("ws1", "ws3"),
-            List.of("ws1", "ws4"),
-            List.of("alpha", "ws1"),
-            List.of("system"),
-            List.of("nope", "beta"),
-            List.of("ws1", "ws2", "ws3", "ws4", "sys"),
-            List.of());
+    List<List<String>> workspaceLists = workspaceLists();
     int compared = 0;
     for (boolean memo : List.of(false, true)) {
       for (Token identity : identities()) {
@@ -273,6 +270,249 @@ class RelationshipLookupEquivalenceTest {
       }
     }
     assertThat(compared).isGreaterThan(1500);
+  }
+
+  /**
+   * A request that reads the caller's memberships once - as authentication does, before any lookup
+   * - answers every check, filter and placement as the walk does, and as a caller with no request,
+   * who reads them each time, is answered: for every token class, target type, named targets and
+   * none, and every confinement, all inside one request per token class.
+   */
+  @Test
+  void aRequestSharingOneReadOfItsMembershipsAnswersAsOneReadingThemEachTime() {
+    int compared = 0;
+    for (boolean memo : List.of(true, false)) {
+      for (Token identity : identities()) {
+        when(identityService.getCurrentIdentity()).thenReturn(identity);
+        // One request for everything this identity asks, its memberships read first.
+        request(memo);
+        assertThat(service.roles(identity.getPrincipal()))
+            .as("roles of %s (memo %s)", identity.getPrincipal(), memo)
+            .isEqualTo(rolesOracle(identity.getPrincipal()));
+        for (RelationshipType toType : targetTypes()) {
+          for (Optional<List<String>> toList : toLists(toType)) {
+            for (Map.Entry<Optional<RelationshipType>, Optional<List<String>>> confinement :
+                confinements()) {
+              String what =
+                  identity.getType() + ":" + identity.getPrincipal() + " " + toType + " " + toList
+                      + " via " + confinement.getValue() + " (memo " + memo + ")";
+              if (toList.isPresent()) {
+                assertThat(
+                        service.check(
+                            toType, toList.get(), confinement.getKey(), confinement.getValue()))
+                    .as("check " + what)
+                    .isEqualTo(
+                        checkOracle(
+                            identity, toType, toList.get(), confinement.getKey(),
+                            confinement.getValue()));
+              }
+              assertThat(
+                      service.filter(
+                          toType, toList, confinement.getKey(), confinement.getValue(), false))
+                  .as("filter " + what)
+                  .containsExactlyInAnyOrderElementsOf(
+                      filterOracle(
+                          identity, toType, toList, confinement.getKey(), confinement.getValue()));
+              compared++;
+            }
+          }
+          for (List<String> workspaces : workspaceLists()) {
+            assertThat(sorted(service.refsInWorkspaces(toType, workspaces)))
+                .as("%s %s in %s (memo %s)", identity.getPrincipal(), toType, workspaces, memo)
+                .isEqualTo(sorted(refsInWorkspacesOracle(identity, toType, workspaces)));
+            compared++;
+          }
+        }
+        assertThat(service.roles(identity.getPrincipal()))
+            .isEqualTo(rolesOracle(identity.getPrincipal()));
+      }
+    }
+    assertThat(compared).isGreaterThan(8000);
+  }
+
+  /**
+   * The profile's workflow count per workspace is the number {@code refsInWorkspaces} lists there,
+   * for every token class - a plain user, an admin, a global token, a workspace token, a workflow
+   * token and the security-off identity - and every list of workspaces, with and without a request.
+   */
+  @Test
+  void theWorkflowCountPerWorkspaceIsWhatTheListingListsForEveryTokenClass() {
+    int compared = 0;
+    int counted = 0;
+    for (boolean memo : List.of(false, true)) {
+      for (Token identity : identities()) {
+        when(identityService.getCurrentIdentity()).thenReturn(identity);
+        for (List<String> workspaces : workspaceLists()) {
+          request(memo);
+          Map<String, Long> counts = service.workflowCountsInWorkspaces(workspaces);
+          request(memo);
+          Map<String, Long> listed = new HashMap<>();
+          service
+              .refsInWorkspaces(RelationshipType.WORKFLOW, workspaces)
+              .forEach((workspace, refs) -> listed.put(workspace, (long) refs.size()));
+          Map<String, Long> expected = new HashMap<>();
+          refsInWorkspacesOracle(identity, RelationshipType.WORKFLOW, workspaces)
+              .forEach((workspace, refs) -> expected.put(workspace, (long) refs.size()));
+          assertThat(counts)
+              .as(
+                  "%s:%s counts in %s (memo %s)",
+                  identity.getType(), identity.getPrincipal(), workspaces, memo)
+              .isEqualTo(listed)
+              .isEqualTo(expected);
+          compared++;
+          counted += counts.size();
+        }
+      }
+    }
+    assertThat(compared).isGreaterThan(150);
+    assertThat(counted).isGreaterThan(100);
+  }
+
+  /**
+   * The Workflows page takes its workflows from the lookup by name when the request names any, and
+   * from the workspace's nodes when it names none. Each is what the walk finds, for every token
+   * class, workspace and naming - a workflow's own token naming itself among them. For that token
+   * only the lookup by name finds its workflow, so narrowing the unnamed nodes is not a substitute.
+   */
+  @Test
+  void aWorkspacesWorkflowsNamedOrNotAreTheWalksForEveryTokenClass() {
+    Optional<RelationshipType> inWorkspace = Optional.of(RelationshipType.WORKSPACE);
+    int compared = 0;
+    for (boolean memo : List.of(false, true)) {
+      for (Token identity : identities()) {
+        when(identityService.getCurrentIdentity()).thenReturn(identity);
+        List<Optional<List<String>>> namings = new ArrayList<>(toLists(RelationshipType.WORKFLOW));
+        namings.add(Optional.of(List.of(identity.getPrincipal())));
+        namings.add(Optional.of(List.of(identity.getPrincipal(), "wf1", "build")));
+        for (String workspace : List.of("alpha", "ws2", "gamma", "delta", "system", "nope")) {
+          for (Optional<List<String>> names : namings) {
+            request(memo);
+            List<String> page =
+                names.isPresent()
+                    ? service.refsInWorkspace(RelationshipType.WORKFLOW, workspace, names)
+                    : service.nodesInWorkspace(RelationshipType.WORKFLOW, workspace).stream()
+                        .map(RelationshipNodeEntity::getRef)
+                        .toList();
+            assertThat(page)
+                .as(
+                    "%s:%s workflows %s in %s (memo %s)",
+                    identity.getType(), identity.getPrincipal(), names, workspace, memo)
+                .containsExactlyInAnyOrderElementsOf(
+                    filterOracle(
+                        identity, RelationshipType.WORKFLOW, names, inWorkspace,
+                        Optional.of(List.of(workspace))));
+            compared++;
+          }
+        }
+      }
+    }
+    assertThat(compared).isGreaterThan(1500);
+
+    Token ownToken = token(AuthScope.key, "wf1");
+    ownToken.setActorKind(TokenActorKind.WORKFLOW);
+    when(identityService.getCurrentIdentity()).thenReturn(ownToken);
+    assertThat(service.refsInWorkspace(RelationshipType.WORKFLOW, "alpha", Optional.of(List.of("wf1"))))
+        .containsExactly("wf1");
+    assertThat(service.nodesInWorkspace(RelationshipType.WORKFLOW, "alpha")).isEmpty();
+  }
+
+  /** The nodes of a workspace a caller sees are the ones its refs name, with their names. */
+  @Test
+  void nodesInWorkspaceAreTheNodesRefsInWorkspaceNames() {
+    for (Token identity : identities()) {
+      when(identityService.getCurrentIdentity()).thenReturn(identity);
+      for (RelationshipType type : targetTypes()) {
+        for (String workspace : List.of("alpha", "ws2", "gamma", "delta", "system", "nope")) {
+          request(true);
+          List<RelationshipNodeEntity> nodes = service.nodesInWorkspace(type, workspace);
+          assertThat(nodes.stream().map(RelationshipNodeEntity::getRef))
+              .as("%s %s in %s", identity.getPrincipal(), type, workspace)
+              .containsExactlyInAnyOrderElementsOf(
+                  filterOracle(
+                      identity,
+                      type,
+                      Optional.empty(),
+                      Optional.of(RelationshipType.WORKSPACE),
+                      Optional.of(List.of(workspace))));
+          for (RelationshipNodeEntity node : nodes) {
+            RelationshipNodeEntity stored = nodeRepository.findById(node.getId()).orElseThrow();
+            assertThat(List.of(node.getType(), node.getRef(), node.getSlug()))
+                .containsExactly(stored.getType(), stored.getRef(), stored.getSlug());
+          }
+        }
+      }
+    }
+    assertThat(
+            service.childIdsByLabel(
+                RelationshipType.WORKSPACE, "alpha", RelationshipLabel.HAS_WORKFLOW))
+        .containsExactlyInAnyOrder("workflow:wf1", "workflow:lnk");
+    assertThat(
+            service.childIdsByLabel(
+                RelationshipType.WORKSPACE, "nope", RelationshipLabel.HAS_WORKFLOW))
+        .isEmpty();
+  }
+
+  /**
+   * The labels a walk level follows are computed from the edge shapes: for every pair of types,
+   * exactly the labels of the shapes that leave the one and from whose far end the other is
+   * reached, worked out here by following the shapes one at a time. None for a type no shape
+   * reaches.
+   */
+  @Test
+  @SuppressWarnings("unchecked")
+  void theLabelsAWalkFollowsAreTheShapesThatLeadToItsTarget() throws Exception {
+    Field shapesField = RelationshipService.class.getDeclaredField("EDGE_SHAPES");
+    shapesField.setAccessible(true);
+    List<String[]> shapes =
+        ((Set<String>) shapesField.get(null)).stream().map(shape -> shape.split("\\|")).toList();
+    Method labelsToward =
+        RelationshipService.class.getDeclaredMethod("labelsToward", Collection.class, String.class);
+    labelsToward.setAccessible(true);
+
+    for (RelationshipType from : RelationshipType.values()) {
+      for (RelationshipType to : RelationshipType.values()) {
+        Set<String> expected = new TreeSet<>();
+        for (String[] shape : shapes) {
+          if (shape[0].equals(from.getLabel())
+              && reachesByShapes(shapes, shape[2], to.getLabel(), new HashSet<>())) {
+            expected.add(shape[1]);
+          }
+        }
+        assertThat(
+                new TreeSet<>(
+                    (Set<String>)
+                        labelsToward.invoke(null, List.of(from.getLabel()), to.getLabel())))
+            .as("%s toward %s", from, to)
+            .isEqualTo(expected);
+      }
+    }
+    assertThat((Set<String>) labelsToward.invoke(null, List.of("user"), "approvergroup"))
+        .containsExactlyInAnyOrder("memberOf");
+    assertThat((Set<String>) labelsToward.invoke(null, List.of("workspace"), "approvergroup"))
+        .containsExactlyInAnyOrder("hasApproverGroup");
+    assertThat((Set<String>) labelsToward.invoke(null, List.of("workspace"), "workflow"))
+        .containsExactlyInAnyOrder("hasWorkflow", "linksTemplate");
+    assertThat((Set<String>) labelsToward.invoke(null, List.of("root", "user"), "schedule"))
+        .isEmpty();
+    assertThat((Set<String>) labelsToward.invoke(null, List.of("workflow"), "workflowrun"))
+        .isEmpty();
+  }
+
+  // Whether a node of the type is, or leads by the shapes to, a node of the target type.
+  private static boolean reachesByShapes(
+      List<String[]> shapes, String type, String target, Set<String> visited) {
+    if (type.equals(target)) {
+      return true;
+    }
+    if (!visited.add(type)) {
+      return false;
+    }
+    for (String[] shape : shapes) {
+      if (shape[0].equals(type) && reachesByShapes(shapes, shape[2], target, visited)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Named cases ────────────────────────────────────────────────────────────
@@ -330,6 +570,126 @@ class RelationshipLookupEquivalenceTest {
                 RelationshipType.WORKFLOWRUN, "r2a", Optional.empty(), Optional.empty()))
         .isFalse();
     assertThat(runIn("r1a", "alpha")).isTrue();
+  }
+
+  /**
+   * A member removed by someone else is denied on the next request. The request that had already
+   * read its memberships keeps the one snapshot it took, as it keeps its node resolutions.
+   */
+  @Test
+  void aMemberRemovedBetweenTwoRequestsIsDeniedOnTheSecond() {
+    asSession("u3");
+    request(true);
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2", "ws3");
+    assertThat(runIn("r2a", "beta")).isTrue();
+    assertThat(workflowsIn("beta")).containsExactly("wf2");
+
+    // Another request, on another instance, removes the membership: straight from the store.
+    edgeRepository.deleteByFromAndTo("user:u3", "workspace:ws2");
+
+    assertThat(workflowsIn("beta")).as("the request in flight keeps its snapshot").containsExactly("wf2");
+    request(true);
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws3");
+    assertThat(runIn("r2a", "beta")).isFalse();
+    assertThat(workflowsIn("beta")).isEmpty();
+    assertThat(service.check(RelationshipType.WORKSPACE, "ws2", Optional.empty(), Optional.empty()))
+        .isFalse();
+    assertThat(service.workflowCountsInWorkspaces(List.of("alpha", "beta", "gamma")))
+        .containsOnlyKeys("alpha", "gamma");
+    assertThat(workflowsIn("alpha")).containsExactlyInAnyOrder("wf1", "lnk");
+
+    // With no request there is nothing to keep: every lookup reads the memberships again.
+    request(false);
+    assertThat(workflowsIn("gamma")).containsExactly("wf3");
+    edgeRepository.deleteByFromAndTo("user:u3", "workspace:ws3");
+    assertThat(workflowsIn("gamma")).isEmpty();
+  }
+
+  /**
+   * A request keeps its own caller's memberships only: those read before the request has an
+   * identity, as authentication reads them, are the ones the caller's lookups then use, while a
+   * read with no identity, or of another user's memberships, goes to the store every time.
+   */
+  @Test
+  void aRequestKeepsOnlyItsOwnCallersMemberships() {
+    request(true);
+    when(identityService.getCurrentIdentity()).thenReturn(null);
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2", "ws3");
+    edgeRepository.deleteByFromAndTo("user:u3", "workspace:ws3");
+    // With no identity yet, each read is the store's.
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2");
+    edgeRepository.deleteByFromAndTo("user:u3", "workspace:ws2");
+
+    // The identity authentication establishes takes the last read made for it.
+    asSession("u3");
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2");
+    assertThat(workflowsIn("beta")).containsExactly("wf2");
+
+    // Another caller on the same request reads u3's memberships, and its own, from the store.
+    asSession("u1");
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1");
+    assertThat(service.roles("u1")).containsOnlyKeys("ws1");
+    edgeRepository.deleteByFromAndTo("user:u3", "workspace:ws1");
+    assertThat(service.roles("u3")).isEmpty();
+    // A workspace token's principal names no user: nothing of a user's is kept for it.
+    asWorkspaceToken("u3");
+    member("u3", "ws4");
+    assertThat(service.roles("u3")).containsOnlyKeys("ws4");
+  }
+
+  /**
+   * A request that changes a membership itself sees the change at once, whichever write made it:
+   * a removal, a new member, a role change, a membership edge created or updated directly, and a
+   * workspace removed.
+   */
+  @Test
+  void aRequestThatChangesAMembershipSeesItsOwnChange() {
+    asSession("u3");
+    request(true);
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2", "ws3");
+    assertThat(workflowsIn("delta")).isEmpty();
+
+    service.setMemberRole("u3", "ws4", "owner");
+    assertThat(service.roles("u3")).containsEntry("ws4", "owner");
+    assertThat(workflowsIn("delta")).containsExactly("wf4");
+    assertThat(runIn("r4a", "delta")).isTrue();
+
+    service.setMemberRole("u3", "ws4", "reader");
+    assertThat(service.roles("u3")).containsEntry("ws4", "reader");
+
+    service.updateEdgeData(
+        RelationshipType.USER, "u3", RelationshipType.WORKSPACE, "ws4", Map.of("role", "editor"));
+    assertThat(service.roles("u3")).containsEntry("ws4", "editor");
+
+    service.removeEdge(RelationshipType.USER, "u3", RelationshipType.WORKSPACE, "ws4");
+    assertThat(service.roles("u3")).containsOnlyKeys("ws1", "ws2", "ws3");
+    assertThat(workflowsIn("delta")).isEmpty();
+    assertThat(runIn("r4a", "delta")).isFalse();
+
+    service.createEdge(
+        RelationshipType.USER, "u3", RelationshipLabel.MEMBER_OF, RelationshipType.WORKSPACE, "sys",
+        Optional.of(Map.of("role", "owner")));
+    assertThat(service.roles("u3")).containsEntry("sys", "owner");
+    assertThat(workflowsIn("system")).containsExactly("tpl");
+
+    // The current principal's own overloads: leaving, and joining again.
+    service.removeEdge(RelationshipType.WORKSPACE, "ws1");
+    assertThat(service.roles("u3")).doesNotContainKey("ws1");
+    assertThat(workflowsIn("alpha")).isEmpty();
+    service.createEdge(RelationshipType.WORKSPACE, "ws1", Optional.of(Map.of("role", "reader")));
+    assertThat(workflowsIn("alpha")).containsExactlyInAnyOrder("wf1", "lnk");
+    service.updateEdgeData(RelationshipType.WORKSPACE, "ws1", Map.of("role", "owner"));
+    assertThat(service.roles("u3")).containsEntry("ws1", "owner");
+
+    service.removeNodeAndEdgeByRef(RelationshipType.WORKSPACE, "ws2");
+    assertThat(service.roles("u3")).doesNotContainKey("ws2");
+    assertThat(workflowsIn("beta")).isEmpty();
+
+    // A workspace created with its creator as its first member.
+    service.createNodeAndEdge(
+        RelationshipType.USER, "u3", RelationshipLabel.MEMBER_OF, RelationshipType.WORKSPACE, "ws9",
+        "iota", Optional.empty(), Optional.of(Map.of("role", "owner")));
+    assertThat(service.roles("u3")).containsEntry("ws9", "owner");
   }
 
   @Test
@@ -632,7 +992,10 @@ class RelationshipLookupEquivalenceTest {
         RelationshipType.WORKSPACETASK,
         RelationshipType.APPROVERGROUP,
         RelationshipType.INTEGRATION,
-        RelationshipType.USER);
+        RelationshipType.USER,
+        // No edge shape runs to a schedule or to the root: a walk for one follows no label.
+        RelationshipType.SCHEDULE,
+        RelationshipType.ROOT);
   }
 
   // No list, an empty one, an unknown name, and per type single and mixed refs and names.
@@ -680,6 +1043,27 @@ class RelationshipLookupEquivalenceTest {
         Map.entry(Optional.of(RelationshipType.USER), Optional.of(List.of("u3"))),
         Map.entry(Optional.of(RelationshipType.WORKFLOWRUN), Optional.of(List.of("r1a"))),
         Map.entry(Optional.of(RelationshipType.WORKFLOW), Optional.of(List.of("wf1"))));
+  }
+
+  private static List<List<String>> workspaceLists() {
+    return List.of(
+        List.of("alpha", "beta", "gamma"),
+        List.of("ws1", "ws3"),
+        List.of("ws1", "ws4"),
+        List.of("alpha", "ws1"),
+        List.of("system"),
+        List.of("nope", "beta"),
+        List.of("ws1", "ws2", "ws3", "ws4", "sys"),
+        List.of());
+  }
+
+  // A user's workspaces and roles, straight from the stored memberOf edges.
+  private Map<String, String> rolesOracle(String principal) {
+    Map<String, String> roles = new HashMap<>();
+    for (RelationshipEdgeEntity edge : edgeRepository.findByFromAndLabel("user:" + principal, "memberOf")) {
+      roles.putIfAbsent(edge.getTo().split(":")[1], edge.getData().getOrDefault("role", "reader"));
+    }
+    return roles;
   }
 
   private List<Token> identities() {

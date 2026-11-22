@@ -7,13 +7,25 @@ tag's release notes.
 
 ### Changed
 
-- **Listing a member's workflows across many workspaces takes half the memory.** The profile and the workspace
-  list place each workflow and approver group under its workspace from the edges the access check already
-  followed, instead of reading all of those edges a second time, and every access check reads relationship nodes
-  and edges without their data; a lookup of a workflow by name reads only that workflow's node, not every
-  workflow's in the workspace. For a member of 100 workspaces of 200 workflows, the profile's listing takes 137 ms
-  instead of 238 ms, returns 4.99 MB instead of 13.9 MB and allocates 117 MB instead of 245 MB per request. Who
-  can see what is unchanged, and memberships and grants are still read on every request.
+- **Permission checks read far less on a large install.** Who can see what is unchanged, and grants and memberships
+  are still read on every request. Measured for a member of 100 workspaces of 200 workflows each, on a 1.12 million
+  node relationship graph:
+  - The profile counts each workspace's workflows on the edge index instead of listing them: 21.8 ms, 64 KB
+    returned and 1.4 MB allocated per request, where 5.0.0 took 238 ms, 13.9 MB and 245 MB.
+  - An access check follows only the relationship labels that lead to what it looks for, and reads nodes and edges
+    as plain documents without their data. The same member's approver groups take 6.0 ms and 701 documents, where
+    5.0.0 read every workflow edge and node to find them; a listing of every workflow the member can see takes
+    92 ms, 4.50 MB returned and 46.6 MB allocated instead of 238 ms, 13.9 MB and 245 MB; a lookup of a workflow
+    by name reads that workflow's node, not every workflow's in the workspace.
+  - A request reads its caller's memberships once, when it authenticates, and every check in that request uses
+    that read. A member removed from a workspace is refused from their next request, as before.
+  - An admin's list of every workspace no longer reads every user and membership: 3,002 documents in 8.2 ms for
+    500 workspaces and 2,001 users, instead of 11,403 documents.
+  - The Workflows page finds a workspace's workflows in one walk and no longer loads each workflow to list the
+    templates beside them; deleting a workspace resolves its workflows once instead of once per workflow; platform
+    Insights with no workspace named reads every workspace's workflows in two queries instead of three per workspace.
+  - In the webapp, an open run page refreshes only the run every 5 seconds instead of reloading the profile,
+    features, navigation and starters with it, and Home's first load reads the profile once instead of twice.
 
 ## 5.0.0 (2026-11-17)
 

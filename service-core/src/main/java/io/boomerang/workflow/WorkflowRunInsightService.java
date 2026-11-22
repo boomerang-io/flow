@@ -356,16 +356,25 @@ public class WorkflowRunInsightService {
    */
   private Map<String, String> workflowRefsAcross(
       Optional<List<String>> workspaces, Optional<List<String>> workflows) {
+    boolean everyWorkspace = workspaces.filter(list -> !list.isEmpty()).isEmpty();
     List<String> names =
-        workspaces
-            .filter(list -> !list.isEmpty())
-            .orElseGet(
-                () -> workspaceRepository.findAll().stream().map(WorkspaceEntity::getName).toList());
+        everyWorkspace
+            ? workspaceRepository.findAll().stream().map(WorkspaceEntity::getName).toList()
+            : workspaces.get();
+    // Every workspace's workflows come in one edge query and one node query, not three for each
+    // workspace; a list the caller names is read as named, one workspace at a time.
+    Map<String, List<RelationshipNodeEntity>> children =
+        everyWorkspace
+            ? relationshipService.childrenByLabel(
+                RelationshipType.WORKSPACE, names, RelationshipLabel.HAS_WORKFLOW)
+            : Map.of();
     Map<String, String> refs = new LinkedHashMap<>();
     for (String workspace : names) {
       for (RelationshipNodeEntity node :
-          relationshipService.childrenByLabel(
-              RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW)) {
+          everyWorkspace
+              ? children.getOrDefault(workspace, List.of())
+              : relationshipService.childrenByLabel(
+                  RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW)) {
         if (workflows.isEmpty()
             || workflows.get().isEmpty()
             || workflows.get().contains(node.getSlug())

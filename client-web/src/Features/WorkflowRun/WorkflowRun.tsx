@@ -3,7 +3,7 @@ import { ErrorMessage, Loading } from "@boomerang-io/carbon-addons-boomerang-rea
 import { formatErrorMessage } from "@boomerang-io/utils";
 import queryString from "query-string";
 import { Helmet } from "react-helmet";
-import { useLoaderData, useNavigate, useRevalidator } from "react-router-dom";
+import { useFetcher, useLoaderData, useLocation, useNavigate, useRevalidator } from "react-router-dom";
 import { Box } from "reflexbox";
 import ReactFlow from "Features/Reactflow";
 import { useWorkspaceContext, RunContextProvider } from "State/context";
@@ -303,31 +303,69 @@ export async function action({
 export default function WorkflowRunFeature() {
   const { workspace } = useWorkspaceContext();
   const navigate = useNavigate();
-  const { workflowRun, workflow, tasks, workspaceTasks, actions, artifacts, errorLoading } =
-    useLoaderData() as LoaderData;
+  const location = useLocation();
+  const loaderData = useLoaderData() as LoaderData;
+  const fetcher = useFetcher<LoaderData>();
   const revalidator = useRevalidator();
+
+  /*
+   * Live status. The loader supplies the initial data and a fetcher re-runs this route's loader
+   * (and only this route's) on an interval, replacing react-query's `refetchInterval: 5000`.
+   * A global revalidate would re-run every loader on the page too - the root bootstrap (profile,
+   * features, navigation, starters) and the workspace record - five seconds apart for as long as
+   * the page is open.
+   *
+   * A poll result is only used while the loader data it was fetched against is still the
+   * current one: a navigation or an action revalidation (retry, approve, cancel...) replaces the
+   * loader data, which is newer than anything fetched before it, and the next tick starts again
+   * from there. The fetcher is read through a ref so the interval is created once per
+   * terminal-state change rather than restarted on every fetcher state change, and a tick while
+   * a poll is still in flight is skipped rather than stacked.
+   */
+  const [polled, setPolled] = React.useState<{ base: LoaderData; data: LoaderData } | null>(null);
+  const pollBase = React.useRef(loaderData);
+  const fetcherRef = React.useRef(fetcher);
+  fetcherRef.current = fetcher;
+  const locationRef = React.useRef(location);
+  locationRef.current = location;
+  const loaderDataRef = React.useRef(loaderData);
+  loaderDataRef.current = loaderData;
+
+  React.useEffect(() => {
+    if (fetcher.data) {
+      setPolled({ base: pollBase.current, data: fetcher.data });
+    }
+  }, [fetcher.data]);
+
+  const { workflowRun, workflow, tasks, workspaceTasks, actions, artifacts, errorLoading } =
+    polled && polled.base === loaderData ? polled.data : loaderData;
 
   const isTerminal = workflowRun ? TERMINAL_STATUSES.includes(workflowRun.status) : true;
 
   /*
-   * Live status. The loader supplies the initial data and useRevalidator re-runs it on an
-   * interval, replacing react-query's `refetchInterval: 5000` - a route loader is the single
-   * fetch path now, so a parallel client query would both duplicate it and desync the two.
-   * The revalidator is read through a ref so the interval is created once per terminal-state
-   * change rather than being torn down and restarted on every `revalidator.state` transition
-   * (which, at a 5s period, could starve the poll). A tick while a revalidation is still in
-   * flight is skipped rather than stacked.
+   * A poll that comes back with no run - a session that expired, a member removed from the
+   * workspace - is the one poll result the rest of the app has to hear about: only the root
+   * loader can tell signed out from an error. It is revalidated once; the loader data that
+   * comes back replaces this poll result, and with no run there is no next tick.
    */
+  const pollFailed =
+    polled !== null && polled.base === loaderData && Boolean(polled.data.errorLoading) && !polled.data.workflowRun;
   const revalidatorRef = React.useRef(revalidator);
   revalidatorRef.current = revalidator;
+  React.useEffect(() => {
+    if (pollFailed) {
+      revalidatorRef.current.revalidate();
+    }
+  }, [pollFailed]);
 
   React.useEffect(() => {
     if (isTerminal) {
       return;
     }
     const intervalId = setInterval(() => {
-      if (revalidatorRef.current.state === "idle") {
-        revalidatorRef.current.revalidate();
+      if (fetcherRef.current.state === "idle") {
+        pollBase.current = loaderDataRef.current;
+        fetcherRef.current.load(`${locationRef.current.pathname}${locationRef.current.search}`);
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);

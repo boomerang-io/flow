@@ -25,8 +25,12 @@ import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.DatabaseCommands;
+import io.boomerang.workspace.entity.WorkspaceEntity;
+import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +52,7 @@ class GlobalInsightsTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowRunInsightService insightService;
   @Autowired private WorkflowRepository workflowRepository;
   @Autowired private IdentityService identityService;
+  @Autowired private WorkspaceRepository workspaceRepository;
 
   private final String label = "source-" + System.nanoTime();
 
@@ -82,6 +87,28 @@ class GlobalInsightsTest extends AbstractEngineIntegrationTest {
     assertThat(across.getTotals().getFailed()).isEqualTo(1);
     assertThat(across.getWorkflows()).hasSize(2);
     assertThat(across.getPreviousFrom()).isEqualTo(new Date(from.getTime() - 86_400_000L));
+
+    // With no workspace named, every workspace's workflows are read together: the same answer
+    // for this test's runs, from one edge query however many workspaces the install holds.
+    List<WorkspaceEntity> stored = new ArrayList<>();
+    for (String name : List.of(first, second)) {
+      WorkspaceEntity workspace = new WorkspaceEntity();
+      workspace.setName(name);
+      stored.add(workspaceRepository.save(workspace));
+    }
+    DatabaseCommands.Recorded<WorkflowRunInsightSummary> everywhere =
+        DatabaseCommands.record(
+            () ->
+                insightService.summaryAcross(
+                    Optional.empty(), from, to, Optional.empty(),
+                    Optional.of(List.of(label + "=yes")), Optional.empty(), Optional.empty()));
+    workspaceRepository.deleteAll(stored);
+    assertThat(everywhere.result().getTotals().getRuns()).isEqualTo(4);
+    assertThat(everywhere.result().getWorkflows()).hasSize(2);
+    assertThat(
+            everywhere.names().stream()
+                .filter(name -> name.startsWith("find ") && name.endsWith("rel_edges")))
+        .hasSize(1);
 
     WorkflowRunInsightTasks tasks =
         insightService.tasksAcross(

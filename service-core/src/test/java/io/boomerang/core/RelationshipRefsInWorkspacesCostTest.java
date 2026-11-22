@@ -146,7 +146,7 @@ class RelationshipRefsInWorkspacesCostTest {
     IdentityService identityService = mock(IdentityService.class);
     service =
         new RelationshipService(
-            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry());
+            nodeRepository, edgeRepository, identityService, new SimpleMeterRegistry(), template);
     Token token = new Token(AuthScope.session);
     token.setPrincipal("member");
     token.setPermissions(
@@ -168,7 +168,7 @@ class RelationshipRefsInWorkspacesCostTest {
                 .as(workspace)
                 .containsExactlyInAnyOrderElementsOf(refs));
 
-    long children = (long) WORKSPACES * (WORKFLOWS + OTHER_CHILDREN);
+    long workflowsFound = (long) WORKSPACES * WORKFLOWS;
     long allocated = allocatedPerCall(listing);
     System.out.printf(
         "REL COST | listing %d workspaces | %s | %d edges | %d nodes | %d reply bytes"
@@ -179,19 +179,171 @@ class RelationshipRefsInWorkspacesCostTest {
         recorded.documentsRead("rel_nodes"),
         recorded.replyBytes(),
         allocated);
-    // The memberships and each workspace's non-run edges, once: no edge is read again to place a
-    // workflow under its workspace.
-    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES + children);
-    // The member, the workspaces named (twice: as named and as the member's), and their non-run
-    // children; no run.
-    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 2L * WORKSPACES + children);
-    // Seven queries, the larger two continued by a getMore each: the workspaces as named, the
-    // member, the member's edges, the member's workspaces, their edges, their children, and the
-    // children's own edges (none). Before, an eighth re-read every edge into the workflows found.
-    assertThat(recorded.names().stream().filter(name -> name.startsWith("find "))).hasSize(7);
-    // Nodes and edges come back as their ends, refs and names, each mapped once: about 6.7 KB per
-    // workflow found, where re-reading the edges into whole nodes took about 13.6 KB.
-    assertThat(allocated).isLessThan(WORKSPACES * WORKFLOWS * 9_000L);
+    // The memberships and each workspace's edges to a workflow, once: no edge of another label
+    // is read, and none is read again to place a workflow under its workspace.
+    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES + workflowsFound);
+    // The member, the workspaces named (twice: as named and as the member's), and the workflows;
+    // no run, and no child of another kind.
+    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 2L * WORKSPACES + workflowsFound);
+    // Six queries, the larger two continued by a getMore each: the workspaces as named, the
+    // member, the member's edges, the member's workspaces, their workflow edges and the workflows.
+    // The workflows are the target, so nothing is asked of them.
+    assertThat(recorded.names().stream().filter(name -> name.startsWith("find "))).hasSize(6);
+    // Nodes and edges are read as documents, never mapped to entities: about 2.6 KB per workflow
+    // found, where mapping each to an entity took about 6.7 KB.
+    assertThat(allocated).isLessThan(WORKSPACES * WORKFLOWS * 4_000L);
+  }
+
+  @Test
+  void listingApproverGroupsReadsNoWorkflowEdgeAndNoWorkflow() {
+    Supplier<Map<String, List<String>>> listing =
+        () -> service.refsInWorkspaces(RelationshipType.APPROVERGROUP, workspaces);
+
+    Recorded<Map<String, List<String>>> recorded = inRequest(() -> DatabaseCommands.record(listing));
+    long groups = (long) WORKSPACES * (OTHER_CHILDREN / 3);
+    assertThat(recorded.result()).hasSize(WORKSPACES);
+    assertThat(recorded.result().values().stream().mapToLong(List::size).sum()).isEqualTo(groups);
+    System.out.printf(
+        "REL COST | approver groups of %d workspaces | %s | %d edges | %d nodes | %d reply bytes%n",
+        WORKSPACES,
+        recorded.names(),
+        recorded.documentsRead("rel_edges"),
+        recorded.documentsRead("rel_nodes"),
+        recorded.replyBytes());
+    // The memberships and each workspace's approver-group edges: none of its 50 workflow edges.
+    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES + groups);
+    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 2L * WORKSPACES + groups);
+  }
+
+  @Test
+  void countingTheWorkflowsOfAHundredWorkspacesReadsNoWorkflow() {
+    Supplier<Map<String, Long>> counting = () -> service.workflowCountsInWorkspaces(workspaces);
+
+    Recorded<Map<String, Long>> recorded = inRequest(() -> DatabaseCommands.record(counting));
+    assertThat(recorded.result()).hasSize(WORKSPACES);
+    assertThat(recorded.result().values()).containsOnly((long) WORKFLOWS);
+    long allocated = allocatedPerCall(counting);
+    System.out.printf(
+        "REL COST | counting %d workspaces | %s | %d edges | %d nodes | %d reply bytes"
+            + " | %d bytes allocated per call%n",
+        WORKSPACES,
+        recorded.names(),
+        recorded.documentsRead("rel_edges"),
+        recorded.documentsRead("rel_nodes"),
+        recorded.replyBytes(),
+        allocated);
+    // The member and the workspaces named, as named and as the member's: no workflow node.
+    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 2L * WORKSPACES);
+    // The memberships: the aggregation returns a count for each workspace and no workflow edge.
+    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES);
+    assertThat(recorded.names().stream().filter(name -> name.startsWith("aggregate "))).hasSize(1);
+    assertThat(recorded.names().stream().filter(name -> name.startsWith("find "))).hasSize(4);
+    // In proportion to the workspaces, not to their workflows: about 14 KB for each, the
+    // workspace's node and the membership read whole.
+    assertThat(allocated).isLessThan(WORKSPACES * 25_000L);
+  }
+
+  /**
+   * One request reads the caller's memberships once, however many lookups it makes: the roles
+   * authentication resolves, a workspace check, a workflow listing and the profile's counts.
+   */
+  @Test
+  void aRequestReadsTheCallersMembershipsOnce() {
+    Recorded<Boolean> recorded =
+        inRequest(
+            () ->
+                DatabaseCommands.record(
+                    () -> {
+                      assertThat(service.roles("member")).hasSize(WORKSPACES);
+                      assertThat(
+                              service.refsInWorkspace(
+                                  RelationshipType.WORKFLOW, workspaces.get(1), Optional.empty()))
+                          .hasSize(WORKFLOWS);
+                      assertThat(service.workflowCountsInWorkspaces(workspaces)).hasSize(WORKSPACES);
+                      assertThat(service.roles("member")).hasSize(WORKSPACES);
+                      return service.check(
+                          RelationshipType.WORKSPACE, workspaces.get(0), Optional.empty(),
+                          Optional.empty());
+                    }));
+    assertThat(recorded.result()).isTrue();
+    // The hundred memberships once, and one workspace's fifty workflow edges.
+    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES + WORKFLOWS);
+  }
+
+  /** The two reads of a walk level are answered by the from_label index and the _id index. */
+  @Test
+  void aWalkLevelsReadsUseTheFromLabelAndIdIndexes() {
+    String edges = template.getCollectionName(RelationshipEdgeEntity.class);
+    String nodes = template.getCollectionName(RelationshipNodeEntity.class);
+    List<String> workspaceIds = new ArrayList<>();
+    template
+        .getCollection(nodes)
+        .find(new Document("type", "workspace"))
+        .forEach(node -> workspaceIds.add(node.getString("_id")));
+
+    Document level =
+        explain(
+            edges,
+            new Document("from", new Document("$in", workspaceIds))
+                .append("label", new Document("$in", List.of("hasWorkflow", "linksTemplate"))),
+            new Document("from", 1).append("to", 1).append("_id", 0));
+    assertThat(level.get("queryPlanner", Document.class).toJson()).contains("\"from_label\"");
+    Document levelStats = level.get("executionStats", Document.class);
+    // Only the workflow edges are fetched: no run edge and no edge of another label.
+    assertThat(levelStats.get("nReturned")).isEqualTo(WORKSPACES * WORKFLOWS);
+    assertThat(levelStats.get("totalDocsExamined")).isEqualTo(levelStats.get("nReturned"));
+
+    List<String> workflowIds = new ArrayList<>();
+    workflows.values().forEach(refs -> refs.forEach(ref -> workflowIds.add("workflow:" + ref)));
+    Document children =
+        explain(
+            nodes,
+            new Document("_id", new Document("$in", workflowIds))
+                .append(
+                    "$or",
+                    List.of(
+                        new Document("type", new Document("$ne", "workflow")),
+                        new Document("slug", new Document("$in", List.of("wf-3"))),
+                        new Document("ref", new Document("$in", List.of("wf-3"))))),
+            new Document("type", 1).append("ref", 1).append("slug", 1));
+    assertThat(children.get("queryPlanner", Document.class).toJson())
+        .contains("\"_id_\"")
+        .doesNotContain("COLLSCAN");
+    assertThat(children.get("executionStats", Document.class).get("nReturned")).isEqualTo(WORKSPACES);
+
+    Document counts =
+        template
+            .getDb()
+            .runCommand(
+                new Document(
+                        "explain",
+                        new Document("aggregate", edges)
+                            .append(
+                                "pipeline",
+                                List.of(
+                                    new Document(
+                                        "$match",
+                                        new Document("from", new Document("$in", workspaceIds))
+                                            .append("label", "hasWorkflow")),
+                                    new Document(
+                                        "$group",
+                                        new Document("_id", "$from")
+                                            .append("n", new Document("$sum", 1)))))
+                            .append("cursor", new Document()))
+                    .append("verbosity", "queryPlanner"));
+    assertThat(counts.toJson()).contains("\"from_label\"").doesNotContain("COLLSCAN");
+  }
+
+  private Document explain(String collection, Document filter, Document projection) {
+    return template
+        .getDb()
+        .runCommand(
+            new Document(
+                    "explain",
+                    new Document("find", collection)
+                        .append("filter", filter)
+                        .append("projection", projection))
+                .append("verbosity", "executionStats"));
   }
 
   @Test
@@ -213,11 +365,10 @@ class RelationshipRefsInWorkspacesCostTest {
         recorded.documentsRead("rel_nodes"),
         recorded.replyBytes(),
         allocated);
-    // The member, the workspace, then the workflow named and the workspace's six other children:
-    // none of its other workflows.
-    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 1 + 1 + OTHER_CHILDREN);
-    assertThat(recorded.documentsRead("rel_edges"))
-        .isEqualTo(WORKSPACES + WORKFLOWS + OTHER_CHILDREN);
+    // The member, the workspace, then the workflow named: none of the workspace's other workflows
+    // and none of its six other children, whose edges are not read either.
+    assertThat(recorded.documentsRead("rel_nodes")).isEqualTo(1 + 1 + 1);
+    assertThat(recorded.documentsRead("rel_edges")).isEqualTo(WORKSPACES + WORKFLOWS);
   }
 
   // The heap this thread allocates per call, over calls each in a request of its own.
