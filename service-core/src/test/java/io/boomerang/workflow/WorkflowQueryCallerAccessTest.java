@@ -46,6 +46,7 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
   private String workspace;
   private String workspaceId;
   private String firstName;
+  private String secondName;
   private String firstId;
   private String secondId;
   private String memberId;
@@ -66,9 +67,10 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
             .getRef();
     firstName = "wqc-first-" + nonce;
     workflowService.create(workspace, runnableWorkflow(firstName, TASK_SLUG));
-    workflowService.create(workspace, runnableWorkflow("wqc-second-" + nonce, TASK_SLUG));
+    secondName = "wqc-second-" + nonce;
+    workflowService.create(workspace, runnableWorkflow(secondName, TASK_SLUG));
     firstId = workflowId(firstName);
-    secondId = workflowId("wqc-second-" + nonce);
+    secondId = workflowId(secondName);
 
     UserEntity user = new UserEntity();
     user.setEmail("wqc-" + nonce + "@test.local");
@@ -94,12 +96,14 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
     callers.forEach(
         (caller, identity) -> {
           signIn(identity);
-          assertThat(queried(Optional.empty())).as(caller).containsExactlyInAnyOrder(firstId, secondId);
-          assertThat(queried(Optional.of(List.of(firstId)))).as(caller).containsExactly(firstId);
-          assertThat(queried(Optional.of(List.of(firstName)))).as(caller).containsExactly(firstId);
+          assertThat(queried(Optional.empty()))
+              .as(caller)
+              .containsExactlyInAnyOrder(firstName, secondName);
+          assertThat(queried(Optional.of(List.of(firstId)))).as(caller).containsExactly(firstName);
+          assertThat(queried(Optional.of(List.of(firstName)))).as(caller).containsExactly(firstName);
           assertThat(queried(Optional.of(List.of(firstId, secondId))))
               .as(caller)
-              .containsExactlyInAnyOrder(firstId, secondId);
+              .containsExactlyInAnyOrder(firstName, secondName);
           assertThat(queried(Optional.of(List.of("no-such-workflow")))).as(caller).isEmpty();
           assertListedAsTheLookupNames(caller);
         });
@@ -114,7 +118,7 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
                 workspace, PermissionResource.WORKFLOW, PermissionAction.READ))
         .as("the workspace's routes admit the token")
         .isTrue();
-    assertThat(queried(Optional.of(List.of(firstId)))).containsExactly(firstId);
+    assertThat(queried(Optional.of(List.of(firstId)))).containsExactly(firstName);
     // Its node has no edge to follow: its sibling, and an unnamed listing, are not its to see.
     assertThat(queried(Optional.of(List.of(secondId)))).isEmpty();
     assertThat(queried(Optional.of(List.of(firstName)))).isEmpty();
@@ -135,11 +139,14 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
       assertThat(queried(names))
           .as("%s naming %s", caller, names)
           .containsExactlyInAnyOrderElementsOf(
-              relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, names));
+              relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, names).stream()
+                  .map(id -> id.equals(firstId) ? firstName : secondName)
+                  .toList());
     }
   }
 
-  // The ids on the workspace's page of its own workflows: templates and starters are left out.
+  // The names on the workspace's page of its own workflows, which a workflow is known by outside
+  // the service: the page carries no id. Templates and starters are left out.
   private List<String> queried(Optional<List<String>> names) {
     WorkflowResponsePage page =
         workflowService.query(
@@ -153,7 +160,7 @@ class WorkflowQueryCallerAccessTest extends AbstractEngineIntegrationTest {
             Optional.of(List.of("workflow")));
     return (page.getContent() == null)
         ? List.of()
-        : page.getContent().stream().map(Workflow::getId).toList();
+        : page.getContent().stream().map(Workflow::getName).toList();
   }
 
   private String workflowId(String name) {
